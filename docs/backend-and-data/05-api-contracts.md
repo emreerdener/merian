@@ -5712,6 +5712,55 @@ expiry, persisted prefix cursors, delayed verification, idempotent
 Auth-not-found handling, and database-calculated backoff make crashes and lost
 responses resumable.
 
+### Service-only deletion health RPC
+
+`POST /rest/v1/rpc/get_account_deletion_health` accepts an empty JSON object and
+requires a Supabase server/service-role API credential. Execute is revoked from
+`PUBLIC`, `anon`, and `authenticated`; the definer routine also calls
+`internal.require_service_role()` before reading private state.
+
+The response is a one-row array of aggregate values:
+
+```json
+[
+  {
+    "generated_at": "2026-07-27T01:00:00Z",
+    "active_job_count": 2,
+    "pending_cleanup_count": 0,
+    "storage_pending_count": 1,
+    "auth_pending_count": 1,
+    "due_job_count": 1,
+    "failed_job_count": 1,
+    "active_lease_count": 0,
+    "expired_lease_count": 0,
+    "oldest_pending_at": "2026-07-25T22:00:00Z",
+    "oldest_pending_age_seconds": 97200,
+    "oldest_due_at": "2026-07-27T00:45:00Z",
+    "oldest_due_age_seconds": 900,
+    "storage_backlog_count": 1,
+    "storage_due_count": 0,
+    "storage_failed_job_count": 0,
+    "storage_active_lease_count": 0,
+    "storage_expired_lease_count": 0,
+    "verification_waiting_count": 1,
+    "orphaned_storage_job_count": 0,
+    "oldest_storage_pending_at": "2026-07-25T22:00:00Z",
+    "oldest_storage_pending_age_seconds": 97200,
+    "oldest_storage_due_at": null,
+    "oldest_storage_due_age_seconds": null,
+    "reaper_cron_active": true,
+    "reaper_credentials_configured": true
+  }
+]
+```
+
+`failed_job_count` fields mean active rows carrying their most recent bounded
+retry code; the code itself is not exposed. Oldest timestamps and ages are both
+null when their corresponding count is zero. The RPC never returns a user UUID,
+claim token, cursor, object prefix, or raw error, and it never advances state.
+The independent scheduled monitor consumes this contract with a 15-second
+deadline and 64 KiB response ceiling.
+
 ---
 
 ## Deno `/repair-scan-image` Edge Node
@@ -6214,8 +6263,9 @@ This empty-body contract is also bounded by the shared small JSON reader.
   membership snapshot with narrow revision-checked projections. A fixed-capacity
   encoder appends one header/row at a time and fails before exceeding 512 KiB;
   it does not retain a page-wide line array or expanded multimedia-row array.
-  Each chunk is committed to the ordered private manifest together with the next
-  cursor and cumulative budgets.
+  Each chunk's CRC-32 is calculated within that bounded preparation step and
+  committed to the ordered private manifest together with the next cursor and
+  cumulative budgets.
 - **Aggregate queue health**: After every drain, the route calls the
   service-only `get_dwca_export_queue_health()` RPC and logs backlog, due,
   active/expired claim, and oldest-due-age values. The five-minute external
@@ -6226,7 +6276,10 @@ This empty-body contract is also bounded by the shared small JSON reader.
   ZIP, `arrayBuffer()`, or media binary collection is retained in memory. R2
   create/complete XML and Resend replies are streamed through explicit byte
   limits. Completion rejects an S3-compatible `<Error>` body even when R2
-  returns HTTP 200. Outbound operations have explicit deadlines.
+  returns HTTP 200. Ordered manifest CRCs are combined algebraically, so
+  assembly performs checksum work proportional to chunk count rather than a
+  JavaScript loop over every archive byte. Streamed entry sizes must exactly
+  match the manifest. Outbound operations have explicit deadlines.
 - **Attempt-fenced storage**: Temporary chunk keys contain
   `phase/sequence-claim_token.csv`, and final archives use
   `exports/{user_id}/{job_id}/{claim_token}.zip`. A stale writer can therefore

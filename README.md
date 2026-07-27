@@ -196,7 +196,9 @@ steps are tracked in the
 **Export** — Darwin Core Archive (DwC-A) formatted data export for academic/research use.
 **Account** — Sign in with Apple or Google, anonymous Ghost Sessions, and
 durable account deletion that anonymizes retained observations, queues media
-cleanup, and removes login access only after database cleanup is verified.
+cleanup, and removes login access only after database cleanup is verified. An
+independent scheduled health check alerts when the reaper is unconfigured, work
+is overdue, leases expire, or the erasure backlog breaches its SLA.
 
 ---
 
@@ -281,15 +283,18 @@ cleanup, and removes login access only after database cleanup is verified.
   HMAC-SHA256 pseudonyms under a dedicated export key, preserving longitudinal
   attribution without exposing or reusing Supabase credentials. Public callers
   can queue personal exports only; the worker persists keyset cursors and
-  claim-fenced CSV manifests across bounded phases with canonical row/archive
-  budgets.
+  claim-fenced CSV byte-count/CRC manifests across bounded phases with canonical
+  row/archive budgets. Final ZIP checksum assembly composes bounded chunk CRCs
+  instead of rescanning the complete archive in JavaScript.
 - Account deletion preserves login access through relational anonymization and
   cursor-persisted R2 erasure. It waits for a delayed empty verification sweep
   before removing Auth, and a scheduled reaper resumes every phase after a
   crash. The database refuses an R2 storage claim unless the matching private
   deletion job is `storage_pending` after relational cleanup, and vetoes the
   claim while a live profile or owned scan remains. An outbox row alone is
-  never deletion authority.
+  never deletion authority. A separate five-minute monitor reads only aggregate
+  service-only health and detects missing reaper credentials, a disabled cron,
+  retry failures, expired leases, and age/backlog SLA breaches.
 
 ---
 

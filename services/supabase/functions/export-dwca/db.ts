@@ -9,6 +9,7 @@ import {
   MAXIMUM_DWCA_SCIENTIFIC_NAME_BYTES,
   MAXIMUM_DWCA_TAXON_RANK_BYTES,
   MAXIMUM_EXPORT_SOURCE_PAGE_BYTES,
+  MAXIMUM_WORK_CHUNK_BYTES,
 } from "./limits.ts";
 import {
   ClaimedExportJob,
@@ -376,6 +377,7 @@ export async function advanceExportJobStep(
   rowCount: number,
   chunkObjectKey: string,
   chunkByteCount: number,
+  chunkCrc32: number,
   pageComplete: boolean,
   supabaseAdmin: SupabaseClient,
 ): Promise<ExportWorkPhase> {
@@ -389,6 +391,7 @@ export async function advanceExportJobStep(
       p_row_count: rowCount,
       p_chunk_object_key: chunkObjectKey,
       p_chunk_byte_count: chunkByteCount,
+      p_chunk_crc32: chunkCrc32,
       p_page_complete: pageComplete,
     },
   );
@@ -420,6 +423,7 @@ interface ChunkRpcRow {
   chunk_sequence?: unknown;
   object_key?: unknown;
   byte_count?: unknown;
+  crc32?: unknown;
 }
 
 export async function fetchExportJobChunks(
@@ -438,7 +442,7 @@ export async function fetchExportJobChunks(
     throw databaseFailure("The export chunk manifest is invalid.", data);
   }
 
-  return data.map((value) => {
+  return data.map((value, index) => {
     const row = value as ChunkRpcRow;
     if (
       (row.chunk_phase !== "occurrence" &&
@@ -446,11 +450,18 @@ export async function fetchExportJobChunks(
       typeof row.chunk_sequence !== "number" ||
       !Number.isSafeInteger(row.chunk_sequence) ||
       row.chunk_sequence < 0 ||
+      row.chunk_sequence !== index ||
       typeof row.object_key !== "string" ||
       row.object_key.length === 0 ||
       typeof row.byte_count !== "number" ||
       !Number.isSafeInteger(row.byte_count) ||
-      row.byte_count < 0
+      row.byte_count < 0 ||
+      row.byte_count > MAXIMUM_WORK_CHUNK_BYTES ||
+      typeof row.crc32 !== "number" ||
+      !Number.isSafeInteger(row.crc32) ||
+      row.crc32 < 0 ||
+      row.crc32 > 0xffff_ffff ||
+      (row.byte_count === 0 && row.crc32 !== 0)
     ) {
       throw databaseFailure("The export chunk manifest is malformed.", row);
     }
@@ -459,6 +470,7 @@ export async function fetchExportJobChunks(
       sequence: row.chunk_sequence,
       objectKey: row.object_key,
       byteCount: row.byte_count,
+      crc32: row.crc32,
     };
   });
 }

@@ -4,7 +4,9 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
+  advanceExportJobStep,
   fetchDueExportJobIds,
+  fetchExportJobChunks,
   fetchExportQueueHealth,
   fetchExportScanBatch,
 } from "./db.ts";
@@ -36,6 +38,100 @@ const job: ClaimedExportJob = {
   csvBytes: 0,
   chunkSequence: 0,
 };
+
+Deno.test("advanceExportJobStep persists bounded chunk CRC metadata", async () => {
+  const calls: Array<{
+    name: string;
+    arguments: Record<string, unknown>;
+  }> = [];
+  const claimToken = "00000000-0000-4000-8000-000000000401";
+  const objectKey =
+    `exports/${job.userId}/${job.id}/work/occurrence/00000000-${claimToken}.csv`;
+  const result = await advanceExportJobStep(
+    job,
+    claimToken,
+    "occurrence",
+    "00000000-0000-4000-8000-000000000301",
+    1,
+    objectKey,
+    3,
+    1_439_417_003,
+    true,
+    mockClient("multimedia", calls),
+  );
+
+  assertEquals(result, "multimedia");
+  assertEquals(calls, [{
+    name: "advance_export_job_step",
+    arguments: {
+      p_job_id: job.id,
+      p_claim_token: claimToken,
+      p_expected_phase: "occurrence",
+      p_next_after_id: "00000000-0000-4000-8000-000000000301",
+      p_row_count: 1,
+      p_chunk_object_key: objectKey,
+      p_chunk_byte_count: 3,
+      p_chunk_crc32: 1_439_417_003,
+      p_page_complete: true,
+    },
+  }]);
+});
+
+Deno.test("fetchExportJobChunks validates durable CRC and sequence metadata", async () => {
+  const manifest = await fetchExportJobChunks(
+    job.id,
+    "00000000-0000-4000-8000-000000000401",
+    mockClient([{
+      chunk_phase: "occurrence",
+      chunk_sequence: 0,
+      object_key: "exports/test/work/occurrence/00000000.csv",
+      byte_count: 3,
+      crc32: 1_439_417_003,
+    }]),
+  );
+
+  assertEquals(manifest, [{
+    phase: "occurrence",
+    sequence: 0,
+    objectKey: "exports/test/work/occurrence/00000000.csv",
+    byteCount: 3,
+    crc32: 1_439_417_003,
+  }]);
+
+  await assertRejects(
+    () =>
+      fetchExportJobChunks(
+        job.id,
+        "00000000-0000-4000-8000-000000000401",
+        mockClient([{
+          chunk_phase: "occurrence",
+          chunk_sequence: 0,
+          object_key: "exports/test/work/occurrence/00000000.csv",
+          byte_count: 3,
+          crc32: 0x1_0000_0000,
+        }]),
+      ),
+    ExportWorkerError,
+    "malformed",
+  );
+
+  await assertRejects(
+    () =>
+      fetchExportJobChunks(
+        job.id,
+        "00000000-0000-4000-8000-000000000401",
+        mockClient([{
+          chunk_phase: "occurrence",
+          chunk_sequence: 0,
+          object_key: "exports/test/work/occurrence/00000000.csv",
+          byte_count: 0,
+          crc32: 1,
+        }]),
+      ),
+    ExportWorkerError,
+    "malformed",
+  );
+});
 
 function mockClient(
   data: unknown,

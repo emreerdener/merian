@@ -198,10 +198,11 @@ single-responsibility functions under `/services/supabase/functions/`.
     revision fingerprints; changed/deleted source revisions fail the job before
     mixed output is assembled. Cardinality/UTF-8 source constraints, 256 KiB
     claimed database pages, a fixed 512 KiB incremental CSV encoder, durable
-    cursors, and claim-fenced manifests enforce canonical budgets before
-    streaming the Darwin Core ZIP to R2 and dispatching an idempotent Resend
-    request. Aggregate oldest-due/backlog telemetry feeds a separate production
-    monitor.
+    cursors, and claim-fenced byte-count/CRC manifests enforce canonical budgets
+    before streaming the Darwin Core ZIP to R2. Final checksum assembly composes
+    bounded chunk CRCs instead of scanning the full archive in JavaScript, then
+    dispatches an idempotent Resend request. Aggregate oldest-due/backlog
+    telemetry feeds a separate production monitor.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge
     proxy memory.
@@ -217,7 +218,10 @@ single-responsibility functions under `/services/supabase/functions/`.
     profiles or owned scans; the storage outbox is never sufficient authority.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
     claim-token fencing, persisted storage cursors, backoff, and idempotent
-    Auth-not-found recovery.
+    Auth-not-found recovery. An offset GitHub schedule independently reads an
+    aggregate service-only health RPC and alerts on missing cron/credentials,
+    overdue work, retries, expired leases, orphaned storage rows, and SLA
+    age/backlog breaches.
   - `/repair-scan-image`: Owner-authenticated inspection and recovery for a
     verified-missing durable scan image. It promotes a surviving local copy and
     atomically updates scan, normalized-media, captured-media, and matching

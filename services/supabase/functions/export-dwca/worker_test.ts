@@ -4,6 +4,7 @@ import {
   assertRejects,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { calculateCrc32 } from "./crc32.ts";
 import { ExportWorkerServices, processExportJobStep } from "./worker.ts";
 import { ClaimedExportJob, ExportWorkerError } from "./types.ts";
 
@@ -77,8 +78,10 @@ function successfulServices(
     },
     encodeBatch() {
       events.push("encode_batch");
+      const bytes = new Uint8Array([1, 2, 3]);
       return Promise.resolve({
-        bytes: new Uint8Array([1, 2, 3]),
+        bytes,
+        crc32: calculateCrc32(bytes),
         rowCount: 1,
       });
     },
@@ -186,6 +189,7 @@ Deno.test("assembly consumes only the durable bounded manifest", async () => {
       sequence: 0,
       objectKey: `exports/${job.userId}/${job.id}/work/occurrence/00000000.csv`,
       byteCount: 3,
+      crc32: calculateCrc32(new Uint8Array([1, 2, 3])),
     }]);
   };
 
@@ -296,6 +300,26 @@ Deno.test("canonical CSV byte failures are rejected before R2 upload", async () 
   assertEquals(events.some((event) => event.startsWith("put:")), false);
   assertEquals(events.includes("advance"), false);
   assertEquals(events.at(-1), "release:export_too_large:true");
+});
+
+Deno.test("impossible empty-batch CRC metadata is rejected before R2 upload", async () => {
+  const events: string[] = [];
+  const services = successfulServices(events);
+  services.encodeBatch = () =>
+    Promise.resolve({
+      bytes: new Uint8Array(),
+      crc32: 1,
+      rowCount: 0,
+    });
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "archive_generation_failed");
+  assertEquals(events.some((event) => event.startsWith("put:")), false);
+  assertEquals(events.includes("advance"), false);
+  assertEquals(events.at(-1), "release:archive_generation_failed:false");
 });
 
 Deno.test("invalid source byte pages are rejected before encoding", async () => {

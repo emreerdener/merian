@@ -91,13 +91,29 @@ only for its separate cleanup lifecycle.
 
 ## Operations
 
-Alert on:
+The independent `.github/workflows/account-deletion-health-monitor.yml` schedule
+is the primary stuck-job/SLA alert. It calls the aggregate service-only
+`get_account_deletion_health()` RPC rather than the reconciler itself and does
+not use the reaper's Vault values. Its defaults are:
+
+- warning at 10 minutes and critical at 30 minutes for oldest claimable work;
+- warning at 27 hours and critical at 36 hours for oldest active deletion,
+  allowing for the mandatory 25-hour delayed storage verification;
+- warning at 25 and critical at 100 active jobs;
+- critical when the cron is disabled, its URL/service credential is absent, or
+  an active storage row has no valid private deletion owner; and
+- warning when a retry error or expired lease is present.
+
+The workflow fails on warning by default and uploads bounded JSON and Markdown
+summaries without user identifiers. Treat a failed scheduled run itself as an
+operational alert; GitHub scheduling is intentionally independent of the
+database reaper.
+
+Structured log alerts remain useful for immediate dependency failures:
 
 - `account_deletion_attempt_deferred`
 - `account_deletion_reconciliation_deferred`
 - `account_storage_erasure_deferred`
-- repeated active jobs whose `attempt_count` is increasing or whose
-  `next_attempt_at` is overdue
 
 Do not manually delete an Auth user to recover a pending job. Repair the
 underlying cleanup failure and invoke the service reaper. For a legacy
@@ -117,10 +133,14 @@ ownerless tombstones are the only supported retained-observation state.
 - `storageWorker.ts` owns bounded R2 list/delete/verification processing.
 - `reconcile-account-deletions/` is the scheduled service-only account and
   storage reaper.
+- `../../scripts/monitor_account_deletion_health.ts` reads the aggregate health
+  RPC, applies deletion-SLA policy, and writes bounded operator evidence.
 
 Focused source, migration-contract, and pgTAP tests live in
 `functions/_tests/safeDelete.test.ts`,
 `functions/_tests/accountDeletionCoverage.test.ts`,
 `functions/_tests/accountDeletionMigrationContract.test.ts`, and
 `tests/account_deletion_security.sql`. R2 page and deadline behavior is covered
-by `_shared/aws_test.ts` and `safe-delete/storageWorker_test.ts`.
+by `_shared/aws_test.ts` and `safe-delete/storageWorker_test.ts`; monitor
+parsing, thresholds, severity, and recovery guidance are covered by
+`scripts/monitor_account_deletion_health_test.ts`.

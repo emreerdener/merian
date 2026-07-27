@@ -823,11 +823,16 @@ positive data, preserve negative caching, and fix forward.
 Migrations `20260725030308_durable_account_deletion.sql`,
 `20260725035737_repair_tombstone_profile_seed.sql`,
 `20260725041308_ownerless_account_deletion_tombstones.sql`,
-`20260725052337_enforce_account_storage_erasure.sql`, and
-`20260726041109_fence_storage_erasure_claims.sql`, plus `safe-delete`,
+`20260725052337_enforce_account_storage_erasure.sql`,
+`20260726041109_fence_storage_erasure_claims.sql`, and
+`20260727001630_monitor_account_deletion_health.sql`, plus `safe-delete`,
 `reconcile-account-deletions`, `generate-upload-urls`, and
 `replay-scan-ingestion`, form one release unit. No new secret is required: the
-reaper uses the existing Supabase service-role and R2 values.
+reaper uses the existing Supabase service-role and R2 values, and the
+independent GitHub monitor resolves a server key with the existing
+`SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` values in Vault (or the documented app-setting
+fallback); missing values now produce a critical monitor result.
 
 The `20260725035737` file is an explicit executable no-op. It is a compatibility
 bridge for production run 1461, where its superseded public-only sentinel insert
@@ -835,7 +840,7 @@ failed the existing profile-to-Auth foreign key before the migration version was
 recorded. The no-op ensures the failed timestamp is recorded without mutating
 data. The following forward migration converges both production and any
 preview/local catalog that happened to accept the earlier sentinel. Together the
-migrations:
+migration sequence:
 
 - creates private `internal.account_deletion_jobs`;
 - blocks public-profile recreation while an account-deletion job is active;
@@ -865,7 +870,9 @@ migrations:
 - adds `storage_pending` and requires completed storage before `auth_pending`;
 - makes every storage claim require the matching cleaned-up `storage_pending`
   private job while vetoing live profiles and owned scans;
-- installs service-only account and storage claim/advance/failure RPCs; and
+- installs service-only account and storage claim/advance/failure RPCs;
+- adds indexed, identity-free aggregate health for active/due age, retries,
+  leases, storage backlog, cron state, and credential readiness; and
 - schedules `reconcile_account_deletions_every_five_minutes`.
 
 The ownerless migration takes bounded `SHARE ROW EXCLUSIVE` locks in Auth →
@@ -880,11 +887,12 @@ deno task test
 cd ../../..
 
 deno test --frozen --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/tests/account_deletion_security.sql,services/supabase/config.toml,.github/workflows/deploy.yml \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests/account_deletion_security.sql,services/supabase/config.toml,.github/workflows \
   services/supabase/functions/_tests/safeDelete.test.ts \
   services/supabase/functions/_tests/accountDeletionCoverage.test.ts \
   services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
-  services/supabase/functions/safe-delete/storageWorker_test.ts
+  services/supabase/functions/safe-delete/storageWorker_test.ts \
+  services/supabase/scripts/monitor_account_deletion_health_test.ts
 
 make validate-supabase-migrations
 make test-supabase-privileged-routines
@@ -944,6 +952,9 @@ WHERE id = '00000000-0000-0000-0000-000000000000'::UUID;
 SELECT jobname, schedule, active
 FROM cron.job
 WHERE jobname = 'reconcile_account_deletions_every_five_minutes';
+
+SELECT *
+FROM public.get_account_deletion_health();
 
 SELECT
     status,
@@ -1015,7 +1026,17 @@ WHERE deletion.status IN ('pending', 'processing')
 Expected: at least one validated restrictive profile/Auth foreign key, a
 nullable scan owner plus validated ownerless check, zero invalid ownerless
 scans, zero legacy sentinel scans/profiles, zero synthetic all-zero Auth users,
-all five claim-fence booleans true, and the active cron.
+all five claim-fence booleans true, an active cron, and
+`reaper_cron_active = true` plus `reaper_credentials_configured = true` in the
+health row. The other health fields reflect the current aggregate queue and must
+not contain identifiers.
+
+Manually dispatch `Account Deletion Health Monitor` once after the migration.
+The run must complete successfully under the Production environment and retain
+both summary artifacts. Its defaults fail on warning: 10/30 minutes for oldest
+claimable work, 27/36 hours for oldest active work, and 25/100 jobs for
+warning/critical backlog. The end-to-end threshold intentionally includes the
+mandatory 25-hour delayed verification window.
 
 `fenced_due_storage_rows` is an audit count, not an expected-zero correctness
 gate. A nonzero result can identify historical outbox rows that the new routine
@@ -1040,13 +1061,30 @@ Smoke-test with a staging-only account that owns at least one scan. Confirm:
    empty delayed verification pass permits `auth_pending`; and
 10. the terminal job is `completed` with `user_id IS NULL`.
 
-Alert on `account_deletion_attempt_deferred`,
-`account_deletion_reconciliation_deferred`, `account_storage_erasure_deferred`,
-overdue active account/storage jobs, and repeated attempt growth. Repair the
-dependency and let the reaper retry. Never recover a `pending` or
-`storage_pending` job by deleting Auth manually. A legacy Auth-first incident
-can be placed into the durable pipeline only after an operator verifies the
-recorded UUID and invokes `request_account_deletion` through a reviewed
+The independent workflow is the SLA/stuck-job alert and is intentionally offset
+from the reaper. Critical conditions are a disabled/missing cron, absent reaper
+credentials, orphaned active storage work, oldest-due or end-to-end SLA
+breaches, and critical backlog. Any retry error, expired lease, warning age, or
+warning backlog is a warning; the default policy fails that run. Continue
+structured-log alerts on `account_deletion_attempt_deferred`,
+`account_deletion_reconciliation_deferred`, and
+`account_storage_erasure_deferred` for immediate dependency failures.
+
+On alert:
+
+1. open the workflow's Markdown/JSON summary; do not query or print user IDs;
+2. if cron/configuration is false, restore the exact named cron and the Vault
+   URL/service credential, then manually rerun the health workflow;
+3. otherwise inspect bounded `safe-delete`, `reconcile-account-deletions`, R2,
+   and Auth logs for the failing dependency;
+4. repair the dependency and let claim-fenced, database-backed retries resume;
+   and
+5. escalate if oldest active age reaches 36 hours or backlog reaches 100.
+
+Never recover a `pending` or `storage_pending` job by deleting Auth manually or
+by editing a cursor, lease, or next-attempt timestamp. A legacy Auth-first
+incident can be placed into the durable pipeline only after an operator verifies
+the recorded UUID and invokes `request_account_deletion` through a reviewed
 service-role or owner session.
 
 Do not roll back by dropping the private table, unique outbox index, or cron;
@@ -1484,8 +1522,10 @@ deno fmt --check \
 deno test --frozen \
   --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,.github/workflows \
+  services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
   services/supabase/functions/export-dwca/archive_test.ts \
+  services/supabase/functions/export-dwca/crc32_test.ts \
   services/supabase/functions/export-dwca/db_test.ts \
   services/supabase/functions/export-dwca/drain_test.ts \
   services/supabase/functions/export-dwca/index_test.ts \
@@ -1517,16 +1557,52 @@ revisions return no payload, terminal status purges membership, and queue health
 correctly distinguishes due, live-claim, and expired-claim work without widening
 its ACL.
 
+Migration `20260726235158_amortize_dwca_archive_crc.sql` intentionally fences
+and restarts nonterminal jobs in occurrence, multimedia, or assembly because
+their legacy temporary manifests have no durable CRC. It reuses the existing
+immutable membership snapshot and does not restart jobs already delivering a
+staged archive. Expect old attempt-scoped CSV objects to become
+lifecycle-cleaned orphans; do not manually splice them into the new manifest.
+The migration locks affected canonical job rows in UUID order before chunk-table
+DDL. If its ten-second lock timeout expires, inspect active export RPCs and
+retry the deployment rather than weakening the lock order. A worker already
+inside an export database routine can finish before the fence; the migration
+re-evaluates its committed phase. A worker in an affected phase still doing R2
+I/O blocks at its next fenced database transition and loses its deleted claim
+after commit.
+
+Supabase's
+[canonical Edge Function limits](https://supabase.com/docs/guides/functions/limits),
+verified 2026-07-26, currently list 2 seconds of active CPU and 256 MB of memory
+per hosted request. The
+[CPU troubleshooting page](https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits)
+still lists 200 milliseconds, while the newer
+[546 guide](https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response)
+lists 2 seconds and 250 MB. Do not resolve this documentation mismatch by
+assuming the larger budget is safely available. Preserve the bounded phase
+shapes and recheck the canonical page and hosted behavior for every ceiling
+change.
+
 Post-deploy, queue one personal test export and deliberately redeliver the same
 job UUID while a phase owns the lease. Both wake-ups return `200`; no phase is
 owned by both workers, a contended attempt reports `not_claimed` without
 source/provider work, and each targeted response reports exactly one or zero
 attempted steps without discovering unrelated jobs. Confirm a separate
 empty-body minute-cron wake-up advances several fast pages in one invocation
-while reporting no more than 40 attempted steps. The storage test suite also
-proves that an S3-compatible HTTP-200 `<Error>` completion body is rejected and
-that R2/Resend response bodies stop at their byte ceilings. After completion,
-verify with an owner connection:
+while reporting no more than 40 attempted steps.
+
+Before production sign-off, run a reviewed internal export at the maximum
+intended row/archive shape in staging or an equivalent hosted project. Inspect
+the function Metrics and Logs during preparation and assembly. There must be no
+HTTP 546 response, `WORKER_RESOURCE_LIMIT`, `CPU Time exceeded`, or unexpected
+isolate retirement, and queue oldest-due age must recover after the job. Record
+the tested commit, job UUID, canonical budgets, observed CPU/memory range, and
+result in the deployment evidence. A local CRC microbenchmark validates the
+algorithmic regression only and cannot satisfy this hosted release gate.
+
+The storage test suite also proves that an S3-compatible HTTP-200 `<Error>`
+completion body is rejected and that R2/Resend response bodies stop at their
+byte ceilings. After completion, verify with an owner connection:
 
 ```sql
 BEGIN TRANSACTION READ ONLY;
@@ -1580,6 +1656,7 @@ SELECT
     chunks.phase,
     chunks.sequence,
     chunks.byte_count,
+    chunks.crc32,
     chunks.object_key ~
         '/work/(occurrence|multimedia)/[0-9]{8}-[0-9a-f-]{36}\.csv$'
         AS claim_fenced_key
@@ -1626,7 +1703,7 @@ FROM (
     VALUES
         ('public.get_due_export_job_ids(integer)'),
         ('public.claim_export_job_step(uuid,uuid)'),
-        ('public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,boolean)'),
+        ('public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,bigint,boolean)'),
         ('public.get_export_job_chunks(uuid,uuid)'),
         ('public.stage_prepared_export_archive(uuid,uuid,text,text)'),
         ('public.complete_prepared_export_job(uuid,uuid)'),
@@ -1642,11 +1719,12 @@ ROLLBACK;
 The completed row must be a personal export within both canonical budgets, use
 key version `1`, have an attempt-scoped `exports/{user}/{job}/{claim}.zip` key,
 and have no failure code. The work phase must be `completed`; every chunk key
-must be claim-fenced. ACL results must be `false`, `false`, `true` for each
-routine. Verify the received message contains one 24-hour signed URL and that
-duplicate processing did not send a second email. The private
-protocol/work/manifest tables are owner-visible operational state only; API
-roles, including `service_role`, must lack direct `SELECT`.
+must be claim-fenced and every CRC must be in `0...4294967295`. ACL results must
+be `false`, `false`, `true` for each routine. Verify the received message
+contains one 24-hour signed URL and that duplicate processing did not send a
+second email. The private protocol/work/manifest tables are owner-visible
+operational state only; API roles, including `service_role`, must lack direct
+`SELECT`.
 
 Confirm the **DwC-A Export Queue Health Monitor** workflow is enabled for the
 Production environment. Dispatch it once with the default 5/15-minute age,
@@ -2767,6 +2845,32 @@ runs use:
 
 The scheduled job uploads JSON/Markdown summary artifacts, writes a GitHub job
 summary, and commits the running checklist when a real import changes it.
+
+## Account Deletion Health Automation
+
+The **Account Deletion Health Monitor** runs every five minutes at minutes 2, 7,
+…, 57, offset from the database reaper. It resolves the production server API
+key through the Management API and calls only the aggregate
+`get_account_deletion_health()` RPC. It does not invoke deletion work and does
+not read the Vault values required by the reaper, so cron or Vault
+misconfiguration remains independently observable. UUIDs, claim tokens,
+prefixes, cursors, and raw errors are absent from logs and artifacts.
+
+Scheduled runs warn and fail on claimable work aged 10 minutes, active work aged
+27 hours, backlog of 25 jobs, any retry error, or any expired lease. They become
+critical at 30 minutes due age, 36 hours active age, 100 jobs, a disabled cron,
+missing reaper URL/service credentials, or any orphaned active storage work. The
+active-age threshold allows for the mandatory 25-hour delayed verification. The
+monitor request has a 15-second deadline and 64 KiB response ceiling.
+Configuration health follows the reaper's Vault-first, NULL-only fallback
+exactly. A blank Vault entry is therefore critical even when a legacy app
+setting is populated; update or remove the blank Vault entry instead of relying
+on fallback.
+
+A failed run means the state machine is overdue, unhealthy, misconfigured, or
+the monitor could not read aggregate health. Use the incident procedure in the
+durable account-deletion release gate. Preserve claim fencing and login access
+until verified completion; do not edit private jobs or manually delete Auth.
 
 ## RevenueCat Reconciliation Health Automation
 

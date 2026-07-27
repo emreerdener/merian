@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-07-25.
+Last reviewed: 2026-07-26.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -380,7 +380,10 @@ Data lifecycle, identity, and exports:
   profiles or owned scans.
 - `reconcile-account-deletions` — scheduled service-role worker that leases and
   resumes incomplete relational, storage, and Auth deletion work without
-  accepting caller-selected user IDs.
+  accepting caller-selected user IDs. Aggregate queue/lease/configuration health
+  is exposed only through `get_account_deletion_health()` and consumed by
+  `services/supabase/scripts/monitor_account_deletion_health.ts` plus the
+  independent `.github/workflows/account-deletion-health-monitor.yml` schedule.
 - `repair-scan-image` — owner-authenticated R2 inspection and missing-image
   repair; promotes one surviving staging image and atomically replaces its exact
   URL across active scan, captured-media, normalized-media, and matching
@@ -395,10 +398,12 @@ Data lifecycle, identity, and exports:
   phase claims, immutable job-membership/revision validation, claim-bound
   100-row/256 KiB keyset access, durable cursors/manifests, and row/byte
   budgets; `archive.ts` owns fixed-capacity incremental CSV encoding while
-  `zip.ts` owns bounded archive streaming; `storage.ts` owns claim-fenced CSV
-  chunks and R2 multipart upload; `pseudonym.ts` owns versioned export HMACs;
-  `worker.ts` performs one preparation, assembly, or delivery phase per claim;
-  and `drain.ts` owns sequential deadline/step bounds, oldest-due waves, failure
+  `crc32.ts` calculates bounded chunk checksums and composes full-entry CRCs
+  algebraically; `zip.ts` owns manifest-sized archive streaming without a
+  per-archive-byte checksum loop; `storage.ts` owns claim-fenced CSV chunks and
+  R2 multipart upload; `pseudonym.ts` owns versioned export HMACs; `worker.ts`
+  performs one preparation, assembly, or delivery phase per claim; and
+  `drain.ts` owns sequential deadline/step bounds, oldest-due waves, failure
   suppression, and aggregate queue-health classification. Production backlog
   alerting lives in `scripts/monitor_dwca_export_queue.ts` and
   `.github/workflows/dwca-export-health-monitor.yml`.

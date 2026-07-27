@@ -19,6 +19,14 @@ const workflowUrl = new URL(
   "../../../../.github/workflows/deploy.yml",
   import.meta.url,
 );
+const monitorWorkflowUrl = new URL(
+  "../../../../.github/workflows/account-deletion-health-monitor.yml",
+  import.meta.url,
+);
+const monitorScriptUrl = new URL(
+  "../../scripts/monitor_account_deletion_health.ts",
+  import.meta.url,
+);
 const catalogTestUrl = new URL(
   "../../tests/account_deletion_security.sql",
   import.meta.url,
@@ -123,12 +131,59 @@ Deno.test("account deletion catalog fixture follows the durable phase order", as
   const storageClaim = catalogTest.indexOf(
     "FROM public.claim_pending_storage_deletions(1)",
   );
+  const healthCheck = catalogTest.indexOf(
+    "FROM public.get_account_deletion_health() AS health",
+  );
 
   assert(
     prematureFinish >= 0 &&
       relationalCleanup > prematureFinish &&
       verificationDeadlineOverride > relationalCleanup &&
-      storageClaim > verificationDeadlineOverride,
-    "The executable fixture must reject premature completion, create the outbox through relational cleanup, shorten its deadline, then claim storage work.",
+      storageClaim > verificationDeadlineOverride &&
+      healthCheck > storageClaim,
+    "The executable fixture must reject premature completion, create the outbox through relational cleanup, shorten its deadline, claim storage work, then observe retry state through service-only health.",
   );
+});
+
+Deno.test("account deletion health alert is independent of the database reaper", async () => {
+  const [workflow, monitor] = await Promise.all([
+    Deno.readTextFile(monitorWorkflowUrl),
+    Deno.readTextFile(monitorScriptUrl),
+  ]);
+
+  for (
+    const fragment of [
+      'cron: "2-57/5 * * * *"',
+      "environment: Production",
+      "timeout-minutes: 5",
+      "permissions:\n  contents: read",
+      "resolve_project_api_keys.ts",
+      "SUPABASE_ACCESS_TOKEN",
+      "monitor_account_deletion_health.ts",
+      "--warning-due-after-minutes",
+      "--critical-sla-hours",
+      "if: ${{ always() }}",
+    ]
+  ) {
+    assertStringIncludes(workflow, fragment);
+  }
+  assert(
+    !workflow.includes("vault.decrypted_secrets") &&
+      !workflow.includes("/functions/v1/reconcile-account-deletions"),
+    "The independent alert must not depend on reaper Vault configuration or invoke deletion work.",
+  );
+
+  for (
+    const fragment of [
+      "/rest/v1/rpc/get_account_deletion_health",
+      "serviceRoleRequestHeaders",
+      "reaper_cron_active",
+      "reaper_credentials_configured",
+      "orphaned_storage_job_count",
+      "oldest_pending_age_seconds",
+      "oldest_storage_due_age_seconds",
+    ]
+  ) {
+    assertStringIncludes(monitor, fragment);
+  }
 });

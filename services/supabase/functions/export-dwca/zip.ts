@@ -16,6 +16,10 @@ const encoder = new TextEncoder();
 
 export interface StreamingZipFile {
   name: string;
+  expected: {
+    crc32: number;
+    byteCount: number;
+  };
   open(): AsyncIterable<Uint8Array>;
 }
 
@@ -24,28 +28,6 @@ interface CentralDirectoryEntry {
   crc32: number;
   size: number;
   localHeaderOffset: number;
-}
-
-function buildCrc32Table(): Uint32Array {
-  const table = new Uint32Array(256);
-  for (let index = 0; index < table.length; index += 1) {
-    let value = index;
-    for (let bit = 0; bit < 8; bit += 1) {
-      value = (value & 1) !== 0 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-    }
-    table[index] = value >>> 0;
-  }
-  return table;
-}
-
-const CRC32_TABLE = buildCrc32Table();
-
-function updateCrc32(crc: number, bytes: Uint8Array): number {
-  let value = crc;
-  for (const byte of bytes) {
-    value = CRC32_TABLE[(value ^ byte) & 0xff] ^ (value >>> 8);
-  }
-  return value >>> 0;
 }
 
 function fixedRecord(byteLength: number): {
@@ -144,13 +126,23 @@ export async function* storedZipChunks(
     ) {
       throw new TypeError("Invalid ZIP entry name.");
     }
+    if (
+      !Number.isSafeInteger(file.expected.crc32) ||
+      file.expected.crc32 < 0 ||
+      file.expected.crc32 > MAX_ZIP32_VALUE
+    ) {
+      throw new TypeError("ZIP entry CRC must be an unsigned 32-bit integer.");
+    }
+    assertZip32Value(file.expected.byteCount);
+    if (file.expected.byteCount === 0 && file.expected.crc32 !== 0) {
+      throw new TypeError("An empty ZIP entry must have checksum zero.");
+    }
 
     const header = localFileHeader(name);
     const localHeaderOffset = archiveOffset;
     yield header;
     archiveOffset += header.byteLength;
 
-    let crc = 0xffff_ffff;
     let fileSize = 0;
     for await (const chunk of file.open()) {
       if (!(chunk instanceof Uint8Array)) {
@@ -159,13 +151,26 @@ export async function* storedZipChunks(
       if (chunk.byteLength === 0) continue;
       fileSize += chunk.byteLength;
       assertZip32Value(fileSize);
-      crc = updateCrc32(crc, chunk);
+      if (fileSize > file.expected.byteCount) {
+        throw new ExportWorkerError(
+          "archive_generation_failed",
+          "A prepared ZIP entry exceeded its durable byte manifest.",
+          false,
+        );
+      }
       yield chunk;
       archiveOffset += chunk.byteLength;
       assertZip32Value(archiveOffset);
     }
 
-    const finalCrc = (crc ^ 0xffff_ffff) >>> 0;
+    if (fileSize !== file.expected.byteCount) {
+      throw new ExportWorkerError(
+        "archive_generation_failed",
+        "A prepared ZIP entry did not match its durable byte manifest.",
+        false,
+      );
+    }
+    const finalCrc = file.expected.crc32;
     const descriptor = dataDescriptor(finalCrc, fileSize);
     yield descriptor;
     archiveOffset += descriptor.byteLength;

@@ -4,6 +4,7 @@ import {
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { encodeExportBatch } from "./archive.ts";
+import { calculateCrc32 } from "./crc32.ts";
 import { MULTIMEDIA_HEADERS, OCCURRENCE_HEADERS } from "./dwca.ts";
 import { ClaimedExportJob, ExportWorkerError } from "./types.ts";
 
@@ -51,6 +52,7 @@ Deno.test("encodeExportBatch incrementally encodes occurrence rows", async () =>
 
   const csv = decoder.decode(result.bytes);
   assertEquals(result.rowCount, 2);
+  assertEquals(result.crc32, calculateCrc32(result.bytes));
   assertEquals(csv.startsWith(`${OCCURRENCE_HEADERS}\n`), true);
   assertStringIncludes(csv, "Danaus plexippus");
   assertStringIncludes(csv, "Quercus rubra");
@@ -74,6 +76,7 @@ Deno.test("encodeExportBatch emits multimedia rows without an expansion array", 
 
   const csv = decoder.decode(result.bytes);
   assertEquals(result.rowCount, 2);
+  assertEquals(result.crc32, calculateCrc32(result.bytes));
   assertEquals(csv.startsWith(`${MULTIMEDIA_HEADERS}\n`), true);
   assertStringIncludes(csv, "one.webp");
   assertStringIncludes(csv, "two.webp");

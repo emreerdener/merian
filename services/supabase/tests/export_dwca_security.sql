@@ -14,10 +14,12 @@ DECLARE
     legacy_failure_job_id UUID :=
         '00000000-0000-4000-8000-00000000e115';
     bounded_job_id UUID := '00000000-0000-4000-8000-00000000e116';
+    crc_job_id UUID := '00000000-0000-4000-8000-00000000e117';
     first_token UUID := '00000000-0000-4000-8000-00000000e121';
     second_token UUID := '00000000-0000-4000-8000-00000000e122';
     post_rollout_token UUID := '00000000-0000-4000-8000-00000000e123';
     bounded_token UUID := '00000000-0000-4000-8000-00000000e124';
+    crc_token UUID := '00000000-0000-4000-8000-00000000e125';
     test_species_id UUID := '00000000-0000-4000-8000-00000000e130';
     first_scan_id UUID := '00000000-0000-4000-8000-00000000e131';
     second_scan_id UUID := '00000000-0000-4000-8000-00000000e132';
@@ -33,6 +35,8 @@ DECLARE
     batch_complete BOOLEAN;
     batch_oversize BOOLEAN;
     batch_revision_changed BOOLEAN;
+    expected_crc32 BIGINT := 4294967295;
+    returned_crc32 BIGINT;
 BEGIN
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
@@ -130,6 +134,28 @@ BEGIN
         RAISE EXCEPTION 'an API role can bypass the export request endpoint';
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_attribute AS attribute_row
+        WHERE attribute_row.attrelid =
+              'internal.export_job_chunks'::REGCLASS
+          AND attribute_row.attname = 'crc32'
+          AND attribute_row.attnotnull
+          AND NOT attribute_row.attisdropped
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid =
+              'internal.export_job_chunks'::REGCLASS
+          AND constraint_row.conname =
+              'export_job_chunks_crc32_check'
+          AND constraint_row.contype = 'c'
+          AND constraint_row.convalidated
+    ) THEN
+        RAISE EXCEPTION
+            'the private export chunk manifest lacks a bounded CRC invariant';
+    END IF;
+
     FOREACH routine_signature IN ARRAY ARRAY[
         'public.claim_export_job(uuid,uuid)',
         'public.renew_export_job_claim(uuid,uuid)',
@@ -139,7 +165,7 @@ BEGIN
         'public.get_due_export_job_ids(integer)',
         'public.claim_export_job_step(uuid,uuid)',
         'public.get_dwca_export_scan_batch(uuid,uuid,text,uuid,integer,integer)',
-        'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,boolean)',
+        'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,bigint,boolean)',
         'public.get_export_job_chunks(uuid,uuid)',
         'public.stage_prepared_export_archive(uuid,uuid,text,text)',
         'public.complete_prepared_export_job(uuid,uuid)',
@@ -761,6 +787,101 @@ BEGIN
     IF returned_rows <> 0 OR NOT boolean_result THEN
         RAISE EXCEPTION
             'terminal export did not purge its source membership';
+    END IF;
+
+    INSERT INTO public.export_jobs (
+        id,
+        user_id,
+        export_scope,
+        include_precise_coordinates
+    )
+    VALUES (
+        crc_job_id,
+        test_user_id,
+        'personal',
+        FALSE
+    );
+
+    SELECT *
+    INTO STRICT claim_row
+    FROM public.claim_export_job_step(crc_job_id, crc_token);
+
+    SELECT public.advance_export_job_step(
+        crc_job_id,
+        crc_token,
+        'occurrence',
+        fourth_scan_id,
+        4,
+        'exports/' || test_user_id::TEXT || '/' || crc_job_id::TEXT
+            || '/work/occurrence/00000000-' || crc_token::TEXT || '.csv',
+        3,
+        expected_crc32,
+        TRUE
+    )
+    INTO routine_signature;
+
+    IF routine_signature <> 'multimedia' THEN
+        RAISE EXCEPTION
+            'the CRC-aware advance did not transition to multimedia';
+    END IF;
+
+    SELECT chunks.crc32
+    INTO STRICT returned_crc32
+    FROM internal.export_job_chunks AS chunks
+    WHERE chunks.job_id = crc_job_id
+      AND chunks.phase = 'occurrence'
+      AND chunks.sequence = 0;
+
+    IF returned_crc32 <> expected_crc32 THEN
+        RAISE EXCEPTION
+            'the fenced advance did not persist the unsigned chunk CRC';
+    END IF;
+
+    BEGIN
+        UPDATE internal.export_job_chunks AS chunks
+        SET crc32 = -1
+        WHERE chunks.job_id = crc_job_id
+          AND chunks.phase = 'occurrence'
+          AND chunks.sequence = 0;
+        RAISE EXCEPTION
+            'the chunk manifest accepted an out-of-range CRC';
+    EXCEPTION
+        WHEN CHECK_VIOLATION THEN NULL;
+    END;
+
+    UPDATE internal.export_job_work AS work
+    SET phase = 'assembling'
+    WHERE work.job_id = crc_job_id;
+
+    SELECT *
+    INTO STRICT claim_row
+    FROM public.claim_export_job_step(crc_job_id, crc_token);
+
+    SELECT chunks.crc32
+    INTO STRICT returned_crc32
+    FROM public.get_export_job_chunks(
+        crc_job_id,
+        crc_token
+    ) AS chunks
+    WHERE chunks.chunk_phase = 'occurrence'
+      AND chunks.chunk_sequence = 0;
+
+    IF returned_crc32 <> expected_crc32 THEN
+        RAISE EXCEPTION
+            'the assembly manifest did not return the durable unsigned CRC';
+    END IF;
+
+    SELECT public.release_export_job_step(
+        crc_job_id,
+        crc_token,
+        'archive_generation_failed',
+        TRUE
+    )
+    INTO boolean_result;
+
+    IF NOT boolean_result THEN
+        RAISE EXCEPTION
+            'the CRC manifest fixture could not release its active job';
     END IF;
 
     INSERT INTO public.export_jobs (

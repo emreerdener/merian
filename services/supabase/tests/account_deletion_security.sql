@@ -72,6 +72,14 @@ BEGIN
         'authenticated',
         'public.finish_account_deletion_attempt(uuid,uuid,boolean,text)',
         'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.get_account_deletion_health()',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_account_deletion_health()',
+        'EXECUTE'
     ) THEN
         RAISE EXCEPTION
             'A public client role can execute an account-deletion worker RPC';
@@ -93,9 +101,13 @@ BEGIN
         'service_role',
         'public.finish_account_deletion_attempt(uuid,uuid,boolean,text)',
         'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_account_deletion_health()',
+        'EXECUTE'
     ) THEN
         RAISE EXCEPTION
-            'service_role is missing an account-deletion worker RPC';
+            'service_role is missing an account-deletion worker or health RPC';
     END IF;
 
     IF NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -606,6 +618,26 @@ SELECT public.finish_account_deletion_attempt(
     FALSE,
     'auth_http_503'
 );
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.get_account_deletion_health() AS health
+        WHERE health.active_job_count >= 1
+          AND health.auth_pending_count >= 1
+          AND health.failed_job_count >= 1
+          AND health.oldest_pending_at IS NOT NULL
+          AND health.oldest_pending_age_seconds IS NOT NULL
+          AND health.orphaned_storage_job_count = 0
+          AND health.reaper_cron_active IS NOT NULL
+          AND health.reaper_credentials_configured IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION
+            'Service-only account-deletion health omitted retry or SLA state';
+    END IF;
+END;
+$$;
 
 RESET ROLE;
 

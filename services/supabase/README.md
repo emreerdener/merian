@@ -150,11 +150,31 @@ transient failures receive database-calculated backoff, and expired workers
 cannot finish a newer claim. Terminal jobs clear their direct user UUID. The
 worker accepts no target UUID from HTTP.
 
+Migration `20260727001630_monitor_account_deletion_health.sql` adds partial
+indexes for active age, retry errors, and expired storage leases plus the
+aggregate service-only `get_account_deletion_health()` RPC. It reports queue
+depth, phase counts, oldest active/due ages, retry-error and expired-lease
+counts, orphaned storage work, and booleans for the cron and its credentials. It
+never returns a user UUID or raw error value. Credential readiness uses the same
+Vault-first, NULL-only fallback as the reaper, so a blank Vault value cannot be
+masked by a legacy app setting.
+
+`.github/workflows/account-deletion-health-monitor.yml` queries that RPC every
+five minutes, offset from the database reaper. It resolves a server API key
+through the existing Supabase Management API token, so a missing Vault
+configuration cannot also disable the alert. Default warning/critical thresholds
+are 10/30 minutes for claimable work, 27/36 hours end to end, and 25/100 active
+jobs. Missing reaper configuration, a disabled cron, orphaned storage work, or a
+critical age/backlog breach is critical; retry errors or expired leases are
+warnings. The workflow fails on warning by default and retains JSON and Markdown
+evidence.
+
 Coverage lives in `_tests/safeDelete.test.ts`,
 `_tests/accountDeletionCoverage.test.ts`,
 `_tests/accountDeletionMigrationContract.test.ts`, and
 `tests/account_deletion_security.sql`, with R2 worker coverage in
-`functions/safe-delete/storageWorker_test.ts`.
+`functions/safe-delete/storageWorker_test.ts` and monitor policy coverage in
+`scripts/monitor_account_deletion_health_test.ts`.
 
 ### Owned Scan Image Recovery Boundary
 
@@ -290,8 +310,8 @@ membership and narrow revision-checked projections. A fixed 512 KiB encoder
 appends one CSV row at a time, so page strings and media rows are never expanded
 into an unbounded intermediate array. Each page becomes a claim-token-fenced R2
 CSV chunk and is committed to a durable manifest with its cursor and cumulative
-budgets in one transaction. A late expired worker can neither overwrite the
-replacement worker's chunk nor add it to the manifest.
+budgets and unsigned CRC-32 in one transaction. A late expired worker can
+neither overwrite the replacement worker's chunk nor add it to the manifest.
 
 Migration `20260726230837_scale_dwca_export_continuations.sql` adds an
 outstanding-job partial index, the service-only aggregate
@@ -302,10 +322,23 @@ depth, and expired claims without exposing user IDs or private queue rows.
 
 Assembly lazily reads manifest chunks into a streaming ZIP32 writer and bounded
 R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is
-buffered. R2 create/complete XML and Resend replies are byte-capped; multipart
-completion rejects an embedded S3 `<Error>` even under HTTP 200. Final archive
-keys also include the claim UUID. Staged archives are reused after lease
-recovery, and Resend delivery uses one job-scoped idempotency key.
+buffered. Ordered chunk CRCs are composed algebraically during assembly, so the
+final Edge invocation does not run a JavaScript checksum loop over every archive
+byte. Emitted entry lengths must still exactly match the durable manifest, and
+ZIP readers validate the composed CRC against extracted content. R2
+create/complete XML and Resend replies are byte-capped; multipart completion
+rejects an embedded S3 `<Error>` even under HTTP 200. Final archive keys also
+include the claim UUID. Staged archives are reused after lease recovery, and
+Resend delivery uses one job-scoped idempotency key.
+
+The export route's resource contract follows the current
+[hosted Edge Function limits](https://supabase.com/docs/guides/functions/limits)
+but does not consume the published CPU ceiling as a work budget. Keep
+preparation bounded to one source page/chunk and assembly free of archive-sized
+JavaScript loops. Validate maximum-shape exports against hosted function metrics
+and 546/`CPU Time exceeded` logs before changing database or worker ceilings;
+see `functions/export-dwca/README.md` and the deployment runbook for the
+versioned limit note and release procedure.
 
 Global attribution requires versioned `DWCA_PSEUDONYM_HMAC_KEY_V{n}` secrets.
 Version 1 is required Base64 decoding to at least 32 random bytes, sourced from
@@ -787,8 +820,8 @@ and any missing or stale `config.toml` function entry. When the fleet changes,
 fix the reported name mismatch; never update a numeric expected-function count.
 
 The checked-in `deno task test` is the canonical complete function source and
-unit suite. Its read allowlist includes the function tree plus the migration,
-monitor-script, Supabase config, deployment-workflow, and waitlist-route
+unit suite. Its read allowlist includes the function tree plus migrations,
+monitor scripts, Supabase config, repository workflows, and waitlist-route
 surfaces inspected by security contract tests. Deployment CI runs it after
 migrating the disposable database so database-backed cases cannot silently skip.
 Do not replace it in CI with a selected test subset.

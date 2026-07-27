@@ -65,12 +65,12 @@ deno task test
 
 Its narrow read allowlist includes the full function tree and the repository
 surfaces inspected by security contracts: migrations, Supabase config, the
-account-deletion catalog fixture, the deployment workflow, and the web waitlist
-route. Deployment CI runs this task after the disposable database is migrated,
-so database-backed cases execute rather than reporting connection skips; its
-explicit `SUPABASE_DB_TEST_URL` makes an unavailable database a test failure. CI
-must run the complete task rather than substituting a hand-selected subset whose
-permissions happen to pass.
+account-deletion catalog fixture, Supabase scripts, the repository workflow
+directory, and the web waitlist route. Deployment CI runs this task after the
+disposable database is migrated, so database-backed cases execute rather than
+reporting connection skips; its explicit `SUPABASE_DB_TEST_URL` makes an
+unavailable database a test failure. CI must run the complete task rather than
+substituting a hand-selected subset whose permissions happen to pass.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -1115,7 +1115,7 @@ deno test --frozen --config supabase/functions/deno.json \
   supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts
 ```
 
-Durable account deletion has seven complementary checks:
+Durable account deletion has eight complementary checks:
 
 - `_tests/safeDelete.test.ts` executes the actual handler/worker modules with
   injected boundaries. It proves intake precedes processing, cleanup failure
@@ -1125,8 +1125,9 @@ Durable account deletion has seven complementary checks:
   retryable.
 - `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
   Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
-  `config.toml`, workflow wiring, and the executable fixture's
-  cleanup-before-storage phase order present.
+  `config.toml`, workflow wiring, the independent monitor's separation from the
+  database reaper, and the executable fixture's cleanup-before-storage phase
+  order present.
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order, cleanup
   verification, required `storage_pending` phase, five-prefix keyset cursor,
@@ -1135,17 +1136,20 @@ Durable account deletion has seven complementary checks:
   ACLs, five-minute cron, the failed-version no-op bridge, ownerless-tombstone
   constraint, the Auth/profile foreign key, and the absence of synthetic user
   creation. It also requires the storage-claim SQL to join a matching cleaned-up
-  `storage_pending` private job and to veto live profiles and owned scans.
+  `storage_pending` private job and to veto live profiles and owned scans, plus
+  indexed identity-free aggregate health with a service-only caller check.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and all
   five delayed verification prefixes advance in order, cleanup commits while
   Auth still exists, retained scans are ownerless tombstones with media and
   personal fields cleared, no all-zero profile exists, active deletion blocks
-  profile resurrection, retries preserve `auth_pending`, final completion erases
-  the direct UUID, and duplicate completion is idempotent. Before deletion
-  begins, the same fixture inserts a stale storage outbox row for its live owner
-  and proves the claim RPC cannot return it.
+  profile resurrection, retries preserve `auth_pending`, the service role sees
+  that retry through aggregate health while public roles cannot execute the
+  health RPC, final completion erases the direct UUID, and duplicate completion
+  is idempotent. Before deletion begins, the same fixture inserts a stale
+  storage outbox row for its live owner and proves the claim RPC cannot return
+  it.
 - `safe-delete/storageWorker_test.ts` proves one bounded page per claim, delete
   concurrency behavior, empty-prefix advancement, delayed verification,
   idempotent 404 deletion, retry persistence, and claim-token propagation.
@@ -1155,6 +1159,11 @@ Durable account deletion has seven complementary checks:
 - `MerianNetworkClientTests.testSafeDeleteAccountEndpoint` returns
   `202 Accepted` from the mock route and proves the shared authenticated request
   boundary recognizes durable acceptance as a successful 2xx response.
+- `scripts/monitor_account_deletion_health_test.ts` proves strict aggregate
+  parsing/invariants, threshold ordering, cron/configuration and orphan
+  criticals, retry/expired-lease warnings, fail policy, and identity-free
+  operator recovery guidance. Workflow security checks separately keep its
+  actions immutable, permissions minimal, and secrets step-scoped.
 
 Run the pgTAP fixture only against the disposable local stack. It inserts and
 deletes Auth fixtures inside a transaction and rolls everything back.
@@ -1800,8 +1809,12 @@ and detail seeking still behaves as documented.
 The surrounding export suite is intentionally split by boundary:
 
 - `archive_test.ts` proves occurrence and multimedia rows are appended
-  incrementally and that encoding fails while appending beyond the fixed output
-  buffer.
+  incrementally, each bounded output includes its exact CRC, and encoding fails
+  while appending beyond the fixed output buffer.
+- `crc32_test.ts` locks the standard CRC check vector, proves ordered chunk
+  composition equals a direct concatenated checksum (including empty
+  boundaries), verifies cached byte operators through the maximum safe
+  byte-count range, and rejects unsafe durable checksum metadata.
 - `db_test.ts` proves the worker uses the claim-bound source-page RPC, accepts
   only consistent row/byte metadata, recognizes the empty completion sentinel,
   recognizes a changed-revision sentinel, and rejects oversized source rows,
@@ -1813,8 +1826,9 @@ The surrounding export suite is intentionally split by boundary:
   classification with deterministic clocks.
 - `pseudonym_test.ts` proves HMAC determinism, domain/key-version rotation, and
   fail-closed missing/short Base64 keys.
-- `zip_test.ts` opens the lazy ZIP with an independent reader and checks
-  deterministic output.
+- `zip_test.ts` opens the lazy ZIP with an independent reader, checks
+  deterministic output using precomputed entry CRCs, and proves assembly fails
+  closed when streamed bytes do not match the durable manifest length.
 - `storage_test.ts` proves fixed-size multipart buffering, bounded provider XML,
   completion/signing, rejection of an embedded HTTP-200 `<Error>`, and
   best-effort abort after a failed part or completion.
@@ -1843,8 +1857,9 @@ The surrounding export suite is intentionally split by boundary:
   lock-safe install/validation ordering, validated source
   cardinality/element-byte constraints, claim-bound 100-row/256 KiB source
   pages, creation-time membership and SHA-256 revision fences, terminal
-  membership purge, 512 KiB chunks, claim-token key validation, and minute
-  resume cron.
+  membership purge, 512 KiB chunks, claim-token key validation, minute resume
+  cron, sorted canonical-job fencing before chunk DDL, and the replacement
+  CRC-bearing advance/manifest signatures and ACLs.
 - `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
   immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
   legacy-error sanitization, post-deadline claim, validated source constraints,
@@ -1857,6 +1872,13 @@ The surrounding export suite is intentionally split by boundary:
   validation, and a terminal job purges membership.
   `privileged_routine_security.sql` independently runs static
   PL/pgSQL/search-path/grant validation over the new definer RPCs.
+
+The CRC tests deliberately assert correctness and bounded algorithm shape rather
+than wall-clock timing, which is unstable on shared CI runners. The development
+microbenchmark comparing cached versus per-part matrix construction is audit
+evidence only. Production performance assurance comes from the maximum-shape
+hosted export and Metrics/546-log release gate in the Supabase deployment
+runbook.
 
 ### `revenuecat-webhook/*_test.ts`
 

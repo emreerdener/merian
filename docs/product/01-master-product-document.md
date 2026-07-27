@@ -399,9 +399,10 @@ database atomically leases one durable phase at a time. The worker persists
 scan membership snapshot. Every phase projection must match its snapshot
 revision fingerprint, so later scans are excluded and changed/deleted source
 revisions cannot produce a mixed archive. The worker assembles chunks into a
-streaming multipart archive and gives Resend a job-idempotent request for a
-time-limited link. Canonical defaults limit one job to 5,000 CSV rows and an
-8 MiB archive. Successful/non-terminal requests are
+streaming multipart archive, composing checksums from bounded durable chunk
+metadata rather than rescanning the full archive in JavaScript, and gives Resend
+a job-idempotent request for a time-limited link. Canonical defaults limit one
+job to 5,000 CSV rows and an 8 MiB archive. Successful/non-terminal requests are
 rate-limited to approximately one per 24 hours; failed jobs remain retryable.
 
 Personal exports can include the owner's exact location where allowed.

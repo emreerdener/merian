@@ -105,6 +105,12 @@ TestFlight, App Store, support, and QA.
   relational cleanup, and refuses a storage claim while a live profile or any
   owned scan remains. Historical queue state alone can no longer authorize an
   active account's free/Pro prefix sweep.
+- Added independent account-erasure SLA monitoring. A service-only aggregate
+  health RPC now reports oldest active/due ages, phase and backlog counts, retry
+  errors, expired leases, orphaned storage work, and reaper configuration
+  without exposing user IDs. An offset five-minute GitHub schedule alerts
+  independently of the database worker and retains bounded JSON/Markdown
+  evidence.
 - Fixed offline retry/result callbacks that could pass their in-memory token
   checks and still overwrite a newer SwiftData generation. Queue claims now
   persist their UUID atomically, and retries, cancellation, result saves, and
@@ -1150,6 +1156,10 @@ TestFlight, App Store, support, and QA.
   oldest-due queue waves under the existing claim fences, with a hard per-run
   step ceiling and independent oldest-age/backlog/expired-claim production
   monitoring.
+- Removed archive-sized JavaScript CRC work from DwC-A assembly by persisting
+  checksums for bounded CSV chunks and algebraically composing them in the final
+  ZIP step, with cached GF(2) byte operators, fail-closed manifest length
+  validation, and migration fencing that preserves worker lock order.
 - Reduced share-import, expanded-original-image, local species-chart, APNs
   fanout, collection-sync, and audio-carousel resource usage to prevent OOMs,
   main-thread stalls, and idle battery drain.

@@ -226,6 +226,8 @@ jobs:
             supabase/functions/revenuecat-webhook/index_test.ts \
             supabase/functions/revenuecat-webhook/signature_test.ts \
             supabase/functions/revenuecat-webhook/subscriber_test.ts \
+            supabase/functions/export-dwca/archive_test.ts \
+            supabase/functions/export-dwca/crc32_test.ts \
             supabase/functions/export-dwca/index_test.ts \
             supabase/functions/export-dwca/db_test.ts \
             supabase/functions/export-dwca/mail_test.ts \
@@ -297,7 +299,7 @@ jobs:
       - name: Test durable account deletion boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/tests/account_deletion_security.sql,supabase/config.toml,../.github/workflows/deploy.yml \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests/account_deletion_security.sql,supabase/config.toml,../.github/workflows \
             supabase/functions/_tests/safeDelete.test.ts \
             supabase/functions/_tests/accountDeletionCoverage.test.ts \
             supabase/functions/_tests/accountDeletionMigrationContract.test.ts
@@ -337,7 +339,10 @@ jobs:
         run: |
           deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/functions,supabase/migrations,supabase/scripts,../.github/workflows \
+            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+            supabase/functions/export-dwca/archive_test.ts \
+            supabase/functions/export-dwca/crc32_test.ts \
             supabase/functions/export-dwca/db_test.ts \
             supabase/functions/export-dwca/drain_test.ts \
             supabase/functions/export-dwca/index_test.ts \

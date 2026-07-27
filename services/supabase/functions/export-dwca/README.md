@@ -65,9 +65,10 @@ terminal.
 - `archive.ts` uses a fixed-capacity incremental UTF-8 encoder. It appends one
   header or CSV row at a time—without a page-wide string array, `Promise.all`,
   multimedia expansion array, or final `join()`—and can never allocate an output
-  chunk larger than 512 KiB. `advance_export_job_step(...)` commits the strictly
-  increasing cursor, aggregate row/byte counters, and chunk manifest before
-  releasing that step's claim.
+  chunk larger than 512 KiB. It calculates that bounded chunk's CRC-32 while the
+  bytes are already resident. `advance_export_job_step(...)` commits the
+  strictly increasing cursor, aggregate row/byte counters, object key, byte
+  count, and unsigned CRC before releasing that step's claim.
 - Temporary chunks use
   `exports/{user}/{job}/work/{phase}/{sequence}-{claim_token}.csv`. The claim
   token prevents a lease-expired PUT from overwriting a replacement worker's
@@ -76,8 +77,11 @@ terminal.
   manifest into `meta.xml`, occurrence CSV, multimedia CSV, and the final ZIP.
   Exact R2 GET byte counts must match the manifest.
 - `zip.ts` writes a standards-compliant ZIP32 `STORE` stream with data
-  descriptors and incremental CRC-32 values. It does not construct a JSZip
-  object or buffer the archive.
+  descriptors. `crc32.ts` combines ordered per-chunk checksums with GF(2)
+  composition to obtain each CSV entry checksum in work proportional to chunk
+  count, without a JavaScript pass over every archive byte. The ZIP stream
+  compares emitted entry lengths with the manifest and fails closed on a
+  mismatch. It does not construct a JSZip object or buffer the archive.
 - `storage.ts` coalesces the stream into fixed 8 MiB Cloudflare R2 multipart
   parts. It completes the upload only after every part succeeds and attempts to
   abort incomplete uploads on failure. Create/complete XML and Resend response
@@ -91,6 +95,39 @@ bytes. The worker enforces the canonical budget before every work-chunk PUT and
 again while uploading the final archive. Exceeding it produces stable terminal
 `export_too_large`. Streaming bounds heap use; the small phased claims bound
 each Edge invocation's database, encoding, and provider work.
+
+Migration `20260726235158_amortize_dwca_archive_crc.sql` adds the required
+`internal.export_job_chunks.crc32` invariant and retires the old advance-RPC
+signature. During rollout it fences and restarts only nonterminal jobs still in
+occurrence, multimedia, or assembly, using their existing immutable source
+snapshot. Legacy temporary manifests are discarded; jobs already delivering a
+staged archive are not restarted. Canonical job rows are locked in UUID order
+before chunk-table DDL, preserving routine lock order during a live deploy. CRC
+byte-length operators are precomputed once per isolate rather than rebuilt per
+manifest chunk. Do not increase the 16 MiB schema ceiling from a workstation
+benchmark: use production phase/shutdown telemetry and preserve the
+bounded-chunk checksum design.
+
+### Runtime resource contract
+
+The Supabase
+[canonical Edge Function limits](https://supabase.com/docs/guides/functions/limits)
+page, verified 2026-07-26, lists 2 seconds of active CPU per request and 256 MB
+of memory. Supabase's
+[CPU troubleshooting page](https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits)
+still lists 200 milliseconds, while the newer
+[546 resource-limit guide](https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response)
+lists 2 seconds and 250 MB. Treat these values as platform-controlled and
+currently inconsistent documentation—not as additional export capacity. Keep
+each durable phase well below the smallest published CPU budget and consult the
+canonical page, project metrics, and 546/`CPU Time exceeded` logs before
+changing any archive, chunk, page, or drain ceiling.
+
+The cached combiner processed a synthetic 20,000-part, 16,000,000-byte manifest
+in approximately 7.3 ms on development hardware, compared with approximately 160
+ms when GF(2) matrices were rebuilt for every part. This microbenchmark isolates
+checksum composition only; it is neither a production SLA nor a substitute for
+maximum-shape staging tests and hosted telemetry.
 
 ## Queue health and alerting
 
@@ -185,18 +222,19 @@ old versions until every job pinned to them is terminal and past retention.
 
 ## Tests
 
-Focused Deno tests cover claim-bound byte-aware source pages, completion and
-oversize/revision sentinels, incremental fixed-buffer CSV encoding, row/archive
-budgets, phased progress, claim-fenced work chunks, exact manifest reads, ZIP
-compatibility, bounded multipart upload/abort/provider responses, embedded
-HTTP-200 completion errors, pseudonym key failure/rotation, Resend idempotency,
-canonical claims, staged retry reuse, stale-worker fencing, fair multi-wave
-draining, soft-deadline exit, and failure suppression. Static contracts lock the
-migrations and production-source boundaries. Executable database tests prove
-source constraints, aggregate page byte limits, creation-time membership,
-revision rejection, terminal purge, the finite rollout deadline, post-deadline
-claim requirement, queue-health ACL/index behavior, live/expired claim
-accounting, and phased state contract in
+Focused Deno tests cover standard CRC vectors, exact split-checksum composition,
+claim-bound byte-aware source pages, completion and oversize/revision sentinels,
+incremental fixed-buffer CSV encoding, row/archive budgets, phased progress,
+claim-fenced work chunks, exact manifest/CRC reads, ZIP compatibility and
+length-mismatch rejection, bounded multipart upload/abort/provider responses,
+embedded HTTP-200 completion errors, pseudonym key failure/rotation, Resend
+idempotency, canonical claims, staged retry reuse, stale-worker fencing, fair
+multi-wave draining, soft-deadline exit, and failure suppression. Static
+contracts lock the migrations and production-source boundaries. Executable
+database tests prove source constraints, aggregate page byte limits,
+creation-time membership, revision rejection, terminal purge, the finite rollout
+deadline, post-deadline claim requirement, queue-health ACL/index behavior,
+live/expired claim accounting, and phased state contract in
 `services/supabase/tests/export_dwca_security.sql` and
 `services/supabase/tests/export_dwca_snapshot_security.sql`, plus
 `services/supabase/tests/dwca_export_queue_security.sql`; the repository-wide

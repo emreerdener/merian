@@ -33,6 +33,7 @@ export interface ExportChunkManifestEntry {
   sequence: number;
   objectKey: string;
   byteCount: number;
+  crc32: number;
 }
 
 export interface DBScanRow {

@@ -1318,7 +1318,7 @@ Migration `20260725052339_bound_dwca_export_work.sql` adds two private tables:
   time, and bounded retries.
 - `internal.export_job_chunks`: an ordered manifest keyed by
   `(job_id, phase, sequence)` with a claim-token-fenced R2 object key and byte
-  count for each CSV page.
+  count plus an unsigned, range-constrained CRC-32 for each CSV page.
 
 Each claim still owns exactly one phase. Data phases read at most 100 scans and
 commit at most a 512 KiB chunk, cursor, manifest row, and cumulative budgets
@@ -1329,6 +1329,20 @@ sequentially drains five-job oldest-due waves until a 40-second soft cutoff or
 40-step ceiling. `next_step_at` plus the partial `export_job_work_due_idx` makes
 each successful job rotate behind older due work. The updated watchdog fails
 only work with no live claim and no phase progress for two hours.
+
+Migration `20260726235158_amortize_dwca_archive_crc.sql` makes the chunk CRC
+non-null and bounded to `0...4294967295`, adds it to the fenced atomic advance
+RPC and manifest result, and updates the service-role routine allowlist. Ordered
+chunk CRCs are mathematically composable, so final ZIP assembly derives each
+entry CRC from manifest metadata without rescanning the complete CSV in
+JavaScript. Rollout fences and restarts only nonterminal preparation/assembly
+work whose legacy manifest lacks CRCs; delivering jobs are unaffected. Canonical
+job rows are locked in UUID order before manifest DDL so deployment cannot
+invert the job→work→chunk lock order used by worker routines. A worker already
+inside a database routine may commit before the fence; the migration then
+re-evaluates that committed phase. A worker in an affected phase still
+performing R2 I/O blocks on the canonical row and loses its obsolete claim at
+migration commit, so it cannot append to the replacement manifest.
 
 Migration `20260726230837_scale_dwca_export_continuations.sql` adds
 `idx_export_jobs_nonterminal_created` for outstanding-job diagnosis and the
@@ -2919,6 +2933,23 @@ null `storage_completed_at`, and rejects candidates while any matching
 `public.users` row or owned `public.scans` row exists. An orphaned, old, reset,
 or manually due outbox row is inert. This fence is a required invariant, not an
 optional worker-side preflight.
+
+Migration `20260727001630_monitor_account_deletion_health.sql` adds partial
+indexes led by active request/create time, active retry-error update time, and
+active storage claim expiry. Service-only `public.get_account_deletion_health()`
+uses those boundaries to return one aggregate row containing:
+
+- account phase, due, retry-error, active-lease, and expired-lease counts;
+- oldest active and oldest claimable account timestamps and ages;
+- storage backlog, due, retry-error, verification-wait, lease, and orphan counts
+  plus oldest active/due ages; and
+- booleans for the named five-minute reaper cron and the URL/service credential
+  configuration it requires.
+
+The routine calls `internal.require_service_role()`, has an empty search path,
+is allowlisted only for `service_role`, and deliberately omits UUIDs and raw
+error values. It is a read-only health surface; it does not claim or repair
+work.
 
 `trg_reject_account_deletion_profile_recreation` runs before inserts on
 `public.users` and rejects the original UUID while an active job exists. This

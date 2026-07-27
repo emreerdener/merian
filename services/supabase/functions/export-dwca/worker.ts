@@ -27,6 +27,7 @@ import {
 import {
   EXPORT_PAGE_SIZE,
   MAXIMUM_EXPORT_SOURCE_PAGE_BYTES,
+  MAXIMUM_WORK_CHUNK_BYTES,
 } from "./limits.ts";
 import {
   ClaimedExportJob,
@@ -77,6 +78,7 @@ export interface ExportWorkerServices {
     rowCount: number,
     objectKey: string,
     byteCount: number,
+    crc32: number,
     pageComplete: boolean,
   ): Promise<ExportWorkPhase>;
   fetchManifest(
@@ -138,6 +140,7 @@ function defaultServices(
       rowCount,
       objectKey,
       byteCount,
+      crc32,
       pageComplete,
     ) =>
       advanceExportJobStep(
@@ -148,6 +151,7 @@ function defaultServices(
         rowCount,
         objectKey,
         byteCount,
+        crc32,
         pageComplete,
         supabaseAdmin,
       ),
@@ -287,6 +291,22 @@ async function processPreparationStep(
     pseudonymizer,
   );
   if (
+    !(batch.bytes instanceof Uint8Array) ||
+    !Number.isSafeInteger(batch.rowCount) ||
+    batch.rowCount < 0 ||
+    !Number.isSafeInteger(batch.crc32) ||
+    batch.crc32 < 0 ||
+    batch.crc32 > 0xffff_ffff ||
+    (batch.bytes.byteLength === 0 && batch.crc32 !== 0)
+  ) {
+    throw new ExportWorkerError(
+      "archive_generation_failed",
+      "The CSV encoder returned invalid durable integrity metadata.",
+      false,
+    );
+  }
+  if (
+    batch.bytes.byteLength > MAXIMUM_WORK_CHUNK_BYTES ||
     job.occurrenceRows + job.multimediaRows + batch.rowCount >
       job.maxExportRows ||
     job.csvBytes + batch.bytes.byteLength > job.maxArchiveBytes - 65_536
@@ -311,6 +331,7 @@ async function processPreparationStep(
     batch.rowCount,
     objectKey,
     batch.bytes.byteLength,
+    batch.crc32,
     sourceBatch.pageComplete,
   );
   return {

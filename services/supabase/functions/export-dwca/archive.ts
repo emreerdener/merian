@@ -5,6 +5,7 @@ import {
   MULTIMEDIA_HEADERS,
   OCCURRENCE_HEADERS,
 } from "./dwca.ts";
+import { calculateCrc32, combineCrc32Parts, Crc32Digest } from "./crc32.ts";
 import { MAXIMUM_WORK_CHUNK_BYTES } from "./limits.ts";
 import { UserPseudonymizer } from "./pseudonym.ts";
 import { fetchExportWorkChunk } from "./storage.ts";
@@ -23,6 +24,7 @@ export type ExportProgressCallback = () => void | Promise<void>;
 
 export interface EncodedExportBatch {
   bytes: Uint8Array;
+  crc32: number;
   rowCount: number;
 }
 
@@ -108,8 +110,10 @@ export async function encodeExportBatch(
     }
   }
 
+  const bytes = csv.finish();
   return {
-    bytes: csv.finish(),
+    bytes,
+    crc32: calculateCrc32(bytes),
     rowCount,
   };
 }
@@ -128,8 +132,21 @@ async function* preparedFileChunks(
   }
 }
 
-async function* metaXmlChunks(): AsyncGenerator<Uint8Array> {
-  yield encoder.encode(`${DWCA_META_XML}\n`);
+function preparedEntryDigest(
+  chunks: ExportChunkManifestEntry[],
+): Crc32Digest {
+  return combineCrc32Parts(
+    chunks.map((chunk) => ({
+      crc32: chunk.crc32,
+      byteCount: chunk.byteCount,
+    })),
+  );
+}
+
+async function* fixedFileChunks(
+  bytes: Uint8Array,
+): AsyncGenerator<Uint8Array> {
+  yield bytes;
 }
 
 export function createPreparedDwcaArchiveStream(
@@ -138,18 +155,27 @@ export function createPreparedDwcaArchiveStream(
 ): ReadableStream<Uint8Array> {
   const occurrence = manifest.filter((chunk) => chunk.phase === "occurrence");
   const multimedia = manifest.filter((chunk) => chunk.phase === "multimedia");
+  const occurrenceDigest = preparedEntryDigest(occurrence);
+  const multimediaDigest = preparedEntryDigest(multimedia);
+  const metaXmlBytes = encoder.encode(`${DWCA_META_XML}\n`);
   const files: StreamingZipFile[] = [
     {
       name: "occurrence.csv",
+      expected: occurrenceDigest,
       open: () => preparedFileChunks(occurrence, onProgress),
     },
     {
       name: "multimedia.csv",
+      expected: multimediaDigest,
       open: () => preparedFileChunks(multimedia, onProgress),
     },
     {
       name: "meta.xml",
-      open: metaXmlChunks,
+      expected: {
+        crc32: calculateCrc32(metaXmlBytes),
+        byteCount: metaXmlBytes.byteLength,
+      },
+      open: () => fixedFileChunks(metaXmlBytes),
     },
   ];
   return createStoredZipStream(files);

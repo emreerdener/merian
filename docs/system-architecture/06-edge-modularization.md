@@ -130,15 +130,20 @@ both places.
 
 For exceptionally heavy or bespoke routing streams that approach the hosted Edge
 CPU, wall-clock, or memory budget, operations must be cordoned off into
-domain-specific streaming boundaries or moved to a durable worker.
+domain-specific streaming boundaries or moved to a durable worker. Recheck the
+[current hosted limits](https://supabase.com/docs/guides/functions/limits)
+before changing a workload ceiling; published capacity is a termination
+boundary, not an application work budget.
 
 - **`storage.ts`**: Handles heavy `AWS` bindings via native `aws4fetch`. When
   streaming multimegabyte binaries directly into Cloudflare R2, producers must
   remain lazy and feed fixed-size multipart parts without collecting the full
   body. The DwC-A worker uses an incremental ZIP `STORE` writer and 8 MiB R2
-  parts; R2 completion XML is bounded and parsed for HTTP-200 embedded errors.
-  Reintroducing `generateAsync()`, `arrayBuffer()`, `response.text()`, or one
-  complete CSV violates that memory boundary.
+  parts. Its final assembly composes durable CRCs from bounded prepared chunks
+  rather than checksumming the complete archive in JavaScript; R2 completion XML
+  is bounded and parsed for HTTP-200 embedded errors. Reintroducing
+  `generateAsync()`, `arrayBuffer()`, `response.text()`, one complete CSV, or an
+  archive-sized checksum loop violates that resource boundary.
 - **`_shared/aws.ts`**: Shared Cloudflare R2 helpers. Pre-signed PUT generation
   accepts an explicit `Content-Type`; callers must sign image and audio uploads
   with the same header the client will send. The scan-media reconciliation

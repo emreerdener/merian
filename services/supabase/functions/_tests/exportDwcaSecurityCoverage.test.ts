@@ -54,6 +54,7 @@ Deno.test("export webhook performs a deadline-bounded fair durable drain", async
 Deno.test("export pages, durable chunks, and archives are bounded end to end", async () => {
   const db = await source("db.ts");
   const archive = await source("archive.ts");
+  const crc32 = await source("crc32.ts");
   const limits = await source("limits.ts");
   const mail = await source("mail.ts");
   const storage = await source("storage.ts");
@@ -82,7 +83,27 @@ Deno.test("export pages, durable chunks, and archives are bounded end to end", a
   assertEquals(archive.includes("lines.join"), false);
   assertStringIncludes(archive, "createPreparedDwcaArchiveStream");
   assertStringIncludes(archive, "fetchExportWorkChunk");
+  assertStringIncludes(archive, "calculateCrc32(bytes)");
+  assertStringIncludes(archive, "combineCrc32Parts");
+  assertStringIncludes(crc32, "secondByteCount");
+  assertStringIncludes(crc32, "gf2MatrixSquare");
+  assertStringIncludes(crc32, "CRC32_BYTE_OPERATORS");
+  assertEquals(
+    crc32.indexOf("CRC32_BYTE_OPERATORS") <
+      crc32.indexOf("export function combineCrc32"),
+    true,
+  );
+  const combineStart = crc32.indexOf("export function combineCrc32");
+  const combineEnd = crc32.indexOf("export function combineCrc32Parts");
+  assertEquals(
+    crc32.slice(combineStart, combineEnd).includes("gf2MatrixSquare"),
+    false,
+  );
   assertStringIncludes(zip, "createStoredZipStream");
+  assertStringIncludes(zip, "file.expected.crc32");
+  assertStringIncludes(zip, "file.expected.byteCount");
+  assertEquals(zip.includes("for (const byte of"), false);
+  assertStringIncludes(db, "p_chunk_crc32: chunkCrc32");
   assertStringIncludes(storage, "fixedSizeParts");
   assertStringIncludes(storage, "MULTIPART_PART_SIZE");
   assertStringIncludes(storage, "readByteStreamWithinLimit");
@@ -109,6 +130,7 @@ Deno.test("export identity and delivery use dedicated idempotent secrets", async
   const productionSources = await Promise.all(
     [
       "archive.ts",
+      "crc32.ts",
       "db.ts",
       "drain.ts",
       "dwca.ts",

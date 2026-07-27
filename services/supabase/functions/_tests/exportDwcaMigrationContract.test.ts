@@ -46,6 +46,11 @@ const throughputMigrationUrl = new URL(
 const throughputMigration = await Deno.readTextFile(
   throughputMigrationUrl,
 );
+const crcMigrationUrl = new URL(
+  "../../migrations/20260726235158_amortize_dwca_archive_crc.sql",
+  import.meta.url,
+);
+const crcMigration = await Deno.readTextFile(crcMigrationUrl);
 
 Deno.test("DwC-A migration installs a private atomic claim lease", () => {
   for (
@@ -406,4 +411,48 @@ Deno.test("DwC-A continuation dispatch has fair backlog telemetry and timeout he
     throughputMigration.includes("pg_catalog.COALESCE"),
     false,
   );
+});
+
+Deno.test("DwC-A archive assembly combines durable bounded chunk CRCs", () => {
+  for (
+    const expected of [
+      "ADD COLUMN crc32 BIGINT",
+      "ALTER COLUMN crc32 SET NOT NULL",
+      "crc32 BETWEEN 0 AND 4294967295",
+      "byte_count <> 0 OR crc32 = 0",
+      "work.phase IN ('occurrence', 'multimedia', 'assembling')",
+      "DELETE FROM internal.export_job_chunks",
+      "p_chunk_crc32 BIGINT",
+      "p_chunk_crc32 NOT BETWEEN 0 AND 4294967295",
+      "p_chunk_byte_count = 0 AND p_chunk_crc32 <> 0",
+      "chunks.crc32",
+      "CREATE FUNCTION public.get_export_job_chunks",
+      "crc32 BIGINT",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+      "REVOKE ALL ON FUNCTION public.advance_export_job_step",
+      "GRANT EXECUTE ON FUNCTION public.advance_export_job_step",
+      "'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,bigint,boolean)'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(crcMigration, expected);
+  }
+
+  assertEquals(
+    crcMigration.includes(
+      "'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,boolean)'",
+    ),
+    true,
+    "The migration must explicitly remove the retired allowlist signature before dropping the old routine.",
+  );
+  const jobFence = crcMigration.indexOf("FOR UPDATE OF jobs;");
+  const chunkDdl = crcMigration.indexOf(
+    "ALTER TABLE internal.export_job_chunks\nADD COLUMN crc32 BIGINT",
+  );
+  assert(
+    jobFence >= 0 && chunkDdl > jobFence,
+    "Canonical job rows must be fenced before chunk-table DDL to avoid a migration/worker lock inversion.",
+  );
+  assertEquals(crcMigration.includes("pg_catalog.COALESCE"), false);
 });

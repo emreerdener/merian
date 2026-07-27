@@ -23,6 +23,10 @@ const storageErasureFenceMigrationUrl = new URL(
   "../../migrations/20260726041109_fence_storage_erasure_claims.sql",
   import.meta.url,
 );
+const healthMonitorMigrationUrl = new URL(
+  "../../migrations/20260727001630_monitor_account_deletion_health.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -220,6 +224,64 @@ Deno.test("storage erasure claims cannot target a live or orphaned account", asy
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("account deletion exposes indexed aggregate service-only health", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(healthMonitorMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "CREATE INDEX IF NOT EXISTS account_deletion_jobs_active_requested_idx",
+      "CREATE INDEX IF NOT EXISTS account_deletion_jobs_active_error_idx",
+      "CREATE INDEX IF NOT EXISTS pending_storage_deletions_active_created_idx",
+      "CREATE INDEX IF NOT EXISTS pending_storage_deletions_expired_claim_idx",
+      "CREATE INDEX IF NOT EXISTS pending_storage_deletions_active_error_idx",
+      "CREATE OR REPLACE FUNCTION public.get_account_deletion_health()",
+      "active_job_count BIGINT",
+      "failed_job_count BIGINT",
+      "expired_lease_count BIGINT",
+      "oldest_pending_age_seconds BIGINT",
+      "storage_failed_job_count BIGINT",
+      "storage_expired_lease_count BIGINT",
+      "orphaned_storage_job_count BIGINT",
+      "reaper_cron_active BOOLEAN",
+      "reaper_credentials_configured BOOLEAN",
+      "PERFORM internal.require_service_role()",
+      "configuration_values AS MATERIALIZED",
+      "COALESCE( ( SELECT secret.decrypted_secret",
+      "FROM vault.decrypted_secrets AS secret",
+      "Match the reaper's Vault-first, NULL-only fallback exactly",
+      "'reconcile_account_deletions_every_five_minutes'",
+      "SET search_path = ''",
+      "SET statement_timeout = '5s'",
+      "REVOKE ALL ON FUNCTION public.get_account_deletion_health() FROM PUBLIC, anon, authenticated, service_role",
+      "GRANT EXECUTE ON FUNCTION public.get_account_deletion_health() TO service_role",
+      "'public.get_account_deletion_health()'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const resultStart = sql.indexOf(
+    "RETURNS TABLE ( generated_at TIMESTAMPTZ",
+  );
+  const resultEnd = sql.indexOf(
+    ") LANGUAGE PLPGSQL SECURITY DEFINER",
+    resultStart,
+  );
+  const resultShape = sql.slice(resultStart, resultEnd);
+  assert(
+    !resultShape.includes("user_id") &&
+      !resultShape.includes("last_error_code"),
+    "The health RPC must expose aggregate state only, without identity or raw error values.",
+  );
+  assert(
+    !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
+    "PostgreSQL conditional expressions are not schema-qualified functions and fail plpgsql_check.",
+  );
 });
 
 Deno.test("failed tombstone-owner rollout is an executable no-op bridge", async () => {

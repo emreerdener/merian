@@ -59,7 +59,7 @@ destinations:
 | `R2_READ_ACCESS_KEY_ID` | The deploy workflow synchronizes it to Supabase Edge for signed, read-only R2-origin verification | No |
 | `R2_READ_SECRET_ACCESS_KEY` | The deploy workflow synchronizes it to Supabase Edge as the verifier credential secret | No |
 | `R2_EVENT_WEBHOOK_SECRET` | The deploy workflow synchronizes it to Supabase Edge when optional R2 event acceleration is enabled | No |
-| `SUPABASE_ACCESS_TOKEN` | Authenticates the Supabase CLI running in GitHub Actions | No |
+| `SUPABASE_ACCESS_TOKEN` | Authenticates deployment tooling and lets independent health monitors resolve a production server API key through the Supabase Management API | No |
 | `SUPABASE_DB_URL` | Preferred direct PostgreSQL connection used by migration and catalog-audit steps | No |
 | `SUPABASE_DB_PASSWORD` | Used only by the alternative GitHub database connection path | No |
 

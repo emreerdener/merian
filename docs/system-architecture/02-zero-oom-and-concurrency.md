@@ -1256,12 +1256,15 @@ cumulative row/byte budgets. The durable queue, not one Edge isolate, owns the
 full database scan.
 
 Assembly lazily GETs the ordered chunk manifest into the ZIP stream and
-coalesces only one 8 MiB R2 multipart part at a time. No full result history,
-CSV, or ZIP is retained. Canonical job defaults cap all CSV rows at 5,000 and
-the final archive at 8 MiB; database constraints impose 20,000-row and 16 MiB
-hard ceilings for reviewed internal jobs. R2 XML and Resend responses are
-byte-capped, and multipart completion parses the body so an embedded S3 error
-under HTTP 200 cannot be mistaken for a durable archive.
+coalesces only one 8 MiB R2 multipart part at a time. Preparation persists the
+CRC-32 for each bounded CSV chunk; assembly composes the ordered checksums
+algebraically instead of running an archive-sized JavaScript byte loop, while
+still requiring exact manifest byte counts. No full result history, CSV, or ZIP
+is retained. Canonical job defaults cap all CSV rows at 5,000 and the final
+archive at 8 MiB; database constraints impose 20,000-row and 16 MiB hard
+ceilings for reviewed internal jobs. R2 XML and Resend responses are byte-capped,
+and multipart completion parses the body so an embedded S3 error under HTTP 200
+cannot be mistaken for a durable archive.
 
 Storage side effects are fenced too: every temporary CSV key includes phase,
 sequence, and claim UUID, while an unstaged final object also includes the claim

@@ -1413,7 +1413,7 @@ Each claimed step remains independently bounded:
    row-and-byte-aware keyset page from shared immutable job membership,
    incrementally RFC-4180 encodes into a fixed buffer of at most 512 KiB, writes
    one temporary R2 CSV chunk, and transactionally commits its object key,
-   cursor, and cumulative budgets.
+   cursor, cumulative budgets, byte count, and CRC-32.
 2. `assembling` reads the manifest in order and lazily streams the CSV chunks
    through the ZIP32 writer into a bounded R2 multipart upload.
 3. `delivering` resolves the canonical owner's Auth email, calls Resend with
@@ -1441,13 +1441,25 @@ archive keys are claim-fenced too. A durably staged archive is reused after
 lease recovery rather than regenerated.
 
 The CSV encoder appends one row at a time without page-wide line arrays,
-concurrent row expansion, or a final string join. The ZIP writer maintains
-incremental CRC-32 state, multipart parts are fixed at 8 MiB, and source pages,
-chunk responses, and parts are released as they flow. No invocation retains the
+concurrent row expansion, or a final string join. It computes CRC-32 only for
+the current bounded 512 KiB-or-smaller chunk. Assembly combines the ordered
+durable chunk CRCs with GF(2) composition, making checksum work proportional to
+chunk count rather than archive bytes; it also verifies the streamed byte count
+for each ZIP entry. Multipart parts are fixed at 8 MiB, and source pages, chunk
+responses, and parts are released as they flow. No invocation retains the
 complete result set, CSV, or ZIP. R2 XML and Resend responses are byte-capped,
 every outbound request has a deadline, failed multipart uploads are aborted
 where possible, and S3-compatible `<Error>` documents returned under HTTP 200
 are rejected.
+
+Resource limits are an operational input rather than an entitlement to perform
+more work. The current
+[Supabase Edge Function limits](https://supabase.com/docs/guides/functions/limits)
+must be rechecked before changing the 100-row, 256 KiB source, 512 KiB CSV, 8
+MiB multipart, 40-step, or archive ceilings. A release must exercise a
+maximum-shape export in the hosted environment and inspect function metrics and
+546/`CPU Time exceeded` logs; local checksum timing alone cannot establish
+production headroom.
 
 Personal exports retain the owner's UUID and can include the owner's precise
 coordinates. A reviewed internal global job uses a stable, versioned,
@@ -1860,10 +1872,22 @@ audit.
 `JSON.stringify({ ...details, event, ts })` to `console.error`. These structured
 logs must be connected to a log drain (Logflare or Datadog) with alerts on
 `account_deletion_attempt_deferred`, `account_deletion_reconciliation_deferred`,
-and `account_storage_erasure_deferred`. Operators must also alert on overdue
-active rows or repeatedly increasing `attempt_count`; remediation is to repair
-the failing cleanup/R2/Auth dependency and let the reaper resume the
-claim-fenced job, never to delete Auth manually.
+and `account_storage_erasure_deferred`.
+
+Migration `20260727001630_monitor_account_deletion_health.sql` supplies the
+independent stuck-job boundary: partial indexes support oldest-active,
+oldest-due, retry-error, and expired-lease aggregation, and service-only
+`get_account_deletion_health()` reports those metrics plus phase/backlog counts,
+orphaned storage work, cron activity, and credential readiness. The result
+contains no user identifier or raw error. The five-minute
+`account-deletion-health-monitor.yml` GitHub schedule is offset from the
+database reaper and resolves its server API key through the Management API, not
+the reaper's Vault configuration. It therefore reports missing Vault values or a
+disabled cron as critical instead of failing with the worker. Default
+warning/critical thresholds are 10/30 minutes due age, 27/36 hours end to end,
+and 25/100 active jobs. Remediation is to repair the failing cron,
+cleanup/R2/Auth dependency, or credential configuration and let the claim-fenced
+job resume—never to delete Auth manually.
 
 On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
 sign-out for the current device, tears down the local SQLite database via
