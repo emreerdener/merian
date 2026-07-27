@@ -15,6 +15,7 @@ export type ServiceRoleAuthResult =
 
 export interface ServiceRoleAuthOptions {
   envServiceRoleKey?: string;
+  envSecretKey?: string;
   envSecretKeys?: string;
   envServerApiKey?: string;
 }
@@ -42,20 +43,27 @@ export class ServerApiKeyConfigurationError extends Error {
  *
  * `SUPABASE_SERVER_API_KEY` is an explicit deployment override,
  * `SUPABASE_SECRET_KEYS` is the platform-managed dictionary of current
- * `sb_secret_...` keys, and `SUPABASE_SERVICE_ROLE_KEY` is the migration
- * fallback for the legacy JWT.
+ * `sb_secret_...` keys, `SUPABASE_SECRET_KEY` is the local/manual fallback,
+ * and `SUPABASE_SERVICE_ROLE_KEY` is the migration fallback for the legacy
+ * JWT.
  */
 export function serverApiKeyOptionsFromEnvironment(): ServiceRoleAuthOptions {
   return {
     envServerApiKey: Deno.env.get("SUPABASE_SERVER_API_KEY") ?? "",
     envSecretKeys: Deno.env.get("SUPABASE_SECRET_KEYS") ?? "",
+    envSecretKey: Deno.env.get("SUPABASE_SECRET_KEY") ?? "",
     envServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   };
 }
 
+/**
+ * Builds format-aware server credentials.
+ *
+ * Opaque API keys belong in `apikey`, never in Bearer transport. Legacy
+ * service-role JWTs remain valid Bearer tokens during the migration window.
+ */
 export function serviceRoleRequestHeaders(
   serverApiKey: string,
-  destination: "database" | "functions" | "auth" | "storage" = "functions",
 ): Record<string, string> {
   if (!isSupportedServerApiKey(serverApiKey)) {
     throw new ServerApiKeyConfigurationError(
@@ -67,13 +75,7 @@ export function serviceRoleRequestHeaders(
     apikey: serverApiKey,
   };
 
-  if (serverApiKey.startsWith("sb_secret_")) {
-    if (destination === "functions") {
-      headers["x-supabase-server-key"] = serverApiKey;
-    } else {
-      headers.Authorization = `Bearer ${serverApiKey}`;
-    }
-  } else {
+  if (!serverApiKey.startsWith("sb_secret_")) {
     headers.Authorization = `Bearer ${serverApiKey}`;
   }
 
@@ -94,7 +96,7 @@ const CURRENT_SECRET_KEY_PREFIX = "sb_secret_";
 const MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH = 20;
 const HS256_BASE64URL_SIGNATURE_LENGTH = 43;
 
-function isCurrentSecretKey(value: string): boolean {
+export function isCurrentSecretKey(value: string): boolean {
   const suffix = value.slice(CURRENT_SECRET_KEY_PREFIX.length);
   return value.startsWith(CURRENT_SECRET_KEY_PREFIX) &&
     suffix.length >= MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH &&
@@ -131,7 +133,7 @@ function decodeBase64UrlJson(
  * responsibility; this check prevents an anon/user JWT copied into a server
  * key variable from becoming an authorization oracle through exact matching.
  */
-function isLegacyServiceRoleJwt(value: string): boolean {
+export function isLegacyServiceRoleJwt(value: string): boolean {
   if (!value || value.trim() !== value) return false;
   const segments = value.split(".");
   if (
@@ -153,7 +155,6 @@ function isSupportedServerApiKey(value: string): boolean {
 }
 
 function requestCredential(req: Request): RequestCredentialResult {
-  const customKey = req.headers.get("x-supabase-server-key")?.trim() ?? "";
   const authorization = req.headers.get("Authorization")?.trim() ?? "";
   const bearerMatch = authorization.match(/^Bearer\s+([^\s]+)$/i);
   if (authorization.length > 0 && !bearerMatch) {
@@ -172,7 +173,7 @@ function requestCredential(req: Request): RequestCredentialResult {
     return { reason: "conflicting_credentials" };
   }
 
-  const token = customKey || apiKey || bearerToken;
+  const token = apiKey || bearerToken;
   return token ? { token } : { reason: "missing_token" };
 }
 
@@ -185,9 +186,6 @@ function parseSecretKeyConfiguration(
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      if (typeof parsed === "string" && isCurrentSecretKey(parsed)) {
-        return { entries: [{ name: "default", key: parsed }], valid: true };
-      }
       return { entries: [], valid: false };
     }
 
@@ -207,9 +205,6 @@ function parseSecretKeyConfiguration(
     entries.sort((left, right) => left.name.localeCompare(right.name));
     return { entries, valid: true };
   } catch {
-    if (isCurrentSecretKey(raw)) {
-      return { entries: [{ name: "default", key: raw }], valid: true };
-    }
     return { entries: [], valid: false };
   }
 }
@@ -229,6 +224,7 @@ function matchesAnyConfiguredKey(
 function preferredServerApiKey(
   legacyServiceRoleKey: string,
   explicitServerApiKey: string,
+  singularSecretKey: string,
   secretKeyConfiguration: SecretKeyConfigurationResult,
 ): string | null {
   const namedDefault = secretKeyConfiguration.entries.find(
@@ -237,6 +233,7 @@ function preferredServerApiKey(
   return explicitServerApiKey ||
     namedDefault?.key ||
     secretKeyConfiguration.entries[0]?.key ||
+    singularSecretKey ||
     legacyServiceRoleKey ||
     null;
 }
@@ -246,11 +243,14 @@ export function resolveServerApiKey(
 ): ServerApiKeyResult {
   const legacyServiceRoleKey = options.envServiceRoleKey?.trim() ?? "";
   const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
+  const singularSecretKey = options.envSecretKey?.trim() ?? "";
   if (
     (legacyServiceRoleKey &&
-      !isSupportedServerApiKey(legacyServiceRoleKey)) ||
+      !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
-      !isSupportedServerApiKey(explicitServerApiKey))
+      !isSupportedServerApiKey(explicitServerApiKey)) ||
+    (singularSecretKey &&
+      !isCurrentSecretKey(singularSecretKey))
   ) {
     return { ok: false, reason: "invalid_secret_key_configuration" };
   }
@@ -259,10 +259,13 @@ export function resolveServerApiKey(
     options.envSecretKeys,
   );
 
-  // An explicit or legacy key remains available during a malformed
-  // platform-managed dictionary rollout. Unknown named keys still fail closed.
+  // Explicit, singular, and legacy fallbacks remain available during a
+  // malformed platform-managed dictionary rollout. Unknown named keys still
+  // fail closed.
   if (!secretKeyConfiguration.valid) {
-    const fallbackKey = explicitServerApiKey || legacyServiceRoleKey;
+    const fallbackKey = explicitServerApiKey ||
+      singularSecretKey ||
+      legacyServiceRoleKey;
     return fallbackKey
       ? { ok: true, serverApiKey: fallbackKey }
       : { ok: false, reason: "invalid_secret_key_configuration" };
@@ -271,6 +274,7 @@ export function resolveServerApiKey(
   const serverApiKey = preferredServerApiKey(
     legacyServiceRoleKey,
     explicitServerApiKey,
+    singularSecretKey,
     secretKeyConfiguration,
   );
   return serverApiKey
@@ -314,11 +318,14 @@ export function authorizeServiceRoleRequest(
 
   const legacyServiceRoleKey = options.envServiceRoleKey?.trim() ?? "";
   const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
+  const singularSecretKey = options.envSecretKey?.trim() ?? "";
   if (
     (legacyServiceRoleKey &&
-      !isSupportedServerApiKey(legacyServiceRoleKey)) ||
+      !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
-      !isSupportedServerApiKey(explicitServerApiKey))
+      !isSupportedServerApiKey(explicitServerApiKey)) ||
+    (singularSecretKey &&
+      !isCurrentSecretKey(singularSecretKey))
   ) {
     return { ok: false, reason: "invalid_secret_key_configuration" };
   }
@@ -327,7 +334,9 @@ export function authorizeServiceRoleRequest(
     (legacyServiceRoleKey &&
       timingSafeCompare(credential.token, legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
-      timingSafeCompare(credential.token, explicitServerApiKey))
+      timingSafeCompare(credential.token, explicitServerApiKey)) ||
+    (singularSecretKey &&
+      timingSafeCompare(credential.token, singularSecretKey))
   ) {
     const secretKeyConfiguration = parseSecretKeyConfiguration(
       options.envSecretKeys,
@@ -338,9 +347,10 @@ export function authorizeServiceRoleRequest(
         ? preferredServerApiKey(
           legacyServiceRoleKey,
           explicitServerApiKey,
+          singularSecretKey,
           secretKeyConfiguration,
         ) ?? credential.token
-        : explicitServerApiKey || legacyServiceRoleKey,
+        : explicitServerApiKey || singularSecretKey || legacyServiceRoleKey,
     };
   }
 
@@ -354,6 +364,7 @@ export function authorizeServiceRoleRequest(
   if (
     !legacyServiceRoleKey &&
     !explicitServerApiKey &&
+    !singularSecretKey &&
     secretKeyConfiguration.entries.length === 0
   ) {
     return { ok: false, reason: "no_configured_keys" };
@@ -371,6 +382,7 @@ export function authorizeServiceRoleRequest(
   const serverApiKey = preferredServerApiKey(
     legacyServiceRoleKey,
     explicitServerApiKey,
+    singularSecretKey,
     secretKeyConfiguration,
   );
   return serverApiKey

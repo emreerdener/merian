@@ -4,6 +4,7 @@ import {
   type SupabaseClient,
 } from "@supabase/supabase-js";
 import { createDeadlineFetchTransport } from "../_shared/outbound.ts";
+import { requirePublicApiKeyFromEnvironment } from "../_shared/publishableKey.ts";
 import type { MergeProvider } from "./protocol.ts";
 
 const SUPABASE_USER_REQUEST_TIMEOUT_MS = 30_000;
@@ -156,7 +157,7 @@ function requestScopedClient(req: Request): SupabaseClient {
   const authorization = req.headers.get("Authorization") ?? "";
   return createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    requirePublicApiKeyFromEnvironment(),
     {
       auth: {
         persistSession: false,

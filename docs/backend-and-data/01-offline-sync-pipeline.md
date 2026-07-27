@@ -786,10 +786,13 @@ the latch without waiting for a URLSession delegate callback.
   token until this awaited recovery finishes; replacement cancels the old task
   and all post-await mutations revalidate that exact token. When the row is not
   found but the job is
-  still `processing`, `finalizing`, or `retrying`, the local row stays
-  `.inferencing` and another server poll is scheduled. `failed_retryable` honors
-  the server `retry_after` before returning the row to `.staged`; terminal
-  failure marks the queue row as needing attention. Unresolved `not_found`
+still `processing`, `finalizing`, or `retrying`, the local row stays
+`.inferencing` and another server poll is scheduled. `failed_retryable` honors
+the server `retry_after` before returning the row to `.staged`. A retry timestamp
+that is already stale schedules a one-second recheck rather than the maximum
+five-minute wait, so clock skew or an expired lease cannot stall recovery;
+terminal
+failure marks the queue row as needing attention. Unresolved `not_found`
   responses or status-probe failures fall back to the same persisted retry budget
   (`OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`) used by upload
   staging, rather than a separate process-local attempt counter.

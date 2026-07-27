@@ -33,7 +33,9 @@ are identified by a persistent Keychain-backed
   scan updates net to no work. The migration replaces the historical
   `unified_species_count_sync` full-history row trigger. Its one-time backfill
   and trigger swap run inside one explicit transaction: `BEGIN` precedes the
-  `SHARE ROW EXCLUSIVE` scan lock, and `COMMIT` follows the final trigger.
+  `SHARE ROW EXCLUSIVE` scan lock, and `COMMIT` follows the final trigger. That
+  boundary is part of this immutable historical file, not guidance for new
+  migrations; new files use the CLI's migration-plus-history transaction.
 
 ## Shared Edge Utilities (`_shared/`)
 
@@ -378,6 +380,13 @@ under a dedicated secret and merely advances due time. Scheduled origin checks
 are the source of truth. A successful `/repair-scan-image` metadata transaction
 resets matching item health and public projection restores automatically if
 ordinary publication rules still pass.
+
+The backing mixed user/server incident RPC dispatches on bound user identity
+first and requires exact `auth.uid() = self_id` for a user caller. Only its
+no-user branch invokes `internal.require_service_role()`. Migration
+`20260727183356_restore_identity_first_media_incident_guard.sql` restores this
+final contract after a later migration accidentally reintroduced role-first
+dispatch.
 
 The canonical product decision, state machine, user communication, security,
 monitoring, and rollout contract is
@@ -1540,14 +1549,15 @@ that operate on anonymous IDFV boundaries:
     then enforce an exact platform-managed service credential inside Deno with
     `timingSafeCompare`. Boundaries using `_shared/serviceRoleAuth.ts` compare
     against `SUPABASE_SERVER_API_KEY`, named `sb_secret_...` values in
-    `SUPABASE_SECRET_KEYS`, and the migration-only
-    `SUPABASE_SERVICE_ROLE_KEY` fallback; they do not use table reachability or an RLS result
-    as proof. A legacy JWT key may be sent as Bearer (normally with the same
-    `apikey`); a current non-JWT secret key must be sent only as `apikey`.
-    Conflicting credentials fail closed, and accepted request values are never
-    reused as downstream database credentials. This internal category includes
-    species refresh, reference-image refresh, taxonomy import/status/refresh,
-    consensus processing, non-biological purge,
+    `SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
+    fallback, and the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback; they
+    do not use table reachability or an RLS result as proof. A legacy JWT key
+    may be sent as Bearer (normally with the same `apikey`); a current non-JWT
+    secret key must be sent only as `apikey`. Conflicting credentials fail
+    closed, and accepted request values are never reused as downstream database
+    credentials. This internal category includes species refresh,
+    reference-image refresh, taxonomy import/status/refresh, consensus
+    processing, non-biological purge,
     `backfill-explore-audio-spectrograms`, and `reconcile-ghost-profile-merges`
     workers.
 - **Rule for new Edge Functions**: Every new function directory under
@@ -1608,14 +1618,16 @@ indexes:
   filter and the `ORDER BY` in a single index-only scan, making each page
   O(page_size) regardless of library size.
 
-All migration-owned index DDL intentionally omits `CONCURRENTLY`. Supabase fresh
-database creation replays SQL through a statement pipeline, and workflow run
-1444 demonstrated that `db start` can reject concurrent index creation even when
-a sibling CLI migration command has special handling for it. The static
-`migrationExecutionContract.test.ts` guard covers the full migration directory.
-Zero-downtime index creation on a populated production table is an explicit
-pre-deploy operation; the migration retains an idempotent ordinary index
-statement for deterministic clean rebuilds.
+All migration-owned index DDL intentionally omits `CONCURRENTLY`. Supabase CLI
+`2.109.1` batches each migration and its history insert in one implicit
+transaction; new migrations also omit top-level transaction controls so that
+atomic boundary cannot be split. The static migration contracts cover the full
+migration directory, including dynamic concurrent DDL and transaction aliases.
+Zero-downtime index creation on a populated production table is an explicit,
+supervised pre-deploy operation. A size-gated migration may converge with an
+ordinary index only after it verifies a reusable index or a relation small
+enough for the bounded inline path. See the canonical
+[migration execution and index contract](./13-server-credentials-and-database-release-safety.md#migration-execution-contract).
 
 ## Storage Economics & Evidence Retention
 
@@ -2187,12 +2199,17 @@ For a production deployment, the following required secrets and documented
 optional controls are set in the Supabase Edge secret store via the CLI
 (`supabase secrets set KEY=VALUE`):
 
-- Supabase automatically provides **`SUPABASE_URL`**, **`SUPABASE_ANON_KEY`**,
-  and the legacy server-only **`SUPABASE_SERVICE_ROLE_KEY`**. It also provides
-  **`SUPABASE_SECRET_KEYS`** as a JSON object containing the project's named
-  current `sb_secret_...` keys. Do not manually duplicate these built-ins.
-  `_shared/serviceRoleAuth.ts` uses the latter two only for exact local
-  authorization matching; public/publishable keys are never accepted.
+- Supabase automatically provides **`SUPABASE_URL`**, the legacy
+  **`SUPABASE_ANON_KEY`** and server-only
+  **`SUPABASE_SERVICE_ROLE_KEY`**, plus JSON dictionaries
+  **`SUPABASE_PUBLISHABLE_KEYS`** and **`SUPABASE_SECRET_KEYS`** containing the
+  project's named current keys. Do not manually duplicate these built-ins.
+  `_shared/publishableKey.ts` resolves the public project key for user-scoped
+  clients; `_shared/serviceRoleAuth.ts` independently resolves and exactly
+  matches server-only keys. Neither boundary accepts the other key class.
+  **`SUPABASE_SECRET_KEY`** is an optional singular current-key fallback for
+  local/manual Deno environments; it is not a replacement for the hosted plural
+  dictionary.
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
 - **`AI_QUOTA_IP_HASH_SECRET`** (optional override): At least 32 high-entropy

@@ -110,6 +110,20 @@ struct ExploreErrorFormatterTests {
         #expect(message == "Couldn’t share to Explore\nThis scan is already saved. Try sharing again.")
     }
 
+    @Test func serviceRoleErrorsUseCustomerFacingAvailabilityCopy() {
+        let message = ExploreErrorFormatter.titledMessage(
+            "Couldn’t share to Explore",
+            for: MerianError.httpError(
+                statusCode: 500,
+                message: "Failed to sync public author identity: service_role authorization required"
+            )
+        )
+
+        #expect(
+            message == "Couldn’t share to Explore\nExplore is temporarily unavailable. Please try again in a few minutes."
+        )
+    }
+
     @Test func fieldTripDetailHidesBackendIdentifierValidation() {
         let message = ExploreErrorFormatter.fieldTripDetailMessage(for: MerianError.httpError(
             statusCode: 400,

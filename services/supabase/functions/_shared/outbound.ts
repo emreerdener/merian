@@ -29,6 +29,61 @@ export function createDeadlineFetchTransport(
 }
 
 /**
+ * Returns a fetch transport whose response stream fails once it crosses an
+ * explicit byte ceiling. The body remains streaming, so SDK consumers retain
+ * their normal JSON/text behavior without buffering an untrusted response
+ * before the limit is enforced.
+ */
+export function createResponseBodyLimitFetchTransport(
+  maximumBytes: number,
+  fetcher: typeof fetch = fetch,
+): typeof fetch {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1) {
+    throw new TypeError("maximumBytes must be a positive safe integer.");
+  }
+
+  return async (input, init) => {
+    const response = await fetcher(input, init);
+    const declaredLength = response.headers.get("content-length");
+    if (
+      declaredLength !== null &&
+      /^(0|[1-9][0-9]*)$/.test(declaredLength.trim()) &&
+      Number(declaredLength) > maximumBytes
+    ) {
+      try {
+        await response.body?.cancel("response body exceeded limit");
+      } catch {
+        // The valid upstream declaration is sufficient for early rejection.
+      }
+      throw new RangeError("Response body exceeded its byte limit.");
+    }
+    if (!response.body) return response;
+
+    let receivedBytes = 0;
+    const boundedBody = response.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          receivedBytes += chunk.byteLength;
+          if (receivedBytes > maximumBytes) {
+            controller.error(
+              new RangeError("Response body exceeded its byte limit."),
+            );
+            return;
+          }
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+
+    return new Response(boundedBody, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  };
+}
+
+/**
  * Executes an outbound request with a hard deadline while preserving a
  * caller-provided cancellation signal. Edge wall-clock limits are a final
  * safety net, not an ownership mechanism: callers should always regain

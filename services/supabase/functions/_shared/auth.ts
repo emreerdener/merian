@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
 import { corsHeaders } from "./http.ts";
 import { createDeadlineFetchTransport } from "./outbound.ts";
+import { requirePublicApiKeyFromEnvironment } from "./publishableKey.ts";
 
 const SUPABASE_AUTH_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -46,7 +47,7 @@ export async function requireAuth(
   // Create a client scoped to the request's Bearer token to validate the JWT.
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    requirePublicApiKeyFromEnvironment(),
     {
       global: {
         fetch: createDeadlineFetchTransport(
@@ -70,7 +71,7 @@ export async function requireAuth(
       response: new Response(
         JSON.stringify({
           code: authFailureCode(message),
-          error: `Unauthorized: ${message}`,
+          error: "Unauthorized: Invalid or expired session token.",
         }),
         {
           status: 401,

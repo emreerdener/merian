@@ -9,6 +9,10 @@ const authHelperUrl = new URL(
   "../_shared/serviceRoleAuth.ts",
   import.meta.url,
 );
+const publishableKeyHelperUrl = new URL(
+  "../_shared/publishableKey.ts",
+  import.meta.url,
+);
 const reconcileIndexUrl = new URL(
   "../reconcile-explore-media-health/index.ts",
   import.meta.url,
@@ -84,6 +88,13 @@ const EXPECTED_DIRECT_SUPABASE_CLIENT_BOUNDARIES = [
   "merge-ghost-profile/db.ts",
 ];
 
+const EXPECTED_PUBLIC_KEY_CONSUMERS = [
+  "_shared/auth.ts",
+  "_shared/claimsAuth.ts",
+  "merge-ghost-profile/db.ts",
+  "species-observation-stats/security.ts",
+];
+
 function isProductionTypeScript(path: string): boolean {
   return !/(?:^|\/)[^/]*(?:_test|\.test)\.ts$/.test(path);
 }
@@ -155,6 +166,7 @@ Deno.test("every service-role request boundary uses exact environment-backed aut
       assertStringIncludes(source, "authorizeServiceRoleRequest(req,");
       assertStringIncludes(source, "envServerApiKey:");
       assertStringIncludes(source, "envServiceRoleKey:");
+      assertStringIncludes(source, "envSecretKey:");
       assertStringIncludes(source, "envSecretKeys:");
     } else {
       assertStringIncludes(
@@ -172,6 +184,23 @@ Deno.test("every service-role request boundary uses exact environment-backed aut
       !source.includes("serviceRoleProbe") && !source.includes("probe:"),
       `${path} must not authorize through a capability probe.`,
     );
+    for (
+      const forbiddenDiagnostic of [
+        "hasServerKey",
+        "hasSecretKeys",
+        "secretKeysLength",
+        "secretKeysPrefix",
+        "secretKeysSuffix",
+        "tokenPrefix",
+        "tokenSuffix",
+        "tokenLength",
+      ]
+    ) {
+      assert(
+        !source.includes(forbiddenDiagnostic),
+        `${path} exposes a secret-derived authentication diagnostic.`,
+      );
+    }
   }
 });
 
@@ -188,6 +217,7 @@ Deno.test("production sources cannot introduce a manual legacy-key authorization
         const environmentRead of [
           'Deno.env.get("SUPABASE_SERVER_API_KEY")',
           'Deno.env.get("SUPABASE_SECRET_KEYS")',
+          'Deno.env.get("SUPABASE_SECRET_KEY")',
           'Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")',
         ]
       ) {
@@ -197,17 +227,69 @@ Deno.test("production sources cannot introduce a manual legacy-key authorization
         );
       }
     }
-    assert(
-      !/timingSafeCompare\([\s\S]{0,240}Bearer[\s\S]{0,80}(?:serviceRole|serverApi)/i
-        .test(source),
-      `${path} contains a hand-written Supabase server-key Bearer check.`,
-    );
+    if (
+      path !== "_shared/serviceRoleAuth.ts" &&
+      path !== "_shared/serviceRoleClient.ts"
+    ) {
+      assert(
+        !/timingSafeCompare\([\s\S]{0,240}Bearer[\s\S]{0,80}(?:serviceRole|serverApi)/i
+          .test(source),
+        `${path} contains a hand-written Supabase server-key Bearer check.`,
+      );
+    }
     assert(
       !/Bearer \$\{Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)/.test(
         source,
       ),
       `${path} builds a Bearer credential directly from the legacy key.`,
     );
+  }
+});
+
+Deno.test("public project key reads and parsing remain centralized", async () => {
+  const files = await collectTypeScriptFiles(functionsRoot);
+  const consumers = files
+    .filter(({ path, source }) =>
+      isProductionTypeScript(path) &&
+      path !== "_shared/publishableKey.ts" &&
+      /\brequirePublicApiKeys?FromEnvironment\s*\(/.test(source)
+    )
+    .map(({ path }) => path)
+    .sort();
+
+  assertEquals(consumers, EXPECTED_PUBLIC_KEY_CONSUMERS);
+
+  for (
+    const { path, source } of files.filter(({ path }) =>
+      isProductionTypeScript(path)
+    )
+  ) {
+    if (path === "_shared/publishableKey.ts") continue;
+    for (
+      const environmentRead of [
+        'Deno.env.get("SUPABASE_PUBLISHABLE_KEYS")',
+        'Deno.env.get("SUPABASE_ANON_KEY")',
+      ]
+    ) {
+      assert(
+        !source.includes(environmentRead),
+        `${path} reads public project credentials outside the shared resolver.`,
+      );
+    }
+  }
+
+  const helper = await Deno.readTextFile(publishableKeyHelperUrl);
+  for (
+    const requiredFragment of [
+      'Deno.env.get("SUPABASE_PUBLISHABLE_KEYS")',
+      'Deno.env.get("SUPABASE_ANON_KEY")',
+      "startsWith(PUBLISHABLE_KEY_PREFIX)",
+      'payload?.role === "anon"',
+      'entry.name === "default"',
+      '"invalid_publishable_key_configuration"',
+    ]
+  ) {
+    assertStringIncludes(helper, requiredFragment);
   }
 });
 
@@ -239,6 +321,7 @@ Deno.test("service-role authorization has no database or network fallback", asyn
   for (
     const requiredFragment of [
       "timingSafeCompare(",
+      "envSecretKey",
       "envSecretKeys",
       'startsWith("sb_secret_")',
       "MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH = 20",
@@ -282,6 +365,16 @@ Deno.test("privileged clients and internal calls use the shared API-key transpor
     EXPECTED_DIRECT_SUPABASE_CLIENT_BOUNDARIES,
   );
   assertEquals(legacyOnlyAdminClients, []);
+  assertStringIncludes(serviceClient, 'startsWith("sb_secret_")');
+  assertStringIncludes(
+    serviceClient,
+    "timingSafeCompare(bearerCredential, validatedServerApiKey)",
+  );
+  assertStringIncludes(serviceClient, "/^Bearer\\s+([^\\s]+)$/i");
+  assertStringIncludes(
+    serviceClient,
+    "input instanceof Request ? input.headers",
+  );
   assertStringIncludes(
     serviceClient,
     "deadlineTransport",
@@ -295,7 +388,20 @@ Deno.test("privileged clients and internal calls use the shared API-key transpor
     "requireServerApiKeyFromEnvironment()",
   );
   assertStringIncludes(serviceClient, "createDeadlineFetchTransport(");
+  assertStringIncludes(
+    serviceClient,
+    "createResponseBodyLimitFetchTransport(",
+  );
+  assertStringIncludes(serviceClient, "createServiceRoleClientWithOptions(");
+  assertStringIncludes(
+    serviceClient,
+    "createServiceRoleClientFromEnvironmentWithOptions(",
+  );
   assertStringIncludes(serviceAuth, "apikey: serverApiKey");
+  assert(
+    !serviceAuth.includes("x-supabase-server-key"),
+    "Internal service authentication must use Supabase's standard apikey transport.",
+  );
   assertStringIncludes(serviceAuth, "serviceRoleRequestHeaders(");
   assertStringIncludes(replayWorker, "serviceRoleRequestHeaders(");
   assertStringIncludes(
@@ -387,10 +493,56 @@ Deno.test("operational callers use exact server-key discovery and shared transpo
     ]
   ) {
     const script = await Deno.readTextFile(scriptUrl);
-    assertStringIncludes(script, "createServiceRoleClientFromEnvironment(");
+    assert(
+      /\bcreateServiceRoleClientFromEnvironment(?:WithOptions)?\s*\(/.test(
+        script,
+      ),
+      `${scriptUrl.pathname} must use an environment-backed shared client.`,
+    );
     assert(
       !script.includes('"Authorization": `Bearer ${'),
       `${scriptUrl.pathname} must use the shared API-key transport policy.`,
     );
   }
+
+  for (
+    const boundedMonitorUrl of [
+      accountDeletionScriptUrl,
+      revenueCatMonitorScriptUrl,
+      dwcaMonitorScriptUrl,
+    ]
+  ) {
+    const script = await Deno.readTextFile(boundedMonitorUrl);
+    assertStringIncludes(
+      script,
+      "createServiceRoleClientFromEnvironmentWithOptions(",
+    );
+    assertStringIncludes(script, "MONITOR_REQUEST_TIMEOUT_MS = 15_000");
+    assertStringIncludes(
+      script,
+      "MONITOR_MAXIMUM_RESPONSE_BYTES = 64 * 1_024",
+    );
+    assertStringIncludes(
+      script,
+      "maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES",
+    );
+  }
+
+  const scanMediaScript = await Deno.readTextFile(scanMediaScriptUrl);
+  assertStringIncludes(
+    scanMediaScript,
+    "createServiceRoleClientFromEnvironmentWithOptions(",
+  );
+  assertStringIncludes(
+    scanMediaScript,
+    "MONITOR_REQUEST_TIMEOUT_MS = 15_000",
+  );
+  assertStringIncludes(
+    scanMediaScript,
+    "MONITOR_MAXIMUM_RESPONSE_BYTES = 2 * 1_024 * 1_024",
+  );
+  assertStringIncludes(
+    scanMediaScript,
+    "maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES",
+  );
 });

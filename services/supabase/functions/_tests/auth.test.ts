@@ -1,4 +1,7 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  assert,
+  assertEquals,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   authFailureCode,
   bearerTokenFromAuthorizationHeader,
@@ -125,4 +128,12 @@ Deno.test("claims authentication shares the pinned SDK and remains opt-in", asyn
   assertEquals(authSource.includes("https://esm.sh"), false);
   assertEquals(edgeHandlerSource.includes("claimsAuth"), false);
   assertEquals(edgeHandlerSource.includes("requireClaimsAuth"), false);
+  assert(
+    !authSource.includes("error: `Unauthorized: ${message}`"),
+    "The established auth path must not expose provider diagnostics.",
+  );
+  assert(
+    !claimsAuthSource.includes("error: `Unauthorized: ${message}`"),
+    "Claims auth must not expose provider diagnostics.",
+  );
 });

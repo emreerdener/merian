@@ -1,4 +1,8 @@
 import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import {
+  fetchWithDeadline,
+  readResponseJsonWithinLimit,
+} from "../functions/_shared/outbound.ts";
 
 /**
  * Merian Retroactive Geocoding Migration Script
@@ -13,7 +17,10 @@ import { createServiceRoleClientFromEnvironment } from "../functions/_shared/ser
  * Run with:
  *   export SUPABASE_URL="https://your-supabase-project.supabase.co"
  *   export SUPABASE_SERVER_API_KEY="your-server-api-key"
- *   deno run --config ../functions/deno.json --allow-net --allow-env retroactive_geocoding.ts
+ *   deno run --frozen --config ../functions/deno.json \
+ *     --allow-net=your-supabase-project.supabase.co,nominatim.openstreetmap.org \
+ *     --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY,SCAN_ID,DRY_RUN \
+ *     retroactive_geocoding.ts
  *
  * Optional controls:
  *   SCAN_ID=<uuid>       Repair one known scan/post.
@@ -24,6 +31,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const TARGET_SCAN_ID = Deno.env.get("SCAN_ID")?.trim();
 const DRY_RUN = Deno.env.get("DRY_RUN")?.toLowerCase() === "true";
 const PAGE_SIZE = 100;
+const NOMINATIM_ORIGIN = "https://nominatim.openstreetmap.org";
+const NOMINATIM_REQUEST_TIMEOUT_MS = 15_000;
+const NOMINATIM_MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
 
 if (!SUPABASE_URL) {
   console.error(
@@ -38,39 +48,65 @@ async function reverseGeocodeNominatim(
   lat: number,
   lon: number,
 ): Promise<string | null> {
-  const nominatimUrl =
-    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&zoom=10&addressdetails=1`;
+  const nominatimUrl = new URL("/reverse", NOMINATIM_ORIGIN);
+  nominatimUrl.searchParams.set("lat", String(lat));
+  nominatimUrl.searchParams.set("lon", String(lon));
+  nominatimUrl.searchParams.set("format", "jsonv2");
+  nominatimUrl.searchParams.set("zoom", "10");
+  nominatimUrl.searchParams.set("addressdetails", "1");
 
   try {
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        "User-Agent":
-          "MerianApp-Beta-GeocodingMigration/1.0 (contact@merian.app)",
+    const response = await fetchWithDeadline(
+      nominatimUrl,
+      {
+        headers: {
+          "User-Agent":
+            "MerianApp-Beta-GeocodingMigration/1.0 (contact@merian.app)",
+        },
       },
-    });
+      { timeoutMs: NOMINATIM_REQUEST_TIMEOUT_MS },
+    );
 
     if (!response.ok) {
+      await response.body?.cancel();
       console.warn(`⚠️ Nominatim API returned status: ${response.status}`);
       return null;
     }
 
-    const data = await response.json();
-    const address = data.address;
+    const data = await readResponseJsonWithinLimit<unknown>(
+      response,
+      NOMINATIM_MAXIMUM_RESPONSE_BYTES,
+    );
+    if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+    const addressValue = (data as Record<string, unknown>).address;
+    if (
+      !addressValue ||
+      typeof addressValue !== "object" ||
+      Array.isArray(addressValue)
+    ) return null;
+    const address = addressValue as Record<string, unknown>;
 
-    if (!address) return null;
-
-    // Extract city/town/village/hamlet
-    const city = address.city || address.town || address.village ||
-      address.hamlet || address.municipality || address.county;
-    // Extract state/province/region
-    const state = address.state || address.region || address.province;
+    const city = firstNonemptyString(
+      address.city,
+      address.town,
+      address.village,
+      address.hamlet,
+      address.municipality,
+      address.county,
+    );
+    const state = firstNonemptyString(
+      address.state,
+      address.region,
+      address.province,
+    );
+    const country = firstNonemptyString(address.country);
 
     if (city && state) {
       return `${city}, ${state}`;
     } else if (state) {
       return state;
-    } else if (address.country) {
-      return address.country;
+    } else if (country) {
+      return country;
     }
 
     return null;
@@ -81,6 +117,15 @@ async function reverseGeocodeNominatim(
     );
     return null;
   }
+}
+
+function firstNonemptyString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim();
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 async function runMigration() {

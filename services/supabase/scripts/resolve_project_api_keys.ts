@@ -6,10 +6,22 @@
  * unless that command exposes and uses an equivalent reveal option.
  */
 
+import {
+  isCurrentSecretKey,
+  isLegacyServiceRoleJwt,
+} from "../functions/_shared/serviceRoleAuth.ts";
+import {
+  isCurrentPublishableKey,
+  isLegacyAnonJwt,
+} from "../functions/_shared/publishableKey.ts";
+import {
+  fetchWithDeadline,
+  readResponseTextWithinLimit,
+} from "../functions/_shared/outbound.ts";
+
 const MANAGEMENT_API_ORIGIN = "https://api.supabase.com";
 const REQUEST_DEADLINE_MS = 15_000;
 const MAXIMUM_RESPONSE_BYTES = 512 * 1_024;
-const MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH = 20;
 
 export interface ResolvedProjectApiKeys {
   server_api_key: string;
@@ -27,18 +39,6 @@ function exactString(value: unknown): string | null {
     return null;
   }
   return value;
-}
-
-function isOpaqueKey(value: string, prefix: string): boolean {
-  return value.startsWith(prefix) &&
-    value.length >= prefix.length + MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH &&
-    /^[A-Za-z0-9_-]+$/.test(value.slice(prefix.length));
-}
-
-function isLegacyJwt(value: string): boolean {
-  const parts = value.split(".");
-  return parts.length === 3 &&
-    parts.every((part) => part.length > 0 && /^[A-Za-z0-9_-]+$/.test(part));
 }
 
 function candidateSort(
@@ -60,7 +60,6 @@ function uniqueCandidateKeys(candidates: KeyCandidate[]): string[] {
 
 export function resolveProjectApiKeys(
   payload: unknown,
-  preferLegacy: boolean = false,
 ): ResolvedProjectApiKeys {
   if (!Array.isArray(payload)) {
     throw new Error("Supabase Management API returned an invalid key list.");
@@ -79,32 +78,32 @@ export function resolveProjectApiKeys(
     const key = exactString(entry.api_key);
     if (!key) continue;
 
-    if (type === "secret" && isOpaqueKey(key, "sb_secret_")) {
+    if (type === "secret" && isCurrentSecretKey(key)) {
       serverCandidates.push({
         key,
         name,
-        priority: preferLegacy ? 2 : (name === "default" ? 0 : 1),
+        priority: name === "default" ? 0 : 1,
       });
     } else if (
       type === "legacy" &&
       name === "service_role" &&
-      isLegacyJwt(key)
+      isLegacyServiceRoleJwt(key)
     ) {
-      serverCandidates.push({ key, name, priority: preferLegacy ? 0 : 2 });
+      serverCandidates.push({ key, name, priority: 2 });
     }
 
-    if (type === "publishable" && isOpaqueKey(key, "sb_publishable_")) {
+    if (type === "publishable" && isCurrentPublishableKey(key)) {
       publicCandidates.push({
         key,
         name,
-        priority: preferLegacy ? 2 : (name === "default" ? 0 : 1),
+        priority: name === "default" ? 0 : 1,
       });
     } else if (
       type === "legacy" &&
       name === "anon" &&
-      isLegacyJwt(key)
+      isLegacyAnonJwt(key)
     ) {
-      publicCandidates.push({ key, name, priority: preferLegacy ? 0 : 2 });
+      publicCandidates.push({ key, name, priority: 2 });
     }
   }
 
@@ -121,49 +120,9 @@ export function resolveProjectApiKeys(
   };
 }
 
-async function readBoundedResponse(response: Response): Promise<string> {
-  const declaredLength = response.headers.get("Content-Length");
-  if (
-    declaredLength !== null &&
-    /^\d+$/.test(declaredLength) &&
-    Number(declaredLength) > MAXIMUM_RESPONSE_BYTES
-  ) {
-    await response.body?.cancel();
-    throw new Error("Supabase Management API key response is too large.");
-  }
-  if (!response.body) return "";
-
-  const chunks: Uint8Array[] = [];
-  const reader = response.body.getReader();
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAXIMUM_RESPONSE_BYTES) {
-        await reader.cancel();
-        throw new Error("Supabase Management API key response is too large.");
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(body);
-}
-
 export async function fetchRevealedProjectApiKeys(
   projectRef: string,
   accessToken: string,
-  preferLegacy: boolean = false,
   fetchImplementation: typeof fetch = fetch,
 ): Promise<ResolvedProjectApiKeys> {
   if (!/^[a-z0-9]{20}$/.test(projectRef)) {
@@ -183,67 +142,68 @@ export async function fetchRevealedProjectApiKeys(
   );
   url.searchParams.set("reveal", "true");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_DEADLINE_MS);
-  try {
-    const response = await fetchImplementation(url, {
+  const response = await fetchWithDeadline(
+    url,
+    {
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error(
-        `Supabase Management API key lookup failed with HTTP ${response.status}.`,
-      );
-    }
-
-    const text = await readBoundedResponse(response);
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      throw new Error("Supabase Management API returned invalid key JSON.");
-    }
-    return resolveProjectApiKeys(payload, preferLegacy);
-  } finally {
-    clearTimeout(timeout);
+    },
+    {
+      fetcher: fetchImplementation,
+      timeoutMs: REQUEST_DEADLINE_MS,
+    },
+  );
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(
+      `Supabase Management API key lookup failed with HTTP ${response.status}.`,
+    );
   }
+
+  const text = await readResponseTextWithinLimit(
+    response,
+    MAXIMUM_RESPONSE_BYTES,
+  );
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error("Supabase Management API returned invalid key JSON.");
+  }
+  return resolveProjectApiKeys(payload);
 }
 
 function parseArguments(
   args: string[],
-): { projectRef: string; preferLegacy: boolean } {
+): { projectRef: string } {
   let projectRef = "";
-  let preferLegacy = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--project-ref" && i + 1 < args.length) {
       projectRef = args[i + 1];
       i++;
-    } else if (args[i] === "--prefer-legacy") {
-      preferLegacy = true;
+    } else {
+      throw new Error(`Unknown or incomplete argument: ${args[i]}`);
     }
   }
 
   if (!projectRef) {
     throw new Error(
-      "Usage: resolve_project_api_keys.ts --project-ref <project-ref> [--prefer-legacy]",
+      "Usage: resolve_project_api_keys.ts --project-ref <project-ref>",
     );
   }
-  return { projectRef, preferLegacy };
+  return { projectRef };
 }
 
 if (import.meta.main) {
   try {
-    const { projectRef, preferLegacy } = parseArguments(Deno.args);
+    const { projectRef } = parseArguments(Deno.args);
     const accessToken = Deno.env.get("SUPABASE_ACCESS_TOKEN") ?? "";
     const keys = await fetchRevealedProjectApiKeys(
       projectRef,
       accessToken,
-      preferLegacy,
     );
     console.log(JSON.stringify(keys));
   } catch (error) {

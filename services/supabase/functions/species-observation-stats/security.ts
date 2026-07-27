@@ -9,6 +9,7 @@ import {
   hmacClientAddressForPurpose,
   resolveClientAddressHashSecret,
 } from "../_shared/clientAddress.ts";
+import { requirePublicApiKeysFromEnvironment } from "../_shared/publishableKey.ts";
 import { resolveServerApiKeyFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 
 const UUID_PATTERN =
@@ -77,8 +78,7 @@ export async function resolveSpeciesObservationStatsSecurityContext(
   try {
     const serverKey = resolveServerApiKeyFromEnvironment();
     secret = resolveClientAddressHashSecret({
-      platformSecretKey: Deno.env.get("SUPABASE_SECRET_KEY"),
-      serviceRoleKey: serverKey.ok ? serverKey.serverApiKey : undefined,
+      platformSecretKey: serverKey.ok ? serverKey.serverApiKey : undefined,
     });
   } catch (error) {
     if (!(error instanceof ClientAddressHashError)) throw error;
@@ -258,11 +258,9 @@ async function optionalAuthenticatedUserId(
   // Supabase clients invoke public functions with the project publishable/anon
   // key when no user session exists. That credential identifies the project,
   // not a user, so the request remains in the IP-only bucket.
-  const publicProjectKey = Deno.env.get("SUPABASE_ANON_KEY")?.trim();
-  if (
-    (publicProjectKey && token === publicProjectKey) ||
-    token.startsWith("sb_publishable_")
-  ) return null;
+  if (token.startsWith("sb_publishable_")) return null;
+  const { acceptedPublicApiKeys } = requirePublicApiKeysFromEnvironment();
+  if (acceptedPublicApiKeys.includes(token)) return null;
 
   const { user, response } = await requireAuth(req, supabaseAdmin);
   if (response || !user || !UUID_PATTERN.test(user.id)) {

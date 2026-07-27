@@ -171,8 +171,9 @@ the project's ES256 signature through cached JWKS, after which Merian validates
 issuer, audience, expiration/not-before, role, and `sub`. Anonymous and
 authenticated users are valid; public `service_role` use is rejected. Internal
 replay is recognized first and retains its exact platform-managed service
-credential (`SUPABASE_SERVER_API_KEY`, a named `SUPABASE_SECRET_KEYS` value, or
-the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback) plus explicit
+credential (`SUPABASE_SERVER_API_KEY`, a named JSON `SUPABASE_SECRET_KEYS`
+value, the singular `SUPABASE_SECRET_KEY` local/manual fallback, or the
+migration-only `SUPABASE_SERVICE_ROLE_KEY` legacy fallback) plus explicit
 replay-user checks. Named non-JWT secrets use `apikey` only; database access
 uses the server environment key rather than the request value.
 

@@ -75,6 +75,7 @@ validate-supabase-migrations:
 		services/supabase/functions/_tests/migrationExecutionContract.test.ts \
 		services/supabase/functions/_tests/migrationMediaContract.test.ts \
 		services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+		services/supabase/functions/_tests/publicSchemaSecurityMigrationContract.test.ts \
 		services/supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
 		services/supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts \
 		services/supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \

@@ -4,6 +4,25 @@ This document maps the expected shape of our persistence layers. AI Agents
 should refer to this to bind TypeScript interfaces and Swift `Codable` structs
 without guessing.
 
+## Migration Execution and Exposed-Schema Contract
+
+CI pins Supabase CLI `2.109.1`. It sends each migration's statements and the
+matching migration-history insert as one `pgconn.ExecBatch`, so PostgreSQL
+already provides an implicit transaction. New migrations at or after
+`20260727183356` must not contain top-level `BEGIN`, `START TRANSACTION`,
+`COMMIT`, `END`, `ROLLBACK`, or `ABORT`; an embedded boundary can split schema
+state from history. Historical applied files with explicit controls remain
+immutable compatibility artifacts and are not examples for future migrations.
+
+No checked-in migration may execute concurrent index DDL. A large production
+index is built through the deployment runbook's separately supervised owner
+session and then recognized by the unchanged migration. Every table created in
+the Data API's exposed `public` schema must have effective RLS enabled.
+Default table and sequence ACLs for the `postgres` migration role are revoked
+globally and in `public`; API access is explicitly granted and reviewed. See
+[`13-server-credentials-and-database-release-safety.md`](./13-server-credentials-and-database-release-safety.md)
+for the complete release contract.
+
 ## Supabase PostgreSQL Schema (`00001_initial_schema.sql`)
 
 ### Privileged routine ACL catalog
@@ -48,6 +67,10 @@ both supported headers. API roles cannot execute the helper. The same migration
 makes `get_owned_explore_media_incidents(self_id)` choose its service branch
 from server-side identity state, allowing both server-key formats while
 retaining the exact `auth.uid() = self_id` check for ordinary callers.
+Migration
+`20260727183356_restore_identity_first_media_incident_guard.sql` restores that
+final identity-first body after a later migration accidentally reintroduced
+role-first dispatch. Future migration coverage rejects the JWT-only pattern.
 
 The schema name `public` means PostgREST may discover a function; it does not
 mean a client can execute it. Trigger functions and internal helpers stay
@@ -84,16 +107,17 @@ deterministic lock order. A negative delta that exceeds a still-live owner's
 ledger state aborts with `user_species_scan_count_underflow` instead of hiding
 corruption. A truncate trigger clears the ledger and projections.
 
-The migration opens an explicit transaction, takes a `SHARE ROW EXCLUSIVE` lock
-on `public.scans`, backfills the ledger once, repairs historical
+This immutable historical migration opens an explicit transaction, takes a
+`SHARE ROW EXCLUSIVE` lock on `public.scans`, backfills the ledger once, repairs
+historical
 `users.total_species_discovered` drift, atomically swaps the triggers, and
 commits only after the final trigger exists. PostgreSQL rejects `LOCK TABLE`
 outside a transaction block; the explicit boundary is therefore part of the
-migration contract rather than optional deployment syntax. Ownerless tombstones
-are excluded because their user ID is null; the historical all-zero owner guard
-remains as migration compatibility. The ledger intentionally follows raw
-non-null `scans.species_id`; it does not change public Explore's separate
-biological/confirmed-species counting contract.
+historical file's compatibility contract, not syntax to copy into a new
+migration. Ownerless tombstones are excluded because their user ID is null; the
+historical all-zero owner guard remains as migration compatibility. The ledger
+intentionally follows raw non-null `scans.species_id`; it does not change public
+Explore's separate biological/confirmed-species counting contract.
 
 The dictionary foreign key lives in the `internal` namespace. Any diagnostic or
 test that forces its deferred check must use
@@ -2042,6 +2066,17 @@ Emoji reactions for Explore comments. Added in migration
 - `created_at` (TIMESTAMPTZ)
 - Unique constraint: `(comment_id, user_id, emoji)` prevents a single user from
   casting the same reaction twice on a single comment.
+- Migration
+  `20260727190637_secure_explore_comment_reactions_and_defaults.sql` enables
+  RLS with no direct client policy, revokes every table privilege from
+  `PUBLIC`, `anon`, `authenticated`, and `service_role`, then grants
+  `service_role` only `SELECT`, `INSERT`, and `DELETE`. Authenticated clients
+  mutate reactions only through the ownership-validating Edge action's
+  privileged SDK client.
+- The same corrective migration removes unsafe global and `public`-schema
+  default table/sequence privileges for the `postgres` migration role,
+  including PostgreSQL 17 `MAINTAIN`. Future objects require an explicit,
+  reviewed grant.
 
 ### `explore_comment_reports`
 
@@ -2979,6 +3014,17 @@ selection as the cron and then requires both effective values to be nonblank. A
 blank Vault row therefore does not fall through to an app setting. The field is
 configuration readiness, not credential validation: it does not prove that the
 URL resolves, the key matches the Edge secret, or a reconciler request succeeds.
+
+Migration
+`20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql` additionally
+catalogs every owned single-column foreign key in `public` and `internal` that
+references `public.users` or `auth.users`. It reuses only a valid, ready,
+non-partial, non-expression index led by that FK column. Missing indexes are
+created inline only on relations no larger than 32 MiB. Larger relations abort
+with SQLSTATE `55000` and a supervised concurrent command; partitioned parents
+require valid leaf indexes plus a reviewed metadata-only parent operation.
+This bounds identity updates and account deletion without turning a forgotten
+production preflight into an unbounded write lock.
 
 `trg_reject_account_deletion_profile_recreation` runs before inserts on
 `public.users` and rejects the original UUID while an active job exists. This

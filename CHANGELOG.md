@@ -15,6 +15,9 @@ TestFlight, App Store, support, and QA.
 
 ### Media Reliability
 
+- Stale server retry timestamps now trigger a one-second client recheck instead
+  of being clamped to the full five-minute delay, preventing an already-expired
+  server lease from unnecessarily stalling offline recovery.
 - Explore no longer leaves an all-missing observation as a blank public post.
   Confirmed-missing items are hidden individually, and an all-missing post is
   reversibly hidden while its post record, likes, and comments remain safe.
@@ -46,6 +49,23 @@ TestFlight, App Store, support, and QA.
 
 ### Beta Operations
 
+- Consolidated the Supabase server credential and database release contract.
+  Opaque project keys now use only standard `apikey` transport, every real
+  public project key is a required negative deployment smoke control, and
+  internal failures withhold operational response bodies and all
+  secret-derived diagnostics.
+- Closed the remaining exposed-table security gap for Explore comment reactions,
+  revoked unsafe global and `public`-schema default table/sequence privileges,
+  and added static plus live catalog enforcement for RLS and PostgreSQL 17
+  privilege behavior.
+- Added a catalog-driven user foreign-key index release gate for identity and
+  account-deletion performance. Small missing indexes converge in migration;
+  larger and partitioned relations fail with a supervised, independently
+  verifiable construction path instead of taking an unbounded blocking lock.
+- Hardened operational workflows with least-privilege taxonomy checklist
+  writing, run-attempt-specific artifacts, bounded outbound responses, reviewed
+  action pins, shell syntax checks, and weekly GitHub Actions dependency
+  updates.
 - Added an exact-commit iOS production-readiness gate. Build-relevant changes
   now compile the app and both shared test bundles with Xcode 26.6, execute the
   complete unit-test target with explicit coverage of camera, inference, and

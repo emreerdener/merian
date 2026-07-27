@@ -18,6 +18,11 @@ The `docs/` folder contains the master reference for the application:
   SwiftData schemas.
 - Refer to `docs/backend-and-data/05-api-contracts.md` for all network
   request/response shapes.
+- Refer to
+  `docs/backend-and-data/13-server-credentials-and-database-release-safety.md`
+  before changing Supabase keys, headers, internal workers, privileged clients,
+  RLS/grants/default ACLs, migrations, user foreign-key indexes, destructive
+  queues, or backend release evidence.
 - Refer to `docs/backend-and-data/01-offline-sync-pipeline.md` for offline
   queue, sync state machine, and deletion architecture.
 - Refer to `docs/development-guides/02-app-lifecycle.md` for
@@ -234,6 +239,21 @@ dependency audit, tests, type-check, and production build; preserve the required
   uses one exact Supabase SDK; `_shared/claimsAuth.ts` remains opt-in and must
   stay out of `_shared/edgeHandler.ts` so cached-JWKS claims verification is
   limited to the routes that explicitly adopt that authentication policy.
+- **Do not improvise credential contracts.** Hosted plural key variables are
+  JSON dictionaries; singular local variables are separate sources. Do not
+  reinterpret a plural variable as a raw string based on key length, manually
+  overwrite a platform-managed value, prefer the legacy key to avoid a
+  migration, invent a custom credential header, or place an opaque project key
+  in Bearer transport. Use `_shared/publishableKey.ts`,
+  `_shared/serviceRoleAuth.ts`, and `_shared/serviceRoleClient.ts`.
+- **Do not create secret-derived diagnostics.** Error output must not reveal a
+  credential prefix, suffix, length, partial value, candidate name, or failed
+  internal response body. A stable reason code, endpoint, request correlation
+  ID, and HTTP status are sufficient.
+- **Do not bypass enforcement to reach green.** Never suppress a discovered
+  tooling test, weaken a real public-key negative smoke, add an analyzer
+  exception for raw credential/fetch logic, or describe a change as
+  production-ready before disposable replay and hosted verification both pass.
 
 ## 7. Database Safeties
 
@@ -254,6 +274,18 @@ dependency audit, tests, type-check, and production build; preserve the required
   and `/update-scan-context` use cached-JWKS `auth.getClaims(token)` plus
   explicit issuer, audience, time, role, and `sub` validation. Never substitute
   unverified JWT decoding or request-body user IDs.
+- **New migrations use the CLI transaction.** Supabase CLI `2.109.1` batches
+  each migration with its history insert. Do not add top-level transaction
+  controls or any executable concurrent index DDL to a new migration.
+  Historical applied files are immutable compatibility artifacts, not
+  templates. Use the supervised production index preflight for a large or
+  partitioned relation.
+- **A queue marker is not destructive authority.** Do not blanket-delete an
+  orphaned `pending_storage_deletions` row, sweep its prefixes, make it due,
+  reset its cursor/lease, or delete Auth to clear monitoring. Preserve evidence,
+  investigate request and private-job provenance with restricted access, and
+  use a reviewed durable request or forward metadata migration only after the
+  cause is classified.
 - **SwiftData Predicate Boolean Mapping Bug**: When creating `@Query(filter:)`
   definitions with `#Predicate`, NEVER rely on implicit boolean checks (e.g.
   `$0.isBiological`). Due to iOS 17 compilation faults, SwiftData will ignore

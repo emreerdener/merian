@@ -28,6 +28,10 @@ const makefilePath = new URL(
   "../../../Makefile",
   scriptsDirectory,
 );
+const dependabotPath = new URL(
+  "../../../.github/dependabot.yml",
+  scriptsDirectory,
+);
 
 Deno.test("Supabase tooling gate discovers every standard TypeScript test", async () => {
   const gate = await Deno.readTextFile(toolingGatePath);
@@ -91,8 +95,17 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   );
   assertMatch(
     gate,
-    /--allow-read=services\/supabase,\.github\/workflows,Makefile/,
+    /--allow-read=services\/supabase,\.github\/workflows,\.github\/dependabot\.yml,Makefile,README\.md,CHANGELOG\.md,docs,apps\/web\/\.env\.example/,
   );
+  assertMatch(gate, /--allow-run=bash/);
+});
+
+Deno.test("GitHub Actions SHA pins receive weekly dependency updates", async () => {
+  const dependabot = await Deno.readTextFile(dependabotPath);
+
+  assertMatch(dependabot, /package-ecosystem: "github-actions"/);
+  assertMatch(dependabot, /directory: "\/"/);
+  assertMatch(dependabot, /interval: "weekly"/);
 });
 
 Deno.test("database catalog gate discovers every SQL fixture", async () => {
@@ -185,11 +198,23 @@ Deno.test("production deploy reports aggregate Explore publication health", asyn
   );
   assertMatch(
     workflow,
-    /server_headers=\([\s\S]*if \[\[ "\$SUPABASE_SERVER_API_KEY" != sb_secret_\* \]\][\s\S]*apikey: \$\{SUPABASE_SERVER_API_KEY\}[\s\S]*Authorization: Bearer \$\{SUPABASE_SERVER_API_KEY\}[\s\S]*x-supabase-server-key: \$\{SUPABASE_SERVER_API_KEY\}/,
+    /server_headers=\([\s\S]*apikey: \$\{SUPABASE_SERVER_API_KEY\}[\s\S]*if \[\[ "\$SUPABASE_SERVER_API_KEY" != sb_secret_\* \]\][\s\S]*Authorization: Bearer \$\{SUPABASE_SERVER_API_KEY\}/,
+  );
+  assert(
+    !workflow.includes("x-supabase-server-key"),
+    "Internal service calls must use Supabase's standard apikey transport.",
   );
   assertMatch(
     workflow,
-    /post_server_json\(\)[\s\S]*"\$\{request_headers\[@\]\}"/,
+    /post_server_json\(\)[\s\S]*"\$\{server_headers\[@\]\}"/,
+  );
+  assertMatch(
+    workflow,
+    /Response body withheld because internal endpoints may contain sensitive operational data/,
+  );
+  assert(
+    !workflow.includes('cat "$smoke_response_file" >&2'),
+    "Failed internal smoke responses must not be copied into Actions logs.",
   );
   assertMatch(
     workflow,

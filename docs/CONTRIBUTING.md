@@ -46,6 +46,15 @@ Before contributing, please review our core architectural tenets. Refactoring co
     make db-push
     make functions-deploy
     ```
+    New migrations must not add top-level transaction controls or concurrent
+    index DDL. Supabase CLI `2.109.1` already batches each migration with its
+    history insert atomically; large indexes use the runbook's supervised
+    concurrent preflight. Historical applied files are immutable and are not
+    templates. Read the
+    [server credential and database safety
+    contract](./backend-and-data/13-server-credentials-and-database-release-safety.md)
+    before changing keys, RLS, grants, defaults, migrations, user FKs, or
+    destructive queues.
 6.  **TestFlight Release Prep**: Before archiving in Xcode, run `make prepare-ios-release VERSION=x.y.z` from the repo root. If you are ready to use production RevenueCat, pass `REVENUECAT_API_KEY=appl_...` or set the same key in ignored `Config.local.xcconfig` first. The command updates the tracked XcodeGen source, regenerates `Merian.xcodeproj`, and writes the local archive-prep marker. Release/TestFlight uses the normal advisory free-scan meter; unlimited meter bypasses are DEBUG-only and never change authoritative Supabase quota. RevenueCat purchase QA must open Settings → Plan directly and follow the documented Test Store/StoreKit/TestFlight matrix. See [`docs/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md) and [`docs/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
 
 ## Testing Protocol

@@ -44,6 +44,7 @@ permissions:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment: Production
 
     env:
@@ -51,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Deno
         uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
@@ -105,8 +106,11 @@ jobs:
           fail_on="${INPUT_FAIL_ON:-warning}"
 
           set +e
-          deno run --config services/supabase/functions/deno.json \
-            --allow-net --allow-env --allow-write \
+          deno run --frozen \
+            --config services/supabase/functions/deno.json \
+            --allow-net="${PROJECT_ID}.supabase.co" \
+            --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY \
+            --allow-write="$RUNNER_TEMP" \
             services/supabase/scripts/monitor_revenuecat_reconciliation.ts \
             --warning-after-minutes "$warning_after" \
             --critical-after-minutes "$critical_after" \
@@ -124,9 +128,9 @@ jobs:
 
       - name: Upload RevenueCat reconciliation health summary
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: revenuecat-reconciliation-health-${{ github.run_number }}
+          name: revenuecat-reconciliation-health-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/revenuecat-reconciliation-health.json
             ${{ runner.temp }}/revenuecat-reconciliation-health.md

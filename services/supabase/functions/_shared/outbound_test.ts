@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   createDeadlineFetchTransport,
+  createResponseBodyLimitFetchTransport,
   fetchWithDeadline,
   OutboundRequestTimeoutError,
   readResponseJsonWithinLimit,
@@ -23,6 +24,65 @@ Deno.test("createDeadlineFetchTransport attaches a hard deadline", async () => {
   await transport("https://example.test");
 
   assertEquals(receivedSignal instanceof AbortSignal, true);
+});
+
+Deno.test("response-limit transport rejects declared and streamed excess", async () => {
+  const declaredTransport = createResponseBodyLimitFetchTransport(
+    8,
+    (() =>
+      Promise.resolve(
+        new Response("oversized", {
+          headers: { "Content-Length": "9" },
+        }),
+      )) as typeof fetch,
+  );
+  await assertRejects(
+    () => declaredTransport("https://example.test"),
+    RangeError,
+    "Response body exceeded its byte limit.",
+  );
+
+  const streamedTransport = createResponseBodyLimitFetchTransport(
+    8,
+    (() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new Uint8Array(5));
+              controller.enqueue(new Uint8Array(4));
+              controller.close();
+            },
+          }),
+        ),
+      )) as typeof fetch,
+  );
+  const response = await streamedTransport("https://example.test");
+  await assertRejects(
+    () => response.arrayBuffer(),
+    RangeError,
+    "Response body exceeded its byte limit.",
+  );
+});
+
+Deno.test("response-limit transport preserves bounded response metadata", async () => {
+  const transport = createResponseBodyLimitFetchTransport(
+    8,
+    (() =>
+      Promise.resolve(
+        new Response("bounded", {
+          status: 202,
+          statusText: "Accepted",
+          headers: { "X-Upstream": "preserved" },
+        }),
+      )) as typeof fetch,
+  );
+
+  const response = await transport("https://example.test");
+  assertEquals(response.status, 202);
+  assertEquals(response.statusText, "Accepted");
+  assertEquals(response.headers.get("X-Upstream"), "preserved");
+  assertEquals(await response.text(), "bounded");
 });
 
 Deno.test("fetchWithDeadline combines caller cancellation with a hard timeout", async () => {

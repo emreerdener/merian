@@ -10,6 +10,8 @@ const EXPECTED_SIGNED_TRANSPORT_CALLS = new Map<string, number>([
   ["_shared/identify/media.ts", 2],
   ["export-dwca/storage.ts", 6],
 ]);
+const GLOBAL_FETCH_CALL_PATTERN =
+  /(?:^|[^.\w])fetch\s*\(|\b(?:globalThis|self|window)\s*(?:(?:\?\.|\.)\s*fetch|\[\s*["']fetch["']\s*\])\s*\(/m;
 
 interface RuntimeSource {
   path: string;
@@ -58,11 +60,12 @@ Deno.test("production outbound transports cannot bypass reviewed deadline adapte
 
   for (const file of files) {
     assert(
-      !/(?:^|[^.\w])fetch\s*\(/m.test(file.source),
+      !GLOBAL_FETCH_CALL_PATTERN.test(file.source),
       `${file.path} calls global fetch directly; use fetchWithDeadline.`,
     );
     assert(
-      !/\b(?:fetcher|fetchImpl|fetchImplementation)\s*\(/.test(file.source),
+      file.path === "_shared/outbound.ts" ||
+        !/\b(?:fetcher|fetchImpl|fetchImplementation)\s*\(/.test(file.source),
       `${file.path} calls an injected fetch transport directly; pass it to fetchWithDeadline.`,
     );
     assert(

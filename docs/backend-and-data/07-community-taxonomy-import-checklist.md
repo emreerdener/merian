@@ -206,8 +206,9 @@ After importing:
 - [x] Add remote smoke checks to the deployment runbook for status and dry-run
       import. CI now checks coverage status plus a tiny dry-run import after
       Edge Function deployment.
-- [x] Add import workflow summaries and optional checklist auto-commit so real
-      imports can record completed batches without local credential handling.
+- [x] Add import workflow summaries and an isolated checklist writer so real
+      imports can pass a one-day artifact from a `contents: read` import job to
+      the sole scoped `contents: write` job without local credential handling.
 - [x] Schedule weekly bounded Birds imports now that manual `page_count = 3`
       runs have succeeded.
 - [x] Speed up Birds import throughput to weekly `page_count = 20` while
@@ -224,8 +225,8 @@ Preferred GitHub Actions path:
 4. Leave `dry_run = true` after deploys, auth changes, migration changes, or
    failures.
 5. For routine imports after a clean prior run, set `dry_run = false`.
-6. Leave `update_checklist = true` so the workflow commits the completed-batch
-   ledger.
+6. Leave `update_checklist = true` so the read-only import job publishes the
+   completed-batch ledger artifact and the isolated writer job commits it.
 7. Prefer the scheduled Monday run for routine progress; use manual dispatch for
    recovery, dry runs, or intentionally pulling a batch forward.
 

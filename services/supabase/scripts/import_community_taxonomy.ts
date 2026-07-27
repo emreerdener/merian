@@ -3,8 +3,9 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
- *   SUPABASE_SERVICE_ROLE_KEY fallback
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, local/manual
+ *   SUPABASE_SECRET_KEY, or the migration-only SUPABASE_SERVICE_ROLE_KEY
+ *   fallback
  *
  * Example:
  *   deno run --allow-net --allow-env --allow-read --allow-write \
@@ -12,8 +13,11 @@
  *     --target birds --limit 100 --page-count 20 --update-checklist
  */
 
-import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+const IMPORT_REQUEST_TIMEOUT_MS = 3 * 60 * 1_000;
+const IMPORT_MAXIMUM_RESPONSE_BYTES = 512 * 1_024;
 
 interface ImportArgs {
   target: "birds";
@@ -74,7 +78,10 @@ interface StatusResponse {
 }
 
 const args = parseArgs(Deno.args);
-const supabase = createServiceRoleClientFromEnvironment();
+const supabase = createServiceRoleClientFromEnvironmentWithOptions({
+  requestTimeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
+  maximumResponseBytes: IMPORT_MAXIMUM_RESPONSE_BYTES,
+});
 
 const importResponse = await postJson<ImportResponse>(
   supabase,

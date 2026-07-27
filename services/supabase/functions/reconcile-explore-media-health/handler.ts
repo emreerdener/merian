@@ -28,6 +28,7 @@ export interface ReconcileExploreMediaHealthHandlerOptions {
   supabaseUrl: string;
   envServerApiKey?: string;
   envServiceRoleKey?: string;
+  envSecretKey?: string;
   envSecretKeys?: string;
   createAdminClient?: CreateAdminClient;
   reconcile?: Reconcile;
@@ -67,6 +68,7 @@ export function createReconcileExploreMediaHealthHandler(
     const auth = authorizeServiceRoleRequest(req, {
       envServerApiKey: options.envServerApiKey,
       envServiceRoleKey: options.envServiceRoleKey,
+      envSecretKey: options.envSecretKey,
       envSecretKeys: options.envSecretKeys,
     });
     if (!auth.ok) {

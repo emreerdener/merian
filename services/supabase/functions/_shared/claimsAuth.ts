@@ -7,14 +7,18 @@ import {
 } from "./auth.ts";
 import { corsHeaders } from "./http.ts";
 import { createDeadlineFetchTransport } from "./outbound.ts";
+import { requirePublicApiKeyFromEnvironment } from "./publishableKey.ts";
 
 const SUPABASE_CLAIMS_REQUEST_TIMEOUT_MS = 15_000;
 
-function unauthorizedClaimsResponse(message: string): Response {
+function unauthorizedClaimsResponse(
+  diagnosticMessage: string,
+  publicMessage = "Invalid or expired session token.",
+): Response {
   return new Response(
     JSON.stringify({
-      code: authFailureCode(message),
-      error: `Unauthorized: ${message}`,
+      code: authFailureCode(diagnosticMessage),
+      error: `Unauthorized: ${publicMessage}`,
     }),
     {
       status: 401,
@@ -42,14 +46,17 @@ export async function requireClaimsAuth(
   if (!bearerToken) {
     return {
       user: null,
-      response: unauthorizedClaimsResponse("Missing Authorization header."),
+      response: unauthorizedClaimsResponse(
+        "Missing Authorization header.",
+        "Missing Authorization header.",
+      ),
     };
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseClient = createClaimsClient(
     supabaseUrl,
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    requirePublicApiKeyFromEnvironment(),
     {
       global: {
         fetch: createDeadlineFetchTransport(

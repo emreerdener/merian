@@ -194,8 +194,7 @@ async function quotaIpHash(req: Request): Promise<string> {
   const serverKey = resolveServerApiKeyFromEnvironment();
   const secret = resolveQuotaIpHashSecret({
     dedicatedSecret: Deno.env.get("AI_QUOTA_IP_HASH_SECRET"),
-    platformSecretKey: Deno.env.get("SUPABASE_SECRET_KEY") ??
-      (serverKey.ok ? serverKey.serverApiKey : undefined),
+    platformSecretKey: serverKey.ok ? serverKey.serverApiKey : undefined,
   });
   const hash = await hmacClientAddress(
     clientAddressForQuota(req.headers),

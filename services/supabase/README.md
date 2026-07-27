@@ -12,8 +12,12 @@ services/supabase/
   migrations/      # PostgreSQL database migrations
   scripts/         # Helper scripts for backend tasks
   tests/           # pgTAP database authorization/behavior contracts
-  test_auth.ts     # Auth testing utilities
 ```
+
+Do not add ad-hoc production probes, copied dashboard SQL, or credential-bearing
+debug files to the service root. Reusable diagnostics belong in `scripts/` with
+bounded transport, strict environment validation, tests, and documented output;
+database assertions belong in disposable `tests/` fixtures.
 
 ## Edge Functions
 
@@ -436,7 +440,9 @@ private `internal.user_species_scan_counts` ledger keyed by
 the public projection, and installs separate statement-level insert, delete,
 update, and truncate triggers. The file opens an explicit transaction before
 `LOCK TABLE` and commits only after the final trigger is installed, as required
-by PostgreSQL for a table lock that spans the complete cutover.
+by PostgreSQL for a table lock that spans the complete cutover. This is an
+immutable historical migration contract, not a pattern for new files; new
+migrations rely on the CLI's implicit migration-plus-history transaction.
 
 Insert/delete transition tables aggregate each pair once. The update trigger
 combines complete OLD and NEW transition sets and drops zero-net pairs, so
@@ -713,9 +719,14 @@ currently inventories twenty such boundaries, including taxonomy maintenance,
 media and account reconciliation, RevenueCat reconciliation, replay, push
 delivery, and DwC-A continuation work. Authorization is a local exact comparison
 against the explicit `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value
-supplied by the platform in `SUPABASE_SECRET_KEYS`, or the migration-only
-`SUPABASE_SERVICE_ROLE_KEY` fallback. Successful empty reads, RLS behavior, JWT
-shape, and other capability probes are never evidence of authority.
+supplied by the platform in the JSON `SUPABASE_SECRET_KEYS` dictionary, the
+singular `SUPABASE_SECRET_KEY` local/manual fallback, or the migration-only
+`SUPABASE_SERVICE_ROLE_KEY` legacy fallback. Successful empty reads, RLS
+behavior, JWT shape, and other capability probes are never evidence of
+authority. A raw or JSON-string value in the plural variable is malformed and
+never contributes a candidate; only a separately valid explicit, singular, or
+legacy fallback can remain available while the dictionary is corrected. Do not
+compensate with a transport workaround.
 
 Configuration is classified before comparison: a current key must have the
 platform `sb_secret_` prefix and a URL-safe opaque suffix of at least 20
@@ -744,6 +755,33 @@ secret-key representation cannot pass the exact request boundary. Migration
 revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
 `authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
 `UPDATE`.
+
+No custom server credential header is supported. Diagnostics never expose a
+key prefix, suffix, length, partial fingerprint, accepted candidate, or failed
+internal response body. The complete environment/header matrix and production
+exit gate are in the
+[server credential and database release safety
+contract](../../docs/backend-and-data/13-server-credentials-and-database-release-safety.md).
+
+User-scoped clients use the separate `functions/_shared/publishableKey.ts`
+resolver. Hosted functions strictly parse the JSON `SUPABASE_PUBLISHABLE_KEYS`
+dictionary and prefer its named `default` key; local and migration-overlap
+environments may fall back to a complete legacy HS256 `SUPABASE_ANON_KEY`.
+Authentication, claims, ghost-profile merge, and optional species-stats
+authentication may not read either variable directly. Provider diagnostics are
+logged server-side while public 401 bodies remain generic.
+
+Migrations `20260727190637_secure_explore_comment_reactions_and_defaults.sql`
+and `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql` close
+the remaining exposed-table RLS gap, revoke direct reaction access from
+unprivileged API roles, clear both global and public-schema default
+table/sequence grants (including Postgres 17 `MAINTAIN`), and create any missing
+leading indexes for owned single-column user foreign keys. The index migration
+refuses to build against a relation larger than 32 MiB while holding a blocking
+migration lock and never recursively builds a missing index on a partitioned
+parent; use the deployment runbook's supervised concurrent procedure first.
+The static migration contract and `tests/public_schema_security.sql` enforce
+the same effective-schema invariants.
 
 ### Ghost Account Upgrade Boundary
 
@@ -818,11 +856,11 @@ deno check --frozen \
 runs every standard `*_test.ts`, including the ghost-user audit and cleanup
 suites. It then tests and executes the executable Identify contract/Swift
 generator under its isolated frozen config, syntax-checks every shell script,
-and runs every `*_test.sh`. It also rejects complete secret-shaped
-`sb_secret_…` literals across repository files before deployment. Tests must
-construct format-valid fake keys from separate fragments, and the gate reports
-filenames rather than matching values. New conventionally named tooling tests
-therefore enter the gate without editing CI.
+and runs every `*_test.sh`. It also rejects complete secret-shaped `sb_secret_…`
+literals across repository files before deployment. Tests must construct
+format-valid fake keys from separate fragments, and the gate reports filenames
+rather than matching values. New conventionally named tooling tests therefore
+enter the gate without editing CI.
 
 `validate_edge_dto_contract.sh` is the shared isolated entrypoint used by both
 the backend deployment workflow and the lightweight iOS project guardrail.
@@ -881,6 +919,15 @@ surfaces inspected by security contract tests. Deployment CI runs it after
 migrating the disposable database so database-backed cases cannot silently skip.
 Do not replace it in CI with a selected test subset.
 
+Operational workflows run Deno with frozen dependencies and explicit
+Supabase-host, environment-variable, and output-path permissions. The taxonomy
+import runs with `contents: read` and cannot read a checkout credential; its
+checklist artifact is committed by a separate five-minute job with the sole
+`contents: write` grant. Account deletion, DwC-A, and RevenueCat health clients
+additionally enforce a 15-second deadline and streaming 64 KiB response ceiling
+beneath `supabase-js`; the detailed scan-media monitor uses the same deadline
+with a 2 MiB ceiling for its bounded sample report.
+
 Run it directly:
 
 ```bash
@@ -931,14 +978,24 @@ Public species stats have both static and executable security contracts:
   persistent rate accounting, cross-isolate claim suppression, expired-token
   fencing, cache-race closure, and API-role ACL checks.
 
-`_tests/migrationExecutionContract.test.ts` scans every SQL migration after
-removing comments and rejects `CREATE`, `DROP`, or `REINDEX ... CONCURRENTLY`.
-Fresh local and CI databases replay migrations through a Supabase statement
-pipeline, where concurrent index DDL is not consistently supported. Keep the
-checked-in migration pipeline-compatible. If a large production table needs a
-zero-downtime index, create it in a separately supervised direct database
-session first, verify `pg_index.indisvalid`, and retain a non-concurrent
-`CREATE INDEX IF NOT EXISTS` migration for fresh environments.
+`_tests/migrationExecutionContract.test.ts` lexically masks comments and
+inspects executable direct and dynamic SQL before rejecting concurrent
+`CREATE INDEX`, `DROP INDEX`, or `REINDEX`. The public-schema migration contract
+separately rejects top-level transaction-control aliases in new migrations
+after masking quoted values and routine bodies. Supabase CLI `2.109.1` already
+batches each migration with its history insert in one implicit transaction;
+historical explicit-boundary files remain immutable compatibility artifacts,
+not future examples.
+
+`_tests/publicSchemaSecurityMigrationContract.test.ts` also locks effective RLS
+for every migration-created public table, final reaction-table grants, global
+and schema default ACLs, and catalog-driven user-FK index rules.
+`tests/public_schema_security.sql` verifies those behaviors in a fully migrated
+PostgreSQL 17 catalog. For a large production table, create the index in a
+separately supervised owner session outside `db push`, verify both
+`pg_index.indisvalid` and `indisready`, and retry the unchanged size-gated
+migration. A partitioned parent requires valid leaf indexes and a reviewed
+metadata-only parent operation.
 
 ```bash
 deno test --allow-read \
@@ -1064,11 +1121,14 @@ make validate-supabase-migrations
 
 ## Local Development
 
-Use Supabase CLI `2.109.0` or newer; CI pins `2.109.1`. The repository keeps
-every migration compatible with fresh-schema statement-pipeline replay rather
-than depending on CLI-specific handling for concurrent index DDL. The local
-email catcher uses the current `[local_smtp]` configuration section. Confirm the
-local version before database verification:
+Use Supabase CLI `2.109.1` for release-equivalent local verification because CI
+pins that exact reviewed version and the migration atomicity contract is tested
+against it. Treat another version as an intentional pin upgrade that requires
+rerunning and reviewing all migration contracts. The repository keeps every
+migration compatible with fresh-schema replay rather than depending on
+CLI-specific concurrent-index handling. The local email catcher uses the
+current `[local_smtp]` configuration section. Confirm the local version before
+database verification:
 
 ```bash
 supabase --version

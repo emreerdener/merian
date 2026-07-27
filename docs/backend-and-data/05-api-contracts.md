@@ -5425,13 +5425,12 @@ and `collection_scans` schemas, handling diffing and missing FK references.
 > to reflect that all inputs are pre-ownership-checked by the time they reach
 > that function.
 
-**Critical Kong API Gateway Requirement**: To allow `sync-collections` to
-manually parse and extract the JWT using Deno `.headers.get("Authorization")`,
-the edge function must be explicitly exposed in `services/supabase/config.toml`
-with `verify_jwt = false`. If not disabled, Kong dynamically strips the
-`Authorization` header before it reaches Deno to prevent replay attacks, causing
-a `401 Unauthorized: Missing Authorization header` response from the Edge
-Runtime.
+**Authentication ownership**: `sync-collections` is configured with
+`verify_jwt = false`, so the handler owns JWT validation and authorization
+through the shared auth boundary. Raw iOS requests send the public project key
+in `apikey` and the signed-in user's JWT in `Authorization: Bearer …`.
+`verify_jwt = false` does not make the route public and should not be explained
+as gateway header stripping.
 
 ---
 
@@ -5534,12 +5533,12 @@ parameter that required manual escaping.
 The endpoint extracts user identity from the `Authorization: Bearer` header via
 `supabaseAdmin.auth.getUser()`, ignoring any `userId` in the request body.
 
-**Critical Kong API Gateway Requirement**: Because we use `URLSession` inside
-`MerianNetworkClient` instead of the Supabase Swift SDK, all HTTP requests to
-Deno **MUST** include both the `Authorization: Bearer <JWT>` header AND the
-`apikey: <SUPABASE_ANON_KEY>` header. If the `apikey` header is omitted, the
-Supabase Kong API Gateway strips the `Authorization` header before it reaches
-the Edge Function, causing `401 Unauthorized: Missing token`.
+**Raw-client header requirement**: Because `MerianNetworkClient` uses
+`URLSession` instead of the Supabase Swift SDK, requests send both
+`Authorization: Bearer <user JWT>` and `apikey: <public project key>`. The
+gateway can reject a request that does not identify the project, while the
+handler independently validates the Bearer user JWT. Do not describe this as
+the gateway stripping Authorization.
 
 Any request with a manipulated JSON body but no valid JWT signature in the
 header returns `401 Unauthorized`.
@@ -5965,7 +5964,12 @@ Response:
 `media_health_status` is `degraded` or `quarantined`. Unpublished, moderated,
 tombstoned, and healthy records are excluded. The backing definer RPC verifies
 `auth.uid() = self_id` for authenticated direct use, while the Edge boundary
-uses service role only with the auth-derived UUID.
+uses service role only with the auth-derived UUID. Its final body dispatches on
+identity first: a present user must match `self_id`, while only the no-user path
+calls `internal.require_service_role()`. Migration
+`20260727183356_restore_identity_first_media_incident_guard.sql` restores this
+contract after the later quarantine migration accidentally reintroduced
+role-first dispatch.
 
 The iOS Scan Library refreshes this response on entry, foreground, connection
 changes, and library repair events. A failed refresh retains the last in-memory
@@ -5988,11 +5992,13 @@ Request:
 
 - Gateway JWT verification is disabled so the endpoint can receive both legacy
   service-role JWTs and current non-JWT project secret keys. The handler accepts
-  only the exact provisioned legacy service-role value or an exact named
-  `sb_secret_...` value in the platform's `SUPABASE_SECRET_KEYS` environment. It
-  never uses a database/RLS result as proof. Missing, conflicting, and
-  mismatched keys receive `401`; ordinary user tokens are not accepted. Worker
-  RPCs use the server environment key rather than the accepted request value.
+  only an exact server key resolved from `SUPABASE_SERVER_API_KEY`, the hosted
+  `SUPABASE_SECRET_KEYS` JSON dictionary, the singular
+  `SUPABASE_SECRET_KEY` local/manual fallback, or the legacy
+  `SUPABASE_SERVICE_ROLE_KEY` migration fallback. It never uses a database/RLS
+  result as proof. Missing, conflicting, and mismatched keys receive `401`;
+  ordinary user and publishable keys are not accepted. Worker RPCs use the
+  server environment key rather than the accepted request value.
 - `limit` is clamped to `1...500`.
 - `leaseSeconds` is clamped to `30...600`.
 - Primary and distinct-poster `HEAD` requests run in parallel per row within a
@@ -6528,11 +6534,12 @@ imports or Community ID publish flows.
 - `verify_jwt = false` is configured for service-role calls.
 - The function still requires an exact platform-managed service credential:
   `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
-  `SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
-  fallback. Current keys use `apikey` only; legacy JWTs use matching `apikey`
-  and Bearer transport. Conflicting headers fail closed. Taxonomy table reachability
-  and RLS-filtered results are never authorization evidence. Database reads use
-  the server environment key, not the accepted request value.
+  `SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
+  fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback. Current
+  keys use `apikey` only; legacy JWTs use matching `apikey` and Bearer
+  transport. Conflicting headers fail closed. Taxonomy table reachability and
+  RLS-filtered results are never authorization evidence. Database reads use the
+  server environment key, not the accepted request value.
 - Non-POST requests return `405`.
 
 ### Request Payload
@@ -6622,10 +6629,11 @@ in v1.
 - `verify_jwt = false` is configured for service-role calls.
 - The function still requires an exact platform-managed service credential:
   `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value from
-  `SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
-  fallback. Current keys use `apikey` only; legacy JWTs use matching `apikey`
-  and Bearer transport. Conflicting headers fail closed. Taxonomy table reachability
-  and RLS-filtered results are never authorization evidence. Privileged database
+  `SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
+  fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback. Current
+  keys use `apikey` only; legacy JWTs use matching `apikey` and Bearer
+  transport. Conflicting headers fail closed. Taxonomy table reachability and
+  RLS-filtered results are never authorization evidence. Privileged database
   work uses the server environment key, not the accepted request value.
 - Non-POST requests return `405`.
 

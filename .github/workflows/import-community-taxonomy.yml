@@ -55,11 +55,12 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   import:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: Production
 
     env:
@@ -67,7 +68,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Deno
         uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
@@ -146,26 +149,64 @@ jobs:
             args+=(--update-checklist)
           fi
 
-          deno run --config services/supabase/functions/deno.json \
-            --allow-net --allow-env --allow-read --allow-write \
+          deno run --frozen \
+            --config services/supabase/functions/deno.json \
+            --allow-net="${PROJECT_ID}.supabase.co" \
+            --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY \
+            --allow-read=docs/backend-and-data/07-community-taxonomy-import-checklist.md \
+            --allow-write="$RUNNER_TEMP",docs/backend-and-data/07-community-taxonomy-import-checklist.md \
             services/supabase/scripts/import_community_taxonomy.ts \
             "${args[@]}"
 
           cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload import summary
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: community-taxonomy-import-summary-${{ github.run_number }}
+          name: community-taxonomy-import-summary-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/community-taxonomy-import-summary.json
             ${{ runner.temp }}/community-taxonomy-import-summary.md
           if-no-files-found: error
           retention-days: 30
 
-      - name: Commit checklist update
+      - name: Upload checklist candidate
         if: ${{ github.event_name == 'schedule' || (inputs.dry_run != true && inputs.update_checklist == true) }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: community-taxonomy-checklist-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: docs/backend-and-data/07-community-taxonomy-import-checklist.md
+          if-no-files-found: error
+          retention-days: 1
+
+  commit-checklist:
+    needs: import
+    if: ${{ github.event_name == 'schedule' || (inputs.dry_run != true && inputs.update_checklist == true) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Commit checklist update
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          artifact_dir="${RUNNER_TEMP}/community-taxonomy-checklist"
+          gh run download "$GITHUB_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "community-taxonomy-checklist-${GITHUB_RUN_NUMBER}-attempt-${GITHUB_RUN_ATTEMPT}" \
+            --dir "$artifact_dir"
+          install -m 0644 \
+            "$artifact_dir/07-community-taxonomy-import-checklist.md" \
+            docs/backend-and-data/07-community-taxonomy-import-checklist.md
+
           if git diff --quiet -- docs/backend-and-data/07-community-taxonomy-import-checklist.md; then
             echo "Checklist already up to date."
             exit 0
@@ -173,6 +214,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
           git add docs/backend-and-data/07-community-taxonomy-import-checklist.md
           git commit -m "docs: record community taxonomy import run"
           git push

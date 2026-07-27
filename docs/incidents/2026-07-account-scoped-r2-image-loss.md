@@ -119,6 +119,7 @@ leave other owners' media untouched.
 | 2026-07-25 | The repository introduced the storage-erasure migration that upgrades every historical unconsumed marker and schedules five-minute reconciliation. Missing owner media was reported in Scan Library and Explore; production migration/worker evidence remains pending. |
 | 2026-07-26 | Repository safeguards, the owner-scoped repair API, and local recovery matching were implemented. A reversible Explore media-health quarantine, scheduled direct-origin reconciliation, owner recovery queue, and automatic repair restoration were added. Production deployment remains unverified. |
 | 2026-07-26 | The `38` count / `9` preview / `5` full-grid mismatch was traced to legacy count projection plus local preview backfill. A canonical count/grid contract, owner recovery totals, explicit pagination cursor, and deploy-wide aggregate scope smoke were implemented in the repository. |
+| 2026-07-27 | Comprehensive review rejected deleting a historical orphan marker merely to clear monitoring. Guidance now requires restricted provenance classification and a reviewed durable request or forward metadata migration. User-FK indexing, exposed-schema RLS/default ACLs, and workflow evidence controls joined the release gate. |
 
 ## Containment and Remediation
 
@@ -314,8 +315,13 @@ Do not mark this incident resolved until all of the following are complete:
 
    A nonzero count requires restricted operator review because it can reveal the
    historical stale-marker cohort. It is not proof that those rows are
-   claimable under the fenced routine. Do not make them actionable or sweep
-   their prefixes to clear the count.
+   claimable under the fenced routine. Classify the exact outbox row, matching
+   private job, request/audit provenance, live profile, and owned scans without
+   copying identifiers outside the restricted session. If deletion intent is
+   legitimate, restore it only through the reviewed durable request boundary.
+   If it is stale or unauthorized, preserve evidence and prepare a reviewed
+   forward metadata migration after the cause is understood. Do not delete the
+   marker ad hoc, make it actionable, or sweep its prefixes to clear the count.
 5. On staging, create an orphaned storage marker for a live fixture account and
    prove the worker does not claim it.
 6. On staging, run a legitimate safe-delete job and prove it becomes claimable
@@ -339,11 +345,14 @@ Do not mark this incident resolved until all of the following are complete:
 13. Retain aggregate query output and request-correlated logs as incident
    evidence without publishing owner identifiers or object keys.
 14. Manually dispatch **Account Deletion Health Monitor** with its default
-    thresholds. Require a successful Production run, retain its bounded JSON
-    and Markdown artifacts, and confirm the health row reports active cron,
-    configured credentials, and zero orphaned storage jobs. Also inspect recent
-    reaper cron requests: the health configuration boolean proves only nonblank
-    effective values, not a successful bearer-authenticated worker call.
+    thresholds and retain its bounded JSON and Markdown artifacts. Confirm the
+    health row reports active cron and configured credentials. An orphan count
+    is deliberately critical: keep the failed run as evidence and follow the
+    restricted provenance procedure above. Require a successful Production run
+    only after every critical has a legitimate reviewed resolution; never
+    mutate queue state merely to obtain green. Also inspect recent reaper cron
+    requests: the health configuration boolean proves only nonblank effective
+    values, not a successful format-aware worker call.
 
 ## Permanent Invariants
 
@@ -354,6 +363,8 @@ Do not mark this incident resolved until all of the following are complete:
   veto.
 - Historical outbox rows must be audited before a migration makes them newly
   actionable.
+- An orphan critical is evidence, not authority and not permission to
+  blanket-delete metadata, sweep prefixes, reset state, or remove Auth.
 - Durable R2 prefixes must never receive age-based lifecycle expiration.
 - Destructive worker changes require an account-isolation canary and a
   production aggregate invariant check.
@@ -377,6 +388,7 @@ Do not mark this incident resolved until all of the following are complete:
 - `services/supabase/migrations/20260726144754_implement_explore_media_quarantine_state_machine.sql`
 - `services/supabase/migrations/20260726174555_align_explore_author_publication_contract.sql`
 - `services/supabase/migrations/20260727001630_monitor_account_deletion_health.sql`
+- `services/supabase/migrations/20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`
 - `services/supabase/functions/repair-scan-image/`
 - `services/supabase/functions/reconcile-explore-media-health/`
 - `services/supabase/functions/get-explore-media-incidents/`
@@ -388,3 +400,4 @@ Do not mark this incident resolved until all of the following are complete:
 - `docs/r2-lifecycle.json`
 - `docs/backend-and-data/08-startup-store-recovery.md`
 - `docs/backend-and-data/12-explore-media-health-and-quarantine.md`
+- `docs/backend-and-data/13-server-credentials-and-database-release-safety.md`

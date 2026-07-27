@@ -236,7 +236,9 @@ single-responsibility functions under `/services/supabase/functions/`.
     overdue work, retries, expired leases, orphaned storage rows, and SLA
     age/backlog breaches. Its Management-API-resolved server key is independent
     of the reaper's Vault credential, so a broken worker configuration cannot
-    also hide the alert.
+    also hide the alert. An orphan critical is a provenance incident, not
+    deletion authority or permission to clear metadata; restricted review
+    precedes any durable request or forward repair.
   - `/repair-scan-image`: Owner-authenticated inspection and recovery for a
     verified-missing durable scan image. It promotes a surviving local copy and
     atomically updates scan, normalized-media, captured-media, and matching

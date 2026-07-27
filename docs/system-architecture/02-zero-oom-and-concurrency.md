@@ -1106,7 +1106,10 @@ transaction. Unrelated updates produce an empty net set. The deployment backfill
 and trigger swap open one explicit transaction before taking the scan write lock
 and commit only after the final trigger exists, so there is no untracked cutover
 interval. PostgreSQL requires this explicit boundary for `LOCK TABLE`; the
-static migration contract rejects a missing or early commit.
+static migration contract rejects a missing or early commit in this immutable
+historical file. It is not a template for new migrations, which rely on
+Supabase CLI `2.109.1` to transact the migration and history insert together and
+must not add top-level transaction controls.
 
 ### Inference Payload Racing (`identify` vs `enrich-scan`)
 

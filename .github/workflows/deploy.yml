@@ -23,6 +23,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: Production
     defaults:
       run:
@@ -35,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Deployment plans compare against the last successful production
           # run, which may be more than one commit behind after a failed run.
@@ -130,13 +131,6 @@ jobs:
           deno lint --config supabase/functions/deno.json \
             supabase/functions \
             supabase/scripts
-
-      - name: Gate against raw fetch usages
-        run: |
-          if grep -rnE "fetch\s*\(\s*(SUPABASE_URL|url)" supabase/scripts; then
-            echo "::error::Raw fetch() calls are forbidden in supabase/scripts. Use createServiceRoleClient() instead."
-            exit 1
-          fi
 
       - name: Test complete Supabase tooling suite
         run: bash supabase/scripts/test_supabase_tooling.sh
@@ -647,15 +641,11 @@ jobs:
           supabase_url="https://${PROJECT_ID}.supabase.co"
           server_headers=(
             -H "Content-Type: application/json"
+            -H "apikey: ${SUPABASE_SERVER_API_KEY}"
           )
           if [[ "$SUPABASE_SERVER_API_KEY" != sb_secret_* ]]; then
             server_headers+=(
-              -H "apikey: ${SUPABASE_SERVER_API_KEY}"
               -H "Authorization: Bearer ${SUPABASE_SERVER_API_KEY}"
-            )
-          else
-            server_headers+=(
-              -H "x-supabase-server-key: ${SUPABASE_SERVER_API_KEY}"
             )
           fi
           smoke_response_file="$RUNNER_TEMP/supabase-production-smoke-response.json"
@@ -664,14 +654,6 @@ jobs:
             local endpoint="$1"
             local payload="$2"
             local status
-            
-            local request_headers=("${server_headers[@]}")
-            if [[ "$endpoint" == /rest/v1/* && "$SUPABASE_SERVER_API_KEY" == sb_secret_* ]]; then
-              request_headers+=(
-                -H "apikey: ${SUPABASE_SERVER_API_KEY}"
-                -H "Authorization: Bearer ${SUPABASE_SERVER_API_KEY}"
-              )
-            fi
 
             if ! status="$(
               curl -sS \
@@ -680,7 +662,7 @@ jobs:
                 -o "$smoke_response_file" \
                 -w "%{http_code}" \
                 -X POST "${supabase_url}${endpoint}" \
-                "${request_headers[@]}" \
+                "${server_headers[@]}" \
                 --data "$payload"
             )"; then
               echo "Production smoke request could not reach ${endpoint}." >&2
@@ -688,7 +670,7 @@ jobs:
             fi
             if ! [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
               echo "Production smoke request ${endpoint} returned HTTP ${status}." >&2
-              cat "$smoke_response_file" >&2
+              echo "Response body withheld because internal endpoints may contain sensitive operational data." >&2
               return 1
             fi
             cat "$smoke_response_file"

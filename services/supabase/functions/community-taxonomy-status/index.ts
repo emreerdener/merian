@@ -19,23 +19,12 @@ serveEdge(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const auth = authorizeServiceRoleRequestFromEnvironment(req);
   if (!auth.ok) {
-    const token = req.headers.get("apikey")?.trim() ||
-      req.headers.get("Authorization")?.trim() || "";
-    const s = "SUPABASE_SECRET_KEYS";
-    const a = "SUPABASE_SERVER_API_KEY";
-    const rawEnv = Deno.env.get(s) ?? "";
-    const debug = {
-      hasServerKey: !!Deno.env.get(a),
-      hasSecretKeys: !!rawEnv,
-      secretKeysLength: rawEnv.length,
-      secretKeysPrefix: rawEnv.substring(0, 10),
-      secretKeysSuffix: rawEnv.substring(rawEnv.length - 5),
-      tokenPrefix: token.substring(0, 10),
-      tokenSuffix: token.substring(token.length - 5),
-      tokenLength: token.length,
-      authReason: (auth as { reason?: string }).reason,
-    };
-    return jsonResponse({ error: "Unauthorized", debug }, 401);
+    console.warn(JSON.stringify({
+      event: "community_taxonomy_status_auth_denied",
+      reason: auth.reason,
+      ts: new Date().toISOString(),
+    }));
+    return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
   try {

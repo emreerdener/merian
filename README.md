@@ -358,8 +358,10 @@ and
 
 Configure the required app-facing client config in `Config.xcconfig` or ignored
 local overrides in `Config.local.xcconfig`. Public client values like
-`SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true
-backend secrets like `GEMINI_API_KEY` must stay server-side only. Release
+`SUPABASE_URL` and the public key configured through the historical
+`SUPABASE_ANON_KEY` build setting are used by the app at runtime; use a current
+`sb_publishable_...` value rather than a legacy anon JWT. True backend secrets
+like `GEMINI_API_KEY` must stay server-side only. Release
 archives can still use the development RevenueCat `test_` key, but TestFlight
 or App Store exports should override `REVENUECAT_API_KEY` with the production
 iOS SDK key that begins with `appl_`.
@@ -480,8 +482,15 @@ That is the manual full-fleet command. Production deployment runs through the
 path-filtered GitHub workflow, which validates frozen function-local dependency
 graphs, requires exact name parity with `services/supabase/config.toml`, and
 deploys only transitive runtime consumers in bounded batches. The fleet size is
-derived rather than hard-coded. See the
-[Supabase deployment runbook](docs/backend-and-data/06-supabase-deployment-runbook.md).
+derived rather than hard-coded. Current opaque Supabase server keys use only the
+standard `apikey` header; legacy service-role JWTs temporarily use both
+`apikey` and Bearer. Exposed tables require RLS and reviewed grants, and new
+migrations rely on the pinned CLI's atomic migration-plus-history batch rather
+than explicit transaction controls. See the
+[server credential and database safety
+contract](docs/backend-and-data/13-server-credentials-and-database-release-safety.md)
+and [Supabase deployment
+runbook](docs/backend-and-data/06-supabase-deployment-runbook.md).
 
 ---
 

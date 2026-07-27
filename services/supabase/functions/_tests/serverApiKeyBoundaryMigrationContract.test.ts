@@ -7,9 +7,35 @@ const migrationUrl = new URL(
   "../../migrations/20260727013416_future_proof_server_key_boundaries.sql",
   import.meta.url,
 );
+const migrationsUrl = new URL("../../migrations/", import.meta.url);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
+}
+
+async function latestMixedIncidentRoutine(): Promise<string> {
+  const migrationNames: string[] = [];
+  for await (const entry of Deno.readDir(migrationsUrl)) {
+    if (entry.isFile && entry.name.endsWith(".sql")) {
+      migrationNames.push(entry.name);
+    }
+  }
+  migrationNames.sort();
+
+  const routinePrefix =
+    "CREATE OR REPLACE FUNCTION public.get_owned_explore_media_incidents(";
+  let latestRoutine = "";
+  for (const migrationName of migrationNames) {
+    const sql = normalized(
+      await Deno.readTextFile(new URL(migrationName, migrationsUrl)),
+    );
+    const routineStart = sql.indexOf(routinePrefix);
+    if (routineStart < 0) continue;
+    const routineEnd = sql.indexOf("$$;", routineStart);
+    assert(routineEnd >= 0, `${migrationName} has an unterminated routine.`);
+    latestRoutine = sql.slice(routineStart, routineEnd + 3);
+  }
+  return latestRoutine;
 }
 
 Deno.test("server-key migration centralizes key-format-aware pg_net headers", async () => {
@@ -52,17 +78,10 @@ Deno.test("server-key migration centralizes key-format-aware pg_net headers", as
   );
 });
 
-Deno.test("mixed incident routine dispatches by user identity before the server guard", async () => {
-  const sql = normalized(await Deno.readTextFile(migrationUrl));
-  const routineStart = sql.indexOf(
-    "CREATE OR REPLACE FUNCTION public.get_owned_explore_media_incidents(",
-  );
-  const routineEnd = sql.indexOf(
-    "REVOKE ALL ON FUNCTION public.get_owned_explore_media_incidents(UUID)",
-    routineStart,
-  );
-  const routine = sql.slice(routineStart, routineEnd);
+Deno.test("effective mixed incident routine dispatches by user identity before the server guard", async () => {
+  const routine = await latestMixedIncidentRoutine();
 
+  assert(routine.length > 0, "Mixed incident routine definition is missing.");
   assertStringIncludes(routine, "IF auth.uid() IS NULL THEN");
   assertStringIncludes(routine, "PERFORM internal.require_service_role()");
   assertStringIncludes(
@@ -70,13 +89,16 @@ Deno.test("mixed incident routine dispatches by user identity before the server 
     "ELSIF auth.uid() IS DISTINCT FROM self_id THEN",
   );
   assert(
-    !routine.includes("auth.role() = 'service_role'"),
-    "Mixed authorization must not dispatch on a JWT-only service claim.",
+    !routine.includes("auth.role()"),
+    "Mixed authorization must not dispatch on a role claim.",
+  );
+  assert(
+    !routine.includes("CURRENT_SETTING('role'"),
+    "Mixed authorization must delegate server-role checks to the shared guard.",
   );
 });
 
 Deno.test("new migrations cannot add Bearer-only pg_net server-key transport", async () => {
-  const migrationsUrl = new URL("../../migrations/", import.meta.url);
   for await (const entry of Deno.readDir(migrationsUrl)) {
     if (
       !entry.isFile ||

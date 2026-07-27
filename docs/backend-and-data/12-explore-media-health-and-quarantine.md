@@ -82,9 +82,17 @@ must never be displayed as the number of currently visible posts.
 
 The gateway uses `verify_jwt = false` because current Supabase project secret
 keys are not JWTs. This does not make the worker public. The handler accepts the
-exact provisioned legacy service-role value, or validates a candidate project
-key with a service-role-only database access probe before any lease is claimed.
-Missing, ordinary user, and unproven keys fail with `401`.
+exact configured server key through `_shared/serviceRoleAuth.ts`: an explicit
+`SUPABASE_SERVER_API_KEY`, a named current key in the hosted
+`SUPABASE_SECRET_KEYS` JSON dictionary, the singular `SUPABASE_SECRET_KEY`
+local/manual fallback, or the legacy `SUPABASE_SERVICE_ROLE_KEY` migration
+fallback. Current opaque keys use `apikey` only; a legacy service-role JWT uses
+matching `apikey` and Bearer values. Authorization is an exact constant-time
+comparison and never a table/RLS capability probe. Missing, conflicting,
+ordinary user, publishable, and mismatched credentials fail with `401`.
+Downstream database clients use the environment-resolved key rather than the
+accepted request value. The full contract is in
+[`13-server-credentials-and-database-release-safety.md`](./13-server-credentials-and-database-release-safety.md).
 
 1. `claim_explore_media_health_checks` leases a bounded due batch with
    `FOR UPDATE SKIP LOCKED`.

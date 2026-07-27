@@ -3,8 +3,9 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
- *   SUPABASE_SERVICE_ROLE_KEY fallback
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, local/manual
+ *   SUPABASE_SECRET_KEY, or the migration-only SUPABASE_SERVICE_ROLE_KEY
+ *   fallback
  *
  * Example:
  *   deno run --allow-net --allow-env --allow-write \
@@ -13,8 +14,11 @@
  *     --summary-md /tmp/scan-media-health.md
  */
 
-import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+const MONITOR_REQUEST_TIMEOUT_MS = 15_000;
+const MONITOR_MAXIMUM_RESPONSE_BYTES = 2 * 1_024 * 1_024;
 
 export type MonitorFailurePolicy = "critical" | "warning" | "never";
 export type ScanMediaHealthStatus = "ok" | "warning" | "critical";
@@ -91,7 +95,10 @@ if (import.meta.main) {
 
 export async function runMonitor(rawArgs: string[]): Promise<number> {
   const args = parseMonitorArgs(rawArgs);
-  const supabase = createServiceRoleClientFromEnvironment();
+  const supabase = createServiceRoleClientFromEnvironmentWithOptions({
+    requestTimeoutMs: MONITOR_REQUEST_TIMEOUT_MS,
+    maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
+  });
 
   const health = await postJson(
     supabase,

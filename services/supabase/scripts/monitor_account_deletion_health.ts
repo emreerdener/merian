@@ -3,12 +3,16 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
- *   SUPABASE_SERVICE_ROLE_KEY fallback
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, local/manual
+ *   SUPABASE_SECRET_KEY, or the migration-only SUPABASE_SERVICE_ROLE_KEY
+ *   fallback
  */
 
-import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+const MONITOR_REQUEST_TIMEOUT_MS = 15_000;
+const MONITOR_MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
 
 export type AccountDeletionFailurePolicy = "critical" | "warning" | "never";
 export type AccountDeletionStatus = "ok" | "warning" | "critical";
@@ -81,7 +85,10 @@ export async function runAccountDeletionMonitor(
   rawArgs: string[],
 ): Promise<number> {
   const args = parseAccountDeletionMonitorArgs(rawArgs);
-  const supabase = createServiceRoleClientFromEnvironment();
+  const supabase = createServiceRoleClientFromEnvironmentWithOptions({
+    requestTimeoutMs: MONITOR_REQUEST_TIMEOUT_MS,
+    maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
+  });
 
   const health = await fetchAccountDeletionHealth(supabase);
   const summary = buildAccountDeletionSummary(health, args, new Date());

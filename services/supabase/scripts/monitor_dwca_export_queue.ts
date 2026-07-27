@@ -4,11 +4,12 @@
  *
  * Required env:
  *   SUPABASE_URL
- *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, or the migration-only
- *   SUPABASE_SERVICE_ROLE_KEY fallback
+ *   SUPABASE_SERVER_API_KEY, platform SUPABASE_SECRET_KEYS, local/manual
+ *   SUPABASE_SECRET_KEY, or the migration-only SUPABASE_SERVICE_ROLE_KEY
+ *   fallback
  */
 
-import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   EXPORT_BACKLOG_CRITICAL_AGE_SECONDS,
@@ -16,6 +17,9 @@ import {
   EXPORT_BACKLOG_WARNING_AGE_SECONDS,
   EXPORT_BACKLOG_WARNING_COUNT,
 } from "../functions/export-dwca/limits.ts";
+
+const MONITOR_REQUEST_TIMEOUT_MS = 15_000;
+const MONITOR_MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
 
 export type DwcaMonitorFailurePolicy = "critical" | "warning" | "never";
 export type DwcaQueueStatus = "ok" | "warning" | "critical";
@@ -65,7 +69,10 @@ export async function runDwcaExportQueueMonitor(
   rawArgs: string[],
 ): Promise<number> {
   const args = parseDwcaMonitorArgs(rawArgs);
-  const supabase = createServiceRoleClientFromEnvironment();
+  const supabase = createServiceRoleClientFromEnvironmentWithOptions({
+    requestTimeoutMs: MONITOR_REQUEST_TIMEOUT_MS,
+    maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
+  });
 
   const health = await fetchDwcaExportQueueHealth(supabase);
   const summary = buildDwcaMonitorSummary(health, args, new Date());

@@ -20,11 +20,12 @@ SCAN_ID=<scan-uuid> DRY_RUN=true deno run --allow-net --allow-env \
 Remove `DRY_RUN=true` to write the resolved label. Omit `SCAN_ID` for the
 resumable, paginated full backfill. The script requires `SUPABASE_URL` and a
 server key resolved from `SUPABASE_SERVER_API_KEY`, platform
-`SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
-fallback. It rate-limits Nominatim requests and updates only
-scans that have exact coordinates and a missing semantic location. Existing
-database triggers sanitize the scan label and reproject every linked Explore
-post while preserving its saved post-level location-sharing choice.
+`SUPABASE_SECRET_KEYS`, the singular `SUPABASE_SECRET_KEY` local/manual
+fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback. It
+rate-limits Nominatim requests and updates only scans that have exact
+coordinates and a missing semantic location. Existing database triggers
+sanitize the scan label and reproject every linked Explore post while
+preserving its saved post-level location-sharing choice.
 
 ## Production Path
 
@@ -53,7 +54,9 @@ The workflow performs the following steps:
    SHA, under explicit workflow-level `contents: read` permission.
    `_tests/workflowSecurity.test.ts` enforces those pins and permissions across
    every checked-in workflow, rejects job-scoped secret references, and limits
-   `contents: write` to the taxonomy checklist workflow that commits its result.
+   `contents: write` to the taxonomy checklist's isolated follow-up job. The
+   import job itself remains `contents: read` and passes only a one-day artifact
+   to that writer.
 3. Installs the exact reviewed Deno `2.9.2` runtime and Supabase CLI `2.109.1`.
 4. Fails fast if required deployment, RevenueCat, DwC-A pseudonym, or dedicated
    R2 Object Read credentials are missing; if either webhook credential is
@@ -79,8 +82,11 @@ The workflow performs the following steps:
 7. Runs focused workflow-policy, shared-helper, AI quota, RevenueCat webhook,
    DwC-A claim/stream/idempotency, and static migration-contract tests in
    addition to the complete tooling gate. The migration execution contract
-   enumerates every SQL migration and rejects pipeline-incompatible concurrent
-   index DDL. The species-count contract separately requires its explicit
+   enumerates every SQL migration and rejects direct or dynamic
+   pipeline-incompatible concurrent index DDL. The public-schema contract
+   rejects transaction controls in new files, requires effective RLS, and locks
+   final grants/default ACLs plus bounded user-FK index behavior. The
+   species-count contract separately preserves its immutable historical
    `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover ordering.
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
@@ -115,24 +121,32 @@ The workflow performs the following steps:
 18. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-19. Smoke-tests the Community Taxonomy status endpoint, scan-media health, a
-    one-item Explore direct-origin reconciliation, and a dry-run bounded GBIF
-    import with the production service-role credential.
+19. Resolves a callable production server key plus every real public project
+    key through the Management API. Every public key must receive `401` from
+    Community Taxonomy status before the format-aware positive suite
+    smoke-tests internal functions and PostgREST RPCs, including scan-media
+    health, one-item Explore direct-origin reconciliation, and a dry-run bounded
+    GBIF import. Failures report endpoint and status while withholding response
+    bodies.
 
-Local and CI database rebuilds require Supabase CLI `2.109.0` or newer, and CI
-pins `2.109.1`. The migration history itself remains compatible with
-fresh-schema statement-pipeline replay: checked-in migrations may not contain
-`CREATE INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY`, or
-`REINDEX ... CONCURRENTLY`. Although migration versions already recorded in
-production are skipped by `db push`, fresh databases replay every file. The
-historical index files therefore use ordinary idempotent index DDL, which is
-fast on an empty rebuild.
+Local and CI database rebuilds use the exact reviewed Supabase CLI `2.109.1`.
+That version submits each migration and its history insert as one
+`pgconn.ExecBatch`, giving them an implicit PostgreSQL transaction. New
+migrations must not add top-level transaction controls because an embedded
+commit can split schema state from migration history. Historical applied files
+that contain explicit controls remain immutable compatibility artifacts, not
+future examples.
 
-For a future index on a populated table where blocking writes is unacceptable,
-run `CREATE INDEX CONCURRENTLY IF NOT EXISTS` as a separately reviewed,
-supervised operation through a direct session. Verify the resulting index is
-valid in `pg_index`, then retain `CREATE INDEX IF NOT EXISTS` in the migration
-so clean environments converge without relying on out-of-band state.
+Checked-in migrations may not contain `CREATE INDEX CONCURRENTLY`,
+`DROP INDEX CONCURRENTLY`, or `REINDEX ... CONCURRENTLY`, including executable
+dynamic SQL. Fresh databases replay every file even though production skips
+versions already in history. For a populated relation where a blocking index is
+unsafe, run the reviewed concurrent command as a separately supervised owner
+operation outside a transaction and outside `db push`. Verify both
+`pg_index.indisvalid` and `indisready`, then retry the unchanged size-gated
+migration. Partitioned relations require valid child indexes before a
+metadata-only parent operation. The canonical rules are in
+[`13-server-credentials-and-database-release-safety.md`](./13-server-credentials-and-database-release-safety.md).
 
 Actual GBIF taxonomy imports are intentionally separated into
 `.github/workflows/import-community-taxonomy.yml`. The deploy workflow only
@@ -652,7 +666,9 @@ reservation evidence.
 Migration `20260724222838_optimize_species_count_trigger.sql` is database-only.
 It replaces the `unified_species_count_sync` row trigger with the private
 `internal.user_species_scan_counts` ledger and four statement-level transition
-triggers. No Edge Function deployment or new secret is required.
+triggers. No Edge Function deployment or new secret is required. This already
+applied file is an immutable historical explicit-boundary exception; it is not
+a template for a new migration.
 
 The migration deliberately takes `SHARE ROW EXCLUSIVE` on `public.scans`.
 Existing writes finish first; new scan inserts, updates, deletes, and cascading
@@ -661,8 +677,10 @@ repaired, and the trigger set is swapped. The lock is held until the migration
 transaction commits. The migration file must retain its explicit `BEGIN` before
 `LOCK TABLE` and final `COMMIT`; PostgreSQL rejects a table lock outside a
 transaction block, and removing either boundary also destroys the atomic cutover
-guarantee. Before production deployment, inspect the planner estimate and
-physical size:
+guarantee for replay paths that processed this historical file statement by
+statement. New migrations rely on the pinned CLI's implicit
+migration-plus-history transaction and must not add these controls. Before
+production deployment, inspect the planner estimate and physical size:
 
 ```sql
 SELECT
@@ -700,7 +718,8 @@ Workflow run 1458 failed during disposable `supabase db start` with
 `SQLSTATE 25P01: LOCK TABLE can only be used in transaction blocks`. Treat that
 signature as an explicit-boundary regression: restore `BEGIN` before the scan
 lock and keep `COMMIT` after the final trigger. Do not remove the lock, split
-the backfill from the trigger swap, or run `supabase migration repair`.
+the backfill from the trigger swap, copy this exception into a new migration,
+or run `supabase migration repair`.
 Disposable database validation runs before the production `db push`, so this
 failure does not create a hosted migration-history entry; fix the unapplied
 migration file and rerun the workflow.
@@ -944,7 +963,9 @@ Migrations `20260725030308_durable_account_deletion.sql`,
 `20260725052337_enforce_account_storage_erasure.sql`,
 `20260726041109_fence_storage_erasure_claims.sql`, and
 `20260727001630_monitor_account_deletion_health.sql`, plus the shared server-key
-transport migration `20260727013416_future_proof_server_key_boundaries.sql`,
+transport migration `20260727013416_future_proof_server_key_boundaries.sql` and
+user-FK index migration
+`20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
 `safe-delete`, `reconcile-account-deletions`, `generate-upload-urls`, and
 `replay-scan-ingestion`, form one release unit. No new secret is required: the
 reaper uses the existing Supabase service-role and R2 values, and the
@@ -952,11 +973,10 @@ independent GitHub monitor resolves a server key with the existing
 `SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
 an active server key in the compatibility-named `SUPABASE_SERVICE_ROLE_KEY`
 Vault slot (or the documented app-setting fallback); missing values now produce
-a critical monitor result. Its current
-transport sends a modern `sb_secret_...` Vault key only in `apikey`, or a legacy
-service-role JWT in both `apikey` and Bearer Authorization. The value must match
-an active project server key. Do not replace only the Vault value; rotate it and
-the project key together.
+a critical monitor result. Its current transport sends a modern `sb_secret_...`
+Vault key only in `apikey`, or a legacy service-role JWT in both `apikey` and
+Bearer Authorization. The value must match an active project server key. Do not
+replace only the Vault value; rotate it and the project key together.
 
 The `20260725035737` file is an explicit executable no-op. It is a compatibility
 bridge for production run 1461, where its superseded public-only sentinel insert
@@ -1002,6 +1022,94 @@ migration sequence:
 The ownerless migration takes bounded `SHARE ROW EXCLUSIVE` locks in Auth →
 scans → public-profile order. A lock timeout is a safe deployment failure; retry
 the unchanged migration after the conflicting transaction finishes.
+
+The user-FK migration reuses every valid, ready, non-partial index whose first
+key is the FK column. It creates missing indexes inline only for relations no
+larger than 32 MiB. It never recursively builds a missing index on a partitioned
+parent. Before production deployment, run this read-only inventory:
+
+```sql
+WITH missing_user_fk_index AS (
+    SELECT DISTINCT
+        source_table.oid AS table_oid,
+        source_table.relkind AS relation_kind,
+        source_namespace.nspname AS schema_name,
+        source_table.relname AS table_name,
+        source_column.attname AS column_name
+    FROM pg_catalog.pg_constraint AS constraint_row
+    JOIN pg_catalog.pg_class AS source_table
+      ON source_table.oid = constraint_row.conrelid
+    JOIN pg_catalog.pg_namespace AS source_namespace
+      ON source_namespace.oid = source_table.relnamespace
+    JOIN pg_catalog.pg_attribute AS source_column
+      ON source_column.attrelid = constraint_row.conrelid
+     AND source_column.attnum = constraint_row.conkey[1]
+    WHERE constraint_row.contype = 'f'
+      AND constraint_row.confrelid IN (
+          'public.users'::REGCLASS,
+          'auth.users'::REGCLASS
+      )
+      AND source_namespace.nspname IN ('public', 'internal')
+      AND source_table.relkind IN ('r', 'p')
+      AND pg_catalog.ARRAY_LENGTH(constraint_row.conkey, 1) = 1
+      AND NOT EXISTS (
+          SELECT 1
+          FROM pg_catalog.pg_index AS index_row
+          WHERE index_row.indrelid = constraint_row.conrelid
+            AND index_row.indisvalid
+            AND index_row.indisready
+            AND index_row.indpred IS NULL
+            AND index_row.indexprs IS NULL
+            AND index_row.indkey[0] = constraint_row.conkey[1]
+      )
+)
+SELECT
+    schema_name,
+    table_name,
+    column_name,
+    relation_kind,
+    CASE
+        WHEN relation_kind = 'p' THEN 'partitioned parent'
+        ELSE pg_catalog.PG_SIZE_PRETTY(
+            pg_catalog.PG_RELATION_SIZE(table_oid)
+        )
+    END AS relation_size,
+    CASE
+        WHEN relation_kind = 'p' THEN NULL
+        ELSE pg_catalog.FORMAT(
+            'CREATE INDEX CONCURRENTLY %I ON %I.%I (%I);',
+            'idx_'
+                || pg_catalog.SUBSTRING(table_name FOR 24)
+                || '_'
+                || pg_catalog.SUBSTRING(column_name FOR 16)
+                || '_'
+                || pg_catalog.SUBSTRING(
+                    pg_catalog.MD5(
+                        schema_name || '.' || table_name || '.' || column_name
+                    )
+                    FOR 8
+                )
+                || '_user_fk',
+            schema_name,
+            table_name,
+            column_name
+        )
+    END AS concurrent_index_command
+FROM missing_user_fk_index
+ORDER BY schema_name, table_name, column_name;
+```
+
+Run each returned concurrent command separately through an owner connection,
+outside a transaction and outside `supabase db push`. Inspect any same-named
+invalid index left by an interrupted build before dropping and rebuilding it.
+For a partitioned parent (relation kind `p`), build an equivalent valid leading
+index concurrently on every leaf partition first, then create the parent
+partitioned index non-concurrently as a metadata-only operation. Do not run a
+single recursive blocking build against the parent.
+
+Require both `indisvalid` and `indisready` before deployment. The migration then
+converges without rebuilding the index; its size guard prevents a forgotten
+preflight from turning the release into a prolonged write outage.
 
 Run before deployment:
 
@@ -1197,20 +1305,29 @@ structured-log alerts on `account_deletion_attempt_deferred`,
 
 On alert:
 
-1. open the workflow's Markdown/JSON summary; do not query or print user IDs;
+1. open the workflow's identity-free Markdown/JSON summary; do not print user
+   IDs into logs, tickets, or chat;
 2. if cron/configuration is false, restore the exact named cron and the Vault
    URL/service credential, then manually rerun the health workflow;
 3. otherwise inspect bounded `safe-delete`, `reconcile-account-deletions`, R2,
    and Auth logs for the failing dependency;
-4. repair the dependency and let claim-fenced, database-backed retries resume;
+4. for an orphan critical, use restricted operator access to classify the exact
+   outbox row, matching private job, request/audit provenance, live profile, and
+   owned scans without copying identifiers outside that session;
+5. if deletion intent is legitimate, restore it only through the reviewed
+   durable request boundary; if the marker is stale or unauthorized, preserve
+   evidence and prepare a reviewed forward metadata migration after provenance
+   is understood;
+6. repair the dependency and let claim-fenced, database-backed retries resume;
    and
-5. escalate if oldest active age reaches 36 hours or backlog reaches 100.
+7. escalate if oldest active age reaches 36 hours or backlog reaches 100.
 
 Never recover a `pending` or `storage_pending` job by deleting Auth manually or
-by editing a cursor, lease, or next-attempt timestamp. A legacy Auth-first
-incident can be placed into the durable pipeline only after an operator verifies
-the recorded UUID and invokes `request_account_deletion` through a reviewed
-service-role or owner session.
+by editing a cursor, lease, or next-attempt timestamp. Never blanket-delete
+outbox rows, sweep their prefixes, make them due, or run ad-hoc SQL merely to
+clear an alert. A legacy Auth-first incident can be placed into the durable
+pipeline only after an operator verifies the recorded UUID and invokes
+`request_account_deletion` through a reviewed service-role or owner session.
 
 Do not roll back by dropping the private table, unique outbox index, or cron;
 that would discard deletion intent. Fix forward while keeping the reaper
@@ -1290,9 +1407,9 @@ Ship the Explore response to unexpected object loss as one compatibility unit:
    `ingest-r2-media-events`;
 5. redeploy `get-explore-author-profile`, `get-explore-author-posts`, and
    `send-push-notification`;
-6. verify Vault has `SUPABASE_URL` and an active current or legacy server key
-   in the compatibility-named `SUPABASE_SERVICE_ROLE_KEY` slot, then
-   configure bucket-scoped Object Read credentials in `R2_READ_ACCESS_KEY_ID` /
+6. verify Vault has `SUPABASE_URL` and an active current or legacy server key in
+   the compatibility-named `SUPABASE_SERVICE_ROLE_KEY` slot, then configure
+   bucket-scoped Object Read credentials in `R2_READ_ACCESS_KEY_ID` /
    `R2_READ_SECRET_ACCESS_KEY` at the GitHub and Supabase boundaries;
 7. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
    GitHub/Supabase and the trusted Cloudflare Queue consumer; and
@@ -2884,19 +3001,21 @@ Supabase. The complete Edge-secret inventory is documented in
 `docs/backend-and-data/02-supabase-edge-and-database.md`.
 
 Internal routes using `_shared/serviceRoleAuth.ts` authorize locally against
-`SUPABASE_SERVER_API_KEY`, named values in `SUPABASE_SECRET_KEYS`, and the
-migration-only `SUPABASE_SERVICE_ROLE_KEY` fallback; they must never probe a
-table to infer authority. Legacy
-service-role JWT callers send the same value in Bearer Authorization and
-`apikey`. Named `sb_secret_...` keys are non-JWT and are sent only in `apikey`.
-The deployment smoke step retrieves every available real anon/publishable
-project key and requires `community-taxonomy-status` to return `401` for each
-before the real current secret key (or exact legacy service-role fallback) is
-used as the positive control. Current secret keys are sent only in `apikey`;
-legacy JWT keys are sent in both headers. Do not weaken that denial check when
-rotating API keys. Every positive smoke request records its HTTP status and
-prints only stable error metadata on failure, so a route-specific authorization
-failure is distinguishable from an opaque `curl --fail` exit.
+`SUPABASE_SERVER_API_KEY`, named values in the hosted
+`SUPABASE_SECRET_KEYS` JSON dictionary, the singular
+`SUPABASE_SECRET_KEY` local/manual fallback, and the migration-only
+`SUPABASE_SERVICE_ROLE_KEY` fallback; they must never probe a table to infer
+authority. Legacy service-role JWT callers send the same value in Bearer
+Authorization and `apikey`. Named `sb_secret_...` keys are non-JWT and are sent
+only in `apikey`. The deployment smoke step retrieves every available real
+anon/publishable project key and requires `community-taxonomy-status` to return
+`401` for each before the real current secret key (or exact legacy service-role
+fallback) is used as the positive control. Current secret keys are sent only in
+`apikey`; legacy JWT keys are sent in both headers. Do not weaken that denial
+check when rotating API keys. Every positive smoke request records the endpoint
+and HTTP status while withholding response bodies, so a route-specific
+authorization failure is distinguishable from an opaque `curl --fail` exit
+without leaking response content.
 
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only
@@ -2974,8 +3093,12 @@ runs use:
 - `retry`: `false`
 - `update_checklist`: `true`
 
-The scheduled job uploads JSON/Markdown summary artifacts, writes a GitHub job
-summary, and commits the running checklist when a real import changes it.
+The import job has only `contents: read`, uploads JSON/Markdown summary
+artifacts plus a one-day checklist artifact, and writes the GitHub job summary.
+When a real import changes the checklist, a separate five-minute writer job
+downloads that artifact and performs the commit with the workflow's sole
+scoped `contents: write` grant. The import process cannot read a checkout
+credential.
 
 ## Account Deletion Health Automation
 
@@ -3046,16 +3169,19 @@ claims and retry deadlines before declaring the queue fully idle.
 ## Scan Media Health Automation
 
 The **Scan Media Health Monitor** workflow runs every 30 minutes and can also be
-started manually from GitHub Actions. It resolves the production service-role
-key at runtime through the Supabase CLI, calls `/scan-media-health`, writes JSON
-and Markdown summary artifacts, and appends the Markdown report to the job
-summary. The Markdown report includes an **Incident Actions** table that maps
-each issue code to an owner, next step, runbook, and sample-field hint; use that
-table as the first triage view before opening raw database rows. It also
-includes a visible **Sample Preview** table with the first sample row for each
-issue code. Expand the per-issue sample blocks or download the
-`scan-media-health-summary-<run_number>` artifact when you need the complete
-sample set.
+started manually from GitHub Actions. It resolves a revealed production server
+key through `resolve_project_api_keys.ts` and the Management API, then calls
+`/scan-media-health` with format-aware standard headers. The request has a
+15-second deadline and a 2 MiB streaming response ceiling. It writes JSON and
+Markdown summary artifacts and appends the Markdown report to the job summary.
+The Markdown report includes an **Incident Actions** table that maps each issue
+code to an owner, next step, runbook, and sample-field hint; use that table as
+the first triage view before opening raw database rows. It also includes a
+visible **Sample Preview** table with the first sample row for each issue code.
+Expand the per-issue sample blocks or download the
+`scan-media-health-summary-<run_number>-attempt-<run_attempt>` artifact when you
+need the complete sample set. Attempt-specific names preserve evidence from
+workflow reruns.
 
 Scheduled runs use:
 

@@ -6,6 +6,9 @@ Merian's globally isolated Deno Edge Functions.
 Rather than fragmenting logic recursively through every function directory, the
 shared dependencies are grouped by domain. Keep new shared code here only when
 multiple functions need the same behavior and the ownership boundary is clear.
+Credential/header changes must also satisfy the canonical
+[server credential and database release safety
+contract](../../../../docs/backend-and-data/13-server-credentials-and-database-release-safety.md).
 
 ## Infrastructure Map
 
@@ -31,8 +34,9 @@ multiple functions need the same behavior and the ownership boundary is clear.
   `JSON_BODY_LIMITS` class (`small`, `standard`, or `bulk`) or an explicit
   media-specific ceiling. Do not add a direct `req.json()`, `req.text()`, or
   unbounded clone to a production handler.
-- **`auth.ts`**: Shared bearer parsing, claims validation, and the compatibility
-  Auth-server `getUser` strategy used by existing authenticated endpoints.
+- **`auth.ts`**: Shared bearer parsing, claims validation, generic public
+  authentication failures, and the compatibility Auth-server `getUser` strategy
+  used by existing authenticated endpoints.
 - **`clientAddress.ts`**: Shared proxy-observed client-address extraction and
   purpose-separated daily HMAC derivation. Abuse controls store only the HMAC; a
   missing proxy address joins a conservative shared fail-safe bucket.
@@ -43,22 +47,31 @@ multiple functions need the same behavior and the ownership boundary is clear.
   SDK, but keeping this policy out of `edgeHandler.ts` prevents an implicit
   fleet-wide authentication change. Internal replay keeps its separate
   timing-safe service credential path.
+- **`publishableKey.ts`**: Canonical public project-key resolver for user-scoped
+  Supabase clients. It strictly parses the platform-managed JSON
+  `SUPABASE_PUBLISHABLE_KEYS` dictionary, prefers its named `default` key,
+  accepts named rotation keys, and retains a correctly shaped legacy
+  `SUPABASE_ANON_KEY` only during the overlap window. Production modules may not
+  read either environment variable directly.
 - **`serviceRoleAuth.ts`**: Fail-closed request authentication and canonical key
   resolution for every internal worker/status boundary that shares this policy.
   It prefers an explicit `SUPABASE_SERVER_API_KEY`, then the platform-managed
-  named `sb_secret_...` values in `SUPABASE_SECRET_KEYS`, and retains
-  `SUPABASE_SERVICE_ROLE_KEY` only as a migration fallback. It never infers
-  authority from a database query, RLS result, JWT claim, or network capability
-  probe. Key configuration is classified separately: current values must have a
-  platform-shaped `sb_secret_` prefix plus a URL-safe opaque suffix of at least
-  20 characters, while a legacy fallback must be an HS256 JWT with role
-  `service_role` and a complete 43-character base64url signature. Publishable,
-  anon/user, truncated placeholder, and malformed configured values fail closed.
-  Legacy JWT keys may use Bearer transport; non-JWT secret keys belong only in
-  `apikey`. Callers must use the server-managed environment key—not the accepted
-  request value—for privileged database clients and internal function calls. The
-  shared request-header helper applies the same current/legacy key transport to
-  operational scripts.
+  named `sb_secret_...` values in the JSON `SUPABASE_SECRET_KEYS` dictionary,
+  then the singular `SUPABASE_SECRET_KEY` local/manual fallback, and retains
+  `SUPABASE_SERVICE_ROLE_KEY` only as a legacy migration fallback. It never
+  infers authority from a database query, RLS result, JWT claim, or network
+  capability probe. Key configuration is classified separately: current values
+  must have a platform-shaped `sb_secret_` prefix plus a URL-safe opaque suffix
+  of at least 20 characters, while a legacy fallback must be an HS256 JWT with
+  role `service_role` and a complete 43-character base64url signature.
+  Publishable, anon/user, and truncated placeholder values fail closed.
+  Malformed plural entries never become candidates; only a separately valid
+  explicit, singular, or legacy fallback can remain available while the
+  dictionary is corrected. Legacy JWT keys may use Bearer transport; non-JWT
+  secret keys belong only in `apikey`. Callers must use the server-managed
+  environment key—not the accepted request value—for privileged database
+  clients and internal function calls. The shared request-header helper applies
+  the same current/legacy key transport to operational scripts.
 - **`serviceRoleClient.ts`**: Creates privileged PostgREST, Storage, Functions,
   and Auth Admin clients from an authenticated or environment-resolved server
   key. Its final fetch adapter removes only supabase-js's exact
@@ -66,9 +79,11 @@ multiple functions need the same behavior and the ownership boundary is clear.
   unrelated request headers and user access tokens, and retains legacy
   service-role JWT transport for older projects. Production code must use this
   factory rather than constructing an admin `createClient(...)` directly. Every
-  SDK request carries a 30-second hard deadline, including PostgREST, Storage,
-  Functions, and Auth Admin calls. Transport and in-routine authorization remain
-  independent: migration
+  SDK request carries a 30-second hard deadline by default, including PostgREST,
+  Storage, Functions, and Auth Admin calls. Operational monitors use the options
+  factory to retain a 15-second deadline and an explicit streaming response
+  ceiling (64 KiB for aggregate health, 2 MiB for detailed scan-media samples).
+  Transport and in-routine authorization remain independent: migration
   `20260727010340_fix_service_role_authorization_guard.sql` lets
   `internal.require_service_role()` recognize either the legacy JWT claim or
   PostgREST's protected standard `service_role` setting for an opaque key. It
@@ -80,10 +95,11 @@ multiple functions need the same behavior and the ownership boundary is clear.
   adapter. `fetchWithDeadline(...)` combines a caller cancellation signal with a
   hard timeout; `readResponseTextWithinLimit(...)` and
   `readResponseJsonWithinLimit(...)` reject declared or streamed oversized
-  provider bodies before parsing. `createDeadlineFetchTransport(...)` applies
-  the same ownership rule to Supabase SDK clients; authenticated user/claims
-  lookups use a 15-second ceiling. Production code must not invoke global or
-  injected fetch transports directly.
+  provider bodies before parsing. `createResponseBodyLimitFetchTransport(...)`
+  enforces the same ceiling while preserving SDK-owned streaming parsers.
+  `createDeadlineFetchTransport(...)` applies the ownership rule to Supabase SDK
+  clients; authenticated user/claims lookups use a 15-second ceiling. Production
+  code must not invoke global or injected fetch transports directly.
 - **`gemini.ts`**: The only permitted Google GenAI client boundary. Its
   SDK-owned HTTP transport has a 90-second hard timeout so model calls cannot
   wait for the Edge worker shutdown ceiling.

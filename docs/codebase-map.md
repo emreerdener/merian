@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-07-26.
+Last reviewed: 2026-07-27.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -37,11 +37,13 @@ Web runtime config:
 - `NEXT_PUBLIC_SITE_URL` should be `https://naturebook.earth` in production.
 - `NEXT_PUBLIC_SUPPORT_EMAIL` should be `support@naturebook.earth` in
   production.
-- Supabase server keys are server-only. Prefer `SUPABASE_SERVER_API_KEY`;
-  `SUPABASE_SERVICE_ROLE_KEY` is migration-only. Never expose either through a
-  `NEXT_PUBLIC_` variable or client component. Their only web owner is
-  `apps/web/lib/supabaseAdmin.ts`, guarded by `server-only`; `supabasePublic.ts`
-  contains the anonymous projection client.
+- Supabase server keys are server-only. Prefer `SUPABASE_SERVER_API_KEY`, then
+  the hosted `SUPABASE_SECRET_KEYS` JSON dictionary;
+  `SUPABASE_SERVICE_ROLE_KEY` is migration-only. The singular Edge-local
+  `SUPABASE_SECRET_KEY` is deliberately unsupported by web. Never expose any
+  server key through a `NEXT_PUBLIC_` variable or client component. Their only
+  web owner is `apps/web/lib/supabaseAdmin.ts`, guarded by `server-only`;
+  `supabasePublic.ts` contains the anonymous projection client.
 
 ## Public Brand and Compatibility
 
@@ -288,6 +290,22 @@ automatic stale refund, and API-role privilege revocations. Coverage lives in
 `_tests/aiQuotaCoverage.test.ts`, `_tests/aiQuotaMigrationContract.test.ts`, and
 `tests/ai_quota_security.sql`.
 
+Supabase project credential boundaries:
+
+- `services/supabase/functions/_shared/publishableKey.ts` resolves hosted named
+  publishable keys and the temporary complete legacy anon fallback for
+  user-scoped clients.
+- `services/supabase/functions/_shared/serviceRoleAuth.ts` owns strict
+  server-key source classification, exact internal request matching, and
+  format-aware standard headers.
+- `services/supabase/functions/_shared/serviceRoleClient.ts` is the only
+  privileged SDK factory and removes only an exact inherited opaque-key Bearer
+  fallback while preserving real user JWTs.
+- `services/supabase/scripts/resolve_project_api_keys.ts` performs bounded,
+  reveal-explicit Management API resolution for positive and real public-key
+  negative smoke controls. The canonical matrix and exit gate are in
+  `docs/backend-and-data/13-server-credentials-and-database-release-safety.md`.
+
 Privileged database routine execution:
 
 - `services/supabase/migrations/20260723144640_harden_privileged_routine_execution.sql`
@@ -300,9 +318,22 @@ Privileged database routine execution:
   adds the private key-format-aware `pg_net` header policy, migrates installed
   HTTP routines and persisted cron commands, and repairs mixed user/service
   dispatch in the owner media-incident routine.
+- `services/supabase/migrations/20260727183356_restore_identity_first_media_incident_guard.sql`
+  restores identity-first mixed routine dispatch after a later migration
+  accidentally reintroduced the JWT-only branch.
+- `services/supabase/migrations/20260727190637_secure_explore_comment_reactions_and_defaults.sql`
+  enables the last missing public-table RLS boundary, restricts reaction-table
+  grants to the Edge admin client, and revokes unsafe global/schema future
+  table and sequence defaults.
+- `services/supabase/migrations/20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`
+  catalogs owned user foreign keys, reuses only valid/ready leading indexes,
+  creates bounded small indexes, and requires supervised construction for
+  large or partitioned relations.
 - `services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts`,
   `services/supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts`,
+  `services/supabase/functions/_tests/publicSchemaSecurityMigrationContract.test.ts`,
   `services/supabase/tests/privileged_routine_security.sql`, and
+  `services/supabase/tests/public_schema_security.sql`, plus
   `services/supabase/scripts/audit_privileged_routine_acl.ts` provide static,
   disposable-catalog, and production read-only enforcement respectively.
 
@@ -462,7 +493,9 @@ Every function above has a `[functions.<name>]` entry in
 intentionally use `verify_jwt = true`. App-facing routes with a documented
 custom identity policy may set `false` and authenticate inside shared handler
 code; service-role workers such as `reconcile-ghost-profile-merges` set `false`
-for `pg_net` reachability and enforce a timing-safe bearer match. Each function
+for `pg_net` reachability and enforce an exact constant-time match through
+standard format-aware transport: current opaque keys use `apikey` only, while a
+legacy service-role JWT uses matching `apikey` and Bearer values. Each function
 also has a generated local `deno.json` backed by `functions/dependencies.lock`.
 The dependency/deploy control plane lives in
 `services/supabase/scripts/function_dependency_tools.ts`,

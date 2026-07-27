@@ -53,6 +53,13 @@ as their permanent engineering identity.
   small leased waves against a runtime cutoff, with indexed lease recovery and
   an independent oldest-due-age alert. The production deploy workflow validates
   and synchronizes all three backend credentials before function deployment.
+- **Server credential and database safety**: Current opaque project keys use
+  only Supabase's standard `apikey` header; only user JWTs and the temporary
+  legacy service-role JWT use Bearer transport. Exposed tables require RLS,
+  reviewed direct grants, and deny-by-default future ACLs. New migrations rely
+  on the pinned CLI's atomic batch and history transaction rather than embedding
+  transaction controls. See
+  [`backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md).
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override
@@ -253,6 +260,10 @@ as their permanent engineering identity.
   — Canonical product and engineering contract for direct-origin media health,
   reversible public quarantine, owner notification, automatic recovery,
   explicit deletion, monitoring, and production rollout.
+- **[`/backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md)**
+  — Canonical server-key/header matrix, environment resolution, internal worker
+  auth, exposed-schema RLS/default ACLs, migration atomicity, supervised index
+  construction, orphan triage, and production exit gate.
 
 ### Features & Hardware
 

@@ -1,11 +1,21 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createDeadlineFetchTransport } from "./outbound.ts";
+import {
+  createDeadlineFetchTransport,
+  createResponseBodyLimitFetchTransport,
+} from "./outbound.ts";
 import {
   requireServerApiKey,
   requireServerApiKeyFromEnvironment,
 } from "./serviceRoleAuth.ts";
+import { timingSafeCompare } from "./http.ts";
 
 const SUPABASE_SERVICE_REQUEST_TIMEOUT_MS = 30_000;
+
+export interface ServiceRoleClientTransportOptions {
+  fetchImplementation?: typeof fetch;
+  requestTimeoutMs?: number;
+  maximumResponseBytes?: number;
+}
 
 /**
  * Applies the API-key transport policy at the final fetch boundary.
@@ -19,42 +29,45 @@ const SUPABASE_SERVICE_REQUEST_TIMEOUT_MS = 30_000;
 export function createServiceRoleFetchTransport(
   serverApiKey: string,
   fetchImplementation: typeof fetch = fetch,
+  requestTimeoutMs = SUPABASE_SERVICE_REQUEST_TIMEOUT_MS,
 ): typeof fetch {
   const validatedServerApiKey = requireServerApiKey({
     envServerApiKey: serverApiKey,
   });
   const deadlineTransport = createDeadlineFetchTransport(
-    SUPABASE_SERVICE_REQUEST_TIMEOUT_MS,
+    requestTimeoutMs,
     fetchImplementation,
   );
 
   return (input, init) => {
-    let isFunction = false;
-    if (typeof input === "string") {
-      isFunction = input.includes("/functions/v1/");
-    } else if (input instanceof URL) {
-      isFunction = input.href.includes("/functions/v1/");
-    } else if (input instanceof Request) {
-      isFunction = input.url.includes("/functions/v1/");
+    if (!validatedServerApiKey.startsWith("sb_secret_")) {
+      return deadlineTransport(input, init as unknown as RequestInit);
     }
 
-    if (isFunction && validatedServerApiKey.startsWith("sb_secret_")) {
-      const initHeaders = init && "headers" in init
-        ? (init.headers as HeadersInit)
-        : undefined;
-      const sourceHeaders = initHeaders ??
-        (input instanceof Request ? input.headers : undefined);
-      const headers = new Headers(sourceHeaders);
-      if (headers.get("Authorization") === `Bearer ${validatedServerApiKey}`) {
-        headers.delete("Authorization");
-      }
-      headers.set("x-supabase-server-key", validatedServerApiKey);
-      return deadlineTransport(
-        input,
-        { ...init, headers } as unknown as RequestInit,
-      );
+    // A Request inherits its headers unless init.headers replaces them. Always
+    // inspect the effective set so the SDK's opaque-key Bearer fallback cannot
+    // leak through either calling form.
+    const initHeaders = init && "headers" in init
+      ? (init.headers as HeadersInit)
+      : undefined;
+    const sourceHeaders = initHeaders ??
+      (input instanceof Request ? input.headers : undefined);
+    const headers = new Headers(sourceHeaders);
+    const authorization = headers.get("Authorization")?.trim() ?? "";
+    const bearerCredential = authorization.match(
+      /^Bearer\s+([^\s]+)$/i,
+    )?.[1];
+    if (
+      bearerCredential &&
+      timingSafeCompare(bearerCredential, validatedServerApiKey)
+    ) {
+      headers.delete("Authorization");
     }
-    return deadlineTransport(input, init as unknown as RequestInit);
+
+    return deadlineTransport(
+      input,
+      { ...init, headers } as unknown as RequestInit,
+    );
   };
 }
 
@@ -66,12 +79,30 @@ export function createServiceRoleClient(
   serverApiKey: string,
   fetchImplementation: typeof fetch = fetch,
 ): SupabaseClient {
+  return createServiceRoleClientWithOptions(supabaseUrl, serverApiKey, {
+    fetchImplementation,
+  });
+}
+
+export function createServiceRoleClientWithOptions(
+  supabaseUrl: string,
+  serverApiKey: string,
+  options: ServiceRoleClientTransportOptions = {},
+): SupabaseClient {
   const validatedServerApiKey = requireServerApiKey({
     envServerApiKey: serverApiKey,
   });
+  let fetchImplementation = options.fetchImplementation ?? fetch;
+  if (options.maximumResponseBytes !== undefined) {
+    fetchImplementation = createResponseBodyLimitFetchTransport(
+      options.maximumResponseBytes,
+      fetchImplementation,
+    );
+  }
   const transport = createServiceRoleFetchTransport(
     validatedServerApiKey,
     fetchImplementation,
+    options.requestTimeoutMs ?? SUPABASE_SERVICE_REQUEST_TIMEOUT_MS,
   );
 
   return createClient(supabaseUrl, validatedServerApiKey, {
@@ -99,5 +130,16 @@ export function createServiceRoleClientFromEnvironment(
     supabaseUrl,
     requireServerApiKeyFromEnvironment(),
     fetchImplementation,
+  );
+}
+
+export function createServiceRoleClientFromEnvironmentWithOptions(
+  options: ServiceRoleClientTransportOptions,
+  supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "",
+): SupabaseClient {
+  return createServiceRoleClientWithOptions(
+    supabaseUrl,
+    requireServerApiKeyFromEnvironment(),
+    options,
   );
 }

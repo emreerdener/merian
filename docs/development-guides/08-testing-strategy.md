@@ -636,9 +636,11 @@ MerianTests/
     scheduling automatic work once `maximumAutomaticRetryAttempts` is exhausted.
   - **Durable queue retry policy**: `OfflineQueueRetryPolicy` tests should cover
     transient network/server failures, local-media terminal failures, persisted
-    `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. Video
-    cases must assert durable playback media remains required while image,
-    audio, and description-only scans use the same scheduler.
+    `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. An
+    already-stale server retry timestamp must assert a one-second recheck, not
+    the maximum five-minute delay. Video cases must assert durable playback
+    media remains required while image, audio, and description-only scans use
+    the same scheduler.
 
   For any change to offline task ownership, the minimum regression matrix is:
 
@@ -1040,10 +1042,13 @@ supabase --workdir services test db --local \
 
 The pgTAP command requires a running local Supabase/Postgres stack. Do not run
 this fixture test with `--linked`: it intentionally writes test rows inside a
-transaction. Use the same reviewed Supabase CLI line as CI when rebuilding the
-local schema. Checked-in migrations must remain pipeline-compatible even when a
-CLI release can split incompatible statements, because `db start`, migration
-commands, and hosted executors have not always shared the same execution path.
+transaction. CI pins Supabase CLI `2.109.1`; that version submits each
+migration and its history insert as one implicit transaction through
+`pgconn.ExecBatch`. New migrations at or after `20260727183356` must not add
+top-level transaction controls, which can split schema state from history.
+Historical applied migrations with explicit controls remain immutable
+compatibility artifacts. Checked-in migrations also reject direct and dynamic
+concurrent index DDL; large production indexes use the supervised preflight.
 After a hosted deployment, use migration history plus read-only constraint
 inspection to verify that both push-token constraints exist and are validated.
 
@@ -1094,12 +1099,13 @@ read-only verification instead.
 Internal service-key authorization has complementary unit, static, catalog, and
 production checks:
 
-- `_tests/serviceRoleAuth.test.ts` exercises exact legacy and named-secret
-  matching, strict Bearer syntax, non-JWT `apikey` transport, conflicting-header
-  rejection, malformed `SUPABASE_SECRET_KEYS`, missing configuration, and
-  representative anon/publishable/authenticated mismatches. It also rejects a
-  publishable key, anon/user JWT, short placeholder, incomplete HS256
-  signature, or malformed value placed in a privileged environment variable.
+- `_tests/serviceRoleAuth.test.ts` exercises explicit, hosted named-secret,
+  singular local/manual, and legacy matching; deterministic preference;
+  malformed plural fallback; strict Bearer syntax; non-JWT `apikey` transport;
+  conflicting-header rejection; missing configuration; and representative
+  anon/publishable/authenticated mismatches. It also rejects a publishable key,
+  anon/user JWT, short placeholder, incomplete HS256 signature, malformed
+  dictionary entry, or opaque key placed in the legacy variable.
 - `_shared/serviceRoleClient_test.ts` executes PostgREST, Storage, Functions,
   and Auth Admin requests through an intercepted transport. It proves
   `sb_secret_...` keys are sent only as `apikey`, legacy service-role JWTs
@@ -1125,6 +1131,10 @@ production checks:
   header helper, installed-routine and persisted-cron rewrite, mixed
   user/service identity dispatch, and a forward-only ban on new Bearer-only
   `pg_net` server-key construction.
+- `scripts/documentation_contract_test.ts` locks the same header matrix,
+  hosted-plural versus singular environment shape, migration atomicity,
+  default-ACL/RLS behavior, supervised user-FK indexes, orphan triage, and
+  run-attempt-specific operational evidence in the canonical docs.
 - `tests/privileged_routine_security.sql` verifies the same effective ACL
   and transport policy against a fully migrated disposable catalog under real
   `anon`, `authenticated`, and `service_role` database roles. It scans current
@@ -1155,7 +1165,7 @@ deno test --frozen --config supabase/functions/deno.json \
   supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
 ```
 
-Durable account deletion has eight complementary checks:
+Durable account deletion has nine complementary checks:
 
 - `_tests/safeDelete.test.ts` executes the actual handler/worker modules with
   injected boundaries. It proves intake precedes processing, cleanup failure
@@ -1208,6 +1218,11 @@ Durable account deletion has eight complementary checks:
   false. The migration contract statically locks the Vault-first, NULL-only
   selection order. Workflow security checks separately keep its actions
   immutable, permissions minimal, and secrets step-scoped.
+- `_tests/publicSchemaSecurityMigrationContract.test.ts` and
+  `tests/public_schema_security.sql` lock every migration-created public table's
+  effective RLS, deny-by-default global/schema ACLs, PostgreSQL 17 privilege
+  coverage, future transaction-control rules, reaction-table grants, and the
+  complete valid/ready leading-index inventory for user foreign keys.
 
 Run the pgTAP fixture only against the disposable local stack. It inserts and
 deletes Auth fixtures inside a transaction and rolls everything back.

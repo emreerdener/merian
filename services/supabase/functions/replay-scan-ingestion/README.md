@@ -38,8 +38,9 @@ The worker is scheduled every five minutes by
 
 It uses `verify_jwt = false` at the gateway, then requires service-role
 authorization inside the function. The request credential must exactly match the
-explicit `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value in
-`SUPABASE_SECRET_KEYS`, or the migration-only `SUPABASE_SERVICE_ROLE_KEY`
+explicit `SUPABASE_SERVER_API_KEY`, a named `sb_secret_...` value in the JSON
+`SUPABASE_SECRET_KEYS` dictionary, the singular `SUPABASE_SECRET_KEY`
+local/manual fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` legacy
 fallback; no database capability probe is used. Send a named non-JWT secret only
 in `apikey`. Legacy callers normally send the same service-role JWT in
 Authorization and `apikey`; mismatched headers are rejected. The replay worker
