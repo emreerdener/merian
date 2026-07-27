@@ -672,9 +672,7 @@ jobs:
             fi
             if ! [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
               echo "Production smoke request ${endpoint} returned HTTP ${status}." >&2
-              jq -c \
-                'if type == "object" then {error, code, request_id} else {error: "Non-object response"} end' \
-                "$smoke_response_file" >&2 2>/dev/null || true
+              cat "$smoke_response_file" >&2
               return 1
             fi
             cat "$smoke_response_file"

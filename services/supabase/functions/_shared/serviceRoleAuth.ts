@@ -239,7 +239,7 @@ export function resolveServerApiKey(
   const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
   if (
     (legacyServiceRoleKey &&
-      !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
+      !isSupportedServerApiKey(legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
       !isSupportedServerApiKey(explicitServerApiKey))
   ) {
@@ -307,7 +307,7 @@ export function authorizeServiceRoleRequest(
   const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
   if (
     (legacyServiceRoleKey &&
-      !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
+      !isSupportedServerApiKey(legacyServiceRoleKey)) ||
     (explicitServerApiKey &&
       !isSupportedServerApiKey(explicitServerApiKey))
   ) {
