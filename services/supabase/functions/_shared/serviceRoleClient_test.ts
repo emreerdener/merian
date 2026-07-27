@@ -34,7 +34,12 @@ async function databaseRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
+      const initHeaders = init && "headers" in init
+        ? init.headers as HeadersInit
+        : undefined;
+      const sourceHeaders = initHeaders ??
+        (_input instanceof Request ? _input.headers : undefined);
+      requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response("[]", {
           status: 200,
@@ -58,7 +63,12 @@ async function storageRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
+      const initHeaders = init && "headers" in init
+        ? init.headers as HeadersInit
+        : undefined;
+      const sourceHeaders = initHeaders ??
+        (_input instanceof Request ? _input.headers : undefined);
+      requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response("[]", {
           status: 200,
@@ -81,7 +91,12 @@ async function functionRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
+      const initHeaders = init && "headers" in init
+        ? init.headers as HeadersInit
+        : undefined;
+      const sourceHeaders = initHeaders ??
+        (_input instanceof Request ? _input.headers : undefined);
+      requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response("{}", {
           status: 200,
@@ -106,7 +121,12 @@ async function authAdminRequestHeaders(
     "https://project.supabase.co",
     serverApiKey,
     (_input, init) => {
-      const initHeaders = init && "headers" in init ? init.headers as HeadersInit : undefined; const sourceHeaders = initHeaders ?? (_input instanceof Request ? _input.headers : undefined); requestHeaders = new Headers(sourceHeaders);
+      const initHeaders = init && "headers" in init
+        ? init.headers as HeadersInit
+        : undefined;
+      const sourceHeaders = initHeaders ??
+        (_input instanceof Request ? _input.headers : undefined);
+      requestHeaders = new Headers(sourceHeaders);
       return Promise.resolve(
         new Response(JSON.stringify({ users: [], aud: "authenticated" }), {
           status: 200,
@@ -120,7 +140,6 @@ async function authAdminRequestHeaders(
   assertEquals(error, null);
   return requestHeaders;
 }
-
 
 Deno.test("serviceRoleRequestHeaders carries server keys in both headers", () => {
   assertEquals(serviceRoleRequestHeaders(CURRENT_SECRET_KEY), {
@@ -151,15 +170,12 @@ Deno.test("privileged transports reject public or malformed configured keys", ()
   }
 });
 
-
 Deno.test("createServiceRoleClient uses Bearer token database transport", async () => {
   const headers = await databaseRequestHeaders(CURRENT_SECRET_KEY);
 
   assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
   assertEquals(headers.get("Authorization"), `Bearer ${CURRENT_SECRET_KEY}`);
 });
-
-
 
 Deno.test("createServiceRoleClient uses Bearer token transport for Storage", async () => {
   const headers = await storageRequestHeaders(CURRENT_SECRET_KEY);
@@ -176,9 +192,6 @@ Deno.test("createServiceRoleClient uses Bearer token transport for AuthAdmin", a
   assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
   assertEquals(headers.get("Authorization"), `Bearer ${CURRENT_SECRET_KEY}`);
 });
-
-
-
 
 Deno.test("service-role SDK transport attaches a hard request deadline", async () => {
   let observedSignal: AbortSignal | undefined;
