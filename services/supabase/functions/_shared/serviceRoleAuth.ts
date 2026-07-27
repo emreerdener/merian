@@ -144,6 +144,7 @@ function isSupportedServerApiKey(value: string): boolean {
 }
 
 function requestCredential(req: Request): RequestCredentialResult {
+  const customKey = req.headers.get("x-supabase-server-key")?.trim() ?? "";
   const authorization = req.headers.get("Authorization")?.trim() ?? "";
   const bearerMatch = authorization.match(/^Bearer\s+([^\s]+)$/i);
   if (authorization.length > 0 && !bearerMatch) {
@@ -162,7 +163,7 @@ function requestCredential(req: Request): RequestCredentialResult {
     return { reason: "conflicting_credentials" };
   }
 
-  const token = apiKey || bearerToken;
+  const token = customKey || apiKey || bearerToken;
   return token ? { token } : { reason: "missing_token" };
 }
 

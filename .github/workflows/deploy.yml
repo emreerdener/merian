@@ -595,8 +595,7 @@ jobs:
               --allow-env=SUPABASE_ACCESS_TOKEN \
               --allow-net=api.supabase.com \
               supabase/scripts/resolve_project_api_keys.ts \
-              --project-ref "$PROJECT_ID" \
-              --prefer-legacy
+              --project-ref "$PROJECT_ID"
           )"
           server_api_key="$(
             jq -er '.server_api_key' <<< "$resolved_keys_json"
@@ -640,12 +639,16 @@ jobs:
         run: |
           supabase_url="https://${PROJECT_ID}.supabase.co"
           server_headers=(
-            -H "apikey: ${SUPABASE_SERVER_API_KEY}"
             -H "Content-Type: application/json"
           )
           if [[ "$SUPABASE_SERVER_API_KEY" != sb_secret_* ]]; then
             server_headers+=(
+              -H "apikey: ${SUPABASE_SERVER_API_KEY}"
               -H "Authorization: Bearer ${SUPABASE_SERVER_API_KEY}"
+            )
+          else
+            server_headers+=(
+              -H "x-supabase-server-key: ${SUPABASE_SERVER_API_KEY}"
             )
           fi
           smoke_response_file="$RUNNER_TEMP/supabase-production-smoke-response.json"
