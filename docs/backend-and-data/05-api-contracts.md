@@ -5712,6 +5712,11 @@ expiry, persisted prefix cursors, delayed verification, idempotent
 Auth-not-found handling, and database-calculated backoff make crashes and lost
 responses resumable.
 
+The scheduled caller currently sends the exact legacy
+`SUPABASE_SERVICE_ROLE_KEY` JWT from Vault. A modern opaque `sb_secret_...`
+server key cannot be substituted into this bearer-only contract; the cron and
+handler must be migrated together before legacy-key retirement.
+
 ### Service-only deletion health RPC
 
 `POST /rest/v1/rpc/get_account_deletion_health` accepts an empty JSON object and
@@ -5760,6 +5765,14 @@ null when their corresponding count is zero. The RPC never returns a user UUID,
 claim token, cursor, object prefix, or raw error, and it never advances state.
 The independent scheduled monitor consumes this contract with a 15-second
 deadline and 64 KiB response ceiling.
+
+`reaper_credentials_configured` selects each Vault value first and uses the
+legacy app setting only when no Vault row exists, then checks that both
+effective values are nonblank. A blank Vault value therefore yields `false` even
+if the fallback is populated. The field does not test URL reachability,
+credential validity, or a reconciler round trip; the required post-deploy
+monitor dispatch validates the independent health-RPC path, while a recent
+successful reaper cron request validates the worker path.
 
 ---
 

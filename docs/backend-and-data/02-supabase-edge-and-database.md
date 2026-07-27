@@ -1889,6 +1889,15 @@ and 25/100 active jobs. Remediation is to repair the failing cron,
 cleanup/R2/Auth dependency, or credential configuration and let the claim-fenced
 job resume—never to delete Auth manually.
 
+Configuration readiness mirrors the worker's exact Vault-first, NULL-only
+fallback: a present but blank Vault value is unhealthy and cannot be masked by
+the legacy app setting. The boolean proves only that the effective URL and key
+are nonblank. The worker's current transport is stricter: cron sends the exact
+legacy `SUPABASE_SERVICE_ROLE_KEY` JWT as a bearer token and the Edge route
+compares that full value. The independent monitor may use a modern opaque server
+key in `apikey`; operators must not substitute that key into the bearer-only
+Vault entry without migrating the cron and handler together.
+
 On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
 sign-out for the current device, tears down the local SQLite database via
 `ScanRepository.shared.purgeAllData()`, and clears all cached image files from

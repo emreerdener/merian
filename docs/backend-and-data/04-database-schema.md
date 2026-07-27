@@ -2949,7 +2949,11 @@ uses those boundaries to return one aggregate row containing:
 The routine calls `internal.require_service_role()`, has an empty search path,
 is allowlisted only for `service_role`, and deliberately omits UUIDs and raw
 error values. It is a read-only health surface; it does not claim or repair
-work.
+work. `reaper_credentials_configured` applies the same Vault-first, NULL-only
+selection as the cron and then requires both effective values to be nonblank. A
+blank Vault row therefore does not fall through to an app setting. The field is
+configuration readiness, not credential validation: it does not prove that the
+URL resolves, the key matches the Edge secret, or a reconciler request succeeds.
 
 `trg_reject_account_deletion_profile_recreation` runs before inserts on
 `public.users` and rejects the original UUID while an active job exists. This

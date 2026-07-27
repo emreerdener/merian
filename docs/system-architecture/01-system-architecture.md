@@ -221,7 +221,9 @@ single-responsibility functions under `/services/supabase/functions/`.
     Auth-not-found recovery. An offset GitHub schedule independently reads an
     aggregate service-only health RPC and alerts on missing cron/credentials,
     overdue work, retries, expired leases, orphaned storage rows, and SLA
-    age/backlog breaches.
+    age/backlog breaches. Its Management-API-resolved server key is independent
+    of the reaper's Vault credential, so a broken worker configuration cannot
+    also hide the alert.
   - `/repair-scan-image`: Owner-authenticated inspection and recovery for a
     verified-missing durable scan image. It promotes a surviving local copy and
     atomically updates scan, normalized-media, captured-media, and matching

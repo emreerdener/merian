@@ -424,7 +424,10 @@ scheduled reaper cursor-sweeps durable uploads, staging data, avatars, and
 exports, then performs a delayed empty verification sweep. Auth is deleted only
 after both relational and storage verification succeed. Transient failures are
 resumed automatically. After immediate completion or durable acceptance, the
-client signs out locally and removes its local store.
+client signs out locally and removes its local store. An independent scheduled
+health check alerts when the reaper is disabled or misconfigured, deletion work
+is overdue, leases expire, storage work is orphaned, or queue age/backlog
+breaches the deletion SLA.
 
 Deleting an individual scan uses an owner-bound `/delete-scan` path that removes
 owned media and then the database record. Because the scan owns its Explore

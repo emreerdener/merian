@@ -832,7 +832,11 @@ reaper uses the existing Supabase service-role and R2 values, and the
 independent GitHub monitor resolves a server key with the existing
 `SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
 `SUPABASE_SERVICE_ROLE_KEY` values in Vault (or the documented app-setting
-fallback); missing values now produce a critical monitor result.
+fallback); missing values now produce a critical monitor result. Its current
+bearer-only route requires the Vault key to match the exact legacy service-role
+JWT injected into the Edge function. Do not replace only that Vault value with a
+modern `sb_secret_...` server key; migrate the cron and handler authentication
+contract together first.
 
 The `20260725035737` file is an explicit executable no-op. It is a compatibility
 bridge for production run 1461, where its superseded public-only sentinel insert
@@ -1029,7 +1033,8 @@ scans, zero legacy sentinel scans/profiles, zero synthetic all-zero Auth users,
 all five claim-fence booleans true, an active cron, and
 `reaper_cron_active = true` plus `reaper_credentials_configured = true` in the
 health row. The other health fields reflect the current aggregate queue and must
-not contain identifiers.
+not contain identifiers. The credential boolean checks nonblank effective values
+only; it does not validate the URL or key.
 
 Manually dispatch `Account Deletion Health Monitor` once after the migration.
 The run must complete successfully under the Production environment and retain
@@ -2865,7 +2870,11 @@ monitor request has a 15-second deadline and 64 KiB response ceiling.
 Configuration health follows the reaper's Vault-first, NULL-only fallback
 exactly. A blank Vault entry is therefore critical even when a legacy app
 setting is populated; update or remove the blank Vault entry instead of relying
-on fallback.
+on fallback. The independent monitor may use an opaque server key through
+`apikey`; the database reaper still requires the exact legacy service-role JWT
+through `Authorization`. A successful manual monitor dispatch verifies the
+health RPC and monitoring credential, but operators must also inspect recent
+reaper cron runs to confirm the separate bearer path succeeds.
 
 A failed run means the state machine is overdue, unhealthy, misconfigured, or
 the monitor could not read aggregate health. Use the incident procedure in the

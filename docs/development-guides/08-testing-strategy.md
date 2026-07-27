@@ -1137,7 +1137,9 @@ Durable account deletion has eight complementary checks:
   constraint, the Auth/profile foreign key, and the absence of synthetic user
   creation. It also requires the storage-claim SQL to join a matching cleaned-up
   `storage_pending` private job and to veto live profiles and owned scans, plus
-  indexed identity-free aggregate health with a service-only caller check.
+  indexed identity-free aggregate health with a service-only caller check. The
+  health contract must select Vault before the NULL-only app-setting fallback,
+  so a blank Vault value remains unhealthy instead of being masked.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and all
@@ -1162,8 +1164,10 @@ Durable account deletion has eight complementary checks:
 - `scripts/monitor_account_deletion_health_test.ts` proves strict aggregate
   parsing/invariants, threshold ordering, cron/configuration and orphan
   criticals, retry/expired-lease warnings, fail policy, and identity-free
-  operator recovery guidance. Workflow security checks separately keep its
-  actions immutable, permissions minimal, and secrets step-scoped.
+  operator recovery guidance, including critical severity when configuration is
+  false. The migration contract statically locks the Vault-first, NULL-only
+  selection order. Workflow security checks separately keep its actions
+  immutable, permissions minimal, and secrets step-scoped.
 
 Run the pgTAP fixture only against the disposable local stack. It inserts and
 deletes Auth fixtures inside a transaction and rolls everything back.

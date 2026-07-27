@@ -26,7 +26,7 @@ Merian.
 | `R2_READ_ACCESS_KEY_ID`             | GitHub `Production` secret synchronized to Supabase Edge | Dedicated bucket-scoped read-only credential for direct-origin media verification |
 | `R2_READ_SECRET_ACCESS_KEY`         | GitHub `Production` secret synchronized to Supabase Edge | Secret half of the dedicated verifier credential; never reuse upload/delete authority |
 | `R2_EVENT_WEBHOOK_SECRET`           | GitHub `Production` secret synchronized to Supabase Edge | High-entropy shared secret for optional Cloudflare R2 event hints |
-| `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret or server-side web env only     | Never in iOS bundle or browser-exposed web config                                      |
+| `SUPABASE_SERVICE_ROLE_KEY`         | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Never in iOS bundle or browser-exposed web config                         |
 | `Merian_HasAuthenticatedOAuth`      | `KeychainManager` (`kSecClassGenericPassword`)       | Security-sensitive auth flag, migrated from `UserDefaults` on first run                |
 | `Merian_PendingGhostProfileMerge`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)     | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
 | Device IDFV (`Merian_Device_IDFV`)  | `DeviceIdentityManager` (`kSecClassGenericPassword`) | Persisted across reinstalls within the same vendor group                               |
@@ -147,9 +147,10 @@ environment variable.**
   characters used to authenticate optional Cloudflare R2 event notifications
   at `ingest-r2-media-events`. Events only expedite a scheduled origin check;
   they never directly mark media missing, hide a post, or restore it.
-- `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side
-  web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`,
-  and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as
+- `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets, reviewed Vault
+  cron values, or server-side web deployment secrets only. Never in the iOS
+  app, never in `Config.xcconfig`, and never in a `NEXT_PUBLIC_` variable.
+  Internal cron/webhook workers such as
   `refresh-species-content`, `refresh-species-model-content`,
   `refresh-merian-reference-images`, and `auto-purge-nonbio` may receive it only
   as a server-to-server
@@ -159,6 +160,24 @@ environment variable.**
   `apps/web/lib/supabasePublic.ts` and cannot acquire service-role authority.
   Keep these modules separate and never re-export an admin-capable default
   client.
+
+  Account deletion currently has two distinct server-key transports:
+
+  - the database reaper reads `SUPABASE_SERVICE_ROLE_KEY` from Vault and sends
+    the exact legacy service-role JWT in `Authorization: Bearer ...`;
+    `reconcile-account-deletions` compares the complete value with its injected
+    Edge secret;
+  - the independent GitHub health monitor resolves a production server key
+    through the Management API. It can use a modern opaque `sb_secret_...` key
+    in `apikey`, or the exact legacy key with matching legacy headers.
+
+  These credentials are not drop-in replacements for each other. A present but
+  blank Vault value wins over the legacy app-setting fallback and makes
+  configuration health critical. Update or delete a blank Vault row; do not
+  expect fallback. Before disabling legacy service-role keys, migrate the
+  reaper's cron and Edge handler together to an explicit server-key contract.
+  Supabase's current key formats and legacy-key transition are documented in
+  [Understanding API keys](https://supabase.com/docs/guides/getting-started/api-keys).
 - `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is
   injected via `Config.xcconfig` into `MerianEnvironment.swift`.
 - `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `GIDClientID`, and

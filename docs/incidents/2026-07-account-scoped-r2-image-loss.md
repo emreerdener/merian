@@ -247,7 +247,12 @@ See Cloudflare's official documentation:
 
 Do not mark this incident resolved until all of the following are complete:
 
-1. Verify both new migrations are recorded in production.
+1. Verify the account-erasure fence, image-repair, and independent deletion
+   health migrations are recorded in production:
+
+   - `20260726041109_fence_storage_erasure_claims.sql`
+   - `20260726041338_repair_owned_scan_image_references.sql`
+   - `20260727001630_monitor_account_deletion_health.sql`
 2. Verify `safe-delete`, `reconcile-account-deletions`, and
    `repair-scan-image` are the expected deployed bundles.
 3. Verify the installed claim routine contains every database authorization
@@ -333,6 +338,12 @@ Do not mark this incident resolved until all of the following are complete:
    durable-prefix expiration.
 13. Retain aggregate query output and request-correlated logs as incident
    evidence without publishing owner identifiers or object keys.
+14. Manually dispatch **Account Deletion Health Monitor** with its default
+    thresholds. Require a successful Production run, retain its bounded JSON
+    and Markdown artifacts, and confirm the health row reports active cron,
+    configured credentials, and zero orphaned storage jobs. Also inspect recent
+    reaper cron requests: the health configuration boolean proves only nonblank
+    effective values, not a successful bearer-authenticated worker call.
 
 ## Permanent Invariants
 
@@ -365,11 +376,14 @@ Do not mark this incident resolved until all of the following are complete:
 - `services/supabase/migrations/20260726144647_add_explore_media_quarantine_lifecycle.sql`
 - `services/supabase/migrations/20260726144754_implement_explore_media_quarantine_state_machine.sql`
 - `services/supabase/migrations/20260726174555_align_explore_author_publication_contract.sql`
+- `services/supabase/migrations/20260727001630_monitor_account_deletion_health.sql`
 - `services/supabase/functions/repair-scan-image/`
 - `services/supabase/functions/reconcile-explore-media-health/`
 - `services/supabase/functions/get-explore-media-incidents/`
 - `services/supabase/functions/ingest-r2-media-events/`
 - `services/supabase/functions/safe-delete/`
+- `services/supabase/scripts/monitor_account_deletion_health.ts`
+- `.github/workflows/account-deletion-health-monitor.yml`
 - `apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift`
 - `docs/r2-lifecycle.json`
 - `docs/backend-and-data/08-startup-store-recovery.md`

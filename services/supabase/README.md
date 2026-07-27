@@ -157,7 +157,19 @@ depth, phase counts, oldest active/due ages, retry-error and expired-lease
 counts, orphaned storage work, and booleans for the cron and its credentials. It
 never returns a user UUID or raw error value. Credential readiness uses the same
 Vault-first, NULL-only fallback as the reaper, so a blank Vault value cannot be
-masked by a legacy app setting.
+masked by a legacy app setting. The readiness boolean proves only that the
+effective URL and key are nonblank. A post-deploy monitor smoke test validates
+the independent health-RPC path; recent successful reaper cron requests validate
+the separate URL and bearer credential.
+
+The database cron currently sends the Vault `SUPABASE_SERVICE_ROLE_KEY` as
+`Authorization: Bearer ...`, and `reconcile-account-deletions` compares that
+complete value with its injected Edge secret. Therefore this Vault entry must
+remain the exact legacy service-role JWT expected by the function; an opaque
+`sb_secret_...` server key is not a drop-in replacement for this bearer-only
+path. The independent GitHub monitor is different: it can resolve a modern
+opaque server key and sends it in `apikey`. Migrate the reaper to the reviewed
+server-key authentication contract before disabling Supabase legacy keys.
 
 `.github/workflows/account-deletion-health-monitor.yml` queries that RPC every
 five minutes, offset from the database reaper. It resolves a server API key

@@ -110,7 +110,9 @@ TestFlight, App Store, support, and QA.
   errors, expired leases, orphaned storage work, and reaper configuration
   without exposing user IDs. An offset five-minute GitHub schedule alerts
   independently of the database worker and retains bounded JSON/Markdown
-  evidence.
+  evidence. Configuration readiness now follows the reaper's exact Vault-first,
+  NULL-only fallback, so a blank Vault value cannot be hidden by a populated
+  legacy app setting.
 - Fixed offline retry/result callbacks that could pass their in-memory token
   checks and still overwrite a newer SwiftData generation. Queue claims now
   persist their UUID atomically, and retries, cancellation, result saves, and

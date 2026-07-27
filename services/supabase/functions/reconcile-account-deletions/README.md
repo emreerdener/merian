@@ -37,7 +37,17 @@ expired-lease counts, orphaned storage work, cron activity, and whether the
 reaper URL and service credential are configured. It exposes no UUIDs or raw
 errors. Credential health mirrors the reaper's Vault-first, NULL-only fallback:
 a blank Vault entry is unhealthy and does not fall through to a legacy app
-setting.
+setting. This boolean checks only that the effective URL and credential are
+nonblank; it does not validate their destination, authority, or equality with
+the Edge secret.
+
+The cron currently transports the exact Vault `SUPABASE_SERVICE_ROLE_KEY` as a
+bearer token, and this endpoint compares it with its injected Edge value.
+Consequently that Vault value must remain the exact legacy service-role JWT for
+this path. A modern opaque `sb_secret_...` server key is valid for the
+independent monitor's `apikey` request, but is not interchangeable with the
+reaper's bearer-only credential. Migrate this endpoint and cron together before
+legacy-key retirement; never rotate only one side.
 
 `.github/workflows/account-deletion-health-monitor.yml` runs every five minutes
 at a different offset and reads the RPC with a server key resolved through the
