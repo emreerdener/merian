@@ -175,6 +175,9 @@ function parseSecretKeyConfiguration(
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      if (typeof parsed === "string" && isCurrentSecretKey(parsed)) {
+        return { entries: [{ name: "default", key: parsed }], valid: true };
+      }
       return { entries: [], valid: false };
     }
 
@@ -194,6 +197,9 @@ function parseSecretKeyConfiguration(
     entries.sort((left, right) => left.name.localeCompare(right.name));
     return { entries, valid: true };
   } catch {
+    if (isCurrentSecretKey(raw)) {
+      return { entries: [{ name: "default", key: raw }], valid: true };
+    }
     return { entries: [], valid: false };
   }
 }
