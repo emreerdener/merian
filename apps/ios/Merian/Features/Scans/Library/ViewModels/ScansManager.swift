@@ -246,6 +246,9 @@ struct ScanLibraryFilters: Equatable, Sendable {
     @ObservationIgnored private var filterIndexSnapshotGeneration: UInt64?
     #if DEBUG
     @ObservationIgnored var debugEventHandler: ((SearchDebugEvent) -> Void)?
+    @ObservationIgnored private var debugSearchRequestID: UInt64 = 0
+    @ObservationIgnored private var debugCompletedSearchRequestID: UInt64?
+    @ObservationIgnored private var debugLastSearchCompletion: SearchDebugEvent?
     #endif
     
     // MARK: - Data Indexing Pipeline
@@ -545,6 +548,9 @@ struct ScanLibraryFilters: Equatable, Sendable {
     // MARK: - Search Execution
     func performSearch(query: String, category: String? = nil) {
         searchTask?.cancel()
+        #if DEBUG
+        debugSearchRequestID &+= 1
+        #endif
         
         let trimmedText = query.trimmingCharacters(in: .whitespacesAndNewlines)
         
@@ -776,9 +782,28 @@ struct ScanLibraryFilters: Equatable, Sendable {
 
     private func emitSearchCompletedEvent(query: String, resultCount: Int) {
         #if DEBUG
-        debugEventHandler?(.searchCompleted(query: query, resultCount: resultCount))
+        let event = SearchDebugEvent.searchCompleted(query: query, resultCount: resultCount)
+        debugCompletedSearchRequestID = debugSearchRequestID
+        debugLastSearchCompletion = event
+        debugEventHandler?(event)
         #endif
     }
+
+    #if DEBUG
+    /// Awaits the exact search task most recently created by `performSearch`.
+    ///
+    /// Event callbacks remain useful for notification-driven indexing, but tests that
+    /// synchronously start a search should not depend on an arbitrary wall-clock timeout.
+    func waitForCurrentSearchCompletionForTesting() async -> SearchDebugEvent? {
+        let expectedRequestID = debugSearchRequestID
+        guard let task = searchTask else { return nil }
+
+        await task.value
+
+        guard debugCompletedSearchRequestID == expectedRequestID else { return nil }
+        return debugLastSearchCompletion
+    }
+    #endif
     
     // MARK: - Batch Selection Operations
     func toggleSelection(for scanId: String) -> Bool {

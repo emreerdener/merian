@@ -8,6 +8,7 @@ private final class SharedExplorePostLookup {
 
 @MainActor
 final class ScansManagerTests: XCTestCase {
+    private static let asynchronousDebugEventTimeout: TimeInterval = 10
     
     var searchManager: ScansManager!
     var container: ModelContainer!
@@ -239,10 +240,24 @@ final class ScansManagerTests: XCTestCase {
         after trigger: @MainActor () -> Void
     ) async {
         let normalizedQuery = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        await waitForDebugEvent(description: "search completed", after: trigger) { event in
-            guard case let .searchCompleted(completedQuery, _) = event else { return false }
-            return completedQuery == normalizedQuery
+        #if DEBUG
+        trigger()
+
+        guard let completion = await searchManager.waitForCurrentSearchCompletionForTesting() else {
+            XCTFail("The current search task exited without completing.")
+            return
         }
+        guard case let .searchCompleted(completedQuery, _) = completion else {
+            XCTFail("The current search task returned an unexpected debug event.")
+            return
+        }
+
+        XCTAssertEqual(completedQuery, normalizedQuery)
+        XCTAssertFalse(searchManager.isFiltering)
+        #else
+        XCTFail("ScansManager debug hooks are unavailable outside DEBUG builds.")
+        trigger()
+        #endif
     }
 
     private func waitForDebugEvent(
@@ -259,10 +274,13 @@ final class ScansManagerTests: XCTestCase {
             fulfilled = true
             expectation.fulfill()
         }
+        defer { searchManager.debugEventHandler = nil }
 
         trigger()
-        await fulfillment(of: [expectation], timeout: 2.0)
-        searchManager.debugEventHandler = nil
+        await fulfillment(
+            of: [expectation],
+            timeout: Self.asynchronousDebugEventTimeout
+        )
         #else
         XCTFail("ScansManager debug hooks are unavailable outside DEBUG builds.")
         trigger()
