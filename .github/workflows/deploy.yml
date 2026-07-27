@@ -595,7 +595,8 @@ jobs:
               --allow-env=SUPABASE_ACCESS_TOKEN \
               --allow-net=api.supabase.com \
               supabase/scripts/resolve_project_api_keys.ts \
-              --project-ref "$PROJECT_ID"
+              --project-ref "$PROJECT_ID" \
+              --prefer-legacy
           )"
           server_api_key="$(
             jq -er '.server_api_key' <<< "$resolved_keys_json"
