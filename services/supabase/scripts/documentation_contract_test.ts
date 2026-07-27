@@ -147,8 +147,10 @@ Deno.test("database documentation preserves migration, RLS, and index safety", a
 
   for (
     const fragment of [
-      "schema-migration history insert as one `pgconn.ExecBatch`",
+      "normal migration apply path wraps pipeline-compatible statements and the history insert in a transaction",
       "new migrations at or after `20260727183356` contain no top-level transaction control",
+      "`SET LOCAL` timeout guards are forbidden",
+      "session `SET` with a matching `RESET`",
       "historical migrations that contain explicit transaction controls remain compatibility artifacts, not examples for future work",
       "Every table created in `public` must have effective RLS enabled",
       "PostgreSQL 17 `MAINTAIN`",

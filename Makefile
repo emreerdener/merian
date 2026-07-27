@@ -64,23 +64,7 @@ test-supabase-tooling:
 	bash services/supabase/scripts/test_supabase_tooling.sh
 
 validate-supabase-migrations:
-	deno test --config services/supabase/functions/deno.json \
-		--allow-read=services/supabase/migrations \
-		services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
-		services/supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
-		services/supabase/functions/_tests/completeEdgeDatabaseRepairMigrationContract.test.ts \
-		services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
-		services/supabase/functions/_tests/exploreMediaQuarantineMigrationContract.test.ts \
-		services/supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
-		services/supabase/functions/_tests/migrationExecutionContract.test.ts \
-		services/supabase/functions/_tests/migrationMediaContract.test.ts \
-		services/supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
-		services/supabase/functions/_tests/publicSchemaSecurityMigrationContract.test.ts \
-		services/supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
-		services/supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts \
-		services/supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
-		services/supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
-		services/supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
+	bash services/supabase/scripts/validate_migration_contracts.sh
 
 test-supabase-privileged-routines:
 	SUPABASE_TELEMETRY_DISABLED=1 supabase --workdir $(SUPABASE_WORKDIR) db start

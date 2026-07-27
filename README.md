@@ -485,8 +485,9 @@ deploys only transitive runtime consumers in bounded batches. The fleet size is
 derived rather than hard-coded. Current opaque Supabase server keys use only the
 standard `apikey` header; legacy service-role JWTs temporarily use both
 `apikey` and Bearer. Exposed tables require RLS and reviewed grants, and new
-migrations rely on the pinned CLI's atomic migration-plus-history batch rather
-than explicit transaction controls. See the
+migrations leave transaction and history ownership to the pinned CLI. Top-level
+timeout guards use session settings with matching resets so fresh replay cannot
+silently ignore them. See the
 [server credential and database safety
 contract](docs/backend-and-data/13-server-credentials-and-database-release-safety.md)
 and [Supabase deployment

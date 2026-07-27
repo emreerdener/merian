@@ -94,6 +94,9 @@ script, runs every `*_test.sh`, and rejects complete provider-shaped
 fixtures must be assembled at runtime from separate fragments; diagnostics
 identify only matching filenames so the gate cannot echo an accidentally
 committed credential. `tooling_gate_test.ts` protects that discovery policy.
+The same test locks `validate_migration_contracts.sh`, the discovery-based
+source-migration entrypoint shared by `make validate-supabase-migrations` and
+the production deploy lane.
 
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
@@ -1042,13 +1045,14 @@ supabase --workdir services test db --local \
 
 The pgTAP command requires a running local Supabase/Postgres stack. Do not run
 this fixture test with `--linked`: it intentionally writes test rows inside a
-transaction. CI pins Supabase CLI `2.109.1`; that version submits each
-migration and its history insert as one implicit transaction through
-`pgconn.ExecBatch`. New migrations at or after `20260727183356` must not add
+transaction. CI pins Supabase CLI `2.109.1`, which owns migration transaction
+and history boundaries. New migrations at or after `20260727183356` must not add
 top-level transaction controls, which can split schema state from history.
-Historical applied migrations with explicit controls remain immutable
-compatibility artifacts. Checked-in migrations also reject direct and dynamic
-concurrent index DDL; large production indexes use the supervised preflight.
+Top-level timeout guards use session `SET` plus matching `RESET`, not
+`SET LOCAL`, so they remain effective during fresh replay. Historical applied
+migrations with explicit controls remain immutable compatibility artifacts.
+Checked-in migrations also reject direct and dynamic concurrent index DDL;
+large production indexes use the supervised preflight.
 After a hosted deployment, use migration history plus read-only constraint
 inspection to verify that both push-token constraints exist and are validated.
 
@@ -1132,9 +1136,10 @@ production checks:
   user/service identity dispatch, and a forward-only ban on new Bearer-only
   `pg_net` server-key construction.
 - `scripts/documentation_contract_test.ts` locks the same header matrix,
-  hosted-plural versus singular environment shape, migration atomicity,
-  default-ACL/RLS behavior, supervised user-FK indexes, orphan triage, and
-  run-attempt-specific operational evidence in the canonical docs.
+  hosted-plural versus singular environment shape, migration
+  transaction/history ownership, replay-safe timeout guards, default-ACL/RLS
+  behavior, supervised user-FK indexes, orphan triage, and run-attempt-specific
+  operational evidence in the canonical docs.
 - `tests/privileged_routine_security.sql` verifies the same effective ACL
   and transport policy against a fully migrated disposable catalog under real
   `anon`, `authenticated`, and `service_role` database roles. It scans current
@@ -1221,7 +1226,8 @@ Durable account deletion has nine complementary checks:
 - `_tests/publicSchemaSecurityMigrationContract.test.ts` and
   `tests/public_schema_security.sql` lock every migration-created public table's
   effective RLS, deny-by-default global/schema ACLs, PostgreSQL 17 privilege
-  coverage, future transaction-control rules, reaction-table grants, and the
+  coverage, future transaction-control rules, replay-safe timeout setup/reset,
+  reaction-table grants, valid schema-qualified string-function syntax, and the
   complete valid/ready leading-index inventory for user foreign keys.
 
 Run the pgTAP fixture only against the disposable local stack. It inserts and

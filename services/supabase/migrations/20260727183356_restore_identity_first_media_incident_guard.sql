@@ -2,8 +2,8 @@
 -- 20260727172804 reintroduced role-first dispatch. User identity determines
 -- the branch: requests without a bound user must pass the shared service-role
 -- guard, while user requests may access only their own incidents.
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '1min';
+SET lock_timeout = '5s';
+SET statement_timeout = '1min';
 
 CREATE OR REPLACE FUNCTION public.get_owned_explore_media_incidents(
     self_id UUID
@@ -70,3 +70,6 @@ BEGIN
     ORDER BY post.media_health_updated_at DESC, post.id DESC;
 END;
 $$;
+
+RESET lock_timeout;
+RESET statement_timeout;

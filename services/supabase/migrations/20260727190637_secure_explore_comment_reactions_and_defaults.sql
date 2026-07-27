@@ -1,8 +1,8 @@
 -- Close the sole exposed-schema RLS gap and make future Data API exposure
 -- explicit rather than dependent on project-level default privileges.
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '5min';
+SET lock_timeout = '5s';
+SET statement_timeout = '5min';
 
 ALTER TABLE public.explore_comment_reactions
     ENABLE ROW LEVEL SECURITY;
@@ -41,3 +41,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     REVOKE ALL PRIVILEGES
     ON SEQUENCES
     FROM PUBLIC, anon, authenticated, service_role;
+
+RESET lock_timeout;
+RESET statement_timeout;

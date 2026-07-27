@@ -375,22 +375,7 @@ jobs:
             supabase/functions/_tests/workflowSecurity.test.ts
 
       - name: Validate Supabase migration contracts
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/migrations \
-            supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
-            supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
-            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
-            supabase/functions/_tests/exploreMediaQuarantineMigrationContract.test.ts \
-            supabase/functions/_tests/explorePostChatMigration.test.ts \
-            supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
-            supabase/functions/_tests/migrationExecutionContract.test.ts \
-            supabase/functions/_tests/migrationMediaContract.test.ts \
-            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
-            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
-            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
-            supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
-            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
+        run: bash supabase/scripts/validate_migration_contracts.sh
 
       - name: Start disposable database for privileged-routine validation
         env:

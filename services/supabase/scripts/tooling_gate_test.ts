@@ -12,6 +12,10 @@ const dtoContractGatePath = new URL(
   "validate_edge_dto_contract.sh",
   scriptsDirectory,
 );
+const migrationContractGatePath = new URL(
+  "validate_migration_contracts.sh",
+  scriptsDirectory,
+);
 const iosProjectGuardrailPath = new URL(
   "../../../.github/workflows/ios-project-guardrails.yml",
   scriptsDirectory,
@@ -98,6 +102,49 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
     /--allow-read=services\/supabase,\.github\/workflows,\.github\/dependabot\.yml,Makefile,README\.md,CHANGELOG\.md,docs,apps\/web\/\.env\.example/,
   );
   assertMatch(gate, /--allow-run=bash/);
+});
+
+Deno.test("migration contract gate discovers tests for local and deploy validation", async () => {
+  const [gate, workflow, makefile] = await Promise.all([
+    Deno.readTextFile(migrationContractGatePath),
+    Deno.readTextFile(deployWorkflowPath),
+    Deno.readTextFile(makefilePath),
+  ]);
+  const migrationContractTests: string[] = [];
+  const testsDirectory = new URL("../functions/_tests/", scriptsDirectory);
+
+  for await (const entry of Deno.readDir(testsDirectory)) {
+    if (
+      entry.isFile &&
+      (entry.name.includes("Migration") ||
+        entry.name.startsWith("migration")) &&
+      entry.name.endsWith(".test.ts")
+    ) {
+      migrationContractTests.push(entry.name);
+    }
+  }
+
+  assert(
+    migrationContractTests.length > 0,
+    "The migration contract suite must not be empty.",
+  );
+  assertMatch(gate, /functions\/_tests\/\*Migration\*\.test\.ts/);
+  assertMatch(gate, /functions\/_tests\/migration\*\.test\.ts/);
+  assertMatch(gate, /--allow-read=services\/supabase/);
+  for (const testFile of migrationContractTests) {
+    assert(
+      !gate.includes(testFile),
+      `${testFile} must be discovered rather than explicitly selected.`,
+    );
+  }
+  assertMatch(
+    workflow,
+    /run: bash supabase\/scripts\/validate_migration_contracts\.sh/,
+  );
+  assertMatch(
+    makefile,
+    /validate-supabase-migrations:[\s\S]*bash services\/supabase\/scripts\/validate_migration_contracts\.sh/,
+  );
 });
 
 Deno.test("GitHub Actions SHA pins receive weekly dependency updates", async () => {

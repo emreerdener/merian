@@ -167,12 +167,14 @@ RLS are safe. The static migration contract and
 
 ## Migration Execution Contract
 
-CI pins Supabase CLI `2.109.1`. In that version the CLI submits a migration's
-statements and its schema-migration history insert as one `pgconn.ExecBatch`;
-PostgreSQL provides the transaction boundary. A top-level `BEGIN`, `COMMIT`,
-`END`, `ROLLBACK`, `ABORT`, or `START TRANSACTION` inside a new migration can
-split that batch and its history write, creating crash states that are
-impossible to audit reliably.
+CI pins Supabase CLI `2.109.1`, which owns migration transaction and
+schema-history boundaries. Its normal migration apply path wraps
+pipeline-compatible statements and the history insert in a transaction;
+pipeline-incompatible statements are flushed and handled separately. Fresh
+`db start` also replays every immutable historical migration, including
+compatibility artifacts with their own transaction controls. New migration SQL
+must therefore neither embed transaction controls nor assume that a top-level
+statement always has an active transaction.
 
 Therefore:
 
@@ -181,14 +183,19 @@ Therefore:
 - no checked-in migration contains `CREATE INDEX CONCURRENTLY`,
   `DROP INDEX CONCURRENTLY`, or concurrent `REINDEX`, including dynamically
   executed forms;
-- `SET LOCAL` is valid because the CLI batch already supplies the transaction;
+- top-level `lock_timeout` and `statement_timeout` guards use session `SET` with
+  a matching `RESET`; `SET LOCAL` timeout guards are forbidden because they
+  only warn and have no effect outside a transaction;
 - migration filenames and applied historical contents are immutable; and
 - historical migrations that contain explicit transaction controls remain
   compatibility artifacts, not examples for future work.
 
 The repository guard masks comments, quoted strings, identifiers, and routine
-bodies before checking transaction aliases. It separately inspects executable
-dynamic SQL for concurrent index DDL.
+bodies before checking transaction aliases and timeout settings. It separately
+inspects executable dynamic SQL for concurrent index DDL. The deploy workflow
+discovers every `*Migration*.test.ts` and `migration*.test.ts` source contract
+before starting the disposable database, so a new contract cannot be omitted
+from a curated list.
 
 ### Large or partitioned indexes
 

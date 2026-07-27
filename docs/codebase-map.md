@@ -505,6 +505,9 @@ to type-check deploy-time configs and select transitive runtime consumers. The
 discovery-based `test_supabase_tooling.sh` runner type-checks every standard
 TypeScript script, runs every `*_test.ts`, exercises the isolated DTO validator,
 and syntax-checks/tests shell tooling without a hand-maintained test list. The
+shared `validate_migration_contracts.sh` runner discovers every
+`*Migration*.test.ts` and `migration*.test.ts` source contract for both the
+local Make target and production deploy before database replay. The
 inventory above is descriptive rather than a second source of truth:
 `function_dependency_tools_test.ts` requires exact name-for-name parity between
 `config.toml` and discoverable function graphs without hard-coding a fleet size.

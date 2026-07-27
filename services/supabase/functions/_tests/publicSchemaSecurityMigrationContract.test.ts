@@ -110,6 +110,41 @@ function usesTopLevelTransactionControl(sql: string): boolean {
     .test(executableSql);
 }
 
+function timeoutGuardViolations(name: string, source: string): string[] {
+  const executableSql = withoutSqlBodiesCommentsOrStrings(source);
+  const violations: string[] = [];
+
+  for (
+    const match of executableSql.matchAll(
+      /(?:^|;)\s*SET\s+LOCAL\s+(lock_timeout|statement_timeout)\b/gi,
+    )
+  ) {
+    violations.push(
+      `${name}: SET LOCAL ${
+        match[1]
+      } has no effect outside an explicit transaction`,
+    );
+  }
+
+  const configuredTimeouts = new Set(
+    [...executableSql.matchAll(
+      /(?:^|;)\s*SET\s+(?:SESSION\s+)?(lock_timeout|statement_timeout)\s*(?:=|\bTO\b)/gi,
+    )].map((match) => match[1].toLowerCase()),
+  );
+
+  for (const timeout of configuredTimeouts) {
+    const resetPattern = new RegExp(
+      `(?:^|;)\\s*RESET\\s+${timeout}\\b`,
+      "i",
+    );
+    if (!resetPattern.test(executableSql)) {
+      violations.push(`${name}: SET ${timeout} is not reset`);
+    }
+  }
+
+  return violations;
+}
+
 function normalizedIdentifier(identifier: string): string {
   return identifier.replaceAll('"', "").toLowerCase();
 }
@@ -180,8 +215,8 @@ Deno.test("reaction hardening closes grants and RLS gaps", async () => {
 
   for (
     const fragment of [
-      "SET LOCAL lock_timeout = '5s'",
-      "SET LOCAL statement_timeout = '5min'",
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '5min'",
       "ALTER TABLE public.explore_comment_reactions ENABLE ROW LEVEL SECURITY",
       "REVOKE ALL PRIVILEGES ON TABLE public.explore_comment_reactions FROM PUBLIC, anon, authenticated, service_role",
       "GRANT SELECT, INSERT, DELETE ON TABLE public.explore_comment_reactions TO service_role",
@@ -189,6 +224,8 @@ Deno.test("reaction hardening closes grants and RLS gaps", async () => {
       "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated, service_role",
       "ALTER DEFAULT PRIVILEGES FOR ROLE postgres REVOKE ALL PRIVILEGES ON SEQUENCES FROM PUBLIC, anon, authenticated, service_role",
       "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL PRIVILEGES ON SEQUENCES FROM PUBLIC, anon, authenticated, service_role",
+      "RESET lock_timeout",
+      "RESET statement_timeout",
     ]
   ) {
     assertStringIncludes(sql, fragment);
@@ -202,8 +239,8 @@ Deno.test("identity lifecycle migration indexes effective user foreign keys", as
 
   for (
     const fragment of [
-      "SET LOCAL lock_timeout = '5s'",
-      "SET LOCAL statement_timeout = '15min'",
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '15min'",
       "constraint_row.confrelid IN ( 'public.users'::REGCLASS, 'auth.users'::REGCLASS )",
       "source_namespace.nspname IN ('public', 'internal')",
       "source_table.relkind IN ('r', 'p')",
@@ -214,18 +251,23 @@ Deno.test("identity lifecycle migration indexes effective user foreign keys", as
       "index_row.indexprs IS NULL",
       "index_row.indkey[0] = constraint_row.conkey[1]",
       "ORDER BY source_namespace.nspname, source_table.relname, source_column.attname",
+      "pg_catalog.SUBSTR(foreign_key.table_name, 1, 24)",
+      "pg_catalog.SUBSTR(foreign_key.column_name, 1, 16)",
+      "pg_catalog.SUBSTR( pg_catalog.MD5( foreign_key.schema_name || '.' || foreign_key.table_name || '.' || foreign_key.column_name ), 1, 8 )",
       "IF foreign_key.relation_kind = 'p' THEN",
       "Build valid leading indexes concurrently on every leaf partition, create the parent partitioned index as a metadata-only operation, then retry.",
       "IF pg_catalog.PG_RELATION_SIZE(foreign_key.table_oid) > max_inline_relation_bytes THEN",
       "Run CREATE INDEX CONCURRENTLY %I ON %I.%I (%I) outside db push, verify indisvalid and indisready, then retry.",
       "'CREATE INDEX %I ON %I.%I (%I)'",
+      "RESET lock_timeout",
+      "RESET statement_timeout",
     ]
   ) {
     assertStringIncludes(sql, fragment);
   }
 });
 
-Deno.test("new migrations preserve the CLI batch and history transaction", async () => {
+Deno.test("new migrations leave transaction and history ownership to the CLI", async () => {
   const violations: string[] = [];
 
   for (const [name, source] of await migrationSources()) {
@@ -238,7 +280,48 @@ Deno.test("new migrations preserve the CLI batch and history transaction", async
   assertEquals(
     violations,
     [],
-    "Supabase CLI batches each migration and its history insert atomically; explicit transaction control can split them.",
+    "Top-level transaction control can split CLI-managed schema and migration-history state.",
+  );
+});
+
+Deno.test("new migration timeout guards are effective and reset", async () => {
+  const violations: string[] = [];
+
+  for (const [name, source] of await migrationSources()) {
+    if (name < TRANSACTION_CONTROL_GUARD_START) continue;
+    violations.push(...timeoutGuardViolations(name, source));
+  }
+
+  assertEquals(
+    violations,
+    [],
+    "Migration timeout guards must work in CLI replay and not leak into later statements.",
+  );
+});
+
+Deno.test("timeout guard rejects ineffective or leaking settings", () => {
+  assertEquals(
+    timeoutGuardViolations(
+      "local.sql",
+      "SET LOCAL lock_timeout = '5s';",
+    ),
+    [
+      "local.sql: SET LOCAL lock_timeout has no effect outside an explicit transaction",
+    ],
+  );
+  assertEquals(
+    timeoutGuardViolations(
+      "leaking.sql",
+      "SET SESSION statement_timeout TO '1min'; SELECT 1;",
+    ),
+    ["leaking.sql: SET statement_timeout is not reset"],
+  );
+  assertEquals(
+    timeoutGuardViolations(
+      "safe.sql",
+      "SET lock_timeout = '5s'; RESET lock_timeout;",
+    ),
+    [],
   );
 });
 

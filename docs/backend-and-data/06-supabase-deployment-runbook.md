@@ -130,12 +130,15 @@ The workflow performs the following steps:
     bodies.
 
 Local and CI database rebuilds use the exact reviewed Supabase CLI `2.109.1`.
-That version submits each migration and its history insert as one
-`pgconn.ExecBatch`, giving them an implicit PostgreSQL transaction. New
-migrations must not add top-level transaction controls because an embedded
-commit can split schema state from migration history. Historical applied files
-that contain explicit controls remain immutable compatibility artifacts, not
-future examples.
+The CLI owns migration transaction and history boundaries. Its normal apply
+path wraps pipeline-compatible statements with the history insert, while
+pipeline-incompatible statements and immutable historical boundary artifacts
+can require standalone handling. New migrations must not add top-level
+transaction controls because an embedded commit can split schema state from
+migration history. Top-level timeout guards use session `SET` plus matching
+`RESET`, not `SET LOCAL`, so they remain effective during fresh replay.
+Historical applied files that contain explicit controls remain immutable
+compatibility artifacts, not future examples.
 
 Checked-in migrations may not contain `CREATE INDEX CONCURRENTLY`,
 `DROP INDEX CONCURRENTLY`, or `REINDEX ... CONCURRENTLY`, including executable
@@ -678,9 +681,9 @@ transaction commits. The migration file must retain its explicit `BEGIN` before
 `LOCK TABLE` and final `COMMIT`; PostgreSQL rejects a table lock outside a
 transaction block, and removing either boundary also destroys the atomic cutover
 guarantee for replay paths that processed this historical file statement by
-statement. New migrations rely on the pinned CLI's implicit
-migration-plus-history transaction and must not add these controls. Before
-production deployment, inspect the planner estimate and physical size:
+statement. New migrations leave transaction and migration-history ownership to
+the pinned CLI and must not add these controls. Before production deployment,
+inspect the planner estimate and physical size:
 
 ```sql
 SELECT

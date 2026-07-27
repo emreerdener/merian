@@ -57,8 +57,9 @@ as their permanent engineering identity.
   only Supabase's standard `apikey` header; only user JWTs and the temporary
   legacy service-role JWT use Bearer transport. Exposed tables require RLS,
   reviewed direct grants, and deny-by-default future ACLs. New migrations rely
-  on the pinned CLI's atomic batch and history transaction rather than embedding
-  transaction controls. See
+  on the pinned CLI to own transaction and history boundaries rather than
+  embedding transaction controls; timeout guards use session settings with
+  matching resets so they remain effective during fresh replay. See
   [`backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md).
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still
@@ -262,8 +263,8 @@ as their permanent engineering identity.
   explicit deletion, monitoring, and production rollout.
 - **[`/backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md)**
   — Canonical server-key/header matrix, environment resolution, internal worker
-  auth, exposed-schema RLS/default ACLs, migration atomicity, supervised index
-  construction, orphan triage, and production exit gate.
+  auth, exposed-schema RLS/default ACLs, migration execution/replay safety,
+  supervised index construction, orphan triage, and production exit gate.
 
 ### Features & Hardware
 

@@ -35,7 +35,7 @@ are identified by a persistent Keychain-backed
   and trigger swap run inside one explicit transaction: `BEGIN` precedes the
   `SHARE ROW EXCLUSIVE` scan lock, and `COMMIT` follows the final trigger. That
   boundary is part of this immutable historical file, not guidance for new
-  migrations; new files use the CLI's migration-plus-history transaction.
+  migrations; new files leave transaction and history ownership to the CLI.
 
 ## Shared Edge Utilities (`_shared/`)
 
@@ -1619,10 +1619,12 @@ indexes:
   O(page_size) regardless of library size.
 
 All migration-owned index DDL intentionally omits `CONCURRENTLY`. Supabase CLI
-`2.109.1` batches each migration and its history insert in one implicit
-transaction; new migrations also omit top-level transaction controls so that
-atomic boundary cannot be split. The static migration contracts cover the full
-migration directory, including dynamic concurrent DDL and transaction aliases.
+`2.109.1` owns migration transaction and history boundaries; new migrations
+omit top-level transaction controls so those boundaries cannot be split.
+Top-level timeout guards use session `SET` plus matching `RESET`, not
+`SET LOCAL`, so they remain effective during fresh replay. The static migration
+contracts cover the full migration directory, including dynamic concurrent DDL,
+transaction aliases, and replay-safe timeout handling.
 Zero-downtime index creation on a populated production table is an explicit,
 supervised pre-deploy operation. A size-gated migration may converge with an
 ordinary index only after it verifies a reusable index or a relation small

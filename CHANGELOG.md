@@ -98,6 +98,9 @@ TestFlight, App Store, support, and QA.
 - Database CI now discovers and executes every checked-in pgTAP catalog fixture
   instead of maintaining a selected list, so adding a new authorization or data
   integrity contract automatically makes it deployment-blocking.
+- Migration CI now discovers every source-level migration contract before
+  starting PostgreSQL, and fresh replay keeps timeout guards effective while
+  rejecting invalid schema-qualified string-function syntax.
 - Closed an internal-worker authorization bypass where an RLS-filtered,
   successful empty table read was mistaken for service-role authority. Every
   shared internal boundary now accepts only an exact platform-managed service

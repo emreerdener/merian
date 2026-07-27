@@ -47,8 +47,9 @@ Before contributing, please review our core architectural tenets. Refactoring co
     make functions-deploy
     ```
     New migrations must not add top-level transaction controls or concurrent
-    index DDL. Supabase CLI `2.109.1` already batches each migration with its
-    history insert atomically; large indexes use the runbook's supervised
+    index DDL. Supabase CLI `2.109.1` owns migration transaction and history
+    boundaries; top-level timeout guards use session `SET` plus matching
+    `RESET`, never `SET LOCAL`. Large indexes use the runbook's supervised
     concurrent preflight. Historical applied files are immutable and are not
     templates. Read the
     [server credential and database safety

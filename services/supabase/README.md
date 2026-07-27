@@ -442,7 +442,7 @@ update, and truncate triggers. The file opens an explicit transaction before
 `LOCK TABLE` and commits only after the final trigger is installed, as required
 by PostgreSQL for a table lock that spans the complete cutover. This is an
 immutable historical migration contract, not a pattern for new files; new
-migrations rely on the CLI's implicit migration-plus-history transaction.
+migrations leave transaction and history ownership to the CLI.
 
 Insert/delete transition tables aggregate each pair once. The update trigger
 combines complete OLD and NEW transition sets and drops zero-net pairs, so
@@ -982,10 +982,12 @@ Public species stats have both static and executable security contracts:
 inspects executable direct and dynamic SQL before rejecting concurrent
 `CREATE INDEX`, `DROP INDEX`, or `REINDEX`. The public-schema migration contract
 separately rejects top-level transaction-control aliases in new migrations
-after masking quoted values and routine bodies. Supabase CLI `2.109.1` already
-batches each migration with its history insert in one implicit transaction;
-historical explicit-boundary files remain immutable compatibility artifacts,
-not future examples.
+after masking quoted values and routine bodies. Supabase CLI `2.109.1` owns the
+migration transaction and history boundary. Its normal apply path wraps
+pipeline-compatible statements with the history insert, but fresh replay also
+passes immutable historical compatibility artifacts. Top-level timeout guards
+therefore use session `SET` plus matching `RESET`, never `SET LOCAL`, so they
+work in either execution mode.
 
 `_tests/publicSchemaSecurityMigrationContract.test.ts` also locks effective RLS
 for every migration-created public table, final reaction-table grants, global
@@ -1122,13 +1124,15 @@ make validate-supabase-migrations
 ## Local Development
 
 Use Supabase CLI `2.109.1` for release-equivalent local verification because CI
-pins that exact reviewed version and the migration atomicity contract is tested
-against it. Treat another version as an intentional pin upgrade that requires
-rerunning and reviewing all migration contracts. The repository keeps every
-migration compatible with fresh-schema replay rather than depending on
-CLI-specific concurrent-index handling. The local email catcher uses the
-current `[local_smtp]` configuration section. Confirm the local version before
-database verification:
+pins that exact reviewed version and the migration execution/replay contract is
+tested against it. Treat another version as an intentional pin upgrade that
+requires rerunning and reviewing all migration contracts. The discovery-based
+`validate_migration_contracts.sh` entrypoint is shared by the Make target and
+deploy workflow, so a new conventionally named contract cannot fall out through
+list drift. The repository keeps every migration compatible with fresh-schema
+replay rather than depending on CLI-specific concurrent-index handling. The
+local email catcher uses the current `[local_smtp]` configuration section.
+Confirm the local version before database verification:
 
 ```bash
 supabase --version

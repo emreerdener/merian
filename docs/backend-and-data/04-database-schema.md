@@ -6,13 +6,14 @@ without guessing.
 
 ## Migration Execution and Exposed-Schema Contract
 
-CI pins Supabase CLI `2.109.1`. It sends each migration's statements and the
-matching migration-history insert as one `pgconn.ExecBatch`, so PostgreSQL
-already provides an implicit transaction. New migrations at or after
-`20260727183356` must not contain top-level `BEGIN`, `START TRANSACTION`,
-`COMMIT`, `END`, `ROLLBACK`, or `ABORT`; an embedded boundary can split schema
-state from history. Historical applied files with explicit controls remain
-immutable compatibility artifacts and are not examples for future migrations.
+CI pins Supabase CLI `2.109.1`, which owns migration transaction and history
+boundaries. New migrations at or after `20260727183356` must not contain
+top-level `BEGIN`, `START TRANSACTION`, `COMMIT`, `END`, `ROLLBACK`, or `ABORT`;
+an embedded boundary can split schema state from history. Top-level
+`lock_timeout` and `statement_timeout` guards use session `SET` plus matching
+`RESET`, not `SET LOCAL`, so they work during both normal apply and fresh
+replay. Historical applied files with explicit controls remain immutable
+compatibility artifacts and are not examples for future migrations.
 
 No checked-in migration may execute concurrent index DDL. A large production
 index is built through the deployment runbook's separately supervised owner

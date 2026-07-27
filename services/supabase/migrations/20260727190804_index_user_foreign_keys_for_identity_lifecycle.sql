@@ -5,8 +5,8 @@
 -- The catalog-driven form covers the effective production schema rather than
 -- relying on a migration-text heuristic. Existing valid indexes are reused.
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '15min';
+SET lock_timeout = '5s';
+SET statement_timeout = '15min';
 
 DO $migration$
 DECLARE
@@ -54,15 +54,16 @@ BEGIN
     LOOP
         index_name := pg_catalog.FORMAT(
             'idx_%s_%s_%s_user_fk',
-            pg_catalog.SUBSTRING(foreign_key.table_name FOR 24),
-            pg_catalog.SUBSTRING(foreign_key.column_name FOR 16),
-            pg_catalog.SUBSTRING(
+            pg_catalog.SUBSTR(foreign_key.table_name, 1, 24),
+            pg_catalog.SUBSTR(foreign_key.column_name, 1, 16),
+            pg_catalog.SUBSTR(
                 pg_catalog.MD5(
                     foreign_key.schema_name || '.'
                     || foreign_key.table_name || '.'
                     || foreign_key.column_name
-                )
-                FOR 8
+                ),
+                1,
+                8
             )
         );
 
@@ -105,3 +106,6 @@ BEGIN
     END LOOP;
 END;
 $migration$;
+
+RESET lock_timeout;
+RESET statement_timeout;
