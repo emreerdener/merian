@@ -284,6 +284,8 @@ Deno.test("public project key reads and parsing remain centralized", async () =>
       "startsWith(PUBLISHABLE_KEY_PREFIX)",
       'payload?.role === "anon"',
       'entry.name === "default"',
+      "legacyAnonKeyValid",
+      "acceptedPublicApiKeys",
       '"invalid_publishable_key_configuration"',
     ]
   ) {
@@ -322,6 +324,9 @@ Deno.test("service-role authorization has no database or network fallback", asyn
       "envSecretKey",
       "envSecretKeys",
       "envSynchronizedServerApiKey",
+      "classifyServerKeyConfiguration(",
+      "validConfiguredServerKeys",
+      "hasInvalidServerKeySource",
       'Deno.env.get("MERIAN_SUPABASE_SERVER_API_KEY")',
       'startsWith("sb_secret_")',
       "MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH = 20",
@@ -426,6 +431,9 @@ Deno.test("production smoke tests deny real public project API keys before privi
   const synchronizedFallbackIndex = workflow.indexOf(
     "Synchronize active server API key to Edge fallback",
   );
+  const digestVerificationIndex = workflow.indexOf(
+    "verify_edge_secret_digest.ts",
+  );
   const functionDeployIndex = workflow.indexOf(
     "Deploy affected Edge Functions",
   );
@@ -440,7 +448,8 @@ Deno.test("production smoke tests deny real public project API keys before privi
   const dataApiFailureDiagnosticIndex = workflow.indexOf("/rest/v1/*)");
 
   assert(synchronizedFallbackIndex >= 0);
-  assert(functionDeployIndex > synchronizedFallbackIndex);
+  assert(digestVerificationIndex > synchronizedFallbackIndex);
+  assert(functionDeployIndex > digestVerificationIndex);
   assert(negativeSmokeIndex >= 0);
   assert(positiveSmokeIndex > negativeSmokeIndex);
   assert(functionFailureDiagnosticIndex >= 0);
@@ -453,6 +462,16 @@ Deno.test("production smoke tests deny real public project API keys before privi
   assertStringIncludes(
     workflow,
     '"MERIAN_SUPABASE_SERVER_API_KEY=$MERIAN_SUPABASE_SERVER_API_KEY"',
+  );
+  assertStringIncludes(workflow, "supabase secrets list");
+  assertStringIncludes(workflow, "--output json");
+  assertStringIncludes(
+    workflow,
+    "--allow-env=MERIAN_SUPABASE_SERVER_API_KEY",
+  );
+  assertStringIncludes(
+    workflow,
+    "--secret-name MERIAN_SUPABASE_SERVER_API_KEY",
   );
   assertStringIncludes(workflow, "smoke_max_attempts=6");
   assertStringIncludes(workflow, "is_retryable_smoke_status()");

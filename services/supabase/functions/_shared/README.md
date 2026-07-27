@@ -70,14 +70,14 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   platform-shaped `sb_secret_` prefix plus a URL-safe opaque suffix of at least
   20 characters, while a legacy fallback must be an HS256 JWT with role
   `service_role` and a complete 43-character base64url signature. Publishable,
-  anon/user, and truncated placeholder values fail closed. Malformed plural
-  entries never become candidates; only a separately valid explicit,
-  synchronized, singular, or legacy fallback can remain available while the
-  dictionary is corrected. Legacy JWT keys may use Bearer transport; non-JWT
-  secret keys belong only in `apikey`. Callers must use the server-managed
-  environment key—not the accepted request value—for privileged database clients
-  and internal function calls. The shared request-header helper applies the same
-  current/legacy key transport to operational scripts.
+  anon/user, and truncated placeholder values fail closed. Every source is
+  classified independently: malformed values never become candidates or veto an
+  exact inbound key from another valid source, while an unmatched request still
+  fails as invalid configuration. Legacy JWT keys may use Bearer transport;
+  non-JWT secret keys belong only in `apikey`. Callers must use the
+  server-managed environment key—not the accepted request value—for privileged
+  database clients and internal function calls. The shared request-header helper
+  applies the same current/legacy key transport to operational scripts.
 - **`serviceRoleClient.ts`**: Creates privileged PostgREST, Storage, Functions,
   and Auth Admin clients from an authenticated or environment-resolved server
   key. Its final fetch adapter removes only supabase-js's exact

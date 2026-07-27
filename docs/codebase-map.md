@@ -43,7 +43,9 @@ Web runtime config:
   `SUPABASE_SECRET_KEY` is deliberately unsupported by web. Never expose any
   server key through a `NEXT_PUBLIC_` variable or client component. Their only
   web owner is `apps/web/lib/supabaseAdmin.ts`, guarded by `server-only`;
-  `supabasePublic.ts` contains the anonymous projection client.
+  `supabasePublic.ts` contains the anonymous projection client. Credential
+  sources are classified independently so a malformed lower migration source
+  cannot veto a valid selected source or enter the candidate set.
 
 ## Public Brand and Compatibility
 
@@ -299,14 +301,18 @@ Supabase project credential boundaries:
   server-key source classification, exact internal request matching, and
   format-aware standard headers. Hosted deploys add the non-reserved
   `MERIAN_SUPABASE_SERVER_API_KEY` synchronization fallback without changing
-  inbound transport.
+  inbound transport. Inbound matching isolates independently valid sources
+  while unmatched malformed configuration still fails closed.
 - `services/supabase/functions/_shared/serviceRoleClient.ts` is the only
   privileged SDK factory and removes only an exact inherited opaque-key Bearer
   fallback while preserving real user JWTs.
 - `services/supabase/scripts/resolve_project_api_keys.ts` performs bounded,
   reveal-explicit Management API resolution for positive and real public-key
-  negative smoke controls. The deploy workflow masks and synchronizes its
-  selected server key before Function deployment, then uses bounded
+  negative smoke controls.
+- `services/supabase/scripts/verify_edge_secret_digest.ts` compares the
+  synchronized secret's stored SHA-256 digest with the exact selected key
+  without logging either value. The deploy workflow requires this after
+  synchronization and before Function deployment, then uses bounded
   propagation-aware positive smoke retries. The canonical matrix and exit gate
   are in
   `docs/backend-and-data/13-server-credentials-and-database-release-safety.md`.

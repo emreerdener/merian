@@ -725,9 +725,10 @@ non-reserved Edge fallback `MERIAN_SUPABASE_SERVER_API_KEY`, a named
 local/manual fallback, or the migration-only `SUPABASE_SERVICE_ROLE_KEY` legacy
 fallback. Successful empty reads, RLS behavior, JWT shape, and other capability
 probes are never evidence of authority. A raw or JSON-string value in the plural
-variable is malformed and never contributes a candidate; only a separately
-valid explicit, synchronized, singular, or legacy fallback can remain available
-while the dictionary is corrected. Do not compensate with a transport
+variable is malformed and never contributes a candidate. Every source is
+classified independently for inbound authorization: a malformed source cannot
+veto an exact request key from another valid source, but an unmatched request
+still fails as invalid configuration. Do not compensate with a transport
 workaround.
 
 Configuration is classified before comparison: a current key must have the
@@ -752,12 +753,15 @@ from the Management API, prefer the current `default` secret key, fall back only
 to the exact legacy `service_role` key, and use the same shared transport rule.
 Before Function deployment, the production workflow masks and copies that exact
 value to `MERIAN_SUPABASE_SERVER_API_KEY`; Supabase reserves built-in
-`SUPABASE_*` names, so the fallback must not use one. Positive deployment smoke
-requests make six bounded propagation attempts. Final Function failures report
-only HTTP status plus the presence of the fixed `X-Merian-Handler: 1` marker;
-Data API failures instead identify the PostgREST/RPC diagnostic path without
-expecting a Function header. The RevenueCat reconciliation-health monitor uses
-that resolver and transport too.
+`SUPABASE_*` names, so the fallback must not use one. The workflow then verifies
+the stored secret's SHA-256 digest against the exact selected key and stops
+before rollout on a missing, malformed, duplicate, or mismatched entry without
+printing the key or digest. Positive deployment smoke requests make six bounded
+propagation attempts. Final Function failures report only HTTP status plus the
+presence of the fixed `X-Merian-Handler: 1` marker; Data API failures instead
+identify the PostgREST/RPC diagnostic path without expecting a Function header.
+The RevenueCat reconciliation-health monitor uses that resolver and transport
+too.
 Do not replace the resolver with the CLI API-key listing: its hidden secret-key
 representation cannot pass the exact request boundary. Migration
 `20260726212549_harden_service_role_request_authentication.sql` separately

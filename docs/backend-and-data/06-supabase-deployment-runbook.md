@@ -124,10 +124,14 @@ The workflow performs the following steps:
     `MERIAN_SUPABASE_SERVER_API_KEY` Edge fallback. This closes a management
     plane/runtime provisioning gap without changing request transport or trying
     to overwrite a reserved built-in.
-20. Deploys the planned functions in bounded batches. A failed batch is retried
+20. Reads the stored secret's SHA-256 digest through the pinned CLI and
+    compares it with the exact selected key locally. A missing, duplicate,
+    malformed, or mismatched digest stops the release without printing the key
+    or digest.
+21. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
-21. Requires every public key to receive `401` from Community Taxonomy status
+22. Requires every public key to receive `401` from Community Taxonomy status
     before the propagation-aware, format-aware positive suite smoke-tests
     internal functions and PostgREST RPCs, including scan-media health,
     one-item Explore direct-origin reconciliation, and a dry-run bounded GBIF
@@ -3000,9 +3004,14 @@ Edge secret `MERIAN_SUPABASE_SERVER_API_KEY` before Function deployment.
 Operators do not provision a separate GitHub secret for this fallback: the
 Management API result is its source of truth. Do not rename it to a
 `SUPABASE_*` variable; Supabase reserves those names and rejects CLI writes to
-them. A project-key rotation is incomplete until the new key has been added,
-this deploy workflow has passed with the overlap in place, all Vault and server
-callers have moved, and only then the old key is revoked.
+them. Immediately after the write,
+`services/supabase/scripts/verify_edge_secret_digest.ts` compares the exact
+selected key's SHA-256 digest with the named digest returned by
+`supabase secrets list --output json`. The gate fails before Function rollout
+if the entry is missing, duplicated, malformed, or mismatched and never prints
+the key or either digest. A project-key rotation is incomplete until the new
+key has been added, this deploy workflow has passed with the overlap in place,
+all Vault and server callers have moved, and only then the old key is revoked.
 
 If the Supabase dashboard or Management API is unavailable, do not guess the
 pooler host in production secrets. Wait for the dashboard to recover, or get the
@@ -3035,6 +3044,16 @@ current secret key (or exact legacy service-role fallback) is used as the
 positive control. Current secret keys are sent only in `apikey`; legacy JWT keys
 are sent in both headers. Do not weaken that denial check when rotating API
 keys.
+
+Every source is classified independently for inbound authorization. A malformed
+source contributes no candidate and cannot veto an exact request key from
+another valid source. If no key matches, any malformed source still produces
+`invalid_secret_key_configuration`; it is never normalized or silently
+accepted. Outbound selection preserves strict priority: a malformed configured
+scalar encountered at its priority point fails, while a valid higher-priority
+source is not vetoed by a malformed lower migration fallback. The publishable
+Edge resolver and public web server-key resolver apply equivalent source
+isolation for their supported migration sources.
 
 Positive smoke requests retry `401`, `404`, `429`, `500`, `502`, `503`, and
 `504` with bounded backoff for at most six attempts so routing propagation is
@@ -3677,9 +3696,10 @@ After deployment:
   anon/publishable project key received `401` from `community-taxonomy-status`.
   A `200` with an empty data set is an authorization failure, not a harmless RLS
   result.
-- Confirm `supabase secrets list --project-ref <ref>` includes
-  `MERIAN_SUPABASE_SERVER_API_KEY` by name after the deploy. Never print or
-  compare its value. A final positive `401` with the fixed
+- Confirm the deploy's hash-only gate matched the stored SHA-256 digest for
+  `MERIAN_SUPABASE_SERVER_API_KEY` to the exact selected production key before
+  Function rollout. Never print the key or either digest. A final positive
+  `401` with the fixed
   `X-Merian-Handler: 1` marker is a handler-owned denial; use the restricted
   structured auth event rather than bypassing the guard.
 - Confirm `community-taxonomy-status` accepts a service-role request with

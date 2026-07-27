@@ -615,6 +615,14 @@ jobs:
           supabase secrets set \
             "MERIAN_SUPABASE_SERVER_API_KEY=$MERIAN_SUPABASE_SERVER_API_KEY" \
             --project-ref "$PROJECT_ID"
+          supabase secrets list \
+            --project-ref "$PROJECT_ID" \
+            --output json |
+            deno run --quiet --frozen \
+              --config supabase/functions/deno.json \
+              --allow-env=MERIAN_SUPABASE_SERVER_API_KEY \
+              supabase/scripts/verify_edge_secret_digest.ts \
+              --secret-name MERIAN_SUPABASE_SERVER_API_KEY
 
       - name: Deploy affected Edge Functions
         if: steps.function-plan.outputs.count != '0'

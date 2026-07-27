@@ -16,6 +16,12 @@ type SecretKeyConfiguration = {
   valid: boolean;
 };
 
+type ScalarKeyConfiguration = {
+  configured: boolean;
+  key: string;
+  valid: boolean;
+};
+
 const CURRENT_SECRET_KEY_PREFIX = "sb_secret_";
 const MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH = 20;
 const HS256_BASE64URL_SIGNATURE_LENGTH = 43;
@@ -100,43 +106,58 @@ function parsePlatformSecretKeys(rawValue: string): SecretKeyConfiguration {
   }
 }
 
+function classifyScalarKey(
+  rawValue: string | undefined,
+  validator: (value: string) => boolean,
+): ScalarKeyConfiguration {
+  const key = rawValue ?? "";
+  return {
+    configured: key.length > 0,
+    key,
+    valid: key.length === 0 || validator(key),
+  };
+}
+
 export function resolveServerApiKeySources(
   sources: ServerApiKeySources,
 ): ServerApiKeyResolution {
-  const explicitServerApiKey = sources.explicitServerApiKey?.trim() ?? "";
-  const legacyServiceRoleKey = sources.legacyServiceRoleKey?.trim() ?? "";
-  const secretKeyConfiguration = parsePlatformSecretKeys(
-    sources.platformSecretKeys?.trim() ?? "",
+  // Resolve at each priority point instead of globally validating every
+  // migration source. A configured malformed override still fails, while a
+  // valid selected source is not vetoed by an unrelated lower fallback.
+  const explicitServerApiKey = classifyScalarKey(
+    sources.explicitServerApiKey,
+    isSupportedServerApiKey,
   );
-
-  if (
-    (explicitServerApiKey &&
-      !isSupportedServerApiKey(explicitServerApiKey)) ||
-    (legacyServiceRoleKey &&
-      !isLegacyServiceRoleJwt(legacyServiceRoleKey))
-  ) {
-    return { ok: false, reason: "invalid_server_api_key_configuration" };
-  }
-
-  // A separately validated explicit or legacy key is a safe fallback during a
-  // malformed platform-dictionary rollout. Unknown dictionary entries never
-  // become candidates.
-  if (!secretKeyConfiguration.valid) {
-    const fallbackKey = explicitServerApiKey || legacyServiceRoleKey;
-    return fallbackKey
-      ? { ok: true, key: fallbackKey }
+  if (explicitServerApiKey.configured) {
+    return explicitServerApiKey.valid
+      ? { ok: true, key: explicitServerApiKey.key }
       : { ok: false, reason: "invalid_server_api_key_configuration" };
   }
 
-  const namedDefault = secretKeyConfiguration.keys.find(
-    (entry) => entry.name === "default",
+  const secretKeyConfiguration = parsePlatformSecretKeys(
+    sources.platformSecretKeys ?? "",
   );
-  const key = explicitServerApiKey ||
-    namedDefault?.key ||
-    secretKeyConfiguration.keys[0]?.key ||
-    legacyServiceRoleKey;
+  if (secretKeyConfiguration.valid && secretKeyConfiguration.keys.length > 0) {
+    const namedDefault = secretKeyConfiguration.keys.find(
+      (entry) => entry.name === "default",
+    );
+    return {
+      ok: true,
+      key: namedDefault?.key ?? secretKeyConfiguration.keys[0].key,
+    };
+  }
 
-  return key
-    ? { ok: true, key }
-    : { ok: false, reason: "missing_server_api_key" };
+  const legacyServiceRoleKey = classifyScalarKey(
+    sources.legacyServiceRoleKey,
+    isLegacyServiceRoleJwt,
+  );
+  if (legacyServiceRoleKey.configured) {
+    return legacyServiceRoleKey.valid
+      ? { ok: true, key: legacyServiceRoleKey.key }
+      : { ok: false, reason: "invalid_server_api_key_configuration" };
+  }
+
+  return secretKeyConfiguration.valid
+    ? { ok: false, reason: "missing_server_api_key" }
+    : { ok: false, reason: "invalid_server_api_key_configuration" };
 }

@@ -61,7 +61,11 @@ the non-reserved Edge secret `MERIAN_SUPABASE_SERVER_API_KEY` before deploying
 Functions. This is a deployment fallback for a lagging or malformed hosted
 dictionary, not a new credential class or request header. It contains the same
 complete project server key and follows the same format-aware transport. Never
-attempt to set a built-in `SUPABASE_*` secret through the CLI.
+attempt to set a built-in `SUPABASE_*` secret through the CLI. After the write,
+the workflow compares the exact local key's SHA-256 digest with the digest
+returned by `supabase secrets list --output json`. Function rollout stops if
+the named secret is missing, duplicated, malformed, or different; neither the
+key nor either digest is logged.
 
 ### Edge Functions and Deno tooling
 
@@ -78,25 +82,40 @@ preferred outbound key order is:
 Inbound worker authentication accepts an exact, constant-time match against
 every valid configured server key, so named overlap keys can rotate safely.
 Publishable keys, anon/user JWTs, incomplete placeholders, malformed dictionary
-entries, and an opaque key placed in the legacy variable are rejected.
+entries, and an opaque key placed only in the legacy variable are rejected.
 
-A separately valid explicit, synchronized, singular, or legacy fallback can
-keep a controlled environment available while a malformed plural dictionary is
-corrected. Unknown plural entries never become candidates. With no valid
-fallback, configuration fails closed.
+Each environment source is classified independently. A malformed source
+contributes no authorization candidate and cannot veto an exact key supplied by
+another valid source. If no valid source matches, the presence of any malformed
+source produces `invalid_secret_key_configuration` instead of an ordinary
+token mismatch. This source isolation lets a separately valid explicit,
+synchronized, singular, or legacy source keep a controlled environment
+available while another source is corrected without ever promoting the bad
+value. Unknown plural entries never become candidates.
+
+Outbound selection keeps strict precedence. A configured malformed scalar
+encountered at its priority point fails rather than silently selecting a lower
+source; a valid higher-priority source is not vetoed by a malformed lower
+migration fallback. A malformed hosted dictionary may use a separately valid
+scalar fallback.
 
 `functions/_shared/publishableKey.ts` separately resolves user-client project
 keys from the hosted `SUPABASE_PUBLISHABLE_KEYS` JSON dictionary, preferring
 `default` and then deterministic name order. A complete legacy
 `SUPABASE_ANON_KEY` is accepted only during migration overlap. The public and
-server resolvers never accept each other's key class.
+server resolvers never accept each other's key class. The modern dictionary and
+legacy scalar are independent: either valid source remains usable if the other
+is malformed, and the malformed value never enters the accepted-key set.
 
 ### Public web server
 
 The public Next.js server supports `SUPABASE_SERVER_API_KEY`,
 `SUPABASE_SECRET_KEYS`, and the legacy `SUPABASE_SERVICE_ROLE_KEY`. It does not
 support the singular local Edge fallback. No server-key variable may use a
-`NEXT_PUBLIC_` prefix or enter a client bundle.
+`NEXT_PUBLIC_` prefix or enter a client bundle. It applies the same strict
+precedence and source isolation: a malformed configured explicit override
+fails, while a valid selected higher source is not vetoed by a malformed lower
+migration fallback.
 
 ### Management API resolution
 
@@ -116,14 +135,16 @@ Do not replace this with a CLI key-list command unless the reviewed CLI version
 has an equivalent reveal contract.
 
 The production workflow masks the selected value, synchronizes it to
-`MERIAN_SUPABASE_SERVER_API_KEY`, and only then deploys the selected Function
-fleet. Positive smoke requests retry bounded transient deployment statuses for
-up to six attempts. A final Function failure reports only status and whether the
-fixed `X-Merian-Handler: 1` marker was present: marker present means the request
-reached a Function handler; marker absent points to the gateway or deployment
-router. A final Data API failure is explicitly classified as a PostgREST/RPC
-diagnostic path and does not expect a Function marker. Response bodies and
-request-ID values remain withheld; no variable header value is printed.
+`MERIAN_SUPABASE_SERVER_API_KEY`, verifies the stored SHA-256 digest through
+`scripts/verify_edge_secret_digest.ts`, and only then deploys the selected
+Function fleet. Positive smoke requests retry bounded transient deployment
+statuses for up to six attempts. A final Function failure reports only status
+and whether the fixed `X-Merian-Handler: 1` marker was present: marker present
+means the request reached a Function handler; marker absent points to the
+gateway or deployment router. A final Data API failure is explicitly classified
+as a PostgREST/RPC diagnostic path and does not expect a Function marker.
+Response bodies and request-ID values remain withheld; no variable header value
+is printed.
 
 ## Edge Function Authentication
 
@@ -286,9 +307,9 @@ this correction released:
    user-FK index inventories.
 3. Build every required large/partitioned FK index through the supervised path,
    verify it, and retry the unchanged migration.
-4. Push migrations, synchronize `MERIAN_SUPABASE_SERVER_API_KEY`, deploy the
-   selected Edge fleet, and deploy the public web bundle from the same reviewed
-   commit.
+4. Push migrations, synchronize and digest-verify
+   `MERIAN_SUPABASE_SERVER_API_KEY`, deploy the selected Edge fleet, and deploy
+   the public web bundle from the same reviewed commit.
 5. Require every real public project key to receive `401` from the internal
    Community Taxonomy status route.
 6. Run the propagation-aware, format-aware positive Function and PostgREST RPC

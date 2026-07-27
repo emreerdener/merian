@@ -69,7 +69,9 @@ Required server-side variables:
   platform-managed `SUPABASE_SECRET_KEYS` dictionary is also supported when
   present; `SUPABASE_SERVICE_ROLE_KEY` remains a legacy service-role JWT
   migration fallback. The server-only client rejects public or malformed values
-  and gives every Supabase SDK request a 30-second hard deadline.
+  and gives every Supabase SDK request a 30-second hard deadline. A configured
+  malformed explicit override fails; once a valid higher-priority source is
+  selected, an unrelated malformed lower migration source cannot veto it.
 - `WAITLIST_IP_HASH_SECRET` — at least 32 random characters. Generate a
   dedicated value; do not reuse a Supabase, Turnstile, or application secret.
 - `TURNSTILE_SECRET_KEY` — server-side secret for the production Cloudflare
@@ -175,7 +177,9 @@ Supabase clients have two explicit trust levels:
   platform-shaped `sb_secret_...` values, including a URL-safe opaque suffix of
   at least 20 characters, and complete legacy HS256 `service_role` JWTs before
   a client can be created; a publishable, anon, user, truncated placeholder, or
-  malformed value fails closed.
+  malformed selected value fails closed. Sources are evaluated independently at
+  their priority points so stale lower migration fallbacks cannot veto a valid
+  selected key.
 
 Do not merge these modules or export an admin-capable default client. Server
 routes must import the admin module directly, while public projection readers

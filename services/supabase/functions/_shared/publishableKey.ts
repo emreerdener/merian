@@ -85,7 +85,7 @@ export function isLegacyAnonJwt(value: string): boolean {
 function parsePublishableKeys(
   rawPublishableKeys: string | undefined,
 ): { entries: NamedPublishableKey[]; valid: boolean } {
-  const raw = rawPublishableKeys?.trim() ?? "";
+  const raw = rawPublishableKeys ?? "";
   if (!raw) return { entries: [], valid: true };
 
   try {
@@ -116,48 +116,47 @@ function parsePublishableKeys(
 export function resolvePublicApiKeys(
   options: PublicApiKeyOptions,
 ): PublicApiKeyResolution {
-  const legacyAnonKey = options.envAnonKey?.trim() ?? "";
-  if (legacyAnonKey && !isLegacyAnonJwt(legacyAnonKey)) {
+  const legacyAnonKey = options.envAnonKey ?? "";
+  const legacyAnonKeyConfigured = legacyAnonKey.length > 0;
+  const legacyAnonKeyValid = !legacyAnonKeyConfigured ||
+    isLegacyAnonJwt(legacyAnonKey);
+  const publishableKeys = parsePublishableKeys(options.envPublishableKeys);
+  if (publishableKeys.valid && publishableKeys.entries.length > 0) {
+    const namedDefault = publishableKeys.entries.find(
+      (entry) => entry.name === "default",
+    );
+    const publicApiKey = namedDefault?.key ??
+      publishableKeys.entries[0].key;
     return {
-      ok: false,
-      reason: "invalid_publishable_key_configuration",
+      ok: true,
+      publicApiKey,
+      acceptedPublicApiKeys: [
+        ...new Set([
+          ...publishableKeys.entries.map((entry) => entry.key),
+          ...(legacyAnonKeyConfigured && legacyAnonKeyValid
+            ? [legacyAnonKey]
+            : []),
+        ]),
+      ],
     };
   }
 
-  const publishableKeys = parsePublishableKeys(options.envPublishableKeys);
-  if (!publishableKeys.valid) {
-    return legacyAnonKey
-      ? {
-        ok: true,
-        publicApiKey: legacyAnonKey,
-        acceptedPublicApiKeys: [legacyAnonKey],
-      }
-      : {
-        ok: false,
-        reason: "invalid_publishable_key_configuration",
-      };
+  // The hosted dictionary and legacy scalar are independent migration
+  // sources. A valid source remains usable during an incident in the other;
+  // malformed values never become accepted public-key candidates.
+  if (legacyAnonKeyConfigured && legacyAnonKeyValid) {
+    return {
+      ok: true,
+      publicApiKey: legacyAnonKey,
+      acceptedPublicApiKeys: [legacyAnonKey],
+    };
   }
-
-  const namedDefault = publishableKeys.entries.find(
-    (entry) => entry.name === "default",
-  );
-  const publicApiKey = namedDefault?.key ??
-    publishableKeys.entries[0]?.key ??
-    legacyAnonKey;
-  if (!publicApiKey) {
-    return { ok: false, reason: "no_configured_keys" };
-  }
-
-  return {
-    ok: true,
-    publicApiKey,
-    acceptedPublicApiKeys: [
-      ...new Set([
-        ...publishableKeys.entries.map((entry) => entry.key),
-        ...(legacyAnonKey ? [legacyAnonKey] : []),
-      ]),
-    ],
-  };
+  return !publishableKeys.valid || !legacyAnonKeyValid
+    ? {
+      ok: false,
+      reason: "invalid_publishable_key_configuration",
+    }
+    : { ok: false, reason: "no_configured_keys" };
 }
 
 export function publicApiKeyOptionsFromEnvironment(): PublicApiKeyOptions {

@@ -177,16 +177,21 @@ environment variable.**
   `MERIAN_SUPABASE_SERVER_API_KEY` before deploying Functions. This copy is a
   controlled workaround for runtime provisioning lag; it does not authorize a
   custom header and must not be manually renamed to a reserved `SUPABASE_*`
-  secret. Complete a deploy during key overlap before revoking the old key.
+  secret. The workflow verifies the stored secret's SHA-256 digest against the
+  exact selected key before Function rollout without printing the key or
+  digest. Complete a deploy during key overlap before revoking the old key.
 
   Current explicit keys must be platform-shaped: `sb_secret_`, followed by a
   URL-safe opaque suffix of at least 20 characters. A legacy fallback must be
   an HS256 JWT whose role is exactly `service_role` and whose base64url
   signature is complete. Placing a publishable, anon, user, truncated
-  placeholder, or malformed value in an individual explicit/singular/legacy
-  source fails closed. Malformed plural entries never become candidates; only a
-  separately valid explicit, singular, or legacy fallback can remain available
-  while that dictionary is corrected.
+  placeholder, or malformed value in an individual explicit, synchronized,
+  singular, or legacy source never makes that value a candidate. Inbound
+  sources are classified independently: a malformed source cannot veto an exact
+  key from another valid source, while an unmatched request still fails as
+  invalid configuration. Outbound priority remains strict, so a malformed
+  configured scalar encountered at its priority point fails instead of silently
+  falling through.
   Internal cron/webhook workers such as `refresh-species-content`,
   `refresh-species-model-content`, `refresh-merian-reference-images`, and
   `auto-purge-nonbio` may receive one only through the shared key-format-aware

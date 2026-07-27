@@ -99,6 +99,34 @@ Deno.test("public resolver falls back during malformed JSON rollout", () => {
   );
 });
 
+Deno.test("public resolver isolates malformed legacy fallback from a valid hosted dictionary", () => {
+  assertEquals(
+    resolvePublicApiKeys({
+      envPublishableKeys: JSON.stringify({
+        default: DEFAULT_PUBLISHABLE_KEY,
+      }),
+      envAnonKey: "not-an-anon-jwt",
+    }),
+    {
+      ok: true,
+      publicApiKey: DEFAULT_PUBLISHABLE_KEY,
+      acceptedPublicApiKeys: [DEFAULT_PUBLISHABLE_KEY],
+    },
+  );
+});
+
+Deno.test("public resolver never normalizes malformed scalar credentials", () => {
+  assertEquals(
+    resolvePublicApiKeys({
+      envAnonKey: ` ${LEGACY_ANON_KEY} `,
+    }),
+    {
+      ok: false,
+      reason: "invalid_publishable_key_configuration",
+    },
+  );
+});
+
 Deno.test("public resolver rejects malformed or absent configuration", () => {
   assertEquals(
     resolvePublicApiKeys({

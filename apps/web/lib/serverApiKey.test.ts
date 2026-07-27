@@ -97,7 +97,53 @@ test("server API key resolution permits only a validated fallback during diction
     { ok: true, key: EXPLICIT_SECRET_KEY },
   );
   assert.deepEqual(
+    resolveServerApiKeySources({
+      platformSecretKeys: "{",
+      legacyServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+    }),
+    { ok: true, key: LEGACY_SERVICE_ROLE_KEY },
+  );
+  assert.deepEqual(
     resolveServerApiKeySources({}),
     { ok: false, reason: "missing_server_api_key" },
+  );
+});
+
+test("valid web server sources isolate malformed lower-priority migration fallbacks", () => {
+  assert.deepEqual(
+    resolveServerApiKeySources({
+      explicitServerApiKey: EXPLICIT_SECRET_KEY,
+      platformSecretKeys: "{",
+      legacyServiceRoleKey: "not-a-jwt",
+    }),
+    { ok: true, key: EXPLICIT_SECRET_KEY },
+  );
+  assert.deepEqual(
+    resolveServerApiKeySources({
+      platformSecretKeys: JSON.stringify({
+        default: DEFAULT_SECRET_KEY,
+      }),
+      legacyServiceRoleKey: DEFAULT_SECRET_KEY,
+    }),
+    { ok: true, key: DEFAULT_SECRET_KEY },
+  );
+});
+
+test("web server resolution never normalizes malformed credentials", () => {
+  assert.deepEqual(
+    resolveServerApiKeySources({
+      explicitServerApiKey: ` ${EXPLICIT_SECRET_KEY} `,
+      platformSecretKeys: JSON.stringify({
+        default: DEFAULT_SECRET_KEY,
+      }),
+      legacyServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+    }),
+    { ok: false, reason: "invalid_server_api_key_configuration" },
+  );
+  assert.deepEqual(
+    resolveServerApiKeySources({
+      legacyServiceRoleKey: ` ${LEGACY_SERVICE_ROLE_KEY} `,
+    }),
+    { ok: false, reason: "invalid_server_api_key_configuration" },
   );
 });

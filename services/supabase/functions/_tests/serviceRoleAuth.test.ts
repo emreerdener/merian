@@ -420,6 +420,114 @@ Deno.test("authorizeServiceRoleRequest accepts an exact synchronized hosted key"
   );
 });
 
+Deno.test("exact synchronized authorization is not vetoed by malformed unrelated sources", () => {
+  for (
+    const unrelatedConfiguration of [
+      { envServiceRoleKey: SYNCHRONIZED_SECRET_KEY },
+      { envServiceRoleKey: "not-a-jwt" },
+      { envSecretKey: LEGACY_SERVICE_ROLE_KEY },
+      { envSecretKey: "not-a-secret-key" },
+      { envSecretKeys: JSON.stringify({ default: LEGACY_SERVICE_ROLE_KEY }) },
+    ]
+  ) {
+    assertEquals(
+      authorizeServiceRoleRequest(
+        request({ apikey: SYNCHRONIZED_SECRET_KEY }),
+        {
+          ...unrelatedConfiguration,
+          envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+        },
+      ),
+      { ok: true, serverApiKey: SYNCHRONIZED_SECRET_KEY },
+    );
+  }
+});
+
+Deno.test("exact platform-dictionary authorization is not vetoed by malformed lower-priority fallbacks", () => {
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({ apikey: DEFAULT_SECRET_KEY }),
+      {
+        envSecretKeys: SECRET_KEYS,
+        envSecretKey: LEGACY_SERVICE_ROLE_KEY,
+        envServiceRoleKey: DEFAULT_SECRET_KEY,
+      },
+    ),
+    { ok: true, serverApiKey: DEFAULT_SECRET_KEY },
+  );
+});
+
+Deno.test("valid higher-priority outbound keys isolate malformed lower-priority sources", () => {
+  assertEquals(
+    resolveServerApiKey({
+      envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+      envSecretKeys: "{",
+      envSecretKey: LEGACY_SERVICE_ROLE_KEY,
+      envServiceRoleKey: "not-a-jwt",
+    }),
+    { ok: true, serverApiKey: SYNCHRONIZED_SECRET_KEY },
+  );
+  assertEquals(
+    resolveServerApiKey({
+      envSecretKeys: SECRET_KEYS,
+      envSecretKey: LEGACY_SERVICE_ROLE_KEY,
+      envServiceRoleKey: DEFAULT_SECRET_KEY,
+    }),
+    { ok: true, serverApiKey: DEFAULT_SECRET_KEY },
+  );
+});
+
+Deno.test("malformed higher-priority outbound sources never silently fall through", () => {
+  assertEquals(
+    resolveServerApiKey({
+      envServerApiKey: INVALID_SECRET_KEY,
+      envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+    }),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+  assertEquals(
+    resolveServerApiKey({
+      envSynchronizedServerApiKey: INVALID_SECRET_KEY,
+      envSecretKeys: SECRET_KEYS,
+    }),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+  assertEquals(
+    resolveServerApiKey({
+      envSecretKey: LEGACY_SERVICE_ROLE_KEY,
+      envServiceRoleKey: LEGACY_SERVICE_ROLE_KEY,
+    }),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+});
+
+Deno.test("malformed configured values are never normalized into valid candidates", () => {
+  const paddedKey = ` ${SYNCHRONIZED_SECRET_KEY} `;
+  assertEquals(
+    resolveServerApiKey({
+      envSynchronizedServerApiKey: paddedKey,
+    }),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({ apikey: SYNCHRONIZED_SECRET_KEY }),
+      { envSynchronizedServerApiKey: paddedKey },
+    ),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({ apikey: DEFAULT_SECRET_KEY }),
+      {
+        envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+        envServiceRoleKey: DEFAULT_SECRET_KEY,
+      },
+    ),
+    { ok: false, reason: "invalid_secret_key_configuration" },
+  );
+});
+
 Deno.test("synchronized deployment fallback supports the exact legacy key during overlap", () => {
   assertEquals(
     authorizeServiceRoleRequest(

@@ -81,6 +81,23 @@ bounded transient statuses, and reports whether the final Function response
 reached a Merian handler through a fixed `X-Merian-Handler: 1` marker without
 exposing a request ID, variable header value, or body.
 
+Production deploy run 1530 exercised that correction. All six positive attempts
+still returned `401`, and the final response carried the fixed handler marker.
+This localized the denial to a Merian handler rather than the gateway or
+deployment router. The remaining repository failure was then reproduced
+directly in the shared resolver. It validated every scalar environment slot
+globally before comparing the request, so a stale or malformed migration
+slot—including a current opaque key copied into the legacy-only slot—could veto
+the exact synchronized key from an independently valid source.
+
+The durable fleet-wide correction classifies sources independently. A malformed
+source contributes no candidate but cannot veto an exact match from another
+valid source; an unmatched request still fails with
+`invalid_secret_key_configuration` whenever any source is malformed. Outbound
+selection retains strict precedence so a malformed configured override cannot
+silently fall through. Equivalent migration-source isolation is enforced in the
+public Edge key resolver and the public web server-key resolver.
+
 ## Rejected Workarounds and Durable Lessons
 
 Several diagnostic changes proposed during the incident were not valid
@@ -121,11 +138,11 @@ inspection all pass for the reviewed commit.
   reflects the caller's value into downstream clients. Configuration
   classification rejects publishable keys, anon/user JWTs, truncated
   placeholders, unknown/malformed dictionary entries, and opaque values placed
-  in the legacy variable. A malformed dictionary contributes no candidates;
-  only a separately valid explicit, synchronized, singular, or legacy fallback
-  can remain available while it is corrected. A current key must retain its
-  complete URL-safe opaque suffix; a legacy fallback must be a complete HS256
-  `service_role` JWT.
+  only in the legacy variable. Every source is classified independently: a
+  malformed source contributes no candidate and cannot veto an exact match from
+  another valid source, while an unmatched request still fails as invalid
+  configuration. A current key must retain its complete URL-safe opaque suffix;
+  a legacy fallback must be a complete HS256 `service_role` JWT.
 - `functions/_shared/serviceRoleClient.ts` is the only privileged SDK
   constructor. Its final fetch adapter removes only supabase-js's exact opaque
   key fallback Bearer value. Database, Storage, Functions, and Auth Admin remain
@@ -174,9 +191,10 @@ inspection all pass for the reviewed commit.
   rejects global `fetch()` calls that bypass the reviewed SDK or bounded
   provider transport.
 - Static workflow coverage requires fallback synchronization to precede
-  Function deployment and requires bounded smoke retry plus endpoint-aware
-  Function handler/router or Data API/PostgREST classification on final
-  failure.
+  hash-only digest verification and Function deployment, and requires bounded
+  smoke retry plus endpoint-aware Function handler/router or Data API/PostgREST
+  classification on final failure. The verifier rejects a missing, duplicate,
+  malformed, or mismatched secret entry without logging a key or digest.
 
 ## Other Places to Watch
 
@@ -208,9 +226,9 @@ Do not mark this incident resolved until all of the following hold:
 2. Confirm the hosted `SUPABASE_SECRET_KEYS` value is the platform-managed JSON
    dictionary and has not been replaced with a manually configured raw string.
    Validate only its parseable shape and key names; never print its values.
-3. Confirm the Edge secret inventory includes
-   `MERIAN_SUPABASE_SERVER_API_KEY` by name after the workflow synchronizes it.
-   Never reveal or compare its value.
+3. Confirm the workflow's hash-only gate matched the stored SHA-256 digest for
+   `MERIAN_SUPABASE_SERVER_API_KEY` to the exact selected key before Function
+   rollout. Never reveal its value or either digest.
 4. Run the privileged-routine read-only audit in enforcement mode.
 5. Verify no installed HTTP routine or active cron command contains a direct
    `'Bearer ' || service_role_key` construction.

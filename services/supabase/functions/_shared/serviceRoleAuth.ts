@@ -97,6 +97,20 @@ type SecretKeyConfigurationResult = {
   valid: boolean;
 };
 
+type ScalarKeyConfiguration = {
+  configured: boolean;
+  key: string;
+  valid: boolean;
+};
+
+type ClassifiedServerKeyConfiguration = {
+  explicit: ScalarKeyConfiguration;
+  synchronized: ScalarKeyConfiguration;
+  named: SecretKeyConfigurationResult;
+  singular: ScalarKeyConfiguration;
+  legacy: ScalarKeyConfiguration;
+};
+
 const CURRENT_SECRET_KEY_PREFIX = "sb_secret_";
 const MINIMUM_OPAQUE_KEY_SUFFIX_LENGTH = 20;
 const HS256_BASE64URL_SIGNATURE_LENGTH = 43;
@@ -185,7 +199,7 @@ function requestCredential(req: Request): RequestCredentialResult {
 function parseSecretKeyConfiguration(
   rawSecretKeys: string | undefined,
 ): SecretKeyConfigurationResult {
-  const raw = rawSecretKeys?.trim() ?? "";
+  const raw = rawSecretKeys ?? "";
   if (!raw) return { entries: [], valid: true };
 
   try {
@@ -214,85 +228,161 @@ function parseSecretKeyConfiguration(
   }
 }
 
+function classifyScalarKey(
+  rawValue: string | undefined,
+  validator: (value: string) => boolean,
+): ScalarKeyConfiguration {
+  const key = rawValue ?? "";
+  return {
+    configured: key.length > 0,
+    key,
+    valid: key.length === 0 || validator(key),
+  };
+}
+
+function classifyServerKeyConfiguration(
+  options: ServiceRoleAuthOptions,
+): ClassifiedServerKeyConfiguration {
+  return {
+    explicit: classifyScalarKey(
+      options.envServerApiKey,
+      isSupportedServerApiKey,
+    ),
+    synchronized: classifyScalarKey(
+      options.envSynchronizedServerApiKey,
+      isSupportedServerApiKey,
+    ),
+    named: parseSecretKeyConfiguration(options.envSecretKeys),
+    singular: classifyScalarKey(options.envSecretKey, isCurrentSecretKey),
+    legacy: classifyScalarKey(
+      options.envServiceRoleKey,
+      isLegacyServiceRoleJwt,
+    ),
+  };
+}
+
 function matchesAnyConfiguredKey(
   token: string,
-  entries: Array<{ name: string; key: string }>,
+  configuredKeys: string[],
 ): boolean {
   let matched = false;
-  for (const entry of entries) {
-    const currentMatch = timingSafeCompare(token, entry.key);
+  for (const configuredKey of configuredKeys) {
+    const currentMatch = timingSafeCompare(token, configuredKey);
     matched = currentMatch || matched;
   }
   return matched;
 }
 
-function preferredServerApiKey(
-  legacyServiceRoleKey: string,
-  explicitServerApiKey: string,
-  synchronizedServerApiKey: string,
-  singularSecretKey: string,
-  secretKeyConfiguration: SecretKeyConfigurationResult,
+function preferredNamedSecretKey(
+  configuration: SecretKeyConfigurationResult,
 ): string | null {
-  const namedDefault = secretKeyConfiguration.entries.find(
+  if (!configuration.valid) return null;
+  const namedDefault = configuration.entries.find(
     (entry) => entry.name === "default",
   );
-  return explicitServerApiKey ||
-    synchronizedServerApiKey ||
-    namedDefault?.key ||
-    secretKeyConfiguration.entries[0]?.key ||
-    singularSecretKey ||
-    legacyServiceRoleKey ||
+  return namedDefault?.key ||
+    configuration.entries[0]?.key ||
     null;
+}
+
+function preferredValidServerApiKey(
+  configuration: ClassifiedServerKeyConfiguration,
+): string | null {
+  return (configuration.explicit.valid ? configuration.explicit.key : "") ||
+    (configuration.synchronized.valid ? configuration.synchronized.key : "") ||
+    preferredNamedSecretKey(configuration.named) ||
+    (configuration.singular.valid ? configuration.singular.key : "") ||
+    (configuration.legacy.valid ? configuration.legacy.key : "") ||
+    null;
+}
+
+function validConfiguredServerKeys(
+  configuration: ClassifiedServerKeyConfiguration,
+): string[] {
+  return [
+    ...(configuration.explicit.configured && configuration.explicit.valid
+      ? [configuration.explicit.key]
+      : []),
+    ...(configuration.synchronized.configured &&
+        configuration.synchronized.valid
+      ? [configuration.synchronized.key]
+      : []),
+    ...(configuration.named.valid
+      ? configuration.named.entries.map((entry) => entry.key)
+      : []),
+    ...(configuration.singular.configured && configuration.singular.valid
+      ? [configuration.singular.key]
+      : []),
+    ...(configuration.legacy.configured && configuration.legacy.valid
+      ? [configuration.legacy.key]
+      : []),
+  ];
+}
+
+function hasInvalidServerKeySource(
+  configuration: ClassifiedServerKeyConfiguration,
+): boolean {
+  return !configuration.explicit.valid ||
+    !configuration.synchronized.valid ||
+    !configuration.named.valid ||
+    !configuration.singular.valid ||
+    !configuration.legacy.valid;
+}
+
+function configuredScalarResult(
+  configuration: ScalarKeyConfiguration,
+): ServerApiKeyResult | null {
+  if (!configuration.configured) return null;
+  return configuration.valid
+    ? { ok: true, serverApiKey: configuration.key }
+    : { ok: false, reason: "invalid_secret_key_configuration" };
+}
+
+function namedServerApiKey(
+  configuration: SecretKeyConfigurationResult,
+): string | null {
+  return configuration.valid ? preferredNamedSecretKey(configuration) : null;
+}
+
+function fallbackServerApiKey(
+  singular: ScalarKeyConfiguration,
+  legacy: ScalarKeyConfiguration,
+): ServerApiKeyResult | null {
+  return configuredScalarResult(singular) ||
+    configuredScalarResult(legacy);
+}
+
+function unresolvedServerApiKey(
+  named: SecretKeyConfigurationResult,
+): ServerApiKeyResult {
+  return named.valid
+    ? { ok: false, reason: "no_configured_keys" }
+    : { ok: false, reason: "invalid_secret_key_configuration" };
+}
+
+function preferredServerApiKey(
+  configuration: ClassifiedServerKeyConfiguration,
+): ServerApiKeyResult {
+  const explicit = configuredScalarResult(configuration.explicit);
+  if (explicit) return explicit;
+
+  const synchronized = configuredScalarResult(configuration.synchronized);
+  if (synchronized) return synchronized;
+
+  const named = namedServerApiKey(configuration.named);
+  if (named) return { ok: true, serverApiKey: named };
+
+  return fallbackServerApiKey(
+    configuration.singular,
+    configuration.legacy,
+  ) ||
+    unresolvedServerApiKey(configuration.named);
 }
 
 export function resolveServerApiKey(
   options: ServiceRoleAuthOptions,
 ): ServerApiKeyResult {
-  const legacyServiceRoleKey = options.envServiceRoleKey?.trim() ?? "";
-  const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
-  const synchronizedServerApiKey =
-    options.envSynchronizedServerApiKey?.trim() ?? "";
-  const singularSecretKey = options.envSecretKey?.trim() ?? "";
-  if (
-    (legacyServiceRoleKey &&
-      !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
-    (explicitServerApiKey &&
-      !isSupportedServerApiKey(explicitServerApiKey)) ||
-    (synchronizedServerApiKey &&
-      !isSupportedServerApiKey(synchronizedServerApiKey)) ||
-    (singularSecretKey &&
-      !isCurrentSecretKey(singularSecretKey))
-  ) {
-    return { ok: false, reason: "invalid_secret_key_configuration" };
-  }
-
-  const secretKeyConfiguration = parseSecretKeyConfiguration(
-    options.envSecretKeys,
-  );
-
-  // Explicit, synchronized, singular, and legacy fallbacks remain available
-  // during a malformed platform-managed dictionary rollout. Unknown named
-  // keys still fail closed.
-  if (!secretKeyConfiguration.valid) {
-    const fallbackKey = explicitServerApiKey ||
-      synchronizedServerApiKey ||
-      singularSecretKey ||
-      legacyServiceRoleKey;
-    return fallbackKey
-      ? { ok: true, serverApiKey: fallbackKey }
-      : { ok: false, reason: "invalid_secret_key_configuration" };
-  }
-
-  const serverApiKey = preferredServerApiKey(
-    legacyServiceRoleKey,
-    explicitServerApiKey,
-    synchronizedServerApiKey,
-    singularSecretKey,
-    secretKeyConfiguration,
-  );
-  return serverApiKey
-    ? { ok: true, serverApiKey }
-    : { ok: false, reason: "no_configured_keys" };
+  return preferredServerApiKey(classifyServerKeyConfiguration(options));
 }
 
 export function requireServerApiKey(
@@ -329,90 +419,27 @@ export function authorizeServiceRoleRequest(
     };
   }
 
-  const legacyServiceRoleKey = options.envServiceRoleKey?.trim() ?? "";
-  const explicitServerApiKey = options.envServerApiKey?.trim() ?? "";
-  const synchronizedServerApiKey =
-    options.envSynchronizedServerApiKey?.trim() ?? "";
-  const singularSecretKey = options.envSecretKey?.trim() ?? "";
-  if (
-    (legacyServiceRoleKey &&
-      !isLegacyServiceRoleJwt(legacyServiceRoleKey)) ||
-    (explicitServerApiKey &&
-      !isSupportedServerApiKey(explicitServerApiKey)) ||
-    (synchronizedServerApiKey &&
-      !isSupportedServerApiKey(synchronizedServerApiKey)) ||
-    (singularSecretKey &&
-      !isCurrentSecretKey(singularSecretKey))
-  ) {
+  const configuration = classifyServerKeyConfiguration(options);
+  const validKeys = validConfiguredServerKeys(configuration);
+
+  // Each environment source is an independent migration input. A malformed
+  // source contributes no authorization candidate, but it must not veto an
+  // exact key supplied by another independently valid source. If nothing
+  // matches, any malformed source still produces a fail-closed configuration
+  // error instead of degrading to a normal token mismatch.
+  if (matchesAnyConfiguredKey(credential.token, validKeys)) {
+    const serverApiKey = preferredValidServerApiKey(configuration);
+    return serverApiKey
+      ? { ok: true, serverApiKey }
+      : { ok: false, reason: "no_configured_keys" };
+  }
+
+  if (hasInvalidServerKeySource(configuration)) {
     return { ok: false, reason: "invalid_secret_key_configuration" };
   }
-
-  if (
-    (legacyServiceRoleKey &&
-      timingSafeCompare(credential.token, legacyServiceRoleKey)) ||
-    (explicitServerApiKey &&
-      timingSafeCompare(credential.token, explicitServerApiKey)) ||
-    (synchronizedServerApiKey &&
-      timingSafeCompare(credential.token, synchronizedServerApiKey)) ||
-    (singularSecretKey &&
-      timingSafeCompare(credential.token, singularSecretKey))
-  ) {
-    const secretKeyConfiguration = parseSecretKeyConfiguration(
-      options.envSecretKeys,
-    );
-    return {
-      ok: true,
-      serverApiKey: secretKeyConfiguration.valid
-        ? preferredServerApiKey(
-          legacyServiceRoleKey,
-          explicitServerApiKey,
-          synchronizedServerApiKey,
-          singularSecretKey,
-          secretKeyConfiguration,
-        ) ?? credential.token
-        : explicitServerApiKey ||
-          synchronizedServerApiKey ||
-          singularSecretKey ||
-          legacyServiceRoleKey,
-    };
-  }
-
-  const secretKeyConfiguration = parseSecretKeyConfiguration(
-    options.envSecretKeys,
-  );
-  if (!secretKeyConfiguration.valid) {
-    return { ok: false, reason: "invalid_secret_key_configuration" };
-  }
-
-  if (
-    !legacyServiceRoleKey &&
-    !explicitServerApiKey &&
-    !synchronizedServerApiKey &&
-    !singularSecretKey &&
-    secretKeyConfiguration.entries.length === 0
-  ) {
-    return { ok: false, reason: "no_configured_keys" };
-  }
-
-  if (
-    !matchesAnyConfiguredKey(
-      credential.token,
-      secretKeyConfiguration.entries,
-    )
-  ) {
-    return { ok: false, reason: "token_mismatch" };
-  }
-
-  const serverApiKey = preferredServerApiKey(
-    legacyServiceRoleKey,
-    explicitServerApiKey,
-    synchronizedServerApiKey,
-    singularSecretKey,
-    secretKeyConfiguration,
-  );
-  return serverApiKey
-    ? { ok: true, serverApiKey }
-    : { ok: false, reason: "no_configured_keys" };
+  return validKeys.length === 0
+    ? { ok: false, reason: "no_configured_keys" }
+    : { ok: false, reason: "token_mismatch" };
 }
 
 export function authorizeServiceRoleRequestFromEnvironment(

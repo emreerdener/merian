@@ -238,6 +238,23 @@ Deno.test("iOS project guardrail runs the DTO contract gate for all app sources"
 
 Deno.test("production deploy reports aggregate Explore publication health", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const synchronizeIndex = workflow.indexOf(
+    "Synchronize active server API key to Edge fallback",
+  );
+  const digestVerificationIndex = workflow.indexOf(
+    "verify_edge_secret_digest.ts",
+  );
+  const functionDeployIndex = workflow.indexOf(
+    "Deploy affected Edge Functions",
+  );
+
+  assert(synchronizeIndex >= 0);
+  assert(digestVerificationIndex > synchronizeIndex);
+  assert(functionDeployIndex > digestVerificationIndex);
+  assertMatch(
+    workflow,
+    /supabase secrets list[\s\S]*--output json[\s\S]*--allow-env=MERIAN_SUPABASE_SERVER_API_KEY[\s\S]*verify_edge_secret_digest\.ts[\s\S]*--secret-name MERIAN_SUPABASE_SERVER_API_KEY/,
+  );
 
   assertMatch(
     workflow,

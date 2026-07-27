@@ -89,6 +89,9 @@ Deno.test("credential documentation preserves the format-aware header contract",
       "`/v1/projects/<ref>/api-keys?reveal=true`",
       "returns every real current publishable and exact legacy `anon` key for negative smoke controls",
       "creates downstream clients from the environment-resolved key, never from the accepted request value",
+      "A malformed source contributes no authorization candidate and cannot veto an exact key supplied by another valid source.",
+      "compares the exact local key's SHA-256 digest",
+      "`scripts/verify_edge_secret_digest.ts`",
       "Positive smoke requests retry bounded transient deployment statuses for up to six attempts.",
       "`20260727183356_restore_identity_first_media_incident_guard.sql`",
     ]
@@ -235,6 +238,14 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
   assertStringIncludes(
     runbook,
     "a fixed `X-Merian-Handler: 1` marker means the",
+  );
+  assertStringIncludes(
+    runbook,
+    "`services/supabase/scripts/verify_edge_secret_digest.ts` compares the exact selected key's SHA-256 digest",
+  );
+  assertStringIncludes(
+    runbook,
+    "A malformed source contributes no candidate and cannot veto an exact request key from another valid source.",
   );
   assertStringIncludes(
     runbook,

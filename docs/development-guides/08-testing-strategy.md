@@ -1109,7 +1109,10 @@ production checks:
   conflicting-header rejection; missing configuration; and representative
   anon/publishable/authenticated mismatches. It also rejects a publishable key,
   anon/user JWT, short placeholder, incomplete HS256 signature, malformed
-  dictionary entry, or opaque key placed in the legacy variable.
+  dictionary entry, or opaque key placed only in the legacy variable.
+  Cross-source cases prove a malformed scalar or dictionary never vetoes an
+  exact key from another valid source, never becomes a candidate itself, and
+  still fails configuration when no valid key matches.
 - `_shared/serviceRoleClient_test.ts` executes PostgREST, Storage, Functions,
   and Auth Admin requests through an intercepted transport. It proves
   `sb_secret_...` keys are sent only as `apikey`, legacy service-role JWTs
@@ -1128,6 +1131,10 @@ production checks:
   masked or malformed values and loosely named legacy keys, returns every exact
   public negative-control key, and retains the exact legacy service-role
   fallback.
+- `scripts/verify_edge_secret_digest_test.ts` proves the deploy gate accepts
+  exactly one strict named SHA-256 digest, compares it to the exact classified
+  local key, and rejects missing, duplicate, malformed, mismatched, or
+  malformed-key input without exposing either value.
 - `_tests/serviceRoleAuth.test.ts` proves the non-reserved
   `MERIAN_SUPABASE_SERVER_API_KEY` hosted fallback accepts only a complete
   classified server key, remains available during a malformed hosted-dictionary
@@ -1157,9 +1164,10 @@ production checks:
   Key retrieval uses the tested Management API resolver because the CLI key-list
   command does not reveal a callable current secret. Before deployment, the
   workflow masks and synchronizes the selected value to
-  `MERIAN_SUPABASE_SERVER_API_KEY`; static coverage requires that ordering.
-  Positive calls make six bounded retries for transient routing/deployment
-  statuses. Final Function failures classify only whether the fixed
+  `MERIAN_SUPABASE_SERVER_API_KEY`, then verifies the stored hash before
+  Function rollout; static coverage requires that ordering. Positive calls make
+  six bounded retries for transient routing/deployment statuses. Final Function
+  failures classify only whether the fixed
   `X-Merian-Handler: 1` marker was present; Data API failures use separate
   PostgREST/RPC guidance and never expect a Function marker. Both paths keep the
   body and request-ID value private and never print a variable header value. Do
@@ -1175,6 +1183,7 @@ Run the focused Deno tests from `services`:
 deno test --frozen --config supabase/functions/deno.json \
   --allow-read \
   supabase/scripts/resolve_project_api_keys_test.ts \
+  supabase/scripts/verify_edge_secret_digest_test.ts \
   supabase/functions/_shared/serviceRoleClient_test.ts \
   supabase/functions/_tests/serviceRoleAuth.test.ts \
   supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
