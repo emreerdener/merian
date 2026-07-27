@@ -927,26 +927,33 @@ struct FieldTripAPIModelsTests {
         )
 
         let expectedLocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
-            .access, .difficulty, .level, .location
+            .status, .access, .difficulty, .level, .location
         ]
         let expectedUnlocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
-            .access, .difficulty, .level
+            .status, .access, .difficulty, .level
         ]
 
         #expect(locatedTags.map(\.kind) == expectedLocatedKinds)
         #expect(
             locatedTags.map(\.title) == [
-                "Pro", "Starter", "Level 1", "Austin, TX"
+                "Not started", "Pro", "Starter", "Level 1", "Austin, TX"
             ]
         )
-        #expect(locatedTags.first?.systemImage == "lock.fill")
+        #expect(
+            locatedTags.first(where: { $0.kind == .access })?.systemImage ==
+                "lock.fill"
+        )
         #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
         #expect(unlocatedTags.allSatisfy { $0.kind != .visibility })
         let privateStartedTags = FieldTripTemplatePresentation.cardTags(
             for: privateStarted,
             locationLabel: nil
         )
-        #expect(privateStartedTags.map(\.title) == ["Private", "Starter", "Level 1"])
+        #expect(
+            privateStartedTags.map(\.title) == [
+                "Started", "Private", "Starter", "Level 1"
+            ]
+        )
         #expect(
             privateStartedTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.slash.fill"
@@ -955,7 +962,11 @@ struct FieldTripAPIModelsTests {
             for: published,
             locationLabel: nil
         )
-        #expect(publishedTags.map(\.title) == ["Public", "Starter", "Level 1"])
+        #expect(
+            publishedTags.map(\.title) == [
+                "Started", "Public", "Starter", "Level 1"
+            ]
+        )
         #expect(
             publishedTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.fill"

@@ -2,6 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS plpgsql_check WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 
 DO $test$

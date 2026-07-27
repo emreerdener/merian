@@ -15,10 +15,29 @@ const publicationContractMigrationUrl = new URL(
   "../../migrations/20260726174555_align_explore_author_publication_contract.sql",
   import.meta.url,
 );
+const projectionReadGrantMigrationUrl = new URL(
+  "../../migrations/20260727035937_grant_authenticated_explore_projection_reads.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
 }
+
+Deno.test("Explore projection has explicit least-privilege source reads", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(projectionReadGrantMigrationUrl),
+  );
+
+  assertStringIncludes(
+    sql,
+    "GRANT SELECT ON TABLE public.explore_posts, public.scans, public.users, public.species_dictionary, public.explore_observation_projection, public.taxon_nodes, public.explore_post_likes, public.explore_community_requests, public.explore_post_media, public.user_blocks TO authenticated",
+  );
+  assert(
+    !sql.includes("TO anon") && !sql.includes("TO PUBLIC"),
+    "Projection source-table reads must not be granted to anonymous callers.",
+  );
+});
 
 Deno.test("Explore media lifecycle is reversible and independent from publication intent", async () => {
   const enumSql = normalized(await Deno.readTextFile(enumMigrationUrl));

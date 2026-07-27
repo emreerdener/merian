@@ -617,10 +617,10 @@ $$;
 
 RESET ROLE;
 
--- Simulate PostgREST's real connection boundary: the login/session role stays
--- `authenticator`, while user impersonation is carried by the protected
--- standard `role` setting. This is the only database signal available to an
--- opaque `sb_secret_...` key because it has no JWT role claim.
+-- User impersonation is carried by PostgreSQL's protected standard `role`
+-- setting. Keep the test portable to pg_prove login roles that cannot change
+-- session authorization while proving that an owner login cannot bypass the
+-- guard after impersonating a lower-privilege role.
 CREATE FUNCTION public.privileged_routine_role_guard_probe()
 RETURNS VOID
 LANGUAGE PLPGSQL
@@ -635,7 +635,6 @@ $$;
 GRANT EXECUTE ON FUNCTION public.privileged_routine_role_guard_probe()
     TO authenticated, service_role;
 
-SET SESSION AUTHORIZATION authenticator;
 SET LOCAL ROLE authenticated;
 
 DO $$
@@ -665,7 +664,6 @@ END;
 $$;
 
 RESET ROLE;
-RESET SESSION AUTHORIZATION;
 
 SELECT extensions.pass(
     'privileged routine ACL, search_path, role and key transport guards, allowlist, defaults, and batch bounds hold'
