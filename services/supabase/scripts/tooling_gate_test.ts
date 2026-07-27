@@ -185,7 +185,7 @@ Deno.test("production deploy reports aggregate Explore publication health", asyn
   );
   assertMatch(
     workflow,
-    /server_headers=\([\s\S]*apikey: \$\{SUPABASE_SERVER_API_KEY\}[\s\S]*if \[\[ "\$SUPABASE_SERVER_API_KEY" != sb_secret_\* \]\][\s\S]*Authorization: Bearer \$\{SUPABASE_SERVER_API_KEY\}/,
+    /server_headers=\([\s\S]*if \[\[ "\$SUPABASE_SERVER_API_KEY" != sb_secret_\* \]\][\s\S]*apikey: \$\{SUPABASE_SERVER_API_KEY\}[\s\S]*Authorization: Bearer \$\{SUPABASE_SERVER_API_KEY\}[\s\S]*x-supabase-server-key: \$\{SUPABASE_SERVER_API_KEY\}/,
   );
   assertMatch(
     workflow,
