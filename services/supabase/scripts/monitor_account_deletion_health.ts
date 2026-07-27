@@ -116,7 +116,7 @@ async function fetchAccountDeletionHealth(
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        ...serviceRoleRequestHeaders(serverApiKey),
+        ...serviceRoleRequestHeaders(serverApiKey, "database"),
         "Content-Type": "application/json",
       },
       body: "{}",
