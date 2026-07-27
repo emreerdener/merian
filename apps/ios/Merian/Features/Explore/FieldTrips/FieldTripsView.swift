@@ -62,6 +62,12 @@ enum FieldTripTemplatePresentation {
     ) -> [FieldTripTemplateTagPresentation] {
         var tags: [FieldTripTemplateTagPresentation] = []
 
+        let isStarted = template.catalogState != .incomplete
+        tags.append(.init(
+            kind: .status,
+            title: isStarted ? "Started" : "Not started"
+        ))
+
         if let progress = template.viewerProgress {
             if progress.isPublished {
                 tags.append(.init(kind: .visibility, title: "Public", systemImage: "eye.fill"))
@@ -94,6 +100,7 @@ enum FieldTripTemplatePresentation {
 
 struct FieldTripTemplateTagPresentation: Equatable, Identifiable {
     enum Kind: String, Equatable {
+        case status
         case access
         case difficulty
         case level
@@ -1548,6 +1555,17 @@ private struct FieldTripTemplateCard: View {
         )
     }
 
+    private var ctaTitle: String {
+        switch template.catalogState {
+        case .completed:
+            "View field trip"
+        case .inProgress:
+            "Continue field trip"
+        case .incomplete:
+            "View field trip"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
@@ -1609,15 +1627,25 @@ private struct FieldTripTemplateCard: View {
             }
 
             FieldTripTemplateTagRow(tags: tags)
-                .padding(.bottom, template.catalogState == .incomplete ? 12 : 16)
+                .padding(.bottom, 12)
 
             if template.catalogState == .incomplete {
                 Button(action: onOpenTemplate) {
-                    Text("View field trip")
+                    Text(ctaTitle)
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            } else {
+                Button(action: onOpenTemplate) {
+                    Text(ctaTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
                 .controlSize(.large)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
@@ -3497,7 +3525,14 @@ private struct FieldTripTemplateSkeletonCard: View {
                 .padding(.horizontal, 16)
             }
             .scrollDisabled(true)
-            .padding(.bottom, 16)
+            .padding(.bottom, 12)
+
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)
         .background(Color(uiColor: .secondarySystemGroupedBackground))

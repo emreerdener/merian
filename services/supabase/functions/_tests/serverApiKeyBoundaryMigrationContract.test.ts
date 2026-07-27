@@ -27,7 +27,7 @@ Deno.test("server-key migration centralizes key-format-aware pg_net headers", as
       "'Authorization', 'Bearer ' || server_api_key",
       "REVOKE ALL ON FUNCTION internal.server_api_request_headers(TEXT) FROM PUBLIC, anon, authenticated, service_role",
       "pg_catalog.PG_GET_FUNCTIONDEF(routine_row.oid)",
-      "UPDATE cron.job SET command = patched_command",
+      "PERFORM cron.alter_job( job_row.jobid, command := patched_command )",
       "A pg_net routine still uses Bearer-only server-key transport.",
       "An active cron job still uses Bearer-only server-key transport.",
     ]
@@ -45,6 +45,10 @@ Deno.test("server-key migration centralizes key-format-aware pg_net headers", as
   assert(
     !sql.slice(helperStart, helperEnd).includes(" STRICT "),
     "A null Vault key must execute the helper and fail rather than silently returning null headers.",
+  );
+  assert(
+    !sql.includes("UPDATE cron.job"),
+    "Cron jobs must be changed through cron.alter_job rather than direct catalog writes.",
   );
 });
 

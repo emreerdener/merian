@@ -249,9 +249,10 @@ BEGIN
                 job_row.jobid;
         END IF;
 
-        UPDATE cron.job
-        SET command = patched_command
-        WHERE jobid = job_row.jobid;
+        PERFORM cron.alter_job(
+            job_row.jobid,
+            command := patched_command
+        );
     END LOOP;
 
     IF EXISTS (
