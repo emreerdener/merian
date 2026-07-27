@@ -10,11 +10,11 @@
  */
 
 import {
-  adminApiHeaders,
   type AuditSnapshotRow,
   type GhostUserAuditReport,
-  requiredAdminApiKey,
 } from "./audit_ghost_users.ts";
+import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface CleanupArgs {
   snapshotJsonPath: string | null;
@@ -94,9 +94,8 @@ export async function runCleanup(rawArgs: string[]): Promise<number> {
       );
     }
 
-    const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-    const adminApiKey = requiredAdminApiKey(Deno.env.toObject());
-    await executeCleanup(result, supabaseUrl, adminApiKey);
+    const supabase = createServiceRoleClientFromEnvironment();
+    await executeCleanup(result, supabase);
   }
 
   printCleanupResult(result);
@@ -260,26 +259,23 @@ export function cleanupEligibilityIssues(
 
 async function executeCleanup(
   result: CleanupResult,
-  supabaseUrl: string,
-  adminApiKey: string,
+  supabase: SupabaseClient,
 ): Promise<void> {
   for (const candidate of result.candidates) {
     let reservationToken: string | null = null;
     try {
       reservationToken = await reserveGhostUserBulkCleanup(
-        supabaseUrl,
-        adminApiKey,
+        supabase,
         candidate.user_id,
       );
-      await deleteAuthUser(supabaseUrl, adminApiKey, candidate.user_id);
+      await deleteAuthUser(supabase, candidate.user_id);
       result.deleted_auth_users.push(candidate.user_id);
       if (candidate.public_user_exists) {
-        await deletePublicUser(supabaseUrl, adminApiKey, candidate.user_id);
+        await deletePublicUser(supabase, candidate.user_id);
         result.deleted_public_users.push(candidate.user_id);
       }
       await finishGhostUserBulkCleanup(
-        supabaseUrl,
-        adminApiKey,
+        supabase,
         candidate.user_id,
         reservationToken,
         true,
@@ -290,8 +286,7 @@ async function executeCleanup(
       if (reservationToken) {
         try {
           await finishGhostUserBulkCleanup(
-            supabaseUrl,
-            adminApiKey,
+            supabase,
             candidate.user_id,
             reservationToken,
             false,
@@ -318,102 +313,70 @@ async function executeCleanup(
 }
 
 async function reserveGhostUserBulkCleanup(
-  supabaseUrl: string,
-  adminApiKey: string,
+  supabase: SupabaseClient,
   userId: string,
 ): Promise<string> {
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/rpc/reserve_ghost_user_bulk_cleanup`,
+  const { data, error } = await supabase.rpc(
+    "reserve_ghost_user_bulk_cleanup",
     {
-      method: "POST",
-      headers: adminApiHeaders(adminApiKey),
-      body: JSON.stringify({
-        p_ghost_user_id: userId,
-        p_lease_minutes: 15,
-      }),
+      p_ghost_user_id: userId,
+      p_lease_minutes: 15,
     },
   );
-  const text = await response.text();
-  if (!response.ok) {
+
+  if (error) {
     throw new Error(
-      `ghost cleanup reservation returned HTTP ${response.status}: ${text}`,
+      `ghost cleanup reservation returned HTTP ${error.code}: ${error.message}`,
     );
   }
 
-  const token: unknown = text ? JSON.parse(text) : null;
-  if (typeof token !== "string" || token.trim() === "") {
+  if (typeof data !== "string" || data.trim() === "") {
     throw new Error("ghost cleanup reservation returned no token");
   }
-  return token;
+  return data;
 }
 
 async function finishGhostUserBulkCleanup(
-  supabaseUrl: string,
-  adminApiKey: string,
+  supabase: SupabaseClient,
   userId: string,
   reservationToken: string,
   succeeded: boolean,
   errorCode: string | null,
 ): Promise<void> {
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/rpc/finish_ghost_user_bulk_cleanup`,
-    {
-      method: "POST",
-      headers: adminApiHeaders(adminApiKey),
-      body: JSON.stringify({
-        p_ghost_user_id: userId,
-        p_reservation_token: reservationToken,
-        p_succeeded: succeeded,
-        p_error_code: errorCode,
-      }),
-    },
-  );
-  const text = await response.text();
-  if (!response.ok) {
+  const { error } = await supabase.rpc("finish_ghost_user_bulk_cleanup", {
+    p_ghost_user_id: userId,
+    p_reservation_token: reservationToken,
+    p_succeeded: succeeded,
+    p_error_code: errorCode,
+  });
+
+  if (error) {
     throw new Error(
-      `ghost cleanup reservation finish returned HTTP ${response.status}: ${text}`,
+      `ghost cleanup reservation finish returned HTTP ${error.code}: ${error.message}`,
     );
   }
 }
 
 async function deleteAuthUser(
-  supabaseUrl: string,
-  adminApiKey: string,
+  supabase: SupabaseClient,
   userId: string,
 ): Promise<void> {
-  const response = await fetch(
-    `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`,
-    {
-      method: "DELETE",
-      headers: adminApiHeaders(adminApiKey),
-    },
-  );
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`auth delete returned HTTP ${response.status}: ${text}`);
+  const { error } = await supabase.auth.admin.deleteUser(userId);
+  if (error) {
+    throw new Error(
+      `auth delete returned HTTP ${error.status}: ${error.message}`,
+    );
   }
 }
 
 async function deletePublicUser(
-  supabaseUrl: string,
-  adminApiKey: string,
+  supabase: SupabaseClient,
   userId: string,
 ): Promise<void> {
-  const headers = {
-    ...(adminApiHeaders(adminApiKey) as Record<string, string>),
-    "Prefer": "return=minimal",
-  };
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/users?id=eq.${encodeURIComponent(userId)}`,
-    {
-      method: "DELETE",
-      headers,
-    },
-  );
-  const text = await response.text();
-  if (!response.ok) {
+  const { error } = await supabase.from("users").delete().eq("id", userId);
+  if (error) {
     throw new Error(
-      `public.users delete returned HTTP ${response.status}: ${text}`,
+      `public.users delete returned error: ${error.message}`,
     );
   }
 }
@@ -529,11 +492,6 @@ function parsePositiveInteger(value: string, flag: string): number {
   return parsed;
 }
 
-function requiredEnv(name: string): string {
-  const value = Deno.env.get(name)?.trim();
-  if (!value) throw new Error(`${name} is required.`);
-  return value;
-}
 
 function normalizedText(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;

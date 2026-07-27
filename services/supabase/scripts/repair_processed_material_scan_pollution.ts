@@ -15,11 +15,8 @@
  *     services/supabase/scripts/repair_processed_material_scan_pollution.ts --apply
  */
 
-import {
-  resolveServerApiKey,
-  serverApiKeyOptionsFromEnvironment,
-  serviceRoleRequestHeaders,
-} from "../functions/_shared/serviceRoleAuth.ts";
+import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface RepairArgs {
   apply: boolean;
@@ -95,16 +92,10 @@ if (import.meta.main) {
 
 export async function runRepair(rawArgs: string[]): Promise<number> {
   const args = parseArgs(rawArgs);
-  const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const key = resolveServerApiKey(serverApiKeyOptionsFromEnvironment());
-  if (!key.ok) {
-    throw new Error(`Missing server API key: ${key.reason}`);
-  }
-  const serviceRoleKey = key.serverApiKey;
+  const supabase = createServiceRoleClientFromEnvironment();
 
   const candidates = await fetchCandidateScans(
-    supabaseUrl,
-    serviceRoleKey,
+    supabase,
     args.limit,
   );
   const plannedRepairs = candidates.flatMap(planRepairForScan);
@@ -117,9 +108,9 @@ export async function runRepair(rawArgs: string[]): Promise<number> {
   }
 
   for (const repair of plannedRepairs) {
-    await applyScanRepair(supabaseUrl, serviceRoleKey, repair);
+    await applyScanRepair(supabase, repair);
     if (repair.dictionaryCommonNamesPatch) {
-      await applyDictionaryRepair(supabaseUrl, serviceRoleKey, repair);
+      await applyDictionaryRepair(supabase, repair);
     }
   }
 
@@ -176,96 +167,70 @@ function repairedCommonNames(
 }
 
 async function fetchCandidateScans(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: SupabaseClient,
   limit: number,
 ): Promise<CandidateScanRow[]> {
-  const params = new URLSearchParams({
-    select:
+  const { data, error } = await supabase
+    .from("scans")
+    .select(
       "id,species_id,confirmed_species_id,ai_reasoning,extracted_visual_traits,candidates,species_dictionary!species_id(id,scientific_name,common_names)",
-    is_biological_subject: "eq.true",
-    species_id: "not.is.null",
-    order: "timestamp.desc",
-    limit: String(limit),
-  });
-  return await restJson<CandidateScanRow[]>(
-    `${supabaseUrl}/rest/v1/scans?${params}`,
-    serviceRoleKey,
-  );
+    )
+    .eq("is_biological_subject", true)
+    .not("species_id", "is", null)
+    .order("timestamp", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch candidate scans: ${error.message} (Code: ${error.code})`,
+    );
+  }
+  return data as unknown as CandidateScanRow[];
 }
 
 async function applyScanRepair(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: SupabaseClient,
   repair: PlannedScanRepair,
 ): Promise<void> {
-  const params = new URLSearchParams({ id: `eq.${repair.scanId}` });
-  await restJson(
-    `${supabaseUrl}/rest/v1/scans?${params}`,
-    serviceRoleKey,
-    {
-      method: "PATCH",
-      body: {
-        species_id: null,
-        confirmed_species_id: null,
-        is_biological_subject: false,
-        ecology_type: "unknown",
-        is_invasive: false,
-        invasive_status_region: null,
-        invasive_rationale: null,
-        invasive_confidence: null,
-        life_stage: "unknown",
-        reproductive_condition: "not_applicable",
-        sex: null,
-        sex_confidence: null,
-        sex_evidence: null,
-        individual_count: null,
-        ecological_interactions: [],
-        candidates: null,
-      },
-    },
-  );
+  const { error } = await supabase
+    .from("scans")
+    .update({
+      species_id: null,
+      confirmed_species_id: null,
+      is_biological_subject: false,
+      ecology_type: "unknown",
+      is_invasive: false,
+      invasive_status_region: null,
+      invasive_rationale: null,
+      invasive_confidence: null,
+      life_stage: "unknown",
+      reproductive_condition: "not_applicable",
+      sex: null,
+      sex_confidence: null,
+      sex_evidence: null,
+      individual_count: null,
+      ecological_interactions: [],
+      candidates: null,
+    })
+    .eq("id", repair.scanId);
+
+  if (error) {
+    throw new Error(`Failed to apply scan repair: ${error.message}`);
+  }
 }
 
 async function applyDictionaryRepair(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: SupabaseClient,
   repair: PlannedScanRepair,
 ): Promise<void> {
-  const params = new URLSearchParams({ id: `eq.${repair.speciesId}` });
-  await restJson(
-    `${supabaseUrl}/rest/v1/species_dictionary?${params}`,
-    serviceRoleKey,
-    {
-      method: "PATCH",
-      body: { common_names: repair.dictionaryCommonNamesPatch },
-    },
-  );
-}
+  const { error } = await supabase
+    .from("species_dictionary")
+    .update({ common_names: repair.dictionaryCommonNamesPatch })
+    .eq("id", repair.speciesId);
 
-async function restJson<T>(
-  url: string,
-  serviceRoleKey: string,
-  options: { method?: string; body?: Record<string, unknown> } = {},
-): Promise<T> {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      ...serviceRoleRequestHeaders(serviceRoleKey, "database"),
-      "Content-Type": "application/json",
-      "Prefer": "return=representation",
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  const text = await response.text();
-  const json = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(
-      `${url} returned HTTP ${response.status}: ${JSON.stringify(json)}`,
-    );
+  if (error) {
+    throw new Error(`Failed to apply dictionary repair: ${error.message}`);
   }
-  return json as T;
 }
 
 function printPlannedRepairs(
@@ -304,8 +269,3 @@ function parseArgs(rawArgs: string[]): RepairArgs {
   return args;
 }
 
-function requiredEnv(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) throw new Error(`Missing required env: ${name}`);
-  return value;
-}

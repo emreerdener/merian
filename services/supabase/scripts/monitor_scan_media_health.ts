@@ -13,10 +13,8 @@
  *     --summary-md /tmp/scan-media-health.md
  */
 
-import {
-  requireServerApiKeyFromEnvironment,
-  serviceRoleRequestHeaders,
-} from "../functions/_shared/serviceRoleAuth.ts";
+import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type MonitorFailurePolicy = "critical" | "warning" | "never";
 export type ScanMediaHealthStatus = "ok" | "warning" | "critical";
@@ -93,17 +91,16 @@ if (import.meta.main) {
 
 export async function runMonitor(rawArgs: string[]): Promise<number> {
   const args = parseMonitorArgs(rawArgs);
-  const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const serverApiKey = requireServerApiKeyFromEnvironment();
+  const supabase = createServiceRoleClientFromEnvironment();
+
   const health = await postJson(
-    `${supabaseUrl}/functions/v1/scan-media-health`,
+    supabase,
     {
       limit: args.limit,
       recent_scan_limit: args.recentScanLimit,
       stuck_after_minutes: args.stuckAfterMinutes,
       stale_asset_after_minutes: args.staleAssetAfterMinutes,
     },
-    serverApiKey,
   );
   const summary = buildMonitorSummary(health, args, new Date());
 
@@ -121,27 +118,19 @@ export async function runMonitor(rawArgs: string[]): Promise<number> {
 }
 
 async function postJson(
-  url: string,
+  supabase: SupabaseClient,
   body: Record<string, unknown>,
-  serverApiKey: string,
 ): Promise<ScanMediaHealthResponse> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      ...serviceRoleRequestHeaders(serverApiKey),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const { data, error } = await supabase.functions.invoke(
+    "scan-media-health",
+    { body },
+  );
 
-  const text = await response.text();
-  const json = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(
-      `${url} returned HTTP ${response.status}: ${JSON.stringify(json)}`,
-    );
+  if (error) {
+    throw new Error(`scan-media-health returned an error: ${error.message}`);
   }
-  return assertSuccessfulHealthResponse(json);
+
+  return assertSuccessfulHealthResponse(data);
 }
 
 export function buildMonitorSummary(
@@ -616,8 +605,3 @@ function parseInteger(
   return parsed;
 }
 
-function requiredEnv(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) throw new Error(`Missing required env ${name}.`);
-  return value;
-}

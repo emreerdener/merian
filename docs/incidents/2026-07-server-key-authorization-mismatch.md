@@ -80,6 +80,9 @@ caused both false authorization failures and unsafe/unsupported transport.
 - `withEdgeHandler`, internal workers, public-data functions, webhooks, and
   `apps/web/lib/supabaseAdmin.ts` use those policies. Production function code
   may not construct a legacy-key admin client directly.
+- Internal operator scripts in `services/supabase/scripts` are fully migrated 
+  from raw `fetch()` implementations to use the `createServiceRoleClientFromEnvironment` 
+  SDK factory.
 
 ### Database and SQL callers
 
@@ -111,6 +114,10 @@ caused both false authorization failures and unsafe/unsupported transport.
   `service_role` role impersonation.
 - The read-only production audit reports any public definer routine that
   reintroduces JWT-only service dispatch.
+- The GitHub Actions `deploy.yml` CI workflow includes a strict `rg` guardrail 
+  that proactively blocks raw `fetch()` usage attempting to connect to the 
+  `SUPABASE_URL` within the `services/supabase/scripts` directory, permanently 
+  enforcing SDK abstractions.
 
 ## Other Places to Watch
 

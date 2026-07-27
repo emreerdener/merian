@@ -18,10 +18,8 @@
  *     --summary-md /tmp/merian-ghost-user-audit.md
  */
 
-import {
-  resolveServerApiKey,
-  serviceRoleRequestHeaders,
-} from "../functions/_shared/serviceRoleAuth.ts";
+import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type UUID = string;
 
@@ -393,36 +391,30 @@ if (import.meta.main) {
 
 export async function runAudit(rawArgs: string[]): Promise<number> {
   const args = parseAuditArgs(rawArgs);
-  const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const adminApiKey = requiredAdminApiKey(Deno.env.toObject());
+  const supabase = createServiceRoleClientFromEnvironment();
   const allowlist = await loadAllowlist(args.allowlistPath);
 
   const authUsers = await fetchAuthUsers(
-    supabaseUrl,
-    adminApiKey,
+    supabase,
     args.pageSize,
   );
   const publicUsers = await fetchPublicUsers(
-    supabaseUrl,
-    adminApiKey,
+    supabase,
     args.pageSize,
   );
   const activityResult = await fetchActivityCounts(
-    supabaseUrl,
-    adminApiKey,
+    supabase,
     args.pageSize,
   );
   const protectedMergeSources = await fetchProtectedGhostMergeSources(
-    supabaseUrl,
-    adminApiKey,
+    supabase,
   );
   addProtectedGhostMergeActivity(
     activityResult.activityByUserId,
     protectedMergeSources,
   );
   const defaultUsernameResolver = makeDefaultUsernameResolver(
-    supabaseUrl,
-    adminApiKey,
+    supabase,
   );
   const report = await buildAuditReport({
     authUsers,
@@ -661,18 +653,25 @@ function hasPaidOrPassState(publicUser: PublicUserRow | null): boolean {
 }
 
 async function fetchAuthUsers(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: SupabaseClient,
   pageSize: number,
 ): Promise<AuthUser[]> {
   const users: AuthUser[] = [];
   let page = 1;
 
   while (true) {
-    const url =
-      `${supabaseUrl}/auth/v1/admin/users?page=${page}&per_page=${pageSize}`;
-    const json = await fetchJson<{ users?: AuthUser[] }>(url, serviceRoleKey);
-    const pageUsers = Array.isArray(json.users) ? json.users as AuthUser[] : [];
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page: page,
+      perPage: pageSize,
+    });
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch auth users: ${error.message} (Code: ${error.status})`,
+      );
+    }
+
+    const pageUsers = data.users as AuthUser[];
     users.push(...pageUsers);
     if (pageUsers.length < pageSize) break;
     page += 1;
@@ -682,24 +681,24 @@ async function fetchAuthUsers(
 }
 
 async function fetchPublicUsers(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: SupabaseClient,
   pageSize: number,
 ): Promise<PublicUserRow[]> {
   const rows: PublicUserRow[] = [];
   let offset = 0;
 
   while (true) {
-    const params = new URLSearchParams({
-      select: PUBLIC_USER_SELECT,
-      order: "created_at.asc",
-      limit: String(pageSize),
-      offset: String(offset),
-    });
-    const pageRows = await fetchJson<PublicUserRow[]>(
-      `${supabaseUrl}/rest/v1/users?${params}`,
-      serviceRoleKey,
-    );
+    const { data, error } = await supabase
+      .from("users")
+      .select(PUBLIC_USER_SELECT)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch public users: ${error.message}`);
+    }
+
+    const pageRows = data as unknown as PublicUserRow[];
     rows.push(...pageRows);
     if (pageRows.length < pageSize) break;
     offset += pageSize;
@@ -709,8 +708,7 @@ async function fetchPublicUsers(
 }
 
 async function fetchActivityCounts(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: SupabaseClient,
   pageSize: number,
 ): Promise<{
   activityByUserId: Map<string, ActivityCounts>;
@@ -722,8 +720,7 @@ async function fetchActivityCounts(
   for (const source of ACTIVITY_SOURCES) {
     try {
       const values = await fetchColumnValues(
-        supabaseUrl,
-        serviceRoleKey,
+        supabase,
         source,
         pageSize,
       );
@@ -752,25 +749,19 @@ async function fetchActivityCounts(
 }
 
 async function fetchProtectedGhostMergeSources(
-  supabaseUrl: string,
-  adminApiKey: string,
+  supabase: SupabaseClient,
 ): Promise<string[]> {
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/rpc/list_protected_ghost_profile_merge_sources`,
-    {
-      method: "POST",
-      headers: adminApiHeaders(adminApiKey),
-      body: "{}",
-    },
+  const { data, error } = await supabase.rpc(
+    "list_protected_ghost_profile_merge_sources",
   );
-  const text = await response.text();
-  if (!response.ok) {
+
+  if (error) {
     throw new Error(
-      `protected ghost-merge source lookup returned HTTP ${response.status}: ${text}`,
+      `protected ghost-merge source lookup returned HTTP ${error.code}: ${error.message}`,
     );
   }
 
-  const rows = text ? JSON.parse(text) as ProtectedGhostMergeSourceRow[] : [];
+  const rows = data as ProtectedGhostMergeSourceRow[];
   return rows
     .map((row) => row.ghost_user_id)
     .filter((value): value is string =>
@@ -792,8 +783,7 @@ export function addProtectedGhostMergeActivity(
 }
 
 async function fetchColumnValues(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: SupabaseClient,
   source: ActivitySource,
   pageSize: number,
 ): Promise<string[]> {
@@ -801,16 +791,18 @@ async function fetchColumnValues(
   let offset = 0;
 
   while (true) {
-    const params = new URLSearchParams({
-      select: source.column,
-      limit: String(pageSize),
-      offset: String(offset),
-    });
-    const rows = await fetchJson<Array<Record<string, unknown>>>(
-      `${supabaseUrl}/rest/v1/${source.table}?${params}`,
-      serviceRoleKey,
-    );
+    const { data, error } = await supabase
+      .from(source.table)
+      .select(source.column)
+      .range(offset, offset + pageSize - 1);
 
+    if (error) {
+      throw new Error(
+        `Failed to fetch column ${source.column} from ${source.table}: ${error.message}`,
+      );
+    }
+
+    const rows = data as unknown as Array<Record<string, unknown>>;
     for (const row of rows) {
       const value = row[source.column];
       if (typeof value === "string" && value.trim() !== "") {
@@ -826,46 +818,17 @@ async function fetchColumnValues(
 }
 
 function makeDefaultUsernameResolver(
-  supabaseUrl: string,
-  adminApiKey: string,
+  supabase: SupabaseClient,
 ): (userId: string) => Promise<string | null> {
   return async (userId: string) => {
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/rpc/build_default_public_username`,
-      {
-        method: "POST",
-        headers: adminApiHeaders(adminApiKey),
-        body: JSON.stringify({ target_user_id: userId }),
-      },
+    const { data, error } = await supabase.rpc(
+      "build_default_public_username",
+      { target_user_id: userId },
     );
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${text}`);
+    if (error) {
+      throw new Error(`RPC Error: ${error.message}`);
     }
-    const value = text ? JSON.parse(text) : null;
-    return typeof value === "string" ? value : null;
-  };
-}
-
-async function fetchJson<T>(
-  url: string,
-  adminApiKey: string,
-): Promise<T> {
-  const response = await fetch(url, {
-    headers: adminApiHeaders(adminApiKey),
-  });
-  const text = await response.text();
-  const json = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(`${url} returned HTTP ${response.status}: ${text}`);
-  }
-  return json as T;
-}
-
-export function adminApiHeaders(adminApiKey: string): HeadersInit {
-  return {
-    ...serviceRoleRequestHeaders(adminApiKey, "auth"),
-    "Content-Type": "application/json",
+    return typeof data === "string" ? data : null;
   };
 }
 
@@ -1131,47 +1094,6 @@ Options:
 `,
   );
   Deno.exit(0);
-}
-
-function requiredEnv(name: string): string {
-  const value = Deno.env.get(name)?.trim();
-  if (!value) throw new Error(`${name} is required.`);
-  return value;
-}
-
-export function requiredAdminApiKey(
-  environment: Record<string, string>,
-): string {
-  const explicitKey = normalizeAdminApiKey(
-    environment.SUPABASE_SERVER_API_KEY,
-  );
-  const secretKey = normalizeAdminApiKey(environment.SUPABASE_SECRET_KEY);
-  const serviceRoleKey = normalizeAdminApiKey(
-    environment.SUPABASE_SERVICE_ROLE_KEY,
-  );
-  const result = resolveServerApiKey({
-    envServerApiKey: explicitKey ?? secretKey ?? "",
-    envSecretKeys: environment.SUPABASE_SECRET_KEYS,
-    envServiceRoleKey: serviceRoleKey ?? "",
-  });
-  if (!result.ok) {
-    throw new Error(
-      `A supported Supabase server API key is required: ${result.reason}.`,
-    );
-  }
-  return result.serverApiKey;
-}
-
-function normalizeAdminApiKey(value: string | undefined): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-
-  return trimmed
-    .replace(/^SUPABASE_SERVER_API_KEY=/, "")
-    .replace(/^SUPABASE_SECRET_KEY=/, "")
-    .replace(/^SUPABASE_SERVICE_ROLE_KEY=/, "")
-    .replace(/^['"]|['"]$/g, "")
-    .trim();
 }
 
 function providerSummary(authUser: AuthUser | null): string[] {

@@ -7,7 +7,6 @@ import {
   publicIdentityFlags,
   recommendationFor,
   renderCsv,
-  requiredAdminApiKey,
 } from "./audit_ghost_users.ts";
 
 const LEGACY_SERVICE_ROLE_KEY = [
@@ -284,74 +283,7 @@ Deno.test("renderCsv escapes JSON activity source cells", () => {
   assert(csv.includes('"{""scans"":1}"'));
 });
 
-Deno.test("requiredAdminApiKey prefers current Supabase secret key name", () => {
-  assertEquals(
-    requiredAdminApiKey({
-      SUPABASE_SECRET_KEY: CURRENT_SECRET_KEY,
-      SUPABASE_SERVICE_ROLE_KEY: LEGACY_SERVICE_ROLE_KEY,
-    }),
-    CURRENT_SECRET_KEY,
-  );
-});
 
-Deno.test("requiredAdminApiKey prefers the explicit key and supports the platform dictionary", () => {
-  assertEquals(
-    requiredAdminApiKey({
-      SUPABASE_SERVER_API_KEY: EXPLICIT_SECRET_KEY,
-      SUPABASE_SECRET_KEYS: JSON.stringify({
-        default: DEFAULT_SECRET_KEY,
-      }),
-      SUPABASE_SERVICE_ROLE_KEY: LEGACY_SERVICE_ROLE_KEY,
-    }),
-    EXPLICIT_SECRET_KEY,
-  );
-  assertEquals(
-    requiredAdminApiKey({
-      SUPABASE_SECRET_KEYS: JSON.stringify({
-        worker: WORKER_SECRET_KEY,
-        default: DEFAULT_SECRET_KEY,
-      }),
-    }),
-    DEFAULT_SECRET_KEY,
-  );
-});
-
-Deno.test("requiredAdminApiKey accepts legacy service role key name", () => {
-  assertEquals(
-    requiredAdminApiKey({
-      SUPABASE_SERVICE_ROLE_KEY: LEGACY_SERVICE_ROLE_KEY,
-    }),
-    LEGACY_SERVICE_ROLE_KEY,
-  );
-});
-
-Deno.test("requiredAdminApiKey rejects public or malformed privileged configuration", () => {
-  const invalidEnvironments: Array<Record<string, string>> = [
-    { SUPABASE_SERVER_API_KEY: "sb_publishable_public" },
-    { SUPABASE_SERVICE_ROLE_KEY: "not-a-service-role-jwt" },
-    { SUPABASE_SECRET_KEYS: '{"default":"sb_publishable_public"}' },
-  ];
-  for (
-    const environment of invalidEnvironments
-  ) {
-    let rejected = false;
-    try {
-      requiredAdminApiKey(environment);
-    } catch {
-      rejected = true;
-    }
-    assert(rejected, "public or malformed server key must be rejected");
-  }
-});
-
-Deno.test("requiredAdminApiKey tolerates copied shell assignments", () => {
-  assertEquals(
-    requiredAdminApiKey({
-      SUPABASE_SECRET_KEY: `SUPABASE_SECRET_KEY="${CURRENT_SECRET_KEY}"`,
-    }),
-    CURRENT_SECRET_KEY,
-  );
-});
 
 function emptyActivity(): ActivityCounts {
   return { total: 0, bySource: {} };

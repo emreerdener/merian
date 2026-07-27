@@ -131,6 +131,13 @@ jobs:
             supabase/functions \
             supabase/scripts
 
+      - name: Gate against raw fetch usages
+        run: |
+          if grep -rnE "fetch\s*\(\s*(SUPABASE_URL|url)" supabase/scripts; then
+            echo "::error::Raw fetch() calls are forbidden in supabase/scripts. Use createServiceRoleClient() instead."
+            exit 1
+          fi
+
       - name: Test complete Supabase tooling suite
         run: bash supabase/scripts/test_supabase_tooling.sh
 

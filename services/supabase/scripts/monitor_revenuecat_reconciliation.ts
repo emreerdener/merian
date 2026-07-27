@@ -8,10 +8,8 @@
  *   SUPABASE_SERVICE_ROLE_KEY fallback
  */
 
-import {
-  requireServerApiKeyFromEnvironment,
-  serviceRoleRequestHeaders,
-} from "../functions/_shared/serviceRoleAuth.ts";
+import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type RevenueCatMonitorFailurePolicy = "critical" | "warning" | "never";
 export type RevenueCatBacklogStatus = "ok" | "warning" | "critical";
@@ -46,9 +44,6 @@ export interface RevenueCatMonitorSummary {
   health: RevenueCatReconciliationHealth;
 }
 
-const RESPONSE_DEADLINE_MS = 15_000;
-const MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
-
 if (import.meta.main) {
   const exitCode = await runRevenueCatMonitor(Deno.args);
   Deno.exit(exitCode);
@@ -58,12 +53,9 @@ export async function runRevenueCatMonitor(
   rawArgs: string[],
 ): Promise<number> {
   const args = parseRevenueCatMonitorArgs(rawArgs);
-  const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-  const serverApiKey = requireServerApiKeyFromEnvironment();
-  const health = await fetchRevenueCatReconciliationHealth(
-    `${supabaseUrl}/rest/v1/rpc/get_revenuecat_reconciliation_health`,
-    serverApiKey,
-  );
+  const supabase = createServiceRoleClientFromEnvironment();
+
+  const health = await fetchRevenueCatReconciliationHealth(supabase);
   const summary = buildRevenueCatMonitorSummary(health, args, new Date());
 
   printSummary(summary);
@@ -79,80 +71,19 @@ export async function runRevenueCatMonitor(
 }
 
 async function fetchRevenueCatReconciliationHealth(
-  url: string,
-  serverApiKey: string,
+  supabase: SupabaseClient,
 ): Promise<RevenueCatReconciliationHealth> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), RESPONSE_DEADLINE_MS);
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...serviceRoleRequestHeaders(serverApiKey, "database"),
-        "Content-Type": "application/json",
-      },
-      body: "{}",
-      signal: controller.signal,
-    });
-    const text = await readBoundedResponse(response);
-    let json: unknown;
-    try {
-      json = text.length === 0 ? null : JSON.parse(text);
-    } catch {
-      throw new Error(
-        `RevenueCat reconciliation health returned invalid JSON (HTTP ${response.status}).`,
-      );
-    }
-    if (!response.ok) {
-      throw new Error(
-        `RevenueCat reconciliation health returned HTTP ${response.status}.`,
-      );
-    }
-    return assertRevenueCatReconciliationHealth(json);
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+  const { data, error } = await supabase.rpc(
+    "get_revenuecat_reconciliation_health",
+  );
 
-async function readBoundedResponse(response: Response): Promise<string> {
-  const declaredLength = response.headers.get("Content-Length");
-  if (
-    declaredLength !== null &&
-    /^\d+$/.test(declaredLength) &&
-    Number(declaredLength) > MAXIMUM_RESPONSE_BYTES
-  ) {
-    await response.body?.cancel();
-    throw new Error("RevenueCat reconciliation health response is too large.");
-  }
-  if (!response.body) return "";
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAXIMUM_RESPONSE_BYTES) {
-        await reader.cancel();
-        throw new Error(
-          "RevenueCat reconciliation health response is too large.",
-        );
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
+  if (error) {
+    throw new Error(
+      `RevenueCat reconciliation health returned an error: ${error.message} (Code: ${error.code})`,
+    );
   }
 
-  const combined = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(combined);
+  return assertRevenueCatReconciliationHealth(data);
 }
 
 export function assertRevenueCatReconciliationHealth(
@@ -460,8 +391,3 @@ function printSummary(summary: RevenueCatMonitorSummary): void {
   console.log(`should_fail: ${summary.failure_policy.should_fail}`);
 }
 
-function requiredEnv(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) throw new Error(`Missing required env ${name}.`);
-  return value;
-}

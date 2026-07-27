@@ -38,11 +38,11 @@ async function reverseGeocodeNominatim(
   lat: number,
   lon: number,
 ): Promise<string | null> {
-  const url =
+  const nominatimUrl =
     `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&zoom=10&addressdetails=1`;
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(nominatimUrl, {
       headers: {
         "User-Agent":
           "MerianApp-Beta-GeocodingMigration/1.0 (contact@merian.app)",

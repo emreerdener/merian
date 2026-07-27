@@ -12,10 +12,8 @@
  *     --target birds --limit 100 --page-count 20 --update-checklist
  */
 
-import {
-  requireServerApiKeyFromEnvironment,
-  serviceRoleRequestHeaders,
-} from "../functions/_shared/serviceRoleAuth.ts";
+import { createServiceRoleClientFromEnvironment } from "../functions/_shared/serviceRoleClient.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface ImportArgs {
   target: "birds";
@@ -76,11 +74,11 @@ interface StatusResponse {
 }
 
 const args = parseArgs(Deno.args);
-const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-const serverApiKey = requireServerApiKeyFromEnvironment();
+const supabase = createServiceRoleClientFromEnvironment();
 
 const importResponse = await postJson<ImportResponse>(
-  `${supabaseUrl}/functions/v1/sync-community-taxonomy-index`,
+  supabase,
+  "sync-community-taxonomy-index",
   {
     target: args.target,
     ...(args.offset == null ? {} : { offset: args.offset }),
@@ -92,7 +90,8 @@ const importResponse = await postJson<ImportResponse>(
 );
 
 const statusResponse = await postJson<StatusResponse>(
-  `${supabaseUrl}/functions/v1/community-taxonomy-status`,
+  supabase,
+  "community-taxonomy-status",
   {
     view: "coverage",
     target: args.target,
@@ -109,26 +108,20 @@ if (args.updateChecklist && !args.dryRun) {
 }
 
 async function postJson<T>(
-  url: string,
+  supabase: SupabaseClient,
+  functionName: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      ...serviceRoleRequestHeaders(serverApiKey),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const { data, error } = await supabase.functions.invoke(
+    functionName,
+    { body },
+  );
 
-  const text = await response.text();
-  const json = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(
-      `${url} returned HTTP ${response.status}: ${JSON.stringify(json)}`,
-    );
+  if (error) {
+    throw new Error(`${functionName} returned an error: ${error.message}`);
   }
-  return json as T;
+
+  return data as T;
 }
 
 function printSummary(
@@ -476,11 +469,7 @@ function parseInteger(
   return parsed;
 }
 
-function requiredEnv(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) throw new Error(`Missing required env ${name}.`);
-  return value;
-}
+
 
 function capitalize(value: string): string {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
