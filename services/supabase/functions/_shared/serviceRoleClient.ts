@@ -20,7 +20,7 @@ export function createServiceRoleFetchTransport(
   serverApiKey: string,
   fetchImplementation: typeof fetch = fetch,
 ): typeof fetch {
-  const validatedServerApiKey = requireServerApiKey({
+  requireServerApiKey({
     envServerApiKey: serverApiKey,
   });
   const deadlineTransport = createDeadlineFetchTransport(

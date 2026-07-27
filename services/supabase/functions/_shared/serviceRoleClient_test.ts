@@ -11,11 +11,6 @@ import {
   createServiceRoleFetchTransport,
 } from "./serviceRoleClient.ts";
 
-const LEGACY_SERVICE_ROLE_KEY = [
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-  "eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ",
-  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-].join(".");
 const CURRENT_SECRET_KEY = [
   "sb",
   "secret",
