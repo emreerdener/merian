@@ -69,9 +69,9 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   explicit, singular, or legacy fallback can remain available while the
   dictionary is corrected. Legacy JWT keys may use Bearer transport; non-JWT
   secret keys belong only in `apikey`. Callers must use the server-managed
-  environment key—not the accepted request value—for privileged database
-  clients and internal function calls. The shared request-header helper applies
-  the same current/legacy key transport to operational scripts.
+  environment key—not the accepted request value—for privileged database clients
+  and internal function calls. The shared request-header helper applies the same
+  current/legacy key transport to operational scripts.
 - **`serviceRoleClient.ts`**: Creates privileged PostgREST, Storage, Functions,
   and Auth Admin clients from an authenticated or environment-resolved server
   key. Its final fetch adapter removes only supabase-js's exact
