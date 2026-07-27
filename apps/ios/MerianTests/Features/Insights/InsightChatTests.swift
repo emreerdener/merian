@@ -618,4 +618,50 @@ struct InsightChatTests {
         #expect(!viewModel.isUnavailable(for: "scan_2"))
         #expect(viewModel.errorMessage == "Field chat isn't available for this scan.")
     }
+
+    @Test func testConcurrentPresentationRequestsSharePreparationResult() async {
+        let viewModel = InsightChatViewModel(source: .explorePost)
+        let (preparationGate, gateContinuation) = AsyncStream<Void>.makeStream()
+        let (secondRequestStarted, secondRequestContinuation) = AsyncStream<Void>.makeStream()
+        var preparationCount = 0
+        let preparation: @MainActor () async -> Bool = {
+            preparationCount += 1
+            for await _ in preparationGate {
+                break
+            }
+            return true
+        }
+
+        let firstRequest = Task { @MainActor in
+            await viewModel.prepareForPresentation(
+                scanId: "post_1",
+                using: preparation
+            )
+        }
+        while preparationCount == 0 {
+            await Task.yield()
+        }
+
+        let secondRequest = Task { @MainActor in
+            secondRequestContinuation.yield()
+            return await viewModel.prepareForPresentation(
+                scanId: "post_1",
+                using: preparation
+            )
+        }
+        for await _ in secondRequestStarted {
+            break
+        }
+        secondRequestContinuation.finish()
+        gateContinuation.yield()
+        gateContinuation.finish()
+
+        let firstResult = await firstRequest.value
+        let secondResult = await secondRequest.value
+
+        #expect(firstResult)
+        #expect(secondResult)
+        #expect(preparationCount == 1)
+        #expect(!viewModel.isCheckingAvailability)
+    }
 }

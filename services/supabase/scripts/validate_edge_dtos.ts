@@ -293,6 +293,37 @@ function indentation(level: number): string {
   return "    ".repeat(level);
 }
 
+function swiftCodingKeysTypeName(node: ObjectContract): string {
+  if (!node.swift) {
+    throw new ContractValidationError(
+      "Cannot render CodingKeys for an object without Swift metadata.",
+    );
+  }
+  return node.swift.parent ? `${node.swift.name}CodingKeys` : "CodingKeys";
+}
+
+function renderSwiftCodingKeys(
+  node: ObjectContract,
+  level: number,
+  declaration: string,
+): string {
+  const indent = indentation(level);
+  const lines = [`${indent}${declaration} {`];
+  const properties = Object.entries(node.fields)
+    .filter(([, definition]) => definition.swift !== false);
+  for (const [jsonName, definition] of properties) {
+    const identifier = swiftIdentifier(jsonName, definition);
+    const bare = bareSwiftIdentifier(identifier);
+    lines.push(
+      bare === jsonName
+        ? `${indentation(level + 1)}case ${identifier}`
+        : `${indentation(level + 1)}case ${identifier} = "${jsonName}"`,
+    );
+  }
+  lines.push(`${indent}}`);
+  return lines.join("\n");
+}
+
 function renderSwiftStruct(
   node: ObjectContract,
   allObjects: ReadonlyMap<string, ObjectContract>,
@@ -329,23 +360,24 @@ function renderSwiftStruct(
     );
   }
 
-  lines.push("", `${childIndent}enum CodingKeys: String, CodingKey {`);
-  for (const [jsonName, definition] of properties) {
-    const identifier = swiftIdentifier(jsonName, definition);
-    const bare = bareSwiftIdentifier(identifier);
+  const codingKeysType = swiftCodingKeysTypeName(node);
+  if (!node.swift.parent) {
     lines.push(
-      bare === jsonName
-        ? `${indentation(level + 2)}case ${identifier}`
-        : `${indentation(level + 2)}case ${identifier} = "${jsonName}"`,
+      "",
+      renderSwiftCodingKeys(
+        node,
+        level + 1,
+        "enum CodingKeys: String, CodingKey",
+      ),
     );
   }
-  lines.push(`${childIndent}}`, "");
+  lines.push("");
 
   lines.push(
     `${childIndent}init(from decoder: Decoder) throws {`,
     `${
       indentation(level + 2)
-    }let container = try decoder.container(keyedBy: CodingKeys.self)`,
+    }let container = try decoder.container(keyedBy: ${codingKeysType}.self)`,
   );
   for (const [jsonName, definition] of properties) {
     const identifier = swiftIdentifier(jsonName, definition);
@@ -359,12 +391,43 @@ function renderSwiftStruct(
       }${identifier} = try container.${decodeMethod}(${baseType}.self, forKey: .${identifier})`,
     );
   }
-  lines.push(`${childIndent}}`, `${indent}}`);
+  lines.push(`${childIndent}}`);
+
+  if (node.swift.parent) {
+    lines.push(
+      "",
+      `${childIndent}func encode(to encoder: Encoder) throws {`,
+      `${
+        indentation(level + 2)
+      }var container = encoder.container(keyedBy: ${codingKeysType}.self)`,
+    );
+    for (const [jsonName, definition] of properties) {
+      const identifier = swiftIdentifier(jsonName, definition);
+      const encodeMethod = isSwiftPropertyOptional(node, definition)
+        ? "encodeIfPresent"
+        : "encode";
+      lines.push(
+        `${
+          indentation(level + 2)
+        }try container.${encodeMethod}(${identifier}, forKey: .${identifier})`,
+      );
+    }
+    lines.push(`${childIndent}}`);
+  }
+
+  lines.push(`${indent}}`);
   return lines.join("\n");
 }
 
 export function renderGeneratedSwiftDTOBlock(): string {
   const objects = collectSwiftObjects(identifyWireEnvelopeContract);
+  const nested = [...objects.values()]
+    .filter((node) => node.swift?.parent)
+    .sort((left, right) =>
+      (left.swift?.parent ?? "").localeCompare(right.swift?.parent ?? "") ||
+      (left.swift?.declarationOrder ?? 0) -
+        (right.swift?.declarationOrder ?? 0)
+    );
   const topLevel = [...objects.values()]
     .filter((node) => !node.swift?.parent)
     .sort((left, right) =>
@@ -376,6 +439,14 @@ export function renderGeneratedSwiftDTOBlock(): string {
     "// Generated from services/supabase/functions/_shared/identify/contract.ts.",
     "// Do not edit this block by hand; run make generate-edge-dto-contract.",
     "",
+    ...nested.flatMap((node) => [
+      renderSwiftCodingKeys(
+        node,
+        0,
+        `private enum ${swiftCodingKeysTypeName(node)}: String, CodingKey`,
+      ),
+      "",
+    ]),
     ...topLevel.flatMap((node, index) => [
       ...(index > 0 ? [""] : []),
       renderSwiftStruct(node, objects, 0),

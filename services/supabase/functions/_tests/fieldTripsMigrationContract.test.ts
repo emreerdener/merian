@@ -88,6 +88,24 @@ Deno.test("Park Pollinators excludes ants from the Bee or wasp goal and repairs 
   }
 });
 
+Deno.test("Backyard Safari and Park Pollinators omit optional why-it-matters guidance", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260727030926_hide_why_it_matters_for_backyard_and_pollinators.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "SET guide_why_it_matters = NULL",
+      "slug IN ('backyard_safari', 'park_pollinators')",
+      "guide_why_it_matters IS NOT NULL",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("Active Field Trip goals use narrow, verifiable compound rules", async () => {
   const sql = normalized(
     await migrationSql("20260722211636_tighten_field_trip_goal_matching.sql"),

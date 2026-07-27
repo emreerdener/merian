@@ -76,6 +76,11 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
   assert.match(generated, /struct EdgeResponseWrapper: Codable/);
   assert.match(generated, /struct EdgeResponse: Codable/);
   assert.match(generated, /struct IdentificationCandidate: Codable/);
+  assert.match(
+    generated,
+    /private enum TaxonomyCodingKeys: String, CodingKey/,
+  );
+  assert.doesNotMatch(generated, /^        enum CodingKeys/gm);
   assert.match(generated, /let confidence_score: Double\?/);
   assert.match(generated, /let individual_count: Int\?/);
   assert.doesNotMatch(generated, /\bUInt8\b/);
@@ -90,6 +95,10 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
   assert.match(
     generated,
     /distinguishing_feature = try container\.decodeIfPresent\(String\.self/,
+  );
+  assert.match(
+    generated,
+    /try container\.encodeIfPresent\(distinguishing_feature, forKey: \.distinguishing_feature\)/,
   );
 });
 

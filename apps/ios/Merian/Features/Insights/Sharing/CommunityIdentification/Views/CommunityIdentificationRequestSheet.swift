@@ -90,11 +90,20 @@ struct CommunityIdentificationRequestSheet: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(actionTitle) {
+                    Button {
                         onSubmit(trimmedNote, locationSharing)
+                    } label: {
+                        if isSubmitting {
+                            ProgressView()
+                                .controlSize(.small)
+                                .accessibilityHidden(true)
+                        } else {
+                            Text(actionTitle)
+                        }
                     }
                     .tint(.blue)
                     .disabled(isSubmitting || isLoadingExistingRequest)
+                    .accessibilityLabel(isSubmitting ? submissionProgressLabel : actionTitle)
                 }
             }
             .task(id: existingRequestId) {
@@ -113,10 +122,11 @@ struct CommunityIdentificationRequestSheet: View {
     }
 
     private var actionTitle: String {
-        if isSubmitting {
-            return isEditingExistingRequest ? "Saving..." : "Sending..."
-        }
-        return isEditingExistingRequest ? "Save" : "Send"
+        isEditingExistingRequest ? "Save" : "Send"
+    }
+
+    private var submissionProgressLabel: String {
+        isEditingExistingRequest ? "Saving" : "Sending"
     }
 
     private var trimmedNote: String? {

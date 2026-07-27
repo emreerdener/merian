@@ -103,7 +103,7 @@ struct ProfileView: View {
             }
 
             if !viewModel.isGuestUser {
-                Button(role: .destructive) {
+                Button {
                     Task {
                         await viewModel.signOut()
                     }

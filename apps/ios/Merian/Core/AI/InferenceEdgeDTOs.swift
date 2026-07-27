@@ -6,6 +6,38 @@ import Foundation
 // Generated from services/supabase/functions/_shared/identify/contract.ts.
 // Do not edit this block by hand; run make generate-edge-dto-contract.
 
+private enum TaxonomyCodingKeys: String, CodingKey {
+    case kingdom
+    case phylum
+    case `class`
+    case order
+    case family
+    case genus
+}
+
+private enum InsightCodingKeys: String, CodingKey {
+    case ai_reasoning
+    case hazard_type
+}
+
+private enum SpeciesInsightsCodingKeys: String, CodingKey {
+    case habitat_description
+}
+
+private enum IdentificationCandidateCodingKeys: String, CodingKey {
+    case scientific_name
+    case confidence_score
+    case distinguishing_feature
+    case common_name
+}
+
+private enum ImageQualityCodingKeys: String, CodingKey {
+    case sharpness
+    case framing
+    case diagnostic_utility
+    case overall_score
+}
+
 struct EdgeResponseWrapper: Codable {
     let success: Bool?
     let data: EdgeResponse
@@ -56,17 +88,8 @@ struct EdgeResponse: Codable {
         let family: String?
         let genus: String?
 
-        enum CodingKeys: String, CodingKey {
-            case kingdom
-            case phylum
-            case `class`
-            case order
-            case family
-            case genus
-        }
-
         init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let container = try decoder.container(keyedBy: TaxonomyCodingKeys.self)
             kingdom = try container.decodeIfPresent(String.self, forKey: .kingdom)
             phylum = try container.decodeIfPresent(String.self, forKey: .phylum)
             `class` = try container.decodeIfPresent(String.self, forKey: .`class`)
@@ -74,34 +97,46 @@ struct EdgeResponse: Codable {
             family = try container.decodeIfPresent(String.self, forKey: .family)
             genus = try container.decodeIfPresent(String.self, forKey: .genus)
         }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: TaxonomyCodingKeys.self)
+            try container.encodeIfPresent(kingdom, forKey: .kingdom)
+            try container.encodeIfPresent(phylum, forKey: .phylum)
+            try container.encodeIfPresent(`class`, forKey: .`class`)
+            try container.encodeIfPresent(order, forKey: .order)
+            try container.encodeIfPresent(family, forKey: .family)
+            try container.encodeIfPresent(genus, forKey: .genus)
+        }
     }
 
     struct Insight: Codable {
         let ai_reasoning: String?
         let hazard_type: String?
 
-        enum CodingKeys: String, CodingKey {
-            case ai_reasoning
-            case hazard_type
-        }
-
         init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let container = try decoder.container(keyedBy: InsightCodingKeys.self)
             ai_reasoning = try container.decodeIfPresent(String.self, forKey: .ai_reasoning)
             hazard_type = try container.decodeIfPresent(String.self, forKey: .hazard_type)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: InsightCodingKeys.self)
+            try container.encodeIfPresent(ai_reasoning, forKey: .ai_reasoning)
+            try container.encodeIfPresent(hazard_type, forKey: .hazard_type)
         }
     }
 
     struct SpeciesInsights: Codable {
         let habitat_description: String?
 
-        enum CodingKeys: String, CodingKey {
-            case habitat_description
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: SpeciesInsightsCodingKeys.self)
+            habitat_description = try container.decodeIfPresent(String.self, forKey: .habitat_description)
         }
 
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            habitat_description = try container.decodeIfPresent(String.self, forKey: .habitat_description)
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: SpeciesInsightsCodingKeys.self)
+            try container.encodeIfPresent(habitat_description, forKey: .habitat_description)
         }
     }
 
@@ -111,19 +146,20 @@ struct EdgeResponse: Codable {
         let distinguishing_feature: String?
         let common_name: String?
 
-        enum CodingKeys: String, CodingKey {
-            case scientific_name
-            case confidence_score
-            case distinguishing_feature
-            case common_name
-        }
-
         init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let container = try decoder.container(keyedBy: IdentificationCandidateCodingKeys.self)
             scientific_name = try container.decode(String.self, forKey: .scientific_name)
             confidence_score = try container.decode(Double.self, forKey: .confidence_score)
             distinguishing_feature = try container.decodeIfPresent(String.self, forKey: .distinguishing_feature)
             common_name = try container.decodeIfPresent(String.self, forKey: .common_name)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: IdentificationCandidateCodingKeys.self)
+            try container.encode(scientific_name, forKey: .scientific_name)
+            try container.encode(confidence_score, forKey: .confidence_score)
+            try container.encodeIfPresent(distinguishing_feature, forKey: .distinguishing_feature)
+            try container.encodeIfPresent(common_name, forKey: .common_name)
         }
     }
 
@@ -133,19 +169,20 @@ struct EdgeResponse: Codable {
         let diagnostic_utility: Int?
         let overall_score: Int?
 
-        enum CodingKeys: String, CodingKey {
-            case sharpness
-            case framing
-            case diagnostic_utility
-            case overall_score
-        }
-
         init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let container = try decoder.container(keyedBy: ImageQualityCodingKeys.self)
             sharpness = try container.decodeIfPresent(Int.self, forKey: .sharpness)
             framing = try container.decodeIfPresent(Int.self, forKey: .framing)
             diagnostic_utility = try container.decodeIfPresent(Int.self, forKey: .diagnostic_utility)
             overall_score = try container.decodeIfPresent(Int.self, forKey: .overall_score)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: ImageQualityCodingKeys.self)
+            try container.encodeIfPresent(sharpness, forKey: .sharpness)
+            try container.encodeIfPresent(framing, forKey: .framing)
+            try container.encodeIfPresent(diagnostic_utility, forKey: .diagnostic_utility)
+            try container.encodeIfPresent(overall_score, forKey: .overall_score)
         }
     }
 

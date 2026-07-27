@@ -59,6 +59,8 @@ final class InsightChatViewModel {
     @ObservationIgnored private var loadedScanId: String?
     @ObservationIgnored private var promptRequestGeneration = 0
     @ObservationIgnored private let source: FieldChatSource
+    @ObservationIgnored private var presentationPreparationScanId: String?
+    @ObservationIgnored private var presentationPreparationTask: Task<Bool, Never>?
 
     init(source: FieldChatSource = .insightScan) {
         self.source = source
@@ -98,6 +100,16 @@ final class InsightChatViewModel {
     }
 
     func prepareForPresentation(scanId: String) async -> Bool {
+        await prepareForPresentation(scanId: scanId) { @MainActor [weak self] in
+            guard let self else { return false }
+            return await self.performPresentationPreparation(scanId: scanId)
+        }
+    }
+
+    func prepareForPresentation(
+        scanId: String,
+        using preparation: @escaping @MainActor () async -> Bool
+    ) async -> Bool {
         guard !isUnavailable(for: scanId) else {
             errorMessage = "Field chat isn't available for this scan."
             return false
@@ -106,11 +118,28 @@ final class InsightChatViewModel {
             errorMessage = "Connect to use Field chat."
             return false
         }
-        guard !isCheckingAvailability else { return false }
+
+        if presentationPreparationScanId == scanId,
+           let presentationPreparationTask {
+            return await presentationPreparationTask.value
+        }
+        guard presentationPreparationTask == nil else { return false }
 
         isCheckingAvailability = true
-        defer { isCheckingAvailability = false }
+        presentationPreparationScanId = scanId
+        let preparationTask = Task { @MainActor in
+            await preparation()
+        }
+        presentationPreparationTask = preparationTask
 
+        let canPresent = await preparationTask.value
+        presentationPreparationTask = nil
+        presentationPreparationScanId = nil
+        isCheckingAvailability = false
+        return canPresent
+    }
+
+    private func performPresentationPreparation(scanId: String) async -> Bool {
         if source == .explorePost {
             loadedScanId = scanId
             await load(scanId: scanId)
