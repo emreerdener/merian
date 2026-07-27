@@ -104,6 +104,7 @@ Deno.test("Management API lookup explicitly reveals keys without logging credent
   const result = await fetchRevealedProjectApiKeys(
     "abcdefghijklmnopqrst",
     "management-access-token",
+    false,
     fetchImplementation,
   );
 
@@ -124,6 +125,7 @@ Deno.test("Management API lookup fails closed on authorization errors", async ()
       fetchRevealedProjectApiKeys(
         "abcdefghijklmnopqrst",
         "management-access-token",
+        false,
         fetchImplementation,
       ),
     Error,
