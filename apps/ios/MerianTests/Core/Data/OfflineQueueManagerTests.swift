@@ -1139,6 +1139,115 @@ struct OfflineQueueManagerTests {
         #expect(!fetched.queueNeedsAttention)
     }
 
+    @Test func persistedScanRetryRestoresAnActualSchedulerWake() throws {
+        let manager = OfflineQueueManager.shared
+        let scheduler = OfflineJobScheduler.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let context = try createIsolatedContext()
+        let now = Date()
+        let retryAt = now.addingTimeInterval(90)
+        defer {
+            scheduler.cancelScheduledWake(using: manager)
+            manager.isOnline = originalIsOnline
+            manager.modelContext = originalContext
+        }
+
+        manager.modelContext = context
+        manager.isOnline = true
+        scheduler.cancelScheduledWake()
+
+        let scheduled = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            timestamp: now,
+            scanState: .staged,
+            queueNextRetryAt: retryAt
+        )
+        let ignoredNeedsAttention = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            timestamp: now,
+            scanState: .staged,
+            queueNextRetryAt: now.addingTimeInterval(10),
+            queueNeedsAttention: true
+        )
+        let ignoredFailed = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            timestamp: now,
+            scanState: .failed,
+            queueNextRetryAt: now.addingTimeInterval(5)
+        )
+        context.insert(scheduled)
+        context.insert(ignoredNeedsAttention)
+        context.insert(ignoredFailed)
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(
+                scanId: ignoredNeedsAttention.id
+            ),
+            kind: .scanIngestion,
+            subjectId: ignoredNeedsAttention.id,
+            status: .waiting,
+            nextRunAt: now.addingTimeInterval(10)
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(
+                scanId: ignoredFailed.id
+            ),
+            kind: .scanIngestion,
+            subjectId: ignoredFailed.id,
+            status: .waiting,
+            nextRunAt: now.addingTimeInterval(5)
+        ))
+        context.insert(OfflineJobRecord(
+            id: "test-collection-retry",
+            kind: .collectionSync,
+            status: .waiting,
+            nextRunAt: now.addingTimeInterval(120)
+        ))
+        try context.save()
+
+        let persistedWake = try #require(
+            scheduler.nextPersistedWakeDate(using: manager)
+        )
+        #expect(abs(persistedWake.timeIntervalSince(retryAt)) < 0.1)
+
+        scheduler.scheduleNextPersistedWake(using: manager, now: now)
+
+        let wakeDate = try #require(scheduler.scheduledWakeDate)
+        #expect(abs(wakeDate.timeIntervalSince(retryAt)) < 0.1)
+        #expect(QueuedScanContext(from: scheduled).canRetryNow)
+    }
+
+    @Test func stalePersistedRetrySchedulesImmediateBoundedWake() throws {
+        let manager = OfflineQueueManager.shared
+        let scheduler = OfflineJobScheduler.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let context = try createIsolatedContext()
+        let now = Date()
+        defer {
+            scheduler.cancelScheduledWake(using: manager)
+            manager.isOnline = originalIsOnline
+            manager.modelContext = originalContext
+        }
+
+        manager.modelContext = context
+        manager.isOnline = true
+        scheduler.cancelScheduledWake()
+        context.insert(OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            timestamp: now,
+            scanState: .staged,
+            queueNextRetryAt: now.addingTimeInterval(-60)
+        ))
+        try context.save()
+
+        scheduler.scheduleNextPersistedWake(using: manager, now: now)
+
+        let wakeDate = try #require(scheduler.scheduledWakeDate)
+        #expect(wakeDate.timeIntervalSince(now) >= 0.9)
+        #expect(wakeDate.timeIntervalSince(now) <= 1.1)
+    }
+
     @Test func testDeleteQueuedScan_RemovesDatabaseRecord() async throws {
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString

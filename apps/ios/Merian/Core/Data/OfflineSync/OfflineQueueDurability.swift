@@ -490,6 +490,7 @@ extension OfflineQueueManager {
             errorCode: code,
             httpStatus: httpStatus
         )
+        OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         return attempt
     }
 
@@ -521,6 +522,7 @@ extension OfflineQueueManager {
         }
         do {
             try context.save()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
             MerianLog.data.error("clearQueueRetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
@@ -575,6 +577,7 @@ extension OfflineQueueManager {
             try context.save()
             updateUnsyncedItemCount()
             ScanLibraryEvents.postLibraryDidUpdate()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
             if scan.queueState == .pending {
                 syncPendingScans()
             } else {
@@ -629,6 +632,7 @@ extension OfflineQueueManager {
         do {
             try context.save()
             updateUnsyncedItemCount()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
             MerianLog.data.error("markQueuedScanNeedsAttention: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
@@ -642,6 +646,7 @@ extension OfflineQueueManager {
         job.nextRunAt = nil
         do {
             try context.save()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
         }
@@ -674,6 +679,7 @@ extension OfflineQueueManager {
         }
         do {
             try context.save()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
             MerianLog.data.debug("persistServerStatus: save failed: \(error.localizedDescription, privacy: .public)")

@@ -215,6 +215,7 @@ extension OfflineQueueManager {
             return false
         }
         updateUnsyncedItemCount()
+        OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
 
         if AppSettings.shared.isPushNotificationsEnabled {
             #if canImport(UIKit)
@@ -836,6 +837,11 @@ extension OfflineQueueManager {
                         )
                     }
                     return
+                }
+                await MainActor.run {
+                    OfflineJobScheduler.shared.scheduleNextPersistedWake(
+                        using: self
+                    )
                 }
                 MerianLog.data.debug(
                     "replayInferenceStagedScans: claimed scanId=\(scanId, privacy: .public)"

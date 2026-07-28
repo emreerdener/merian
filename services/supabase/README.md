@@ -578,6 +578,12 @@ same header with `reconstructed`. A duplicate that arrives while the original
 invocation is still finalizing coalesces for at most 70 seconds, within the iOS
 90-second request bound.
 
+The response-aware finalization RPC is `SECURITY DEFINER` but deny-by-default:
+the migration revokes every API role, grants only `service_role`, requires
+`internal.require_service_role()` in the body, and registers the exact signature
+in `internal.privileged_routine_grants`. The disposable catalog must reject any
+grant/allowlist drift before production `db push`.
+
 For older/interrupted missing rows, `_shared/scanRecovery.ts` delegates to one
 atomic service-only non-media compatibility repair used only by single status
 and Explore share requests. It shares the claim's advisory lock, writes the scan

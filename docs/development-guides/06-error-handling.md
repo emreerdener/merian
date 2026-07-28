@@ -103,6 +103,15 @@ Collection sync (OfflineJobRecord id "collection-sync")
     └── Push failure → retain as OfflineJobRecord waiting for nextRunAt until retry budget ends
 ```
 
+`queueNextRetryAt` is durable eligibility state, not evidence that a timer is
+running. Every successful retry-date write must ask `OfflineJobScheduler` to
+reselect its earliest wake. Foreground activation and connectivity restoration
+must rebuild that wake from SwiftData because delayed Swift tasks do not survive
+process termination and are cancelled on network loss. Queue UI must use live
+relative copy (`Automatic retry in …`, `Automatic retry is starting`, or
+`Retry when connection returns`) and refresh the value snapshot; a rounded clock
+time alone is not a valid progress indicator.
+
 Both uploads and inference use the same background `URLSession`
 (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`,
 so iOS can re-attach in-flight tasks on app relaunch and deliver inference

@@ -322,8 +322,10 @@ breaches its SLA.
 
 - `OfflineQueuedScan` (SwiftData) persists captures with full telemetry when
   inference fails or connectivity is absent.
-- `NWPathMonitor` triggers background `URLSession` retry on reconnection,
-  respecting Swift 6 concurrency constraints and OS Watchdog limits.
+- `NWPathMonitor` enters through `OfflineJobScheduler` on reconnection. The
+  scheduler reconstructs one real wake from persisted scan/job retry deadlines
+  after reconnect, foreground, or relaunch; atomic claims clear the deadline
+  before background `URLSession` work begins.
 - Every inference claim persists its UUID beside the queue transition. Claims,
   retries, result saves, URLSession cancellation, and guarded queue deletion
   compare that durable generation under one per-scan persistence coordinator, so

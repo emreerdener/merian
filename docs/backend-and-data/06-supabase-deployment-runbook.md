@@ -3193,7 +3193,11 @@ Treat these components as one compatibility release:
    Explore publication; recovery must not disguise a stale privileged-key
    boundary. Apply `20260728220000_persist_idempotent_scan_responses.sql` before
    deploying the response-replay functions; the new bundles query
-   `response_envelope` before provider work.
+   `response_envelope` before provider work. Verify that the same migration
+   registers
+   `public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`
+   for `service_role` in `internal.privileged_routine_grants`; a grant without
+   that reviewed row must fail the disposable catalog before `db push`.
 2. From one exact SHA, run the normal production backend workflow. The
    graph-derived plan for this repair must select `identify-multimodal`,
    `identify`, `identify-describe`, `audio-spec`, and `check-scan-status`. Their

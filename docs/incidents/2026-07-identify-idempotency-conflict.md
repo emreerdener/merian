@@ -89,6 +89,15 @@ The stored response is immutable for a completed generation, contains no raw
 media bytes, and is cleared immediately when owner deletion is requested, when
 the scan is deleted, or when ownership changes.
 
+The response-aware finalization routine remains service-only at both boundaries:
+its body calls `internal.require_service_role()`, its ACL revokes `PUBLIC`,
+`anon`, and `authenticated`, and its exact service-role signature is recorded in
+`internal.privileged_routine_grants` as
+`public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`.
+Workflow run 1547 caught the initially missing catalog registration before
+production `db push`; no migration or function from that failed run was
+promoted.
+
 ### iOS recovery handoff
 
 `InferenceEngine` recognizes only the four exact handler-owned 409 codes as
@@ -107,6 +116,25 @@ Customer copy now says:
 
 > Your scan reached Naturebook safely. We’re restoring its saved result now, and
 > it will appear here or in Scans automatically.
+
+### Durable queued-retry wake
+
+Follow-up QA found a separate client durability gap: `queueNextRetryAt` was
+persisted and displayed, but after a future date was filtered out of a
+foreground/reconnect drain there was no general timer guaranteed to wake at that
+date. The per-flow delayed task could be cancelled by connectivity loss and
+could not survive termination. The queued sheet also rounded away seconds and
+held a value snapshot, so reaching the displayed minute did not prove an attempt
+had begun.
+
+`OfflineJobScheduler` now reconstructs one actual token-fenced wake from the
+earliest active scan/job deadline after every retry write, reconnect, foreground
+activation, and queued-sheet presentation. Needs-attention rows are excluded,
+stale dates use a bounded one-second wake, and the atomic inference claim clears
+both persisted deadlines. The queued sheet refreshes once per second, shows a
+relative countdown/starting/offline state, and allows immediate retry during
+backoff. This repair applies to retained old and new queue rows; it does not
+require another scan.
 
 ## Deployment and Verification
 
@@ -128,7 +156,10 @@ Do not close this incident until one exact production SHA proves:
 5. cross-owner UUID probes reveal no response or row;
 6. deletion request immediately clears the persisted response; and
 7. the matching iOS build restores the exact still-presented queued scan without
-   overwriting a newer presentation.
+   overwriting a newer presentation; and
+8. a persisted future queued retry visibly counts down, transitions through an
+   atomic claim at eligibility, and is reconstructed after force-quit,
+   foreground, and offline/reconnect without duplicate inference.
 
 Follow
 [Scan Owner-Row Durability and Recovery Rollout](../backend-and-data/06-supabase-deployment-runbook.md#scan-owner-row-durability-and-recovery-rollout)

@@ -58,32 +58,42 @@ BEGIN
             'PUBLIC can execute a public SECURITY DEFINER function';
     END IF;
 
-    IF EXISTS (
-        SELECT 1
-        FROM pg_catalog.pg_proc AS function_row
-        JOIN pg_catalog.pg_namespace AS namespace_row
-          ON namespace_row.oid = function_row.pronamespace
-        CROSS JOIN (
-            VALUES ('anon'), ('authenticated'), ('service_role')
-        ) AS api_role(role_name)
-        WHERE namespace_row.nspname = 'public'
-          AND function_row.prosecdef
-          AND pg_catalog.HAS_FUNCTION_PRIVILEGE(
-              api_role.role_name,
-              function_row.oid,
-              'EXECUTE'
-          )
-          AND NOT EXISTS (
-              SELECT 1
-              FROM internal.privileged_routine_grants AS allowlist
-              WHERE allowlist.role_name = api_role.role_name
-                AND pg_catalog.TO_REGPROCEDURE(
-                    allowlist.routine_signature
-                ) = function_row.oid
-          )
-    ) THEN
+    SELECT pg_catalog.FORMAT(
+        '%I -> %I.%I(%s)',
+        api_role.role_name,
+        namespace_row.nspname,
+        function_row.proname,
+        pg_catalog.PG_GET_FUNCTION_IDENTITY_ARGUMENTS(function_row.oid)
+    )
+    INTO target_signature
+    FROM pg_catalog.pg_proc AS function_row
+    JOIN pg_catalog.pg_namespace AS namespace_row
+      ON namespace_row.oid = function_row.pronamespace
+    CROSS JOIN (
+        VALUES ('anon'), ('authenticated'), ('service_role')
+    ) AS api_role(role_name)
+    WHERE namespace_row.nspname = 'public'
+      AND function_row.prosecdef
+      AND pg_catalog.HAS_FUNCTION_PRIVILEGE(
+          api_role.role_name,
+          function_row.oid,
+          'EXECUTE'
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM internal.privileged_routine_grants AS allowlist
+          WHERE allowlist.role_name = api_role.role_name
+            AND pg_catalog.TO_REGPROCEDURE(
+                allowlist.routine_signature
+            ) = function_row.oid
+      )
+    ORDER BY api_role.role_name, function_row.oid
+    LIMIT 1;
+
+    IF target_signature IS NOT NULL THEN
         RAISE EXCEPTION
-            'an API role can execute a definer function outside the allowlist';
+            'an API role can execute a definer function outside the allowlist: %',
+            target_signature;
     END IF;
 
     IF EXISTS (

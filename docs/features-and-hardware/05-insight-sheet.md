@@ -392,6 +392,23 @@ blobs, taxonomy primitives, and IDs are snapshotted before the hydration `Task`
 starts; the task must not read the live model after suspension, because the scan
 can be deleted or detached while the Insight sheet is dismissing.
 
+### Queued Retry Presentation and Wake
+
+`QueuedContentView` treats `queueNextRetryAt` as a durable eligibility boundary,
+not proof that work is actively running. On presentation it asks
+`OfflineJobScheduler` to restore the earliest persisted wake. While visible, it
+advances a one-second reference clock and snapshots the queued row through a
+fresh `ModelContext`; this makes deadline removal, `.staged → .inferencing`
+claims, failures, and reschedules observable without retaining a live
+`OfflineQueuedScan`.
+
+Customer copy is relative and stateful: `Automatic retry in N sec/min` before
+the deadline, `Automatic retry is starting` when elapsed, and
+`Retry when connection returns` offline. Scheduled pending/staged rows expose
+`Retry now`, which clears the persisted backoff and uses the existing atomic
+claim pipeline. The UI must never imply that a rounded minute is an execution
+receipt.
+
 ---
 
 ## Live Result Ownership and Background Handoff

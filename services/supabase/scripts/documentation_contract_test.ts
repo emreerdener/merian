@@ -628,6 +628,13 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     );
     assertStringIncludes(source, "70 seconds");
   }
+  for (const source of [runbook, idempotencyIncident]) {
+    assertStringIncludes(
+      source,
+      "public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])",
+    );
+    assertStringIncludes(source, "internal.privileged_routine_grants");
+  }
   assertStringIncludes(
     idempotencyIncident,
     "This was not caused by scan age and does not require rescanning older observations.",

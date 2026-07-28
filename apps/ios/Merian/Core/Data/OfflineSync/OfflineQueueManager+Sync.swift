@@ -59,6 +59,7 @@ extension OfflineQueueManager {
                 job.status = .running
                 job.updatedAt = now
                 job.lastAttemptAt = now
+                job.nextRunAt = nil
                 context.insert(OfflineQueueEvent(
                     jobId: job.id,
                     scanId: task.scanId,
@@ -70,6 +71,7 @@ extension OfflineQueueManager {
 
         do {
             try context.save()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
             MerianLog.data.error("syncPendingDeletions: failed to claim deletion jobs: \(error, privacy: .private)")
@@ -109,6 +111,7 @@ extension OfflineQueueManager {
         if didMutate {
             do {
                 try context.save()
+                OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
             } catch {
                 context.rollback()
                 MerianLog.data.error("syncPendingDeletions: save failed: \(error, privacy: .private)")
@@ -930,6 +933,7 @@ extension OfflineQueueManager {
         }
         do {
             try context.save()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
             MerianLog.data.error("finishCollectionSyncAttempt: save failed: \(error, privacy: .private)")
@@ -947,9 +951,11 @@ extension OfflineQueueManager {
         job.status = .running
         job.updatedAt = Date()
         job.lastAttemptAt = Date()
+        job.nextRunAt = nil
         context.insert(OfflineQueueEvent(jobId: job.id, kind: .claimed, message: "Collection sync started."))
         do {
             try context.save()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
             MerianLog.data.error("markCollectionSyncStarted: save failed: \(error, privacy: .private)")

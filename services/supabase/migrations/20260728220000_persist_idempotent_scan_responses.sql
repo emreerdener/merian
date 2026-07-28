@@ -136,6 +136,20 @@ GRANT EXECUTE ON FUNCTION public.complete_scan_ingestion_finalization_with_respo
     JSONB,
     TEXT[]
 ) TO service_role;
+
+INSERT INTO internal.privileged_routine_grants (
+    role_name,
+    routine_signature,
+    purpose
+)
+VALUES (
+    'service_role',
+    'public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])',
+    'Atomically finalizes required scan media and immutably persists the canonical Identify response for idempotent replay.'
+)
+ON CONFLICT (role_name, routine_signature) DO UPDATE
+SET purpose = EXCLUDED.purpose;
+
 COMMENT ON FUNCTION public.complete_scan_ingestion_finalization_with_response(
     UUID,
     UUID,

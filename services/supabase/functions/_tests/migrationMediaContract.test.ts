@@ -619,6 +619,9 @@ Deno.test("Identify response replay is atomic, immutable, and erased with owner 
       "REVOKE ALL ON FUNCTION public.complete_scan_ingestion_finalization_with_response",
       "GRANT EXECUTE ON FUNCTION public.complete_scan_ingestion_finalization_with_response",
       "TO service_role",
+      "INSERT INTO internal.privileged_routine_grants",
+      "'service_role', 'public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])'",
+      "ON CONFLICT (role_name, routine_signature) DO UPDATE",
       "CREATE TRIGGER clear_scan_ingestion_response_on_owner_removal",
       "AFTER UPDATE OF user_id OR DELETE ON public.scans",
       "CREATE TRIGGER clear_scan_ingestion_response_on_deletion_request",
@@ -634,6 +637,12 @@ Deno.test("Identify response replay is atomic, immutable, and erased with owner 
     "finalization_result := public.complete_scan_ingestion_finalization(",
     "SET response_envelope = COALESCE(",
     "The canonical envelope may be stored only after scan/media finalization.",
+  );
+  assertBefore(
+    sql,
+    "GRANT EXECUTE ON FUNCTION public.complete_scan_ingestion_finalization_with_response",
+    "'public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])'",
+    "The reviewed service-role grant must be registered only after it is granted.",
   );
   assertBefore(
     sql,

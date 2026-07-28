@@ -65,11 +65,12 @@ final class AppLifecycleManager {
                 }
             }
 
-            container.offlineQueueManager.syncPendingScans()
-            // Recover scans whose upload completed but inference was interrupted
-            // (e.g. app killed or suspended mid-inference). NWPathMonitor only fires
-            // on connectivity *changes*, so this must also run on every foreground.
-            container.offlineQueueManager.replayInferenceForUploadedScans()
+            // Drain work and recreate the next process-local wake from durable
+            // retry dates. NWPathMonitor only fires on connectivity changes,
+            // while delayed Swift tasks do not survive process termination.
+            await OfflineJobScheduler.shared.drainRunnableJobs(
+                using: container.offlineQueueManager
+            )
         }
     }
 

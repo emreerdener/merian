@@ -1237,20 +1237,58 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("claim.webp")]), encoding: .utf8), scanState: .staged)
+        let retryAt = Date().addingTimeInterval(600)
+        let generation = UUID()
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("claim.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged,
+            queueNextRetryAt: retryAt
+        )
         context.insert(scan)
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),
+            kind: .scanIngestion,
+            subjectId: scan.id,
+            status: .waiting,
+            nextRunAt: retryAt
+        ))
         try context.save()
         let scanId = scan.id
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        let claimed = await actor.tryClaimForInference(scanId: scanId)
+        let claimed = await actor.tryClaimForInference(
+            scanId: scanId,
+            generation: generation
+        )
 
         #expect(claimed == true, "tryClaimForInference must return true when scan is .staged")
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
         descriptor.fetchLimit = 1
-        let fetched = try context.fetch(descriptor).first
+        let fetched = try verificationContext.fetch(descriptor).first
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let fetchedJob = try verificationContext.fetch(jobDescriptor).first
         #expect(fetched?.scanStateRaw == ScanQueueState.inferencing.rawValue,
                 "scan must be .inferencing after a successful claim")
+        #expect(fetched?.queueNextRetryAt == nil,
+                "an active inference claim must clear its scheduled-retry label")
+        #expect(fetchedJob?.status == .running)
+        #expect(fetchedJob?.nextRunAt == nil)
+        #expect(
+            fetchedJob?.metadataJSON ==
+                InferenceGenerationMetadataContract.json(for: generation)
+        )
     }
 
     @Test func testTryClaimForInferenceFailsWhenAlreadyInferencing() async throws {

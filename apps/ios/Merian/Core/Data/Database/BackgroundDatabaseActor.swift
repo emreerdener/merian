@@ -249,25 +249,30 @@ actor BackgroundDatabaseActor {
             )
             return false
         }
+        let now = Date()
         scan.scanStateRaw = inferencingRaw
-        scan.queueUpdatedAt = Date()
+        scan.queueLastAttemptAt = now
+        scan.queueNextRetryAt = nil
+        scan.queueUpdatedAt = now
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job = fetchOfflineJob(id: jobId) ?? {
+            let created = OfflineJobRecord(
+                id: jobId,
+                kind: .scanIngestion,
+                subjectId: scanId,
+                status: .running
+            )
+            modelContext.insert(created)
+            return created
+        }()
         if let generation {
-            let job = fetchOfflineJob(id: jobId) ?? {
-                let created = OfflineJobRecord(
-                    id: jobId,
-                    kind: .scanIngestion,
-                    subjectId: scanId,
-                    status: .running
-                )
-                modelContext.insert(created)
-                return created
-            }()
             job.metadataJSON =
                 InferenceGenerationMetadataContract.json(for: generation)
-            job.status = .running
-            job.updatedAt = Date()
         }
+        job.status = .running
+        job.updatedAt = now
+        job.lastAttemptAt = now
+        job.nextRunAt = nil
         modelContext.insert(OfflineQueueEvent(
             jobId: jobId,
             scanId: scanId,

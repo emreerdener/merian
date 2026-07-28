@@ -8,6 +8,11 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- The idempotent Identify response-finalization RPC now registers its
+  intentional `service_role` execution grant in the migration-owned
+  privileged-routine catalog. `PUBLIC`, `anon`, and `authenticated` remain
+  revoked, the routine retains its in-body service-role check, and catalog
+  failures now identify the exact unexpected role/signature.
 - Disposable-catalog scan deletion and current-generation archive cleanup now
   execute their mutating completion calls in dedicated statements before reading
   post-state. This removes dependence on PostgreSQL's undefined Boolean
@@ -123,6 +128,12 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Fixed queued scans that showed an **Automatic retry** time but could remain
+  staged after that deadline. Naturebook now reconstructs an actual wake timer
+  from the durable queue on foreground, reconnect, sheet presentation, and every
+  retry-date write. The queued Insight shows a live retry countdown, changes to
+  **Automatic retry is starting** when due, refreshes visible queue state once
+  per second, and offers **Retry now** during scheduled backoff.
 - Fixed scans that reached Naturebook but were shown as **Network timeout**
   after foreground/background or transport retry delivery. Repeating the same
   scan request now replays its completed result without another AI call, while

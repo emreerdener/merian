@@ -319,6 +319,7 @@ import SwiftData
                     }
                 } else {
                     guard let self else { return }
+                    OfflineJobScheduler.shared.cancelScheduledWake(using: self)
                     self.releaseAllDeferredLiveUploads(reason: "connectivity_lost")
                     self.releaseAllForegroundInferenceClaims(reason: "connectivity_lost")
                     // Circuit-break active uploads immediately on connectivity loss.

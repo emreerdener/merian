@@ -97,6 +97,7 @@ struct QueuedContentView: View {
 
     let queuedContext: QueuedScanContext
     @State private var isRetrying = false
+    @State private var retryReferenceDate = Date()
 
     private var serverJobStatus: ScanIngestionJobStatus? {
         offlineQueueManager.scanIngestionJobStates[queuedContext.id]
@@ -170,6 +171,11 @@ struct QueuedContentView: View {
         case .pending, .uploading:
             return "This scan is saved locally and will be uploaded to Naturebook in the background."
         case .staged:
+            if queuedContext.queueNextRetryAt != nil {
+                return offlineQueueManager.isOnline
+                    ? "This scan is safely queued. Naturebook will start another identification attempt automatically."
+                    : "This scan is safely queued and will retry after your connection returns."
+            }
             return "The scan media has uploaded and is waiting for identification."
         case .inferencing:
             switch serverJobStatus {
@@ -195,8 +201,8 @@ struct QueuedContentView: View {
         if !queuedContext.mediaKinds.isEmpty {
             details.append(queuedContext.mediaKinds.joined(separator: " + "))
         }
-        if let nextRetryAt = queuedContext.queueNextRetryAt {
-            details.append("Automatic retry \(nextRetryAt.formatted(date: .omitted, time: .shortened))")
+        if let retryDetail {
+            details.append(retryDetail)
         }
         if queuedContext.approximateQueuedBytes > 0 {
             details.append(ByteCountFormatter.string(
@@ -205,6 +211,25 @@ struct QueuedContentView: View {
             ))
         }
         return details
+    }
+
+    private var retryDetail: String? {
+        guard let nextRetryAt = queuedContext.queueNextRetryAt else {
+            return nil
+        }
+        guard offlineQueueManager.isOnline else {
+            return "Retry when connection returns"
+        }
+        let remaining = nextRetryAt.timeIntervalSince(retryReferenceDate)
+        if remaining <= 0 {
+            return "Automatic retry is starting"
+        }
+        if remaining < 60 {
+            let seconds = max(1, Int(ceil(remaining)))
+            return "Automatic retry in \(seconds) sec"
+        }
+        let minutes = max(1, Int(ceil(remaining / 60)))
+        return "Automatic retry in \(minutes) min"
     }
 
     private var friendlyErrorText: String? {
@@ -299,6 +324,20 @@ struct QueuedContentView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
+        .task(id: queuedContext.id) {
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(
+                using: offlineQueueManager
+            )
+            while !Task.isCancelled {
+                retryReferenceDate = Date()
+                refreshQueuedContext(scanId: queuedContext.id)
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+            }
+        }
     }
 }
 
@@ -333,11 +372,17 @@ private extension QueuedContentView {
 
     @MainActor
     func refreshQueuedContext(scanId: String) {
+        let readContext = ModelContext(modelContext.container)
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
-        viewModel.queuedContext = QueuedScanContext(from: scan)
+        guard let scan = (try? readContext.fetch(descriptor))?.first else {
+            return
+        }
+        let refreshed = QueuedScanContext(from: scan)
+        if refreshed != viewModel.queuedContext {
+            viewModel.queuedContext = refreshed
+        }
     }
 }

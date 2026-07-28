@@ -491,8 +491,14 @@ triggering excessive SwiftUI view rebuilds.
   through `OfflineJobRecord` rows. `OfflineQueuedScan.queue*` fields and bounded
   `OfflineQueueEvent` rows replace the old process-local retry authority, so app
   relaunch preserves attempts, next retry time, last server stage, and
-  user-attention state. Automatic scan upload, inference, cloud deletion, and
-  collection-sync retries all share
+  user-attention state. A persisted deadline is not itself a timer:
+  `OfflineJobScheduler` selects the earliest active scan/job deadline and owns
+  one token-fenced wake, rebuilt after retry persistence, foreground activation,
+  connectivity restoration, or queued-sheet presentation. Connectivity loss
+  cancels the ephemeral task but not its durable source date. Stale dates use a
+  bounded one-second wake; needs-attention rows are excluded; an atomic claim
+  clears both scan and job deadlines. Automatic scan upload, inference, cloud
+  deletion, and collection-sync retries all share
   `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`; after that ceiling
   the job moves to `needsAttention` instead of rescheduling.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
@@ -1090,13 +1096,13 @@ and `KeychainManager` migration logic. Do not inline
   `URLSession.upload(for:fromFile:)` with bounded concurrency, and MIME type
   detection prefers file extension plus a small header read instead of inflating
   full image or video files into RAM.
-- Single `checkScanStatusDetails` calls may attach
-  `OwnedScanRecoveryPayload` for eligible older/interrupted missing owner rows;
-  bulk probes never do. Record-based Explore sharing polls status, defers to
-  active/retryable ingestion, stages available local image/video/audio, and
-  retries one combined `recovery_scan` plus media-restoration request. Ask the
-  Community repairs through status before its image restore. The server
-  independently validates and gates every repair.
+- Single `checkScanStatusDetails` calls may attach `OwnedScanRecoveryPayload`
+  for eligible older/interrupted missing owner rows; bulk probes never do.
+  Record-based Explore sharing polls status, defers to active/retryable
+  ingestion, stages available local image/video/audio, and retries one combined
+  `recovery_scan` plus media-restoration request. Ask the Community repairs
+  through status before its image restore. The server independently validates
+  and gates every repair.
 - Live multimodal audio reads preflight total byte size before any
   `Data(contentsOf:)` or base64 allocation, then use `.mappedIfSafe`. Queued
   audio does not use inline base64: `MediaStagingContract` validates and uploads

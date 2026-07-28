@@ -233,6 +233,12 @@ cannot enter the `Share` / `Download` / `Delete` pipeline. `QueuedScanSnapshot`
 and `QueuedScanContext` carry copied retry metadata (`queueNextRetryAt`,
 friendly last error, media kinds, retry availability, and approximate queued
 bytes) so the sheet can render after SwiftData rows are updated or deleted.
+While the sheet is visible, it reads the row through a fresh `ModelContext` once
+per second. Future deadlines render as a live relative countdown, an elapsed
+deadline renders `Automatic retry is starting`, and offline rows render
+`Retry when connection returns`. A pending or staged row with scheduled backoff
+also exposes `Retry now`; this clears the deadline and enters the same atomic
+upload/inference claim path rather than creating a parallel pipeline.
 
 **Value-Type Snapshot Pattern** — `ScansGrid` never holds a live
 `OfflineQueuedScan @Model` reference. When `ScansSheetView.refreshQueuedScans()`
@@ -304,6 +310,19 @@ collection sync to a coalesced `OfflineJobRecord`. Existing executors remain in
 place, but retry ownership is no longer process-local: each job stores attempt
 counts, last errors, next-run times, server status/stage, and user-attention
 state in SwiftData.
+
+The persisted date is an eligibility boundary, not an operating-system timer.
+`OfflineJobScheduler` therefore selects the earliest active
+`queueNextRetryAt`/`OfflineJobRecord.nextRunAt` and creates one token-fenced
+process-local wake. It rebuilds that wake after every retry-date write, on
+connectivity restoration, on each foreground activation, and when a queued
+Insight opens. Attention-paused rows are excluded. A stale date wakes after a
+bounded one second, and an atomic upload/inference claim clears both the scan
+and job deadline before dispatch so a stale label or second claim cannot
+survive. Connectivity loss cancels only the ephemeral wake; the durable date
+recreates it after reconnect. If iOS suspends or terminates the process, exact
+wall-clock execution is not promised—the foreground/reconnect drain immediately
+re-evaluates all elapsed dates.
 
 When a collection job drains, `BackgroundDatabaseActor.collectionSyncPayloads()`
 fetches only non-Favorites `ScanCollection` rows and prefetches their direct
@@ -668,8 +687,9 @@ the reset, each affected scan records durable retry metadata through
 `OfflineQueueRetryPolicy`. Retries use jittered backoff capped by
 `maximumRetryDelay`; once `maximumAutomaticRetryAttempts` is exhausted, the
 queued scan is marked `queueNeedsAttention` instead of scheduling another
-process-local retry. The retry task is cancelled immediately on connectivity
-loss so stale retries never fire while offline.
+automatic retry. Process-local helper tasks and the central wake are cancelled
+immediately on connectivity loss so stale retries never fire while offline;
+their persisted deadline is retained and recreates the wake after reconnect.
 
 All this payload work runs inside a `BackgroundTaskWrapper.execute` block so iOS
 does not suspend the process during disk I/O or URL generation. Its expiration

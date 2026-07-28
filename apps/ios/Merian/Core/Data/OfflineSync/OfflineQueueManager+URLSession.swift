@@ -362,6 +362,7 @@ extension OfflineQueueManager {
             scanId: scanId,
             generation: preparationGeneration
         )
+        OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         guard isUploadCompletionCurrent(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
@@ -1533,6 +1534,7 @@ extension OfflineQueueManager {
             )
             return
         }
+        OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
 
         serverIngestionPollTasks.replace(
             for: scanId,
@@ -2062,6 +2064,7 @@ extension OfflineQueueManager {
         }
         MerianLog.data.debug("Inference failed for \(scanId, privacy: .private) — scheduled durable retry \(retries, privacy: .public) reason=\(reason, privacy: .private)")
         updateUnsyncedItemCount()
+        OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         inferenceRetryTasks.replace(
             for: scanId,
             ownerGeneration: nil

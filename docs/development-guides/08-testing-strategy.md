@@ -647,7 +647,10 @@ MerianTests/
     already-stale server retry timestamp must assert a one-second recheck, not
     the maximum five-minute delay. Video cases must assert durable playback
     media remains required while image, audio, and description-only scans use
-    the same scheduler.
+    the same scheduler. Scheduler coverage must separately prove that a future
+    persisted deadline creates a real `scheduledWakeDate`, needs-attention rows
+    cannot preempt it, and claiming the scan clears both `queueNextRetryAt` and
+    the ingestion job's `nextRunAt`.
 
   For any change to offline task ownership, the minimum regression matrix is:
 
