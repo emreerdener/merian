@@ -83,6 +83,38 @@ struct MediaStagingUploadTaskIdentity: Sendable, Equatable {
     let scanId: String
     let uploadIndex: Int?
     let syncGeneration: UUID?
+    let objectKey: String?
+
+    init(
+        scanId: String,
+        uploadIndex: Int?,
+        syncGeneration: UUID?,
+        objectKey: String? = nil
+    ) {
+        self.scanId = scanId
+        self.uploadIndex = uploadIndex
+        self.syncGeneration = syncGeneration
+        self.objectKey = objectKey
+    }
+}
+
+struct MediaStagingUploadCompletionState: Sendable, Equatable {
+    let generation: UUID?
+    var successfulObjectKeys: Set<String>
+
+    init(generation: UUID?, successfulObjectKeys: Set<String> = []) {
+        self.generation = generation
+        self.successfulObjectKeys = successfulObjectKeys
+    }
+
+    mutating func recordSuccess(objectKey: String) {
+        successfulObjectKeys.insert(objectKey)
+    }
+
+    func containsEvery(expectedObjectKeys: [String]) -> Bool {
+        !expectedObjectKeys.isEmpty &&
+            Set(expectedObjectKeys).isSubset(of: successfulObjectKeys)
+    }
 }
 
 struct InferenceURLSessionTaskIdentity: Sendable, Equatable {
@@ -313,6 +345,93 @@ enum MediaStagingContract {
         "staging/\(sanitizedFileName(userId.lowercased()))/\(fileName)"
     }
 
+    static func preferredOwnerId(
+        sessionUserId: String?,
+        hydratedUserId: String?,
+        deviceId: String
+    ) -> String {
+        (sessionUserId ?? hydratedUserId ?? deviceId).lowercased()
+    }
+
+    static func isCanonicalObjectKey(_ objectKey: String, fileName: String) -> Bool {
+        let parts = objectKey.split(separator: "/", omittingEmptySubsequences: false)
+        let owner = parts.count == 3 ? String(parts[1]) : ""
+        guard parts.count == 3,
+              parts[0] == "staging",
+              let ownerId = UUID(uuidString: owner),
+              ownerId.uuidString.lowercased() == owner,
+              sanitizedFileName(fileName) == fileName,
+              parts[2] == Substring(fileName) else {
+            return false
+        }
+        return true
+    }
+
+    static func objectKey(fromPresignedURLPath path: String?) -> String? {
+        guard let path else { return nil }
+        let decodedPath = path.removingPercentEncoding ?? path
+        let parts = decodedPath.split(separator: "/")
+        guard let stagingIndex = parts.lastIndex(of: "staging"),
+              parts.count - stagingIndex == 3 else {
+            return nil
+        }
+        let objectKey = parts[stagingIndex...].joined(separator: "/")
+        let fileName = String(parts[stagingIndex + 2])
+        return isCanonicalObjectKey(objectKey, fileName: fileName)
+            ? objectKey
+            : nil
+    }
+
+    static func ownerId(fromObjectKey objectKey: String) -> String? {
+        let parts = objectKey.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              isCanonicalObjectKey(objectKey, fileName: String(parts[2])) else {
+            return nil
+        }
+        return String(parts[1])
+    }
+
+    static func presignedUploadManifestIsValid(
+        uploadItems: [ScanUploadItem],
+        presignedURLs: [PreSignedURL]
+    ) -> Bool {
+        guard !uploadItems.isEmpty,
+              uploadItems.count == presignedURLs.count else {
+            return false
+        }
+
+        var owners = Set<String>()
+        var uploadOrigins = Set<String>()
+        var objectKeys = Set<String>()
+        var fileNames = Set<String>()
+        for (item, presignedURL) in zip(uploadItems, presignedURLs) {
+            guard presignedURL.fileName == item.fileName,
+                  isCanonicalObjectKey(
+                    presignedURL.objectKey,
+                    fileName: item.fileName
+                  ),
+                  let owner = ownerId(fromObjectKey: presignedURL.objectKey),
+                  let remoteURL = URL(string: presignedURL.signedUrl),
+                  remoteURL.scheme?.lowercased() == "https",
+                  let host = remoteURL.host?.lowercased(),
+                  !host.isEmpty,
+                  remoteURL.user == nil,
+                  remoteURL.password == nil,
+                  remoteURL.fragment == nil,
+                  objectKey(fromPresignedURLPath: remoteURL.path)
+                    == presignedURL.objectKey,
+                  objectKeys.insert(presignedURL.objectKey).inserted,
+                  fileNames.insert(presignedURL.fileName).inserted else {
+                return false
+            }
+            owners.insert(owner)
+            uploadOrigins.insert(
+                "https://\(host):\(remoteURL.port ?? 443)"
+            )
+        }
+        return owners.count == 1 && uploadOrigins.count == 1
+    }
+
     static func uploadItems(
         for scan: PendingScanPayload,
         userId: String,
@@ -405,6 +524,7 @@ enum MediaStagingContract {
         }
 
         var totalImageBytes = 0
+        var imageItemCount = 0
         var audioItemCount = 0
         var videoItemCount = 0
         for item in items {
@@ -414,6 +534,10 @@ enum MediaStagingContract {
             }
 
             if item.mediaKind == .image {
+                imageItemCount += 1
+                guard imageItemCount <= MerianConfig.mediaStagingMaxImageFilesPerRequest else {
+                    throw MerianError.payloadTooLarge
+                }
                 totalImageBytes += size
                 guard totalImageBytes <= MerianConfig.stagedImagePayloadMaxBytes else {
                     throw MerianError.payloadTooLarge
@@ -448,10 +572,16 @@ enum MediaStagingContract {
     static func uploadTaskDescription(
         scanId: String,
         uploadIndex: Int,
-        syncGeneration: UUID? = nil
+        syncGeneration: UUID? = nil,
+        objectKey: String? = nil
     ) -> String {
         if let syncGeneration {
-            return "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)|\(syncGeneration.uuidString.lowercased())"
+            let prefix =
+                "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)|\(syncGeneration.uuidString.lowercased())"
+            if let objectKey {
+                return "\(prefix)|\(objectKey)"
+            }
+            return prefix
         }
         return "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)"
     }
@@ -460,18 +590,24 @@ enum MediaStagingContract {
         guard let description, !description.hasPrefix("inference_") else { return nil }
 
         let parts = description.split(separator: "|", omittingEmptySubsequences: false)
-        if parts.count == 3 || parts.count == 4,
+        if parts.count == 3 || parts.count == 4 || parts.count == 5,
            String(parts[0]) == uploadTaskPrefix {
-            let syncGeneration = parts.count == 4
+            let syncGeneration = parts.count >= 4
                 ? UUID(uuidString: String(parts[3]))
                 : nil
-            if parts.count == 4, syncGeneration == nil {
+            if parts.count >= 4, syncGeneration == nil {
+                return nil
+            }
+            let objectKey = parts.count == 5 ? String(parts[4]) : nil
+            if let objectKey,
+               ownerId(fromObjectKey: objectKey) == nil {
                 return nil
             }
             return MediaStagingUploadTaskIdentity(
                 scanId: String(parts[1]),
                 uploadIndex: Int(parts[2]),
-                syncGeneration: syncGeneration
+                syncGeneration: syncGeneration,
+                objectKey: objectKey
             )
         }
 

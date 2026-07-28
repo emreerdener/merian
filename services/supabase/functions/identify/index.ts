@@ -23,7 +23,11 @@ import {
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { PublicHttpError, requireParams } from "../_shared/http.ts";
+import {
+  publicErrorResponse,
+  PublicHttpError,
+  requireParams,
+} from "../_shared/http.ts";
 import {
   coalesceTaxonomyValue,
   normalizeTaxonomyValue,
@@ -62,6 +66,7 @@ import {
 } from "../_shared/identify/thresholds.ts";
 import {
   resolveImagePayloads,
+  stagedImageSourceKeys,
   validateImageR2ObjectKeys,
 } from "../_shared/identify/media.ts";
 import {
@@ -69,6 +74,8 @@ import {
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 import { createCompatibilityScanIngestionLedger } from "../_shared/scanIngestionCompatibility.ts";
+import { recoverStrandedScanIngestionAttempt } from "../_shared/scanIngestionJobs.ts";
+import { isScanPersistenceOutcomeUnknown } from "../_shared/scanPersistence.ts";
 import {
   canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
@@ -106,6 +113,10 @@ const BIOLOGICAL_SAFETY_SETTINGS = [
     threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
   },
 ];
+
+class CompatibilityModerationRejectedError extends Error {
+  override name = "CompatibilityModerationRejectedError";
+}
 
 // Vision model config objects — pre-built at module scope for warm isolate re-use.
 // @google/genai has no getGenerativeModel() — config is passed per-call to
@@ -242,6 +253,40 @@ Deno.serve((req: Request) =>
     }
 
     const generatedScanId = resolveAIRequestId(req, client_scan_id);
+    let strandedRecovery;
+    try {
+      strandedRecovery = await recoverStrandedScanIngestionAttempt(
+        generatedScanId,
+        user.id,
+        supabaseAdmin,
+      );
+    } catch (error) {
+      logStructuredError("identify/scan_ingestion_recovery_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_recovery_unavailable",
+        "We couldn’t safely resume this observation. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
+    if (
+      strandedRecovery?.outcome === "media_restage_required" &&
+      (r2ObjectKeys ?? []).some((key) => !key.startsWith(`staging/${user.id}/`))
+    ) {
+      return publicErrorResponse(
+        req,
+        409,
+        "scan_media_restage_required",
+        "This observation’s uploads need to be refreshed for your account.",
+        { retryAfterSeconds: 1 },
+      );
+    }
+
     const existingCompletion = await fetchCompletedIdentifyResponse(
       generatedScanId,
       user.id,
@@ -262,6 +307,10 @@ Deno.serve((req: Request) =>
       },
     );
     if (keyValidationError) return keyValidationError;
+    const stagedImageKeys = stagedImageSourceKeys(
+      r2ObjectKeys,
+      imageBase64s,
+    );
 
     const { base64Payloads, errorResponse } = await resolveImagePayloads(
       r2ObjectKeys,
@@ -273,6 +322,23 @@ Deno.serve((req: Request) =>
 
     if (!base64Payloads || base64Payloads.length === 0) {
       return jsonResponse({ error: "Failed to resolve image payloads." }, 400);
+    }
+
+    try {
+      await upsertGhostUserIfMissing(user.id, supabaseAdmin);
+    } catch (error) {
+      logStructuredError("identify/scan_user_profile_unavailable", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_user_profile_unavailable",
+        "We couldn’t prepare this observation for saving. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
     }
 
     console.log(`[⏱ BENCH] payload_resolved: ${Date.now() - fnStart}ms`);
@@ -318,7 +384,7 @@ Deno.serve((req: Request) =>
           scanId: generatedScanId,
           userId: user.id,
           endpoint: "identify",
-          imageKeys: r2ObjectKeys ?? [],
+          imageKeys: stagedImageKeys,
           inlineImageCount: imageBase64s?.length ?? 0,
           description,
           preferredGoal: preferred_goal,
@@ -516,7 +582,8 @@ Deno.serve((req: Request) =>
 
     // Guard non-STOP finish reasons before attempting JSON extraction.
     // When finishReason is SAFETY/RECITATION/OTHER, result.text is "" and
-    // extractJson throws "no JSON object found" — producing a confusing 422.
+    // extractJson throws "no JSON object found". This is a provider failure,
+    // not a customer payload error, so it must remain retryable end to end.
     // SAFETY / PROHIBITED_CONTENT = permanent content policy failure → 400 (tombstone on iOS).
     // All other non-STOP reasons (MAX_TOKENS, RECITATION, OTHER) are transient → 503 (retry).
     if (
@@ -575,7 +642,7 @@ Deno.serve((req: Request) =>
       });
       return jsonResponse(
         { error: "Processing Error: Malformed AI response." },
-        422,
+        503,
       );
     }
 
@@ -788,6 +855,14 @@ Deno.serve((req: Request) =>
         : Promise.resolve(new Map<string, string>()),
       isIdentifiedBio
         ? fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
+          .catch((error) => {
+            logStructuredError("identify/species_cache_read_fallback", {
+              user_id: user.id,
+              scan_id: generatedScanId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return null;
+          })
         : Promise.resolve(null),
     ]);
 
@@ -870,9 +945,12 @@ Deno.serve((req: Request) =>
 
     await compatibilityLedger.mark(
       "finalizing",
-      "background_ingestion_queued",
+      "durable_ingestion_pending",
       { leaseSeconds: 300 },
     );
+
+    const needsGroupTags = isIdentifiedBio &&
+      !cachedSpecies?.group_tags?.length;
 
     const runBackgroundIngestion = async () => {
       // modResult is hoisted outside the try so the catch can reference publicUrls
@@ -881,6 +959,7 @@ Deno.serve((req: Request) =>
         | Awaited<ReturnType<typeof evaluateAndProcessPayload>>
         | undefined;
       let scanInserted = false;
+      let ledgerCompleted = false;
 
       try {
         // Tier was already resolved on the critical path. The only remaining task here is
@@ -890,7 +969,7 @@ Deno.serve((req: Request) =>
 
         modResult = await evaluateAndProcessPayload(
           user.id,
-          r2ObjectKeys,
+          stagedImageKeys,
           imageBase64s,
           finishReason,
           safetyRatings,
@@ -907,7 +986,7 @@ Deno.serve((req: Request) =>
             "moderation_error",
             "Moderation pipeline returned ERROR.",
           );
-          return;
+          throw new Error("Moderation pipeline returned ERROR.");
         }
         if (
           modResult.status === "SHADOWBANNED" ||
@@ -920,22 +999,10 @@ Deno.serve((req: Request) =>
             "moderation_rejected",
             "Media rejected by moderation.",
           );
-          return;
+          throw new CompatibilityModerationRejectedError(
+            "Media rejected by moderation.",
+          );
         }
-
-        // Start diagnostic group-tag Flash call.
-        // Cheap, species-level, and skipped when already cached.
-        const needsGroupTags = isIdentifiedBio &&
-          !cachedSpecies?.group_tags?.length;
-        const groupTagsPromise = needsGroupTags
-          ? fetchQuotaGuardedGroupTags(
-            req,
-            user,
-            parsedData.scientific_name!,
-            supabaseAdmin,
-            quotaLease.reservation.requestId,
-          )
-          : Promise.resolve(null);
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
         // Runs after moderation so we don't persist data for flagged content.
@@ -1109,7 +1176,7 @@ Deno.serve((req: Request) =>
         );
         scanInserted = true;
         const promotedUrlsByStorageKey = new Map<string, string>();
-        for (const [index, storageKey] of (r2ObjectKeys ?? []).entries()) {
+        for (const [index, storageKey] of stagedImageKeys.entries()) {
           const publicUrl = modResult.publicUrls?.[index];
           if (!publicUrl) {
             throw new Error(
@@ -1122,145 +1189,21 @@ Deno.serve((req: Request) =>
           promotedUrlsByStorageKey,
           responseEnvelope,
         });
-
-        // Capture the candidate enrichment promise before the final bgWriteTasks await so
-        // EdgeRuntime.waitUntil cannot terminate the isolate while external DNS resolution
-        // and upsertSpeciesDictionary writes are still in flight. A floating (un-awaited)
-        // Promise.allSettled is invisible to waitUntil and will be killed mid-flight the
-        // moment runBackgroundIngestion returns.
-        let candidateEnrichmentTask: Promise<void> = Promise.resolve();
-        if (missingCandidates.length > 0) {
-          const bgCandidateEnrichStart = Date.now();
-          const capturedCandidates = missingCandidates.slice();
-          candidateEnrichmentTask = Promise.allSettled(
-            capturedCandidates.map(async (candidateName) => {
-              const externalData = await fetchExternalEnrichment(candidateName);
-
-              const primaryEnName = (externalData.wikiTitle &&
-                  externalData.wikiTitle.toLowerCase() !==
-                    candidateName.toLowerCase())
-                ? externalData.wikiTitle.replace(/\s*\([^)]+\)$/, "").trim()
-                : (externalData.alternativeCommonNames[0] ?? null);
-              const freshCandidateSpecies = await fetchCachedSpecies(
-                candidateName,
-                supabaseAdmin,
-              );
-              const candidateCommonNames = mergeSpeciesCommonNames(
-                freshCandidateSpecies?.common_names,
-                primaryEnName,
-              );
-
-              const primaryEnLower = (candidateCommonNames.en ?? "")
-                .toLowerCase();
-              const newAltNames: string[] | null =
-                externalData.alternativeCommonNames.length > 0
-                  ? externalData.alternativeCommonNames.filter(
-                    (n) => n.toLowerCase() !== primaryEnLower,
-                  )
-                  : null;
-
-              await upsertSpeciesDictionary(
-                {
-                  scientific_name: candidateName,
-                  common_names: candidateCommonNames,
-                  alternative_common_names: newAltNames,
-                  kingdom: null,
-                  phylum: null,
-                  class: null,
-                  order: null,
-                  family: null,
-                  genus: null,
-                  wikipedia_overview: externalData.wikiExtract ?? null,
-                  hazard_type: "none",
-                  native_region: "Unknown",
-                  iucn_red_list_status: "not_evaluated",
-                  habitat_description: undefined,
-                  wikipedia_url: externalData.wikipediaUrl,
-                  gbif_taxon_key: externalData.gbifKey,
-                  reference_image_url: externalData.referenceImageUrl,
-                },
-                supabaseAdmin,
-              );
-            }),
-          ).then((results) => {
-            for (let i = 0; i < results.length; i++) {
-              const res = results[i];
-              if (res.status === "rejected") {
-                console.error(
-                  `[bg_candidate_enrichment] Failed to enrich ${
-                    capturedCandidates[i]
-                  }:`,
-                  res.reason instanceof Error
-                    ? res.reason.message
-                    : String(res.reason),
-                );
-              }
-            }
-            console.log(
-              `[⏱ BENCH] bg_candidate_enrichment: ${
-                Date.now() - bgCandidateEnrichStart
-              }ms`,
-            );
-          });
-        }
-
-        // Await species-level Flash call
-        const groupTagsResult = await groupTagsPromise;
-
-        const totalTokens = (llmTotalTokens ?? 0) +
-          (groupTagsResult?.usage?.totalTokenCount ?? 0);
-
-        // Fire PostHog as fire-and-forget — analytics must never add latency to ingestion.
-        trackPostHogEvent(user, "ScanCompleted", {
-          is_biological_subject: parsedData.is_biological_subject,
-          tier: userTier,
-          ...tierTelemetryProperties(tierResolution),
-          llm_model: targetModel,
-          llm_prompt_tokens: llmPromptTokens,
-          llm_candidate_tokens: llmCandidateTokens,
-          llm_thinking_tokens: llmThinkingTokens,
-          llm_cached_tokens: llmCachedTokens,
-          llm_total_tokens: llmTotalTokens,
-          encyclopedic_tokens: 0,
-          similar_species_tokens: 0,
-          group_tags_tokens: groupTagsResult?.usage?.totalTokenCount ?? 0,
-          cumulative_scan_tokens: totalTokens,
-          scientific_name: parsedData.scientific_name,
-        }).catch((e) => console.error("PostHog tracking failed:", e));
-
-        const bgWriteStart = Date.now();
-        const bgWriteResults = await Promise.allSettled([
-          needsGroupTags && groupTagsResult?.group_tags?.length
-            ? updateGroupTags(
-              parsedData.scientific_name!,
-              groupTagsResult.group_tags,
-              supabaseAdmin,
-            )
-            : Promise.resolve(),
-          // Bind candidate enrichment into the waitUntil execution lock so the isolate
-          // cannot terminate before all upsertSpeciesDictionary writes have resolved.
-          candidateEnrichmentTask,
-        ]);
-        for (const result of bgWriteResults) {
-          if (result.status === "rejected") {
-            console.error(JSON.stringify({
-              event: "bg_species_write_failed",
-              scan_id: generatedScanId,
-              error: result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason),
-              ts: new Date().toISOString(),
-            }));
-          }
-        }
-        console.log(
-          `[⏱ BENCH] bg_species_writes: ${Date.now() - bgWriteStart}ms`,
-        );
+        ledgerCompleted = true;
       } catch (e) {
+        const terminalFailure = e instanceof
+          CompatibilityModerationRejectedError;
+        const persistenceOutcomeUnknown = isScanPersistenceOutcomeUnknown(e);
+
         // Revert R2 uploads to prevent untracked orphans when the scan DB write failed.
         // Only roll back if modResult exists (media was committed) but the scan row wasn't
-        // written yet — a post-insert failure would leave a valid scan referencing the media.
-        if (!scanInserted && modResult?.publicUrls?.length) {
+        // written yet. An ambiguous/lost DB response is not proof of failure:
+        // deleting then could break a committed scan that references the media.
+        if (
+          !scanInserted &&
+          !persistenceOutcomeUnknown &&
+          modResult?.publicUrls?.length
+        ) {
           console.log("Rolling back R2 uploads due to scan insert failure.");
           const r2Config = getR2Config();
           const keysToPurge = modResult.publicUrls.map((url: string) =>
@@ -1291,11 +1234,32 @@ Deno.serve((req: Request) =>
           scan_id: generatedScanId,
           error: errorMsg,
         });
-        if (!scanInserted) {
-          await compatibilityLedger.markRetryableFailure(
-            "background_ingestion_failed",
-            errorMsg,
-          );
+        if (!ledgerCompleted && !terminalFailure) {
+          try {
+            await compatibilityLedger.markRetryableFailure(
+              "background_ingestion_failed",
+              errorMsg,
+            );
+          } catch (ledgerError) {
+            logStructuredError("identify/ledger_retry_mark_failed", {
+              user_id: user.id,
+              scan_id: generatedScanId,
+              error: ledgerError instanceof Error
+                ? ledgerError.message
+                : String(ledgerError),
+            });
+          }
+        }
+        if (!scanInserted && !terminalFailure) {
+          if (!persistenceOutcomeUnknown) {
+            const quotaRetryEnabled = await quotaLease.fail();
+            if (!quotaRetryEnabled) {
+              logStructuredError("identify/quota_retry_enable_failed", {
+                user_id: user.id,
+                scan_id: generatedScanId,
+              });
+            }
+          }
         }
 
         // Keep the legacy dead-letter row as detailed insert-failure evidence.
@@ -1304,32 +1268,174 @@ Deno.serve((req: Request) =>
         // history and older tooling.
         // Best-effort: if this insert also fails (e.g. DB is down), the structured log
         // above is still the recovery signal.
-        try {
-          const { error: dlErr } = await supabaseAdmin
-            .from("failed_scan_ingestions")
-            .insert({
-              scan_id: generatedScanId,
-              user_id: user.id,
-              error_message: errorMsg,
-            });
-          // PostgREST surfaces DB-level failures in { error }, not as thrown exceptions.
-          if (dlErr) {
+        if (!scanInserted && !terminalFailure) {
+          try {
+            const { error: dlErr } = await supabaseAdmin
+              .from("failed_scan_ingestions")
+              .insert({
+                scan_id: generatedScanId,
+                user_id: user.id,
+                error_message: errorMsg,
+              });
+            // PostgREST surfaces DB-level failures in { error }, not as thrown exceptions.
+            if (dlErr) {
+              logStructuredError("dead_letter_write_failed", {
+                scan_id: generatedScanId,
+                error: dlErr.message,
+              });
+            }
+          } catch (dlErr) {
+            // Network / client-level exception (e.g. DB unreachable).
             logStructuredError("dead_letter_write_failed", {
               scan_id: generatedScanId,
-              error: dlErr.message,
+              error: dlErr instanceof Error ? dlErr.message : String(dlErr),
             });
           }
-        } catch (dlErr) {
-          // Network / client-level exception (e.g. DB unreachable).
-          logStructuredError("dead_letter_write_failed", {
-            scan_id: generatedScanId,
-            error: dlErr instanceof Error ? dlErr.message : String(dlErr),
-          });
         }
+
+        // Scan insertion follows successful moderation and completed media
+        // promotion. It is an exact-owner durable replay surface even if the
+        // normalized-media finalizer or optional enrichment later fails.
+        if (scanInserted && !terminalFailure) return;
+        throw e;
       }
     };
 
-    runBackground(runBackgroundIngestion());
+    try {
+      // A 200 response is a durability promise consumed immediately by sync,
+      // Field Chat, Explore sharing, and Field Trips.
+      await runBackgroundIngestion();
+    } catch (error) {
+      if (error instanceof CompatibilityModerationRejectedError) {
+        return publicErrorResponse(
+          req,
+          400,
+          "observation_rejected",
+          "We couldn’t process this observation. Please try a different photo.",
+        );
+      }
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_persistence_failed",
+        "We couldn’t finish saving this observation. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
+
+    const runOptionalCompletionWork = async () => {
+      try {
+        const groupTagsPromise = needsGroupTags
+          ? fetchQuotaGuardedGroupTags(
+            req,
+            user,
+            parsedData.scientific_name!,
+            supabaseAdmin,
+            quotaLease.reservation.requestId,
+          )
+          : Promise.resolve(null);
+
+        const capturedCandidates = missingCandidates.slice();
+        const candidateEnrichmentPromise = Promise.allSettled(
+          capturedCandidates.map(async (candidateName) => {
+            const externalData = await fetchExternalEnrichment(candidateName);
+            const primaryEnName = (externalData.wikiTitle &&
+                externalData.wikiTitle.toLowerCase() !==
+                  candidateName.toLowerCase())
+              ? externalData.wikiTitle.replace(/\s*\([^)]+\)$/, "").trim()
+              : (externalData.alternativeCommonNames[0] ?? null);
+            const freshCandidateSpecies = await fetchCachedSpecies(
+              candidateName,
+              supabaseAdmin,
+            );
+            const candidateCommonNames = mergeSpeciesCommonNames(
+              freshCandidateSpecies?.common_names,
+              primaryEnName,
+            );
+            const primaryEnLower = (candidateCommonNames.en ?? "")
+              .toLowerCase();
+
+            await upsertSpeciesDictionary(
+              {
+                scientific_name: candidateName,
+                common_names: candidateCommonNames,
+                alternative_common_names:
+                  externalData.alternativeCommonNames.length > 0
+                    ? externalData.alternativeCommonNames.filter(
+                      (name) => name.toLowerCase() !== primaryEnLower,
+                    )
+                    : null,
+                kingdom: null,
+                phylum: null,
+                class: null,
+                order: null,
+                family: null,
+                genus: null,
+                wikipedia_overview: externalData.wikiExtract ?? null,
+                hazard_type: "none",
+                native_region: "Unknown",
+                iucn_red_list_status: "not_evaluated",
+                habitat_description: undefined,
+                wikipedia_url: externalData.wikipediaUrl,
+                gbif_taxon_key: externalData.gbifKey,
+                reference_image_url: externalData.referenceImageUrl,
+              },
+              supabaseAdmin,
+            );
+          }),
+        );
+
+        const [groupTagsResult, candidateResults] = await Promise.all([
+          groupTagsPromise,
+          candidateEnrichmentPromise,
+        ]);
+        for (const [index, result] of candidateResults.entries()) {
+          if (result.status === "rejected") {
+            logStructuredError("identify/candidate_enrichment_failed", {
+              scan_id: generatedScanId,
+              scientific_name: capturedCandidates[index] ?? null,
+              error: result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+            });
+          }
+        }
+
+        if (needsGroupTags && groupTagsResult?.group_tags?.length) {
+          await updateGroupTags(
+            parsedData.scientific_name!,
+            groupTagsResult.group_tags,
+            supabaseAdmin,
+          );
+        }
+
+        const totalTokens = (llmTotalTokens ?? 0) +
+          (groupTagsResult?.usage?.totalTokenCount ?? 0);
+        await trackPostHogEvent(user, "ScanCompleted", {
+          is_biological_subject: parsedData.is_biological_subject,
+          tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
+          llm_model: targetModel,
+          llm_prompt_tokens: llmPromptTokens,
+          llm_candidate_tokens: llmCandidateTokens,
+          llm_thinking_tokens: llmThinkingTokens,
+          llm_cached_tokens: llmCachedTokens,
+          llm_total_tokens: llmTotalTokens,
+          encyclopedic_tokens: 0,
+          similar_species_tokens: 0,
+          group_tags_tokens: groupTagsResult?.usage?.totalTokenCount ?? 0,
+          cumulative_scan_tokens: totalTokens,
+          scientific_name: parsedData.scientific_name,
+        });
+      } catch (error) {
+        logStructuredError("identify/optional_completion_work_failed", {
+          user_id: user.id,
+          scan_id: generatedScanId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+    runBackground(runOptionalCompletionWork());
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
     return jsonResponse(responseEnvelope, 200);

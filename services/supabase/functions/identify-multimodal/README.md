@@ -49,7 +49,12 @@ Common fields:
 `user_id` is retained for legacy request shape compatibility, but ownership is
 derived from the JWT user. Staged keys must belong to that user and remain under
 the expected `staging/` prefix. Inline base64 media is size-checked before
-decode; staged media is fetched through bounded stream readers.
+decode; staged media is fetched through bounded stream readers. An inline-only
+image request sends `r2ObjectKeys: []`. Older clients may supply a synthetic
+destination filename hint beside inline bytes; it is validated for traversal but
+excluded from ownership enforcement, public object naming, replay manifests,
+upload-asset failure marking, and strict promotion finalization because no
+source object was uploaded.
 
 Clients send the UUID `client_scan_id` as `Idempotency-Key` and preserve both
 values across transport, authentication, and queue retries. The database scopes
@@ -224,11 +229,42 @@ returned `scan_id` is immediately usable by Field Chat, Explore sharing, field
 trips, and owner sync. Analytics, group tags, and candidate enrichment remain
 optional `EdgeRuntime.waitUntil` work. The duplicate-protected scan insert is
 followed by an owner-scoped read-back; a no-op collision or moderation branch
-therefore cannot resolve into HTTP success without the owner row. Terminal
-media-policy rejection returns generic customer-facing code
+therefore cannot resolve into HTTP success without the owner row. Before that
+insert, all scan-producing routes call service-only
+`ensure_scan_user_profile(user.id)`. It requires the exact Auth identity,
+derives every mandatory Explore identity field through canonical database
+helpers, serializes with ghost merge/cleanup, and refuses deletion-pending or
+retired identities. It replaces the obsolete partial users-table upsert that
+could violate `public_author_name NOT NULL` after provider work. Migration
+`20260728232000_ensure_scan_user_profile.sql` must precede this bundle.
+
+The insert and read-back settle through `_shared/scanPersistence.ts`. If
+PostgREST returns a rejection and an exact-owner reread proves no row exists,
+normal quota, asset, and media rollback is safe. If the write response is lost,
+a reported success cannot be verified, or owner verification is unavailable, the
+route returns retryable 503 while preserving quota and every promoted object.
+This prevents cleanup from deleting media after a transaction that actually
+committed or was concurrently reparented.
+
+If an anonymous identity is merged after provider dispatch, the merge routine
+fences its unfinished generation as `identity_merge_interrupted` before generic
+ownership reparenting. The old invocation cannot recreate the retired profile or
+accept old-owner staging. Service-only stranded-attempt recovery requires the
+exact source/target handoff, endpoint, quota operation, job, lease, tombstone,
+and owner-row state and never refunds committed provider usage. Migration
+`20260728233000_recover_identity_merge_interrupted_scans.sql` must follow the
+profile migration and precede this bundle.
+
+Terminal media-policy rejection returns generic customer-facing code
 `observation_rejected` with HTTP 400, while operational failures in moderation,
 promotion, species resolution, or scan insertion return retryable
-`scan_persistence_failed` with HTTP 503.
+`scan_persistence_failed` with HTTP 503. If a readable owner probe proves that
+failure occurred before the scan exists, the committed provider reservation
+transitions to `failed`, which permits the stable request UUID to reserve a
+fenced metered retry; iOS must fresh-upload local media because promotion may
+already have consumed the old staging keys. Ambiguous outcomes and post-insert
+failures retain the committed reservation and recover from the exact owner row
+without another provider call.
 
 `complete_scan_ingestion_finalization` is the only current path that can move a
 nonterminal multimodal ledger to `complete`. Under the same per-scan lock it
@@ -257,6 +293,20 @@ same `scan_id`; it never changes this request or creates another model call.
 
 - `/check-scan-status` is the owner-safe polling endpoint. It reports completed
   scan rows and, when requested, server-side ingestion job state.
+- `recover_inline_scan_ingestion_completion` is a service-only database repair
+  invoked by duplicate lookup before ordinary retry work. It recognizes only an
+  already-owned, internally consistent post-insert topology. Inline redaction
+  counts distinguish historical filename hints from real queued images: an
+  ignored hint must have no capture row, while every genuine image/audio/video
+  source must have one exact active owner row and a canonical filename-matched
+  URL. Only migration-marked superseded signing rows may coexist. The repair
+  preserves genuine keys and upload sessions, normalizes both checksummed
+  ledgers, reconstructs exact retained-media dispositions from canonical URLs
+  and sanitized descriptors, and runs the canonical finalizer atomically.
+- `recover_stranded_scan_ingestion_attempt` handles only a generation fenced by
+  identity merge. It resolves to the canonical target owner from the merge
+  handoff, rejects active/deleted/ambiguous/existing-scan states, and gives
+  retired-source staged media a stable restage outcome.
 - `/replay-scan-ingestion` claims due resumable staged or text-only intents and
   dispatches them back through this endpoint with the same `client_scan_id`. Its
   service-authenticated durable claim count derives a separate deterministic

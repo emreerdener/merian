@@ -240,7 +240,12 @@ that need five sampled inference frames plus one playback clip. Legacy
 because it cannot express byte budgets or media asset sessions. The limit and
 content-type contract is pinned in
 `docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
-Deno tests.
+Deno tests. Registration is idempotent per owner/client-scan/object key, but
+signing calls for one scan may be composable subsets (for example live video and
+later queue recovery media). Existing unrequested rows are retained rather than
+treated as an immutable full manifest. Edge code bounds the combined
+non-superseded key union at six; an owner-serialized database trigger enforces
+the staged-row cap across concurrent disjoint-key registrations.
 
 Profile avatar uploads also use this signing path. The iOS client uploads a
 single prepared square WebP or JPEG to `staging/{userId}/...`, then calls
@@ -520,10 +525,11 @@ The `/identify` Edge Function acts as the inference proxy:
    lock; they can complete only through the shared finalization RPC. Active
    multimodal persistence failures are captured in the older dead-letter table
    as a fallback and return retryable `scan_persistence_failed` instead of
-   delivering a local-only observation. Compatibility post-response insert or
-   finalization failures become retryable ledger/dead-letter work. The job
-   ledger gives `/check-scan-status` live state, including bulk status probes,
-   atomic authenticated single-row repair, and video-completeness checks via
+   delivering a local-only observation. Compatibility insert or finalization
+   failures are awaited, return retryable 503, and become ledger/dead-letter
+   work instead of surfacing HTTP success. The job ledger gives
+   `/check-scan-status` live state, including bulk status probes, atomic
+   authenticated single-row repair, and video-completeness checks via
    `required_video_count`; dead letters are legacy ops evidence rather than the
    primary recovery surface. Replay is safe because `insertScan` uses
    `ignoreDuplicates: true` and then proves the row exists for the authenticated
@@ -547,19 +553,20 @@ The `/identify` Edge Function acts as the inference proxy:
    When `modResult.status === "ERROR"` (for example, an abuse-strike write or
    promotion batch fails), the active multimodal durability boundary rolls back
    promoted objects and returns retryable `503 scan_persistence_failed`;
-   compatibility background insertion halts and records its failure. Neither
-   path inserts a scan from an unrecorded or operationally uncertain moderation
+   compatibility required insertion halts and records its failure. Neither path
+   inserts a scan from an unrecorded or operationally uncertain moderation
    result. Copy, promotion, and staging deletion responses are checked
    explicitly. Completion-sensitive deletion accepts only R2 2xx or idempotent
    404; every other provider response fails before a deletion disposition can be
    finalized.
-7. **R2 Promotion Rollback (Orphan Leak Prevention)**: After `moderation.ts`
-   successfully copies the `1024px` downsampled binaries from `staging/` to
-   `public_uploads/`, the final pipeline step runs the PostgreSQL `scans`
-   `.insert()`. If the Database write fails (e.g. constraints, timeouts), an
-   orchestrated `deleteR2Object()` rollback immediately purges the
-   `public_uploads/` artifacts to absolutely prevent server-side Storage
-   accumulation of untracked UUID blobs.
+7. **R2 Promotion Rollback (Reference Safety First)**: After `moderation.ts`
+   successfully copies binaries from `staging/` to `public_uploads/`, every scan
+   adapter writes idempotently and rereads the exact `(scan_id, user_id)` row. A
+   returned database rejection plus a definitive missing-owner read permits
+   status-checked R2 rollback. A timeout, lost write response, reported-success
+   anomaly, or unavailable owner read preserves promoted objects and committed
+   quota while returning retryable 503. Preventing an orphan must never delete
+   an object that a transaction may already have committed into a scan.
 8. **Enrichment & Reference Imagery**: Wikipedia (deep-linked URLs and paragraph
    extracts), GBIF Occurrence (verified field imagery), and GBIF vernacular
    names (`alternative_common_names`) lookups run concurrently via
@@ -582,7 +589,7 @@ The `/identify` Edge Function acts as the inference proxy:
    `{ success, data }` payload is parsed again against the final wire contract
    before persistence or delivery. These gates enforce nested types,
    requiredness, nullability, enums, string/cardinality limits, safe integers,
-   and numeric bounds. Malformed provider JSON/model output returns HTTP 422; a
+   and numeric bounds. Malformed provider JSON/model output returns HTTP 503; a
    final enriched-payload mismatch returns HTTP 502 with stable code
    `identify_response_invalid`. Internal contract details are logged but not
    exposed. **503 vs 400 for Gemini errors**: The `catch (genError)` block

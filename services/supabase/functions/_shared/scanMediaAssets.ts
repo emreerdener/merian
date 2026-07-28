@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { MEDIA_BUDGETS } from "./mediaBudgets.ts";
 
 export type ScanMediaAssetKind = "image" | "video" | "audio";
 export type ScanMediaAssetRole =
@@ -57,6 +58,17 @@ export interface StagedScanMediaAssetRow {
   upload_session_id: string;
   order_index: number;
 }
+
+type ReusableStagedScanMediaAssetRow = StagedScanMediaAssetRow & {
+  user_id: string;
+  client_scan_id: string;
+  kind: ScanMediaAssetKind;
+  role: ScanMediaAssetRole;
+  content_type: string | null;
+  byte_size: number | null;
+  status: ScanMediaAssetStatus;
+  failure_reason: string | null;
+};
 
 type NormalizedScanMediaAssetRow = ScanMediaAssetRow & {
   role: ScanMediaAssetRole;
@@ -170,40 +182,298 @@ export async function createStagedScanMediaAssets(
 ): Promise<StagedScanMediaAssetRow[]> {
   if (inputs.length === 0) return [];
 
-  const rows = inputs.map((input) => ({
-    scan_id: null,
-    client_scan_id: input.clientScanId,
-    upload_session_id: input.uploadSessionId,
-    user_id: input.userId,
-    kind: input.kind,
-    role: input.role,
-    status: "staged",
-    source: "capture_upload",
-    url: null,
-    storage_key: input.storageKey,
-    thumbnail_url: null,
-    order_index: input.orderIndex,
-    duration_seconds: null,
-    has_audio: false,
-    content_type: input.contentType,
-    byte_size: input.byteSize ?? null,
-    failure_reason: null,
-    ready_at: null,
-    deleted_at: null,
-    metadata: input.metadata ?? {},
-  }));
-
-  const { data, error } = await supabaseAdmin
-    .from("scan_media_assets")
-    .insert(rows)
-    .select("id,storage_key,upload_session_id,order_index")
-    .order("order_index", { ascending: true });
-
-  if (error) {
-    throw new Error(`createStagedScanMediaAssets: ${error.message}`);
+  const userIds = new Set(inputs.map((input) => input.userId));
+  if (userIds.size !== 1) {
+    throw new Error(
+      "createStagedScanMediaAssets: one registration may have only one owner",
+    );
+  }
+  const userId = inputs[0].userId;
+  const identity = (input: {
+    clientScanId: string;
+    storageKey: string;
+  }): string => `${input.clientScanId}\u0000${input.storageKey}`;
+  const inputByIdentity = new Map(
+    inputs.map((input) => [identity(input), input]),
+  );
+  if (inputByIdentity.size !== inputs.length) {
+    throw new Error(
+      "createStagedScanMediaAssets: duplicate active staging key",
+    );
+  }
+  if (new Set(inputs.map((input) => input.storageKey)).size !== inputs.length) {
+    throw new Error(
+      "createStagedScanMediaAssets: one storage key cannot represent multiple scans",
+    );
   }
 
-  return (data ?? []) as StagedScanMediaAssetRow[];
+  const rowsByIdentity = new Map<string, StagedScanMediaAssetRow>();
+  const activeStorageKeysByClientScanId = new Map<string, Set<string>>();
+  const fetchReusableRows = async (): Promise<void> => {
+    const { data, error } = await supabaseAdmin
+      .from("scan_media_assets")
+      .select(
+        "id,user_id,client_scan_id,kind,role,content_type,byte_size,status,failure_reason,storage_key,upload_session_id,order_index",
+      )
+      .eq("user_id", userId)
+      .eq("source", "capture_upload")
+      .in(
+        "client_scan_id",
+        [...new Set(inputs.map((input) => input.clientScanId))],
+      );
+
+    if (error) {
+      throw new Error(
+        `createStagedScanMediaAssets: ${error.message}`,
+      );
+    }
+
+    rowsByIdentity.clear();
+    activeStorageKeysByClientScanId.clear();
+    for (
+      const row of (data ?? []) as unknown as ReusableStagedScanMediaAssetRow[]
+    ) {
+      if (
+        row.status === "failed" &&
+        (
+          row.failure_reason === "superseded_staging_registration" ||
+          row.failure_reason === "superseded_identity_merge_staging"
+        )
+      ) {
+        continue;
+      }
+      const activeStorageKeys = activeStorageKeysByClientScanId.get(
+        row.client_scan_id,
+      ) ?? new Set<string>();
+      activeStorageKeys.add(row.storage_key);
+      activeStorageKeysByClientScanId.set(
+        row.client_scan_id,
+        activeStorageKeys,
+      );
+      const rowIdentity = identity({
+        clientScanId: row.client_scan_id,
+        storageKey: row.storage_key,
+      });
+      const input = inputByIdentity.get(rowIdentity);
+      // Signing calls are intentionally composable. Live video upload may sign
+      // only the clip while the durable queue signs the same scan's recovery
+      // frames/audio, and an inline foreground request has no staged sources at
+      // all until its offline copy is uploaded. Unrequested rows therefore do
+      // not define an immutable full manifest; exact requested identities do.
+      if (!input) continue;
+      if (
+        rowsByIdentity.has(rowIdentity) ||
+        row.user_id !== input.userId ||
+        row.kind !== input.kind ||
+        row.role !== input.role ||
+        row.content_type !== input.contentType ||
+        row.byte_size !== (input.byteSize ?? null)
+      ) {
+        throw new Error(
+          "createStagedScanMediaAssets: conflicting active staging registration",
+        );
+      }
+      rowsByIdentity.set(rowIdentity, row);
+    }
+  };
+
+  const insertRows = (missingInputs: StagedScanMediaAssetInput[]) =>
+    missingInputs.map((input) => ({
+      scan_id: null,
+      client_scan_id: input.clientScanId,
+      upload_session_id: input.uploadSessionId,
+      user_id: input.userId,
+      kind: input.kind,
+      role: input.role,
+      status: "staged",
+      source: "capture_upload",
+      url: null,
+      storage_key: input.storageKey,
+      thumbnail_url: null,
+      order_index: input.orderIndex,
+      duration_seconds: null,
+      has_audio: false,
+      content_type: input.contentType,
+      byte_size: input.byteSize ?? null,
+      failure_reason: null,
+      ready_at: null,
+      deleted_at: null,
+      metadata: input.metadata ?? {},
+    }));
+
+  // A signing response can be lost after its staged ledger rows commit. Reuse
+  // those rows on retry; a partial unique index serializes concurrent retries.
+  // If another request wins between SELECT and INSERT, retry the lookup rather
+  // than creating a second active row that the exact-count finalizer rejects.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await fetchReusableRows();
+    for (
+      const clientScanId of new Set(
+        inputs.map((input) => input.clientScanId),
+      )
+    ) {
+      const activeStorageKeys = new Set(
+        activeStorageKeysByClientScanId.get(clientScanId) ?? [],
+      );
+      for (
+        const requestedInput of inputs.filter((input) =>
+          input.clientScanId === clientScanId
+        )
+      ) {
+        activeStorageKeys.add(requestedInput.storageKey);
+      }
+      if (activeStorageKeys.size > MEDIA_BUDGETS.maxStagingFiles) {
+        throw new Error(
+          "createStagedScanMediaAssets: staged media budget exceeded for client scan",
+        );
+      }
+    }
+    const requestedClientScanIds = [
+      ...new Set(inputs.map((input) => input.clientScanId)),
+    ];
+    const { data: jobData, error: jobError } = await supabaseAdmin
+      .from("scan_ingestion_jobs")
+      .select("scan_id,status,stage")
+      .eq("user_id", userId)
+      .in("scan_id", requestedClientScanIds);
+    if (jobError) {
+      throw new Error(
+        `createStagedScanMediaAssets: ${jobError.message}`,
+      );
+    }
+    const jobStatusByScanId = new Map(
+      ((jobData ?? []) as Array<{
+        scan_id: string;
+        status: string;
+        stage: string;
+      }>).map(
+        (row) => [row.scan_id, { status: row.status, stage: row.stage }],
+      ),
+    );
+    if (
+      [...jobStatusByScanId.values()].some(({ status }) =>
+        status === "complete" || status === "failed_terminal"
+      )
+    ) {
+      throw new Error(
+        "createStagedScanMediaAssets: terminal staging registration cannot be retried",
+      );
+    }
+
+    const failedRows = [...rowsByIdentity.entries()].filter(([, row]) =>
+      (row as ReusableStagedScanMediaAssetRow).status === "failed"
+    ) as Array<[string, ReusableStagedScanMediaAssetRow]>;
+    const invalidRows = [...rowsByIdentity.values()].filter((row) => {
+      const status = (row as ReusableStagedScanMediaAssetRow).status;
+      return status !== "staged" && status !== "failed";
+    });
+    if (invalidRows.length > 0) {
+      throw new Error(
+        "createStagedScanMediaAssets: conflicting active staging registration",
+      );
+    }
+    if (
+      failedRows.some(([, row]) => {
+        const jobStatus = jobStatusByScanId.get(row.client_scan_id)?.status;
+        return row.failure_reason === "moderation_rejected" ||
+          (
+            jobStatus != null &&
+            jobStatus !== "failed_retryable" &&
+            jobStatus !== "retrying"
+          );
+      })
+    ) {
+      throw new Error(
+        "createStagedScanMediaAssets: terminal staging registration cannot be retried",
+      );
+    }
+
+    const missingInputs = inputs.filter((input) =>
+      !rowsByIdentity.has(identity(input))
+    );
+
+    if (failedRows.length > 0) {
+      let reactivationLostRace = false;
+      for (const [rowIdentity, row] of failedRows) {
+        const { data, error } = await supabaseAdmin
+          .from("scan_media_assets")
+          .update({
+            status: "staged",
+            failure_reason: null,
+            deleted_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id)
+          .eq("user_id", userId)
+          .eq("source", "capture_upload")
+          .eq("status", "failed")
+          .select("id,storage_key,upload_session_id,order_index")
+          .maybeSingle();
+        if (error) {
+          if (error.code === "23505") {
+            reactivationLostRace = true;
+            break;
+          }
+          throw new Error(
+            `createStagedScanMediaAssets: ${error.message}`,
+          );
+        }
+        if (!data) {
+          reactivationLostRace = true;
+          break;
+        }
+        rowsByIdentity.set(
+          rowIdentity,
+          data as StagedScanMediaAssetRow,
+        );
+      }
+      if (reactivationLostRace) continue;
+    }
+
+    if (missingInputs.length === 0) {
+      return inputs.map((input) => rowsByIdentity.get(identity(input))!);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("scan_media_assets")
+      .insert(insertRows(missingInputs))
+      .select("id,storage_key,upload_session_id,order_index")
+      .order("order_index", { ascending: true });
+
+    if (!error) {
+      const missingInputByStorageKey = new Map(
+        missingInputs.map((input) => [input.storageKey, input]),
+      );
+      const insertedIdentities = new Set<string>();
+      for (const row of (data ?? []) as StagedScanMediaAssetRow[]) {
+        const input = missingInputByStorageKey.get(row.storage_key);
+        const rowIdentity = input ? identity(input) : "";
+        if (!input || insertedIdentities.has(rowIdentity)) {
+          throw new Error(
+            "createStagedScanMediaAssets: incomplete staging registration",
+          );
+        }
+        insertedIdentities.add(rowIdentity);
+        rowsByIdentity.set(rowIdentity, row);
+      }
+      if (
+        insertedIdentities.size !== missingInputs.length ||
+        rowsByIdentity.size !== inputs.length
+      ) {
+        throw new Error(
+          "createStagedScanMediaAssets: incomplete staging registration",
+        );
+      }
+      return inputs.map((input) => rowsByIdentity.get(identity(input))!);
+    }
+    if (error.code !== "23505") {
+      throw new Error(`createStagedScanMediaAssets: ${error.message}`);
+    }
+  }
+
+  throw new Error(
+    "createStagedScanMediaAssets: concurrent staging registration did not converge",
+  );
 }
 
 export async function fetchCaptureUploadSessionIdsForKeys(

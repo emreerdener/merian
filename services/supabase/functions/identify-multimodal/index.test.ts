@@ -884,6 +884,63 @@ Deno.test("completed scan retries replay before staging or AI provider work", as
   assert(source.includes('"X-Merian-Idempotent-Replay": replay.source'));
 });
 
+Deno.test("identity-merge recovery precedes staging access and never grants old-key ownership", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const generatedScanId = source.indexOf("const generatedScanId =");
+  const recovery = source.indexOf(
+    "strandedRecovery = await recoverStrandedScanIngestionAttempt(",
+    generatedScanId,
+  );
+  const replay = source.indexOf(
+    "const existingCompletion = await fetchCompletedIdentifyResponse(",
+    generatedScanId,
+  );
+  const keyValidation = source.indexOf(
+    "const keyValidationError = validateImageR2ObjectKeys(",
+    generatedScanId,
+  );
+
+  assert(recovery > generatedScanId);
+  assert(replay > recovery);
+  assert(keyValidation > replay);
+  assert(source.includes('"scan_media_restage_required"'));
+  assert(
+    !source.includes("allowedStagingOwnerIds"),
+    "A merged key must be re-staged, not added to an ownership allowlist.",
+  );
+});
+
+Deno.test("scan profile prerequisite fails before quota or provider work and rechecks before insert", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const firstProfileCheck = source.indexOf(
+    "await upsertGhostUserIfMissing(user.id, supabaseAdmin);",
+  );
+  const quotaReservation = source.indexOf(
+    "quotaLease = await reserveAIProviderCall(",
+  );
+  const providerCall = source.indexOf("_genAI.models.generateContent({");
+  const durableIngestion = source.indexOf(
+    "const runDurableIngestion = async () =>",
+  );
+  const secondProfileCheck = source.indexOf(
+    "await upsertGhostUserIfMissing(user.id, supabaseAdmin);",
+    firstProfileCheck + 1,
+  );
+  const scanInsert = source.indexOf("await insertScan(", durableIngestion);
+
+  assert(firstProfileCheck >= 0);
+  assert(quotaReservation > firstProfileCheck);
+  assert(providerCall > quotaReservation);
+  assert(durableIngestion > providerCall);
+  assert(secondProfileCheck > durableIngestion);
+  assert(scanInsert > secondProfileCheck);
+  assert(source.includes('"scan_user_profile_unavailable"'));
+});
+
 Deno.test("concurrent AI retries wait for the exact owner completion instead of returning 409", async () => {
   const source = await Deno.readTextFile(
     new URL("./index.ts", import.meta.url),
@@ -1038,6 +1095,27 @@ Deno.test("identify success waits for durable scan persistence for every media t
     "only optional species enrichment should remain deferred",
   );
   assert(source.includes('"scan_persistence_failed"'));
+  assert(
+    source.includes(
+      "evaluateAndProcessPayload(\n          user.id,\n          stagedImageKeys,\n          imageBase64s,",
+    ),
+    "inline destination hints must not influence public object naming",
+  );
+  assert(
+    source.includes("const quotaRetryEnabled = await quotaLease.fail();"),
+    "a pre-insert persistence failure must permit a fenced retry",
+  );
+  const quotaRetryStart = source.indexOf(
+    "const quotaRetryEnabled = await quotaLease.fail();",
+  );
+  const preInsertGuardStart = source.lastIndexOf(
+    "if (!scanInserted && !terminalFailure) {",
+    quotaRetryStart,
+  );
+  assert(
+    preInsertGuardStart >= 0 && quotaRetryStart > preInsertGuardStart,
+    "terminal rejection and post-insert recovery must retain the committed provider reservation",
+  );
 
   const moderationRejectionStart = source.indexOf(
     'modResult.status === "SHADOWBANNED"',

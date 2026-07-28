@@ -116,10 +116,10 @@ Both uploads and inference use the same background `URLSession`
 (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`,
 so iOS can re-attach in-flight tasks on app relaunch and deliver inference
 results while the app is completely suspended. Current upload task descriptions
-are `upload|{scanId}|{uploadIndex}|{syncGeneration}`. Current inference task
-descriptions are `inference_v2|{inferenceGeneration}|{scanId}`. Parsers continue
-to accept the earlier three-part upload form and `inference_{scanId}` for
-in-flight tasks created by an older app version.
+are `upload|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}`. Current
+inference task descriptions are `inference_v2|{inferenceGeneration}|{scanId}`.
+Parsers continue to accept the earlier three- and four-part upload forms and
+`inference_{scanId}` for in-flight tasks created by an older app version.
 
 The generation in each current description is an ownership fence, not merely a
 deduplication key. Delayed callbacks, retry timers, server-status probes, and
@@ -244,8 +244,9 @@ Compatibility scan-producing endpoints (`identify`, `identify-describe`, and
 job/intent rows before provider dispatch, then record final parsed output before
 returning success; staged image/audio and text-only compatibility intents are
 shaped for `/identify-multimodal` replay, while inline media is redacted and
-remains client-retry only. The compatibility background insertion task may still
-fail after its HTTP success. That path:
+remains client-retry only. Their required insertion/finalization task is
+awaited: a failure returns retryable `503 scan_persistence_failed`, never a
+provider-only HTTP success. That path:
 
 1. Logs a structured error via
    `logStructuredError("background_ingestion_failed", { scan_id, user_id, error })`.
@@ -254,6 +255,9 @@ fail after its HTTP success. That path:
 3. If the dead-letter insert also fails, logs
    `logStructuredError("dead_letter_write_failed", ...)` and continues — the
    primary failure is already logged.
+4. Preserves committed quota and promoted media when the write/read response is
+   ambiguous; destructive cleanup occurs only after an exact owner read proves
+   the scan absent.
 
 **Ops replay**: Start with `scan_ingestion_jobs` for current state, attempt
 count, stage, retryability, `upload_session_ids`, and `manifest_checksum`, then

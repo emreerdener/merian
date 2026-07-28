@@ -6,6 +6,82 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Critical Scan Reliability
+
+- Fixed the release-blocking scan failure that let Gemini finish but rejected
+  the observation while saving it. Inline camera bytes no longer advertise a
+  synthetic staging object, and the strict media finalizer now receives only
+  real upload sources. The shared durable success boundary is restored for the
+  Insight result, Field Chat, Explore sharing, field trips, and owner sync.
+- Fixed a second production-confirmed 503 before scan insertion: replay/profile
+  drift tried to create a user with none of Explore’s mandatory public identity
+  fields. All Identify routes now call one service-only, Auth-backed profile
+  prerequisite that derives valid identity fields and refuses account deletion,
+  merged ghosts, or cleanup races without weakening schema constraints.
+- Added a service-only, fail-closed repair for already-owned scans stranded at
+  media finalization. It distinguishes historical inline filename hints from
+  genuine queued image sources, verifies the exact owner/job/intent topology and
+  canonical media mapping, atomically normalizes both ingestion ledgers, and
+  runs the canonical finalizer without another provider call. Multi-image,
+  video-frame, queued-image, audio, and mixed-media states are covered.
+- Upload-URL registration is now idempotent for a stable
+  owner/client-scan/object key. A lost signing response reuses the committed
+  asset and upload session, retryable failed assets are reactivated rather than
+  duplicated, terminal/completed generations remain closed, and a partial
+  database uniqueness rule serializes concurrent retries. Existing duplicates
+  are retained as explicitly superseded audit rows; duplicate filenames are
+  rejected before signing. Staging order is now the stable per-scan media slot
+  rather than the scan’s accidental flat position in a multi-scan batch.
+  Foreground, video, and recovery signing subsets for one scan now compose
+  without treating the first subset as an immutable full manifest; their union
+  remains capped at six by both Edge validation and an owner-serialized database
+  trigger, including across concurrent disjoint-key requests.
+- Offline image, audio, video, and Describe submissions now commit their local
+  queue record before optional weather, geocoding, authentication, or other
+  asynchronous enrichment. Upload callbacks preserve the exact canonical
+  server-issued object key across authentication changes. A pre-insert
+  persistence failure permits a fenced metered retry and resets consumed staged
+  media to a fresh upload instead of looping on deleted object keys.
+- Scan-media reconciliation now distinguishes durable standalone audio from
+  inference-only video companion audio. A stranded standalone recording is
+  retained and marked promoted instead of being mislabeled as deleted.
+- Closed the remaining compatibility success gaps in `identify`,
+  `identify-describe`, and `audio-spec`. All four scan producers now await the
+  exact owner scan insert and run complete-last finalization in the required
+  task; compatibility delivery may fall back only to an already-committed owner
+  row while its bookkeeping remains retryable. Optional analytics/enrichment
+  runs only afterward, and a transient post-provider dictionary-cache read
+  degrades safely instead of stranding committed usage.
+- Fenced scans interrupted by anonymous-to-account identity merge before generic
+  ownership reparenting. Recovery is target-only and requires exact
+  job/handoff/quota/lease/tombstone evidence; committed provider usage is never
+  refunded or reopened, retired-source staging is never accepted, and active or
+  deleted work always wins.
+- Legacy audio requests that include both inline bytes and an old destination
+  hint now ledger only the bytes actually used. Standalone audio is promoted
+  into durable scan URLs and normalized media so it remains available to
+  Insight, Field Chat, and Explore instead of being deleted after inference.
+- A failed file in a background upload now fences and cancels the entire
+  generation before sibling callbacks can advance an incomplete scan manifest.
+  Final staging additionally requires exact success evidence for every expected
+  server-issued key in that generation, so removal of a completed sibling from
+  `URLSession.allTasks` cannot be mistaken for a successful upload. Reattached
+  generation-tagged tasks now invoke orphan recovery even though their creating
+  process’s global sync latch is gone; a proven `.uploading → .pending` reset
+  restarts signing in the same recovery pass.
+- Explore media restoration now rejects traversal and cross-owner staging keys
+  and removes partially promoted media only after a returned database rejection
+  plus an exact-owner reread proves the URLs were not committed. Lost or
+  unreadable scan-write responses preserve quota and promoted image, audio, and
+  video objects so cleanup cannot break a committed scan; retries reconcile
+  through the exact owner row.
+- Malformed paid-provider output now returns retryable HTTP 503 consistently
+  across image, multimodal, Describe, and audio producers instead of stranding
+  offline jobs behind terminal HTTP 422 handling.
+- Owned scan-image repair now reconciles a lost atomic metadata response from
+  exact owner source/replacement references and never deletes a promoted
+  replacement whose commit outcome is ambiguous.
+
 ### Release Assurance
 
 - The idempotent Identify response-finalization RPC now registers its

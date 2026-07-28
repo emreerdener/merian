@@ -1444,7 +1444,10 @@ After deployment:
 6. repair one missing staging fixture and verify the new durable R2 object,
    ordered scan array, captured-media path, normalized asset, and Explore
    snapshot;
-7. repeat the repair request and prove it is safe/idempotent; and
+7. repeat the repair request and prove it is safe/idempotent. Commit the atomic
+   metadata RPC while dropping its response and verify exact owner
+   source/replacement reads recover success without deleting the replacement; if
+   those reads are unavailable, the replacement must remain intact; and
 8. review request-correlated logs for promotion or rollback failures without
    retaining raw object keys in public incident notes.
 
@@ -3197,18 +3200,40 @@ Treat these components as one compatibility release:
    registers
    `public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`
    for `service_role` in `internal.privileged_routine_grants`; a grant without
-   that reviewed row must fail the disposable catalog before `db push`.
+   that reviewed row must fail the disposable catalog before `db push`. Also
+   apply the four incident migrations in timestamp order before any
+   scan-producing bundle:
+
+   - `20260728230000_recover_inline_scan_ingestion_completions.sql` installs the
+     narrow repair for already-owned generations stranded by historical inline
+     filename hints.
+   - `20260728231000_make_staged_scan_media_registration_idempotent.sql`
+     serializes active upload registration and marks historical compatible
+     duplicates as superseded audit rows.
+   - `20260728232000_ensure_scan_user_profile.sql` replaces the schema-invalid
+     partial user upsert with the service-only Auth-backed profile prerequisite
+     used by all four routes.
+   - `20260728233000_recover_identity_merge_interrupted_scans.sql` patches the
+     current catalog merge routine to fence unfinished scans before generic
+     reparenting and installs target-only stranded-attempt recovery.
+
+   Do not reorder or selectively apply these migrations. The final migration
+   verifies the current merge routine and fails closed if it cannot install its
+   fence at the exact pre-reparent boundary.
 2. From one exact SHA, run the normal production backend workflow. The
-   graph-derived plan for this repair must select `identify-multimodal`,
-   `identify`, `identify-describe`, `audio-spec`, and `check-scan-status`. Their
-   `_shared/identify/db.ts`, `_shared/identify/completedResponse.ts`,
-   `_shared/scanIngestionJobs.ts`, `_shared/scanIngestionCompatibility.ts`, and
-   `_shared/scanRecovery.ts` dependencies bundle transitively. Separately verify
-   that the deployed `share-scan-to-explore` version already contains the
-   owner-row recovery and server-key compatibility fixes; include it in an
-   emergency manual promotion only when that version is absent or stale. Deploy
-   the five affected functions in the listed order so new false successes stop
-   before repair-capable clients arrive.
+   graph-derived plan for this repair must select `generate-upload-urls`,
+   `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
+   `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and
+   `share-scan-to-explore`. Their `_shared/identify/db.ts`,
+   `_shared/identify/completedResponse.ts`, `_shared/scanIngestionJobs.ts`,
+   `_shared/scanIngestionCompatibility.ts`, `_shared/scanMediaAssets.ts`, and
+   `_shared/scanRecovery.ts` dependencies bundle transitively. Deploy the nine
+   affected functions in the listed order: signing becomes idempotent first, all
+   scan producers stop false success next, then status/reconciliation and
+   publication recovery consume the new states. Do not promote only the current
+   multimodal endpoint; older app builds still call every compatibility route.
+   `_shared/scanPersistence.ts` is also a transitive dependency of all four
+   producers and must resolve from that exact SHA.
 3. Build and release iOS from the matching reviewed source. The iOS release
    carries `recovery_scan`, staged image/video/audio restoration, Field Chat
    preflight repair, and customer-facing toast translation. A backend workflow
@@ -3246,11 +3271,19 @@ Use disposable staging identities and media:
    `complete /
    media_finalization_complete` may appear only after every
    claimed storage key is promoted or explicitly deleted and every promoted
-   image/video/audio URL has a ready canonical row.
-3. With controlled staging fault injection, make the scan insert or owner
-   read-back fail. Identify must return customer-safe
-   `503 scan_persistence_failed` with `Retry-After: 5`, and iOS must not save a
-   successful local observation.
+   image/video/audio URL has a ready canonical row. Also send the legacy audio
+   shape containing both inline bytes and a destination-key hint. The hint must
+   have no fetch, capture asset, disposition, or deletion; the audio actually
+   analyzed must be retained in `audio_storage_urls` and one ready canonical
+   audio asset.
+3. With controlled staging fault injection, return a definite scan-insert
+   rejection and let the exact-owner read-back prove absence. Identify must
+   return customer-safe `503 scan_persistence_failed` with `Retry-After: 5`,
+   safely fail the committed reservation, and let iOS fresh-stage retained local
+   media. Then commit the insert but drop its response and fault all owner
+   reads: the same 503 must preserve quota, staged lifecycle rows, and every
+   promoted object. Restore reads and resend the same UUID; owner-row recovery
+   must return the one committed analysis without another provider dispatch.
 4. Exercise a controlled moderation rejection. Identify must return generic
    `400 observation_rejected`, leave no scan row, and preserve the exact
    terminal policy fence against recovery.
@@ -3300,6 +3333,30 @@ Use disposable staging identities and media:
     `response_envelope` is cleared immediately, before asynchronous R2 cleanup.
     A later request with that UUID must remain fenced and must not replay
     deleted content.
+15. Begin provider work as a disposable anonymous source, then merge that source
+    into a disposable target before provider completion. The source invocation
+    must not recreate its profile or insert a source-owned scan. Its unfinished
+    generation must be fenced as `identity_merge_interrupted`, ambiguous source
+    staging retired, and committed provider usage preserved as failed without a
+    quota decrement. Target recovery must require the exact merge handoff and
+    produce at most one target-owned scan; active lease, deletion tombstone,
+    mismatched endpoint/operation, missing handoff, or an existing scan must
+    refuse recovery. Repeat endpoint/operation preservation for all four
+    producers.
+16. Upload a multi-file queued scan and fail one required PUT while a sibling
+    callback is pending. The whole generation must be fenced before any sibling
+    advances the manifest, all sibling tasks must be cancelled, and retry must
+    obtain a fresh complete signing generation.
+17. Exercise Explore restoration with an owner key, a cross-owner key, and a
+    traversal key. Only the exact owner staging key may promote. Fault image,
+    audio, and video count verification; every known partial promotion must be
+    removed through status-checked deletion. Return a database update rejection
+    and let an exact-owner reread prove the expected URLs absent; only then may
+    newly promoted objects be removed. Separately commit the update while
+    dropping its response, and make the reread unavailable: the retryable
+    `503 scan_media_restore_unavailable` must preserve all objects. A subsequent
+    retry must recognize the canonical durable URLs and publish without
+    consuming staging twice.
 
 ### Monitoring and incident triggers
 
@@ -3319,6 +3376,18 @@ scan-route `409 ai_request_in_progress`, `ai_request_already_completed`,
 `scan_already_complete`, or `scan_already_finalized` reaching a current client
 indicates unresolved completion evidence or version skew and must be correlated
 by scan UUID.
+
+Alert separately on `identity_merge_interrupted` age, refused stranded-attempt
+recovery, and retired-source staging retries. Never repair those states by
+reparenting rows manually or decrementing committed quota. Correlate only in the
+restricted incident view; do not export source/target identities, handoff
+secrets, object keys, or request payloads.
+
+Alert on structured events `explore/restored_media_persistence_unconfirmed` and
+`explore/restored_media_rollback_partial_failure`. The former is expected only
+during a bounded transport/database incident; the latter requires immediate
+storage reconciliation. Never respond to either alert by deleting a promoted URL
+until an exact owner-row read proves it is unreferenced.
 
 ### Rollback and exit criteria
 
@@ -4336,15 +4405,16 @@ After deployment:
   duplicate foreground/background upload contention. Confirm a delayed context
   update survives both the pre-insert staged path and the completed-scan path.
 - For the scan owner-row durability release, confirm production deployment
-  records tie the deployed versions of `identify-multimodal`, `identify`,
-  `identify-describe`, `audio-spec`, and `check-scan-status` to the same
-  reviewed SHA. Separately confirm `share-scan-to-explore` is already at the
-  reviewed owner-row/server-key-compatible version, or promote that version in
-  the same emergency release. Submit a brand-new scan, require immediate owner
-  status `found` after identify `200`, then open Field Chat and publish it to
-  Explore. Run the eligible legacy-repair, active/retryable deferral, exact
-  policy-rejection block, cross-owner isolation, and staged-media restoration
-  cases in
+  records tie the deployed versions of `generate-upload-urls`,
+  `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
+  `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and
+  `share-scan-to-explore` to the same reviewed SHA. Verify the four timestamped
+  incident migrations through `20260728233000` are present first. Submit a
+  brand-new scan, require immediate owner status `found` after identify `200`,
+  then open Field Chat and publish it to Explore. Run the eligible legacy
+  repair, active/retryable deferral, exact policy-rejection block, cross-owner
+  isolation, staged-media restoration, interrupted identity merge, dual-source
+  legacy audio, and multi-file generation-fence cases in
   [Scan Owner-Row Durability and Recovery Rollout](#scan-owner-row-durability-and-recovery-rollout).
   Do not call backend smoke complete until the matching iOS build independently
   passes its customer-facing retry/toast checks.

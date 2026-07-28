@@ -114,6 +114,23 @@ export interface BeginScanIngestionResult {
   alreadyComplete: boolean;
 }
 
+export type StrandedScanIngestionRecoveryOutcome =
+  | "not_applicable"
+  | "job_not_found"
+  | "deleted"
+  | "already_complete"
+  | "complete_without_scan"
+  | "terminal"
+  | "active"
+  | "scan_durable"
+  | "quota_retry_ready"
+  | "media_restage_required";
+
+export interface StrandedScanIngestionRecovery {
+  outcome: StrandedScanIngestionRecoveryOutcome;
+  authorizedSourceUserId: string | null;
+}
+
 export interface ClientScanIngestionJobState {
   status: ClientScanIngestionJobStatus;
   stage: string;
@@ -267,6 +284,79 @@ export async function beginScanIngestion(
   };
 }
 
+function isMissingRecoveryRoutine(error: {
+  code?: string | null;
+  message?: string | null;
+}): boolean {
+  if (error.code === "PGRST202") return true;
+  return error.code === "42883" &&
+    (error.message ?? "").includes(
+      "recover_stranded_scan_ingestion_attempt",
+    );
+}
+
+export async function recoverStrandedScanIngestionAttempt(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<StrandedScanIngestionRecovery | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "recover_stranded_scan_ingestion_attempt",
+    {
+      p_scan_id: scanId,
+      p_user_id: userId,
+    },
+  );
+
+  // Migration-first deploys can briefly leave an old schema cache in front of
+  // new Edge code. Recovery is additive; never weaken owner validation during
+  // that window.
+  if (error && isMissingRecoveryRoutine(error)) return null;
+  if (error) {
+    throw new Error(
+      `recoverStrandedScanIngestionAttempt: ${error.message ?? error.code}`,
+    );
+  }
+
+  const value = data as {
+    outcome?: unknown;
+    authorized_source_user_id?: unknown;
+  } | null;
+  const outcomes = new Set<StrandedScanIngestionRecoveryOutcome>([
+    "not_applicable",
+    "job_not_found",
+    "deleted",
+    "already_complete",
+    "complete_without_scan",
+    "terminal",
+    "active",
+    "scan_durable",
+    "quota_retry_ready",
+    "media_restage_required",
+  ]);
+  if (
+    !value ||
+    typeof value.outcome !== "string" ||
+    !outcomes.has(value.outcome as StrandedScanIngestionRecoveryOutcome) ||
+    !(
+      value.authorized_source_user_id == null ||
+      (
+        typeof value.authorized_source_user_id === "string" &&
+        UUID_PATTERN.test(value.authorized_source_user_id)
+      )
+    )
+  ) {
+    throw new Error(
+      "recoverStrandedScanIngestionAttempt: malformed RPC response",
+    );
+  }
+
+  return {
+    outcome: value.outcome as StrandedScanIngestionRecoveryOutcome,
+    authorizedSourceUserId: value.authorized_source_user_id as string | null,
+  };
+}
+
 export async function claimScanIngestionJob(
   input: ClaimScanIngestionJobInput,
   supabaseAdmin: SupabaseClient,
@@ -359,7 +449,32 @@ export async function completeScanIngestionFinalization(
   if (input.responseEnvelope) {
     rpcArguments.p_response_envelope = input.responseEnvelope;
   }
-  const { data, error } = await supabaseAdmin.rpc(rpcName, rpcArguments);
+  let { data, error } = await supabaseAdmin.rpc(rpcName, rpcArguments);
+  if (
+    error &&
+    input.responseEnvelope &&
+    (
+      error.code === "PGRST202" ||
+      (
+        error.code === "42883" &&
+        error.message.includes(
+          "complete_scan_ingestion_finalization_with_response",
+        )
+      )
+    )
+  ) {
+    // The immutable response wrapper is additive. During a migration-first
+    // rolling deploy, retain the established atomic media/job finalizer and
+    // let retries reconstruct the wire envelope from the completed owner row.
+    const fallbackArguments = { ...rpcArguments };
+    delete fallbackArguments.p_response_envelope;
+    const fallback = await supabaseAdmin.rpc(
+      "complete_scan_ingestion_finalization",
+      fallbackArguments,
+    );
+    data = fallback.data;
+    error = fallback.error;
+  }
   if (error) {
     throw new Error(`completeScanIngestionFinalization: ${error.message}`);
   }

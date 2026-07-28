@@ -586,11 +586,11 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   );
   assertStringIncludes(
     runbook,
-    "`identify-multimodal`, `identify`, `identify-describe`, `audio-spec`, and `check-scan-status`",
+    "`generate-upload-urls`, `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`, `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and `share-scan-to-explore`",
   );
   assertStringIncludes(
     runbook,
-    "`share-scan-to-explore` is already at the reviewed owner-row/server-key-compatible version",
+    "`20260728233000_recover_identity_merge_interrupted_scans.sql`",
   );
   assertStringIncludes(
     agent,

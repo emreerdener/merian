@@ -30,9 +30,12 @@ coordinates, date/time, distance, and cached telemetry. When the context task
 later finishes it updates both the local queue and `/update-scan-context`; it
 never resubmits images or triggers another Gemini call.
 
-Gallery images and audio-bearing or video visual submissions retain the existing
-full-context wait and immediate queue-sync race. They receive latency
-instrumentation but no submission-behavior change in this pass.
+Gallery images and audio-bearing or video visual submissions retain their
+immediate queue-sync race. Audio/video/Describe submission commits the
+non-visual queue row synchronously before any environment-context await. It then
+gives the pinned context task 150 ms for the live request and late-merges a
+completed context locally and through `/update-scan-context`; weather or
+geocoding can never prevent the local capture from becoming durable.
 
 ## Field Trip Goal Preference
 
@@ -65,11 +68,11 @@ foreground job instead of issuing a duplicate model call.
 ## Latency Boundaries
 
 The capture submission layer logs Analyze tap, durable queue commit, the still-
-image context grace or unchanged non-visual context wait, and inference
-dispatch. `MerianNetworkClient` measures upload/response transport,
-`InferenceProcessingActor` measures parse and persistence, and
-`InsightSheetView` records the first rendered result frame. Awards, Field trips,
-and optional enrichment must not be awaited before that frame.
+image or non-visual context grace, and inference dispatch. `MerianNetworkClient`
+measures upload/response transport, `InferenceProcessingActor` measures parse
+and persistence, and `InsightSheetView` records the first rendered result frame.
+Awards, Field trips, and optional enrichment must not be awaited before that
+frame.
 
 After the result commit, foreground completion passes the final scan ID,
 `SpeciesData`, and model container to `ScanMilestoneCoordinator`. Background

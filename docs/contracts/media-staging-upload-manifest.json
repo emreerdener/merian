@@ -3,6 +3,7 @@
   "endpoint": "/generate-upload-urls",
   "maxFilesPerRequest": 6,
   "maxImageBytes": 5242880,
+  "maxImageFiles": 5,
   "maxAudioBytes": 2700000,
   "maxAudioFiles": 2,
   "maxVideoBytes": 12582912,
@@ -47,5 +48,6 @@
     ]
   },
   "fileNameSafeCharacterPattern": "^[A-Za-z0-9_.-]+$",
+  "fileNamesMustBeUnique": true,
   "legacyFileNamesAccepted": true
 }

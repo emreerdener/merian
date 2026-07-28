@@ -146,10 +146,15 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
             if activeUploadTasks.isEmpty {
                 await MainActor.run {
                     let manager = OfflineQueueManager.shared
-                    guard manager.finishUploadSync(
+                    let didFinishCurrentSync = manager.finishUploadSync(
                         generation: completedUpload.syncGeneration
-                    ) else { return }
-                    if manager.unsyncedItemsCount > 0 {
+                    )
+                    // Orphan recovery is required even when this process did
+                    // not create the generation. A background URLSession can
+                    // reattach modern generation-tagged tasks after relaunch
+                    // while the process-local global sync latch is nil.
+                    manager.replayInferenceForUploadedScans()
+                    if didFinishCurrentSync && manager.unsyncedItemsCount > 0 {
                         manager.syncPendingScans()
                     }
                 }
@@ -209,7 +214,67 @@ extension OfflineQueueManager {
             "processUploadCompletion: scanId=\(scanId, privacy: .public) uploadIndex=\(uploadIndex, privacy: .public) status=\(responseStatusCode ?? -1, privacy: .public) error=\((uploadError?.localizedDescription ?? "nil"), privacy: .public)"
         )
 
-        // 1. Compute completion state universally upfront to prevent state-machine deadlocks.
+        // Record this callback's outcome before the first suspension. URLSession
+        // can remove a completed task before another callback's async handler
+        // starts; yielding first would let a successful sibling inspect a
+        // partial outcome set and mistake task disappearance for success.
+        let didFail = handleUploadFallback(
+            scanId: scanId,
+            uploadError: uploadError,
+            responseStatusCode: responseStatusCode,
+            uploadGeneration: uploadIdentity.syncGeneration,
+            completionToken: completionToken
+        )
+        if didFail {
+            // One failed member invalidates the entire logical media manifest.
+            // Otherwise a sibling that happens to complete last can observe no
+            // active tasks and incorrectly advance the scan to `.staged`.
+            invalidateUploadGeneration(
+                scanId: scanId,
+                generation: uploadIdentity.syncGeneration
+            )
+            let remainingTasks = await session.allTasks
+            for task in remainingTasks where task.taskIdentifier != taskIdentifier {
+                guard let identity = MediaStagingContract.parseUploadTaskDescription(
+                    task.taskDescription
+                ), identity.scanId == scanId,
+                   identity.syncGeneration == uploadIdentity.syncGeneration else {
+                    continue
+                }
+                task.cancel()
+            }
+            return
+        }
+
+        // The exact server-issued object key travels with current background
+        // tasks. Legacy tasks recover it from the signed URL path.
+        let confirmedObjectKey = uploadIdentity.objectKey ??
+            MediaStagingContract.objectKey(
+                fromPresignedURLPath: originalRequestUrlPath
+            )
+        guard let confirmedObjectKey,
+              let stagingUserId = MediaStagingContract.ownerId(
+                fromObjectKey: confirmedObjectKey
+              ) else {
+            MerianLog.data.error(
+                "processUploadCompletion: scanId=\(scanId, privacy: .public) invalid staging destination"
+            )
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: "The completed upload destination could not be verified.",
+                errorCode: "staging_object_key_invalid"
+            )
+            return
+        }
+        recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            objectKey: confirmedObjectKey
+        )
+
+        // Compute task state only after this callback's exact outcome has been
+        // recorded. Every started sibling therefore publishes success or fences
+        // failure before it can yield to this enumeration.
         let remainingTasks = await session.allTasks
         guard isUploadCompletionCurrent(
             scanId: scanId,
@@ -255,23 +320,6 @@ extension OfflineQueueManager {
             "processUploadCompletion: scanId=\(scanId, privacy: .public) hasActiveTasksForScan=\(hasActiveTasksForScan, privacy: .public) remainingTasks=\(remainingTasks.count, privacy: .public)"
         )
 
-        let didFail = handleUploadFallback(
-            scanId: scanId,
-            uploadError: uploadError,
-            responseStatusCode: responseStatusCode,
-            uploadGeneration: uploadIdentity.syncGeneration,
-            completionToken: completionToken
-        )
-        guard !didFail else { return }
-
-        // Only trigger inference for files that landed in the staging bucket.
-        guard let urlPath = originalRequestUrlPath, urlPath.contains("staging/") else {
-            MerianLog.data.debug(
-                "processUploadCompletion: scanId=\(scanId, privacy: .public) completed non-staging URL path=\(originalRequestUrlPath ?? "nil", privacy: .public)"
-            )
-            return
-        }
-
         // Ensure no other upload tasks for this specific scan ID are still in flight.
         // If they are, allow them to finish (the last one handles the inference triggering).
         // Guard here — before the main-actor metadata fetch and auth session lookup — so that
@@ -301,14 +349,6 @@ extension OfflineQueueManager {
 
         // Compute confirmed object keys through the shared media staging contract so
         // completion, replay, and request construction cannot drift on filename rules.
-        let stagingUserId = await currentMediaStagingUserId()
-        guard isUploadCompletionCurrent(
-            scanId: scanId,
-            generation: uploadIdentity.syncGeneration,
-            token: completionToken
-        ) else {
-            return
-        }
         let stagedKeys = MediaStagingContract.splitObjectKeys(
             [],
             scanId: scanId,
@@ -318,6 +358,31 @@ extension OfflineQueueManager {
             localVideoPaths: extracted.videoFilePaths ?? []
         )
         let r2Keys = stagedKeys.all
+        guard r2Keys.contains(confirmedObjectKey) else {
+            MerianLog.data.error(
+                "processUploadCompletion: scanId=\(scanId, privacy: .public) completed object no longer belongs to queued media"
+            )
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: "The completed upload no longer matches the queued capture.",
+                errorCode: "staging_capture_identity_mismatch"
+            )
+            return
+        }
+        guard hasConfirmedSuccessfulUploadManifest(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            expectedObjectKeys: r2Keys
+        ) else {
+            // A completed sibling can disappear from URLSession.allTasks before
+            // its asynchronous callback records either success or failure.
+            // Wait for that callback; failure invalidates this generation and
+            // success completes the exact-key set above.
+            MerianLog.data.debug(
+                "processUploadCompletion: scanId=\(scanId, privacy: .public) waiting for sibling callback outcomes"
+            )
+            return
+        }
         MerianLog.data.debug(
             "processUploadCompletion: scanId=\(scanId, privacy: .public) staging complete keys=\(r2Keys.count, privacy: .public)"
         )
@@ -328,6 +393,10 @@ extension OfflineQueueManager {
         // could both see the scan in .staged and both dispatch concurrent inference tasks.
         let queueActor = resolvedQueueDbActor(container: extracted.container)
         await queueActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+        clearUploadCompletionState(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration
+        )
         guard isUploadCompletionCurrent(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
@@ -424,6 +493,25 @@ extension OfflineQueueManager {
         // URLSession task but no in-memory ownership yet. It remains eligible
         // until a new preparation claims this scan.
         return true
+    }
+
+    func invalidateUploadGeneration(
+        scanId: String,
+        generation: UUID?
+    ) {
+        guard isUploadGenerationCurrent(
+            scanId: scanId,
+            generation: generation
+        ) else {
+            return
+        }
+        // A distinct fence remains until the next uploader claims this scan.
+        // It also fences legacy generation-less sibling callbacks after launch.
+        clearUploadCompletionState(
+            scanId: scanId,
+            generation: generation
+        )
+        latestUploadGenerations[scanId] = UUID()
     }
 
     private func isUploadCompletionCurrent(
@@ -1266,6 +1354,27 @@ extension OfflineQueueManager {
         return .retry
     }
 
+    static func requiresMediaRestagingAfterServerFailure(
+        _ response: ScanStatusResponse
+    ) -> Bool {
+        guard response.status == .notFound,
+              response.jobStatus == .failedRetryable else {
+            return false
+        }
+        switch response.jobStage?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() {
+        case "background_ingestion_failed",
+             "media_finalization_failed",
+             "identity_merge_interrupted",
+             "video_promotion_failed",
+             "scan_insert_started":
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Inference Failure Handling
 
     static func scanStatusRecoveryAction(
@@ -1518,7 +1627,8 @@ extension OfflineQueueManager {
         scanId: String,
         delay: TimeInterval,
         reason: String,
-        expectedGeneration: UUID?
+        expectedGeneration: UUID?,
+        resetMediaUploads: Bool
     ) async {
         guard let container = modelContext?.container else { return }
         let retryActor = resolvedQueueDbActor(container: container)
@@ -1527,7 +1637,8 @@ extension OfflineQueueManager {
             expectedGeneration: expectedGeneration,
             code: "server_retryable_failure",
             message: reason,
-            delay: delay
+            delay: delay,
+            resetMediaUploads: resetMediaUploads
         ) else {
             MerianLog.data.debug(
                 "scheduleRetryableServerFailure: persistence generation changed scanId=\(scanId, privacy: .public)"
@@ -1572,7 +1683,11 @@ extension OfflineQueueManager {
                     return
                 }
                 self.updateUnsyncedItemCount()
-                self.replayInferenceForUploadedScans()
+                if resetMediaUploads {
+                    self.syncPendingScans()
+                } else {
+                    self.replayInferenceForUploadedScans()
+                }
             }
         }
         MerianLog.data.debug(
@@ -1697,7 +1812,9 @@ extension OfflineQueueManager {
                 scanId: scanId,
                 delay: delay,
                 reason: reason,
-                expectedGeneration: expectedGeneration
+                expectedGeneration: expectedGeneration,
+                resetMediaUploads:
+                    Self.requiresMediaRestagingAfterServerFailure(response)
             )
             return action
         case .terminalFailure(let message):

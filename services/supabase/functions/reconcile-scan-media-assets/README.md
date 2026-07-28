@@ -9,7 +9,9 @@ Service-role worker for staged scan-media upload-session reconciliation.
 - If the cloud scan row already exists, repairs safe media drift:
   - image rows are marked promoted when the scan already has the matching public
     image URL.
-  - audio rows are deleted because they are inference-only staging inputs.
+  - standalone audio rows are marked promoted when `scans.audio_storage_urls`
+    has the matching public URL; only extracted video-companion audio is deleted
+    as an inference-only input.
   - playback video rows are promoted from `staging/` to `public_uploads/` when
     the staged object still exists, then `scans.video_storage_urls` and
     `scans.captured_media` are rebuilt so sampled frames collapse behind one
@@ -64,7 +66,11 @@ legacy global `UNIQUE (scan_id, order_index)` rule and replaces it with:
 - source-aware generated uniqueness on `(scan_id, source, role, order_index)`
   for `scan_refresh` and `backfill`;
 - staged-session uniqueness on `(upload_session_id, order_index)` when an upload
-  session is present.
+  session is present;
+- active staging-key uniqueness on `(user_id, client_scan_id, storage_key)` for
+  `capture_upload / staged` rows. Upload-signing retries reuse the canonical
+  row/session; the forward repair keeps preexisting extras as explicitly
+  superseded failed audit rows.
 
 If consecutive reconciliation runs report PostgreSQL `23505` errors naming
 `scan_media_assets_scan_id_order_index_key`, deploy that migration before

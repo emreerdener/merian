@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
-import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
+import { deleteR2ObjectIfPresent, getR2Config } from "../_shared/aws.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
@@ -11,7 +11,7 @@ import {
   moderateExploreAudioUrl,
 } from "../_shared/audioModeration.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { runBackground } from "../_shared/edgeHandler.ts";
+import { logStructuredError, runBackground } from "../_shared/edgeHandler.ts";
 import { moderationLatencyBucket } from "../_shared/exploreAudioTelemetry.ts";
 import { createAudioSpectrogramThumbnail } from "../_shared/audioSpectrogram.ts";
 import type { ExplorePostMediaSnapshotRow } from "../_shared/explorePostMedia.ts";
@@ -20,6 +20,7 @@ import {
   type OwnedScanRecoveryRow,
   recoverMissingOwnedScan,
 } from "../_shared/scanRecovery.ts";
+import { restoredObjectKeysMissingDurableUrls } from "./restoredMediaValidation.ts";
 
 type TrackEvent = typeof trackPostHogEvent;
 type ModerateAudio = typeof moderateExploreAudioUrl;
@@ -46,6 +47,28 @@ export interface ShareEligibleScanRow {
   species_id: string | null;
   confirmed_species_id: string | null;
 }
+
+export type RestoredMediaUrlField =
+  | "image_storage_urls"
+  | "video_storage_urls"
+  | "audio_storage_urls";
+
+export type RestoredMediaWriteOutcome =
+  | "reported_success"
+  | "reported_rejected"
+  | "unknown";
+
+export type RestoredMediaPersistenceResolution =
+  | {
+    outcome: "committed";
+    row: ShareEligibleScanRow;
+    reason: string;
+  }
+  | {
+    outcome: "rejected" | "unknown";
+    row: null;
+    reason: string;
+  };
 
 export interface SelectedExplorePostMediaItem {
   kind: "image" | "video" | "audio";
@@ -151,13 +174,32 @@ export function buildRestoredVideoCapturedMedia(
   return items.length > 0 ? items : null;
 }
 
-async function rollbackPromotedUrls(urls: string[]): Promise<void> {
+async function rollbackPromotedUrls(
+  urls: string[],
+  scanId: string,
+  userId: string,
+  mediaField: RestoredMediaUrlField,
+): Promise<void> {
   const r2Config = getR2Config();
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     urls.map((url) =>
-      deleteR2Object(url.replace("https://media.merian.app/", ""), r2Config)
+      deleteR2ObjectIfPresent(
+        url.replace("https://media.merian.app/", ""),
+        r2Config,
+      )
     ),
   );
+  const failedCount =
+    results.filter((result) => result.status === "rejected").length;
+  if (failedCount > 0) {
+    logStructuredError("explore/restored_media_rollback_partial_failure", {
+      scan_id: scanId,
+      user_id: userId,
+      media_field: mediaField,
+      failed_count: failedCount,
+      total_count: urls.length,
+    });
+  }
 }
 
 function makeHttpError(
@@ -189,6 +231,151 @@ async function loadShareEligibleScan(
   }
 
   return (data as ShareEligibleScanRow | null) ?? null;
+}
+
+export function scanContainsDurableMediaUrls(
+  row: ShareEligibleScanRow | null,
+  mediaField: RestoredMediaUrlField,
+  expectedUrls: string[],
+): boolean {
+  if (!row) return false;
+  const durableUrls = new Set(cleanMediaUrls(row[mediaField]));
+  return cleanMediaUrls(expectedUrls).every((url) => durableUrls.has(url));
+}
+
+/**
+ * Resolve a restored-media update after either a normal PostgREST response or
+ * a thrown/lost response. Cleanup is safe only for "rejected": that requires
+ * both a returned database rejection and an exact-owner reread proving the
+ * expected URLs are absent. Every other unconfirmed outcome preserves media.
+ */
+export async function resolveRestoredMediaPersistence(
+  directRow: ShareEligibleScanRow | null,
+  writeOutcome: RestoredMediaWriteOutcome,
+  mediaField: RestoredMediaUrlField,
+  expectedUrls: string[],
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+  writeFailure = "restored-media update was not confirmed",
+): Promise<RestoredMediaPersistenceResolution> {
+  if (scanContainsDurableMediaUrls(directRow, mediaField, expectedUrls)) {
+    return {
+      outcome: "committed",
+      row: directRow!,
+      reason: "direct update response contained every expected URL",
+    };
+  }
+
+  let verifiedRow: ShareEligibleScanRow | null;
+  try {
+    verifiedRow = await loadShareEligibleScan(scanId, userId, supabaseAdmin);
+  } catch (error) {
+    return {
+      outcome: "unknown",
+      row: null,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (scanContainsDurableMediaUrls(verifiedRow, mediaField, expectedUrls)) {
+    return {
+      outcome: "committed",
+      row: verifiedRow!,
+      reason: "exact-owner reread contained every expected URL",
+    };
+  }
+
+  if (writeOutcome === "reported_rejected") {
+    return {
+      outcome: "rejected",
+      row: null,
+      reason: writeFailure,
+    };
+  }
+
+  return {
+    outcome: "unknown",
+    row: null,
+    reason: writeFailure,
+  };
+}
+
+export function restoredMediaPersistenceAllowsRollback(
+  resolution: RestoredMediaPersistenceResolution,
+): boolean {
+  return resolution.outcome === "rejected";
+}
+
+interface PersistRestoredMediaUpdateOptions {
+  scanId: string;
+  userId: string;
+  mediaField: RestoredMediaUrlField;
+  expectedUrls: string[];
+  promotedUrlsToRollback: string[];
+  publicFailureMessage: string;
+  supabaseAdmin: SupabaseClient;
+  write: () => Promise<{
+    data: ShareEligibleScanRow | null;
+    error: { message: string } | null;
+  }>;
+}
+
+async function persistRestoredMediaUpdate(
+  options: PersistRestoredMediaUpdateOptions,
+): Promise<ShareEligibleScanRow> {
+  let directRow: ShareEligibleScanRow | null = null;
+  let writeOutcome: RestoredMediaWriteOutcome = "unknown";
+  let writeFailure = "restored-media update response was lost";
+
+  try {
+    const result = await options.write();
+    directRow = result.data;
+    if (result.error) {
+      writeOutcome = "reported_rejected";
+      writeFailure = result.error.message;
+    } else {
+      writeOutcome = "reported_success";
+    }
+  } catch (error) {
+    writeFailure = error instanceof Error ? error.message : String(error);
+  }
+
+  const resolution = await resolveRestoredMediaPersistence(
+    directRow,
+    writeOutcome,
+    options.mediaField,
+    options.expectedUrls,
+    options.scanId,
+    options.userId,
+    options.supabaseAdmin,
+    writeFailure,
+  );
+  if (resolution.outcome === "committed") return resolution.row;
+
+  logStructuredError("explore/restored_media_persistence_unconfirmed", {
+    scan_id: options.scanId,
+    user_id: options.userId,
+    media_field: options.mediaField,
+    persistence_outcome: resolution.outcome,
+    error: resolution.reason,
+  });
+
+  if (restoredMediaPersistenceAllowsRollback(resolution)) {
+    await rollbackPromotedUrls(
+      options.promotedUrlsToRollback,
+      options.scanId,
+      options.userId,
+      options.mediaField,
+    );
+  }
+
+  throw publicHttpError(
+    503,
+    options.publicFailureMessage,
+    "scan_media_restore_unavailable",
+    5,
+  );
 }
 
 export async function fetchShareEligibleScan(
@@ -236,46 +423,70 @@ export async function fetchShareEligibleScan(
         r2Config: getR2Config(),
       },
     );
-
-    const { data: updatedRow, error: updateError } = await supabaseAdmin
-      .from("scans")
-      .update({ image_storage_urls: publicUrls })
-      .eq("id", scanId)
-      .eq("user_id", userId)
-      .select(
-        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
-      )
-      .single();
-
-    if (updateError || !updatedRow) {
-      throw new Error(
-        `Failed to restore shareable scan media: ${
-          updateError?.message ?? "Unknown error"
-        }`,
+    if (publicUrls.length !== restoredObjectKeys.length) {
+      await rollbackPromotedUrls(
+        publicUrls,
+        scanId,
+        userId,
+        "image_storage_urls",
       );
+      throw makeHttpError(503, "Restored image media could not be saved.");
     }
 
-    row = updatedRow as ShareEligibleScanRow;
+    row = await persistRestoredMediaUpdate({
+      scanId,
+      userId,
+      mediaField: "image_storage_urls",
+      expectedUrls: publicUrls,
+      promotedUrlsToRollback: publicUrls,
+      publicFailureMessage: "Restored image media could not be saved.",
+      supabaseAdmin,
+      write: async () => {
+        const { data, error } = await supabaseAdmin
+          .from("scans")
+          .update({ image_storage_urls: publicUrls })
+          .eq("id", scanId)
+          .eq("user_id", userId)
+          .select(SHARE_ELIGIBLE_SCAN_SELECT)
+          .single();
+        return {
+          data: data as ShareEligibleScanRow | null,
+          error,
+        };
+      },
+    });
     await refreshScanMediaAssetsBestEffort(scanId, supabaseAdmin);
   }
 
   if (restoredAudioObjectKeys.length > 0) {
-    const userTier = await durableUserTier();
-    const audioPublicUrls = await promoteSafeMedia({
+    const existingAudioUrls = cleanMediaUrls(row.audio_storage_urls);
+    const audioKeysToPromote = restoredObjectKeysMissingDurableUrls(
+      restoredAudioObjectKeys,
+      existingAudioUrls,
       userId,
-      r2ObjectKeys: restoredAudioObjectKeys,
-      imageBase64s: undefined,
-      userTier,
-      r2Config: getR2Config(),
-    });
-    if (audioPublicUrls.length !== restoredAudioObjectKeys.length) {
-      await rollbackPromotedUrls(audioPublicUrls);
+    );
+    const audioPublicUrls = audioKeysToPromote.length > 0
+      ? await promoteSafeMedia({
+        userId,
+        r2ObjectKeys: audioKeysToPromote,
+        imageBase64s: undefined,
+        userTier: await durableUserTier(),
+        r2Config: getR2Config(),
+      })
+      : [];
+    if (audioPublicUrls.length !== audioKeysToPromote.length) {
+      await rollbackPromotedUrls(
+        audioPublicUrls,
+        scanId,
+        userId,
+        "audio_storage_urls",
+      );
       throw makeHttpError(503, "Restored audio media could not be saved.");
     }
 
     const combinedAudioUrls = [
       ...new Set([
-        ...cleanMediaUrls(row.audio_storage_urls),
+        ...existingAudioUrls,
         ...audioPublicUrls,
       ]),
     ];
@@ -283,29 +494,31 @@ export async function fetchShareEligibleScan(
       row,
       combinedAudioUrls,
     );
-    const { data: updatedRow, error: updateError } = await supabaseAdmin
-      .from("scans")
-      .update({
-        audio_storage_urls: combinedAudioUrls,
-        captured_media: capturedMedia,
-      })
-      .eq("id", scanId)
-      .eq("user_id", userId)
-      .select(
-        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
-      )
-      .single();
-
-    if (updateError || !updatedRow) {
-      await rollbackPromotedUrls(audioPublicUrls);
-      throw new Error(
-        `Failed to restore shareable scan audio: ${
-          updateError?.message ?? "Unknown error"
-        }`,
-      );
-    }
-
-    row = updatedRow as ShareEligibleScanRow;
+    row = await persistRestoredMediaUpdate({
+      scanId,
+      userId,
+      mediaField: "audio_storage_urls",
+      expectedUrls: combinedAudioUrls,
+      promotedUrlsToRollback: audioPublicUrls,
+      publicFailureMessage: "Restored audio media could not be saved.",
+      supabaseAdmin,
+      write: async () => {
+        const { data, error } = await supabaseAdmin
+          .from("scans")
+          .update({
+            audio_storage_urls: combinedAudioUrls,
+            captured_media: capturedMedia,
+          })
+          .eq("id", scanId)
+          .eq("user_id", userId)
+          .select(SHARE_ELIGIBLE_SCAN_SELECT)
+          .single();
+        return {
+          data: data as ShareEligibleScanRow | null,
+          error,
+        };
+      },
+    });
     await refreshScanMediaAssetsBestEffort(scanId, supabaseAdmin);
   }
 
@@ -324,7 +537,12 @@ export async function fetchShareEligibleScan(
       },
     );
     if (videoPublicUrls.length !== restoredVideoObjectKeys.length) {
-      await rollbackPromotedUrls(videoPublicUrls);
+      await rollbackPromotedUrls(
+        videoPublicUrls,
+        scanId,
+        userId,
+        "video_storage_urls",
+      );
       throw makeHttpError(503, "Restored video media could not be saved.");
     }
 
@@ -332,29 +550,31 @@ export async function fetchShareEligibleScan(
       row,
       videoPublicUrls,
     );
-    const { data: updatedRow, error: updateError } = await supabaseAdmin
-      .from("scans")
-      .update({
-        video_storage_urls: videoPublicUrls,
-        captured_media: capturedMedia,
-      })
-      .eq("id", scanId)
-      .eq("user_id", userId)
-      .select(
-        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
-      )
-      .single();
-
-    if (updateError || !updatedRow) {
-      await rollbackPromotedUrls(videoPublicUrls);
-      throw new Error(
-        `Failed to restore shareable scan video: ${
-          updateError?.message ?? "Unknown error"
-        }`,
-      );
-    }
-
-    row = updatedRow as ShareEligibleScanRow;
+    row = await persistRestoredMediaUpdate({
+      scanId,
+      userId,
+      mediaField: "video_storage_urls",
+      expectedUrls: videoPublicUrls,
+      promotedUrlsToRollback: videoPublicUrls,
+      publicFailureMessage: "Restored video media could not be saved.",
+      supabaseAdmin,
+      write: async () => {
+        const { data, error } = await supabaseAdmin
+          .from("scans")
+          .update({
+            video_storage_urls: videoPublicUrls,
+            captured_media: capturedMedia,
+          })
+          .eq("id", scanId)
+          .eq("user_id", userId)
+          .select(SHARE_ELIGIBLE_SCAN_SELECT)
+          .single();
+        return {
+          data: data as ShareEligibleScanRow | null,
+          error,
+        };
+      },
+    });
     await refreshScanMediaAssetsBestEffort(scanId, supabaseAdmin);
   }
 
@@ -364,6 +584,10 @@ export async function fetchShareEligibleScan(
     (row.audio_storage_urls?.length ?? 0) === 0
   ) {
     throw makeHttpError(409, "This scan no longer has shareable media.");
+  }
+
+  if (row.is_tombstoned) {
+    throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
 
   if (row.confirmed_species_id == null && row.species_id == null) {

@@ -343,6 +343,26 @@ async function reconcileExistingScanAsset(
   }
 
   if (asset.kind === "audio") {
+    const publicUrl = matchingPublicUrlForStorageKey(
+      scan.audio_storage_urls,
+      storageKey,
+    );
+    if (publicUrl) {
+      if (!options.dryRun) {
+        await options.markPromoted(
+          asset.id,
+          scan.id,
+          publicUrl,
+          supabaseAdmin,
+        );
+      }
+      result.promoted++;
+      return scan;
+    }
+
+    // Audio absent from the scan's standalone-audio URL list is a video
+    // companion. It is inference-only and must be deleted, while standalone
+    // audio keeps its already-promoted public object and promoted asset row.
     if (!options.dryRun) {
       await options.deleteObject(storageKey, options.r2Config);
       await options.markDeleted(asset.id, scan.id, supabaseAdmin);

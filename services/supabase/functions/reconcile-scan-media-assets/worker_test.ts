@@ -58,6 +58,7 @@ function scanRow(
       "https://media.merian.app/public_uploads/pro/user-1/frame-5.webp",
     ],
     video_storage_urls: [],
+    audio_storage_urls: [],
     captured_media: null,
     inference_tier: "pro",
     ...overrides,
@@ -260,6 +261,53 @@ Deno.test("reconcileScanMediaAssets deletes consumed audio staging when the scan
   assertEquals(deletedAssets, [{
     assetId: "audio-asset",
     scanId: "00000000-0000-0000-0000-000000000001",
+  }]);
+});
+
+Deno.test("reconcileScanMediaAssets preserves promoted standalone audio", async () => {
+  const promotedAssets: unknown[] = [];
+  let deleteCalled = false;
+  const publicUrl =
+    "https://media.merian.app/public_uploads/pro/user-1/field-audio.wav";
+
+  const result = await reconcileScanMediaAssets({} as never, {
+    now: NOW,
+    repairAfterMinutes: 15,
+    abandonAfterHours: 36,
+  }, {
+    r2Config: R2_CONFIG,
+    fetchAssets: () =>
+      Promise.resolve([
+        stagedAsset({
+          id: "standalone-audio-asset",
+          kind: "audio",
+          role: "audio",
+          storage_key: "staging/user-1/field-audio.wav",
+          content_type: "audio/wav",
+        }),
+      ]),
+    fetchScans: () =>
+      Promise.resolve([scanRow({ audio_storage_urls: [publicUrl] })]),
+    fetchJobs: () => Promise.resolve([]),
+    deleteObject: () => {
+      deleteCalled = true;
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+    markPromoted: (assetId, scanId, promotedUrl) => {
+      promotedAssets.push({ assetId, scanId, promotedUrl });
+      return Promise.resolve();
+    },
+    recordRun: noopRecordRun,
+  });
+
+  assertEquals(result.scanned, 1);
+  assertEquals(result.promoted, 1);
+  assertEquals(result.deletedStagingObjects, 0);
+  assertEquals(deleteCalled, false);
+  assertEquals(promotedAssets, [{
+    assetId: "standalone-audio-asset",
+    scanId: "00000000-0000-0000-0000-000000000001",
+    promotedUrl: publicUrl,
   }]);
 });
 

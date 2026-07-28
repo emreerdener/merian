@@ -142,9 +142,10 @@ generated Swift boundary is checked exactly across the full iOS source graph by
   image resolution to protect Deno's V8 heap under multi-image payloads.
 - **`_shared/identify/db.ts`**: Encapsulates PostgreSQL operations as typed,
   error-throwing helpers: `fetchCachedSpecies`, `fetchCandidateCommonNames`,
-  `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`,
-  `upsertGhostUserIfMissing`, and the dictionary common-name merge rule that
-  preserves existing `common_names.en` values over scan-level names.
+  `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`, the
+  service-only/merge-aware `ensure_scan_user_profile` prerequisite, and the
+  dictionary common-name merge rule that preserves existing `common_names.en`
+  values over scan-level names.
 - **`_shared/identify/completedResponse.ts`**: Loads exact owner-scoped
   completion before media/quota work, validates stored success envelopes,
   reconstructs pre-migration completed rows through the executable wire
@@ -877,14 +878,17 @@ provider dispatch:
   becomes `failed_terminal / server_replay_limit_reached`. Compatibility
   scan-producing endpoints (`identify`, `identify-describe`, and `audio-spec`)
   now use `_shared/scanIngestionCompatibility.ts` to write the same ledger
-  before returning success. Their staged media and text-only intents are shaped
-  as multimodal replay requests, while inline media is recorded only as redacted
-  counts, and their post-response insertion path retains the dead-letter
-  fallback. Operational multimodal finalization failures emit a structured event
-  and return customer-safe `503 scan_persistence_failed`; terminal policy
-  rejection returns `400 observation_rejected`. Detailed failures remain
-  observable in Supabase Edge Function logs without exposing internals to the
-  client.
+  before provider dispatch and await their exact owner scan plus complete-last
+  finalization before returning success. Their staged media and text-only
+  intents are shaped as multimodal replay requests, while inline media is
+  recorded only as redacted counts; failed required insertion retains the
+  ledger/dead-letter fallback. All producer adapters settle through the shared
+  exact-owner persistence boundary, so an ambiguous database response preserves
+  quota and media instead of deleting a possibly committed reference.
+  Operational finalization failures emit a structured event and return
+  customer-safe `503 scan_persistence_failed`; terminal policy rejection returns
+  `400 observation_rejected`. Detailed failures remain observable in Supabase
+  Edge Function logs without exposing internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
   (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
   in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and

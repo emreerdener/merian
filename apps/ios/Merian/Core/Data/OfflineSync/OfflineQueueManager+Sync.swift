@@ -242,7 +242,8 @@ extension OfflineQueueManager {
 
     /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
     ///
-    /// Upload tasks are tracked by `MediaStagingContract.uploadTaskDescription(scanId:uploadIndex:)`.
+    /// Upload tasks are tracked by
+    /// `MediaStagingContract.uploadTaskDescription(scanId:uploadIndex:syncGeneration:objectKey:)`.
     /// Scans are atomically transitioned to `.uploading` state before tasks are dispatched,
     /// so `syncPendingScans` never re-dispatches in-flight uploads after an app restart.
     /// Confirmed R2 keys are persisted on the record at upload completion (in URLSession delegate).
@@ -337,7 +338,11 @@ extension OfflineQueueManager {
                 await MainActor.run {
                     guard self.isCurrentUploadSync(generation) else { return }
                     for scanId in preparation.rejectedScanIds {
-                        self.softDeleteQueuedScan(scanId: scanId)
+                        self.softDeleteQueuedScan(
+                            scanId: scanId,
+                            reason: "Queued media is missing or exceeds the upload limit.",
+                            errorCode: "queued_media_invalid"
+                        )
                     }
                 }
             }
@@ -375,6 +380,7 @@ extension OfflineQueueManager {
             }) else { return }
             await MainActor.run {
                 for scanId in claimedScanIds {
+                    self.uploadCompletionStates[scanId] = nil
                     self.latestUploadGenerations[scanId] = generation
                 }
                 self.userRequestedLargeUploadScanIds.subtract(claimedScanIds)
@@ -417,6 +423,15 @@ extension OfflineQueueManager {
                 MerianLog.data.debug(
                     "syncPendingScans: received presigned URLs=\(presignedUrls.count, privacy: .public)"
                 )
+                guard MediaStagingContract.presignedUploadManifestIsValid(
+                    uploadItems: claimedUploadItems,
+                    presignedURLs: presignedUrls
+                ) else {
+                    MerianLog.data.error(
+                        "syncPendingScans: rejected an invalid staging response manifest"
+                    )
+                    throw MerianError.invalidResponse
+                }
                 let dispatchedScanIDs = await self.dispatchUploadTasks(
                     session: session,
                     uploadItems: claimedUploadItems,
@@ -560,9 +575,23 @@ extension OfflineQueueManager {
     // MARK: - Upload Helpers
 
     nonisolated func currentMediaStagingUserId() async -> String {
-        await MainActor.run {
-            (SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId).lowercased()
+        // The persisted Auth session is the source of truth even while
+        // SupabaseManager.currentUser is still hydrating after a cold launch.
+        // This also keeps the pre-V33 staged-key recovery path on the same owner
+        // namespace that the authenticated upload endpoint used.
+        let sessionUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let (hydratedUserId, deviceId) = await MainActor.run {
+            (
+                SupabaseManager.shared.currentUser?.id.uuidString,
+                DeviceIdentityManager.shared.deviceId
+            )
         }
+
+        return MediaStagingContract.preferredOwnerId(
+            sessionUserId: sessionUserId,
+            hydratedUserId: hydratedUserId,
+            deviceId: deviceId
+        )
     }
 
     nonisolated private func prepareUploadItems(
@@ -636,13 +665,23 @@ extension OfflineQueueManager {
                 let item = uploadItems[index]
 
                 guard presignedURL.fileName == item.fileName,
-                      presignedURL.objectKey == item.objectKey else {
+                      MediaStagingContract.isCanonicalObjectKey(
+                        presignedURL.objectKey,
+                        fileName: item.fileName
+                      ),
+                      MediaStagingContract.objectKey(
+                        fromPresignedURLPath: remoteUrl.path
+                      ) == presignedURL.objectKey else {
                     MerianLog.data.error("dispatchUploadTasks: staging contract mismatch for \(item.scanId, privacy: .private)")
                     guard isCurrentUploadSync(syncGeneration),
                           latestUploadGenerations[item.scanId] == syncGeneration else {
                         continue
                     }
-                    softDeleteQueuedScan(scanId: item.scanId)
+                    softDeleteQueuedScan(
+                        scanId: item.scanId,
+                        reason: "The upload destination could not be verified.",
+                        errorCode: "staging_contract_mismatch"
+                    )
                     continue
                 }
 
@@ -652,7 +691,11 @@ extension OfflineQueueManager {
                           latestUploadGenerations[item.scanId] == syncGeneration else {
                         continue
                     }
-                    softDeleteQueuedScan(scanId: item.scanId)
+                    softDeleteQueuedScan(
+                        scanId: item.scanId,
+                        reason: "The queued media file is no longer available.",
+                        errorCode: "queued_media_missing"
+                    )
                     continue
                 }
 
@@ -668,7 +711,8 @@ extension OfflineQueueManager {
                     uploadTask.taskDescription = MediaStagingContract.uploadTaskDescription(
                         scanId: item.scanId,
                         uploadIndex: item.uploadIndex,
-                        syncGeneration: syncGeneration
+                        syncGeneration: syncGeneration,
+                        objectKey: presignedURL.objectKey
                     )
                     let didResume = await MainActor.run {
                         guard self.isCurrentUploadSync(syncGeneration) else {

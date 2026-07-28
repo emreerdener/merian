@@ -10,6 +10,9 @@ import {
   buildRestoredAudioCapturedMedia,
   buildRestoredVideoCapturedMedia,
   fetchShareEligibleScan,
+  resolveRestoredMediaPersistence,
+  restoredMediaPersistenceAllowsRollback,
+  scanContainsDurableMediaUrls,
 } from "./db.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -19,6 +22,197 @@ import type {
 import type { OwnedScanRecoveryRow } from "../_shared/scanRecovery.ts";
 
 const scanId = "00000000-0000-0000-0000-000000000001";
+const userId = "00000000-0000-0000-0000-000000000002";
+
+function restorationScan(
+  overrides: Partial<ShareEligibleScanRow> = {},
+): ShareEligibleScanRow {
+  return {
+    id: scanId,
+    user_id: userId,
+    geoprivacy: "open",
+    image_storage_urls: [],
+    video_storage_urls: [],
+    audio_storage_urls: [],
+    captured_media: null,
+    is_tombstoned: false,
+    species_id: "00000000-0000-0000-0000-000000000003",
+    confirmed_species_id: null,
+    ...overrides,
+  };
+}
+
+function restorationReadClient(
+  result:
+    | { data: ShareEligibleScanRow | null; error: { message: string } | null }
+    | Error,
+): SupabaseClient {
+  const filters = new Map<string, unknown>();
+  return {
+    from(table: string) {
+      assertEquals(table, "scans");
+      return {
+        select() {
+          const query = {
+            eq(column: string, value: unknown) {
+              filters.set(column, value);
+              return query;
+            },
+            maybeSingle() {
+              assertEquals(filters.get("id"), scanId);
+              assertEquals(filters.get("user_id"), userId);
+              if (result instanceof Error) return Promise.reject(result);
+              return Promise.resolve(result);
+            },
+          };
+          return query;
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+}
+
+Deno.test("scanContainsDurableMediaUrls requires every exact restored URL", () => {
+  const row = restorationScan({
+    audio_storage_urls: [
+      "https://media.merian.app/public_uploads/pro/user/one.wav",
+      " https://media.merian.app/public_uploads/pro/user/two.wav ",
+    ],
+  });
+  assertEquals(
+    scanContainsDurableMediaUrls(row, "audio_storage_urls", [
+      "https://media.merian.app/public_uploads/pro/user/one.wav",
+      "https://media.merian.app/public_uploads/pro/user/two.wav",
+    ]),
+    true,
+  );
+  assertEquals(
+    scanContainsDurableMediaUrls(row, "audio_storage_urls", [
+      "https://media.merian.app/public_uploads/pro/user/missing.wav",
+    ]),
+    false,
+  );
+});
+
+Deno.test("restored-media persistence accepts an exact direct update response without rereading", async () => {
+  const expectedUrl = "https://media.merian.app/restored.webp";
+  const row = restorationScan({ image_storage_urls: [expectedUrl] });
+  const neverRead = {
+    from() {
+      throw new Error("directly confirmed updates must not reread");
+    },
+  } as unknown as SupabaseClient;
+
+  const resolution = await resolveRestoredMediaPersistence(
+    row,
+    "reported_success",
+    "image_storage_urls",
+    [expectedUrl],
+    scanId,
+    userId,
+    neverRead,
+  );
+  assertEquals(resolution.outcome, "committed");
+});
+
+Deno.test("restored-media persistence reconciles a returned update error when the owner row committed", async () => {
+  const expectedUrl = "https://media.merian.app/restored.mp4";
+  const row = restorationScan({ video_storage_urls: [expectedUrl] });
+  const resolution = await resolveRestoredMediaPersistence(
+    null,
+    "reported_rejected",
+    "video_storage_urls",
+    [expectedUrl],
+    scanId,
+    userId,
+    restorationReadClient({ data: row, error: null }),
+    "PostgREST response error",
+  );
+  assertEquals(resolution.outcome, "committed");
+});
+
+Deno.test("restored-media cleanup is allowed only after a returned rejection and a definitive absent reread", async () => {
+  const resolution = await resolveRestoredMediaPersistence(
+    null,
+    "reported_rejected",
+    "image_storage_urls",
+    ["https://media.merian.app/restored.webp"],
+    scanId,
+    userId,
+    restorationReadClient({ data: restorationScan(), error: null }),
+    "constraint rejected",
+  );
+  assertEquals(resolution, {
+    outcome: "rejected",
+    row: null,
+    reason: "constraint rejected",
+  });
+});
+
+Deno.test("restored-media persistence stays unknown after a lost update response and an absent reread", async () => {
+  const resolution = await resolveRestoredMediaPersistence(
+    null,
+    "unknown",
+    "audio_storage_urls",
+    ["https://media.merian.app/restored.wav"],
+    scanId,
+    userId,
+    restorationReadClient({ data: restorationScan(), error: null }),
+    "network timeout",
+  );
+  assertEquals(resolution, {
+    outcome: "unknown",
+    row: null,
+    reason: "network timeout",
+  });
+});
+
+Deno.test("restored-media persistence preserves objects when exact-owner verification fails", async () => {
+  const resolution = await resolveRestoredMediaPersistence(
+    null,
+    "reported_success",
+    "audio_storage_urls",
+    ["https://media.merian.app/restored.wav"],
+    scanId,
+    userId,
+    restorationReadClient({
+      data: null,
+      error: { message: "read unavailable" },
+    }),
+  );
+  assertEquals(resolution.outcome, "unknown");
+  assertEquals(
+    resolution.reason,
+    "Failed to load scan for Explore sharing: read unavailable",
+  );
+});
+
+Deno.test("restored-media rollback is forbidden for every outcome except a proven rejection", () => {
+  assertEquals(
+    restoredMediaPersistenceAllowsRollback({
+      outcome: "unknown",
+      row: null,
+      reason: "lost response",
+    }),
+    false,
+  );
+  assertEquals(
+    restoredMediaPersistenceAllowsRollback({
+      outcome: "rejected",
+      row: null,
+      reason: "database rejected update",
+    }),
+    true,
+  );
+  assertEquals(
+    restoredMediaPersistenceAllowsRollback({
+      outcome: "committed",
+      row: restorationScan(),
+      reason: "owner row verified",
+    }),
+    false,
+  );
+});
 
 function makeVideoScan(
   capturedMedia: unknown[],

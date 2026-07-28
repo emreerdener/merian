@@ -11,6 +11,7 @@ export { STAGING_ALLOWED_CONTENT_TYPES };
 
 export const MAX_STAGING_FILES = MEDIA_BUDGETS.maxStagingFiles;
 export const MAX_STAGED_IMAGE_BYTES = MEDIA_BUDGETS.maxImageRawBytes;
+export const MAX_STAGED_IMAGE_FILES = MEDIA_BUDGETS.maxImageCount;
 export const MAX_STAGED_AUDIO_BYTES = MEDIA_BUDGETS.maxAudioRawBytes;
 export const MAX_STAGED_AUDIO_FILES = MEDIA_BUDGETS.maxStagedAudioFiles;
 export const MAX_STAGED_VIDEO_BYTES = MEDIA_BUDGETS.maxVideoRawBytes;
@@ -125,7 +126,9 @@ function validateStructuredUploadFiles(
   rawFiles: unknown[],
 ): ParseStagingUploadFilesResult {
   const files: StagingUploadFile[] = [];
+  const seenFileNames = new Set<string>();
   let totalImageBytes = 0;
+  let imageFileCount = 0;
   let audioFileCount = 0;
   let videoFileCount = 0;
 
@@ -143,6 +146,10 @@ function validateStructuredUploadFiles(
     if (safeFileName !== fileName) {
       return error(400, "Bad Request: fileName must already be sanitized.");
     }
+    if (seenFileNames.has(fileName)) {
+      return error(400, "Bad Request: fileName values must be unique.");
+    }
+    seenFileNames.add(fileName);
 
     if (
       mediaKind !== "image" && mediaKind !== "audio" && mediaKind !== "video"
@@ -197,6 +204,10 @@ function validateStructuredUploadFiles(
     }
 
     if (mediaKind === "image") {
+      imageFileCount += 1;
+      if (imageFileCount > MAX_STAGED_IMAGE_FILES) {
+        return error(400, "Bad Request: too many staged image files.");
+      }
       totalImageBytes += sizeBytes;
       if (totalImageBytes > MAX_STAGED_IMAGE_BYTES) {
         return error(
@@ -233,6 +244,10 @@ function parseLegacyFileNames(
   fileNames: unknown[],
 ): ParseStagingUploadFilesResult {
   const files: StagingUploadFile[] = [];
+  const seenFileNames = new Set<string>();
+  let imageFileCount = 0;
+  let audioFileCount = 0;
+  let videoFileCount = 0;
   for (const fileName of fileNames) {
     if (typeof fileName !== "string" || fileName.trim().length === 0) {
       return error(
@@ -242,7 +257,27 @@ function parseLegacyFileNames(
     }
 
     const safeFileName = sanitizeStagingFileName(fileName);
+    if (seenFileNames.has(safeFileName)) {
+      return error(400, "Bad Request: fileName values must be unique.");
+    }
+    seenFileNames.add(safeFileName);
     const mediaKind = legacyMediaKindForFileName(safeFileName);
+    if (mediaKind === "image") {
+      imageFileCount += 1;
+      if (imageFileCount > MAX_STAGED_IMAGE_FILES) {
+        return error(400, "Bad Request: too many staged image files.");
+      }
+    } else if (mediaKind === "audio") {
+      audioFileCount += 1;
+      if (audioFileCount > MAX_STAGED_AUDIO_FILES) {
+        return error(400, "Bad Request: too many staged audio files.");
+      }
+    } else {
+      videoFileCount += 1;
+      if (videoFileCount > MAX_STAGED_VIDEO_FILES) {
+        return error(400, "Bad Request: too many staged video files.");
+      }
+    }
     files.push({
       fileName: safeFileName,
       mediaKind,
@@ -264,7 +299,7 @@ export function parseStagingUploadFiles(
     if (body.files.length === 0 || body.files.length > MAX_STAGING_FILES) {
       return error(
         400,
-        "Bad Request: 'files' must be an array of 1 to 5 values.",
+        `Bad Request: 'files' must be an array of 1 to ${MAX_STAGING_FILES} values.`,
       );
     }
     return validateStructuredUploadFiles(body.files);
@@ -276,7 +311,7 @@ export function parseStagingUploadFiles(
     ) {
       return error(
         400,
-        "Bad Request: 'fileNames' must be an array of 1 to 5 values.",
+        `Bad Request: 'fileNames' must be an array of 1 to ${MAX_STAGING_FILES} values.`,
       );
     }
     return parseLegacyFileNames(body.fileNames);

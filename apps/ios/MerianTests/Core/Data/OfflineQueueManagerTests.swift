@@ -32,6 +32,7 @@ struct OfflineQueueManagerTests {
         let endpoint: String
         let maxFilesPerRequest: Int
         let maxImageBytes: Int
+        let maxImageFiles: Int
         let maxAudioBytes: Int
         let maxAudioFiles: Int
         let maxVideoBytes: Int
@@ -46,6 +47,7 @@ struct OfflineQueueManagerTests {
         let optionalRequestFields: [String]
         let optionalResponseFields: [String]
         let mediaRolesByKind: [String: [String]]
+        let fileNamesMustBeUnique: Bool
         let legacyFileNamesAccepted: Bool
     }
 
@@ -263,6 +265,7 @@ struct OfflineQueueManagerTests {
                 responseData: Data()
             ) == .success
         )
+
     }
 
     @Test func galleryQueueReplayOmitsBookkeepingTimestampWhenPhotoHasNoEmbeddedDate() throws {
@@ -379,6 +382,57 @@ struct OfflineQueueManagerTests {
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: retryable, now: now) == .retryAfter(30))
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: staleRetryDate, now: now) == .waitForServer(1))
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: terminal, now: now) == .terminalFailure("Rejected by moderation."))
+        #expect(
+            OfflineQueueManager.requiresMediaRestagingAfterServerFailure(
+                ScanStatusResponse(
+                    status: .notFound,
+                    jobStatus: .failedRetryable,
+                    jobStage: "background_ingestion_failed",
+                    jobAttemptCount: 1,
+                    retryAfter: nil,
+                    lastError: "Scan insert failed."
+                )
+            )
+        )
+        #expect(
+            OfflineQueueManager.requiresMediaRestagingAfterServerFailure(
+                ScanStatusResponse(
+                    status: .notFound,
+                    jobStatus: .failedRetryable,
+                    jobStage: "identity_merge_interrupted",
+                    jobAttemptCount: 1,
+                    retryAfter: nil,
+                    lastError: "Account ownership changed."
+                )
+            )
+        )
+        #expect(
+            OfflineQueueManager.requiresMediaRestagingAfterServerFailure(retryable)
+        )
+        #expect(
+            !OfflineQueueManager.requiresMediaRestagingAfterServerFailure(
+                ScanStatusResponse(
+                    status: .notFound,
+                    jobStatus: .failedRetryable,
+                    jobStage: "ai_inference_failed",
+                    jobAttemptCount: 1,
+                    retryAfter: nil,
+                    lastError: "Provider request failed."
+                )
+            )
+        )
+        #expect(
+            !OfflineQueueManager.requiresMediaRestagingAfterServerFailure(
+                ScanStatusResponse(
+                    status: .found,
+                    jobStatus: .failedRetryable,
+                    jobStage: "background_ingestion_failed",
+                    jobAttemptCount: 1,
+                    retryAfter: nil,
+                    lastError: "Post-insert finalization failed."
+                )
+            )
+        )
     }
 
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
@@ -387,6 +441,7 @@ struct OfflineQueueManagerTests {
         #expect(contract.schemaVersion == 2)
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
+        #expect(MerianConfig.mediaStagingMaxImageFilesPerRequest == contract.maxImageFiles)
         #expect(MerianConfig.mediaStagingMaxAudioFilesPerRequest == contract.maxAudioFiles)
         #expect(MerianConfig.mediaStagingMaxVideoFilesPerRequest == contract.maxVideoFiles)
         #expect(MerianConfig.stagedImagePayloadMaxBytes == contract.maxImageBytes)
@@ -405,6 +460,7 @@ struct OfflineQueueManagerTests {
         #expect(contract.mediaRolesByKind["image"] == ["display", "thumbnail", "inference_frame"])
         #expect(contract.mediaRolesByKind["audio"] == ["audio"])
         #expect(contract.mediaRolesByKind["video"] == ["playback"])
+        #expect(contract.fileNamesMustBeUnique)
         #expect(contract.legacyFileNamesAccepted)
     }
 
@@ -450,6 +506,76 @@ struct OfflineQueueManagerTests {
         #expect(items[2].fileName == "\(scanId)_fallback_video.mp4")
         #expect(items[2].contentType == "video/mp4")
         #expect(items[2].objectKey == "staging/user_abc/\(scanId)_fallback_video.mp4")
+
+        let presignedURLs = items.map { item in
+            PreSignedURL(
+                fileName: item.fileName,
+                signedUrl: "https://r2.invalid/bucket/\(item.objectKey)",
+                objectKey: item.objectKey,
+                mediaAssetId: nil,
+                mediaSessionId: nil
+            )
+        }
+        #expect(
+            MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: items,
+                presignedURLs: presignedURLs
+            )
+        )
+        #expect(
+            !MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: items,
+                presignedURLs: Array(presignedURLs.dropLast())
+            )
+        )
+        var mixedOwnerURLs = presignedURLs
+        mixedOwnerURLs[1] = PreSignedURL(
+            fileName: items[1].fileName,
+            signedUrl: "https://r2.invalid/bucket/staging/other-owner/\(items[1].fileName)",
+            objectKey: "staging/other-owner/\(items[1].fileName)",
+            mediaAssetId: nil,
+            mediaSessionId: nil
+        )
+        #expect(
+            !MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: items,
+                presignedURLs: mixedOwnerURLs
+            )
+        )
+        var mixedOriginURLs = presignedURLs
+        mixedOriginURLs[1] = PreSignedURL(
+            fileName: items[1].fileName,
+            signedUrl: "https://other-r2.invalid/bucket/\(items[1].objectKey)",
+            objectKey: items[1].objectKey,
+            mediaAssetId: nil,
+            mediaSessionId: nil
+        )
+        #expect(
+            !MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: items,
+                presignedURLs: mixedOriginURLs
+            )
+        )
+        var insecureURLs = presignedURLs
+        insecureURLs[0] = PreSignedURL(
+            fileName: items[0].fileName,
+            signedUrl: "http://r2.invalid/bucket/\(items[0].objectKey)",
+            objectKey: items[0].objectKey,
+            mediaAssetId: nil,
+            mediaSessionId: nil
+        )
+        #expect(
+            !MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: items,
+                presignedURLs: insecureURLs
+            )
+        )
+        #expect(
+            !MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: [items[0], items[0]],
+                presignedURLs: [presignedURLs[0], presignedURLs[0]]
+            )
+        )
 
         let uploadFiles = try MediaStagingContract.uploadFiles(for: items)
         #expect(uploadFiles.map(\.clientScanId) == Array(repeating: Optional(payload.id), count: 3))
@@ -499,20 +625,117 @@ struct OfflineQueueManagerTests {
         #expect(uploadFiles.filter { $0.mediaKind == .video }.count == 1)
     }
 
+    @Test func testMediaStagingContractRejectsSixStillImagesBeforeUpload() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let imageNames = (0...MerianConfig.mediaStagingMaxImageFilesPerRequest)
+            .map { "still-\($0).webp" }
+        for imageName in imageNames {
+            try Data(repeating: 0x21, count: 64)
+                .write(to: directory.appendingPathComponent(imageName))
+        }
+        let payload = PendingScanPayload(
+            id: "scan-too-many-stills",
+            localImagePaths: imageNames,
+            localAudioPaths: [],
+            localVideoPaths: []
+        )
+        let items = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "user-a",
+            documentsDirectory: directory
+        )
+
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MediaStagingContract.validateUploadBudget(items)
+        }
+    }
+
     @Test func testMediaStagingUploadTaskDescriptionPreservesUnderscoredScanIds() {
         let scanId = "queued_nonvisual_audio_only"
         let syncGeneration = UUID()
+        let ownerId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        let objectKey = "staging/\(ownerId)/\(scanId)_audio.wav"
         let description = MediaStagingContract.uploadTaskDescription(
             scanId: scanId,
             uploadIndex: 12,
-            syncGeneration: syncGeneration
+            syncGeneration: syncGeneration,
+            objectKey: objectKey
         )
         let identity = MediaStagingContract.parseUploadTaskDescription(description)
 
         #expect(identity?.scanId == scanId)
         #expect(identity?.uploadIndex == 12)
         #expect(identity?.syncGeneration == syncGeneration)
+        #expect(identity?.objectKey == objectKey)
         #expect(MediaStagingContract.uploadTaskDescription(description, belongsTo: scanId))
+    }
+
+    @Test func testMediaStagingContractAcceptsAuthenticatedCanonicalKeyAfterIdentityChanges() {
+        let fileName = "scan-42_image.webp"
+        let authenticatedOwnerId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        let authenticatedKey = "staging/\(authenticatedOwnerId)/\(fileName)"
+        let signedPath = "/merian-media/staging/\(authenticatedOwnerId)/\(fileName)"
+
+        #expect(MediaStagingContract.isCanonicalObjectKey(
+            authenticatedKey,
+            fileName: fileName
+        ))
+        #expect(
+            MediaStagingContract.objectKey(fromPresignedURLPath: signedPath)
+                == authenticatedKey
+        )
+        #expect(
+            MediaStagingContract.ownerId(fromObjectKey: authenticatedKey)
+                == authenticatedOwnerId
+        )
+        #expect(!MediaStagingContract.isCanonicalObjectKey(
+            "staging/cccccccc-cccc-4ccc-8ccc-cccccccccccc/other-file.webp",
+            fileName: fileName
+        ))
+        #expect(!MediaStagingContract.isCanonicalObjectKey(
+            "staging/not-a-uuid/\(fileName)",
+            fileName: fileName
+        ))
+        #expect(
+            MediaStagingContract.objectKey(
+                fromPresignedURLPath:
+                    "/merian-media/staging/\(authenticatedOwnerId)/../\(fileName)"
+            ) == nil
+        )
+    }
+
+    @Test func testMediaStagingOwnerResolutionPrefersPersistedAuthSession() {
+        let sessionUserId = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"
+        let hydratedUserId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        let deviceId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+
+        #expect(
+            MediaStagingContract.preferredOwnerId(
+                sessionUserId: sessionUserId,
+                hydratedUserId: hydratedUserId,
+                deviceId: deviceId
+            ) == sessionUserId.lowercased()
+        )
+        #expect(
+            MediaStagingContract.preferredOwnerId(
+                sessionUserId: nil,
+                hydratedUserId: hydratedUserId,
+                deviceId: deviceId
+            ) == hydratedUserId
+        )
+        #expect(
+            MediaStagingContract.preferredOwnerId(
+                sessionUserId: nil,
+                hydratedUserId: nil,
+                deviceId: deviceId
+            ) == deviceId
+        )
     }
 
     @Test func testInferenceTaskDescriptionPreservesGenerationAndUnderscoredScanId() {
@@ -595,6 +818,107 @@ struct OfflineQueueManagerTests {
             !manager.isUploadGenerationCurrent(
                 scanId: scanId,
                 generation: nil
+            )
+        )
+    }
+
+    @Test func testUploadFailureFencesEverySiblingCallbackInGeneration() {
+        let manager = OfflineQueueManager.shared
+        let scanId = "upload-generation-failure-fence-test"
+        let failedGeneration = UUID()
+        manager.uploadPreparationGenerations[scanId] = nil
+        manager.latestUploadGenerations[scanId] = failedGeneration
+        defer {
+            manager.uploadPreparationGenerations[scanId] = nil
+            manager.latestUploadGenerations[scanId] = nil
+        }
+
+        manager.invalidateUploadGeneration(
+            scanId: scanId,
+            generation: failedGeneration
+        )
+
+        #expect(
+            !manager.isUploadGenerationCurrent(
+                scanId: scanId,
+                generation: failedGeneration
+            )
+        )
+        #expect(
+            !manager.isUploadGenerationCurrent(
+                scanId: scanId,
+                generation: nil
+            )
+        )
+    }
+
+    @Test func testUploadManifestWaitsForEverySiblingCallbackOutcome() {
+        let manager = OfflineQueueManager.shared
+        let scanId = "upload-manifest-outcome-accumulator-test"
+        let generation = UUID()
+        let ownerId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        let firstKey = "staging/\(ownerId)/first.webp"
+        let secondKey = "staging/\(ownerId)/second.webp"
+        manager.uploadCompletionStates[scanId] = nil
+        defer {
+            manager.uploadCompletionStates[scanId] = nil
+        }
+
+        manager.recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: generation,
+            objectKey: firstKey
+        )
+        #expect(
+            !manager.hasConfirmedSuccessfulUploadManifest(
+                scanId: scanId,
+                generation: generation,
+                expectedObjectKeys: [firstKey, secondKey]
+            )
+        )
+
+        manager.recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: generation,
+            objectKey: secondKey
+        )
+        #expect(
+            manager.hasConfirmedSuccessfulUploadManifest(
+                scanId: scanId,
+                generation: generation,
+                expectedObjectKeys: [firstKey, secondKey]
+            )
+        )
+
+        let replacementGeneration = UUID()
+        manager.recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: replacementGeneration,
+            objectKey: secondKey
+        )
+        #expect(
+            !manager.hasConfirmedSuccessfulUploadManifest(
+                scanId: scanId,
+                generation: generation,
+                expectedObjectKeys: [firstKey, secondKey]
+            )
+        )
+
+        let legacyScanId = "\(scanId)-legacy"
+        manager.uploadCompletionStates[legacyScanId] = nil
+        defer {
+            manager.uploadCompletionStates[legacyScanId] = nil
+        }
+        manager.recordSuccessfulUploadMember(
+            scanId: legacyScanId,
+            generation: nil,
+            objectKey: firstKey
+        )
+        #expect(
+            manager.hasConfirmedSuccessfulUploadManifest(
+                scanId: legacyScanId,
+                generation: nil,
+                expectedObjectKeys: [firstKey]
             )
         )
     }

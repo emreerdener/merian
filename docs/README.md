@@ -112,7 +112,8 @@ as their permanent engineering identity.
   cross-owner row, and restores media only through owner-scoped staging keys.
   The repository fix is not a production fix until all affected Edge Functions
   and the matching iOS build are promoted. See the
-  [owner-row incident report](./incidents/2026-07-scan-owner-row-durability-gap.md)
+  [owner-row incident report](./incidents/2026-07-scan-owner-row-durability-gap.md),
+  [inline staging-manifest incident](./incidents/2026-07-inline-scan-staging-manifest-regression.md),
   and
   [Identify idempotency incident](./incidents/2026-07-identify-idempotency-conflict.md).
 - **Image-analysis latency contract**: Durable queue acceptance remains the
@@ -198,6 +199,10 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-07-inline-scan-staging-manifest-regression.md`](./incidents/2026-07-inline-scan-staging-manifest-regression.md)**
+  — Joined iOS/Edge/catalog root cause and fail-closed remediation for inline
+  scans rejected by a phantom staged-upload manifest, including offline, Field
+  Chat, and Explore consequences.
 - **[`/incidents/2026-07-identify-idempotency-conflict.md`](./incidents/2026-07-identify-idempotency-conflict.md)**
   — Root cause, server response replay, exact queued-presentation recovery, and
   production exit criteria for handler-owned Identify 409 conflicts.

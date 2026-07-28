@@ -425,10 +425,14 @@ Deno.test("media finalization is one transaction and marks the ledger complete l
       "Compatibility generation ownership must be durable before provider work.",
     );
   }
-  assertStringIncludes(audioSpec, "await deleteR2ObjectIfPresent(");
+  assertStringIncludes(audioSpec, "audioStorageUrls = await promoteSafeMedia(");
+  assertStringIncludes(audioSpec, "audio_storage_urls: audioStorageUrls");
+  assertStringIncludes(audioSpec, "promotedUrlsByStorageKey:");
   assertEquals(
-    audioSpec.indexOf("await deleteR2ObjectIfPresent(") <
-      audioSpec.indexOf("await compatibilityLedger.markComplete("),
+    audioSpec.indexOf("audioStorageUrls = await promoteSafeMedia(") <
+        audioSpec.indexOf("await insertScan(") &&
+      audioSpec.indexOf("await insertScan(") <
+        audioSpec.indexOf("await compatibilityLedger.markComplete("),
     true,
   );
 });

@@ -4,6 +4,7 @@ import type {
   IdentificationCandidate,
   PetIdentification,
 } from "../_shared/identify/types.ts";
+import { persistOwnedScanRow } from "../_shared/scanPersistence.ts";
 
 // Re-export from identify/db.ts where the logic is identical.
 // upsertGhostUserIfMissing, fetchCachedSpecies, upsertSpeciesDictionary,
@@ -100,11 +101,19 @@ export async function insertDescribeScan(
       : row.public_location_label,
   };
 
-  const { error } = await supabaseAdmin
-    .from("scans")
-    .upsert(scanRow, {
-      onConflict: "id",
-      ignoreDuplicates: true,
-    });
-  if (error) throw new Error(`insertDescribeScan: ${error.message}`);
+  await persistOwnedScanRow({
+    scanId: row.id,
+    userId: row.user_id,
+    operationName: "insertDescribeScan",
+    supabaseAdmin,
+    write: async () => {
+      const { error } = await supabaseAdmin
+        .from("scans")
+        .upsert(scanRow, {
+          onConflict: "id",
+          ignoreDuplicates: true,
+        });
+      return { error };
+    },
+  });
 }

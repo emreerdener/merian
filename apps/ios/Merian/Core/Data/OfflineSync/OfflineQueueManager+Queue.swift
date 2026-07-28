@@ -395,6 +395,7 @@ extension OfflineQueueManager {
             }
         }
         latestUploadGenerations[scanId] = nil
+        uploadCompletionStates[scanId] = nil
         if inferenceExpectation == nil {
             inferenceStatusProbeTasks.cancel(scanId)
         }
@@ -731,7 +732,7 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "replayInferenceForUploadedScans: activeUploadTasks=\(activeUploadScanIds.count, privacy: .public) preparingUpload=\(preparingUploadScanIds.count, privacy: .public) completingUpload=\(completingUploadScanIds.count, privacy: .public)"
             )
-            await sharedActor.reconcileOrphanedUploadingScans(
+            let hadUploadOrphans = await sharedActor.reconcileOrphanedUploadingScans(
                 activeScanIds: activeUploadScanIds.union(preparingUploadScanIds).union(completingUploadScanIds),
                 observedThrough: observedThrough
             )
@@ -770,7 +771,16 @@ extension OfflineQueueManager {
                     .union(serverOwnedInferenceScanIds),
                 observedThrough: observedThrough
             )
-            await MainActor.run { self.replayInferenceStagedScans() }
+            await MainActor.run {
+                // A reset row is pending-only and therefore invisible to staged
+                // replay. Restart signing in the same recovery pass instead of
+                // waiting for another foreground or connectivity transition.
+                if hadUploadOrphans {
+                    self.updateUnsyncedItemCount()
+                    self.syncPendingScans()
+                }
+                self.replayInferenceStagedScans()
+            }
         }
     }
 

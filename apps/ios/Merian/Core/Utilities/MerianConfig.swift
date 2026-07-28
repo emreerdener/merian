@@ -23,6 +23,8 @@ enum MerianConfig {
     static let pendingScanFetchLimit = 50
     /// Maximum number of media objects accepted by `generate-upload-urls` per request.
     static let mediaStagingMaxFilesPerRequest = 6
+    /// Maximum number of image objects accepted by `generate-upload-urls` per request.
+    static let mediaStagingMaxImageFilesPerRequest = 5
     /// Maximum number of audio media objects accepted by `generate-upload-urls` per request.
     static let mediaStagingMaxAudioFilesPerRequest = 2
     /// Maximum number of video media objects accepted by `generate-upload-urls` per request.

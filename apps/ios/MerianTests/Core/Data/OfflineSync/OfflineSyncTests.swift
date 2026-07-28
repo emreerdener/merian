@@ -3,84 +3,68 @@ import XCTest
 
 final class OfflineSyncTests: XCTestCase {
 
-    // MARK: - 1. URLSession Lookahead Logic Test
-    
-    // We mock the specific properties extracted from URLSessionTask during the lookahead pass.
-    struct MockTask {
-        let taskIdentifier: Int
-        let taskDescription: String?
+    // MARK: - 1. Exact Upload Outcome Contract
+
+    func test_processUploadCompletion_defersInferenceUntilEveryKeySucceeds() {
+        let generation = UUID()
+        let firstKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_0.webp"
+        let secondKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_1.webp"
+        var completion = MediaStagingUploadCompletionState(generation: generation)
+
+        completion.recordSuccess(objectKey: secondKey)
+
+        XCTAssertFalse(
+            completion.containsEvery(expectedObjectKeys: [firstKey, secondKey]),
+            "Task disappearance is not success evidence for the missing first key."
+        )
     }
 
-    func test_processUploadCompletion_defersInferenceWhenChunksRemain() async {
-        // Simulate "chunk 1" completing out-of-order BEFORE "chunk 0" has finished.
-        let completingTask = MockTask(taskIdentifier: 1, taskDescription: "SCAN123_1")
-        
-        // The URLSession still holds "chunk 0" in flight
-        let remainingTasks = [
-            MockTask(taskIdentifier: 0, taskDescription: "SCAN123_0")
-        ]
-        
-        let scanId = "SCAN123"
-        
-        // This is the literal inline evaluation logic from `OfflineQueueManager+URLSession`
-        let hasActiveTasksForScan = remainingTasks.contains {
-            $0.taskIdentifier != completingTask.taskIdentifier &&
-            ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
-        }
-        
-        // Assert that the lookahead correctly detects "SCAN123_0" is still active, safely abandoning the deadlocked `count - 1` blind guess.
-        XCTAssertTrue(hasActiveTasksForScan, "Lookahead failed: Should detect that chunk 0 is still active.")
-    }
-    
-    func test_processUploadCompletion_triggersInferenceWhenFinalChunkCompletes() async {
-        // Simulate "chunk 0" completing as the absolute final chunk
-        let completingTask = MockTask(taskIdentifier: 0, taskDescription: "SCAN123_0")
-        
-        // The URLSession only holds the completing task (which `allTasks` natively includes during delegate traversal)
-        let remainingTasks = [completingTask]
-        
-        let scanId = "SCAN123"
-        
-        // This is the literal inline evaluation logic from `OfflineQueueManager+URLSession`
-        let hasActiveTasksForScan = remainingTasks.contains {
-            $0.taskIdentifier != completingTask.taskIdentifier &&
-            ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
-        }
-        
-        // Assert that the lookahead recognizes NO other disjoint tasks remain for this scan explicitly!
-        XCTAssertFalse(hasActiveTasksForScan, "Lookahead failed: Should detect no other tasks remain for this scan.")
+    func test_processUploadCompletion_acceptsOutOfOrderSuccessForEveryExactKey() {
+        let generation = UUID()
+        let firstKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_0.webp"
+        let secondKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_1.webp"
+        var completion = MediaStagingUploadCompletionState(generation: generation)
+
+        completion.recordSuccess(objectKey: secondKey)
+        completion.recordSuccess(objectKey: firstKey)
+
+        XCTAssertTrue(
+            completion.containsEvery(expectedObjectKeys: [firstKey, secondKey])
+        )
     }
 
-    // MARK: - 2. Deterministic Identity Target Test
-    
-    func test_deterministicIdentityResolution_fallsBackToDeviceIdWithoutSession() async {
-        // Simulate a cold launch / unauthenticated user without Supabase session payload
-        let mockMissingSessionId: String? = nil
-        let mockDeviceId = "MOCK-DEVICE-ID-1234"
-        
-        // The native pipeline structing:
-        let targetId = (mockMissingSessionId ?? mockDeviceId).lowercased()
-        
-        let scanId = "SCAN123"
-        let r2Key = "staging/\(targetId)/\(scanId)_image.webp"
-        
-        // Assert that without an explicit identity, the path resolves to DEVICE to bypass the 404 mismatch.
-        XCTAssertEqual(r2Key, "staging/mock-device-id-1234/SCAN123_image.webp")
+    // MARK: - 2. Server-Authoritative Staging Identity
+
+    func test_stagingOwnerComesFromCanonicalServerIssuedKey() {
+        let authenticatedOwner = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        let fileName = "scan123_image.webp"
+        let serverKey = "staging/\(authenticatedOwner)/\(fileName)"
+
+        XCTAssertTrue(
+            MediaStagingContract.isCanonicalObjectKey(
+                serverKey,
+                fileName: fileName
+            )
+        )
+        XCTAssertEqual(
+            MediaStagingContract.ownerId(fromObjectKey: serverKey),
+            authenticatedOwner
+        )
     }
-    
-    func test_deterministicIdentityResolution_prioritizesAuthSession() async {
-        // Simulate an existing logged in user / Ghost session active UUID
-        let mockAuthSessionId: String? = "AUTH-UUID-XYZ"
-        let mockDeviceId = "MOCK-DEVICE-ID-1234" // Should be structurally ignored!
-        
-        // The native pipeline structing:
-        let targetId = (mockAuthSessionId ?? mockDeviceId).lowercased()
-        
-        let scanId = "SCAN123"
-        let r2Key = "staging/\(targetId)/\(scanId)_image.webp"
-        
-        // Assert that the explicit auth ID bridges directly over the 500 error boundary.
-        XCTAssertEqual(r2Key, "staging/auth-uuid-xyz/SCAN123_image.webp")
+
+    func test_predictedDeviceIdentityCannotOverrideServerIssuedOwner() {
+        let predictedDeviceOwner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        let authenticatedOwner = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        let serverKey = "staging/\(authenticatedOwner)/scan123_image.webp"
+
+        XCTAssertNotEqual(
+            MediaStagingContract.ownerId(fromObjectKey: serverKey),
+            predictedDeviceOwner
+        )
+        XCTAssertEqual(
+            MediaStagingContract.ownerId(fromObjectKey: serverKey),
+            authenticatedOwner
+        )
     }
 
     // MARK: - 3. Pipeline Lock Release Tests

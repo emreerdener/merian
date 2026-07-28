@@ -26,7 +26,7 @@ extension files:
 | Type                                  | Purpose                                                                                                                                                                                                                                                                                                |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `PendingScanPayload`                  | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`, including local image and audio paths. Safe to pass across actor boundaries.                                                                                                                                                |
-| `ScanUploadItem`                      | One local media file ready for a presigned R2 PUT — `scanId`, `uploadIndex`, `fileName`, `fileURL`, `contentType`.                                                                                                                                                                                     |
+| `ScanUploadItem`                      | One local media file ready for a presigned R2 PUT — `scanId`, per-scan `uploadIndex`, `mediaKind`, `fileName`, `fileURL`, `contentType`, and expected `objectKey`.                                                                                                                                     |
 | `ExtractedScanData`                   | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries the canonical ordered `capturedMediaItems: [SerializedMediaItem]` timeline, from which image paths, audio paths, prompt text, and serialized observation contexts are derived on demand.     |
 | `OfflineScanProcessingResult`         | Result of `processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` flag controlling main-actor queue flush.                                                                                                                                 |
 | `ScanFinalizationCoordinator`         | Per-scan async lock used by live visual, live non-visual, and background URLSession finalizers before they write `LocalScanRecord.id`. Prevents Core Data unique-constraint merge policy from merging no-inverse media relationships when the two inference paths complete the same scan concurrently. |
@@ -111,8 +111,8 @@ _Offline scan processing:_
   not reliably propagate to `@Query` in open sheets). Video-aware completion
   uses `deleteQueuedScan` with adopted media paths and the exact background or
   foreground generation expectation. This allows queued inference frames to be
-  purged while video/audio/display media adopted by the final
-  `LocalScanRecord` survives, without granting stale work deletion authority:
+  purged while video/audio/display media adopted by the final `LocalScanRecord`
+  survives, without granting stale work deletion authority:
   1. `resolveSpeciesIdAndDiscoveryStatus()`: Decouples local species ID
      resolution and checks the global `LocalScanRecord` table to determine if
      the scan qualifies as a brand-new discovery for gamification hooks.
@@ -138,18 +138,18 @@ _Offline scan processing:_
   writes the mixed-media payload into both `capturedMediaJSON` and
   `capturedMediaEntries`. The JSON mirror is the preferred hot read path for
   `CapturedMediaSnapshot`; the relationship mirror remains populated for
-  migration/debugging/fallback durability. Persists
-  `imageQualityScore` (Gemini's photographic quality score, 0–100) from
-  `SpeciesData`. Unlike `blurScore` (ephemeral, live-only, never written to
-  disk), `imageQualityScore` is stored permanently for future community
-  reference-photo curation. It acquires `ScanFinalizationCoordinator` for
-  `mappedData.scanId`, then reuses `resolveSpeciesIdAndDiscoveryStatus(...)` and
+  migration/debugging/fallback durability. Persists `imageQualityScore`
+  (Gemini's photographic quality score, 0–100) from `SpeciesData`. Unlike
+  `blurScore` (ephemeral, live-only, never written to disk), `imageQualityScore`
+  is stored permanently for future community reference-photo curation. It
+  acquires `ScanFinalizationCoordinator` for `mappedData.scanId`, then reuses
+  `resolveSpeciesIdAndDiscoveryStatus(...)` and
   `insertReplacingLocalScanRecord(...)`; this preserves an existing species UUID
   and staged field notes while replacing any queued/offline collision row with
   the richer foreground result. The durable generation is revalidated while
   holding the per-scan persistence coordinator before finalization and save.
-  Save failure rolls back and returns `.notSaved`,
-  suppressing downstream new-discovery side effects for an uncommitted record.
+  Save failure rolls back and returns `.notSaved`, suppressing downstream
+  new-discovery side effects for an uncommitted record.
 - `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`
   — persists description-only, audio-only, or mixed non-visual results after
   `/identify-multimodal` inference when there are no local image files. Uses the
@@ -558,24 +558,24 @@ future explicit conversion feature creates normal collections.
 
 ## Decision Guide
 
-| Task                                                     | Actor to use                                                                                                                                  |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task                                                     | Actor to use                                                                                                                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Save a live scan result                                  | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)` |
 | Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`                |
-| Transition scan state for upload pipeline                | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                             |
-| Claim a scan for inference (`tryClaimForInference`)      | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                             |
-| Reset scan to `.staged` on transient failure             | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                             |
-| Process an offline scan after upload                     | Fresh `BackgroundDatabaseActor` for final record persistence; shared `resolvedQueueDbActor` for queue transitions                             |
-| Startup/ongoing orphan reconciliation                    | `BackgroundDatabaseActor` via `resolvedQueueDbActor`, with a pre-enumeration `observedThrough` cutoff                                         |
-| Sync historical scans from cloud                         | `HistoricalDatabaseActor` (ad-hoc)                                                                                                            |
-| Calculate all profile data (stats + heatmap + awards)    | `ProfileDatabaseActor.calculateAll()` (ad-hoc)                                                                                                |
-| Calculate achievement awards only (post-inference)       | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived)                                                            |
-| Calculate profile stats (species count, streak)          | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc)                                                                                       |
-| Write scan image files to disk                           | `FileIOActor.shared`                                                                                                                          |
-| Delete scan media files from disk                        | `FileIOActor.shared`                                                                                                                          |
-| Validate scan media paths                                | `FileIOActor.shared`                                                                                                                          |
-| Push collections to Edge                                 | `BackgroundDatabaseActor` (ad-hoc)                                                                                                            |
-| Persist enrichment data after enrich-scan returns        | `BackgroundDatabaseActor` (ad-hoc)                                                                                                            |
+| Transition scan state for upload pipeline                | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                              |
+| Claim a scan for inference (`tryClaimForInference`)      | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                              |
+| Reset scan to `.staged` on transient failure             | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                              |
+| Process an offline scan after upload                     | Fresh `BackgroundDatabaseActor` for final record persistence; shared `resolvedQueueDbActor` for queue transitions                                              |
+| Startup/ongoing orphan reconciliation                    | `BackgroundDatabaseActor` via `resolvedQueueDbActor`, with a pre-enumeration `observedThrough` cutoff                                                          |
+| Sync historical scans from cloud                         | `HistoricalDatabaseActor` (ad-hoc)                                                                                                                             |
+| Calculate all profile data (stats + heatmap + awards)    | `ProfileDatabaseActor.calculateAll()` (ad-hoc)                                                                                                                 |
+| Calculate achievement awards only (post-inference)       | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived)                                                                             |
+| Calculate profile stats (species count, streak)          | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc)                                                                                                        |
+| Write scan image files to disk                           | `FileIOActor.shared`                                                                                                                                           |
+| Delete scan media files from disk                        | `FileIOActor.shared`                                                                                                                                           |
+| Validate scan media paths                                | `FileIOActor.shared`                                                                                                                                           |
+| Push collections to Edge                                 | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                             |
+| Persist enrichment data after enrich-scan returns        | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                             |
 
 ## 2026-04 Hardening Updates
 

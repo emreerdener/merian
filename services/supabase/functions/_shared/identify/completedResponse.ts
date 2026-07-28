@@ -113,6 +113,11 @@ export interface CompletedIdentifyResponse {
   source: "stored" | "reconstructed";
 }
 
+type DatabaseRoutineError = {
+  code?: string | null;
+  message?: string | null;
+};
+
 const COMPLETED_RESPONSE_POLL_DELAYS_MS = [
   0,
   100,
@@ -190,6 +195,46 @@ function nullableInteger(
   return typeof value === "number" && Number.isFinite(value)
     ? Math.round(clamp(value, minimum, maximum))
     : null;
+}
+
+function isMissingDatabaseRoutine(
+  error: DatabaseRoutineError,
+  routineName: string,
+): boolean {
+  if (error.code === "PGRST202") return true;
+  return error.code === "42883" &&
+    (error.message ?? "").includes(routineName);
+}
+
+async function recoverStrandedInlineCompletion(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "recover_inline_scan_ingestion_completion",
+    {
+      p_scan_id: scanId,
+      p_user_id: userId,
+    },
+  );
+  if (error) {
+    // The repair routine is additive. Old isolates must continue through the
+    // established retry path while a migration-first rollout reaches every
+    // database/schema-cache instance.
+    if (
+      isMissingDatabaseRoutine(
+        error,
+        "recover_inline_scan_ingestion_completion",
+      )
+    ) {
+      return false;
+    }
+    throw new Error(
+      `recoverStrandedInlineCompletion: ${error.message ?? error.code}`,
+    );
+  }
+  return data === "completed" || data === "already_complete";
 }
 
 function sanitizedCandidates(
@@ -477,8 +522,12 @@ export function buildCompletedIdentifyEnvelope(
 }
 
 /**
- * Loads a replayable response only after the owner row and ingestion ledger
- * reached their shared completion boundary.
+ * Loads the immutable completed response, or reconstructs an exact-owner
+ * response once the moderated analysis row itself is durable. Scan insertion
+ * happens only after every provider result is parsed, wire-validated, safety
+ * moderated, and its legacy media URLs are promoted. The later finalizer links
+ * normalized media and marks the ledger complete; losing that callback must
+ * not hide an otherwise durable analysis or trigger a second provider call.
  */
 export async function fetchCompletedIdentifyResponse(
   scanId: string,
@@ -487,7 +536,10 @@ export async function fetchCompletedIdentifyResponse(
 ): Promise<CompletedIdentifyResponse | null> {
   const { data: jobData, error: jobError } = await supabaseAdmin
     .from("scan_ingestion_jobs")
-    .select("status,response_envelope")
+    // Keep the normal request path compatible with a migration-first rollout:
+    // response_envelope is optional replay state and must not make every new
+    // scan fail merely because that column is not visible in the schema cache.
+    .select("status")
     .eq("scan_id", scanId)
     .eq("user_id", userId)
     .abortSignal(AbortSignal.timeout(COMPLETED_RESPONSE_DATABASE_TIMEOUT_MS))
@@ -498,21 +550,50 @@ export async function fetchCompletedIdentifyResponse(
     );
   }
 
-  const job = jobData as {
+  let job = jobData as {
     status?: unknown;
-    response_envelope?: unknown;
   } | null;
-  if (job?.status !== "complete") return null;
+  if (
+    job?.status === "failed_retryable" &&
+    await recoverStrandedInlineCompletion(
+      scanId,
+      userId,
+      supabaseAdmin,
+    )
+  ) {
+    job = { status: "complete" };
+  }
+  if (
+    job?.status !== "complete" &&
+    job?.status !== "processing" &&
+    job?.status !== "finalizing" &&
+    job?.status !== "retrying" &&
+    job?.status !== "failed_retryable"
+  ) {
+    return null;
+  }
 
-  if (job.response_envelope != null) {
-    try {
-      const envelope = parseIdentifySuccessEnvelope(job.response_envelope);
-      if (envelope.data.scan_id === scanId) {
-        return { envelope, source: "stored" };
+  if (job?.status === "complete") {
+    const { data: responseData } = await supabaseAdmin
+      .from("scan_ingestion_jobs")
+      .select("response_envelope")
+      .eq("scan_id", scanId)
+      .eq("user_id", userId)
+      .abortSignal(AbortSignal.timeout(COMPLETED_RESPONSE_DATABASE_TIMEOUT_MS))
+      .maybeSingle();
+    const storedResponse = (
+      responseData as { response_envelope?: unknown } | null
+    )?.response_envelope;
+    if (storedResponse != null) {
+      try {
+        const envelope = parseIdentifySuccessEnvelope(storedResponse);
+        if (envelope.data.scan_id === scanId) {
+          return { envelope, source: "stored" };
+        }
+      } catch {
+        // Fall through to reconstruction. A malformed stored value must never
+        // turn an otherwise durable scan into a permanent client failure.
       }
-    } catch {
-      // Fall through to reconstruction. A malformed stored value must never
-      // turn an otherwise durable scan into a permanent client failure.
     }
   }
 

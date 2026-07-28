@@ -4,7 +4,11 @@ import {
   buildSpeciesDictionaryProvenanceRows,
   recordSpeciesContentProvenance,
 } from "../_shared/speciesContentProvenance.ts";
-import { resolveScanGeoprivacy } from "../_shared/identify/db.ts";
+import {
+  resolveScanGeoprivacy,
+  upsertGhostUserIfMissing as ensureSharedScanUserProfile,
+} from "../_shared/identify/db.ts";
+import { persistOwnedScanRow } from "../_shared/scanPersistence.ts";
 import { AudioCandidate } from "./types.ts";
 
 // MARK: - User
@@ -13,17 +17,7 @@ export async function upsertGhostUserIfMissing(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("users")
-    .upsert(
-      { id: userId, subscription_tier: "free" },
-      { onConflict: "id", ignoreDuplicates: true },
-    );
-  if (error) {
-    throw new Error(
-      `Failed to ensure audio scan user exists: ${error.message}`,
-    );
-  }
+  await ensureSharedScanUserProfile(userId, supabaseAdmin);
 }
 
 // MARK: - Species Dictionary
@@ -167,6 +161,7 @@ export interface AudioScanInsertRow {
   llm_total_tokens?: number | null;
   llm_usage_metadata?: Record<string, unknown>;
   image_storage_urls: string[];
+  audio_storage_urls?: string[];
   life_stage: string;
   reproductive_condition: string;
   sex?: string | null;
@@ -202,11 +197,19 @@ export async function insertScan(
       : row.public_location_label,
   };
 
-  const { error } = await supabaseAdmin
-    .from("scans")
-    .upsert(scanRow, {
-      onConflict: "id",
-      ignoreDuplicates: true,
-    });
-  if (error) throw new Error(`insertScan: ${error.message}`);
+  await persistOwnedScanRow({
+    scanId: row.id,
+    userId: row.user_id,
+    operationName: "audio-spec/insertScan",
+    supabaseAdmin,
+    write: async () => {
+      const { error } = await supabaseAdmin
+        .from("scans")
+        .upsert(scanRow, {
+          onConflict: "id",
+          ignoreDuplicates: true,
+        });
+      return { error };
+    },
+  });
 }

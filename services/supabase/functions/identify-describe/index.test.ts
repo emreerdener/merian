@@ -10,6 +10,45 @@ import {
   tierTelemetryProperties,
 } from "../_shared/entitlement.ts";
 
+Deno.test("describe repairs prerequisites and acknowledges only durable scans", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const scanId = source.indexOf("const generatedScanId =");
+  const recovery = source.indexOf(
+    "await recoverStrandedScanIngestionAttempt(",
+    scanId,
+  );
+  const profile = source.indexOf(
+    "await upsertGhostUserIfMissing(user.id, supabaseAdmin);",
+    recovery,
+  );
+  const quota = source.indexOf(
+    "quotaLease = await reserveAIProviderCall(",
+    profile,
+  );
+  const ingestion = source.indexOf("const runDurableIngestion = async");
+  const scanInsert = source.indexOf("await insertDescribeScan(", ingestion);
+  const awaitIngestion = source.indexOf(
+    "await runDurableIngestion();",
+    scanInsert,
+  );
+  const success = source.indexOf(
+    "return jsonResponse(responseEnvelope, 200);",
+    awaitIngestion,
+  );
+
+  assert(recovery > scanId);
+  assert(profile > recovery);
+  assert(quota > profile);
+  assert(scanInsert > ingestion);
+  assert(awaitIngestion > scanInsert);
+  assert(success > awaitIngestion);
+  assert(!source.includes("runBackground(runBackgroundIngestion())"));
+  assert(source.includes('"scan_persistence_failed"'));
+  assert(source.includes("const quotaRetryEnabled = await quotaLease.fail();"));
+});
+
 // ---------------------------------------------------------------------------
 // buildObservationPrompt — mirrors the function in index.ts.
 // Extracted here so we can assert its output contract without importing the

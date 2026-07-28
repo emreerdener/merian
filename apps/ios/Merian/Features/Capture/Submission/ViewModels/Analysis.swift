@@ -4,12 +4,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Vision
 
-private struct EnvironmentContextGraceResult: @unchecked Sendable {
+struct EnvironmentContextGraceResult: @unchecked Sendable {
     let context: EnvironmentContext?
     let timedOut: Bool
 }
 
-private final class EnvironmentContextGraceGate: @unchecked Sendable {
+final class EnvironmentContextGraceGate: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<EnvironmentContextGraceResult, Never>?
 
@@ -409,7 +409,7 @@ extension CaptureWorkspaceViewModel {
         )
     }
 
-    private static func environmentContext(
+    static func environmentContext(
         from task: Task<EnvironmentContext, Never>?,
         graceMilliseconds: Int
     ) async -> EnvironmentContextGraceResult {

@@ -10,7 +10,9 @@ The route checks exact owner/scan completion before R2 audio resolution and
 quota reservation. It replays stored or reconstructed success as marked `200`
 and coalesces concurrent same-UUID delivery without a second Gemini call. The
 response-aware finalizer stores the validated payload only after required audio
-cleanup and scan completion.
+promotion and scan completion. It also establishes the service-only, Auth-backed
+profile prerequisite before paid work and repeats that check before the owner
+insert so account retirement or merge cannot be crossed silently.
 
 ## Authoritative AI Quota
 
@@ -37,10 +39,23 @@ work and refunds the unused quota reservation.
 - Inline `audio_base64` bytes are never stored in the intent. They are counted
   in `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
-- Successful background insert delegates to the shared completion-last
-  finalization RPC; insert/finalization failures become durable retryable work.
-- Staged audio remains inference-only. R2 must confirm deletion with 2xx or
-  idempotent 404 before finalization may mark the job complete.
+- Scan insertion is awaited, never registered as background work. Success is
+  impossible without the exact owner row. The shared completion-last
+  finalization RPC runs in that required task; if only its post-insert
+  bookkeeping fails, the owner row remains the canonical response surface and
+  the ledger remains retryable for reconstruction/reconciliation.
+- If an old caller sends both `audio_base64` and `audio_r2_key`, the inline
+  bytes are authoritative. The unused key is a filename hint only and is never
+  fetched, ledgered, finalized, or deleted.
+- Standalone audio is promoted and retained in `audio_storage_urls`,
+  `captured_media`, and normalized ready audio assets. A pre-insert failure
+  best-effort removes the newly promoted public object only after an owner read
+  proves the row absent and requires the client to stage its retained local
+  recording again. An ambiguous write/read response preserves quota and audio
+  until exact-owner retry recovery proves the outcome.
+- Dictionary cache enrichment after provider dispatch is nonfatal. A transient
+  read falls back to uncached scan enrichment while required persistence still
+  runs inside the durable failure boundary.
 
 ## Dictionary Common Names
 

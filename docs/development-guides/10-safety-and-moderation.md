@@ -4,13 +4,12 @@ Naturebook runs all user-submitted media through a two-layer moderation system
 before publishing scan media or persisting the final scan row. The shared
 implementation lives in `_shared/identify/moderation.ts` and is used by both
 `/identify` and `/identify-multimodal`. The active multimodal route awaits this
-decision before HTTP success; compatibility routes may still execute their
-post-response insertion path in the background.
+decision before HTTP success; compatibility image and audio routes await the
+same required moderation, promotion, scan insertion, and finalization boundary.
 
-Public Explore audio uses a separate publication gate. Identification safety
-and public-audio safety are intentionally different decisions: a clip may be
-valid biological evidence while its background speech is unsuitable for a
-public feed.
+Public Explore audio uses a separate publication gate. Identification safety and
+public-audio safety are intentionally different decisions: a clip may be valid
+biological evidence while its background speech is unsuitable for a public feed.
 
 ## Exact External Reference Image Suppression
 
@@ -38,29 +37,28 @@ or iNaturalist host block.
 Suppression is enforced in depth:
 
 - Deno uses `_shared/externalImagePolicy.ts` before live Wikipedia/GBIF
-  enrichment is returned and before normalized or legacy reference-image data
-  is projected or persisted.
-- Migration
-  `20260719023147_suppress_european_wildcat_roadkill_image.sql` removes existing
-  normalized and comma-separated legacy values, filters the public SQL image
-  helpers, and installs a service-write trigger that silently discards future
-  rows for the exact media path.
+  enrichment is returned and before normalized or legacy reference-image data is
+  projected or persisted.
+- Migration `20260719023147_suppress_european_wildcat_roadkill_image.sql`
+  removes existing normalized and comma-separated legacy values, filters the
+  public SQL image helpers, and installs a service-write trigger that silently
+  discards future rows for the exact media path.
 - iOS mirrors the rule in `ExternalReferenceImagePolicy`. The loader checks it
   before cache lookup and again at the network boundary; DTO normalization and
   cached `SimilarSpeciesEntry` decoding treat a denied URL as absent.
 - `SimilarSpeciesImageFetcher` removes denied candidates before download and
   restores source order after concurrent work. A blocked first result therefore
-  promotes the next successful image deterministically; an empty result uses
-  the existing leaf placeholder.
+  promotes the next successful image deterministically; an empty result uses the
+  existing leaf placeholder.
 
-The API payload shape is unchanged. Suppression removes a value from an
-existing image field or array; it does not introduce moderation metadata into a
-public response.
+The API payload shape is unchanged. Suppression removes a value from an existing
+image field or array; it does not introduce moderation metadata into a public
+response.
 
 When adding another exact external-media outlier:
 
-1. Record a stable provider media identity and the narrowest immutable
-   host/path prefix.
+1. Record a stable provider media identity and the narrowest immutable host/path
+   prefix.
 2. Add the same match to the Deno and iOS policy helpers.
 3. Add a forward-only migration that cleans normalized and legacy caches and
    extends write/projection prevention. Do not edit a deployed migration.
@@ -86,27 +84,27 @@ Explore post or public-media snapshot is created or reactivated, the function:
    review state through strict structured output;
 5. persists only the checksum, decision, model, policy version, MIME type, and
    byte size—never transcript, URL, user identity, filename, or media bytes;
-6. continues into the normal atomic share write only when every audible
-   selected item is approved.
+6. continues into the normal atomic share write only when every audible selected
+   item is approved.
 
-Rejected classifications and any fetch, provider, configuration, or response-shape
-failure return an error and leave the prior Explore state unchanged; nothing is
-shared. Transcripts and non-speech descriptions are not persisted or logged.
-This path reuses the existing `GEMINI_API_KEY` Edge secret. Manual reports
-remain necessary because model moderation cannot guarantee complete detection.
-The immutable publication policy is a Gemini system instruction so speech or
-lyrics inside untrusted media cannot replace it. Standalone audio preserves its
-supported audio MIME type; audio-bearing MP4 uses `video/mp4` so Gemini evaluates
-the actual container instead of relabeling video bytes as WAV.
-Public web post pages include a support-email report action containing the
-immutable post id. Native Explore post reports write the dedicated
-`explore_post_reports` moderation queue through `/report-explore-post`; they do
-not enter identification review or set `scans.is_flagged`.
-Structured moderation telemetry logs only outcome, model, latency, and sanitized
-errors; transcripts and media URLs must never be logged. A policy-version or
-model change is an automatic cache miss, so changed safety rules always force a
-new Gemini decision. Cache read/write failures degrade to live moderation and
-never bypass the publication gate.
+Rejected classifications and any fetch, provider, configuration, or
+response-shape failure return an error and leave the prior Explore state
+unchanged; nothing is shared. Transcripts and non-speech descriptions are not
+persisted or logged. This path reuses the existing `GEMINI_API_KEY` Edge secret.
+Manual reports remain necessary because model moderation cannot guarantee
+complete detection. The immutable publication policy is a Gemini system
+instruction so speech or lyrics inside untrusted media cannot replace it.
+Standalone audio preserves its supported audio MIME type; audio-bearing MP4 uses
+`video/mp4` so Gemini evaluates the actual container instead of relabeling video
+bytes as WAV. Public web post pages include a support-email report action
+containing the immutable post id. Native Explore post reports write the
+dedicated `explore_post_reports` moderation queue through
+`/report-explore-post`; they do not enter identification review or set
+`scans.is_flagged`. Structured moderation telemetry logs only outcome, model,
+latency, and sanitized errors; transcripts and media URLs must never be logged.
+A policy-version or model change is an automatic cache miss, so changed safety
+rules always force a new Gemini decision. Cache read/write failures degrade to
+live moderation and never bypass the publication gate.
 
 Spectrogram generation is downstream presentation work, not a safety decision.
 Only after standalone WAV media is approved may `_shared/audioSpectrogram.ts`
@@ -118,17 +116,19 @@ transcript, or log a media URL.
 Legacy audio repair does not bypass this gate. Owner-scoped staging keys are
 promoted and persisted to the scan before selection resolution; the restored
 bytes then require the same checksum attestation or live Gemini decision as new
-audio. Failed scan persistence rolls back the promoted R2 objects.
+audio. A definite scan-persistence rejection rolls back promoted R2 objects only
+after an exact-owner read proves their URLs absent. Lost or unreadable responses
+preserve the objects and return retryable 503.
 
 Native and public-web **Boost audio** are strictly post-publication playback
 DSP. Native processing uses a bounded temporary local copy; web processing uses
 an allowlisted same-origin stream plus browser-local gain/filter/limiting. They
 must never overwrite or upload enhanced audio, change the R2 object/checksum,
 create a new moderation attestation, or moderate the processed waveform instead
-of the original public bytes. Boost preferences remain local listening state
-and are not part of the safety or publication decision. The web proxy accepts
-only HTTPS `.wav` objects on exact host `media.merian.app` below
-`public_uploads/`; it must not become a general-purpose fetch proxy.
+of the original public bytes. Boost preferences remain local listening state and
+are not part of the safety or publication decision. The web proxy accepts only
+HTTPS `.wav` objects on exact host `media.merian.app` below `public_uploads/`;
+it must not become a general-purpose fetch proxy.
 
 Private scan-library Insight boost uses the same local DSP after scan
 finalization, with a separate per-scan preference. It likewise never overwrites
@@ -178,24 +178,23 @@ A provider response that ends before structured output with exact finish reason
 path. The ingestion ledger records `ai_inference_non_stop_finish` plus stable
 `terminal_reason_code = 'provider_policy_rejected'`. Owner-row recovery does not
 interpret provider text and cannot convert that rejected request into a scan.
-This path may not have a usable
-`safetyRatings[]` object and therefore is distinct from the strike-recording
-pass below.
+This path may not have a usable `safetyRatings[]` object and therefore is
+distinct from the strike-recording pass below.
 
 ## Abuse Strike System
 
 Each unsafe media submission increments `users.abuse_strikes` in the Supabase
 `users` table:
 
-| Strike Count | Internal status | Behavior |
-| --- | --- | --- |
-| 1–2 | `DELETED_WARNING` | Staging media deleted and scan not persisted |
-| 3+ | `SHADOWBANNED` | Same as above, plus `users.is_shadowbanned = true` |
+| Strike Count | Internal status   | Behavior                                           |
+| ------------ | ----------------- | -------------------------------------------------- |
+| 1–2          | `DELETED_WARNING` | Staging media deleted and scan not persisted       |
+| 3+           | `SHADOWBANNED`    | Same as above, plus `users.is_shadowbanned = true` |
 
 For `/identify-multimodal`, either internal status becomes generic
-customer-facing HTTP `400 observation_rejected`; no successful local scan
-should be created. Compatibility routes may already have returned their AI
-response before the shared moderation/insertion task reaches this decision.
+customer-facing HTTP `400 observation_rejected`; no successful local scan should
+be created. Compatibility routes may already have returned their AI response
+before the shared moderation/insertion task reaches this decision.
 
 The strike counter is read and written via the Supabase service role in
 `_shared/identify/moderation.ts`. The read uses
@@ -238,10 +237,10 @@ therefore valid for those staged rows until `identify-multimodal` promotes,
 deletes, or fails them during finalization. The ingestion request also claims
 `scan_ingestion_jobs` with media counts, staged object keys, recovered
 upload-session ids, and a normalized `manifest_checksum`, so retries and repair
-work can prove they are handling the same media set. A
-paired `scan_ingestion_intents` row stores the sanitized replay request without
-raw media bytes; inline foreground media is redacted and marked non-resumable.
-The scheduled `replay-scan-ingestion` worker retries resumable staged
+work can prove they are handling the same media set. A paired
+`scan_ingestion_intents` row stores the sanitized replay request without raw
+media bytes; inline foreground media is redacted and marked non-resumable. The
+scheduled `replay-scan-ingestion` worker retries resumable staged
 media/audio/video and text-only requests by dispatching them back through
 `identify-multimodal`; the scheduled `reconcile-scan-media-assets` worker
 revisits stale staged rows when a scan row already exists or when media has aged
@@ -273,9 +272,9 @@ the critical path.
 `avatars/` is not part of the scan moderation pipeline. Custom profile pictures
 are promoted by `/update-public-avatar` after a user-owned staged upload and are
 deleted only by the avatar replacement helper for the same user. Scan purge,
-moderation rollback, and storage lifecycle jobs must not target `avatars/`.
-The explicit account-erasure state machine is the only owner-prefix exception:
-after relational cleanup, its fenced five-prefix job also removes that owner's
+moderation rollback, and storage lifecycle jobs must not target `avatars/`. The
+explicit account-erasure state machine is the only owner-prefix exception: after
+relational cleanup, its fenced five-prefix job also removes that owner's
 avatars. Neither `public_uploads/free/`, `public_uploads/pro/`, nor `avatars/`
 may have an age-based expiration lifecycle rule.
 
@@ -295,9 +294,11 @@ may have an age-based expiration lifecycle rule.
    signed S3 request
 3. Return the CDN URL
 
-The filename is derived from `r2ObjectKeys[i].split("/").pop()` when available;
-otherwise a random UUID is generated. When uploading from base64, `r2ObjectKeys`
-carries only the desired destination filename, not a staging object to copy.
+For a true staging promotion, the filename is derived from
+`r2ObjectKeys[i].split("/").pop()`. Base64 direct uploads always receive a
+server-generated UUID plus the bounded image extension; an ignored legacy
+transport hint cannot influence the public object name, extension, durable
+manifest, or media ownership checks.
 
 ### Upload Failure Handling
 
@@ -318,22 +319,27 @@ staged playback asset row was never finalized; it must consult
 
 ### R2 Rollback on Scan Insert Failure
 
-If `modResult.publicUrls` is populated but `insertScan` throws, `index.ts` rolls
-back the already-promoted public objects:
+If `modResult.publicUrls` is populated and scan insertion returns a definite
+database rejection, the shared persistence boundary first proves the exact owner
+row is absent. Only then does `index.ts` roll back promoted objects:
 
 ```typescript
-if (!scanInserted && modResult?.publicUrls?.length) {
+if (
+  !scanInserted &&
+  !persistenceOutcomeUnknown &&
+  modResult?.publicUrls?.length
+) {
   const keysToPurge = modResult.publicUrls.map((url) =>
     url.replace("https://media.merian.app/", "")
   );
   await Promise.allSettled(
-    keysToPurge.map((key) => deleteR2Object(key, r2Config)),
+    keysToPurge.map((key) => deleteR2ObjectIfPresent(key, r2Config)),
   );
 }
 ```
 
-This prevents orphaned public objects when the database write fails after media
-has already been committed.
+This prevents known orphans without turning a lost database response into
+permission to delete media referenced by a scan that may have committed.
 
 ## Moderation Status Codes
 
@@ -486,9 +492,9 @@ never be deleted as part of incident cleanup. Full incident procedures are in
   user-reported flag reaches a review threshold. Managed via
   `00005_flagged_reviews.sql`.
 - `is_tombstoned` (BOOLEAN) — GDPR-compliant account deletion marker. Anonymizes
-  scan metadata while preserving the row for offline cache continuity.
-  Initially introduced by `00006_apply_user_tombstone.sql`; the durable
-  state machine and ownerless retained-observation model are installed by the
-  `20260725030308` and `20260725041308` forward migrations. Ownerless rows must
-  be tombstoned, clear exact location/elevation and intervention notes, and are
-  excluded from anonymous scan-table reads.
+  scan metadata while preserving the row for offline cache continuity. Initially
+  introduced by `00006_apply_user_tombstone.sql`; the durable state machine and
+  ownerless retained-observation model are installed by the `20260725030308` and
+  `20260725041308` forward migrations. Ownerless rows must be tombstoned, clear
+  exact location/elevation and intervention notes, and are excluded from
+  anonymous scan-table reads.

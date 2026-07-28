@@ -535,16 +535,18 @@ triggering excessive SwiftUI view rebuilds.
   clear or cancel replacement B after resuming from an `await`. Status probes
   and server polls keep their token for the full awaited operation and
   revalidate after each suspension instead of clearing ownership before work
-  begins. Current task descriptions are `upload|scanId|uploadIndex|generation`
-  and `inference_v2|generation|scanId`; parsers retain legacy compatibility for
-  tasks created by older app builds. Queue-backed foreground inference
-  additionally persists its UUID on the scan-ingestion job and atomically
-  consumes it before provider dispatch. `InferenceEngine` checks the scan,
-  presentation UUID, and foreground UUID at task entry, after suspension,
-  immediately before provider dispatch, and before each result or failure
-  effect. A current failure handler snapshots that proof before synchronous
-  retirement; a stale handler cannot emit telemetry, update the circuit breaker,
-  trigger a haptic, or replace the UI with an error.
+  begins. Current task descriptions are
+  `upload|scanId|uploadIndex|generation|serverObjectKey` and
+  `inference_v2|generation|scanId`; parsers retain legacy compatibility for
+  tasks created by older app builds. Carrying the server-issued key prevents a
+  cold-launch auth/device-identity guess from changing the upload owner.
+  Queue-backed foreground inference additionally persists its UUID on the
+  scan-ingestion job and atomically consumes it before provider dispatch.
+  `InferenceEngine` checks the scan, presentation UUID, and foreground UUID at
+  task entry, after suspension, immediately before provider dispatch, and before
+  each result or failure effect. A current failure handler snapshots that proof
+  before synchronous retirement; a stale handler cannot emit telemetry, update
+  the circuit breaker, trigger a haptic, or replace the UI with an error.
 - **Orphaned `.uploading` Reconciliation**: `markScansAsUploading` runs before
   `generateUploadURLs`, returns the scan IDs whose `.pending → .uploading`
   transition actually committed, and `syncPendingScans` signs/dispatches only
@@ -566,20 +568,23 @@ triggering excessive SwiftUI view rebuilds.
   required video count. `found` scans are synced down and the queue row is
   deleted, `processing` / `finalizing` / `retrying` server jobs keep the local
   row in `.inferencing` and schedule another poll, `failed_retryable` respects
-  the server `retry_after` before retreating to `.staged`, and terminal failures
-  mark the queue row as needing attention. The server job was claimed with the
-  same media counts, staged object keys, upload-session ids, and manifest
-  checksum that the queue submitted, and the paired `scan_ingestion_intents` row
-  stores the sanitized replay request for staged media/audio/video and text-only
-  scans. The scheduled `replay-scan-ingestion` worker may complete that
-  authoritative server attempt before the app wakes again, so local replay waits
-  on status polling instead of guessing from process-local retry state. This
-  keeps video playback finalization from being mistaken for a local inference
-  failure after app suspension or restart. Server-side replay is also capped at
-  10 claims per sanitized intent; over-budget jobs are marked `failed_terminal`
-  at `server_replay_limit_reached`.
+  the server `retry_after` before retreating to `.staged` for provider failures
+  or `.pending` with cleared consumed keys for durable media failures, and
+  terminal failures mark the queue row as needing attention. The server job was
+  claimed with the same media counts, staged object keys, upload-session ids,
+  and manifest checksum that the queue submitted, and the paired
+  `scan_ingestion_intents` row stores the sanitized replay request for staged
+  media/audio/video and text-only scans. The scheduled `replay-scan-ingestion`
+  worker may complete that authoritative server attempt before the app wakes
+  again, so local replay waits on status polling instead of guessing from
+  process-local retry state. This keeps video playback finalization from being
+  mistaken for a local inference failure after app suspension or restart.
+  Server-side replay is also capped at 10 claims per sanitized intent;
+  over-budget jobs are marked `failed_terminal` at
+  `server_replay_limit_reached`.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (6),
+  `mediaStagingMaxImageFilesPerRequest` (5),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5
   MB), and `audioPayloadMaxBytes` (2.7 MB) are governed by `MerianConfig`
   constants rather than inline literals.
@@ -590,7 +595,9 @@ triggering excessive SwiftUI view rebuilds.
   byte-budget validation before `.pending → .uploading`. The same manifest is
   sent to `/generate-upload-urls`, whose Edge parser validates
   kind/type/size/role before signing and creates staged media-asset session rows
-  for scan uploads. Swift and Deno tests both load
+  for scan uploads. The complete position-aligned signed response is validated
+  before any PUT, and its exact server keys—not locally predicted owner
+  segments—travel in task descriptions. Swift and Deno tests both load
   `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits,
   allowed content types, and optional session fields. This prevents upload
   completion, replay, request construction, and Edge signing from reconstructing
@@ -848,21 +855,22 @@ triggering excessive SwiftUI view rebuilds.
   (`HistoricalDatabaseActor`), `CaptureWorkspaceViewModel`, and
   `InferenceEngine`.
 
-| Constant                          | Value  | Consumer                                                                         |
-| --------------------------------- | ------ | -------------------------------------------------------------------------------- |
-| `uploadBatchSize`                 | 5      | `OfflineQueueManager+Sync`                                                       |
-| `pendingScanFetchLimit`           | 50     | `OfflineQueueManager+Sync`                                                       |
-| `mediaStagingMaxFilesPerRequest`  | 6      | `MediaStagingContract`                                                           |
-| `stagedImagePayloadMaxBytes`      | 5 MB   | `MediaStagingContract`, Edge image fetch contract                                |
-| `audioPayloadMaxBytes`            | 2.7 MB | `MediaStagingContract`, `MerianNetworkClient`                                    |
-| `historicalSyncPageSize`          | 200    | `ScanRepository`                                                                 |
-| `collectionsSyncPageSize`         | 100    | `ScanRepository`                                                                 |
-| `ingestCheckpointInterval`        | 50     | `HistoricalDatabaseActor`                                                        |
-| `imageCompressionQuality`         | 0.85   | `Capture`, `CaptureWorkspaceViewModel`                                           |
-| `visionConfidenceThreshold`       | 0.65   | `InferenceEngine` (Vision pre-classifier)                                        |
-| `visionConfidenceMargin`          | 0.15   | `InferenceEngine` (margin guard vs. second-best)                                 |
-| `scanningPhaseSubjectDelayNs`     | 1.5 s  | `InferenceEngine` (delay before subject-specific phrases replace generic series) |
-| `scanningPhaseRotationIntervalNs` | 2.3 s  | `InferenceEngine` (between phase phrases)                                        |
+| Constant                              | Value  | Consumer                                                                         |
+| ------------------------------------- | ------ | -------------------------------------------------------------------------------- |
+| `uploadBatchSize`                     | 5      | `OfflineQueueManager+Sync`                                                       |
+| `pendingScanFetchLimit`               | 50     | `OfflineQueueManager+Sync`                                                       |
+| `mediaStagingMaxFilesPerRequest`      | 6      | `MediaStagingContract`                                                           |
+| `mediaStagingMaxImageFilesPerRequest` | 5      | `MediaStagingContract`                                                           |
+| `stagedImagePayloadMaxBytes`          | 5 MB   | `MediaStagingContract`, Edge image fetch contract                                |
+| `audioPayloadMaxBytes`                | 2.7 MB | `MediaStagingContract`, `MerianNetworkClient`                                    |
+| `historicalSyncPageSize`              | 200    | `ScanRepository`                                                                 |
+| `collectionsSyncPageSize`             | 100    | `ScanRepository`                                                                 |
+| `ingestCheckpointInterval`            | 50     | `HistoricalDatabaseActor`                                                        |
+| `imageCompressionQuality`             | 0.85   | `Capture`, `CaptureWorkspaceViewModel`                                           |
+| `visionConfidenceThreshold`           | 0.65   | `InferenceEngine` (Vision pre-classifier)                                        |
+| `visionConfidenceMargin`              | 0.15   | `InferenceEngine` (margin guard vs. second-best)                                 |
+| `scanningPhaseSubjectDelayNs`         | 1.5 s  | `InferenceEngine` (delay before subject-specific phrases replace generic series) |
+| `scanningPhaseRotationIntervalNs`     | 2.3 s  | `InferenceEngine` (between phase phrases)                                        |
 
 ### `UserDefaultsKeys`
 

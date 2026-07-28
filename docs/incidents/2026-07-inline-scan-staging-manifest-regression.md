@@ -1,0 +1,310 @@
+# Inline Scan Staging-Manifest Regression
+
+**Date:** 2026-07-28\
+**Severity:** Release-blocking\
+**Affected flow:** Capture → Identify → Insight → Field Chat / Explore sharing /
+Field trips / owner sync
+
+## User Impact
+
+Users could submit a live still and incur a successful provider analysis, but
+the app received `503 scan_persistence_failed` instead of the Insight. Retrying
+could remain in restoration/backoff because the quota reservation was already
+committed while the ingestion job could never satisfy its media manifest.
+Offline image retries could use an object-key owner from before lazy
+authentication, and audio/video/Describe submission could wait on optional
+environment context before making the capture durable. Together these defects
+also removed or blocked the scan prerequisite consumed by Field Chat and manual
+Explore publication.
+
+Production Edge logs supplied during remediation confirmed an independently
+sufficient failure at the same durability boundary: after 21.7 seconds of
+successful request work, `upsertGhostUserIfMissing` attempted to insert only
+`id` and `subscription_tier` for an Auth identity with no public profile.
+`users.public_author_name` has no direct-insert default and is `NOT NULL`, so
+the request logged `scan_inserted:false` and returned the same 503 before scan
+insertion. The request had already crossed provider inference. This profile
+prerequisite affected image, audio, video, and Describe routes.
+
+The joined audit found a third durability race. An anonymous source identity
+could be merged into an existing account while its provider request was in
+flight. The generic merge correctly reparented ledgers and deleted the source
+profile, but the old invocation still attempted its final owner-scoped insert as
+the retired source. The provider reservation was already committed, while
+neither identity had a completed scan that Field Chat or Explore could use.
+
+## Root Cause
+
+The regression was an invalid boundary between two supported image transports:
+
+1. `InferenceEngine` encoded a foreground still in `imageBase64s`.
+2. It also constructed `staging/{session-or-device}/{random}.webp` and sent that
+   nonexistent key in `r2ObjectKeys` as a destination filename hint.
+3. Media resolution correctly preferred the inline bytes, and moderation used
+   the key only to choose the public filename. No staging PUT or
+   `scan_media_assets(source = 'capture_upload')` row existed for it.
+4. The ingestion job and intent nevertheless persisted the raw key as a staged
+   source. After the owned scan row was inserted, strict complete-last
+   finalization required a matching promoted capture asset.
+5. `complete_scan_ingestion_finalization` correctly failed with
+   `scan_media_promotion_incomplete`. The route converted the durability failure
+   to HTTP 503 and marked the job retryable.
+6. The primary provider quota was already committed. A duplicate could wait for
+   completion, but this generation had no valid way to complete, so retry work
+   became stranded.
+
+The strict finalizer exposed the bad transport representation; weakening that
+finalizer would have hidden real lost-upload errors and was not an acceptable
+fix. Only genuine R2 source keys may participate in promotion ownership,
+upload-session lookup, asset failure marking, or finalization.
+
+## Contributing Regressions
+
+- Upload preparation predicted an owner before `/generate-upload-urls` performed
+  lazy authentication. The server correctly ignored body `user_id` and returned
+  its authenticated owner, but iOS compared that key with the pre-auth
+  prediction and could tombstone a valid queued capture.
+- Legacy background upload task descriptions did not retain the exact
+  server-issued key. Completion reconstructed keys from whichever auth identity
+  was current later.
+- Safe R2 promotion consumes staging objects before the scan insert. On a
+  pre-insert persistence failure, the queue returned to `.staged` and retried
+  keys that rollback had made nonexistent.
+- Non-visual submission crossed an asynchronous WeatherKit/geocoding boundary
+  before enqueue. Offline audio/video/Describe durability therefore depended on
+  optional context and shared singleton scheduling state.
+- Completed-response lookup selected a newly additive response column even for
+  active jobs, making a migration/schema-cache rollout mismatch capable of
+  failing every first request.
+- Upload signing inserted a new staged ledger row each time it signed the same
+  deterministic owner/client-scan/filename key. A lost signing response or
+  concurrent retry could therefore create multiple active rows; the strict
+  finalizer updated all of them and correctly rejected the unexpected row count.
+- Signing retry logic initially treated any existing media subset as the scan’s
+  immutable complete manifest. That rejected legitimate foreground-inline to
+  queued-recovery handoff and made live-video signing race with the queue’s
+  frame/audio/video subset for the same stable scan ID.
+- The staged row’s `order_index` used the file’s flat position across a
+  multi-scan signing batch. Retrying that same scan alone changed the index and
+  made an otherwise identical upload generation appear incompatible.
+- Shared Identify and the separate audio route tried to repair a missing
+  `public.users` row with a partial table upsert. Explore has required
+  `public_author_name`, `public_identity_source`, and `public_username` since
+  April/May. Auth signup derives them, but replay/profile drift bypassed that
+  trigger; the partial repair could never satisfy the current schema.
+- `identify-describe` and `audio-spec` still returned their validated provider
+  response after registering scan persistence as optional background work. They
+  could therefore report success while the required scan row or canonical media
+  finalization failed later.
+- Compatibility routes performed a cache enrichment read after provider dispatch
+  but outside their persistence failure boundary. A transient cache read could
+  leave committed provider usage with no retryable ingestion transition and no
+  scan row.
+- A failed file in a multi-file background upload did not fence the generation
+  before sibling completion callbacks ran. A sibling could therefore advance an
+  incomplete manifest after the queue had already decided to retry the batch.
+  Task-list inspection alone also could not prove success: a failed completed
+  sibling could disappear from `URLSession.allTasks` before its asynchronous
+  failure callback fenced the generation.
+- After process relaunch, modern background tasks retained their task-level
+  generation but the global process-local sync generation was empty. The final
+  callback rejected latch completion and skipped the only immediate orphan
+  recovery trigger, so partial callback state could remain `.uploading` until a
+  later foreground or connectivity transition.
+- A thrown/lost PostgREST response after scan insertion was treated like a
+  definite rejection. The scan transaction could have committed while the
+  invocation still failed quota and deleted promoted media, leaving a durable
+  row whose URLs now returned 404. Explore restoration made the same unsafe
+  assumption for returned update failures instead of reconciling the owner row.
+  Owned scan-image repair also deleted its replacement after any atomic RPC
+  exception, including a response lost after commit.
+- Malformed paid-provider output returned HTTP 422 even though each route had
+  already marked its ingestion generation retryable. iOS intentionally treats
+  most 4xx responses as user attention, so queued scans could not execute that
+  server-supported retry.
+
+## Why Earlier Attempts Missed It
+
+The preceding fixes correctly addressed owner-row durability, service-key
+authorization, idempotent response replay, retry scheduling, and complete-last
+media validation independently. Existing Edge tests mocked job/database
+boundaries or inspected source invariants; they did not submit an inline image
+with a destination hint through the real strict catalog finalizer. iOS tests
+also treated a synthetic key as harmless because the inline resolver never
+fetched it. The failure existed only at the joined transport → ledger →
+catalog-finalization seam.
+
+A review of the last 100 integrated commits found a linear/squash history rather
+than merge commits. The relevant sequence was the combination of latency work,
+generation fencing, server quota/idempotency changes, owner-row durability
+repair, and the strict 2026-07-28 media-finalization migrations. No single
+downstream Field Chat or Explore handler caused all four symptoms.
+
+## Resolution
+
+- Foreground inline stills now send `r2ObjectKeys: []`.
+- Shared Edge code derives `stagedImageKeys`: empty whenever inline image bytes
+  are present, otherwise the validated R2 source keys. Both current and
+  compatibility Identify paths use that derived set for every durable manifest
+  and finalization operation. Ignored legacy inline keys cannot influence the
+  public object name or extension.
+- A service-only `recover_inline_scan_ingestion_completion(scan_id, user_id)`
+  routine repairs already-stranded post-insert generations. It takes the
+  canonical per-scan transaction lock and fails closed unless owner/job/intent
+  rows, redacted counts, resumability, canonical owner URLs, filenames, and
+  upload sessions all agree. Inline bytes prove that historical image keys were
+  hints and must have no capture row; zero inline-image bytes prove that queued
+  image keys are real staged sources and each must have one exact active owner
+  row. Historical multi-image and video-frame requests may have one hint for
+  many inline images. Real image/audio/video keys and audio promotion/deletion
+  dispositions are rebuilt from canonical scan URLs and sanitized descriptors.
+  Only migration-marked superseded signing rows may coexist. The repair
+  atomically recomputes both ledger checksums and invokes the canonical
+  finalizer.
+- Upload signing now reuses an exactly compatible staged row and its original
+  upload session. Retryable failed rows are reactivated rather than duplicated;
+  a failed row attached to a terminal, completed, or active generation fails
+  closed, as do promoted, deleted, or media-incompatible rows. A partial unique
+  index serializes concurrent active registration, duplicate filenames are
+  rejected before signing, and historical extras remain as explicit
+  `superseded_staging_registration` audit rows. New rows use a stable per-scan
+  media slot; exact legacy rows remain reusable despite their historical flat
+  batch index. Exact requested subsets compose with unrequested rows for the
+  same scan, while the union of non-superseded capture keys remains bounded at
+  six. A database trigger takes an owner-scoped transaction advisory lock and
+  enforces that cap across concurrent disjoint-key registrations.
+- Upload dispatch validates the entire signed response before starting any PUT
+  and embeds the exact server key in each generation-fenced task. Legacy tasks
+  parse and validate it from the signed URL path. Completion derives the owner
+  from that confirmed key, never from current auth state. Local preparation and
+  pre-V33 key recovery prefer the persisted Auth-session owner over delayed
+  in-memory user hydration, with device identity retained only as a
+  non-authoritative pre-auth fallback.
+- Retryable pre-insert persistence failure transitions the committed quota
+  attempt to `failed`, allowing the stable UUID to reserve a fenced metered
+  retry. Terminal moderation failures remain committed. iOS clears consumed
+  staged keys, returns the row to `.pending`, and uploads its retained local
+  media again. Post-insert failure keeps the committed reservation and uses
+  owner-row reconstruction.
+- Non-visual capture commits immediate telemetry synchronously. Optional context
+  gets a bounded post-enqueue grace and late-merges locally/server-side without
+  another inference request.
+- Additive response storage and response-aware finalization tolerate only their
+  exact missing-routine/column rollout cases; validation and promotion errors
+  remain visible and fail closed.
+- Every scan route now uses `ensure_scan_user_profile(owner_id)`, a service-only
+  profile prerequisite. It locks against ghost merge/cleanup, requires the exact
+  `auth.users` row, refuses merged or deletion-pending identities, derives
+  mandatory identity and avatar fields through the canonical database helpers,
+  retries only a proven public-username uniqueness race, and is idempotent for
+  an existing profile.
+- Identity merge now fences unfinished source scan generations before generic
+  ownership reparenting. It retires ambiguous source staging, refunds only an
+  unused reservation, preserves committed provider usage, and records an exact
+  retryable `identity_merge_interrupted` outcome. A service-only recovery
+  routine can rebuild only the exact target-owned scan proven by the
+  source/target handoff, job, quota, lease, tombstone, and owner-row topology.
+  Active work, deletion, ambiguity, and any existing scan win over recovery.
+- All four scan-producing routes now await owner-row insertion and run
+  complete-last finalization in the required task rather than registering scan
+  insertion as background work. Current multimodal delivery requires that
+  finalizer. A compatibility route whose exact owner row was already committed
+  may deliver from that canonical row while leaving failed finalization
+  retryable for reconstruction/reconciliation; it can no longer succeed with no
+  scan. Describe, audio, and compatibility image paths move only analytics,
+  group tags, and candidate enrichment to optional background work.
+  Post-provider cache misses or transient cache reads degrade to uncached
+  enrichment rather than escaping the durability state machine.
+- Legacy audio treats inline bytes as the authoritative source when both
+  `audio_base64` and a destination-key hint are present. The ignored hint is
+  never fetched, ledgered, finalized, or deleted. Real staged or inline audio is
+  promoted into `audio_storage_urls` and normalized audio assets so Field Chat,
+  Explore, replay, and owner recovery share one durable representation.
+- A failed background upload atomically fences the whole generation and cancels
+  every sibling before any callback may mark an incomplete manifest staged.
+  Every successful callback records its exact canonical server key in a
+  generation-scoped accumulator; final staging requires the complete expected
+  key set, independent of task-list removal or callback ordering. Outcome
+  classification and success recording occur before the handler’s first
+  suspension. When all tasks settle, orphan recovery runs independently of the
+  process-local global latch, and any proven orphan reset immediately restarts
+  signing. This safely converts accumulator loss across process termination into
+  a fresh upload rather than a stuck or partial manifest.
+- Explore restoration validates every supplied key as a traversal-safe staging
+  key for the authenticated owner. Image, audio, and video metadata updates
+  reconcile through an exact-owner reread. Newly promoted objects are deleted
+  only after a returned database rejection and a readable owner row prove the
+  expected URLs absent; ambiguous responses preserve media and return retryable
+  503.
+- Every scan-row adapter uses one shared persistence settler. It performs short
+  bounded exact-owner polls after every write, accepts a row committed despite a
+  lost/error response, and emits a typed ambiguous outcome when commit status
+  cannot be proved. Ambiguity keeps committed quota, staged lifecycle state, and
+  promoted media intact until same-UUID recovery.
+- Malformed or structurally invalid provider output returns HTTP 503 from all
+  four scan producers so offline delivery retains and backs off the job.
+- Owned scan-image repair reconciles source-absent/replacement-present owner
+  evidence as a committed atomic repair. It deletes a replacement only after a
+  returned rejection plus source-present/replacement-absent evidence; every
+  ambiguous or unreadable topology preserves the object.
+
+## Security Properties Preserved
+
+- The repair routine is executable only by `service_role`, performs its own
+  service-role check, uses an empty search path, and is migration-allowlisted.
+- Every scan and ledger lookup is constrained by both scan UUID and owner UUID.
+- A deletion tombstone always wins before repair.
+- Missing scan-user profile repair cannot resurrect a merged ghost or race
+  account deletion/empty-ghost cleanup; existing public identity is not
+  overwritten.
+- Genuine capture-upload image/audio/video keys and sessions are never
+  normalized away. Every real key requires one exact active owner row and
+  canonical filename mapping; only extras marked by the migration as
+  `superseded_staging_registration` are ignored. Cross-owner/noncanonical URLs,
+  malformed JSON, unrecognized duplicates, and ambiguous dispositions make
+  repair inapplicable.
+- Strict promotion completeness and complete-last canonical media validation
+  remain unchanged for ordinary staged captures.
+- Raw media, private paths, coordinates, and user-authored context are not added
+  to logs or replay ledgers.
+- Identity recovery never reopens or decrements committed provider usage. It
+  cannot resurrect the retired source identity, cross a merge handoff, outrun an
+  active lease, or overwrite an existing owner scan.
+- Destructive quota/media resolution requires positive absence evidence. A
+  timeout, unreadable owner row, reported-success/no-row anomaly, or identity
+  reparent race is never converted into permission to delete referenced media.
+
+## Regression Coverage
+
+- Inline source-manifest derivation tests cover legacy hint exclusion and true
+  staged source preservation.
+- Completed-response tests cover exact stranded recovery, migration-first
+  rollout, owner reconstruction, and unexpected-error visibility.
+- Migration source contracts enforce ordering, type-before-operation safety,
+  ACLs, owner checks, narrow signature checks, and canonical finalization.
+- pgTAP fixtures exercise multi-image recovery with one historical hint, mixed
+  video recovery with a retained upload session, real queued-image recovery with
+  a marked signing duplicate, and refusal when an inline hint collides with a
+  genuine capture-upload image asset.
+- iOS tests cover canonical server-key handoff, signed-path recovery, task
+  persistence, path traversal, whole-manifest validation, synchronous offline
+  audio durability, whole-generation sibling failure fencing, exact
+  all-members-success accumulation (including generation-less compatibility),
+  relaunch orphan recovery, and fresh-upload retry after consumed staging keys.
+- Signing tests cover lost-response reuse, concurrent convergence, terminal
+  refusal, inline-to-recovery subset composition, video/recovery subset
+  composition, and union-cap refusal. Migration contracts pin the unique index,
+  owner-scoped advisory lock, trigger cap, and deny-by-default routine ACL.
+- Field Chat, Explore sharing/media, scan status, workflow route, and quota
+  contract suites remain part of the connected-flow verification.
+- Profile-prerequisite source and pgTAP contracts cover exact Auth backing,
+  mandatory identity validity, idempotence, ACLs, and all retirement fences.
+- Identity-merge source contracts and pgTAP fixtures cover pre-reparent fencing,
+  exact endpoint/operation preservation for all four producers, committed-usage
+  accounting, target-only recovery, active/deletion refusal, ACLs, and stable
+  restaging outcomes.
+- Shared persistence tests cover returned rejection, lost write response,
+  delayed owner visibility, unreadable verification, exact owner scoping, and
+  cleanup classification. Explore tests cover direct and reread-confirmed
+  commits, definite rejection, ambiguous update, and rollback refusal unless
+  absence is proven.

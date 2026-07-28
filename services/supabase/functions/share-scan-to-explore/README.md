@@ -142,8 +142,13 @@ predates durable `audio_storage_urls`. At most two staging keys are accepted.
 The function promotes them, replaces legacy local audio references in
 `captured_media`, updates `audio_storage_urls`, refreshes normalized media
 assets, and then applies the normal fail-closed publication moderation. Failed
-promotion or scan persistence rolls back promoted R2 objects and publishes
-nothing. If the local recording is gone, the audio cannot be recovered.
+promotion or a returned database rejection whose exact-owner reread proves the
+URLs absent rolls back promoted R2 objects and publishes nothing. A lost update
+response or unavailable reread returns retryable
+`503 scan_media_restore_unavailable` and preserves promoted objects; deleting
+them could break a scan whose update actually committed. The retry recognizes
+the canonical durable URLs and does not consume the staging source twice. If the
+local recording is gone, the audio cannot be recovered.
 
 Valid location values:
 

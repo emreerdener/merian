@@ -22,6 +22,7 @@ import {
 interface MediaStagingUploadManifestContract {
   maxFilesPerRequest: number;
   maxImageBytes: number;
+  maxImageFiles: number;
   maxAudioBytes: number;
   maxAudioFiles: number;
   maxVideoBytes: number;
@@ -36,6 +37,7 @@ Deno.test("media budgets match the documented staging upload contract", () => {
 
   assertEquals(MEDIA_BUDGETS.maxStagingFiles, contract.maxFilesPerRequest);
   assertEquals(MEDIA_BUDGETS.maxImageRawBytes, contract.maxImageBytes);
+  assertEquals(MEDIA_BUDGETS.maxImageCount, contract.maxImageFiles);
   assertEquals(MEDIA_BUDGETS.maxAudioRawBytes, contract.maxAudioBytes);
   assertEquals(MEDIA_BUDGETS.maxStagedAudioFiles, contract.maxAudioFiles);
   assertEquals(MEDIA_BUDGETS.maxVideoRawBytes, contract.maxVideoBytes);

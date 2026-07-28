@@ -1086,23 +1086,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     return (prefix[0] == 0xFF && prefix[1] == 0xD8 && prefix[2] == 0xFF) ? "image/jpeg" : "image/webp"
                 }()
 
-                let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                let resolvedUserId = (authUserId ?? deviceId).lowercased()
-                let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString.lowercased()).webp"
-
                 try Task.checkCancellation()
 
                 // --- Step 2: Edge Inference Generation (Gemini 1.5 Flash) ---
@@ -1148,7 +1131,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 }
                 defer { uploadFailSafe.cancel() }
                 let resultData = try await client.identifyMultiModal(
-                    r2ObjectKeys: [targetObjectKey],
+                    // Inline images have no staged source object. Older clients sent a
+                    // synthetic key here as a destination filename hint, which the durable
+                    // finalizer could misclassify as an upload that must be promoted.
+                    r2ObjectKeys: [],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
                     audioFilePaths: audioFilePaths ?? [],

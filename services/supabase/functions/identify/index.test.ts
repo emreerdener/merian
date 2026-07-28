@@ -13,6 +13,61 @@ import {
   tierTelemetryProperties,
 } from "../_shared/entitlement.ts";
 
+Deno.test("compatibility Identify recovers merged scans and profile prerequisites before quota", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const scanId = source.indexOf("const generatedScanId =");
+  const recovery = source.indexOf(
+    "strandedRecovery = await recoverStrandedScanIngestionAttempt(",
+    scanId,
+  );
+  const replay = source.indexOf(
+    "const existingCompletion = await fetchCompletedIdentifyResponse(",
+    scanId,
+  );
+  const profile = source.indexOf(
+    "await upsertGhostUserIfMissing(user.id, supabaseAdmin);",
+    replay,
+  );
+  const quota = source.indexOf(
+    "quotaLease = await reserveAIProviderCall(",
+    profile,
+  );
+
+  assert(recovery > scanId);
+  assert(replay > recovery);
+  assert(profile > replay);
+  assert(quota > profile);
+  assert(source.includes('"scan_media_restage_required"'));
+  assert(source.includes('"scan_user_profile_unavailable"'));
+});
+
+Deno.test("compatibility Identify returns success only after durable scan ingestion", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const ingestion = source.indexOf("const runBackgroundIngestion = async");
+  const scanInsert = source.indexOf("await insertScan(", ingestion);
+  const awaitIngestion = source.indexOf(
+    "await runBackgroundIngestion();",
+    scanInsert,
+  );
+  const success = source.indexOf(
+    "return jsonResponse(responseEnvelope, 200);",
+    awaitIngestion,
+  );
+
+  assert(ingestion >= 0);
+  assert(scanInsert > ingestion);
+  assert(awaitIngestion > scanInsert);
+  assert(success > awaitIngestion);
+  assert(!source.includes("runBackground(runBackgroundIngestion())"));
+  assert(source.includes('"scan_persistence_failed"'));
+  assert(source.includes("const quotaRetryEnabled = await quotaLease.fail();"));
+  assert(source.includes("if (scanInserted && !terminalFailure) return;"));
+});
+
 // ---------------------------------------------------------------------------
 // Enum drift guard — mirrors VALID_LIFE_STAGES / VALID_REPRODUCTIVE_CONDITIONS / VALID_SEX_VALUES
 // in index.ts. Keep in sync with the scan metadata constraints.

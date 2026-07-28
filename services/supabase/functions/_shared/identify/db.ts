@@ -14,6 +14,7 @@ import {
   IdentificationCandidate,
   PetIdentification,
 } from "./types.ts";
+import { persistOwnedScanRow } from "../scanPersistence.ts";
 
 export type ScanGeoprivacy = "open" | "obscured" | "private";
 export type ScanEcologyType = "wild" | "urban" | "domesticated" | "unknown";
@@ -89,12 +90,10 @@ export async function upsertGhostUserIfMissing(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ) {
-  const { error } = await supabaseAdmin
-    .from("users")
-    .upsert(
-      { id: userId, subscription_tier: "free" },
-      { onConflict: "id", ignoreDuplicates: true },
-    );
+  const { error } = await supabaseAdmin.rpc(
+    "ensure_scan_user_profile",
+    { p_user_id: userId },
+  );
   if (error) {
     throw new Error(`Failed to ensure scan user exists: ${error.message}`);
   }
@@ -337,30 +336,19 @@ export async function insertScan(
       : row.public_location_label,
   };
 
-  const { error } = await supabaseAdmin
-    .from("scans")
-    .upsert(scanRow, {
-      onConflict: "id",
-      ignoreDuplicates: true,
-    });
-  if (error) throw new Error(`insertScan: ${error.message}`);
-
-  // ON CONFLICT DO NOTHING is idempotent, but a successful statement does not
-  // prove this owner has a row (for example, when another owner holds the ID).
-  const { data: persistedScan, error: verificationError } = await supabaseAdmin
-    .from("scans")
-    .select("id")
-    .eq("id", row.id)
-    .eq("user_id", row.user_id)
-    .maybeSingle();
-  if (verificationError) {
-    throw new Error(
-      `insertScan verification: ${verificationError.message}`,
-    );
-  }
-  if (!persistedScan) {
-    throw new Error(
-      "insertScan verification: persisted scan row was not found for owner",
-    );
-  }
+  await persistOwnedScanRow({
+    scanId: row.id,
+    userId: row.user_id,
+    operationName: "insertScan",
+    supabaseAdmin,
+    write: async () => {
+      const { error } = await supabaseAdmin
+        .from("scans")
+        .upsert(scanRow, {
+          onConflict: "id",
+          ignoreDuplicates: true,
+        });
+      return { error };
+    },
+  });
 }

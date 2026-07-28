@@ -30,53 +30,13 @@ import {
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { normalizeOwnedScanRecovery } from "../_shared/scanRecovery.ts";
+import { normalizeRestoredObjectKeys } from "./restoredMediaValidation.ts";
 
 function makeHttpError(
   status: number,
   message: string,
 ): PublicHttpError {
   return publicHttpError(status, message);
-}
-
-function normalizeRestoredObjectKeys(
-  value: unknown,
-  userId: string,
-  fieldName = "restored_object_keys",
-  maxItems = 5,
-): string[] {
-  if (value == null) return [];
-  if (!Array.isArray(value)) {
-    throw makeHttpError(400, `${fieldName} must be an array.`);
-  }
-
-  const normalized = value.map((entry) => {
-    if (typeof entry !== "string") {
-      throw makeHttpError(
-        400,
-        `${fieldName} must only contain strings.`,
-      );
-    }
-    return entry.trim();
-  }).filter((entry) => entry.length > 0);
-
-  if (normalized.length > maxItems) {
-    throw makeHttpError(
-      400,
-      `${fieldName} cannot contain more than ${maxItems} item${
-        maxItems === 1 ? "" : "s"
-      }.`,
-    );
-  }
-
-  const expectedPrefix = `staging/${userId.toLowerCase()}/`;
-  if (!normalized.every((entry) => entry.startsWith(expectedPrefix))) {
-    throw makeHttpError(
-      400,
-      `${fieldName} must belong to the current user.`,
-    );
-  }
-
-  return normalized;
 }
 
 function normalizeFieldNotes(value: unknown): string | null {

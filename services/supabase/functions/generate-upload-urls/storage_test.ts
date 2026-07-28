@@ -7,6 +7,7 @@ import {
   MAX_STAGED_AUDIO_BYTES,
   MAX_STAGED_AUDIO_FILES,
   MAX_STAGED_IMAGE_BYTES,
+  MAX_STAGED_IMAGE_FILES,
   MAX_STAGED_VIDEO_BYTES,
   MAX_STAGED_VIDEO_FILES,
   MAX_STAGING_FILES,
@@ -20,6 +21,7 @@ interface MediaStagingUploadManifestContract {
   endpoint: string;
   maxFilesPerRequest: number;
   maxImageBytes: number;
+  maxImageFiles: number;
   maxAudioBytes: number;
   maxAudioFiles: number;
   maxVideoBytes: number;
@@ -35,6 +37,7 @@ interface MediaStagingUploadManifestContract {
   optionalResponseFields: string[];
   mediaRolesByKind: Record<string, string[]>;
   fileNameSafeCharacterPattern: string;
+  fileNamesMustBeUnique: boolean;
   legacyFileNamesAccepted: boolean;
 }
 
@@ -45,6 +48,7 @@ Deno.test("media staging constants match the documented cross-language contract"
   assertEquals(contract.schemaVersion, 2);
   assertEquals(MAX_STAGING_FILES, contract.maxFilesPerRequest);
   assertEquals(MAX_STAGED_IMAGE_BYTES, contract.maxImageBytes);
+  assertEquals(MAX_STAGED_IMAGE_FILES, contract.maxImageFiles);
   assertEquals(MAX_STAGED_AUDIO_BYTES, contract.maxAudioBytes);
   assertEquals(MAX_STAGED_AUDIO_FILES, contract.maxAudioFiles);
   assertEquals(MAX_STAGED_VIDEO_BYTES, contract.maxVideoBytes);
@@ -77,6 +81,7 @@ Deno.test("media staging constants match the documented cross-language contract"
     "inference_frame",
   ]);
   assertEquals(contract.legacyFileNamesAccepted, true);
+  assertEquals(contract.fileNamesMustBeUnique, true);
 });
 
 Deno.test("parseStagingUploadFiles accepts structured mixed-media manifests", () => {
@@ -211,6 +216,31 @@ Deno.test("parseStagingUploadFiles rejects unsanitized structured file names", (
   );
 });
 
+Deno.test("parseStagingUploadFiles rejects duplicate structured storage keys", () => {
+  const parsed = parseStagingUploadFiles({
+    files: [
+      {
+        fileName: "duplicate.webp",
+        mediaKind: "image",
+        contentType: "image/webp",
+        sizeBytes: 10,
+      },
+      {
+        fileName: "duplicate.webp",
+        mediaKind: "image",
+        contentType: "image/webp",
+        sizeBytes: 10,
+      },
+    ],
+  });
+
+  assertEquals(parsed.status, 400);
+  assertEquals(
+    parsed.error,
+    "Bad Request: fileName values must be unique.",
+  );
+});
+
 Deno.test("parseStagingUploadFiles rejects content type and media kind mismatches", () => {
   const parsed = parseStagingUploadFiles({
     files: [
@@ -273,6 +303,37 @@ Deno.test("parseStagingUploadFiles rejects arrays over the signing cap", () => {
   assertEquals(parsed.status, 400);
 });
 
+Deno.test("parseStagingUploadFiles reserves the sixth slot for non-image media", () => {
+  const structured = parseStagingUploadFiles({
+    files: Array.from(
+      { length: MAX_STAGED_IMAGE_FILES + 1 },
+      (_, index) => ({
+        fileName: `still_${index}.webp`,
+        mediaKind: "image",
+        contentType: "image/webp",
+        sizeBytes: 10,
+      }),
+    ),
+  });
+  const legacy = parseStagingUploadFiles({
+    fileNames: Array.from(
+      { length: MAX_STAGED_IMAGE_FILES + 1 },
+      (_, index) => `legacy_${index}.webp`,
+    ),
+  });
+
+  assertEquals(structured.status, 400);
+  assertEquals(
+    structured.error,
+    "Bad Request: too many staged image files.",
+  );
+  assertEquals(legacy.status, 400);
+  assertEquals(
+    legacy.error,
+    "Bad Request: too many staged image files.",
+  );
+});
+
 Deno.test("parseStagingUploadFiles keeps legacy fileNames compatible", () => {
   const parsed = parseStagingUploadFiles({
     fileNames: ["scan image.webp", "scan/audio.wav", "scan/video.mp4"],
@@ -288,4 +349,16 @@ Deno.test("parseStagingUploadFiles keeps legacy fileNames compatible", () => {
   assertEquals(parsed.files?.[1].contentType, "audio/wav");
   assertEquals(parsed.files?.[2].mediaKind, "video");
   assertEquals(parsed.files?.[2].contentType, "video/mp4");
+});
+
+Deno.test("parseStagingUploadFiles rejects legacy names that sanitize to one key", () => {
+  const parsed = parseStagingUploadFiles({
+    fileNames: ["scan image.webp", "scan/image.webp"],
+  });
+
+  assertEquals(parsed.status, 400);
+  assertEquals(
+    parsed.error,
+    "Bad Request: fileName values must be unique.",
+  );
 });

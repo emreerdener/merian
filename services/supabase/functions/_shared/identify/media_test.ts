@@ -1,6 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
-import { validateImageR2ObjectKeys } from "./media.ts";
+import { stagedImageSourceKeys, validateImageR2ObjectKeys } from "./media.ts";
 
 async function responseError(
   response: Response | null,
@@ -55,4 +55,20 @@ Deno.test("validateImageR2ObjectKeys rejects wrong-user staged source keys", asy
     await responseError(response),
     "Forbidden: r2ObjectKey does not belong to the requesting user.",
   );
+});
+
+Deno.test("stagedImageSourceKeys excludes destination hints for inline images", () => {
+  assertEquals(
+    stagedImageSourceKeys(
+      ["staging/legacy-device-id/photo.webp"],
+      ["inline-image-bytes"],
+    ),
+    [],
+  );
+});
+
+Deno.test("stagedImageSourceKeys preserves actual staged image sources", () => {
+  const sourceKeys = ["staging/user-1/photo.webp"];
+  assertEquals(stagedImageSourceKeys(sourceKeys, []), sourceKeys);
+  assertEquals(stagedImageSourceKeys(sourceKeys, undefined), sourceKeys);
 });

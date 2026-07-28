@@ -67,128 +67,156 @@ extension CaptureWorkspaceViewModel {
 
         let scanId = UUID().uuidString.lowercased()
         pendingAnalyzeScanId = scanId
+        let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
+        let immediateTelemetry = CaptureTelemetry.immediateForActiveScan(
+            historicalContext: nil,
+            isGalleryPhoto: false,
+            cachedLocation: cachedLocation,
+            distanceMeters: nil,
+            zoomFactor: nil
+        )
 
-        Task {
+        // Commit the capture before crossing any async boundary. Location names,
+        // WeatherKit, and authentication are optional enrichment; none may decide
+        // whether irreplaceable audio/video bytes reach the durable queue.
+        let enqueued = diContainer.offlineQueueManager.enqueueNonVisualCapture(
+            audioFileNames: filteredAudioFileNames,
+            observationContexts: filteredObservationContexts,
+            videoFilePaths: filteredVideoFileNames,
+            mediaTimeline: mediaTimeline,
+            telemetry: immediateTelemetry,
+            scanId: scanId,
+            foregroundInferenceGeneration: foregroundInferenceGeneration
+        )
+        guard enqueued else {
+            capturedPreFetchTask?.cancel()
+            pendingAnalyzeScanId = nil
+            offlineToastMessage = "Unable to save capture. Please try again."
+            return
+        }
+        if let userPerceivedStart {
+            MerianLog.general.debug(
+                "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - userPerceivedStart), privacy: .public)s"
+            )
+        }
+
+        guard let foregroundInferenceGeneration else {
+            capturedPreFetchTask?.cancel()
+            pendingAnalyzeScanId = nil
+            offlineToastMessage = "No network connection. Queued for analysis."
+            return
+        }
+        guard diContainer.offlineQueueManager.isOnline else {
+            capturedPreFetchTask?.cancel()
+            pendingAnalyzeScanId = nil
+            diContainer.offlineQueueManager.retireForegroundInference(
+                scanId: scanId,
+                generation: foregroundInferenceGeneration,
+                resumeBackground: true,
+                reason: "live_nonvisual_offline_before_start"
+            )
+            offlineToastMessage = "No network connection. Queued for analysis."
+            return
+        }
+
+        let contextTask = capturedPreFetchTask ?? Task {
+            await diContainer.environmentContextManager.fetchDeferredContext(
+                preLockedLocation: cachedLocation
+            )
+        }
+        Task { [weak self] in
+            guard let self else { return }
             let contextWaitStartedAt = CFAbsoluteTimeGetCurrent()
-            let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
-            // Audio and description captures do not pass through the camera shutter path,
-            // which normally starts `preFetchTask`. Resolve the cached coordinate here so
-            // non-visual scans persist the same semantic/public location label as visual scans.
-            // Pinning the lookup to `cachedLocation` keeps the context tied to capture time.
-            let resolvedContext: EnvironmentContext
-            if let capturedPreFetchTask {
-                resolvedContext = await capturedPreFetchTask.value
-            } else {
-                resolvedContext = await diContainer.environmentContextManager.fetchDeferredContext(
-                    preLockedLocation: cachedLocation
-                )
-            }
-
+            let graceResult = await Self.environmentContext(
+                from: contextTask,
+                graceMilliseconds: 150
+            )
             let telemetry: CaptureTelemetry
-            if resolvedContext.location != nil || resolvedContext.locationName != nil {
+            if let resolvedContext = graceResult.context,
+               resolvedContext.location != nil || resolvedContext.locationName != nil {
                 telemetry = CaptureTelemetry(from: resolvedContext, distance: nil)
-            } else {
-                telemetry = CaptureTelemetry(
-                    subjectDistanceInMeters: nil,
-                    gpsLatitude: cachedLocation?.coordinate.latitude,
-                    gpsLongitude: cachedLocation?.coordinate.longitude,
-                    gpsElevation: cachedLocation?.altitude,
-                    locationName: nil,
-                    weatherCondition: nil,
-                    weatherTemperatureF: nil,
-                    timeOfDay: nil,
-                    timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
-                    zoomFactor: nil,
-                    estimatedSizeCm: nil
+                self.diContainer.offlineQueueManager.updateDeferredContext(
+                    scanId: scanId,
+                    telemetry: telemetry
                 )
+            } else {
+                telemetry = immediateTelemetry
             }
             MerianLog.general.debug(
-                "[⏱ BENCH] Non-visual context wait: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - contextWaitStartedAt), privacy: .public)s"
+                "[⏱ BENCH] Non-visual context grace: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - contextWaitStartedAt), privacy: .public)s timed_out=\(graceResult.timedOut, privacy: .public)"
             )
 
-            await MainActor.run {
-                let enqueued = self.diContainer.offlineQueueManager
-                    .enqueueNonVisualCapture(
-                        audioFileNames: filteredAudioFileNames,
-                        observationContexts: filteredObservationContexts,
-                        videoFilePaths: filteredVideoFileNames,
-                        mediaTimeline: mediaTimeline,
-                        telemetry: telemetry,
-                        scanId: scanId,
-                        foregroundInferenceGeneration:
-                            foregroundInferenceGeneration
-                    )
-                guard enqueued else {
-                    self.pendingAnalyzeScanId = nil
-                    self.offlineToastMessage =
-                        "Unable to save capture. Please try again."
-                    return
-                }
-                if let userPerceivedStart {
-                    MerianLog.general.debug(
-                        "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - userPerceivedStart), privacy: .public)s"
-                    )
-                }
-
-                guard let foregroundInferenceGeneration else {
-                    self.pendingAnalyzeScanId = nil
-                    self.offlineToastMessage = "No network connection. Queued for analysis."
-                    return
-                }
-                guard self.diContainer.offlineQueueManager.isOnline else {
-                    self.pendingAnalyzeScanId = nil
-                    self.diContainer.offlineQueueManager
-                        .retireForegroundInference(
-                            scanId: scanId,
-                            generation:
-                                foregroundInferenceGeneration,
-                            resumeBackground: true,
-                            reason:
-                                "live_nonvisual_offline_before_start"
-                        )
-                    self.offlineToastMessage =
-                        "No network connection. Queued for analysis."
-                    return
-                }
-
-                guard self.pendingAnalyzeScanId == scanId else {
-                    self.diContainer.offlineQueueManager
-                        .retireForegroundInference(
-                            scanId: scanId,
-                            generation:
-                                foregroundInferenceGeneration,
-                            resumeBackground: true,
-                            reason:
-                                "live_nonvisual_superseded_before_start"
-                        )
-                    return
-                }
-                guard self.diContainer.offlineQueueManager
-                        .canStartForegroundInference(
-                            scanId: scanId,
-                            generation:
-                                foregroundInferenceGeneration
-                        ) else {
-                    self.pendingAnalyzeScanId = nil
-                    self.offlineToastMessage =
-                        "Capture queued for analysis."
-                    return
-                }
-                self.diContainer.inferenceEngine.prepareForNewScan()
-                self.activeSheet = .insight
-                self.diContainer.inferenceEngine.analyzeNonVisual(
+            guard self.diContainer.offlineQueueManager.isOnline else {
+                contextTask.cancel()
+                self.pendingAnalyzeScanId = nil
+                self.diContainer.offlineQueueManager.retireForegroundInference(
                     scanId: scanId,
-                    foregroundInferenceGeneration:
-                        foregroundInferenceGeneration,
-                    audioFilePaths: filteredAudioFileNames.isEmpty ? nil : filteredAudioFileNames,
-                    videoFilePaths: filteredVideoFileNames.isEmpty ? nil : filteredVideoFileNames,
-                    observationContexts: filteredObservationContexts,
-                    mediaTimeline: mediaTimeline,
-                    telemetry: telemetry,
-                    modelContext: modelContext,
-                    targetEradicationScanId: targetEradicationScanId,
-                    userPerceivedStart: userPerceivedStart
+                    generation: foregroundInferenceGeneration,
+                    resumeBackground: true,
+                    reason: "live_nonvisual_offline_during_context_grace"
                 )
+                self.offlineToastMessage = "No network connection. Queued for analysis."
+                return
+            }
+            guard self.pendingAnalyzeScanId == scanId else {
+                contextTask.cancel()
+                self.diContainer.offlineQueueManager.retireForegroundInference(
+                    scanId: scanId,
+                    generation: foregroundInferenceGeneration,
+                    resumeBackground: true,
+                    reason: "live_nonvisual_superseded_before_start"
+                )
+                return
+            }
+            guard self.diContainer.offlineQueueManager.canStartForegroundInference(
+                scanId: scanId,
+                generation: foregroundInferenceGeneration
+            ) else {
+                contextTask.cancel()
+                self.pendingAnalyzeScanId = nil
+                self.offlineToastMessage = "Capture queued for analysis."
+                return
+            }
+
+            self.diContainer.inferenceEngine.prepareForNewScan()
+            self.activeSheet = .insight
+            self.diContainer.inferenceEngine.analyzeNonVisual(
+                scanId: scanId,
+                foregroundInferenceGeneration: foregroundInferenceGeneration,
+                audioFilePaths: filteredAudioFileNames.isEmpty ? nil : filteredAudioFileNames,
+                videoFilePaths: filteredVideoFileNames.isEmpty ? nil : filteredVideoFileNames,
+                observationContexts: filteredObservationContexts,
+                mediaTimeline: mediaTimeline,
+                telemetry: telemetry,
+                modelContext: modelContext,
+                targetEradicationScanId: targetEradicationScanId,
+                userPerceivedStart: userPerceivedStart
+            )
+
+            if graceResult.timedOut {
+                Task {
+                    let lateContext = await contextTask.value
+                    guard lateContext.location != nil || lateContext.locationName != nil else {
+                        return
+                    }
+                    let lateTelemetry = CaptureTelemetry(from: lateContext, distance: nil)
+                    self.diContainer.offlineQueueManager.updateDeferredContext(
+                        scanId: scanId,
+                        telemetry: lateTelemetry
+                    )
+                    do {
+                        try await MerianNetworkClient.shared.updateDeferredScanContext(
+                            scanId: scanId,
+                            telemetry: lateTelemetry
+                        )
+                    } catch {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        try? await MerianNetworkClient.shared.updateDeferredScanContext(
+                            scanId: scanId,
+                            telemetry: lateTelemetry
+                        )
+                    }
+                }
             }
         }
     }

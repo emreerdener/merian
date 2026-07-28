@@ -512,7 +512,8 @@ actor BackgroundDatabaseActor {
         expectedGeneration: UUID?,
         code: String,
         message: String?,
-        delay: TimeInterval
+        delay: TimeInterval,
+        resetMediaUploads: Bool = false
     ) async -> Int? {
         await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
         guard !Task.isCancelled else {
@@ -524,7 +525,8 @@ actor BackgroundDatabaseActor {
             expectedGeneration: expectedGeneration,
             code: code,
             message: message,
-            delay: delay
+            delay: delay,
+            resetMediaUploads: resetMediaUploads
         )
         await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
         return attempt
@@ -535,7 +537,8 @@ actor BackgroundDatabaseActor {
         expectedGeneration: UUID?,
         code: String,
         message: String?,
-        delay: TimeInterval
+        delay: TimeInterval,
+        resetMediaUploads: Bool
     ) -> Int? {
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -597,7 +600,15 @@ actor BackgroundDatabaseActor {
         scan.queueLastServerStage = nil
         scan.queueLastServerRetryAfter = nil
         scan.queueNeedsAttention = false
-        scan.scanStateRaw = ScanQueueState.staged.rawValue
+        scan.scanStateRaw = resetMediaUploads
+            ? ScanQueueState.pending.rawValue
+            : ScanQueueState.staged.rawValue
+        if resetMediaUploads {
+            // Promotion consumes staging objects before the scan insert. The
+            // local media remains authoritative, so force a fresh signed upload
+            // instead of retrying object keys that may no longer exist.
+            scan.stagedR2Keys = nil
+        }
         scan.queueUpdatedAt = now
 
         job.status = .waiting

@@ -1,8 +1,12 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  assertEquals,
+  assertRejects,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   completeScanIngestionFinalization,
+  recoverStrandedScanIngestionAttempt,
   scanIngestionClientState,
   type ScanIngestionJobRow,
   scanIngestionManifestChecksum,
@@ -219,4 +223,187 @@ Deno.test("completeScanIngestionFinalization persists a supplied response in the
     p_deleted_storage_keys: [],
     p_response_envelope: responseEnvelope,
   });
+});
+
+Deno.test("completeScanIngestionFinalization falls back only when the additive response RPC is unavailable", async () => {
+  const rpcNames: string[] = [];
+  const client = {
+    rpc(name: string) {
+      rpcNames.push(name);
+      return Promise.resolve(
+        name === "complete_scan_ingestion_finalization_with_response"
+          ? {
+            data: null,
+            error: {
+              code: "PGRST202",
+              message: "Could not find the function in the schema cache",
+            },
+          }
+          : { data: "completed", error: null },
+      );
+    },
+  } as unknown as SupabaseClient;
+
+  const result = await completeScanIngestionFinalization(
+    {
+      scanId: "00000000-0000-4000-8000-000000000091",
+      userId: "00000000-0000-4000-8000-000000000092",
+      promotedUrlsByStorageKey: new Map(),
+      deletedStorageKeys: [],
+      responseEnvelope: {
+        success: true,
+        data: { scan_id: "00000000-0000-4000-8000-000000000091" },
+      },
+    },
+    client,
+  );
+
+  assertEquals(result, "completed");
+  assertEquals(rpcNames, [
+    "complete_scan_ingestion_finalization_with_response",
+    "complete_scan_ingestion_finalization",
+  ]);
+});
+
+Deno.test("completeScanIngestionFinalization never masks an internal undefined-function error", async () => {
+  const rpcNames: string[] = [];
+  const client = {
+    rpc(name: string) {
+      rpcNames.push(name);
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "42883",
+          message:
+            "function internal.refresh_required_media(uuid) does not exist",
+        },
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      completeScanIngestionFinalization(
+        {
+          scanId: "00000000-0000-4000-8000-000000000091",
+          userId: "00000000-0000-4000-8000-000000000092",
+          promotedUrlsByStorageKey: new Map(),
+          deletedStorageKeys: [],
+          responseEnvelope: {
+            success: true,
+            data: { scan_id: "00000000-0000-4000-8000-000000000091" },
+          },
+        },
+        client,
+      ),
+    Error,
+    "refresh_required_media",
+  );
+  assertEquals(rpcNames, [
+    "complete_scan_ingestion_finalization_with_response",
+  ]);
+});
+
+Deno.test("recoverStrandedScanIngestionAttempt parses exact recovery evidence", async () => {
+  const scanId = "00000000-0000-4000-8000-000000000091";
+  const userId = "00000000-0000-4000-8000-000000000092";
+  const sourceId = "00000000-0000-4000-8000-000000000093";
+  let observedName = "";
+  let observedArguments: Record<string, unknown> = {};
+  const client = {
+    rpc(name: string, arguments_: Record<string, unknown>) {
+      observedName = name;
+      observedArguments = arguments_;
+      return Promise.resolve({
+        data: {
+          outcome: "media_restage_required",
+          authorized_source_user_id: sourceId,
+        },
+        error: null,
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  assertEquals(
+    await recoverStrandedScanIngestionAttempt(scanId, userId, client),
+    {
+      outcome: "media_restage_required",
+      authorizedSourceUserId: sourceId,
+    },
+  );
+  assertEquals(observedName, "recover_stranded_scan_ingestion_attempt");
+  assertEquals(observedArguments, {
+    p_scan_id: scanId,
+    p_user_id: userId,
+  });
+});
+
+Deno.test("recoverStrandedScanIngestionAttempt tolerates only a missing rollout routine", async () => {
+  const missingClient = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "PGRST202",
+          message: "routine is absent from the schema cache",
+        },
+      });
+    },
+  } as unknown as SupabaseClient;
+  assertEquals(
+    await recoverStrandedScanIngestionAttempt(
+      "00000000-0000-4000-8000-000000000091",
+      "00000000-0000-4000-8000-000000000092",
+      missingClient,
+    ),
+    null,
+  );
+
+  const brokenClient = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "42883",
+          message:
+            "function internal.unrelated_dependency(uuid) does not exist",
+        },
+      });
+    },
+  } as unknown as SupabaseClient;
+  await assertRejects(
+    () =>
+      recoverStrandedScanIngestionAttempt(
+        "00000000-0000-4000-8000-000000000091",
+        "00000000-0000-4000-8000-000000000092",
+        brokenClient,
+      ),
+    Error,
+    "unrelated_dependency",
+  );
+});
+
+Deno.test("recoverStrandedScanIngestionAttempt rejects malformed authority", async () => {
+  const client = {
+    rpc() {
+      return Promise.resolve({
+        data: {
+          outcome: "media_restage_required",
+          authorized_source_user_id: "../../another-user",
+        },
+        error: null,
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      recoverStrandedScanIngestionAttempt(
+        "00000000-0000-4000-8000-000000000091",
+        "00000000-0000-4000-8000-000000000092",
+        client,
+      ),
+    Error,
+    "malformed RPC response",
+  );
 });

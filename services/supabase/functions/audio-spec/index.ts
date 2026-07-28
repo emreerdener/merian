@@ -15,15 +15,20 @@ import {
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { PublicHttpError, requireParams } from "../_shared/http.ts";
+import {
+  publicErrorResponse,
+  PublicHttpError,
+  requireParams,
+} from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
-import { deleteR2ObjectIfPresent } from "../_shared/aws.ts";
+import { deleteR2ObjectIfPresent, getR2Config } from "../_shared/aws.ts";
 import {
   processWavBuffer,
   TARGET_AUDIO_SAMPLE_RATE,
 } from "../_shared/audioProcessing.ts";
 import { resolveAudioBuffers } from "../_shared/identify/media.ts";
+import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { mergeSpeciesCommonNames } from "../_shared/identify/db.ts";
 import {
   buildContextText,
@@ -43,6 +48,8 @@ import {
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 import { createCompatibilityScanIngestionLedger } from "../_shared/scanIngestionCompatibility.ts";
+import { recoverStrandedScanIngestionAttempt } from "../_shared/scanIngestionJobs.ts";
+import { isScanPersistenceOutcomeUnknown } from "../_shared/scanPersistence.ts";
 
 import {
   AudioCandidate,
@@ -178,8 +185,46 @@ Deno.serve((req: Request) =>
       current_month,
       time_of_day,
     } = body;
+    // Inline bytes win when old clients send both bytes and a destination-name
+    // hint. Never fetch, ledger, finalize, or delete an ignored hint.
+    const stagedAudioSourceKey = audio_base64 ? undefined : audio_r2_key;
     const normalizedCurrentMonth = normalizeCurrentMonth(current_month);
     const generatedScanId = resolveAIRequestId(req, client_scan_id);
+    let strandedRecovery;
+    try {
+      strandedRecovery = await recoverStrandedScanIngestionAttempt(
+        generatedScanId,
+        user.id,
+        supabaseAdmin,
+      );
+    } catch (error) {
+      logStructuredError("audio_spec/scan_ingestion_recovery_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_recovery_unavailable",
+        "We couldn’t safely resume this observation. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
+    if (
+      strandedRecovery?.outcome === "media_restage_required" &&
+      typeof stagedAudioSourceKey === "string" &&
+      !stagedAudioSourceKey.startsWith(`staging/${user.id}/`)
+    ) {
+      return publicErrorResponse(
+        req,
+        409,
+        "scan_media_restage_required",
+        "This observation’s upload needs to be refreshed for your account.",
+        { retryAfterSeconds: 1 },
+      );
+    }
+
     const existingCompletion = await fetchCompletedIdentifyResponse(
       generatedScanId,
       user.id,
@@ -206,7 +251,7 @@ Deno.serve((req: Request) =>
     // 1. Load audio — either from base64 inline payload (iOS live path) or R2 staging.
     const audioResolution = await resolveAudioBuffers({
       userId: user.id,
-      audioR2ObjectKeys: audio_base64 ? [] : [audio_r2_key!],
+      audioR2ObjectKeys: stagedAudioSourceKey ? [stagedAudioSourceKey] : [],
       audioBase64s: audio_base64 ? [audio_base64] : [],
       idorEvent: "audio_spec/idor_attempt",
       r2FetchFailedEvent: "audio_spec/audio_r2_fetch_failed",
@@ -247,6 +292,23 @@ Deno.serve((req: Request) =>
       return jsonResponse({ error: "Invalid audio file format." }, 400);
     }
 
+    try {
+      await upsertGhostUserIfMissing(user.id, supabaseAdmin);
+    } catch (error) {
+      logStructuredError("audio_spec/scan_user_profile_unavailable", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_user_profile_unavailable",
+        "We couldn’t prepare this observation for saving. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
+
     // 4. Atomically resolve entitlement and reserve quota before provider work.
     let quotaLease;
     try {
@@ -285,7 +347,7 @@ Deno.serve((req: Request) =>
           scanId: generatedScanId,
           userId: user.id,
           endpoint: "audio-spec",
-          audioKeys: audio_base64 ? [] : [audio_r2_key!],
+          audioKeys: stagedAudioSourceKey ? [stagedAudioSourceKey] : [],
           inlineAudioCount: audio_base64 ? 1 : 0,
           audioMediaItems: [{ kind: "audio", sourceIndex: 0, clipIndex: 0 }],
           preferredGoal: preferred_goal,
@@ -483,7 +545,7 @@ Deno.serve((req: Request) =>
       });
       return jsonResponse(
         { error: "Processing Error: Malformed AI response." },
-        422,
+        503,
       );
     }
 
@@ -542,6 +604,14 @@ Deno.serve((req: Request) =>
       !!(parsedData.is_biological_subject && parsedData.scientific_name);
     const cachedSpecies: CachedSpeciesRow | null = isIdentifiedBio
       ? await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
+        .catch((error) => {
+          logStructuredError("audio_spec/species_cache_read_fallback", {
+            user_id: user.id,
+            scan_id: generatedScanId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        })
       : null;
 
     // Strip candidates when confidence meets the diagnostic trigger threshold
@@ -633,9 +703,12 @@ Deno.serve((req: Request) =>
       { leaseSeconds: 300 },
     );
 
-    // 8. Background ingestion: ghost user, species enrichment, scan insert, R2 cleanup
+    // 8. Durable ingestion: profile, enrichment, media promotion, scan insert,
+    // and complete-last ledger finalization.
     const runBackgroundIngestion = async () => {
       let scanInserted = false;
+      let ledgerCompleted = false;
+      let audioStorageUrls: string[] = [];
       try {
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
 
@@ -749,17 +822,22 @@ Deno.serve((req: Request) =>
           }
         }
 
-        // Group tags (species-level, fire-and-forget)
-        const groupTagsPromise =
-          (needsGroupTags && !cachedSpecies?.group_tags?.length)
-            ? fetchQuotaGuardedGroupTags(
-              req,
-              user,
-              parsedData.scientific_name!,
-              supabaseAdmin,
-              quotaLease.reservation.requestId,
-            )
-            : Promise.resolve(null);
+        audioStorageUrls = await promoteSafeMedia({
+          userId: user.id,
+          r2ObjectKeys: stagedAudioSourceKey
+            ? [stagedAudioSourceKey]
+            : undefined,
+          imageBase64s: audio_base64 ? [audio_base64] : undefined,
+          userTier,
+          r2Config: r2Config ?? getR2Config(),
+          contentType: "audio/wav",
+          fallbackExtension: "wav",
+        });
+        if (audioStorageUrls.length !== 1) {
+          throw new Error(
+            `Audio promotion returned ${audioStorageUrls.length}/1 URL(s).`,
+          );
+        }
 
         await insertScan(
           {
@@ -797,6 +875,7 @@ Deno.serve((req: Request) =>
             llm_total_tokens: llmTotalTokens,
             llm_usage_metadata: llmUsageMetadata,
             image_storage_urls: [],
+            audio_storage_urls: audioStorageUrls,
             life_stage: "unknown",
             reproductive_condition: "not_applicable",
             sex: parsedData.sex ?? null,
@@ -814,44 +893,56 @@ Deno.serve((req: Request) =>
         );
         scanInserted = true;
 
-        // This audio is inference-only. Confirm its staging object is gone
-        // before the shared finalization transaction can mark the ledger
-        // complete.
-        if (audio_r2_key) {
-          if (!r2Config) {
-            throw new Error(
-              "R2 configuration is unavailable for staged audio deletion.",
-            );
-          }
-          await deleteR2ObjectIfPresent(audio_r2_key, r2Config);
-        }
         await compatibilityLedger.markComplete({
-          deletedStorageKeys: audio_r2_key ? [audio_r2_key] : [],
+          promotedUrlsByStorageKey: stagedAudioSourceKey
+            ? new Map([[stagedAudioSourceKey, audioStorageUrls[0]!]])
+            : new Map(),
           responseEnvelope,
         });
+        ledgerCompleted = true;
 
-        const groupTagsResult = await groupTagsPromise;
-        if (groupTagsResult?.group_tags?.length && isIdentifiedBio) {
-          await updateGroupTags(
-            parsedData.scientific_name!,
-            groupTagsResult.group_tags,
-            supabaseAdmin,
-          );
-        }
+        runBackground(
+          (async () => {
+            const groupTagsResult =
+              (needsGroupTags && !cachedSpecies?.group_tags?.length)
+                ? await fetchQuotaGuardedGroupTags(
+                  req,
+                  user,
+                  parsedData.scientific_name!,
+                  supabaseAdmin,
+                  quotaLease.reservation.requestId,
+                )
+                : null;
+            if (groupTagsResult?.group_tags?.length && isIdentifiedBio) {
+              await updateGroupTags(
+                parsedData.scientific_name!,
+                groupTagsResult.group_tags,
+                supabaseAdmin,
+              );
+            }
 
-        trackPostHogEvent(user, "AudioScanCompleted", {
-          is_biological_subject: parsedData.is_biological_subject,
-          tier: userTier,
-          ...tierTelemetryProperties(tierResolution),
-          llm_model: quotaLease.reservation.model,
-          llm_prompt_tokens: llmPromptTokens,
-          llm_candidate_tokens: llmCandidateTokens,
-          llm_thinking_tokens: llmThinkingTokens,
-          llm_total_tokens: llmTotalTokens,
-          scientific_name: parsedData.scientific_name,
-        }).catch((e) => console.error("PostHog tracking failed:", e));
+            await trackPostHogEvent(user, "AudioScanCompleted", {
+              is_biological_subject: parsedData.is_biological_subject,
+              tier: userTier,
+              ...tierTelemetryProperties(tierResolution),
+              llm_model: quotaLease.reservation.model,
+              llm_prompt_tokens: llmPromptTokens,
+              llm_candidate_tokens: llmCandidateTokens,
+              llm_thinking_tokens: llmThinkingTokens,
+              llm_total_tokens: llmTotalTokens,
+              scientific_name: parsedData.scientific_name,
+            });
+          })().catch((error) =>
+            logStructuredError("audio_spec/optional_enrichment_failed", {
+              user_id: user.id,
+              scan_id: generatedScanId,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          ),
+        );
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
+        const persistenceOutcomeUnknown = isScanPersistenceOutcomeUnknown(e);
         logStructuredError("audio_spec/background_ingestion_failed", {
           user_id: user.id,
           scan_id: generatedScanId,
@@ -859,36 +950,99 @@ Deno.serve((req: Request) =>
           scan_inserted: scanInserted,
         });
 
-        if (!scanInserted) {
-          await compatibilityLedger.markRetryableFailure(
-            "background_ingestion_failed",
-            errorMsg,
-          );
+        if (!ledgerCompleted) {
           try {
-            const { error: dlErr } = await supabaseAdmin
-              .from("failed_scan_ingestions")
-              .insert({
-                scan_id: generatedScanId,
-                user_id: user.id,
-                error_message: errorMsg,
-              });
-            if (dlErr) {
-              logStructuredError("audio_spec/dead_letter_write_failed", {
-                scan_id: generatedScanId,
-                error: dlErr.message,
-              });
-            }
-          } catch (dlErr) {
-            logStructuredError("audio_spec/dead_letter_write_failed", {
+            await compatibilityLedger.markRetryableFailure(
+              "background_ingestion_failed",
+              errorMsg,
+            );
+          } catch (ledgerError) {
+            logStructuredError("audio_spec/ledger_retry_mark_failed", {
+              user_id: user.id,
               scan_id: generatedScanId,
-              error: dlErr instanceof Error ? dlErr.message : String(dlErr),
+              error: ledgerError instanceof Error
+                ? ledgerError.message
+                : String(ledgerError),
             });
           }
         }
+
+        if (!scanInserted) {
+          if (!persistenceOutcomeUnknown) {
+            const quotaRetryEnabled = await quotaLease.fail();
+            if (!quotaRetryEnabled) {
+              logStructuredError("audio_spec/quota_retry_enable_failed", {
+                user_id: user.id,
+                scan_id: generatedScanId,
+              });
+            }
+            try {
+              const { error: dlErr } = await supabaseAdmin
+                .from("failed_scan_ingestions")
+                .insert({
+                  scan_id: generatedScanId,
+                  user_id: user.id,
+                  error_message: errorMsg,
+                });
+              if (dlErr) {
+                logStructuredError("audio_spec/dead_letter_write_failed", {
+                  scan_id: generatedScanId,
+                  error: dlErr.message,
+                });
+              }
+            } catch (dlErr) {
+              logStructuredError("audio_spec/dead_letter_write_failed", {
+                scan_id: generatedScanId,
+                error: dlErr instanceof Error ? dlErr.message : String(dlErr),
+              });
+            }
+
+            // Promotion consumes the staging object. A definitely failed scan
+            // insert must not leave an unowned public object; the client keeps
+            // the local capture and establishes a fresh generation on retry.
+            // An ambiguous write response preserves media because a committed
+            // owner row may already reference it.
+            const rollbackResults = await Promise.allSettled(
+              audioStorageUrls.map((url) =>
+                deleteR2ObjectIfPresent(
+                  url.replace("https://media.merian.app/", ""),
+                  r2Config ?? getR2Config(),
+                )
+              ),
+            );
+            if (
+              rollbackResults.some((result) => result.status === "rejected")
+            ) {
+              logStructuredError("audio_spec/r2_rollback_partial_failure", {
+                user_id: user.id,
+                scan_id: generatedScanId,
+                failed_count: rollbackResults.filter((result) =>
+                  result.status === "rejected"
+                ).length,
+                total_count: rollbackResults.length,
+              });
+            }
+          }
+        }
+
+        // The exact-owner analysis row is a durable response/replay surface
+        // even if complete-last bookkeeping needs canonical recovery.
+        if (scanInserted) return;
+        throw e;
       }
     };
 
-    runBackground(runBackgroundIngestion());
+    try {
+      await runBackgroundIngestion();
+    } catch {
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_persistence_failed",
+        "We couldn’t finish saving this observation. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
     return jsonResponse(responseEnvelope, 200);

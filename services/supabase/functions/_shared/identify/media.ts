@@ -33,6 +33,23 @@ interface ResolveAudioBuffersOptions {
   };
 }
 
+/**
+ * Returns only image keys that represent uploaded staging objects.
+ *
+ * Older live clients send inline image bytes together with an `r2ObjectKeys`
+ * entry as a destination filename hint. `resolveImagePayloads` never reads that
+ * key when inline bytes are present. Treating it as a staged source creates a
+ * phantom promotion requirement, while using it as a public destination lets
+ * an ignored transport field influence object naming. Inline media therefore
+ * gets neither behavior.
+ */
+export function stagedImageSourceKeys(
+  r2ObjectKeys: string[] | undefined,
+  imageBase64s: string[] | undefined,
+): string[] {
+  return imageBase64s && imageBase64s.length > 0 ? [] : r2ObjectKeys ?? [];
+}
+
 export function validateImageR2ObjectKeys(
   r2ObjectKeys: string[] | undefined,
   userId: string,

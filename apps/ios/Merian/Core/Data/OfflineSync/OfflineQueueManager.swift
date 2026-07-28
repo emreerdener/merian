@@ -113,6 +113,15 @@ import SwiftData
         })
     }
 
+    /// Successful members observed for the current logical upload manifest.
+    ///
+    /// URLSession removes a completed task before its asynchronous result
+    /// handler necessarily runs. Requiring every expected object key here
+    /// prevents a successful sibling from advancing a scan while a failed
+    /// sibling's callback is still queued.
+    @ObservationIgnored var uploadCompletionStates:
+        [String: MediaStagingUploadCompletionState] = [:]
+
     /// Live scans that are durably queued but intentionally held until the
     /// foreground inference request has finished sending its body. This avoids
     /// two copies of the same media competing for the device uplink.
@@ -250,6 +259,43 @@ import SwiftData
             uploadCompletionTokens[scanId] = nil
         }
         return true
+    }
+
+    func recordSuccessfulUploadMember(
+        scanId: String,
+        generation: UUID?,
+        objectKey: String
+    ) {
+        var state = uploadCompletionStates[scanId]
+        if state == nil || state?.generation != generation {
+            state = MediaStagingUploadCompletionState(generation: generation)
+        }
+        guard var state else { return }
+        state.recordSuccess(objectKey: objectKey)
+        uploadCompletionStates[scanId] = state
+    }
+
+    func hasConfirmedSuccessfulUploadManifest(
+        scanId: String,
+        generation: UUID?,
+        expectedObjectKeys: [String]
+    ) -> Bool {
+        guard let state = uploadCompletionStates[scanId],
+              state.generation == generation else {
+            return false
+        }
+        return state.containsEvery(expectedObjectKeys: expectedObjectKeys)
+    }
+
+    func clearUploadCompletionState(
+        scanId: String,
+        generation: UUID?
+    ) {
+        guard let state = uploadCompletionStates[scanId],
+              state.generation == generation else {
+            return
+        }
+        uploadCompletionStates[scanId] = nil
     }
 
     /// Returns the shared queue actor, creating it if the container changed or the actor

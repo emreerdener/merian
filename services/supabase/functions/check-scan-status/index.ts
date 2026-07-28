@@ -5,7 +5,10 @@ import {
 } from "../_shared/edgeHandler.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
-import { scanIngestionClientState } from "../_shared/scanIngestionJobs.ts";
+import {
+  recoverStrandedScanIngestionAttempt,
+  scanIngestionClientState,
+} from "../_shared/scanIngestionJobs.ts";
 import { fetchScanStatusJob, fetchScanStatusMedia } from "./db.ts";
 import {
   hasRequiredVideoMedia,
@@ -48,6 +51,18 @@ async function buildScanStatusResponse(
 
   if (exists && requiredVideoCount > 0) {
     exists = hasRequiredVideoMedia(row, requiredVideoCount);
+  }
+
+  // Repair only a missing generation. Existing owner rows are recovered by
+  // targeted historical sync below; a scan-less failed/expired attempt may
+  // need its committed idempotency key reopened or merged media re-staged
+  // before the client can make progress.
+  if (!exists) {
+    await recoverStrandedScanIngestionAttempt(
+      request.scan_id,
+      userId,
+      supabaseAdmin,
+    );
   }
 
   const job = exists

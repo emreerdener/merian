@@ -96,9 +96,12 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    offline queue handles the scan independently. This replaces the weaker
    `guard isProcessing` that only detected completion (not supersession).
 
-Gallery images and audio-bearing or video visual submissions keep the existing
-full-context wait and immediate queue-sync race in this first optimization pass.
-They still emit the same pipeline timing instrumentation.
+Gallery images and audio-bearing or video visual submissions keep their
+immediate queue-sync race. Non-visual audio/video/Describe submission follows
+the same durability rule as visual capture: it commits cached telemetry
+synchronously, gives optional context enrichment 150 ms only after queue
+acceptance, and late-merges completed context without resubmitting media.
+Gallery-specific behavior remains unchanged.
 
 An eligible live visual Capture can also supply a selected standard-outing goal
 as `preferredGoal`. V50 stores the two goal IDs in the scan-keyed companion
@@ -142,11 +145,16 @@ until the foreground generation succeeds or relinquishes ownership.
 Current `/identify-multimodal` HTTP success is also a server durability fence:
 moderation, required media promotion, primary species resolution, scan creation,
 and owner-scoped read-back complete before `200`. The live path may persist and
-clean up its queue row only after that response. A retryable
-`503 scan_persistence_failed` leaves the durable queue source available for
-normal replay; a terminal `400 observation_rejected` follows the permanent
-failure path and cannot be converted into a successful scan by owner-row
-recovery.
+clean up its queue row only after that response. Foreground inline images send
+`imageBase64s` with an empty `r2ObjectKeys` array: a filename hint is not a
+staged upload source and must never enter the promotion manifest. A retryable
+`503 scan_persistence_failed` leaves the durable local queue source available.
+When no owner row exists after a durable-stage failure, the queue clears
+consumed staging keys and returns to `.pending` for a fresh signed upload; the
+server marks the committed provider attempt failed so the stable idempotency key
+can reserve a fenced metered retry. A terminal `400 observation_rejected`
+follows the permanent failure path and cannot be converted into a successful
+scan by owner-row recovery.
 
 After handoff, either path can finish first:
 
@@ -359,6 +367,9 @@ Batch sizing is governed by `MerianConfig`:
   upload-signing request, matching the Edge parser and the documented
   cross-language contract in
   `docs/contracts/media-staging-upload-manifest.json`.
+- **`mediaStagingMaxImageFilesPerRequest`** (5): maximum images in one signing
+  request. The sixth total slot is reserved for the canonical five-frame plus
+  one-playback-video shape, not a sixth still.
 - **`mediaStagingMaxVideoFilesPerRequest`** (1): maximum video files in one
   upload-signing request, with `video/mp4` as the canonical queued content type.
   New Pro video captures prefer a compressed 720p playback clip of roughly 3 MB
@@ -375,6 +386,31 @@ must stay within the 2.7 MB raw audio budget, staged video must stay within the
 strict video byte budget, and a signing batch may include at most 2 audio files
 and 1 video file. Records that fail this preflight move to `queueNeedsAttention`
 instead of being marked `.uploading`.
+
+The locally predicted owner segment is planning data, not server authority.
+`/generate-upload-urls` derives its owner from the authenticated request, which
+may lazily replace a device identity with an anonymous-user UUID. The queue
+validates the complete returned manifest and signed paths, requires one
+canonical server owner, and carries each exact returned key in the background
+task description. A malformed or partial response starts no PUT and returns the
+claimed scans to `.pending`.
+
+Signing registration is idempotent on the authenticated owner, client scan UUID,
+and deterministic object key. If the first HTTP response is lost after its
+`scan_media_assets` rows commit, a retry returns the same row and upload-session
+IDs instead of creating another active staging generation. A retryable failed
+row reactivates with its original session; terminal, completed, or
+media-incompatible rows fail closed. The database enforces one active staged row
+for that identity, and the parser rejects duplicate filenames (including legacy
+names that sanitize to one key) before signing. New ledger rows use a per-scan
+media slot, so retrying one scan alone does not change its recorded order.
+Signing calls are composable subsets: a foreground inline generation may have no
+staged sources while its queued recovery later adds them, and live video may
+sign separately from queue frames/audio/video for the same scan. Existing
+unrequested rows do not define an immutable full manifest. Edge code bounds the
+combined non-superseded capture-key union at six, and a database trigger takes
+an owner-scoped transaction advisory lock before enforcing the same staged-row
+cap, so concurrent disjoint subsets cannot evade it.
 
 After that preflight, `BackgroundDatabaseActor.markScansAsUploading(scanIds:)`
 atomically transitions only the valid selected scans from `.pending` to
@@ -423,13 +459,14 @@ request DTO carrying `sizeBytes`, `clientScanId`, and `mediaRole` together,
 eliminating the class of flat-index bug where indexing into parallel arrays at
 position `N` could silently return mismatched values for mixed-media batches.
 URLSession upload task descriptions now use
-`upload|{scanId}|{uploadIndex}|{syncGeneration}` through the same contract,
-preserving scan IDs that contain underscores and binding each callback to its
-originating batch. The parser still accepts the previous three-part form and the
-legacy underscore form for OS-owned tasks created by an older app build; new
-tasks always carry a generation. Staged image roles are a signing-time hint;
-final user-visible media still comes from the saved `captured_media` manifest
-and ready `scan_media_assets` rows.
+`upload|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}` through the
+same contract, preserving scan IDs that contain underscores, binding each
+callback to its originating batch, and carrying the authenticated destination
+through suspension. The parser still accepts the previous three-/four-part forms
+and the legacy underscore form for OS-owned tasks created by an older app build.
+Legacy callbacks recover and validate the key from the signed request path.
+Staged image roles are a signing-time hint; final user-visible media still comes
+from the saved `captured_media` manifest and ready `scan_media_assets` rows.
 
 **`ScanQueueState` enum (SchemaV33)**: `OfflineQueuedScan` uses a single
 `scanStateRaw: Int` column (added in V32→V33 custom migration, replacing the old
@@ -469,11 +506,14 @@ accounting, and routes replay through
 inline audio body.
 
 Standalone audio begins a pinned environment-context lookup when recording
-starts. `submitNonVisualCapture` consumes that prefetched value before inserting
-the durable queue row, or resolves `lastKnownLocation` as a fallback for entry
-paths without a recording-time prefetch. Therefore the queue row, live request,
-and eventual `LocalScanRecord` share the same GPS, `locationName`, weather, and
-capture-time context. This is required for later Explore publication because
+starts, but `submitNonVisualCapture` never waits for it before inserting the
+durable queue row. The first record uses `lastKnownLocation` and immediate
+capture telemetry. After acceptance, the prefetched or fallback context gets a
+150 ms grace for the live request; a later result updates the same local row and
+`/update-scan-context` without another identification. The eventual
+`LocalScanRecord` can therefore share enriched GPS, `locationName`, weather, and
+capture-time context while durability remains independent of
+WeatherKit/geocoding. This is required for later Explore publication because
 post-level location sharing can sanitize an existing label but cannot derive a
 text label from coordinates by itself.
 
@@ -562,7 +602,11 @@ additional callback fence, but they are not the persistence authority:
   another callback for the same multi-file scan remains visible to orphan
   reconciliation. The scan's latest upload generation is revalidated after every
   suspension before either callback may mutate queue state or dispatch
-  inference.
+  inference. Successful callbacks also record their exact canonical
+  server-issued key in a generation-scoped accumulator. The scan can become
+  staged only when that set contains every expected manifest key; disappearance
+  from the URLSession task list is never success evidence. Each handler
+  publishes its outcome before its first suspension.
 - Inference-driven queue deletion carries either a background
   `InferenceGenerationExpectation` or foreground
   `ForegroundInferenceGenerationExpectation` and revalidates it after awaiting
@@ -588,6 +632,14 @@ reconciliation, inference claims, and retries all use the same cached queue
 actor, so a replacement claim that reaches the actor before an older reconcile
 is ordered first and excluded by the cutoff. This closes the snapshot/actor
 queue ABA window without relying on task cancellation.
+
+The all-upload-tasks-settled callback invokes this recovery even when a
+reattached generation cannot finish the old process-local global sync latch. On
+every pass, a proven `.uploading → .pending` orphan reset refreshes the unsynced
+count and calls `syncPendingScans()` immediately; it never waits for another
+app-active or connectivity event. This is also the recovery path when a process
+terminates after only part of the in-memory callback success set was recorded.
+
 `reconcileOrphanedUploadingScans` returns `Bool` — `true` if at least one orphan
 was reset. The cold-start callback calls `syncPendingScans()` **only when the
 return value is `true`**. This is critical: the initial `syncPendingScans()`
@@ -601,7 +653,7 @@ uploads). On every subsequent call it also runs
 `reconcileOrphanedUploadingScans` again via a live-task cross-reference — this
 catches `.uploading` orphans created mid-session when `generateUploadURLs` fails
 or the `syncPendingScans` Task is killed before its catch block can run, and
-resets them to `.pending` so the next retry can pick them up. Additionally, on
+resets them to `.pending` and immediately restarts signing. Additionally, on
 every call it runs
 `reconcileOrphanedInferencingScans(activeInferenceScanIds:observedThrough:)`
 with the same snapshot cutoff. It cross-references live background URLSession
@@ -659,17 +711,28 @@ scan/species summaries through the executable wire contract. The job ledger plus
 intent therefore lets status polling, reconciliation, and server replay
 distinguish the same-media retry from a changed media shape for the same scan
 id. Account-deletion tombstones have no owner and are terminal for replay; a
-delayed ingestion job cannot dispatch another provider request for them.
+delayed ingestion job cannot dispatch another provider request for them. When an
+owned scan row exists but strict media finalization was interrupted, a
+service-only completion repair distinguishes inline image hints from real queued
+image keys using redacted inline counts. It requires exact owner-bound upload
+rows and filename-to-canonical-URL mappings for every real image/audio/video
+key, tolerates only migration-marked superseded signing rows, recomputes both
+checksummed ledgers, and invokes the canonical finalizer without reopening quota
+or inference.
 
 > **Critical**: The `taskDescription` for each new upload task is
-> `upload|{scanId}|{uploadIndex}|{syncGeneration}`, where `uploadIndex` is the
-> per-scan media slot across the canonical upload list. It must not use the flat
-> position across the entire batch. `processUploadCompletion` parses the
-> identity structurally and scans `session.allTasks` for active chunks with the
-> same scan ID and generation. Because iOS multiplexed HTTP/3 background tasks
-> can complete out of order, relying on `indexPart == count - 1` would allow the
-> nominal final chunk to trigger before earlier chunks. A callback also aborts
-> when a different generation is preparing or transferring the same scan.
+> `upload|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}`, where
+> `uploadIndex` is the per-scan media slot across the canonical upload list. It
+> must not use the flat position across the entire batch.
+> `processUploadCompletion` parses the identity structurally and records an
+> HTTP-successful upload under its exact canonical server key. Because iOS
+> multiplexed HTTP/3 background tasks can complete and dispatch callbacks out of
+> order, neither `indexPart == count - 1` nor absence from `session.allTasks`
+> proves the whole manifest succeeded. The final callback reconstructs the exact
+> expected keys from the durable queue row and requires all of them in the
+> generation-scoped success accumulator. A failed member never contributes a key
+> and fences the generation; a callback also aborts when a different generation
+> is preparing or transferring the same scan.
 
 **Concurrent staging (`withTaskGroup`)**: Pre-flight guards — URL validation,
 file existence checks, and tombstoning — remain serial. Once all guards clear,
@@ -826,16 +889,18 @@ the latch without waiting for a URLSession delegate callback.
   and all post-await mutations revalidate that exact token. When the row is not
   found but the job is still `processing`, `finalizing`, or `retrying`, the
   local row stays `.inferencing` and another server poll is scheduled.
-  `failed_retryable` honors the server `retry_after` before returning the row to
-  `.staged`. A retry timestamp that is already stale schedules a one-second
-  recheck rather than the maximum five-minute wait, so clock skew or an expired
-  lease cannot stall recovery. HTTP `401`, `408`, `409`, `425`, and `429` are
-  retryable; a safe integer `Retry-After` raises the persisted delay up to the
-  queue maximum. Other handler-owned `4xx` responses preserve local media in
-  `queueNeedsAttention`, while exact `observation_rejected` is terminal.
-  Server-ledger terminal failure marks the queue row as needing attention.
-  Unresolved `not_found` responses or status-probe failures fall back to the
-  same persisted retry budget
+  `failed_retryable` honors the server `retry_after`. Provider/inference
+  failures return the row to `.staged`; a not-found durability/promotion failure
+  clears consumed `stagedR2Keys`, returns the row to `.pending`, and wakes
+  upload rather than inference. A retry timestamp that is already stale
+  schedules a one-second recheck rather than the maximum five-minute wait, so
+  clock skew or an expired lease cannot stall recovery. HTTP `401`, `408`,
+  `409`, `425`, and `429` are retryable; a safe integer `Retry-After` raises the
+  persisted delay up to the queue maximum. Other handler-owned `4xx` responses
+  preserve local media in `queueNeedsAttention`, while exact
+  `observation_rejected` is terminal. Server-ledger terminal failure marks the
+  queue row as needing attention. Unresolved `not_found` responses or
+  status-probe failures fall back to the same persisted retry budget
   (`OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`) used by upload
   staging, rather than a separate process-local attempt counter.
 

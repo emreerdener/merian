@@ -11,6 +11,7 @@ import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { publicHttpError } from "../_shared/http.ts";
 import {
+  isScanImageRepairPersistenceOutcomeUnknown,
   ownedScanImageReferenceExists,
   persistOwnedScanImageRepair,
   type ScanImageRepairCounts,
@@ -179,6 +180,21 @@ export async function repairOwnedScanImage(
       ...counts,
     };
   } catch (error) {
+    if (isScanImageRepairPersistenceOutcomeUnknown(error)) {
+      // The atomic metadata transaction may have committed. Deleting the
+      // replacement here could turn a successfully repaired scan back into a
+      // missing-media incident; the idempotent owner evidence settles retry.
+      logStructuredError("scan_image_repair_persistence_unconfirmed", {
+        user_id: userId,
+        error: error.message,
+      });
+      throw publicHttpError(
+        503,
+        "We couldn’t confirm the image repair. Please try again.",
+        "scan_image_repair_persistence_unknown",
+        5,
+      );
+    }
     try {
       await checkedDelete(
         replacementObjectKey,

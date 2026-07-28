@@ -1,6 +1,7 @@
 import {
   assertEquals,
   assertExists,
+  assertRejects,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -230,14 +231,19 @@ Deno.test("completed Identify lookup replays the immutable canonical owner respo
 
   assertEquals(replay?.source, "stored");
   assertEquals(replay?.envelope, envelope);
-  assertEquals(observedTables, ["scan_ingestion_jobs"]);
+  assertEquals(observedTables, [
+    "scan_ingestion_jobs",
+    "scan_ingestion_jobs",
+  ]);
   assertEquals(observedFilters, [
+    ["scan_ingestion_jobs", "scan_id", scan.id],
+    ["scan_ingestion_jobs", "user_id", scan.user_id],
     ["scan_ingestion_jobs", "scan_id", scan.id],
     ["scan_ingestion_jobs", "user_id", scan.user_id],
   ]);
 });
 
-Deno.test("non-complete Identify jobs cannot read or reconstruct a scan response", async () => {
+Deno.test("non-complete Identify jobs do not replay without an exact durable scan", async () => {
   const observedTables: string[] = [];
   const client = {
     from(table: string) {
@@ -254,7 +260,9 @@ Deno.test("non-complete Identify jobs cannot read or reconstruct a scan response
         },
         maybeSingle() {
           return Promise.resolve({
-            data: { status: "finalizing", response_envelope: null },
+            data: table === "scan_ingestion_jobs"
+              ? { status: "finalizing", response_envelope: null }
+              : null,
             error: null,
           });
         },
@@ -269,7 +277,225 @@ Deno.test("non-complete Identify jobs cannot read or reconstruct a scan response
   );
 
   assertEquals(replay, null);
-  assertEquals(observedTables, ["scan_ingestion_jobs"]);
+  assertEquals(observedTables, ["scan_ingestion_jobs", "scans"]);
+});
+
+Deno.test("non-complete Identify jobs reconstruct an exact durable moderated scan", async () => {
+  const observedTables: string[] = [];
+  const client = {
+    from(table: string) {
+      observedTables.push(table);
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        abortSignal() {
+          return this;
+        },
+        maybeSingle() {
+          if (table === "scan_ingestion_jobs") {
+            return Promise.resolve({
+              data: { status: "finalizing" },
+              error: null,
+            });
+          }
+          if (table === "scans") {
+            return Promise.resolve({ data: scan, error: null });
+          }
+          return Promise.resolve({ data: species, error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  const replay = await fetchCompletedIdentifyResponse(
+    scan.id,
+    scan.user_id,
+    client,
+  );
+
+  assertEquals(replay?.source, "reconstructed");
+  assertEquals(replay?.envelope.data.scan_id, scan.id);
+  assertEquals(observedTables, [
+    "scan_ingestion_jobs",
+    "scans",
+    "species_dictionary",
+  ]);
+});
+
+Deno.test("stranded inline completion is repaired before owner-row reconstruction", async () => {
+  let jobQueryCount = 0;
+  const observedRpcCalls: Array<[string, Record<string, unknown>]> = [];
+  const client = {
+    rpc(name: string, parameters: Record<string, unknown>) {
+      observedRpcCalls.push([name, parameters]);
+      return Promise.resolve({ data: "completed", error: null });
+    },
+    from(table: string) {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        abortSignal() {
+          return this;
+        },
+        maybeSingle() {
+          if (table === "scan_ingestion_jobs") {
+            jobQueryCount += 1;
+            return Promise.resolve(
+              jobQueryCount === 1
+                ? { data: { status: "failed_retryable" }, error: null }
+                : { data: { response_envelope: null }, error: null },
+            );
+          }
+          if (table === "scans") {
+            return Promise.resolve({ data: scan, error: null });
+          }
+          return Promise.resolve({ data: species, error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  const replay = await fetchCompletedIdentifyResponse(
+    scan.id,
+    scan.user_id,
+    client,
+  );
+
+  assertEquals(replay?.source, "reconstructed");
+  assertEquals(replay?.envelope.data.scan_id, scan.id);
+  assertEquals(observedRpcCalls, [[
+    "recover_inline_scan_ingestion_completion",
+    {
+      p_scan_id: scan.id,
+      p_user_id: scan.user_id,
+    },
+  ]]);
+});
+
+Deno.test("missing inline recovery routine is safe during migration-first rollout", async () => {
+  const client = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "PGRST202",
+          message: "routine is not visible in the schema cache",
+        },
+      });
+    },
+    from(table: string) {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        abortSignal() {
+          return this;
+        },
+        maybeSingle() {
+          return Promise.resolve({
+            data: table === "scan_ingestion_jobs"
+              ? { status: "failed_retryable" }
+              : null,
+            error: null,
+          });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  assertEquals(
+    await fetchCompletedIdentifyResponse(scan.id, scan.user_id, client),
+    null,
+  );
+});
+
+Deno.test("unexpected inline recovery errors fail visibly", async () => {
+  const client = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "55000",
+          message: "canonical_scan_media_incomplete",
+        },
+      });
+    },
+    from() {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        abortSignal() {
+          return this;
+        },
+        maybeSingle() {
+          return Promise.resolve({
+            data: { status: "failed_retryable" },
+            error: null,
+          });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () => fetchCompletedIdentifyResponse(scan.id, scan.user_id, client),
+    Error,
+    "canonical_scan_media_incomplete",
+  );
+});
+
+Deno.test("an unrelated undefined function inside recovery is not treated as rollout propagation", async () => {
+  const client = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "42883",
+          message: "function internal.repair_media(uuid) does not exist",
+        },
+      });
+    },
+    from() {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        abortSignal() {
+          return this;
+        },
+        maybeSingle() {
+          return Promise.resolve({
+            data: { status: "failed_retryable" },
+            error: null,
+          });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () => fetchCompletedIdentifyResponse(scan.id, scan.user_id, client),
+    Error,
+    "repair_media",
+  );
 });
 
 Deno.test("completed Identify lookup reconstructs malformed legacy storage from the exact owner row", async () => {
@@ -322,4 +548,52 @@ Deno.test("completed Identify lookup reconstructs malformed legacy storage from 
     ),
     true,
   );
+});
+
+Deno.test("completed Identify lookup reconstructs when optional response storage is unavailable", async () => {
+  let jobQueryCount = 0;
+  const client = {
+    from(table: string) {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        abortSignal() {
+          return this;
+        },
+        maybeSingle() {
+          if (table === "scan_ingestion_jobs") {
+            jobQueryCount += 1;
+            return Promise.resolve(
+              jobQueryCount === 1
+                ? { data: { status: "complete" }, error: null }
+                : {
+                  data: null,
+                  error: {
+                    code: "42703",
+                    message: "column response_envelope does not exist",
+                  },
+                },
+            );
+          }
+          if (table === "scans") {
+            return Promise.resolve({ data: scan, error: null });
+          }
+          return Promise.resolve({ data: species, error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  const replay = await fetchCompletedIdentifyResponse(
+    scan.id,
+    scan.user_id,
+    client,
+  );
+
+  assertEquals(replay?.source, "reconstructed");
+  assertEquals(replay?.envelope.data.scan_id, scan.id);
 });

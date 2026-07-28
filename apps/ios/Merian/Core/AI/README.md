@@ -159,6 +159,14 @@ customer state **Restoring scan / Safely saved** instead of the misleading
 **Network timeout** placeholder; installed clients are protected primarily by
 the server's idempotent `200` response replay.
 
+Foreground still analysis sends inline image bytes with `r2ObjectKeys: []`. A
+destination filename is not an uploaded staging source; advertising a synthetic
+key causes strict server finalization to wait for an asset that cannot exist.
+Older affected responses are repaired only by the server's exact owner-scoped
+inline-manifest recovery contract. If a durable failure happens before any owner
+row exists, the offline queue discards potentially consumed staging keys and
+uploads its retained local media again.
+
 Loading a persisted library record is also a presentation replacement.
 `load(from:)` invalidates the exact live UUID, releases its deferred-upload
 hold, cancels live provider/hydration work, and schedules durable handoff before

@@ -4,6 +4,8 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { R2Config } from "../_shared/aws.ts";
+import { PublicHttpError } from "../_shared/http.ts";
+import { ScanImageRepairPersistenceOutcomeUnknownError } from "./db.ts";
 import { inspectOwnedScanImage, repairOwnedScanImage } from "./worker.ts";
 
 const userId = "4c600000-0000-4000-8000-000000000001";
@@ -108,4 +110,40 @@ Deno.test("scan image repair rolls back promotion if metadata persistence fails"
   assertEquals(deletedKeys, [
     `public_uploads/pro/${userId}/repair_new.webp`,
   ]);
+});
+
+Deno.test("scan image repair never deletes a replacement after an ambiguous metadata response", async () => {
+  const deletedKeys: string[] = [];
+  const error = await assertRejects(() =>
+    repairOwnedScanImage(userId, sourceUrl, restoredKey, supabase, {
+      referenceExists: () => Promise.resolve(true),
+      headObject: (key) =>
+        Promise.resolve(
+          new Response(null, {
+            status: key === restoredKey ? 200 : 404,
+          }),
+        ),
+      tierForUser: () => Promise.resolve("pro"),
+      promoteMedia: () => Promise.resolve([replacementUrl]),
+      persistRepair: () =>
+        Promise.reject(
+          new ScanImageRepairPersistenceOutcomeUnknownError(
+            "atomic repair response was lost",
+          ),
+        ),
+      deleteObject: (key) => {
+        deletedKeys.push(key);
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+      config: () => config,
+    })
+  );
+
+  assertEquals(deletedKeys, []);
+  assertEquals(error instanceof PublicHttpError, true);
+  assertEquals((error as PublicHttpError).status, 503);
+  assertEquals(
+    (error as PublicHttpError).code,
+    "scan_image_repair_persistence_unknown",
+  );
 });

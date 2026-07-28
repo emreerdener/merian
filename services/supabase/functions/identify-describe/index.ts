@@ -17,6 +17,7 @@ import {
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import {
   parseJsonBody,
+  publicErrorResponse,
   PublicHttpError,
   requireParams,
 } from "../_shared/http.ts";
@@ -50,6 +51,8 @@ import {
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import { createCompatibilityScanIngestionLedger } from "../_shared/scanIngestionCompatibility.ts";
+import { recoverStrandedScanIngestionAttempt } from "../_shared/scanIngestionJobs.ts";
+import { isScanPersistenceOutcomeUnknown } from "../_shared/scanPersistence.ts";
 import {
   getDescribeResponseSchema,
   getDescribeSystemInstruction,
@@ -176,6 +179,27 @@ Deno.serve((req: Request) =>
         : null;
 
     const generatedScanId = resolveAIRequestId(req, client_scan_id);
+    try {
+      await recoverStrandedScanIngestionAttempt(
+        generatedScanId,
+        user.id,
+        supabaseAdmin,
+      );
+    } catch (error) {
+      logStructuredError("identify-describe/scan_ingestion_recovery_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_recovery_unavailable",
+        "We couldn’t safely resume this observation. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
+
     const existingCompletion = await fetchCompletedIdentifyResponse(
       generatedScanId,
       user.id,
@@ -188,6 +212,23 @@ Deno.serve((req: Request) =>
     }
 
     console.log(`[⏱ BENCH] payload_parsed: ${Date.now() - fnStart}ms`);
+
+    try {
+      await upsertGhostUserIfMissing(user.id, supabaseAdmin);
+    } catch (error) {
+      logStructuredError("identify-describe/scan_user_profile_unavailable", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_user_profile_unavailable",
+        "We couldn’t prepare this observation for saving. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
 
     let quotaLease;
     try {
@@ -427,7 +468,7 @@ Deno.serve((req: Request) =>
       });
       return jsonResponse(
         { error: "Processing Error: Malformed AI response." },
-        422,
+        503,
       );
     }
 
@@ -570,6 +611,17 @@ Deno.serve((req: Request) =>
         : Promise.resolve(new Map<string, string>()),
       isIdentifiedBio
         ? fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
+          .catch((error) => {
+            logStructuredError(
+              "identify-describe/species_cache_read_fallback",
+              {
+                user_id: user.id,
+                scan_id: generatedScanId,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
+            return null;
+          })
         : Promise.resolve(null),
     ]);
 
@@ -682,26 +734,18 @@ Deno.serve((req: Request) =>
 
     await compatibilityLedger.mark(
       "finalizing",
-      "background_ingestion_queued",
+      "durable_ingestion_pending",
       { leaseSeconds: 300 },
     );
 
-    const runBackgroundIngestion = async () => {
+    const needsGroupTags = isIdentifiedBio &&
+      !cachedSpecies?.group_tags?.length;
+
+    const runDurableIngestion = async () => {
       let scanInserted = false;
+      let ledgerCompleted = false;
       try {
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
-
-        const needsGroupTags = isIdentifiedBio &&
-          !cachedSpecies?.group_tags?.length;
-        const groupTagsPromise = needsGroupTags
-          ? fetchQuotaGuardedGroupTags(
-            req,
-            user,
-            parsedData.scientific_name!,
-            supabaseAdmin,
-            quotaLease.reservation.requestId,
-          )
-          : Promise.resolve(null);
 
         if (!speciesId && isIdentifiedBio) {
           const externalData = await fetchExternalEnrichment(
@@ -816,8 +860,108 @@ Deno.serve((req: Request) =>
         );
         scanInserted = true;
         await compatibilityLedger.markComplete({ responseEnvelope });
+        ledgerCompleted = true;
+      } catch (bgError) {
+        const persistenceOutcomeUnknown = isScanPersistenceOutcomeUnknown(
+          bgError,
+        );
+        if (!ledgerCompleted) {
+          try {
+            await compatibilityLedger.markRetryableFailure(
+              "background_ingestion_failed",
+              bgError,
+            );
+          } catch (ledgerError) {
+            logStructuredError(
+              "identify-describe/ledger_retry_mark_failed",
+              {
+                user_id: user.id,
+                scan_id: generatedScanId,
+                error: ledgerError instanceof Error
+                  ? ledgerError.message
+                  : String(ledgerError),
+              },
+            );
+          }
+        }
+        logStructuredError("identify-describe/background_ingestion_failed", {
+          user_id: user.id,
+          scan_id: generatedScanId,
+          error: bgError instanceof Error ? bgError.message : String(bgError),
+          scan_inserted: scanInserted,
+        });
 
-        const resolvedGroupTags = await groupTagsPromise;
+        if (!scanInserted) {
+          if (!persistenceOutcomeUnknown) {
+            const quotaRetryEnabled = await quotaLease.fail();
+            if (!quotaRetryEnabled) {
+              logStructuredError(
+                "identify-describe/quota_retry_enable_failed",
+                {
+                  user_id: user.id,
+                  scan_id: generatedScanId,
+                },
+              );
+            }
+            try {
+              const { error: deadLetterError } = await supabaseAdmin
+                .from("failed_scan_ingestions")
+                .insert({
+                  scan_id: generatedScanId,
+                  user_id: user.id,
+                  error_message: bgError instanceof Error
+                    ? bgError.message
+                    : String(bgError),
+                });
+              if (deadLetterError) {
+                logStructuredError(
+                  "identify-describe/dead_letter_write_failed",
+                  {
+                    scan_id: generatedScanId,
+                    error: deadLetterError.message,
+                  },
+                );
+              }
+            } catch (deadLetterError) {
+              logStructuredError(
+                "identify-describe/dead_letter_write_failed",
+                {
+                  scan_id: generatedScanId,
+                  error: deadLetterError instanceof Error
+                    ? deadLetterError.message
+                    : String(deadLetterError),
+                },
+              );
+            }
+          }
+          throw bgError;
+        }
+      }
+    };
+
+    try {
+      await runDurableIngestion();
+    } catch {
+      return publicErrorResponse(
+        req,
+        503,
+        "scan_persistence_failed",
+        "We couldn’t finish saving this observation. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
+
+    runBackground((async () => {
+      try {
+        const resolvedGroupTags = needsGroupTags
+          ? await fetchQuotaGuardedGroupTags(
+            req,
+            user,
+            parsedData.scientific_name!,
+            supabaseAdmin,
+            quotaLease.reservation.requestId,
+          )
+          : null;
         if (resolvedGroupTags?.group_tags?.length && isIdentifiedBio) {
           await updateGroupTags(
             parsedData.scientific_name!,
@@ -862,7 +1006,7 @@ Deno.serve((req: Request) =>
 
         const totalTokens = (llmTotalTokens ?? 0) +
           (resolvedGroupTags?.usage?.totalTokenCount ?? 0);
-        trackPostHogEvent(user, "ScanCompleted", {
+        await trackPostHogEvent(user, "ScanCompleted", {
           is_biological_subject: parsedData.is_biological_subject,
           tier: userTier,
           ...tierTelemetryProperties(tierResolution),
@@ -877,26 +1021,20 @@ Deno.serve((req: Request) =>
           group_tags_tokens: resolvedGroupTags?.usage?.totalTokenCount ?? 0,
           cumulative_scan_tokens: totalTokens,
           scientific_name: parsedData.scientific_name,
-        }).catch((e) => console.error("PostHog tracking failed:", e));
-      } catch (bgError) {
-        if (!scanInserted) {
-          await compatibilityLedger.markRetryableFailure(
-            "background_ingestion_failed",
-            bgError,
-          );
-        }
-        logStructuredError("identify-describe/background_ingestion_failed", {
-          user_id: user.id,
-          scan_id: generatedScanId,
-          error: bgError instanceof Error ? bgError.message : String(bgError),
-          scan_inserted: scanInserted,
         });
+      } catch (error) {
+        logStructuredError(
+          "identify-describe/optional_enrichment_failed",
+          {
+            user_id: user.id,
+            scan_id: generatedScanId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        );
       }
-    };
-
-    runBackground(runBackgroundIngestion());
+    })());
 
     console.log(`[⏱ BENCH] total: ${Date.now() - fnStart}ms`);
-    return jsonResponse(responseEnvelope);
+    return jsonResponse(responseEnvelope, 200);
   })
 );

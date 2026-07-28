@@ -17,13 +17,12 @@ to modify the pipeline, modify the exact module below rather than cluttering
 
 - **`index.ts`** The main orchestrator. It handles the critical path: routing
   payloads, atomically establishing the compatibility ingestion ledger, calling
-  the Vision Model, checking the cache, returning the payload, and spinning up
-  the heavy Database Background Task. Ledger setup occurs before provider
-  dispatch; failure is retryable, fails closed, and refunds unused provider
-  quota. Exact owner completion is checked before media/quota work; a lost
-  response retry returns marked idempotent `200` without another provider call.
-  Completion stores the validated response through the shared response-aware
-  finalizer.
+  the Vision Model, checking the cache, promoting required media, inserting and
+  rereading the exact owner row, and completing response-aware finalization
+  before returning the payload. Ledger setup occurs before provider dispatch;
+  failure is retryable, fails closed, and refunds unused provider quota. Exact
+  owner completion is checked before media/quota work; a lost response retry
+  returns marked idempotent `200` without another provider call.
 - **`../_shared/identify/contract.ts`** The executable structural contract. It
   owns provider and final response fields, requiredness, nullability, strings,
   arrays, enums, numeric bounds, inferred TypeScript types, and Swift generation
@@ -42,8 +41,8 @@ to modify the pipeline, modify the exact module below rather than cluttering
   a fast reject only; chunked and missing-length R2 bodies are counted while
   streaming so edge heap limits are enforced before full buffers are assembled.
 - **`db.ts`** The Postgres transaction wrapper. Isolates heavy, multi-line
-  Supabase interactions (like ghost user upserts) to keep the core orchestrator
-  perfectly clean.
+  Supabase interactions (including the Auth-backed, merge-aware scan-user
+  profile prerequisite) to keep the core orchestrator clean.
 - **`sanitize.ts`** The response guardrail layer. It normalizes AI output before
   persistence, including `pet_identification`: labels are trimmed and
   length-capped, evidence is required and capped, confidence is clamped, generic
@@ -58,18 +57,21 @@ to modify the pipeline, modify the exact module below rather than cluttering
 
 ## Architecture Guidelines
 
-**1. The Critical Path** The code executed _before_ `return jsonResponse(...)`
-in `index.ts` is the **Critical Path**. Every millisecond counts here.
+**1. The Required Path** The code executed _before_ successful
+`return jsonResponse(...)` in `index.ts` is the durability promise consumed by
+Insight, Field Chat, Explore, field trips, and owner sync.
 
-- _Rule:_ Do not execute network calls, nested database updates, or text-LLM
-  enrichments on the critical path. Identify the image and respond immediately.
+- _Rule:_ Keep provider inference, required moderation/media promotion, profile
+  prerequisites, exact-owner insertion, and complete-last finalization here. Do
+  not trade away these required boundaries for response latency.
 
 **2. The Background Engine** The `runBackground(...)` block handles everything
-else silently _after_ the user receives their fast ID.
+nonessential after the user receives a durable ID.
 
 - _Rule:_ Offload all encyclopedic text enrichment, GBIF API polling, PostHog
-  telemetry inserts, species table caching, and R2 moderation purges into the
-  Background Engine.
+  telemetry inserts, group tags, and candidate enrichment into the Background
+  Engine. Required scan/media writes and moderation cleanup are not optional
+  background work.
 
 ## Response Contract
 
@@ -107,10 +109,14 @@ transaction through `_shared/scanIngestionCompatibility.ts`.
 - Inline image bytes are never stored in the intent. They are counted in
   `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
-- Successful background insert delegates to the shared completion-last
-  finalization RPC; insert/finalization failures retain retryable state, while
-  moderation rejection marks the job `failed_terminal`. Staged-image promotion
-  supplies the exact storage-key-to-public-URL disposition to finalization.
+- The awaited insert delegates to the shared completion-last finalization RPC;
+  insert/finalization failures retain retryable state, while moderation
+  rejection marks the job `failed_terminal`. Staged-image promotion supplies the
+  exact storage-key-to-public-URL disposition to finalization.
+- Every insert settles through `_shared/scanPersistence.ts`. A returned database
+  rejection plus a definitive missing-owner read permits quota/media cleanup; a
+  lost response or unavailable exact-owner verification preserves committed
+  quota and promoted media and returns retryable 503.
 - `failed_scan_ingestions` is still written as legacy ops history, but
   `scan_ingestion_jobs` / `scan_ingestion_intents` are the primary recovery
   surface for current rows.

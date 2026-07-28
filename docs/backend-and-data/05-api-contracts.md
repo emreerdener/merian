@@ -1052,23 +1052,28 @@ For scan uploads, each structured entry may also include `clientScanId` and
 `scan_media_assets` row before returning the signed URL. Those staged rows are
 valid with `scan_id = NULL` until the final scan row exists and with
 `url = NULL` until media promotion produces a public URL; they are keyed by
-user, client scan id, and upload session for later promotion or cleanup. Image
-roles may be `display`, `thumbnail`, or `inference_frame`; video uses
-`playback`; audio uses `audio`. The Edge parser rejects unsanitized filenames,
-invalid `mediaKind` values, invalid role/kind combinations, content-type/kind
-mismatches, and oversized media before signing. Structured manifests require
-`sizeBytes`; the legacy `fileNames` array remains accepted for older clients but
-is compatibility-only and cannot express byte budgets or media asset sessions.
-Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
-This extended window gives iOS `BackgroundTasks` flexibility to transmit
-overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting
-403 errors.
+owner, client scan id, deterministic object key, and upload session for later
+promotion or cleanup. Image roles may be `display`, `thumbnail`, or
+`inference_frame`; video uses `playback`; audio uses `audio`. The Edge parser
+rejects unsanitized filenames, duplicate filenames (including legacy names that
+sanitize to one key), invalid `mediaKind` values, invalid role/kind
+combinations, content-type/kind mismatches, and oversized media before signing.
+Structured manifests require `sizeBytes`; the legacy `fileNames` array remains
+accepted for older clients but is compatibility-only and cannot express byte
+budgets or media asset sessions. Pre-signed `PUT` URLs include an
+`X-Amz-Expires=86400` parameter (24 hours). This extended window gives iOS
+`BackgroundTasks` flexibility to transmit overnight, subject to OS memory,
+thermal, and Wi-Fi conditions, without hitting 403 errors.
 
 The Edge function uses the `fileName` parameter from the JSON body (after
 applying basic sanitization to prevent path traversal vectors) rather than
-generating random internal UUIDs. This guarantees that the pre-signed S3
-`objectKey` will deterministically match the paths requested by the iOS client
-during subsequent offline inference triggers.
+generating random internal UUIDs. The verified server identity, not the optional
+body `user_id`, determines the `objectKey` owner segment. A client that planned
+with a device identity before lazy anonymous authentication must accept the
+canonical returned key. Before dispatching any PUT, iOS requires exact response
+count/order, matching filenames, one canonical staging owner, and signed URL
+paths that resolve to the returned keys. Each background task carries its exact
+returned key through suspension.
 
 ```json
 {
@@ -1095,6 +1100,18 @@ exact upload sessions for the staged object keys; those session ids participate
 in the `scan_ingestion_jobs` `manifest_checksum`, giving retries and repair
 workers a stable server-side description of the requested media set without
 storing media bytes.
+
+Scan-media registration is idempotent on
+`(authenticated owner, clientScanId, objectKey)`. A retry after a lost signing
+response returns the committed asset and original upload session. An exactly
+compatible failed row may reactivate only when its ingestion job is absent or
+retryable; terminal, active, completed, promoted, deleted, or media-incompatible
+rows fail closed. A partial unique index serializes registration races, while
+the repair migration retains historical extras as
+`failed / superseded_staging_registration` audit rows. New rows use a
+per-client-scan media index, never a flat position among other scans in the
+signing request. Any response manifest mismatch starts no upload and returns the
+claimed scans to `.pending` with durable backoff.
 
 > The pre-signed URL is generated with the exact `contentType` from the
 > structured manifest. The iOS `URLRequest` must send the same `Content-Type`
@@ -2010,7 +2027,7 @@ constraint in the Deno schema.
 > nullability, safe-integer semantics, string lengths, and array cardinalities
 > above are enforced by the Edge runtime, not only documented in the provider
 > schema. Unknown provider/server keys follow the contract's explicit strip
-> policy. A malformed provider object returns HTTP `422`. If the final
+> policy. A malformed provider object returns retryable HTTP `503`. If the final
 > server-enriched envelope violates its wire contract, the route returns HTTP
 > `502` with stable code `identify_response_invalid` before persistence or
 > client delivery.
@@ -2022,8 +2039,11 @@ before returning HTTP `200 OK`. A successful response therefore guarantees the
 returned `scan_id` is available to Field Chat, Explore sharing, field trips, and
 owner sync. The durability task handles:
 
-1. **Ghost user upsert** — ensures the `users` table row exists before the
-   `scans` FK insert
+1. **Scan-user profile prerequisite** — calls service-only
+   `ensure_scan_user_profile(authenticated_user_id)` before the `scans` FK
+   insert. An existing profile is unchanged. A missing profile is created only
+   for the exact Auth identity with canonical mandatory public-identity fields;
+   account deletion, merged-ghost retirement, and cleanup races fail closed.
 2. **Content moderation** (`_shared/identify/moderation.ts`) — evaluates Gemini
    safety ratings and promotes media from staging to public storage
 3. **Species dictionary enrichment** (Cache Miss only) — calls
@@ -2040,21 +2060,23 @@ owner sync. The durability task handles:
 inside Cloudflare R2, and the CDN URL
 (`https://media.merian.app/public_uploads/...`) is stored in
 `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded
-directly to the public destination without a staging step. Safe video media is
-moderated through five sampled frames, then the staged upload-bounded playback
-`.mp4` is promoted separately and persisted in `scans.video_storage_urls`.
-Multimodal inserts also write `scans.captured_media`, a canonical ordered media
-timeline that attaches video playback URLs and poster thumbnails together; this
-prevents sampled video inference frames from hydrating as standalone Insight
-carousel images. The required finalization transaction refreshes ready
-display/playback scan-media asset rows and proves the canonical representation
-before ledger completion, so server-side composer/status reads can prefer
-lifecycle media rows before falling back to compatibility arrays. Any image
-promotion failure aborts the entire batch and immediately rolls back any
-already-promoted public objects from that same batch before returning `ERROR`;
-scans are not inserted with partial image arrays. Video promotion failure is
-also a durability failure for video captures: the edge cleans up promoted
-objects/staging where possible and does not insert a frame-only scan row.
+directly to the public destination without a staging step, and `r2ObjectKeys` is
+empty: only genuine staged sources belong in the strict ingestion/promotion
+manifest. Safe video media is moderated through five sampled frames, then the
+staged upload-bounded playback `.mp4` is promoted separately and persisted in
+`scans.video_storage_urls`. Multimodal inserts also write
+`scans.captured_media`, a canonical ordered media timeline that attaches video
+playback URLs and poster thumbnails together; this prevents sampled video
+inference frames from hydrating as standalone Insight carousel images. The
+required finalization transaction refreshes ready display/playback scan-media
+asset rows and proves the canonical representation before ledger completion, so
+server-side composer/status reads can prefer lifecycle media rows before falling
+back to compatibility arrays. Any image promotion failure aborts the entire
+batch and immediately rolls back any already-promoted public objects from that
+same batch before returning `ERROR`; scans are not inserted with partial image
+arrays. Video promotion failure is also a durability failure for video captures:
+the edge cleans up promoted objects/staging where possible and does not insert a
+frame-only scan row.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
@@ -2066,10 +2088,16 @@ generic `400 observation_rejected` rather than a successful phantom scan. See
 [Safety & Moderation](../development-guides/10-safety-and-moderation.md) for
 full details.
 
-**R2 rollback**: If `insertScan` throws after media has already been promoted to
-public storage, the public objects are deleted via `deleteR2Object` to prevent
-orphaned CDN assets. The same rollback fires if a mid-loop R2 upload failure
-throws during the `imageBase64s` promotion pass.
+**R2 rollback**: A returned scan-insert rejection is followed by an exact
+`(scan_id, user_id)` read. Public objects are deleted through
+`deleteR2ObjectIfPresent` only when that read definitively proves the owner row
+is absent. A thrown/lost write response, a reported-success response without a
+verifiable owner row, or unavailable verification is
+`ScanPersistenceOutcomeUnknownError`: the route returns retryable HTTP 503 but
+does not fail committed quota, retire staged assets, or delete promoted media
+that a committed scan may reference. A same-UUID retry reconciles from the exact
+owner row before another provider call. Mid-loop promotion failures still roll
+back objects whose creation is known to that promotion batch.
 
 ### Error Responses
 
@@ -2080,8 +2108,8 @@ throws during the `imageBase64s` promotion pass.
 | `400`  | `{ "error": "AI processing error. Please try again." }`                                                                           | Permanent content policy failure (`finishReason` is `SAFETY` or `PROHIBITED_CONTENT`)        |
 | `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Media was rejected by the durable safety-moderation pass                                     |
 | `413`  | `{ "error": "Payload Too Large: Combined images exceed 5MB limit." }`                                                             | Combined image payload exceeds 5 MB                                                          |
-| `422`  | `{ "error": "Processing Error: Malformed AI response." }`                                                                         | Gemini returned output that could not be parsed                                              |
-| `422`  | `{ "error": "Processing Error: Invalid AI response format." }`                                                                    | Gemini returned output in an unexpected format                                               |
+| `502`  | `{ "error": "AI response validation failed. Please retry.", "code": "identify_response_invalid" }`                                | Final server-enriched payload violated the executable wire contract                          |
+| `503`  | `{ "error": "Processing Error: Malformed AI response." }`                                                                         | Gemini returned malformed or structurally invalid output; offline delivery may retry         |
 | `503`  | `{ "error": "AI processing error. Please try again." }`                                                                           | Transient Gemini failure (API error, rate limit, timeout, non-SAFETY non-STOP finish reason) |
 | `503`  | `{ "error": "We couldn’t finish saving this observation. Please try again.", "code": "scan_persistence_failed" }`                 | Durable moderation pipeline, media promotion, species resolution, or scan insertion failed   |
 
@@ -2089,25 +2117,41 @@ throws during the `imageBase64s` promotion pass.
 treats `400` as a permanent failure and marks the queued row as needing user
 attention rather than silently deleting media. All other Gemini errors return
 `503` so the offline queue retries with persisted `queueNextRetryAt` /
-`OfflineJobRecord.nextRunAt` metadata. `422` is also excluded from recoverable
-codes and is treated as a terminal validation failure.
+`OfflineJobRecord.nextRunAt` metadata. For `scan_persistence_failed`, an
+owner-row status probe wins first. If a readable exact-owner probe proves no
+scan row exists, the server transitions the committed provider reservation to
+`failed` so the stable request UUID can reserve a fenced metered retry, while
+iOS clears potentially consumed staged keys and performs a fresh upload from
+durable local files. If the insert outcome cannot be proved, quota and media
+remain fenced and intact until the next owner-row recovery. A post-insert
+failure retains the committed reservation because owner-row reconstruction is
+the no-provider-call recovery surface. Malformed paid-provider output is 503,
+not 422, so persisted offline delivery remains retryable.
+
+Migration `20260728232000_ensure_scan_user_profile.sql` must precede deployment
+of all four scan-producing Edge bundles. It preserves the mandatory Explore
+identity constraints instead of retrying the obsolete partial
+`users(id, subscription_tier)` insert that production logs proved could return
+503 after provider work.
 
 ## The Standardized JSON Return Payload (From Supabase to Swift)
 
-The compatibility `/identify` Edge Function generates `scan_id` locally via
-`crypto.randomUUID()` and returns the `data` payload as soon as Gemini inference
-completes. Its PostgreSQL insertions, R2 uploads, and parallel external calls
-still run asynchronously behind `EdgeRuntime.waitUntil`. Current app traffic
-uses `/identify-multimodal`; its durable success boundary is defined above and
-must not be weakened to match this legacy timing behavior.
+The compatibility `/identify` Edge Function resolves the canonical `scan_id`
+from the client idempotency UUID and does not return `data` when Gemini alone
+finishes. Profile repair, required media promotion, exact-owner scan insertion,
+and complete-last response finalization are awaited before HTTP 200. Only
+analytics, group tags, candidate enrichment, and other nonessential work may run
+behind `EdgeRuntime.waitUntil`. Current app traffic uses `/identify-multimodal`;
+both routes now make the same owner-row durability promise.
 
 ### Gemini Parsing and Error Mitigation
 
 To prevent ReDoS from hallucinated markdown payloads, the endpoint parses raw
 Gemini output using a `substring(indexOf)` approach rather than unbounded regex.
-If `JSON.parse` fails, the endpoint returns `HTTP 422 Unprocessable Entity`.
-Because `422` is not in the iOS `OfflineQueueManager`'s recoverable error list,
-the client drops the corrupted queue entry rather than retrying.
+If extraction or executable provider validation fails, the endpoint returns HTTP
+503 and marks the exact ingestion generation retryable. The iOS offline queue
+therefore retains and backs off the durable job instead of classifying a paid
+transient/provider-format failure as terminal.
 
 > **Note on Wikipedia Extraction:** During a "Cache Miss" (first discovery
 > globally), the Edge Router fires the Wikipedia HTTP extraction _concurrently_
@@ -4701,14 +4745,25 @@ ordered compositions of images, audio, and descriptive context.
   raw image bytes or completed-scan field are added.
 - Before inference work starts, the endpoint claims a `scan_ingestion_jobs` row
   for the authenticated user and `client_scan_id`. The claim records media
-  counts, staged image/audio/video object keys, recovered upload-session ids,
-  and a normalized `manifest_checksum`; subsequent stage updates make
+  counts, genuine staged image/audio/video source keys, recovered upload-session
+  ids, and a normalized `manifest_checksum`; subsequent stage updates make
   `/check-scan-status`, health checks, and reconciliation agree on whether the
   scan is processing, retryable, complete, or terminal. Claim and compatibility
   owner-row recovery share one transaction-scoped advisory lock for that scan. A
   recovery-first winner writes a completed recovery ledger, causing claim to
   return `already_complete` before any provider call and the route replays the
   completed owner response as `200`; a claim-first winner makes recovery defer.
+- Before normal retry work, a failed post-insert generation can invoke
+  `recover_inline_scan_ingestion_completion`. The service-only routine repairs
+  only an exact already-owned job/intent/media topology. Redacted inline-image
+  counts prove when an image key was merely a historical filename hint; zero
+  inline-image bytes prove queued image keys are real sources. Every real
+  image/audio/video key requires one exact active owner upload row and a
+  one-to-one canonical URL filename match. Only migration-marked superseded
+  registration rows may coexist. Sanitized audio descriptors prove standalone
+  promotion versus companion deletion. Ambiguous shapes return `not_applicable`;
+  exact shapes recompute both ledgers and call the canonical finalizer in one
+  transaction.
 - Before that claim, staged-media resolution, or quota reservation, the endpoint
   checks exact owner/scan completion. A lost-response retry returns the stored
   canonical envelope, or reconstructs older completed rows through the
@@ -4946,7 +5001,7 @@ JWT claims. The `user_id` in the request body is ignored for auth purposes.
 | ------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `400`  | `{ "error": "At least one media element or description is required" }`                             | No image, audio, or non-empty `observation_contexts[*].freeText` text was provided |
 | `400`  | `{ "error": "AI processing error. Please try again." }`                                            | Permanent Gemini safety / policy failure                                           |
-| `422`  | `{ "error": "Processing Error: Malformed AI response." }`                                          | Gemini returned unparseable output                                                 |
+| `503`  | `{ "error": "Processing Error: Malformed AI response." }`                                          | Gemini returned malformed or structurally invalid output; delivery may retry       |
 | `502`  | `{ "error": "AI response validation failed. Please retry.", "code": "identify_response_invalid" }` | Final server-enriched payload violated the wire contract                           |
 | `503`  | `{ "error": "AI processing error. Please try again." }`                                            | Transient Gemini failure                                                           |
 
@@ -6049,9 +6104,14 @@ The repair boundary:
    media health is reset to `healthy` in that transaction, allowing projection
    and owner incident state to restore automatically.
 
-If metadata persistence fails, the function attempts to delete the newly
-promoted object. The old missing URL is not changed until the atomic metadata
-transaction succeeds.
+If the atomic metadata RPC returns a rejection, the function rereads exact owner
+references for both URLs. It deletes the newly promoted object only when the
+source remains referenced and the replacement is provably unreferenced. A
+lost/malformed RPC response, unavailable owner read, concurrent repair, or any
+replacement reference is outcome-unknown and preserves the object. If the RPC
+committed despite a lost response, source-absent plus replacement-present
+evidence reconstructs success. The old missing URL is not changed until the
+atomic metadata transaction succeeds.
 
 ### Error Contract
 
@@ -6061,6 +6121,9 @@ transaction succeeds.
 - `409 account_deletion_in_progress`: destructive account cleanup is active.
 - `409`: the restored staging object does not exist.
 - `503`: R2 source status could not be verified.
+- `503 scan_image_repair_persistence_unknown`: the atomic repair may have
+  committed but exact owner references could not confirm it; the promoted
+  replacement is preserved and the caller may retry.
 - `500`: promotion, atomic persistence, or an unexpected internal boundary
   failed; provider details, keys, and SQL errors are not returned.
 

@@ -9,7 +9,12 @@ import {
   normalizeScanEcologyType,
   resolveScanGeoprivacy,
   speciesReferenceImageRowsFromCache,
+  upsertGhostUserIfMissing,
 } from "./db.ts";
+import {
+  isScanPersistenceOutcomeUnknown,
+  ScanPersistenceOutcomeUnknownError,
+} from "../scanPersistence.ts";
 
 Deno.test("speciesReferenceImageRowsFromCache splits, dedupes, and maps sources", () => {
   const rows = speciesReferenceImageRowsFromCache(
@@ -144,6 +149,41 @@ Deno.test("resolveScanGeoprivacy throws when the default lookup fails", async ()
     () => resolveScanGeoprivacy("user-1", mock.client),
     Error,
     "resolveScanGeoprivacy: database unavailable",
+  );
+});
+
+Deno.test("upsertGhostUserIfMissing uses the guarded profile prerequisite RPC", async () => {
+  const calls: Array<{ name: string; parameters: Record<string, unknown> }> =
+    [];
+  const client = {
+    rpc(name: string, parameters: Record<string, unknown>) {
+      calls.push({ name, parameters });
+      return Promise.resolve({ data: true, error: null });
+    },
+  } as unknown as SupabaseClient;
+
+  await upsertGhostUserIfMissing("user-1", client);
+
+  assertEquals(calls, [{
+    name: "ensure_scan_user_profile",
+    parameters: { p_user_id: "user-1" },
+  }]);
+});
+
+Deno.test("upsertGhostUserIfMissing surfaces profile prerequisite failures", async () => {
+  const client = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: { message: "scan_user_identity_retired" },
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () => upsertGhostUserIfMissing("user-1", client),
+    Error,
+    "Failed to ensure scan user exists: scan_user_identity_retired",
   );
 });
 
@@ -358,8 +398,8 @@ Deno.test("insertScan preserves structured captured media manifest", async () =>
   assertEquals(row.captured_media, capturedMedia);
 });
 
-Deno.test("insertScan rejects a duplicate-suppressed write without an owner row", async () => {
-  await assertRejects(
+Deno.test("insertScan preserves a reported-success write whose owner row cannot be confirmed", async () => {
+  const error = await assertRejects(
     () =>
       insertScan(
         {
@@ -376,13 +416,14 @@ Deno.test("insertScan rejects a duplicate-suppressed write without an owner row"
         },
         insertScanMock({ verificationData: null }),
       ),
-    Error,
-    "persisted scan row was not found for owner",
+    ScanPersistenceOutcomeUnknownError,
+    "scan persistence outcome is unknown",
   );
+  assertEquals(isScanPersistenceOutcomeUnknown(error), true);
 });
 
-Deno.test("insertScan propagates owner-row verification failures", async () => {
-  await assertRejects(
+Deno.test("insertScan preserves media when owner-row verification remains unavailable", async () => {
+  const error = await assertRejects(
     () =>
       insertScan(
         {
@@ -401,7 +442,8 @@ Deno.test("insertScan propagates owner-row verification failures", async () => {
           verificationError: { message: "read unavailable" },
         }),
       ),
-    Error,
+    ScanPersistenceOutcomeUnknownError,
     "insertScan verification: read unavailable",
   );
+  assertEquals(isScanPersistenceOutcomeUnknown(error), true);
 });

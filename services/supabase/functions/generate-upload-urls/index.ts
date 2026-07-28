@@ -7,45 +7,11 @@ import { parseJsonBody } from "../_shared/http.ts";
 import { accountDeletionIsActive } from "../_shared/accountDeletion.ts";
 import {
   createStagedScanMediaAssets,
-  StagedScanMediaAssetInput,
   StagedScanMediaAssetRow,
 } from "../_shared/scanMediaAssets.ts";
 import { generateStagingUrls, parseStagingUploadFiles } from "./storage.ts";
-import type { PresignedUrlPayload, StagingUploadFile } from "./storage.ts";
-
-function stagedAssetInputs(
-  userId: string,
-  files: StagingUploadFile[],
-  urls: PresignedUrlPayload[],
-): StagedScanMediaAssetInput[] {
-  const sessionIdByClientScanId = new Map<string, string>();
-
-  return files.flatMap((file, index) => {
-    if (!file.clientScanId || !file.mediaRole) return [];
-    const url = urls[index];
-    if (!url) return [];
-
-    const uploadSessionId = sessionIdByClientScanId.get(file.clientScanId) ??
-      crypto.randomUUID();
-    sessionIdByClientScanId.set(file.clientScanId, uploadSessionId);
-
-    return [{
-      userId,
-      clientScanId: file.clientScanId,
-      uploadSessionId,
-      kind: file.mediaKind,
-      role: file.mediaRole,
-      storageKey: url.objectKey,
-      orderIndex: index,
-      contentType: file.contentType,
-      byteSize: file.sizeBytes ?? null,
-      metadata: {
-        fileName: file.fileName,
-        endpoint: "generate-upload-urls",
-      },
-    }];
-  });
-}
+import type { PresignedUrlPayload } from "./storage.ts";
+import { stagedAssetInputs } from "./assetRegistration.ts";
 
 function attachStagedAssetIds(
   urls: PresignedUrlPayload[],

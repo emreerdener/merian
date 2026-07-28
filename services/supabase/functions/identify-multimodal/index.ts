@@ -66,6 +66,7 @@ import { processWAV } from "./audio.ts";
 import {
   resolveAudioBuffers,
   resolveImagePayloads,
+  stagedImageSourceKeys,
   validateImageR2ObjectKeys,
 } from "../_shared/identify/media.ts";
 import {
@@ -80,10 +81,12 @@ import {
   beginScanIngestion,
   completeScanIngestionFinalization,
   type MutableScanIngestionJobStatus,
+  recoverStrandedScanIngestionAttempt,
   scanIngestionManifestChecksum,
   scanIngestionMediaObjectKeys,
   updateScanIngestionJob,
 } from "../_shared/scanIngestionJobs.ts";
+import { isScanPersistenceOutcomeUnknown } from "../_shared/scanPersistence.ts";
 import { buildScanIngestionIntent } from "../_shared/scanIngestionIntents.ts";
 import { markStagedScanMediaAssetsFailed } from "../_shared/scanMediaAssets.ts";
 import {
@@ -665,6 +668,54 @@ export async function handleIdentifyMultimodalRequest(
 
   const generatedScanId = resolveAIRequestId(req, client_scan_id);
 
+  // A Ghost-to-permanent-account merge can move an unfinished job and its
+  // committed reservation while an old Edge invocation still carries the
+  // source UUID. Repair that exact durable state before resolving staging
+  // objects or consulting quota. Merged pre-scan media is deliberately
+  // re-staged under the target owner; never turn the old key into an IDOR
+  // exception.
+  let strandedRecovery;
+  try {
+    strandedRecovery = await recoverStrandedScanIngestionAttempt(
+      generatedScanId,
+      user.id,
+      supabaseAdmin,
+    );
+  } catch (error) {
+    logStructuredError("multimodal/scan_ingestion_recovery_failed", {
+      user_id: user.id,
+      scan_id: generatedScanId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return publicErrorResponse(
+      req,
+      503,
+      "scan_recovery_unavailable",
+      "We couldn’t safely resume this observation. Please try again.",
+      { retryAfterSeconds: 5 },
+    );
+  }
+
+  if (strandedRecovery?.outcome === "media_restage_required") {
+    const requestedStagingKeys = [
+      ...r2ObjectKeys,
+      ...audioR2ObjectKeys,
+      ...videoR2ObjectKeys,
+    ];
+    const hasRetiredOwnerKey = requestedStagingKeys.some((key) =>
+      !key.startsWith(`staging/${user.id}/`)
+    );
+    if (hasRetiredOwnerKey) {
+      return publicErrorResponse(
+        req,
+        409,
+        "scan_media_restage_required",
+        "This observation’s uploads need to be refreshed for your account.",
+        { retryAfterSeconds: 1 },
+      );
+    }
+  }
+
   // This lookup must precede staging-object resolution and quota reservation.
   // A successful first invocation may already have promoted its staging keys,
   // and the quota ledger intentionally refuses a second provider call. Replaying
@@ -736,11 +787,17 @@ export async function handleIdentifyMultimodalRequest(
     r2ObjectKeys,
     user.id,
     {
-      enforceOwnership: true,
+      // Inline clients use this value only as a destination filename hint.
+      // Ownership is mandatory only when the server reads an uploaded source.
+      enforceOwnership: imageBase64s.length === 0,
       idorEvent: "multimodal/image_idor_attempt",
     },
   );
   if (keyValidationError) return keyValidationError;
+  const stagedImageKeys = stagedImageSourceKeys(
+    r2ObjectKeys,
+    imageBase64s,
+  );
 
   const videoKeyValidationError = validateImageR2ObjectKeys(
     videoR2ObjectKeys,
@@ -809,6 +866,27 @@ export async function handleIdentifyMultimodalRequest(
   const hasVideoAudio =
     normalizedAudioMediaItems.some((item) => item.kind === "video_audio") ||
     (mediaTelemetry.hasVideo && processedAudios.length > 0);
+
+  // Establish the scan FK prerequisite before reserving quota or dispatching
+  // paid provider work. Keep the idempotent check again at insert time below:
+  // account deletion or ghost merge can retire the identity while inference is
+  // in flight, and that later check must still fail closed.
+  try {
+    await upsertGhostUserIfMissing(user.id, supabaseAdmin);
+  } catch (error) {
+    logStructuredError("multimodal/scan_user_profile_unavailable", {
+      user_id: user.id,
+      scan_id: generatedScanId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return publicErrorResponse(
+      req,
+      503,
+      "scan_user_profile_unavailable",
+      "We couldn’t prepare this observation for saving. Please try again.",
+      { retryAfterSeconds: 5 },
+    );
+  }
 
   // 2. Dispatch Rule
   const tierStart = performance.now();
@@ -948,7 +1026,7 @@ export async function handleIdentifyMultimodalRequest(
     has_description: hasObservationContextText,
   };
   const mediaObjectKeys = scanIngestionMediaObjectKeys({
-    imageKeys: r2ObjectKeys,
+    imageKeys: stagedImageKeys,
     audioKeys: audioR2ObjectKeys,
     videoKeys: videoR2ObjectKeys,
   });
@@ -1174,7 +1252,7 @@ export async function handleIdentifyMultimodalRequest(
     );
     return jsonResponse(
       { error: "Processing Error: Malformed AI response." },
-      422,
+      503,
     );
   }
 
@@ -1550,7 +1628,7 @@ export async function handleIdentifyMultimodalRequest(
         );
         modResult = await evaluateAndProcessPayload(
           user.id,
-          r2ObjectKeys,
+          stagedImageKeys,
           imageBase64s,
           finishReason,
           safetyRatings,
@@ -1562,7 +1640,7 @@ export async function handleIdentifyMultimodalRequest(
             "Multimodal moderation pipeline returned ERROR. Halting durable scan finalization.",
           );
           await markUploadAssetsFailedBestEffort(
-            [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
+            [...stagedImageKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
             "moderation_pipeline_error",
           );
           await updateIngestionJobBestEffort(
@@ -1583,7 +1661,7 @@ export async function handleIdentifyMultimodalRequest(
             "Multimodal media flagged by safety moderation. Halting durable scan finalization.",
           );
           await markUploadAssetsFailedBestEffort(
-            [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
+            [...stagedImageKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
             "moderation_rejected",
           );
           await updateIngestionJobBestEffort(
@@ -1824,7 +1902,7 @@ export async function handleIdentifyMultimodalRequest(
           userId: user.id,
           promotedUrlsByStorageKey: new Map([
             ...publicUrlsByStorageKey(
-              r2ObjectKeys,
+              stagedImageKeys,
               modResult?.publicUrls ?? [],
             ),
             ...publicUrlsByStorageKey(videoR2ObjectKeys, videoStorageUrls),
@@ -2017,6 +2095,7 @@ export async function handleIdentifyMultimodalRequest(
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       const terminalFailure = e instanceof ModerationRejectedError;
+      const persistenceOutcomeUnknown = isScanPersistenceOutcomeUnknown(e);
       await updateIngestionJobBestEffort(
         terminalFailure ? "failed_terminal" : "failed_retryable",
         terminalFailure ? "moderation_rejected" : "background_ingestion_failed",
@@ -2035,15 +2114,32 @@ export async function handleIdentifyMultimodalRequest(
         scan_inserted: scanInserted,
       });
 
-      if (!scanInserted) {
-        await markUploadAssetsFailedBestEffort(
-          [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
-          "scan_finalization_failed",
-        );
+      if (!scanInserted && !terminalFailure) {
+        // The provider call was already committed, but there is no durable scan
+        // response to replay. Mark this attempt failed so the same idempotency
+        // key can reserve a fenced retry instead of remaining committed forever.
+        // Terminal policy decisions and post-insert failures retain the
+        // committed reservation: the former must not become an abuse retry
+        // primitive, while the latter has an owner row as its canonical
+        // replay/recovery surface.
+        if (!persistenceOutcomeUnknown) {
+          const quotaRetryEnabled = await quotaLease.fail();
+          if (!quotaRetryEnabled) {
+            logStructuredError("multimodal/quota_retry_enable_failed", {
+              user_id: user.id,
+              scan_id: generatedScanId,
+            });
+          }
+          await markUploadAssetsFailedBestEffort(
+            [...stagedImageKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
+            "scan_finalization_failed",
+          );
+        }
       }
 
-      // Dead-Letter Fallback
-      if (!scanInserted) {
+      // Dead-letter rows describe retryable durability failures. A terminal
+      // moderation decision must never become an operational replay signal.
+      if (!scanInserted && !terminalFailure) {
         try {
           await supabaseAdmin
             .from("failed_scan_ingestions")
@@ -2065,7 +2161,11 @@ export async function handleIdentifyMultimodalRequest(
         ...videoStorageUrls,
         ...promotedAudioUrlsForRollback,
       ];
-      if (!scanInserted && promotedPublicUrls.length) {
+      if (
+        !scanInserted &&
+        !persistenceOutcomeUnknown &&
+        promotedPublicUrls.length
+      ) {
         const r2Config = getR2Config();
         const keysToPurge = promotedPublicUrls.map((url: string) =>
           url.replace("https://media.merian.app/", "")

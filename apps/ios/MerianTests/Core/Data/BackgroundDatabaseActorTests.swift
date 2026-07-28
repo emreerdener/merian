@@ -1516,6 +1516,53 @@ struct BackgroundDatabaseActorTests {
         #expect(persisted?.queueLastErrorCode == "current_retry")
     }
 
+    @Test func testPersistenceRetryRestagesLocalMediaInsteadOfDeadObjectKeys() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let staleKey = "staging/owner/queued.webp"
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("queued.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged,
+            stagedR2Keys: [staleKey]
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let generation = UUID()
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: generation
+            )
+        )
+        #expect(
+            await actor.scheduleInferenceRetry(
+                id: scan.id,
+                expectedGeneration: generation,
+                code: "scan_persistence_failed",
+                message: "Scan insert failed.",
+                delay: 5,
+                resetMediaUploads: true
+            ) == 1
+        )
+
+        let verificationContext = ModelContext(container)
+        let expectedScanId = scan.id
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == expectedScanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try verificationContext.fetch(descriptor).first
+        #expect(persisted?.queueState == .pending)
+        #expect(persisted?.stagedR2Keys == nil)
+    }
+
     @Test func testOfflineFinalizationRejectsOlderPersistedGeneration() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
@@ -1727,7 +1774,9 @@ struct BackgroundDatabaseActorTests {
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
         // Only `active` has a live URLSession task.
-        await actor.reconcileOrphanedUploadingScans(activeScanIds: Set([active.id]))
+        let hadOrphans = await actor.reconcileOrphanedUploadingScans(
+            activeScanIds: Set([active.id])
+        )
 
         let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
         let all = try context.fetch(allDescriptor)
@@ -1736,6 +1785,7 @@ struct BackgroundDatabaseActorTests {
         #expect(byId[orphan.id]  == ScanQueueState.pending.rawValue, "orphaned .uploading scan must reset to .pending")
         #expect(byId[active.id]  == ScanQueueState.uploading.rawValue, ".uploading scan with active task must stay .uploading")
         #expect(byId[pending.id] == ScanQueueState.pending.rawValue, ".pending scan must be unaffected")
+        #expect(hadOrphans, "callers must be told to restart signing after a reset")
     }
 
     @Test func testReconcileOrphanedUploadingScansWithEmptyActiveSet() async throws {
@@ -1751,7 +1801,9 @@ struct BackgroundDatabaseActorTests {
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.reconcileOrphanedUploadingScans(activeScanIds: Set())
+        let hadOrphans = await actor.reconcileOrphanedUploadingScans(
+            activeScanIds: Set()
+        )
 
         let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
         let all = try context.fetch(allDescriptor)
@@ -1759,6 +1811,7 @@ struct BackgroundDatabaseActorTests {
             #expect(scan.scanStateRaw == ScanQueueState.pending.rawValue,
                     "all .uploading scans must be reset when no active tasks exist")
         }
+        #expect(hadOrphans)
     }
 
     @Test func testUploadReconciliationDoesNotResetWorkNewerThanSnapshot() async throws {

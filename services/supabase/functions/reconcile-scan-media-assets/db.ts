@@ -28,6 +28,7 @@ export interface ReconciliationScanRow {
   user_id: string;
   image_storage_urls: string[] | null;
   video_storage_urls: string[] | null;
+  audio_storage_urls: string[] | null;
   captured_media: unknown[] | null;
   inference_tier: string | null;
 }
@@ -108,7 +109,7 @@ export async function fetchReconciliationScans(
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
-      "id,user_id,image_storage_urls,video_storage_urls,captured_media,inference_tier",
+      "id,user_id,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,inference_tier",
     )
     .in("id", uniqueScanIds);
 
