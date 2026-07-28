@@ -505,6 +505,16 @@ migration replaces a trigger to correct lock order, catalog tests must validate
 the replacement trigger and function; remove the detached predecessor routine
 once all dependencies have moved.
 
+Before a fixture expects `recover_missing_owned_scan(...)` to return
+`recovered`, seed eligible ingestion evidence for that exact scan UUID and
+owner. A job completed through the canonical finalization path is eligible; for
+direct fixture setup, seed `failed_terminal` with terminal reason
+`replay_exhausted` before the recovery call. Never direct-write `complete`,
+which must remain protected by the completion fence. No-ledger, active,
+unknown-terminal, and different-generation evidence must remain nonrecoverable.
+Do not insert a scan directly or relax the production recovery predicate to
+repair the fixture.
+
 If any catalog fixture instead fails a `public.users` identity constraint,
 update the owner-only fixture to include `public_username`,
 `public_author_name`, and `public_identity_source`. Direct table inserts bypass

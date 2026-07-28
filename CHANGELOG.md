@@ -8,6 +8,11 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- The disposable-catalog deletion scenario now establishes an exact
+  same-generation `failed_terminal / replay_exhausted` ingestion ledger before
+  expecting owner recovery. This preserves the production fail-closed rule that
+  no-ledger or active generations return `deferred`, while allowing the fixture
+  to proceed into deletion, stale-lease, tombstone, and resurrection coverage.
 - Fresh-catalog static analysis now passes an explicit trigger-relation OID for
   every trigger routine and zero only for ordinary routines. A typed registry
   preserves all routine checks while preventing `plpgsql_check` from aborting

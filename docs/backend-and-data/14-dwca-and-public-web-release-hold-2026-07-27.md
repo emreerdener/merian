@@ -373,6 +373,23 @@ schema, policy, routine, or privilege. Run 1543 remains failed evidence; all
 twenty-one catalog files must pass from the corrected exact SHA before
 promotion.
 
+### Recovery-fixture evidence: run 1544 attempt 1
+
+GitHub run 1544 evaluated commit `0de4940f28c5cf020dd0c4fb33883c502ade91e7`.
+Twenty of twenty-one catalog files passed. The prior trigger static-validation
+repair succeeded, and the remaining fixture advanced to the deletion scenario.
+It then expected `recover_missing_owned_scan(...)` to recover `deletion_scan_id`
+even though no eligible ingestion ledger existed for that scan generation. The
+production routine correctly returned `deferred`.
+
+The corrected fixture seeds exact same-owner, same-scan
+`failed_terminal / replay_exhausted` evidence before its initial recovery. A
+source contract locks that ordering. The no-ledger case remains separately
+verified as `deferred`, and no production recovery predicate, deletion fence,
+schema, policy, routine, or privilege changed. Run 1544 remains failed evidence;
+all twenty-one catalog files must pass from the corrected exact SHA before
+promotion.
+
 ### Production monitor catalog gap after failed deploys
 
 The independent DwC-A monitor subsequently received `PGRST202` for

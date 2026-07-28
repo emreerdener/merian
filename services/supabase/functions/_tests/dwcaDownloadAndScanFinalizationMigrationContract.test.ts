@@ -86,11 +86,18 @@ for (
     "EXTRACT",
   ]
 ) {
-  assertEquals(
-    migration.includes(`pg_catalog.${sqlExpression}(`),
-    false,
-    `${sqlExpression} is SQL grammar, not a schema-callable pg_catalog routine.`,
-  );
+  for (
+    const [sourceName, source] of [
+      ["migration", migration],
+      ["fresh-catalog fixture", downloadAndFinalizationCatalog],
+    ]
+  ) {
+    assertEquals(
+      source.includes(`pg_catalog.${sqlExpression}(`),
+      false,
+      `${sourceName}: ${sqlExpression} is SQL grammar, not a schema-callable pg_catalog routine.`,
+    );
+  }
 }
 
 function routineBody(name: string, nextName: string): string {
@@ -715,6 +722,22 @@ Deno.test("fresh-catalog trigger validation supplies every relation OID", () => 
   assertStringIncludes(
     registry,
     "'public.update_owned_scan_custom_tags(uuid,text[])' ::REGPROCEDURE::OID, 0::OID",
+  );
+});
+
+Deno.test("deletion recovery fixture establishes an eligible ledger first", () => {
+  const catalog = compactSql(downloadAndFinalizationCatalog);
+  const eligibleLedger =
+    "deletion_scan_id::TEXT, test_user_id, 'identify-multimodal', 'failed_terminal', 'server_replay_limit_reached', 'replay_exhausted', pg_catalog.NOW()";
+  const ledgerPosition = catalog.indexOf(eligibleLedger);
+  const recoveryPosition = catalog.indexOf(
+    "SELECT public.recover_missing_owned_scan( deletion_scan_id",
+    ledgerPosition,
+  );
+
+  assert(
+    ledgerPosition >= 0 && recoveryPosition > ledgerPosition,
+    "Deletion coverage must seed exact replay-exhausted eligibility before owner recovery.",
   );
 });
 

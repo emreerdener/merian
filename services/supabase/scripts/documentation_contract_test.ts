@@ -383,6 +383,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "Fresh-catalog static analysis now passes an explicit trigger-relation OID",
   );
   assertStringIncludes(
+    compact(changelog),
+    "same-generation `failed_terminal / replay_exhausted` ingestion ledger",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -431,6 +435,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "use zero only for ordinary routines and the concrete relation OID for each trigger",
   );
   assertStringIncludes(
+    compact(runbook),
+    "Never direct-write `complete`, which must remain protected by the completion fence.",
+  );
+  assertStringIncludes(
     compact(releaseHold),
     "DwC-A is not part of the active initial-launch product surface",
   );
@@ -449,6 +457,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(releaseHold),
     "Trigger static-validation evidence: run 1543 attempt 1",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Recovery-fixture evidence: run 1544 attempt 1",
   );
   assertStringIncludes(
     compact(releaseHold),

@@ -837,6 +837,28 @@ BEGIN
         RAISE EXCEPTION 'owner recovery bypassed active ingestion';
     END IF;
 
+    -- Recovery deliberately fails closed without an eligible ingestion ledger.
+    -- Establish exact same-generation replay evidence before recovery creates
+    -- the scan used by the deletion scenario.
+    INSERT INTO public.scan_ingestion_jobs (
+        scan_id,
+        user_id,
+        endpoint,
+        status,
+        stage,
+        terminal_reason_code,
+        completed_at
+    )
+    VALUES (
+        deletion_scan_id::TEXT,
+        test_user_id,
+        'identify-multimodal',
+        'failed_terminal',
+        'server_replay_limit_reached',
+        'replay_exhausted',
+        pg_catalog.NOW()
+    );
+
     SELECT public.recover_missing_owned_scan(
         deletion_scan_id,
         test_user_id,
@@ -848,7 +870,9 @@ BEGIN
     )
     INTO STRICT result_text;
     IF result_text <> 'recovered' THEN
-        RAISE EXCEPTION 'deletion fixture recovery failed';
+        RAISE EXCEPTION
+            'deletion fixture recovery failed with status %',
+            COALESCE(result_text, '<null>');
     END IF;
 
     SELECT public.request_scan_deletion(

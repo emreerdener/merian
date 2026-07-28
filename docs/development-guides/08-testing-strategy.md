@@ -2109,9 +2109,11 @@ The surrounding export suite is intentionally split by boundary:
   also fails closed if disposable-catalog fixtures regress to a reserved
   PL/pgSQL identifier, reuse a tombstoned scan generation, omit explicit
   wire-string-to-enum casts, or validate the retired source-state-first DwC-A
-  trigger routines. Its static-analysis contract requires every trigger routine
-  to declare the relation OID that supplies its trigger context; ordinary
-  routines alone use relation OID zero.
+  trigger routines. It also requires deletion coverage to establish eligible
+  same-generation ingestion evidence before expecting owner recovery. Its
+  static-analysis contract requires every trigger routine to declare the
+  relation OID that supplies its trigger context; ordinary routines alone use
+  relation OID zero.
 - `tests/dwca_download_and_scan_finalization_security.sql` executes those ACL,
   static-validation, ordering, rate-limit, capability-state, cleanup-lease, and
   health contracts against a disposable catalog. It also proves cleanup for an
