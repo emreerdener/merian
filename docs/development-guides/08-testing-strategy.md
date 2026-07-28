@@ -2116,7 +2116,11 @@ The surrounding export suite is intentionally split by boundary:
   older archive generation cannot revoke the replacement grant or purge its
   source snapshot, while exact-current terminal cleanup can, and proves
   retention fences only expired non-biological controls while recent,
-  biological, and account-tombstoned controls remain unfenced.
+  biological, and account-tombstoned controls remain unfenced. Its scan ACL
+  check single-sources the exact five-column rolling-client update allowlist:
+  table-level API mutation and every anonymous column mutation remain denied,
+  authenticated insert/reference or non-allowlisted updates remain denied, and
+  every allowlisted update must exist.
 
 Public-web migration/DB/source-boundary coverage proves direct detail owns the
 canonical anonymous card predicate and page reads use one combined statement.

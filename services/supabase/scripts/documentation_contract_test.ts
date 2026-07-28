@@ -371,6 +371,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "DwC-A health acquisition failures now fail closed",
   );
   assertStringIncludes(
+    compact(changelog),
+    "disposable-catalog scan ACL assertion now uses one exact five-column",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -381,6 +385,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(testing),
     "stable catalog/read/shape failure classification",
+  );
+  assertStringIncludes(
+    compact(testing),
+    "scan ACL check single-sources the exact five-column rolling-client update allowlist",
   );
   assertStringIncludes(
     compact(logging),
@@ -401,6 +409,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(releaseHold),
     "Focused test evidence: run 1539 attempt 1",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Fresh-catalog scan ACL evidence: run 1541 attempt 1",
   );
   assertStringIncludes(
     compact(releaseHold),

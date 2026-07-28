@@ -8,6 +8,13 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- The disposable-catalog scan ACL assertion now uses one exact five-column
+  rolling-client compatibility allowlist. It independently rejects broad table
+  mutation, every anonymous mutation/reference grant, and authenticated
+  insert/reference or unexpected update grants, then requires every allowlisted
+  update. This removes a contradictory check that classified the required
+  compatibility grants themselves as broad access; no production privilege or
+  policy was widened.
 - DwC-A health acquisition failures now fail closed with stable
   `catalog_contract_missing`, `health_read_failed`, or `health_response_invalid`
   codes while still writing bounded JSON/Markdown evidence with queue values

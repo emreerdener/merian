@@ -629,6 +629,27 @@ Deno.test("new privileged routines are deny-by-default and narrowly ledgered", (
   );
 });
 
+Deno.test("fresh-catalog scan ACL uses one exact compatibility allowlist", () => {
+  assertStringIncludes(
+    downloadAndFinalizationCatalog,
+    "allowed_authenticated_scan_update_columns CONSTANT TEXT[] := ARRAY[",
+  );
+  assertStringIncludes(
+    downloadAndFinalizationCatalog,
+    "attributes.attname::TEXT <> ALL (\n" +
+      "                        allowed_authenticated_scan_update_columns",
+  );
+  assertStringIncludes(
+    downloadAndFinalizationCatalog,
+    "FROM pg_catalog.UNNEST(\n" +
+      "            allowed_authenticated_scan_update_columns",
+  );
+  assertStringIncludes(
+    downloadAndFinalizationCatalog,
+    "'authenticated',\n        'public.scans',\n        'UPDATE'",
+  );
+});
+
 Deno.test("fresh-catalog fixtures follow current identifiers and generations", () => {
   assertStringIncludes(
     downloadAndFinalizationCatalog,

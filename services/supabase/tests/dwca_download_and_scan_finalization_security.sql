@@ -117,6 +117,13 @@ DECLARE
     deletion_claim RECORD;
     attempt INTEGER;
     retention_requested_count INTEGER;
+    allowed_authenticated_scan_update_columns CONSTANT TEXT[] := ARRAY[
+        'custom_tags',
+        'user_identification_override',
+        'user_confirmed_identification',
+        'confirmed_species_id',
+        'user_review_state'
+    ]::TEXT[];
 BEGIN
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
@@ -158,66 +165,126 @@ BEGIN
         RAISE EXCEPTION 'an API role can inspect private lifecycle state';
     END IF;
 
+    -- Column privilege checks also report table-level privileges. Assert that
+    -- broad table mutation is absent first, then compare effective column
+    -- mutation privileges with the exact rolling-client compatibility
+    -- allowlist.
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
         'public.scans',
         'INSERT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.scans',
+        'UPDATE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.scans',
+        'DELETE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.scans',
+        'TRUNCATE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.scans',
+        'REFERENCES'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.scans',
+        'TRIGGER'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
         'public.scans',
         'INSERT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
         'public.scans',
+        'UPDATE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.scans',
         'DELETE'
-    ) OR pg_catalog.HAS_COLUMN_PRIVILEGE(
-        'anon',
-        'public.scans',
-        'custom_tags',
-        'UPDATE'
-    ) OR pg_catalog.HAS_COLUMN_PRIVILEGE(
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
         'public.scans',
-        'user_id',
-        'UPDATE'
-    ) OR pg_catalog.HAS_COLUMN_PRIVILEGE(
+        'TRUNCATE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
         'public.scans',
-        'image_storage_urls',
-        'UPDATE'
-    ) OR EXISTS (
+        'REFERENCES'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.scans',
+        'TRIGGER'
+    ) THEN
+        RAISE EXCEPTION 'an API role has a broad scan table mutation privilege';
+    END IF;
+
+    IF EXISTS (
         SELECT 1
         FROM pg_catalog.pg_attribute AS attributes
         WHERE attributes.attrelid = 'public.scans'::REGCLASS
           AND attributes.attnum > 0
           AND NOT attributes.attisdropped
-          AND attributes.attname NOT IN (
-                'custom_tags',
-                'user_identification_override',
-                'user_confirmed_identification',
-                'confirmed_species_id',
-                'user_review_state'
-          )
-          AND pg_catalog.HAS_COLUMN_PRIVILEGE(
-                'anon',
-                'public.scans',
-                attributes.attname,
-                'UPDATE'
-          )
-    ) OR EXISTS (
-        SELECT 1
-        FROM pg_catalog.pg_attribute AS attributes
-        WHERE attributes.attrelid = 'public.scans'::REGCLASS
-          AND attributes.attnum > 0
-          AND NOT attributes.attisdropped
-          AND pg_catalog.HAS_COLUMN_PRIVILEGE(
-                'authenticated',
-                'public.scans',
-                attributes.attname,
-                'UPDATE'
+          AND (
+                pg_catalog.HAS_COLUMN_PRIVILEGE(
+                    'anon',
+                    'public.scans',
+                    attributes.attname,
+                    'INSERT'
+                )
+                OR pg_catalog.HAS_COLUMN_PRIVILEGE(
+                    'anon',
+                    'public.scans',
+                    attributes.attname,
+                    'UPDATE'
+                )
+                OR pg_catalog.HAS_COLUMN_PRIVILEGE(
+                    'anon',
+                    'public.scans',
+                    attributes.attname,
+                    'REFERENCES'
+                )
           )
     ) THEN
-        RAISE EXCEPTION 'an API role has a broad scan mutation privilege';
+        RAISE EXCEPTION 'anon can mutate or reference a scan column';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_attribute AS attributes
+        WHERE attributes.attrelid = 'public.scans'::REGCLASS
+          AND attributes.attnum > 0
+          AND NOT attributes.attisdropped
+          AND (
+                pg_catalog.HAS_COLUMN_PRIVILEGE(
+                    'authenticated',
+                    'public.scans',
+                    attributes.attname,
+                    'INSERT'
+                )
+                OR pg_catalog.HAS_COLUMN_PRIVILEGE(
+                    'authenticated',
+                    'public.scans',
+                    attributes.attname,
+                    'REFERENCES'
+                )
+                OR (
+                    attributes.attname::TEXT <> ALL (
+                        allowed_authenticated_scan_update_columns
+                    )
+                    AND pg_catalog.HAS_COLUMN_PRIVILEGE(
+                        'authenticated',
+                        'public.scans',
+                        attributes.attname,
+                        'UPDATE'
+                    )
+                )
+          )
+    ) THEN
+        RAISE EXCEPTION
+            'authenticated can mutate or reference an unexpected scan column';
     END IF;
 
     IF NOT pg_catalog.HAS_TABLE_PRIVILEGE(
@@ -236,31 +303,17 @@ BEGIN
         RAISE EXCEPTION 'service_role cannot perform canonical scan mutation';
     END IF;
 
-    IF NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
-        'authenticated',
-        'public.scans',
-        'custom_tags',
-        'UPDATE'
-    ) OR NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
-        'authenticated',
-        'public.scans',
-        'user_identification_override',
-        'UPDATE'
-    ) OR NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
-        'authenticated',
-        'public.scans',
-        'user_confirmed_identification',
-        'UPDATE'
-    ) OR NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
-        'authenticated',
-        'public.scans',
-        'confirmed_species_id',
-        'UPDATE'
-    ) OR NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
-        'authenticated',
-        'public.scans',
-        'user_review_state',
-        'UPDATE'
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.UNNEST(
+            allowed_authenticated_scan_update_columns
+        ) AS allowed(column_name)
+        WHERE NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
+            'authenticated',
+            'public.scans',
+            allowed.column_name,
+            'UPDATE'
+        )
     ) THEN
         RAISE EXCEPTION 'the rolling review/tag column grant is incomplete';
     END IF;

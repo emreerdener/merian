@@ -322,6 +322,24 @@ lane and adds an earlier tooling contract requiring both that root and the iOS
 release-boundary source root. The exact corrected SHA must replay the lane; run
 1539 remains red and is not promoted as evidence.
 
+### Fresh-catalog scan ACL evidence: run 1541 attempt 1
+
+GitHub run 1541 evaluated commit `3cbc0a0d258e2ff4a85c9bd191646d95bcc83672`.
+Twenty of twenty-one discovered catalog files passed. The remaining
+`dwca_download_and_scan_finalization_security.sql` fixture failed because its
+authenticated-column query classified every effective `UPDATE` as broad while
+the same fixture required the five rolling-client compatibility-column grants.
+The migration had already revoked table-level API mutation and granted only
+those five columns, so this was a contradictory assurance query, not evidence
+that another production privilege should be granted.
+
+The corrected fixture defines one exact allowlist, rejects broad table mutation,
+rejects every anonymous column mutation/reference privilege, rejects
+authenticated insert/reference and non-allowlisted update privileges, and then
+requires every allowlisted update. No schema, policy, or production grant is
+widened. Run 1541 remains failed evidence; the corrected exact SHA must replay
+all catalog files successfully before promotion.
+
 ### Production monitor catalog gap after failed deploys
 
 The independent DwC-A monitor subsequently received `PGRST202` for
