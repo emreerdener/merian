@@ -997,7 +997,9 @@ Public-web Explore authorization has three additional layers:
 - `tests/public_web_explore_security.sql` impersonates `anon`, `authenticated`,
   and `service_role`. It proves browser roles cannot execute either wrapper,
   while the server role receives a visible post with private location redacted
-  and no viewer-specific state.
+  and no viewer-specific state. Moderation fixture mutation runs only as the
+  catalog-test owner; `service_role` observes the resulting exclusion through
+  its narrow RPC and receives no direct source-table write privilege.
 - The production deploy smoke sends every real anon/publishable project key
   directly to the posts RPC as a negative control, then uses the resolved server
   key as a positive control and validates the narrow response shape.

@@ -289,11 +289,24 @@ BEGIN
         RAISE EXCEPTION
             'the atomic public web page projection did not return matching card and detail';
     END IF;
+END;
+$service$;
 
-    UPDATE public.explore_posts AS post
-    SET moderated_at = pg_catalog.NOW()
-    WHERE post.id = '00000000-0000-4000-8000-00000000e831';
+-- Fixture state changes run as the catalog-test owner. service_role must remain
+-- unable to mutate source tables directly and may observe the transition only
+-- through its explicitly granted public-web RPCs.
+RESET ROLE;
 
+UPDATE public.explore_posts AS post
+SET moderated_at = pg_catalog.NOW()
+WHERE post.id = '00000000-0000-4000-8000-00000000e831';
+
+SET LOCAL ROLE service_role;
+
+DO $moderated$
+DECLARE
+    returned_count INTEGER;
+BEGIN
     SELECT pg_catalog.COUNT(*)::INTEGER
     INTO returned_count
     FROM public.get_public_web_explore_post_detail(
@@ -316,7 +329,7 @@ BEGIN
             'atomic public web page exposed a concurrently moderated post';
     END IF;
 END;
-$service$;
+$moderated$;
 
 RESET ROLE;
 

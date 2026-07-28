@@ -2829,6 +2829,12 @@ supabase --workdir services test db --local \
   services/supabase/tests/public_web_explore_security.sql
 ```
 
+If this fixture reports `permission denied for table explore_posts` at its
+moderation transition, do **not** grant `service_role` direct table access.
+Fixture setup/mutation must run as the catalog-test owner; only the visibility
+assertions run under `service_role` through the explicitly granted public-web
+RPCs. A direct-write denial is the expected ACL contract.
+
 The Vercel Production environment must contain `SUPABASE_URL` and exactly one
 supported server-key source. Prefer `SUPABASE_SERVER_API_KEY` with the current
 `sb_secret_...` key; retain `SUPABASE_SERVICE_ROLE_KEY` only as the documented

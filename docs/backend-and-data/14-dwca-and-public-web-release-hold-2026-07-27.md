@@ -116,6 +116,9 @@ Focused Deno coverage currently proves:
 - SQLSTATE `55001` maps to terminal `source_snapshot_changed`;
 - signed URLs stay private while a job is processing;
 - direct hidden Explore detail and the atomic page routine return no row;
+- the catalog owner can transition a fixture to moderated while
+  `service_role`, which has no direct source-table write privilege, observes
+  exclusion through only the granted RPCs;
 - public API roles cannot execute either public-web routine; and
 - oversized maximum-cardinality DTO sources stop at the aggregate sentinel
   without retaining partial source rows.
@@ -136,6 +139,21 @@ The complete release workflow must replay these checks for the exact release
 SHA. A frozen web dependency install could not be restored in the restricted
 local environment after npm registry access failed, so the full web
 test/type-check/build result is intentionally not claimed here.
+
+### Catalog replay evidence: run 1534 attempt 1
+
+GitHub run 1534 replayed the fresh local catalog for commit
+`c58df29c9309cd4dad9674a4f012b037359d35fd` with the repository-pinned Supabase
+CLI 2.109.1. Eighteen of nineteen discovered database catalog files passed. The
+remaining public-web fixture failed before its visibility assertion because it
+attempted to update `public.explore_posts` while impersonating `service_role`.
+PostgreSQL returned SQLSTATE `42501`, confirming the intended direct-table ACL.
+
+The corrected fixture resets to the catalog-test owner for moderation mutation,
+then re-enters `service_role` only to call the narrow RPCs. No table privilege is
+added. This failed attempt is useful negative evidence, but it is not a pass;
+the corrected test and all nineteen catalog files still require exact-SHA CI
+replay.
 
 ## Remaining Release Evidence
 
