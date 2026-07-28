@@ -48,11 +48,15 @@ Web runtime config:
   client. Credential sources are classified independently so a malformed lower
   migration source cannot veto a valid selected source or enter the candidate
   set.
-- **Release status:** the DwC-A version-2/public-web Explore design repairs are
-  implemented. Detail independently owns canonical anonymous visibility and
+- **Release status:** DwC-A is hidden in Release iOS builds and disabled by the
+  canonical private PostgreSQL singleton for the initial launch. The server
+  rejects old/direct intake, scheduled continuation is stopped, capabilities are
+  revoked, and archive cleanup stays active. Public-web detail independently
+  owns canonical anonymous visibility and
   `get_public_web_explore_post_page(...)` returns card plus detail atomically.
-  Promotion remains held for exact-SHA fresh-catalog, hosted-load, catalog, and
-  credential-smoke evidence. See
+  Base promotion remains held for exact-SHA fresh-catalog, complete CI, catalog,
+  and credential-smoke evidence; active export load/delivery evidence belongs to
+  the later feature-enable gate. See
   `docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`.
 
 ## Public Brand and Compatibility
@@ -481,26 +485,29 @@ Data lifecycle, identity, and exports:
 - `flag-issue` — disputed-identification review only; writes `flagged_reviews`
   and marks the scan for review
 - `submit-feedback-survey`
-- `request-export-dwca` — permanent-account boundary for personal exports;
-  global exports are internal-only.
-- `export-dwca` — service-authenticated resumable worker; `db.ts` owns canonical
-  phase claims, immutable job-membership/revision validation, full-member
-  privacy fences before final side effects, claim-bound 100-row/256 KiB keyset
-  access, durable cursors/manifests, and row/byte budgets; `archive.ts` owns
-  fixed-capacity incremental CSV encoding while `crc32.ts` calculates bounded
-  chunk checksums and composes full-entry CRCs algebraically; `zip.ts` owns
-  manifest-sized archive streaming without a per-archive-byte checksum loop;
-  `storage.ts` owns claim-fenced CSV chunks and R2 multipart upload plus short
-  read-only signing; `downloadGrant.ts` owns 256-bit application capability
-  generation; `pseudonym.ts` owns versioned export HMACs; `worker.ts` performs
-  one preparation, assembly, or delivery phase per claim and revalidates after
-  every delivery suspension; and `drain.ts` owns sequential deadline/step
-  bounds, oldest-due waves, failure suppression, and aggregate queue-health
-  classification. Independent production continuation and archive-deletion
-  alerting lives in `scripts/monitor_dwca_export_queue.ts` and
+- `request-export-dwca` — deployed tombstone-compatible permanent-account
+  boundary; while the launch gate is off its atomic service-only request RPC
+  returns `disabled`, and global exports remain internal-only.
+- `export-dwca` — currently disabled service-authenticated resumable worker;
+  `_shared/dwcaReleaseState.ts` reads the canonical database gate and `db.ts`
+  owns canonical phase claims, immutable job-membership/revision validation,
+  full-member privacy fences before final side effects, claim-bound 100-row/256
+  KiB keyset access, durable cursors/manifests, and row/byte budgets;
+  `archive.ts` owns fixed-capacity incremental CSV encoding while `crc32.ts`
+  calculates bounded chunk checksums and composes full-entry CRCs algebraically;
+  `zip.ts` owns manifest-sized archive streaming without a per-archive-byte
+  checksum loop; `storage.ts` owns claim-fenced CSV chunks and R2 multipart
+  upload plus short read-only signing; `downloadGrant.ts` owns 256-bit
+  application capability generation; `pseudonym.ts` owns versioned export HMACs;
+  `worker.ts` performs one preparation, assembly, or delivery phase per claim
+  and revalidates after every delivery suspension; and `drain.ts` owns
+  sequential deadline/step bounds, oldest-due waves, failure suppression, and
+  aggregate queue-health classification. Independent production continuation and
+  archive-deletion alerting lives in `scripts/monitor_dwca_export_queue.ts` and
   `.github/workflows/dwca-export-health-monitor.yml`, so absent cron/Vault
   configuration cannot silence both workers and monitoring.
-- `download-dwca` — public opaque-capability GET boundary that applies a
+- `download-dwca` — public opaque-capability GET boundary; while the launch gate
+  is off it returns `410` before signing storage. When enabled it applies a
   distributed address limit and full-source privacy fence on every click before
   issuing a no-store R2 read redirect valid for at most 30 seconds.
 - `reconcile-dwca-archive-cleanup` — scheduled service worker that

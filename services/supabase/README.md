@@ -291,6 +291,21 @@ contract is
 
 ### Darwin Core Export Boundary
 
+Migration `20260728133835_disable_dwca_exports_for_launch.sql` is the current
+production posture: a private, no-API-grant singleton defaults DwC-A off. A
+BEFORE INSERT trigger rejects old bundles and unexpected service-role inserts;
+the authenticated route uses
+`request_dwca_export_job(user_id, scope, precision)` to hold a shared lock on
+the release singleton and serialize the rolling 24-hour account window plus
+insertion in one transaction. Reviewed state changes take the conflicting row
+lock, so intake commits before the change or observes the new state. The
+continuation cron is unscheduled, every pending/processing job becomes terminal
+`feature_disabled`, download grants are revoked, and known final archives are
+durably queued for deletion. `reconcile-dwca-archive-cleanup` and its
+independent monitor remain active. Re-enable through a reviewed forward
+migration only after the separate export release gate passes; changing the iOS
+flag alone is never sufficient.
+
 Migration `20260724230849_harden_dwca_export_jobs.sql` makes the database queue
 authoritative. API roles cannot insert jobs directly, and the hardened worker
 consumes only the webhook `job_id`. Deprecated canonical row hints exist only
@@ -359,20 +374,21 @@ revoked rather than publishing storage authority. Exact-SHA deployment evidence
 is tracked in the
 [release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
-`functions/export-dwca` executes one short durable phase at a time—occurrence
-page, multimedia page, assembly, or delivery—but a scheduled invocation now
-deadline-drains several phases sequentially. An explicit insertion webhook
-attempts only its canonical job once and returns, which bounds insert-burst
-fan-out. Empty-body cron wake-ups request five-job oldest-due waves until a
-40-second soft cutoff or a 40-step hard ceiling. Successful work is requeued
-behind older due jobs; failed/contended jobs are not retried in a hot loop. The
-two data phases use row-and-byte-aware keyset reads over immutable job DTO rows
-and a narrow live privacy-revocation fence. A fixed 512 KiB encoder appends one
-CSV row at a time, so page strings and media rows are never expanded into an
-unbounded intermediate array. Each page becomes a claim-token-fenced R2 CSV
-chunk and is committed to a durable manifest with its cursor and cumulative
-budgets and unsigned CRC-32 in one transaction. A late expired worker can
-neither overwrite the replacement worker's chunk nor add it to the manifest.
+When the release gate is enabled, `functions/export-dwca` executes one short
+durable phase at a time—occurrence page, multimedia page, assembly, or
+delivery—but a scheduled invocation now deadline-drains several phases
+sequentially. An explicit insertion webhook attempts only its canonical job once
+and returns, which bounds insert-burst fan-out. Empty-body cron wake-ups request
+five-job oldest-due waves until a 40-second soft cutoff or a 40-step hard
+ceiling. Successful work is requeued behind older due jobs; failed/contended
+jobs are not retried in a hot loop. The two data phases use row-and-byte-aware
+keyset reads over immutable job DTO rows and a narrow live privacy-revocation
+fence. A fixed 512 KiB encoder appends one CSV row at a time, so page strings
+and media rows are never expanded into an unbounded intermediate array. Each
+page becomes a claim-token-fenced R2 CSV chunk and is committed to a durable
+manifest with its cursor and cumulative budgets and unsigned CRC-32 in one
+transaction. A late expired worker can neither overwrite the replacement
+worker's chunk nor add it to the manifest.
 
 Migration `20260726230837_scale_dwca_export_continuations.sql` adds an
 outstanding-job partial index, the service-only aggregate
@@ -444,11 +460,12 @@ GitHub `Production`, and has no fallback to a JWT/service credential or literal
 salt. See the function README and deployment runbook before provisioning or
 rotating a key.
 
-Regression coverage lives in
+Regression coverage lives in `functions/_tests/dwcaLaunchGateCoverage.test.ts`,
 `functions/_tests/exportDwcaSecurityCoverage.test.ts`,
 `functions/_tests/exportDwcaMigrationContract.test.ts`, the route-local export
 tests, `tests/export_dwca_security.sql`, and
 `tests/export_dwca_snapshot_security.sql`, plus
+`tests/dwca_export_launch_gate_security.sql`,
 `tests/dwca_export_queue_security.sql` and
 `tests/dwca_download_and_scan_finalization_security.sql`. The latter migration
 contract also keeps those disposable-catalog fixtures on the current
@@ -1108,10 +1125,20 @@ fix the reported name mismatch; never update a numeric expected-function count.
 
 The checked-in `deno task test` is the canonical complete function source and
 unit suite. Its read allowlist includes the function tree plus migrations,
-monitor scripts, Supabase config, repository workflows, and waitlist-route
-surfaces inspected by security contract tests. Deployment CI runs it after
-migrating the disposable database so database-backed cases cannot silently skip.
-Do not replace it in CI with a selected test subset.
+monitor scripts, the complete pgTAP fixture directory, Supabase config,
+repository workflows, iOS contract surfaces, and the waitlist route inspected by
+security contract tests. Deployment CI runs it after migrating the disposable
+database so database-backed cases cannot silently skip. Do not replace it in CI
+with a selected test subset.
+
+Selected source-inspection lanes retain narrow permissions, but their
+`--allow-read` lists must include every transitive filesystem root they inspect.
+The focused DwC-A lane therefore grants the complete `supabase/tests` fixture
+root and `../apps/ios` source root from the workflow's `services` working
+directory. `scripts/tooling_gate_test.ts` rejects removal of either root while
+the scan-finalization/DwC-A contract remains selected. Passing tests before a
+later permission denial does not constitute a successful lane or release
+evidence.
 
 Operational workflows run Deno with frozen dependencies and explicit
 Supabase-host, environment-variable, and output-path permissions. The taxonomy

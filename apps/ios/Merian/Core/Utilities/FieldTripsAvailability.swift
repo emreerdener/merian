@@ -8,6 +8,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case speciesDictionaryTree
     case fieldTrips
     case fieldTripEvents
+    case dwcaExports
     case unlimitedFreeScans
 
     var id: String { rawValue }
@@ -22,6 +23,11 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             false
         case .fieldTrips:
             true
+        case .dwcaExports:
+            // swiftlint:disable:next todo
+            // TODO(dwca-export-release): Enable only after the deferred DwC-A
+            // production load, delivery, and operations gates pass.
+            false
         case .unlimitedFreeScans:
             false
         }
@@ -35,6 +41,8 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             "Field trips"
         case .fieldTripEvents:
             "Field trip Events"
+        case .dwcaExports:
+            "Darwin Core exports"
         case .unlimitedFreeScans:
             "Bypass local scan meter"
         }
@@ -48,6 +56,8 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             "Shows Field trips and its supporting progress surfaces."
         case .fieldTripEvents:
             "Releases Events beyond the simulator and tester preview."
+        case .dwcaExports:
+            "Shows the staged scan-export controls. The server gate remains authoritative."
         case .unlimitedFreeScans:
             "Debug-only bypass for the advisory local scan meter."
         }

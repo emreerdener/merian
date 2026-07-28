@@ -5,6 +5,11 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS plpgsql_check WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 
+UPDATE internal.dwca_export_release_control
+SET enabled = TRUE,
+    updated_at = pg_catalog.NOW()
+WHERE singleton;
+
 DO $test$
 DECLARE
     test_user_id UUID := '00000000-0000-4000-8000-00000000e201';

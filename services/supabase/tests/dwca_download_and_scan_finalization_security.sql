@@ -5,6 +5,11 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS plpgsql_check WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 
+UPDATE internal.dwca_export_release_control
+SET enabled = TRUE,
+    updated_at = pg_catalog.NOW()
+WHERE singleton;
+
 INSERT INTO auth.users (
     instance_id,
     id,

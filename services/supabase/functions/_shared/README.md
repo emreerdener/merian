@@ -78,6 +78,10 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   server-managed environment key—not the accepted request value—for privileged
   database clients and internal function calls. The shared request-header helper
   applies the same current/legacy key transport to operational scripts.
+- **`dwcaReleaseState.ts`**: Strict parser and service-only RPC client for the
+  canonical default-off DwC-A launch gate. Processing and capability-download
+  routes accept only an explicit database Boolean; missing state, query errors,
+  and malformed results fail closed.
 - **`serviceRoleClient.ts`**: Creates privileged PostgREST, Storage, Functions,
   and Auth Admin clients from an authenticated or environment-resolved server
   key. Its final fetch adapter removes only supabase-js's exact

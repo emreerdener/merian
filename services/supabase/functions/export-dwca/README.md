@@ -7,6 +7,19 @@
 { "job_id": "00000000-0000-4000-8000-000000000000" }
 ```
 
+The worker is authoritatively disabled for the initial production launch.
+`../_shared/dwcaReleaseState.ts` reads the private service-only database state
+and a valid invocation returns `200` with `"disposition":"disabled"` before
+discovery or provider work. Migration
+`20260728133835_disable_dwca_exports_for_launch.sql` also unschedules the global
+continuation cron, terminalizes nonterminal jobs, revokes download grants, and
+queues known final archives for deletion. The archive cleanup worker remains
+active. Do not re-enable this route by changing Edge or iOS code alone; the
+reviewed database migration and feature-enable evidence must move together.
+
+The remaining behavior in this document is the contract when the canonical
+release gate is enabled.
+
 Pre-existing nonterminal jobs and jobs queued during the first two hours after
 the migration form a finite rollout cohort. Newly queued cohort webhooks may
 also include deprecated canonical user/scope/precision hints for the previously
@@ -310,13 +323,16 @@ post-deadline claim requirement, queue-health ACL/index behavior, live/expired
 claim accounting, and phased state contract in
 `services/supabase/tests/export_dwca_security.sql` and
 `services/supabase/tests/export_dwca_snapshot_security.sql`, plus
-`services/supabase/tests/dwca_export_queue_security.sql`; the repository-wide
-privileged-routine catalog validator checks the definer RPC.
+`services/supabase/tests/dwca_export_queue_security.sql` and the independent
+default-off contract in
+`services/supabase/tests/dwca_export_launch_gate_security.sql`; the
+repository-wide privileged-routine catalog validator checks the definer RPC.
 
 Focused Edge tests additionally cover revocation before assembly, during
 staging, before delivery, and after recipient lookup with no email side effect.
 They separately cover a revocation while provider delivery is in flight:
 completion remains terminal and the archive is removed even though the
 idempotent email request was accepted. Hosted maximum-shape database/Edge
-measurements and fresh-catalog pgTAP remain mandatory exact-SHA promotion
-evidence.
+measurements remain mandatory exact-SHA evidence before enabling DwC-A.
+Fresh-catalog pgTAP remains mandatory for the base release because the
+default-off database objects are still deployed.

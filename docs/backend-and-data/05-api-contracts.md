@@ -6363,13 +6363,19 @@ This endpoint is not the Explore post-content reporting API.
 
 ## Deno `/request-export-dwca` Edge Node
 
-Queues an asynchronous Darwin Core Archive (DwC-A) export. Because zipping
-thousands of records exceeds 30-second HTTP connection limits, this endpoint
-validates the user and performs a bounded `export_jobs` insertion transaction.
-That transaction fixes bounded immutable phase DTOs plus compact live
-eligibility metadata under canonical row- and source-byte budgets; CSV, ZIP,
-storage, and email work remains asynchronous. The iOS client awaits the queue
-response off-main with a 15-second HTTP timeout.
+This route remains deployed for old-client compatibility, but DwC-A is
+authoritatively disabled for the initial launch. A valid permanent-account
+request receives `403 feature_unavailable`; the alphabetically first database
+BEFORE INSERT trigger independently rejects old Edge bundles and direct
+service-role inserts. Release iOS builds hide the control.
+
+When enabled through a reviewed migration, it queues an asynchronous Darwin Core
+Archive (DwC-A) export. Because zipping thousands of records exceeds 30-second
+HTTP connection limits, this endpoint validates the user and performs a bounded
+`export_jobs` insertion transaction. That transaction fixes bounded immutable
+phase DTOs plus compact live eligibility metadata under canonical row- and
+source-byte budgets; CSV, ZIP, storage, and email work remains asynchronous. The
+iOS client awaits the queue response off-main with a 15-second HTTP timeout.
 
 ### Request Payload
 
@@ -6393,19 +6399,24 @@ response off-main with a 15-second HTTP timeout.
 - **`includePreciseCoordinates` type validation**: `includePreciseCoordinates`
   must be a boolean. A non-boolean value (e.g. a string `"true"`) is rejected
   with `HTTP 400`.
-- **Database Rate Limit**: Queries `export_jobs` to verify the user has not
-  queued a successful or non-terminal export in the last 24 hours. Failed jobs
-  are excluded so a worker/configuration failure can be retried. If the limit
-  applies, returns `429 Too Many Requests`.
-- Inserts a row into `export_jobs` with status `pending`. Before the `pg_net`
-  webhook can run, an ordered database trigger materializes the eligible scan
-  IDs plus immutable bounded occurrence/multimedia JSON DTOs in one MVCC
-  statement. Taxonomy follows `confirmed_species_id` when present, otherwise the
-  original AI `species_id`. The insert is idempotent against concurrent
-  duplicate submissions: a `23505` unique-constraint violation (two requests
-  racing in before either commits) is caught and also returns
-  `429 Too Many Requests`, consistent with the explicit rate-limit path and
-  preventing a `500` error from surfacing to the client.
+- **Atomic release/rate boundary**: Calls service-only
+  `request_dwca_export_job(user_id, scope, precision)`. PostgreSQL first locks
+  the private release singleton in shared mode and fails closed if its state is
+  absent/off. When enabled, it then takes a transaction advisory lock keyed by
+  user, checks the rolling 24-hour successful/nonterminal window, and inserts in
+  the same transaction. Reviewed state changes take the conflicting singleton
+  row lock, so intake commits before the change or observes its new value.
+  `disabled` maps to `403 feature_unavailable`; `rate_limited` and
+  `already_pending` map to `429 Too Many Requests`. Failed jobs are excluded
+  from the rolling window.
+- On `queued`, inserts a row into `export_jobs` with status `pending`. Before
+  the `pg_net` webhook can run, an ordered database trigger materializes the
+  eligible scan IDs plus immutable bounded occurrence/multimedia JSON DTOs in
+  one MVCC statement. Taxonomy follows `confirmed_species_id` when present,
+  otherwise the original AI `species_id`. The account advisory lock prevents
+  same-user check/insert races. The pending-job partial unique index remains a
+  final duplicate fence; only its exact name maps to `already_pending`, while
+  any unrelated uniqueness failure is rethrown and fails closed.
 - The insertion statement counts only UUIDs through the row lookahead, then
   projects, measures, and inserts one DTO at a time through a parameterized
   lateral cursor. It stops at the first per-row or cumulative source-byte
@@ -6419,10 +6430,15 @@ response off-main with a 15-second HTTP timeout.
 
 ## Deno `/export-dwca` Edge Node (Webhook Worker)
 
-Generates the DwC-A ZIP, uploads it to Cloudflare R2, and emails the user the
-download link. This endpoint acts purely as a Server-to-Server webhook triggered
-by `pg_net` after an `export_jobs` insertion. It does _not_ accept iOS client
-connections.
+For the initial launch, valid service-authenticated calls read the canonical
+database release state and return `HTTP 200` with `"disposition":"disabled"`
+before queue discovery or provider work. The global continuation cron is
+unscheduled and all prior nonterminal jobs are terminal `feature_disabled`.
+
+When enabled, the worker generates the DwC-A ZIP, uploads it to Cloudflare R2,
+and emails the user the download link. This endpoint acts purely as a
+Server-to-Server webhook triggered by `pg_net` after an `export_jobs` insertion.
+It does _not_ accept iOS client connections.
 
 ### Request Payload (From Postgres `pg_net` Webhook)
 
@@ -6652,6 +6668,11 @@ Public `GET` capability endpoint:
 /functions/v1/download-dwca?token={43-character-base64url-token}
 ```
 
+For the initial launch, the canonical release state is off and the route returns
+no-store `410 download_unavailable` before R2 signing. The launch migration
+independently revokes existing capability hashes and queues known archives for
+deletion.
+
 The token is the only credential; JWT verification is disabled and
 `Authorization` is not accepted as export ownership. Malformed/unknown tokens
 return `404`, revoked or expired grants return `410`, the narrow
@@ -6674,6 +6695,10 @@ platform-managed server credential, ignores caller-owned work identifiers, and
 deadline-drains up to 100 leased deletion jobs in 25-row waves with four
 concurrent R2 deletes. A missing object is idempotent success; all other storage
 failures release the UUID-fenced claim with durable backoff.
+
+Unlike intake, continuation, delivery, and downloads, this worker remains
+scheduled during the initial launch-disabled period so revoked and legacy
+objects still converge to physical deletion.
 
 Database completion is also fenced to the exact current `archive_object_key`.
 Physical deletion for an older attempt can complete its own outbox row, but it

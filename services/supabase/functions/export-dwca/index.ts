@@ -8,6 +8,7 @@ import {
 } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
+import { fetchDwcaExportReleaseState } from "../_shared/dwcaReleaseState.ts";
 import { ExportWorkerError } from "./types.ts";
 import { drainExportJobs, type ExportDrainStep } from "./drain.ts";
 
@@ -59,6 +60,24 @@ serveEdge(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       auth.serverApiKey,
     );
+    const releaseState = await fetchDwcaExportReleaseState(supabaseAdmin);
+    if (!releaseState.enabled) {
+      console.log(JSON.stringify({
+        event: "dwca_export_dispatch_disabled",
+        request_id: requestId,
+        ts: new Date().toISOString(),
+      }));
+      return jsonResponse(
+        {
+          success: true,
+          request_id: requestId,
+          disposition: "disabled",
+          release: { enabled: false },
+        },
+        200,
+        { "Cache-Control": "private, no-store" },
+      );
+    }
     const result = await drainExportJobs(
       supabaseAdmin,
       typeof requestedJobId === "string" ? requestedJobId : null,

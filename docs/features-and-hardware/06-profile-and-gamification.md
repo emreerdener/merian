@@ -325,6 +325,12 @@ The `Achievements` component sorts awards using a `smartSort` heuristic: recentl
 
 ## ExportScans (DwC-A)
 
+`ExportScans` is staged and does not appear in an initial-launch Release build:
+`FeatureFlag.dwcaExports` defaults to `false`. Debug-only overrides can expose
+the UI for development, but cannot override the canonical PostgreSQL release
+gate. Migration `20260728133835_disable_dwca_exports_for_launch.sql` also makes
+old builds and direct authenticated requests fail closed.
+
 `ExportScans` (Settings) calls
 `MerianNetworkClient.shared.requestDwcAExport()`, which hits the
 `/request-export-dwca` Edge Function with a 15-second timeout. The authenticated
@@ -339,8 +345,9 @@ delivery rather than blocking the client or one Edge invocation. A full-member
 privacy fence runs before assembly, staging, email, and completion. A later
 tombstone or privacy/protection change terminates the job, revokes its
 application capability, and enqueues the archive for durable cleanup; each
-download click reruns that fence before a 30-second read-only redirect. The user
-receives an email when the export is ready. See
+download click reruns that fence before a 30-second read-only redirect. Once the
+feature passes its separate enable gate, the user receives an email when the
+export is ready. See
 [API Contracts](../backend-and-data/05-api-contracts.md#deno-request-export-dwca-edge-node)
 and the
 [release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).

@@ -8,6 +8,23 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- Focused DwC-A CI now grants Deno read access to every repository root its
+  source-inspection contracts traverse, including the complete pgTAP fixture
+  directory and iOS release-boundary sources. An earlier tooling contract
+  rejects permission drift before the focused lane runs. GitHub run 1539 remains
+  recorded as failed evidence because its command omitted the catalog-fixture
+  root; only a replay from the corrected exact SHA can replace it.
+- DwC-A exports are now intentionally unavailable for the initial production
+  launch. Release iOS builds hide the staged Settings controls, while a private
+  default-off PostgreSQL singleton and alphabetically first insert trigger
+  reject old builds and direct queue insertion. The request boundary now
+  serializes release state, the rolling account window, and insertion in one
+  service-only transaction. Scheduled continuation is stopped, nonterminal jobs
+  are failed, capabilities are revoked, and known archives enter durable
+  cleanup; the cleanup worker and independent monitor remain active. Active
+  maximum-shape/archive/email evidence moves to a separate feature-enable gate,
+  but exact-SHA fresh-catalog, complete CI, production negative smokes, and
+  cleanup health still gate the base release.
 - Fresh-catalog database assurance now validates the current parent-first DwC-A
   privacy-revocation triggers instead of retired source-state-first routines.
   Scan recovery explicitly casts validated wire strings to catalog enum types,

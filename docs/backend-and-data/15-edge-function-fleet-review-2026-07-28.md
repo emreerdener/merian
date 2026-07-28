@@ -3,6 +3,14 @@
 **Status:** Repository review complete. Exact-SHA application CI, production
 route, and authenticated customer smoke evidence remain release-blocking.
 
+**DwC-A launch addendum:** `request-export-dwca`, `export-dwca`, and
+`download-dwca` remain deployed so old callers receive stable responses, but all
+read the canonical private default-off database state for the initial launch.
+PostgreSQL independently rejects insertion and retires queue/grants;
+`reconcile-dwca-archive-cleanup` remains active. Active export
+maximum-shape/provider evidence is deferred to the later feature-enable gate,
+not silently waived.
+
 ## Scope
 
 This review covers all 89 deployable Supabase Edge Function entrypoints, their
@@ -60,11 +68,13 @@ the privileged-routine catalog audit and migration/security contract suites.
 - **21 internal workers:** exact environment-backed server-key comparison runs
   before body parsing and privileged client construction. Current opaque keys
   use `apikey`; only validated legacy service-role JWTs also use Bearer.
-- **5 deliberate custom routes:** `download-dwca` uses an opaque hashed
-  capability with click-time privacy checks; `ingest-r2-media-events` verifies
-  its dedicated secret before parsing; `revenuecat-webhook` verifies bearer and
-  raw-body HMAC before provider/database work; `species-dictionary` exposes only
-  the public projection except for its authenticated `my_scans` tree; and
+- **5 deliberate custom routes:** while enabled, `download-dwca` uses an opaque
+  hashed capability with click-time privacy checks; during the initial launch it
+  returns `410` from canonical release state before signing.
+  `ingest-r2-media-events` verifies its dedicated secret before parsing;
+  `revenuecat-webhook` verifies bearer and raw-body HMAC before
+  provider/database work; `species-dictionary` exposes only the public
+  projection except for its authenticated `my_scans` tree; and
   `species-observation-stats` applies distributed IP/user limits and
   dictionary-bound authorization.
 
@@ -97,13 +107,13 @@ reference a missing or unconfigured route.
 
 ## Validation Evidence
 
-- complete Edge Function suite: `1238 passed`, `0 failed`;
-- migration contracts: `144 passed`, `0 failed`;
-- discovery-based Supabase tooling: `100 passed`, `0 failed`, plus `16` DTO and
+- complete Edge Function suite: `1246 passed`, `0 failed`;
+- migration contracts: `145 passed`, `0 failed`;
+- discovery-based Supabase tooling: `101 passed`, `0 failed`, plus `16` DTO and
   `10` Identify wire-contract tests;
 - workflow security and documentation contracts: `11 passed` and `8 passed`;
 - all `89` function-local deployment graphs checked in isolation;
-- Deno format across `656` files and lint across `501` files;
+- Deno format across `660` files and lint across `505` files;
 - all `56` public-web source tests passed; the complete frozen
   install/audit/type-check/build gate remains exact-SHA CI evidence because
   registry access is unavailable locally;

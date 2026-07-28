@@ -29,13 +29,14 @@ Explore post while preserving its saved post-level location-sharing choice.
 
 ## Production Path
 
-> **Active release evidence gate (2026-07-27):** The DwC-A version-2/public-web
-> Explore design repairs are implemented. Do not use this path to promote that
-> release unit until the exact-SHA fresh-catalog, complete-CI, production-smoke,
-> and hosted maximum-shape criteria in
+> **Active release evidence gate (2026-07-28):** DwC-A is hidden in Release iOS
+> and authoritatively disabled in PostgreSQL for the initial launch. Processing
+> cron is stopped, capabilities are revoked, and archive cleanup remains active.
+> Base promotion remains blocked until the exact-SHA fresh-catalog, complete-CI,
+> and public-web/scan-finalization production-smoke criteria in
 > [`14-dwca-and-public-web-release-hold-2026-07-27.md`](./14-dwca-and-public-web-release-hold-2026-07-27.md)
-> are complete. Unrelated releases must isolate that held unit rather than
-> treating the checks below as an exception.
+> are complete. Default-off export isolation narrows runtime scope; it does not
+> waive catalog or application evidence for objects that remain deployed.
 
 Pushes to `main` that touch Supabase backend or deployment-support paths, plus
 manual `workflow_dispatch` runs, execute `.github/workflows/deploy.yml`.
@@ -1646,6 +1647,17 @@ not production sign-off; the active evidence gate must still pass before
 promotion. Before the first deployment, generate a dedicated version-1 pseudonym
 key:
 
+Forward migration `20260728133835_disable_dwca_exports_for_launch.sql` must
+follow that sequence for the initial launch. It creates the private default-off
+release singleton, installs the alphabetically first BEFORE INSERT gate,
+replaces request check-then-insert with one release-row-locked,
+account-serialized service-only RPC, terminalizes nonterminal generations,
+revokes capabilities, enqueues known archives, clears terminal work
+manifests/leases, and unschedules only `resume_dwca_exports_every_minute`. It
+must deploy with the gate-aware request, worker, and download bundles plus the
+Release iOS flag defaulting off.
+`reconcile_dwca_archive_cleanup_every_five_minutes` must remain active.
+
 The same final migration must precede the updated `delete-scan`, all four
 scan-producing routes, `replay-scan-ingestion`, and
 `reconcile-scan-media-assets`, and must deploy `reconcile-scan-deletions` in the
@@ -1771,13 +1783,80 @@ HMAC secret; without it, the shared client-address helper domain-separates the
 active platform server key. This optional value belongs in Supabase Edge
 secrets, not Vercel or an iOS configuration.
 
-The public request route queues personal exports only. Do not expose global
-scope to iOS or ordinary authenticated callers; repository-wide exports require
-a reviewed internal workflow. Every job pins immutable canonical budgets: 5,000
-CSV rows and an 8 MiB archive by default, with hard database ceilings of 20,000
-rows and 16 MiB.
+#### Initial-launch disabled verification
 
-The current worker does not finish a complete export in `waitUntil`. A
+Run these checks as a database administrator immediately after migration push:
+
+```sql
+SELECT singleton, enabled, updated_at
+FROM internal.dwca_export_release_control;
+
+SELECT status, COUNT(*)
+FROM public.export_jobs
+WHERE status IN ('pending', 'processing')
+GROUP BY status;
+
+SELECT COUNT(*) AS live_download_grants
+FROM internal.export_download_grants
+WHERE revoked_at IS NULL
+  AND cleaned_at IS NULL;
+
+SELECT jobname, active
+FROM cron.job
+WHERE jobname IN (
+    'resume_dwca_exports_every_minute',
+    'reconcile_dwca_archive_cleanup_every_five_minutes'
+)
+ORDER BY jobname;
+```
+
+Require exactly one release-control row with `enabled = false`, zero
+pending/processing jobs, zero live download grants, no active continuation cron,
+and one active archive-cleanup cron. With real credentials, require anon and
+publishable requests to the service-only release RPC to fail, a valid
+permanent-account `/request-export-dwca` call to return
+`403 feature_unavailable`, a valid service-key `/export-dwca` call to return
+`200` with `"disposition":"disabled"`, and any old capability URL to return
+no-store `410 download_unavailable`. Confirm a Release archive does not contain
+the Settings export section. These negative checks—not an iOS screenshot
+alone—prove the launch gate.
+
+The DwC-A health monitor remains enabled. Export backlog and due counts should
+stay zero; archive-cleanup backlog may be temporarily nonzero while revoked
+objects drain. Alert on cleanup age/leases normally. Do not silence that monitor
+or unschedule cleanup merely because generation is disabled.
+
+#### Later DwC-A feature enable
+
+Do not update the private singleton ad hoc and do not flip only the iOS default.
+Enabling is a separate release requiring:
+
+1. exact-SHA fresh-catalog and complete Edge/tooling/iOS checks;
+2. hosted maximum-shape snapshot, page, assembly, R2 multipart, Resend,
+   capability, and cleanup measurements inside agreed PostgreSQL and smallest
+   published Edge budgets;
+3. production R2 lifecycle, credential, pseudonym-key, catalog ACL/RLS,
+   service-key, monitor, and provider smokes;
+4. a reviewed forward migration that sets the singleton true and restores the
+   bounded once-per-minute continuation schedule from
+   `20260726230837_scale_dwca_export_continuations.sql`; and
+5. server-first promotion and negative/positive smoke before a later iOS Release
+   changes `.dwcaExports` to true.
+
+A rollback is another forward migration that first sets the singleton false,
+unschedules continuation, terminalizes nonterminal jobs, revokes capabilities,
+and enqueues archives using the same parent-row/advisory-lock order. Keep
+archive cleanup running. Never rewrite migration
+`20260728133835_disable_dwca_exports_for_launch.sql` after it reaches a shared
+environment.
+
+When enabled, the public request route queues personal exports only. Do not
+expose global scope to iOS or ordinary authenticated callers; repository-wide
+exports require a reviewed internal workflow. Every job pins immutable canonical
+budgets: 5,000 CSV rows and an 8 MiB archive by default, with hard database
+ceilings of 20,000 rows and 16 MiB.
+
+When enabled, the worker does not finish a complete export in `waitUntil`. A
 minute-level cron synchronously drains five-job oldest-due waves. Each claim
 still performs only one occurrence page, multimedia page, assembly, or delivery
 phase; the dispatcher starts no new phase after its 40-second soft cutoff and
@@ -1953,6 +2032,8 @@ deno fmt --check \
   services/supabase/functions/download-dwca \
   services/supabase/functions/reconcile-dwca-archive-cleanup \
   services/supabase/functions/reconcile-scan-deletions \
+  services/supabase/functions/request-export-dwca \
+  services/supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
   services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
   services/supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
@@ -1961,7 +2042,8 @@ deno fmt --check \
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,.github/workflows \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows \
+  services/supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
   services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
   services/supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
@@ -1972,6 +2054,7 @@ deno test --frozen \
   services/supabase/functions/export-dwca/db_test.ts \
   services/supabase/functions/export-dwca/drain_test.ts \
   services/supabase/functions/export-dwca/index_test.ts \
+  services/supabase/functions/_shared/dwcaReleaseState_test.ts \
   services/supabase/functions/export-dwca/mail_test.ts \
   services/supabase/functions/export-dwca/pseudonym_test.ts \
   services/supabase/functions/export-dwca/storage_test.ts \
@@ -1981,6 +2064,7 @@ deno test --frozen \
   services/supabase/functions/download-dwca/db_test.ts \
   services/supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
   services/supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
+  services/supabase/functions/request-export-dwca/db_test.ts \
   services/supabase/functions/delete-scan/db_test.ts \
   services/supabase/functions/reconcile-scan-deletions/worker_test.ts \
   services/supabase/functions/reconcile-scan-deletions/db_test.ts
@@ -1996,9 +2080,20 @@ supabase --workdir services test db --local \
   services/supabase/tests/export_dwca_security.sql \
   services/supabase/tests/export_dwca_snapshot_security.sql \
   services/supabase/tests/dwca_export_queue_security.sql \
+  services/supabase/tests/dwca_export_launch_gate_security.sql \
   services/supabase/tests/dwca_download_and_scan_finalization_security.sql \
   services/supabase/tests/public_web_explore_security.sql
 ```
+
+Keep the focused Deno read roots synchronized with every file read through
+`Deno.readTextFile` or another explicit filesystem API. Local module discovery
+does not authorize those transitive contract reads. In particular,
+`dwcaDownloadAndScanFinalizationMigrationContract.test.ts` inspects both
+`services/supabase/tests` catalog fixtures and `apps/ios` release-boundary
+sources. `services/supabase/scripts/tooling_gate_test.ts` rejects a focused
+workflow command that includes this contract without both roots. Run 1539 is
+negative evidence for this rule: 122 tests completed, but fixture loading then
+failed because `services/supabase/tests` was absent from `--allow-read`.
 
 The database test must prove all three source constraints are validated, API
 roles cannot read the immutable DTO store/projection, only `service_role` can
@@ -3725,13 +3820,15 @@ the durable worker recover.
 ## DwC-A Export and Archive Health Automation
 
 The **DwC-A Export and Archive Health Monitor** runs every five minutes, offset
-from the once-per-minute database dispatcher. It resolves the production server
-API key through the revealed Management API resolver and calls only the
-aggregate `get_dwca_export_queue_health()` and
-`get_dwca_archive_cleanup_health()` RPCs. User IDs, object keys, capability
-tokens, claim tokens, and work cursors are absent from logs and artifacts. Its
-GitHub schedule is independent of database cron and Vault, so it still alerts
-when the archive-cleanup worker never starts.
+from the once-per-minute database dispatcher when generation is enabled. During
+the initial launch the dispatcher is intentionally absent, but this independent
+monitor remains active to prove export backlog stays zero and revoked archive
+cleanup converges. It resolves the production server API key through the
+revealed Management API resolver and calls only the aggregate
+`get_dwca_export_queue_health()` and `get_dwca_archive_cleanup_health()` RPCs.
+User IDs, object keys, capability tokens, claim tokens, and work cursors are
+absent from logs and artifacts. Its GitHub schedule is independent of database
+cron and Vault, so it still alerts when the archive-cleanup worker never starts.
 
 Scheduled runs warn and fail when the oldest due job reaches five minutes, the
 outstanding backlog reaches 25 jobs, or any claim has expired. They become
@@ -4078,13 +4175,15 @@ rollback procedures are in
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
-- For the DwC-A version-2/public-web Explore release unit, retain the evidence
-  hold unless every exit criterion in
-  `14-dwca-and-public-web-release-hold-2026-07-27.md` has exact-SHA evidence.
-  Green unit/static suites alone are not release sign-off. Require the stable
-  hosted `iOS Build and Test / Production readiness` result, including the full
+- For the initial launch, run the **Initial-launch disabled verification** above
+  and retain the base evidence hold in
+  `14-dwca-and-public-web-release-hold-2026-07-27.md`. Green unit/static suites
+  or hidden iOS UI alone are not sign-off. Require the stable hosted
+  `iOS Build and Test / Production readiness` result, including the full
   unit-test target and independent unsigned Release archive, plus the frozen
   public-web install/audit/test/type-check/build gate for the same release SHA.
+  Do not require active-export maximum-shape/provider proof for this default-off
+  launch; require it before the later DwC-A feature enable.
 - For an Explore media-health release, complete the structural checks and
   staging smoke matrix in **Explore media-health and reversible-quarantine
   release gate**. Require public-surface agreement, preserved author/engagement

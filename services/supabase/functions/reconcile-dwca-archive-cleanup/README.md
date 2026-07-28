@@ -5,6 +5,13 @@ DwC-A archives. Database cron wakes it every five minutes. It requires one exact
 platform-managed server credential and never accepts a caller-supplied job,
 object key, cursor, or lease.
 
+This worker and its independent GitHub health monitor intentionally remain
+active while DwC-A intake, continuation, delivery, and downloads are disabled
+for the initial launch. Migration
+`20260728133835_disable_dwca_exports_for_launch.sql` revokes capabilities and
+adds known final archives to this outbox; disabling cleanup would strand those
+objects and is not a supported release posture.
+
 Each invocation deadline-drains up to 100 oldest-due outbox rows in 25-row claim
 waves with four concurrent deletes. Claims carry a UUID fencing token and a
 two-minute lease. R2 `404` is idempotent success; other storage failures release

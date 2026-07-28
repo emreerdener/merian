@@ -40,17 +40,19 @@ struct SettingsTabView: View {
                     showTestExploreOnboarding: $showTestExploreOnboarding
                 )
 
-                ExportScans(
-                    supabase: supabase,
-                    isExporting: $isExporting,
-                    exportUrl: $exportUrl,
-                    onExportRequested: {
-                        withAnimation { toastMessage = "Export requested. Check your email shortly." }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                            withAnimation { toastMessage = nil }
+                if FeatureFlags.isEnabled(.dwcaExports) {
+                    ExportScans(
+                        supabase: supabase,
+                        isExporting: $isExporting,
+                        exportUrl: $exportUrl,
+                        onExportRequested: {
+                            withAnimation { toastMessage = "Export requested. Check your email shortly." }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                                withAnimation { toastMessage = nil }
+                            }
                         }
-                    }
-                )
+                    )
+                }
 
                 Community(
                     changelogActive: $changelogActive,

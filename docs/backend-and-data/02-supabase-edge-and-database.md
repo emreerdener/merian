@@ -1430,11 +1430,20 @@ signature query string parameters from the URL to prevent Cloudflare R2
 
 ## The Scientific Export Pipeline (`request-export-dwca` & `export-dwca`)
 
+This pipeline is installed but authoritatively disabled for the initial launch.
+Release iOS hides the control; the private PostgreSQL singleton defaults off;
+the first BEFORE INSERT trigger rejects old/direct intake; continuation cron is
+absent; grants are revoked; and durable archive cleanup remains active. A valid
+authenticated request returns `403 feature_unavailable`, a valid worker request
+returns `200`/`disabled`, and a capability returns no-store `410`. The behavior
+below applies after the separate feature-enable evidence gate.
+
 The client-facing `/request-export-dwca` route requires a permanent account and
 accepts only `exportScope: "personal"`. Global exports are intentionally
 internal-only because they consume a shared repository-wide budget. Direct Data
-API insertion is revoked, and a partial unique index plus the 24-hour recent-job
-check makes concurrent duplicate submissions idempotently rate-limited.
+API insertion is revoked. An atomic service-only request RPC takes a per-user
+transaction advisory lock and combines release state, the rolling 24-hour
+window, and insertion; the partial unique index remains a final duplicate fence.
 
 The queue row is canonical and immutable. PostgreSQL webhooks and the
 minute-level resume cron send either an opaque `job_id` or an empty body; they

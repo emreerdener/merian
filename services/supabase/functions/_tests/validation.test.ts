@@ -8,7 +8,7 @@
 //   - Self-block guard (block-user)
 //   - flagReason enum guard (flag-issue)
 //   - exportScope enum guard + includePreciseCoordinates type check (request-export-dwca)
-//   - queueExportJob 23505 idempotency (request-export-dwca/db.ts)
+//   - atomic export-request disposition validation (request-export-dwca/db.ts)
 
 import {
   assert,
@@ -182,28 +182,30 @@ Deno.test("includePreciseCoordinates — null is rejected", () => {
 });
 
 // ---------------------------------------------------------------------------
-// queueExportJob 23505 idempotency logic (request-export-dwca/db.ts)
-// Inline stub of the error-handling branch.
+// Atomic export-request disposition validation (request-export-dwca/db.ts)
 // ---------------------------------------------------------------------------
 
-function handleInsertError(
-  errorCode: string | undefined,
-): "queued" | "already_pending" | "error" {
-  if (!errorCode) return "queued";
-  if (errorCode === "23505") return "already_pending"; // unique constraint — idempotent
-  return "error";
+const VALID_EXPORT_REQUEST_DISPOSITIONS = new Set([
+  "queued",
+  "disabled",
+  "rate_limited",
+  "already_pending",
+]);
+
+function isValidExportRequestDisposition(value: unknown): boolean {
+  return typeof value === "string" &&
+    VALID_EXPORT_REQUEST_DISPOSITIONS.has(value);
 }
 
-Deno.test("queueExportJob — no error means job was queued", () => {
-  assertEquals(handleInsertError(undefined), "queued");
+Deno.test("export request — every stable database disposition is accepted", () => {
+  assert(isValidExportRequestDisposition("queued"));
+  assert(isValidExportRequestDisposition("disabled"));
+  assert(isValidExportRequestDisposition("rate_limited"));
+  assert(isValidExportRequestDisposition("already_pending"));
 });
 
-Deno.test("queueExportJob — 23505 unique constraint violation returns already_pending (idempotent)", () => {
-  assertEquals(handleInsertError("23505"), "already_pending");
-});
-
-Deno.test("queueExportJob — other DB error codes are propagated as error", () => {
-  assertEquals(handleInsertError("23502"), "error"); // not-null violation
-  assertEquals(handleInsertError("42P01"), "error"); // undefined table
-  assertEquals(handleInsertError("500"), "error");
+Deno.test("export request — unknown and malformed dispositions are rejected", () => {
+  assertEquals(isValidExportRequestDisposition("enabled"), false);
+  assertEquals(isValidExportRequestDisposition(""), false);
+  assertEquals(isValidExportRequestDisposition(null), false);
 });

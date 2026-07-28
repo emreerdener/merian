@@ -204,30 +204,35 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/reconcile-ghost-profile-merges`: Five-minute service-role worker that
     leases incomplete receipts and deletes obsolete anonymous Auth shells.
 - **Export & Storage Orchestration**
-  - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour
-    rate limits for personal data exports; global scope is internal-only.
-  - `/export-dwca`: Resumable service-role worker whose individual claims
-    perform one bounded row-and-byte-aware keyset page, archive assembly, or
-    delivery phase. A minute invocation sequentially deadline-drains oldest-due
-    waves with a 40-step ceiling; lease fencing still permits safe overlap and
-    fair rotation. Both CSV passes share bounded immutable creation-time DTOs,
-    with confirmed species identity applied once; later scans and edits cannot
-    produce mixed output. Page hashes and a shared full-member predicate
-    revalidate privacy eligibility before assembly, staging, email, and
-    completion; scan/taxonomy triggers durably invalidate affected work.
-    Personal geoprivacy is irrelevant, while protected-species coordinate policy
-    is revalidated for both scopes. Cardinality/UTF-8 source constraints,
-    row-at-a-time aggregate source enforcement, 256 KiB claimed database pages,
-    a fixed 512 KiB incremental CSV encoder, durable cursors, and claim-fenced
-    byte-count/CRC manifests enforce canonical budgets before streaming the
-    Darwin Core ZIP to R2. Processing application capabilities stay in private
-    work state until final fenced completion. Every capability click reruns the
-    full-source privacy fence before a 30-second read-only redirect; revocation
-    feeds a durable leased archive-cleanup outbox. Checksum assembly composes
-    bounded chunk CRCs instead of scanning the full archive in JavaScript, then
-    dispatches an idempotent Resend request. Aggregate queue and cleanup
-    oldest-due/backlog telemetry feed production monitoring. Exact-SHA promotion
-    evidence is tracked in
+  - Initial launch posture: Release iOS hides DwC-A; a private default-off
+    PostgreSQL singleton and first insert trigger reject old/direct intake;
+    processing cron is stopped and capabilities are revoked, while durable
+    archive cleanup remains active.
+  - `/request-export-dwca`: Stable fail-closed client boundary. When enabled, a
+    per-user transaction lock atomically controls release state and the rolling
+    24-hour window for personal exports; global scope is internal-only.
+  - `/export-dwca`: Currently disabled resumable service-role worker. When
+    enabled, its individual claims perform one bounded row-and-byte-aware keyset
+    page, archive assembly, or delivery phase. A minute invocation sequentially
+    deadline-drains oldest-due waves with a 40-step ceiling; lease fencing still
+    permits safe overlap and fair rotation. Both CSV passes share bounded
+    immutable creation-time DTOs, with confirmed species identity applied once;
+    later scans and edits cannot produce mixed output. Page hashes and a shared
+    full-member predicate revalidate privacy eligibility before assembly,
+    staging, email, and completion; scan/taxonomy triggers durably invalidate
+    affected work. Personal geoprivacy is irrelevant, while protected-species
+    coordinate policy is revalidated for both scopes. Cardinality/UTF-8 source
+    constraints, row-at-a-time aggregate source enforcement, 256 KiB claimed
+    database pages, a fixed 512 KiB incremental CSV encoder, durable cursors,
+    and claim-fenced byte-count/CRC manifests enforce canonical budgets before
+    streaming the Darwin Core ZIP to R2. Processing application capabilities
+    stay in private work state until final fenced completion. Every capability
+    click reruns the full-source privacy fence before a 30-second read-only
+    redirect; revocation feeds a durable leased archive-cleanup outbox. Checksum
+    assembly composes bounded chunk CRCs instead of scanning the full archive in
+    JavaScript, then dispatches an idempotent Resend request. Aggregate queue
+    and cleanup oldest-due/backlog telemetry feed production monitoring.
+    Exact-SHA promotion evidence is tracked in
     `docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge

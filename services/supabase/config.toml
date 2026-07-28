@@ -413,12 +413,17 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.export-dwca]
+# Deployed for stable old-webhook/manual responses, but canonical PostgreSQL
+# release state defaults off and continuation cron is absent for initial launch.
 verify_jwt = false
 
 [functions.download-dwca]
+# Deployed as a capability tombstone; while canonical release state is off it
+# returns no-store 410 before storage signing.
 verify_jwt = false
 
 [functions.reconcile-dwca-archive-cleanup]
+# Intentionally remains live while export generation/download are disabled.
 verify_jwt = false
 
 [functions.get-filtered-discovery-feed]
@@ -490,6 +495,8 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.request-export-dwca]
+# `enabled = true` preserves a stable old-client endpoint; it does not enable
+# the product. Canonical PostgreSQL release state defaults off for initial launch.
 enabled = true
 # INTENTIONAL: verify_jwt = true — DwC-A export is a personal data download that requires
 # a verified authenticated user session. Anonymous users cannot export their data because

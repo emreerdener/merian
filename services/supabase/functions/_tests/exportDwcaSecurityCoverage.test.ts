@@ -232,16 +232,20 @@ Deno.test("DwC-A backlog monitor shares route defaults and emits bounded artifac
   assertStringIncludes(workflow, "retention-days: 30");
 });
 
-Deno.test("failed exports do not consume the next request window", async () => {
+Deno.test("export intake is atomic and fails closed behind the release gate", async () => {
   const requestDb = await Deno.readTextFile(
     new URL("../request-export-dwca/db.ts", import.meta.url),
   );
   const requestIndex = await Deno.readTextFile(
     new URL("../request-export-dwca/index.ts", import.meta.url),
   );
-  assertStringIncludes(requestDb, '.neq("status", "failed")');
+  assertStringIncludes(requestDb, '"request_dwca_export_job"');
+  assertEquals(requestDb.includes('.from("export_jobs")'), false);
+  assertStringIncludes(requestDb, 'case "disabled"');
   assertStringIncludes(requestIndex, "user.is_anonymous === true");
   assertStringIncludes(requestIndex, '"account_required"');
   assertStringIncludes(requestIndex, 'exportScope !== "personal"');
   assertStringIncludes(requestIndex, '"global_export_forbidden"');
+  assertStringIncludes(requestIndex, 'disposition === "disabled"');
+  assertStringIncludes(requestIndex, '"feature_unavailable"');
 });

@@ -1,7 +1,9 @@
 # DwC-A and Public Web Release Assurance — 2026-07-27
 
-Status: **IMPLEMENTED; BLOCK production promotion until exact-release-SHA
-catalog and hosted-load evidence passes.**
+Status: **DwC-A DEFAULT-OFF FOR INITIAL LAUNCH; BLOCK base production promotion
+until exact-release-SHA catalog, complete-CI, and production negative gate
+evidence passes. Active export load/delivery evidence is deferred to a separate
+feature-enable gate.**
 
 Base reviewed implementation: `7b74289c3aaeb9f814088c4981bac715b46fae51`.
 
@@ -10,15 +12,18 @@ Remediation is implemented in forward migration
 paired Edge/web changes. Follow-on migration
 `20260728035237_harden_dwca_downloads_and_scan_finalization.sql` adds revocable
 download authorization, durable archive cleanup, and atomic scan-generation
-finalization/recovery. This record remains the source of truth for deploying and
-verifying that release unit. It does not replace the deployment runbook or API
-contracts.
+finalization/recovery. Launch-isolation migration
+`20260728133835_disable_dwca_exports_for_launch.sql` then makes export behavior
+default-off independently of app and Edge versions. This record remains the
+source of truth for deploying and verifying the base release and later feature
+enable. It does not replace the deployment runbook or API contracts.
 
 ## Scope
 
 The release unit contains:
 
-- the immutable DwC-A source snapshot and resumable export worker;
+- the installed but launch-disabled immutable DwC-A source snapshot and
+  resumable export worker;
 - `request-export-dwca`, `export-dwca`, `download-dwca`, and
   `reconcile-dwca-archive-cleanup`;
 - multimodal scan claim, owner-row recovery, replay, and media finalization;
@@ -26,6 +31,37 @@ The release unit contains:
   `reconcile-scan-deletions` reaper and aggregate erasure-SLA monitoring;
 - the server-only public-web Explore card/detail boundary; and
 - `apps/web` when it consumes that boundary.
+
+## Initial Launch Isolation
+
+DwC-A is not part of the active initial-launch product surface:
+
+- `FeatureFlag.dwcaExports` defaults false, so Release iOS builds omit the
+  Settings section. Debug overrides are presentation-only.
+- `internal.dwca_export_release_control` is a private no-API-grant singleton
+  whose canonical state defaults false; missing state also fails closed.
+- Every intake path retains a shared lock on that singleton until transaction
+  end, so reviewed state updates cannot interleave with a job insertion.
+- The alphabetically first `public.export_jobs` BEFORE INSERT trigger rejects
+  old Edge bundles and unexpected direct service-role insertion with
+  `dwca_exports_disabled`.
+- `request_dwca_export_job(...)` takes a transaction advisory lock keyed by user
+  and atomically combines release state, the rolling 24-hour window, and
+  insertion. The route maps disabled to `403 feature_unavailable`.
+- The service worker returns `200`/`disposition: disabled` before discovery;
+  public download returns no-store `410` before R2 signing.
+- The once-per-minute continuation cron is absent. Existing pending/processing
+  rows are failed as `feature_disabled`, grants are revoked, and known final
+  archives enter the durable deletion outbox.
+- Archive cleanup cron and independent monitoring remain active. Temporary
+  private work objects are bounded by the checked-in one-day R2 lifecycle rule.
+
+This isolation removes active ZIP CPU/memory, export throughput, R2 multipart,
+Resend delivery, and maximum-shape snapshot behavior from the initial runtime
+surface. It does not remove the migrations, routines, triggers, tables, or
+cleanup worker from the catalog. Fresh replay, ACL/RLS/search-path validation,
+exact-SHA compile/test evidence, production negative smokes, and cleanup health
+therefore remain base-release requirements.
 
 ## Current Platform Assumptions
 
@@ -225,18 +261,31 @@ Focused Deno coverage currently proves:
 - public API roles cannot execute either public-web routine; and
 - oversized maximum-cardinality DTO sources stop at the aggregate sentinel
   without retaining partial source rows.
+- default-off release state is structurally validated and fails closed on
+  malformed/unavailable RPC responses;
+- request code uses only the atomic database routine and cannot fall back to
+  direct `export_jobs` reads/inserts;
+- Release iOS Settings presentation is bound to `.dwcaExports`; and
+- static launch contracts retain archive cleanup while forbidding continuation
+  rescheduling.
+
+The exact focused DwC-A workflow command for the launch-isolation change passed
+138 Deno tests, all three modified production entrypoint type checks, focused
+lint, all 89 isolated function graphs across 284 runtime files, and all 10
+dependency-graph tests. Fresh-catalog execution is still required; these
+static/unit results do not validate migration execution.
 
 Local validation in the remediation working tree passed:
 
-- 83 focused DwC-A/download/scan-finalization TypeScript tests;
-- the complete Edge Function suite: 1,238 tests, zero failures;
-- all 144 tests across 21 discovered migration contract files;
-- the complete Supabase tooling gate, including its 100 standard tests, 16 DTO
+- 138 focused DwC-A/download/scan-finalization TypeScript tests;
+- the complete Edge Function suite: 1,246 tests, zero failures;
+- all 145 tests across 21 discovered migration contract files;
+- the complete Supabase tooling gate, including its 101 standard tests, 16 DTO
   validator tests, 10 executable Identify contract tests, shell tests, and
   database-catalog discovery;
-- whole-tree Supabase formatting across 656 files and lint across 501 files;
+- whole-tree Supabase formatting across 660 files and lint across 505 files;
 - all 89 function-specific Deno configuration checks, all 89 isolated dependency
-  graphs across 283 runtime files, and all 89 production entrypoint type checks;
+  graphs across 284 runtime files, and all 89 production entrypoint type checks;
   and
 - all 56 public-web source tests.
 
@@ -260,53 +309,73 @@ is added. This failed attempt is useful negative evidence, but it is not a pass;
 the corrected test and all nineteen catalog files still require exact-SHA CI
 replay.
 
-## Remaining Release Evidence
+### Focused test evidence: run 1539 attempt 1
 
-These are assurance gates, not unresolved design work:
+GitHub run 1539 evaluated commit `7f83b391c5a77ca06384d2e4a68ec3e5597ad808`. Its
+focused DwC-A lane passed 122 tests, then Deno rejected module loading because
+the command did not grant read access to
+`services/supabase/tests/dwca_download_and_scan_finalization_security.sql`. This
+is a CI permission failure, not passing release evidence.
 
-- fresh-catalog migration replay and pgTAP using the repository-pinned Supabase
-  CLI;
-- exact-release-SHA replay of the complete Edge, tooling, formatting, lint,
-  isolated-graph, and web gates;
+The correction adds the complete `supabase/tests` fixture root to that focused
+lane and adds an earlier tooling contract requiring both that root and the iOS
+release-boundary source root. The exact corrected SHA must replay the lane; run
+1539 remains red and is not promoted as evidence.
+
+## Remaining Base-release Evidence
+
+These remain initial-launch assurance gates even though DwC-A is disabled:
+
+- fresh-catalog migration replay and every discovered pgTAP file, including
+  default-off state, routine ACL/search-path/static validation, direct-insert
+  denial, continuation absence, and cleanup-schedule presence;
+- exact-release-SHA replay of complete Edge, tooling, formatting, lint, DTO,
+  isolated-graph, web, and admin gates;
 - the stable hosted `iOS Build and Test / Production readiness` result, proving
   the complete iOS unit-test target and unsigned Release archive from that same
-  SHA;
-- hosted maximum-shape PostgreSQL measurements for duration, temporary bytes,
-  memory pressure, lock age, and WAL;
-- production catalog checks for RLS, ACLs, empty definer `search_path`, trigger
-  installation, and service-only grants;
-- real anon, publishable, authenticated, and server-key negative/positive smoke
-  tests;
-- queue, invalidation, staged-object, archive-cleanup, and scan-deletion
+  SHA, with the export presentation default off;
+- production catalog checks for RLS, ACLs, empty definer `search_path`, gate
+  trigger order, service-only grants, zero nonterminal jobs, zero live grants,
+  absent continuation cron, and active archive-cleanup cron;
+- real anon/publishable/authenticated/server-key negative smokes proving request
+  `403 feature_unavailable`, worker `200`/`disabled`, and capability `410`;
+- public-web canonical visibility and atomic-page production smokes;
+- archive-cleanup, scan-deletion, account-deletion, ingestion, and media-health
   monitoring confirmation; and
 - concurrent scan claim/recovery, failed-finalization, and interrupted-erasure
   production smoke.
 
-The local machine used for this remediation could not supply fresh-catalog
-evidence: its installed CLI cannot parse the newer repository configuration, and
-Docker access is unavailable. This is explicitly **unverified**, not a pass.
+The local machine used for the launch-isolation follow-up could not supply
+fresh-catalog evidence: its installed Supabase CLI 2.90.0 rejects the newer
+repository `local_smtp` configuration before connecting, and a newer CLI could
+not be restored in the restricted network environment. This is explicitly
+**unverified**, not a pass.
 
-## Promotion Gate
+## Initial-launch Promotion Gate
 
-Remove the production hold only when all of the following are attached to the
-same release SHA:
+The base release may promote only when every **Remaining Base-release Evidence**
+item is attached to the same SHA and production still reports the canonical
+DwC-A state as disabled. Active export maximum-shape, queue-throughput, R2
+multipart, Resend, and positive capability-delivery tests do not block that
+default-off promotion because no supported or old-client path can create or
+process a job. A hidden button without the database/catalog evidence is not
+equivalent.
 
-- fresh-catalog migrations and all DwC-A/public-web/scan-finalization pgTAP
-  files pass;
-- complete Deno, dependency, tooling, format, lint, DTO, and isolated-function
-  graph checks pass;
-- web frozen install, audit, test, type-check, and production build pass;
-- the complete hosted iOS unit-test target and independent unsigned Release
-  archive pass for the exact release SHA;
-- hosted maximum-shape snapshot/export measurements remain inside agreed
-  database, Edge CPU/memory, R2, and latency budgets;
-- production catalog and credential smoke matrices match the contracts above;
-- export-queue, archive-cleanup, and scan-deletion operational monitors are
-  enabled and healthy; and
-- an interrupted staging scan deletion completes through
-  `reconcile-scan-deletions` without a client retry while the permanent UUID
-  fence prevents mutation, replay, and recovery.
+## Later DwC-A Feature-enable Gate
 
-Until that evidence exists, do not enable new DwC-A intake/delivery or promote
-the paired public-web release merely because focused unit/static suites are
-green.
+Before changing the database singleton or Release iOS default, attach to one
+feature-release SHA:
+
+- all base-release evidence above;
+- hosted maximum-shape snapshot/export measurements for duration, temporary
+  bytes, memory, lock age, WAL, Edge CPU/memory/546 behavior, and latency;
+- bounded backlog/fairness/stuck-watchdog load evidence at intended user scale;
+- production R2 multipart/read/delete, Resend idempotency/error classification,
+  pseudonym-key, capability expiry/revocation, and cleanup convergence smokes;
+- healthy export-queue and archive-cleanup monitors with agreed alert ownership;
+  and
+- a reviewed forward migration that enables the singleton and restores the
+  bounded continuation cron before a server-first smoke and later iOS enable.
+
+Until that evidence exists, keep DwC-A intake/delivery disabled. Do not promote
+the feature merely because focused unit/static suites are green.

@@ -1,6 +1,6 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, publicErrorResponse } from "../_shared/http.ts";
-import { hasRecentExportJob, queueExportJob } from "./db.ts";
+import { requestDwcaExportJob } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -46,10 +46,22 @@ Deno.serve((req: Request) =>
       );
     }
 
-    // 1. Rate Limit: Ensure only 1 export per 24 hours
-    const hasLimiterHit = await hasRecentExportJob(userId, supabaseAdmin);
+    const disposition = await requestDwcaExportJob(
+      userId,
+      exportScope,
+      includePreciseCoordinates,
+      supabaseAdmin,
+    );
 
-    if (hasLimiterHit) {
+    if (disposition === "disabled") {
+      return publicErrorResponse(
+        req,
+        403,
+        "feature_unavailable",
+        "Scan exports are not currently available.",
+      );
+    }
+    if (disposition === "rate_limited") {
       return jsonResponse(
         {
           error: "Rate Limit Exceeded",
@@ -58,18 +70,7 @@ Deno.serve((req: Request) =>
         429,
       );
     }
-
-    // 2. Queue the Export for the Heavy Worker Webhook.
-    // queueExportJob returns false when a concurrent request already inserted a pending
-    // job (TOCTOU race — both requests passed the rate-limit SELECT before either INSERT).
-    const queued = await queueExportJob(
-      userId,
-      exportScope,
-      includePreciseCoordinates,
-      supabaseAdmin,
-    );
-
-    if (!queued) {
+    if (disposition === "already_pending") {
       return jsonResponse(
         {
           error: "Rate Limit Exceeded",

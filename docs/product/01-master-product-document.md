@@ -596,19 +596,27 @@ For endangered or sensitive species, an additional safety offset can extend to
 approximately 50 km. Ecological sensitivity can therefore override a user's
 broader public setting.
 
-## 10.2 Exports - Implemented
+## 10.2 Exports - Implemented foundation; launch-disabled
 
-Darwin Core Archive export uses an asynchronous request-and-worker flow. The
-database atomically leases one durable phase at a time. The worker persists
-100-row keyset cursors and claim-fenced CSV manifests over one creation-time
-scan membership snapshot. Every phase projection must match its snapshot
-revision fingerprint, so later scans are excluded and changed/deleted source
-revisions cannot produce a mixed archive. The worker assembles chunks into a
-streaming multipart archive, composing checksums from bounded durable chunk
-metadata rather than rescanning the full archive in JavaScript, and gives Resend
-a job-idempotent request for a time-limited link. Canonical defaults limit one
-job to 5,000 CSV rows and an 8 MiB archive. Successful/non-terminal requests are
-rate-limited to approximately one per 24 hours; failed jobs remain retryable.
+Darwin Core Archive export is staged behind a default-off Release iOS flag and
+an authoritative private PostgreSQL gate for the initial production launch. Old
+builds and direct callers cannot create jobs; scheduled continuation is stopped,
+existing capabilities are revoked, and independent archive cleanup remains
+active. Re-enabling requires a reviewed migration plus the separate
+maximum-shape, delivery, catalog, credential, and monitoring evidence gate.
+
+When enabled, Darwin Core Archive export uses an asynchronous request-and-worker
+flow. The database atomically leases one durable phase at a time. The worker
+persists 100-row keyset cursors and claim-fenced CSV manifests over one
+creation-time scan membership snapshot. Every phase projection must match its
+snapshot revision fingerprint, so later scans are excluded and changed/deleted
+source revisions cannot produce a mixed archive. The worker assembles chunks
+into a streaming multipart archive, composing checksums from bounded durable
+chunk metadata rather than rescanning the full archive in JavaScript, and gives
+Resend a job-idempotent request for a time-limited link. Canonical defaults
+limit one job to 5,000 CSV rows and an 8 MiB archive. Successful/non-terminal
+requests are rate-limited to approximately one per 24 hours; failed jobs remain
+retryable.
 
 Personal exports can include the owner's exact location where allowed. Ordinary
 authenticated callers can request only personal exports. Repository-wide exports
@@ -887,9 +895,12 @@ Rive and TelemetryDeck are not direct dependencies in the current
 implementation.
 
 The DwC-A version-2, revocable download/cleanup, atomic scan-finalization, and
-public-web Explore repairs are implemented but remain a single release-held unit
-until exact-SHA fresh-catalog, hosted maximum-shape, catalog, credential, and
-complete CI evidence passes. The authoritative promotion checklist is
+public-web Explore repairs are implemented. DwC-A runtime behavior is
+authoritatively disabled for the initial launch, so active export
+maximum-shape/delivery proof is deferred to the feature-enable gate. The base
+release still requires exact-SHA fresh-catalog, public-web/scan-finalization
+catalog and credential smokes, and complete CI evidence. The authoritative
+checklist is
 [DwC-A and Public Web Release Assurance](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 # 16. Telemetry, quality, and operations

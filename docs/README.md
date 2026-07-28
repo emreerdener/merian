@@ -61,14 +61,17 @@ as their permanent engineering identity.
   embedding transaction controls; timeout guards use session settings with
   matching resets so they remain effective during fresh replay. See
   [`backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md).
-- **Current backend release verdict**: The DwC-A version-2/public-web Explore
-  design repairs are implemented: full-lifecycle privacy fencing, independently
-  canonical atomic detail reads, revocable click-time download authorization,
-  durable archive cleanup, cumulatively bounded snapshot projection, and atomic
-  scan claim/recovery/media-finalization completion. Production promotion
-  remains **blocked on exact-SHA evidence**, including fresh-catalog pgTAP, the
-  hosted full iOS unit-test/unsigned Release-archive result, the frozen
-  public-web gate, and hosted maximum-shape measurements. See
+- **Current backend release verdict**: DwC-A exports are default-off for the
+  initial launch at both the iOS presentation boundary and the canonical
+  PostgreSQL intake/processing/download boundary. Existing nonterminal work is
+  terminal, capabilities are revoked, processing cron is stopped, and durable
+  archive cleanup remains active. The privacy, snapshot, public-web visibility,
+  and atomic scan-finalization repairs remain installed. Base production
+  promotion is still **blocked on exact-SHA evidence**, including fresh-catalog
+  pgTAP, the hosted full iOS unit-test/unsigned Release-archive result, the
+  frozen public-web gate, and production catalog/credential smokes. Hosted
+  maximum-shape export and delivery measurements are deferred to the separate
+  feature-enable gate. See
   [`backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`](./backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still

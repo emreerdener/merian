@@ -16,12 +16,15 @@ Production domain, AASA, email, backend, App Store, verification, and rollback
 steps are tracked in the
 [Naturebook rebrand rollout runbook](docs/development-guides/15-naturebook-rebrand-rollout.md).
 
-> **Production release evidence gate (2026-07-27):** The DwC-A
-> version-2/public-web Explore design repairs are implemented. Do not promote
-> the release unit until exact-SHA fresh-catalog pgTAP, complete CI—including
-> the hosted full iOS unit-test target, unsigned Release archive, and frozen
-> public-web gate—production credential/catalog smoke tests, and hosted
-> maximum-shape measurements pass. See the
+> **Production release evidence gate (2026-07-28):** DwC-A exports are
+> authoritatively disabled for the initial launch by migration
+> `20260728133835_disable_dwca_exports_for_launch.sql`; Release iOS builds hide
+> the staged controls, new jobs fail closed in PostgreSQL, processing cron is
+> stopped, and archive cleanup remains active. Exact-SHA fresh-catalog pgTAP,
+> complete CI—including the hosted full iOS unit-test target, unsigned Release
+> archive, and frozen public-web gate—and production credential/catalog smoke
+> tests still gate the base release. Maximum-shape export and delivery evidence
+> moves to the separate DwC-A feature-enable gate. See the
 > [canonical release-hold record](docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ---
@@ -291,13 +294,14 @@ does not disable server-side progress or the persistent Insight card.
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account
 and synced to Supabase. **Notifications** — species discovery alerts,
 achievement milestone alerts. **Changelog** — bundled feature notes, release
-notes, and selected in-progress work. **Export** — Darwin Core Archive (DwC-A)
-formatted data export for academic/research use. **Account** — Sign in with
-Apple or Google, anonymous Ghost Sessions, and durable account deletion that
-anonymizes retained observations, queues media cleanup, and removes login access
-only after database cleanup is verified. An independent scheduled health check
-alerts when the reaper is unconfigured, work is overdue, leases expire, or the
-erasure backlog breaches its SLA.
+notes, and selected in-progress work. **Export** — staged Darwin Core Archive
+(DwC-A) data export for academic/research use; hidden and server-disabled for
+the initial production launch. **Account** — Sign in with Apple or Google,
+anonymous Ghost Sessions, and durable account deletion that anonymizes retained
+observations, queues media cleanup, and removes login access only after database
+cleanup is verified. An independent scheduled health check alerts when the
+reaper is unconfigured, work is overdue, leases expire, or the erasure backlog
+breaches its SLA.
 
 ---
 

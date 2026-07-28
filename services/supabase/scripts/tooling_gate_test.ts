@@ -147,6 +147,35 @@ Deno.test("migration contract gate discovers tests for local and deploy validati
   );
 });
 
+Deno.test("focused DwC-A tests can read every transitive contract root", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const stepStart = workflow.indexOf(
+    "- name: Test Darwin Core export boundary",
+  );
+  const stepEnd = workflow.indexOf(
+    "- name: Test production workflow security",
+    stepStart,
+  );
+
+  assert(
+    stepStart >= 0 && stepEnd > stepStart,
+    "The focused DwC-A workflow step must exist before its permission contract can be checked.",
+  );
+  const step = workflow.slice(stepStart, stepEnd);
+  assertMatch(
+    step,
+    /--allow-read=[^\n]*supabase\/tests/,
+  );
+  assertMatch(
+    step,
+    /--allow-read=[^\n]*\.\.\/apps\/ios/,
+  );
+  assertMatch(
+    step,
+    /dwcaDownloadAndScanFinalizationMigrationContract\.test\.ts/,
+  );
+});
+
 Deno.test("GitHub Actions SHA pins receive weekly dependency updates", async () => {
   const dependabot = await Deno.readTextFile(dependabotPath);
 

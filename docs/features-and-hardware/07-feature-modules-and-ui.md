@@ -246,22 +246,21 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 ### Privacy & Science
 - **Geoprivacy Control (`GeoprivacyPickerView`)**: Lives inside `Features/Profile/Settings/Components/Preferences.swift` and is pushed from the settings list. It explains `Open`, `Obscured`, and `Private` coordinate options, binds through `ProfileViewModel.defaultGeoprivacy`, and cascades changes to Supabase in the background.
 - **Community and Legal Links (`Community.swift`)**: The Profile settings Resources section opens `https://naturebook.earth/guidelines` and `https://naturebook.earth/legal` through the in-app Safari sheet, appending `?theme=light|dark|system` from `AppSettings.themeMode` so Mantine can match the iOS theme. Support/bug reports route to `support@naturebook.earth`, Feedback survey opens the native beta survey, and Changelog routes to the bundled in-app notes screen.
-- **Export Scans (DwC-A)**: *(Auth Required)* Queues a background ZIP
-  generation via `/request-export-dwca`. Because PostgreSQL wakes a leased
-  service worker asynchronously, the UI keeps the bounded queue request
-  off-main and displays a queued alert after it succeeds. Job creation freezes
-  bounded occurrence and multimedia DTOs from one MVCC snapshot, stopping
-  projection at per-row and cumulative source-byte limits. The worker advances
-  claim-fenced 100-row/256 KiB CSV pages over that immutable source under
-  canonical row/archive budgets, runs a full-member live privacy fence before
-  assembly and delivery, streams the durable manifest into multipart R2, and
-  sends one idempotent Resend request. Processing application capabilities
-  remain private until completion; each click reruns the full privacy fence
-  before a 30-second read-only redirect. A mismatch revokes the URL and enqueues
-  the archive for durable cleanup. A "Sign in with Apple" prompt prevents
-  anonymous users from
-  generating exports before creating an account. Production promotion remains
-  governed by the
+- **Export Scans (DwC-A)**: *(Staged; launch-disabled)* Release iOS builds hide
+  this section because `.dwcaExports` defaults off. Debug can show it, but the
+  private PostgreSQL gate remains authoritative for old builds and direct
+  requests. After the separate feature-enable gate, it queues background ZIP
+  generation via `/request-export-dwca`. Job creation freezes bounded occurrence
+  and multimedia DTOs from one MVCC snapshot, stopping projection at per-row and
+  cumulative source-byte limits. The worker advances claim-fenced 100-row/256
+  KiB CSV pages over that immutable source under canonical row/archive budgets,
+  runs a full-member live privacy fence before assembly and delivery, streams the
+  durable manifest into multipart R2, and sends one idempotent Resend request.
+  Processing application capabilities remain private until completion; each
+  click reruns the full privacy fence before a 30-second read-only redirect. A
+  mismatch revokes the URL and enqueues the archive for durable cleanup. A "Sign
+  in with Apple" prompt prevents anonymous users from generating exports before
+  creating an account. Production promotion remains governed by the
   [release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### Danger Zone & Data Lifecycle

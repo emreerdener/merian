@@ -145,6 +145,7 @@ jobs:
             supabase/functions/_shared/serviceRoleClient_test.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
             supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
@@ -249,11 +250,13 @@ jobs:
             supabase/functions/export-dwca/crc32_test.ts \
             supabase/functions/export-dwca/index_test.ts \
             supabase/functions/export-dwca/db_test.ts \
+            supabase/functions/_shared/dwcaReleaseState_test.ts \
             supabase/functions/export-dwca/mail_test.ts \
             supabase/functions/export-dwca/pseudonym_test.ts \
             supabase/functions/export-dwca/storage_test.ts \
             supabase/functions/export-dwca/worker_test.ts \
             supabase/functions/export-dwca/zip_test.ts \
+            supabase/functions/request-export-dwca/db_test.ts \
             supabase/functions/scan-media-health/index.ts
 
       - name: Validate isolated Edge Function dependency graphs
@@ -364,7 +367,8 @@ jobs:
       - name: Test Darwin Core export boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,../.github/workflows \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests,../apps/ios,../.github/workflows \
+            supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
             supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
             supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
@@ -375,6 +379,7 @@ jobs:
             supabase/functions/export-dwca/db_test.ts \
             supabase/functions/export-dwca/drain_test.ts \
             supabase/functions/export-dwca/index_test.ts \
+            supabase/functions/_shared/dwcaReleaseState_test.ts \
             supabase/functions/export-dwca/mail_test.ts \
             supabase/functions/export-dwca/pseudonym_test.ts \
             supabase/functions/export-dwca/storage_test.ts \
@@ -382,6 +387,7 @@ jobs:
             supabase/functions/export-dwca/zip_test.ts \
             supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
             supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
+            supabase/functions/request-export-dwca/db_test.ts \
             supabase/functions/delete-scan/db_test.ts \
             supabase/functions/reconcile-scan-deletions/worker_test.ts \
             supabase/functions/reconcile-scan-deletions/db_test.ts
@@ -1034,6 +1040,19 @@ jobs:
           '
           echo "$dwca_cleanup_response" | jq \
             '{claimed, completed, deferred, health_status}'
+
+          dwca_gate_response="$(
+            post_server_json \
+              "/functions/v1/export-dwca" \
+              '{}'
+          )"
+          echo "$dwca_gate_response" | jq -e '
+            .success == true
+            and .disposition == "disabled"
+            and .release.enabled == false
+          '
+          echo "$dwca_gate_response" | jq \
+            '{disposition, release}'
 
           explore_media_response="$(
             post_server_json \

@@ -18,12 +18,25 @@ struct FieldTripsAvailabilityTests {
             .speciesDictionaryTree,
             .fieldTrips,
             .fieldTripEvents,
+            .dwcaExports,
             .unlimitedFreeScans
         ])
         #expect(!FeatureFlag.speciesDictionaryTree.defaultValue)
         #expect(FeatureFlag.fieldTrips.defaultValue)
         #expect(!FeatureFlag.fieldTripEvents.defaultValue)
+        #expect(!FeatureFlag.dwcaExports.defaultValue)
         #expect(!FeatureFlag.unlimitedFreeScans.defaultValue)
+    }
+
+    @Test func dwcaExportsRemainStagedUntilTheExplicitReleaseChange() throws {
+        let suiteName = "DwcaExportsReleaseGateTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(!FeatureFlags.isEnabled(
+            .dwcaExports,
+            userDefaults: userDefaults
+        ))
     }
 
     #if DEBUG

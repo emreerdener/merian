@@ -302,6 +302,8 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     changelog,
     offlinePipeline,
     testing,
+    runbook,
+    backendReadme,
     releaseHold,
   ] = await Promise.all([
     read("README.md"),
@@ -309,6 +311,8 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     read("CHANGELOG.md"),
     read("docs/backend-and-data/01-offline-sync-pipeline.md"),
     read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("services/supabase/README.md"),
     read(
       "docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md",
     ),
@@ -351,6 +355,38 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(releaseHold),
     "the stable hosted `iOS Build and Test / Production readiness` result",
+  );
+  assertStringIncludes(
+    compact(changelog),
+    "DwC-A exports are now intentionally unavailable for the initial production launch",
+  );
+  assertStringIncludes(
+    compact(changelog),
+    "Focused DwC-A CI now grants Deno read access to every repository root",
+  );
+  assertStringIncludes(
+    compact(runbook),
+    "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
+  );
+  assertStringIncludes(
+    compact(testing),
+    "Focused source-inspection lanes have a separate Deno permission contract.",
+  );
+  assertStringIncludes(
+    compact(backendReadme),
+    "Selected source-inspection lanes retain narrow permissions",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "DwC-A is not part of the active initial-launch product surface",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Focused test evidence: run 1539 attempt 1",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Active export maximum-shape, queue-throughput, R2 multipart, Resend, and positive capability-delivery tests do not block that default-off promotion",
   );
 });
 
@@ -663,9 +699,11 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/README.md",
     "services/supabase/functions/_shared/README.md",
     "services/supabase/functions/check-scan-status/README.md",
+    "services/supabase/functions/download-dwca/README.md",
     "services/supabase/functions/export-dwca/README.md",
     "services/supabase/functions/identify-multimodal/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
+    "services/supabase/functions/reconcile-dwca-archive-cleanup/README.md",
     "services/supabase/functions/request-community-identification/README.md",
     "services/supabase/functions/request-export-dwca/README.md",
     "services/supabase/functions/share-scan-to-explore/README.md",

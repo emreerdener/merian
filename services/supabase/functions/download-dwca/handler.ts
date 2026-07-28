@@ -3,6 +3,7 @@ import {
   clientAddressFromHeaders,
   hmacClientAddressForPurpose,
 } from "../_shared/clientAddress.ts";
+import { fetchDwcaExportReleaseState } from "../_shared/dwcaReleaseState.ts";
 import { publicErrorResponse, requestIdFor } from "../_shared/http.ts";
 import { sha256Hex } from "../export-dwca/downloadGrant.ts";
 import { createDwcaArchiveRedirectUrl } from "../export-dwca/storage.ts";
@@ -28,12 +29,26 @@ export function defaultDownloadDwcaDependencies(
   clientAddressHashSecret: string,
 ): DownloadDwcaDependencies {
   return {
-    authorize: (tokenSha256, ipHash) =>
-      authorizeDwcaArchiveDownload(
+    authorize: async (tokenSha256, ipHash) => {
+      // Preserve the database-backed per-IP window even while exports are
+      // disabled. Random capability-shaped traffic must not turn the release
+      // singleton into an unmetered public probe.
+      const authorization = await authorizeDwcaArchiveDownload(
         tokenSha256,
         ipHash,
         supabaseAdmin,
-      ),
+      );
+      if (
+        authorization.status !== "authorized" &&
+        authorization.status !== "not_ready"
+      ) {
+        return authorization;
+      }
+
+      const releaseState = await fetchDwcaExportReleaseState(supabaseAdmin);
+      if (!releaseState.enabled) return { status: "gone" };
+      return authorization;
+    },
     hashToken: sha256Hex,
     hashAddress: (address) =>
       hmacClientAddressForPurpose(

@@ -1305,13 +1305,39 @@ item. RLS is enabled with no public policies; the authenticated
 rows default to `PENDING_REVIEW`; repeat submissions preserve an existing
 `DISMISSED` or `ACTIONED` status. This table never changes `scans.is_flagged`.
 
+### `internal.dwca_export_release_control`
+
+Private singleton installed by
+`20260728133835_disable_dwca_exports_for_launch.sql`. It contains `singleton`,
+the canonical `enabled` Boolean, and `updated_at`. The row defaults to disabled;
+missing state is also interpreted as disabled. RLS is enabled and
+`PUBLIC`/`anon`/`authenticated`/`service_role` have no table privileges.
+
+`internal.enforce_dwca_export_intake_gate()` runs from the alphabetically first
+BEFORE INSERT trigger on `public.export_jobs`, before any expensive snapshot or
+webhook trigger. It rejects every insertion with stable SQLSTATE `55000` and
+`dwca_exports_disabled` while off, including inserts from an old Edge bundle or
+an unexpected direct service-role path.
+
+`public.get_dwca_export_release_state()` and
+`public.request_dwca_export_job(uuid,text,boolean)` are allowlisted only for
+`service_role`; both call `internal.require_service_role()` and use empty fixed
+search paths. The request routine takes a transaction advisory lock keyed by
+user, then atomically evaluates the release state, rolling 24-hour
+successful/nonterminal window, and insertion. Only the exact pending-job unique
+index maps to `already_pending`; unrelated uniqueness failures are rethrown. The
+launch migration unschedules continuation, terminalizes pending/processing jobs,
+revokes capabilities, queues known archives, and clears terminal work
+manifests/leases. Archive-cleanup cron remains active.
+
 ### `export_jobs`
 
 Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
 
 - `id` (UUID): Primary key.
-- `user_id` (UUID - Foreign Key): References `auth.users`. Rate-limited to 1
-  request per 24 hours per user inside the Edge Function.
+- `user_id` (UUID - Foreign Key): References `auth.users`. Rate-limited to one
+  successful/nonterminal request per rolling 24 hours inside the atomic
+  service-only request RPC.
 - `status` (ENUM): `'pending'` | `'processing'` | `'completed'` | `'failed'`.
 - `export_scope` (Text): Default `'personal'`. Accepted values: `'personal'` |
   `'global'`. Validated at the Edge layer — values outside this set are rejected
@@ -1336,11 +1362,15 @@ Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
 - `created_at`, `completed_at` (TIMESTAMPTZ): Lifecycle tracking metrics.
 
 The request fields, budgets, and creation time are immutable after insert.
-Direct `anon`/`authenticated` insertion is revoked; `request-export-dwca` queues
-only personal exports with its service client. Global rows can be created only
-by a reviewed internal administrative workflow. A partial unique index permits
-at most one pending/processing job per user, while the recent-job lookup
-excludes failures.
+Direct `anon`/`authenticated` insertion is revoked; when the canonical release
+gate is enabled, `request-export-dwca` queues only personal exports through the
+atomic service-only request RPC. Global rows can be created only by a reviewed
+internal administrative workflow. While the initial-launch gate is off, the
+BEFORE INSERT trigger rejects both paths. A partial unique index permits at most
+one pending/processing job per user, while the rolling-window predicate excludes
+failures. Both the request RPC and legacy-insert trigger retain a shared lock on
+the private singleton until transaction end; reviewed state changes take the
+conflicting row lock and therefore cannot interleave with intake.
 
 `internal.export_job_claims` stores the private claim UUID, short lease,
 heartbeat, and bounded attempt count. It has RLS, no API-role table grants, and

@@ -68,16 +68,17 @@ deno task test
 
 Its narrow read allowlist includes the full function tree and the repository
 surfaces inspected by security contracts: migrations, Supabase config, the
-account-deletion catalog fixture, Supabase scripts, the repository workflow
-directory, and the web waitlist route. Deployment CI runs this task after the
-disposable database is migrated, so database-backed cases execute rather than
-reporting connection skips; its explicit `SUPABASE_DB_TEST_URL` makes an
-unavailable database a test failure. CI must run the complete task rather than
-substituting a hand-selected subset whose permissions happen to pass. Pure
-request-mapping tests, including `sync-collections/index.test.ts`, never
-conditionally write to credentials inherited from the developer shell. Live
-database behavior belongs to the disposable catalog or an explicitly configured
-`SUPABASE_DB_TEST_URL` test that fails when it cannot connect.
+complete pgTAP fixture directory, Supabase scripts, the repository workflow
+directory, iOS source surfaces used by cross-boundary contracts, and the web
+waitlist route. Deployment CI runs this task after the disposable database is
+migrated, so database-backed cases execute rather than reporting connection
+skips; its explicit `SUPABASE_DB_TEST_URL` makes an unavailable database a test
+failure. CI must run the complete task rather than substituting a hand-selected
+subset whose permissions happen to pass. Pure request-mapping tests, including
+`sync-collections/index.test.ts`, never conditionally write to credentials
+inherited from the developer shell. Live database behavior belongs to the
+disposable catalog or an explicitly configured `SUPABASE_DB_TEST_URL` test that
+fails when it cannot connect.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -1414,6 +1415,17 @@ every `services/supabase/tests/*.sql` fixture, rejects an empty suite, and
 prevents a new catalog contract from being omitted by a selected CI list. Do not
 replace executable catalog coverage with source inspection alone.
 
+Focused source-inspection lanes have a separate Deno permission contract. Every
+repository root read through an explicit filesystem API must appear in that
+lane's narrow `--allow-read` list, even when the test module itself loads
+successfully. The focused DwC-A lane therefore includes `supabase/functions`,
+`supabase/migrations`, `supabase/scripts`, `supabase/tests`, `../apps/ios`, and
+`../.github/workflows` from the workflow's `services` working directory.
+`services/supabase/scripts/tooling_gate_test.ts` fails earlier if the
+scan-finalization/DwC-A contract remains selected while its catalog-fixture or
+iOS source root is removed. A permission failure after some tests pass is still
+a failed lane and must not be reported as exact-SHA release evidence.
+
 Public species-observation stats have layered resource-abuse coverage:
 
 - `_shared/clientAddress_test.ts` locks right-most trusted proxy selection,
@@ -1972,6 +1984,20 @@ and detail seeking still behaves as documented.
 
 The surrounding export suite is intentionally split by boundary:
 
+- `_shared/dwcaReleaseState_test.ts` proves only an explicit database Boolean is
+  accepted and an unavailable/malformed service-only state fails closed.
+- `request-export-dwca/db_test.ts` proves the route calls only the atomic
+  request RPC and strictly maps `disabled`, `rate_limited`, `already_pending`,
+  and UUID-bearing `queued` responses.
+- `_tests/dwcaLaunchGateCoverage.test.ts` locks the private default-off
+  singleton, first BEFORE INSERT trigger, per-user advisory request lock,
+  constraint-specific duplicate handling, queue terminalization, grant
+  revocation, continuation removal, cleanup retention, Edge boundary checks, and
+  Release iOS presentation flag.
+- `tests/dwca_export_launch_gate_security.sql` executes default-off state,
+  table/routine ACL, static PL/pgSQL, transactional request denial,
+  direct-insert denial, continuation absence, and archive-cleanup schedule
+  presence against a disposable catalog.
 - `archive_test.ts` proves occurrence and multimedia rows are appended
   incrementally, each bounded output includes its exact CRC, and encoding fails
   while appending beyond the fixed output buffer.
@@ -2094,17 +2120,19 @@ Public-web migration/DB/source-boundary coverage proves direct detail owns the
 canonical anonymous card predicate and page reads use one combined statement.
 Focused tests cover revocation after preparation, during staging, before
 delivery, after recipient lookup, and while provider delivery is in flight.
-Fresh-catalog replay and hosted maximum-shape PostgreSQL/Edge measurements
-remain mandatory exact-SHA production evidence. The regression matrix and
-release verdict are maintained in
+Fresh-catalog replay remains mandatory exact-SHA base-production evidence even
+while exports are disabled. Hosted maximum-shape PostgreSQL/Edge, provider,
+queue-throughput, and positive capability-delivery measurements move to the
+later feature-enable gate. The regression matrix and release verdict are
+maintained in
 [`14-dwca-and-public-web-release-hold-2026-07-27.md`](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 The CRC tests deliberately assert correctness and bounded algorithm shape rather
 than wall-clock timing, which is unstable on shared CI runners. The development
 microbenchmark comparing cached versus per-part matrix construction is audit
-evidence only. Production performance assurance comes from the maximum-shape
-hosted export and Metrics/546-log release gate in the Supabase deployment
-runbook.
+evidence only. Production performance assurance before feature enable comes from
+the maximum-shape hosted export and Metrics/546-log gate in the Supabase
+deployment runbook; it is not inferred from the launch-disabled posture.
 
 ### `revenuecat-webhook/*_test.ts`
 

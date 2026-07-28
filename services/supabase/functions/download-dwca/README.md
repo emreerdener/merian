@@ -7,6 +7,13 @@ Core Archive downloads. It accepts only:
 GET /functions/v1/download-dwca?token={43-character-base64url-token}
 ```
 
+For the initial launch, the route reads the canonical private release state and
+returns no-store `410 download_unavailable` before storage signing. Migration
+`20260728133835_disable_dwca_exports_for_launch.sql` independently revokes every
+existing database capability and enqueues known archives, so an older deployed
+route cannot preserve download access. The behavior below applies only after the
+separate DwC-A feature-enable gate.
+
 The export worker emails the application URL, never a long-lived Cloudflare R2
 signature. The database indexes the capability by SHA-256 hash in
 `internal.export_download_grants`; the token itself is generated from 32 random

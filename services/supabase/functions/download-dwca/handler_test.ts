@@ -2,7 +2,12 @@ import {
   assertEquals,
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { DownloadDwcaDependencies, handleDownloadDwca } from "./handler.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  defaultDownloadDwcaDependencies,
+  DownloadDwcaDependencies,
+  handleDownloadDwca,
+} from "./handler.ts";
 
 const token = "a".repeat(43);
 const objectKey =
@@ -121,4 +126,70 @@ Deno.test("method and dependency failures do not expose internals", async () => 
   const body = await response.text();
   assertStringIncludes(body, "download_unavailable");
   assertEquals(body.includes("database details"), false);
+});
+
+Deno.test("default authorization meters capability traffic before reading release state", async () => {
+  const calls: string[] = [];
+  const supabaseAdmin = {
+    rpc(name: string) {
+      calls.push(name);
+      if (name === "authorize_dwca_archive_download") {
+        return Promise.resolve({
+          data: { status: "not_found" },
+          error: null,
+        });
+      }
+      throw new Error(`unexpected RPC: ${name}`);
+    },
+  } as unknown as SupabaseClient;
+  const deps = defaultDownloadDwcaDependencies(
+    supabaseAdmin,
+    "d".repeat(32),
+  );
+
+  assertEquals(
+    await deps.authorize("b".repeat(64), "c".repeat(64)),
+    { status: "not_found" },
+  );
+  assertEquals(calls, ["authorize_dwca_archive_download"]);
+});
+
+Deno.test("default authorization fails closed after a valid database grant", async () => {
+  for (const enabled of [false, true]) {
+    const calls: string[] = [];
+    const supabaseAdmin = {
+      rpc(name: string) {
+        calls.push(name);
+        if (name === "authorize_dwca_archive_download") {
+          return Promise.resolve({
+            data: {
+              status: "authorized",
+              object_key: objectKey,
+            },
+            error: null,
+          });
+        }
+        if (name === "get_dwca_export_release_state") {
+          return Promise.resolve({
+            data: { enabled },
+            error: null,
+          });
+        }
+        throw new Error(`unexpected RPC: ${name}`);
+      },
+    } as unknown as SupabaseClient;
+    const deps = defaultDownloadDwcaDependencies(
+      supabaseAdmin,
+      "d".repeat(32),
+    );
+
+    assertEquals(
+      await deps.authorize("b".repeat(64), "c".repeat(64)),
+      enabled ? { status: "authorized", objectKey } : { status: "gone" },
+    );
+    assertEquals(calls, [
+      "authorize_dwca_archive_download",
+      "get_dwca_export_release_state",
+    ]);
+  }
 });

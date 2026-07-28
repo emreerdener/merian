@@ -366,6 +366,8 @@ private struct FeatureFlagDeveloperControls: View {
             "map.fill"
         case .fieldTripEvents:
             "calendar.badge.clock"
+        case .dwcaExports:
+            "shippingbox.fill"
         case .unlimitedFreeScans:
             "infinity.circle.fill"
         }
@@ -379,6 +381,8 @@ private struct FeatureFlagDeveloperControls: View {
             .indigo
         case .fieldTripEvents:
             .orange
+        case .dwcaExports:
+            .teal
         case .unlimitedFreeScans:
             .blue
         }
