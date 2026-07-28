@@ -741,6 +741,37 @@ Deno.test("deletion recovery fixture establishes an eligible ledger first", () =
   );
 });
 
+Deno.test("catalog completions precede their post-state assertions", () => {
+  const catalog = compactSql(downloadAndFinalizationCatalog);
+
+  for (
+    const [completion, postState] of [
+      [
+        "SELECT public.complete_scan_deletion( deletion_scan_id, test_user_id ) INTO STRICT scan_deletion_completed;",
+        "IF EXISTS ( SELECT 1 FROM public.scans AS scans WHERE scans.id = deletion_scan_id ) THEN",
+      ],
+      [
+        "SELECT public.complete_dwca_archive_cleanup_job( current_cleanup_id, current_cleanup_claim_token ) INTO STRICT current_archive_cleanup_completed;",
+        "IF NOT EXISTS ( SELECT 1 FROM internal.export_download_grants AS grants WHERE grants.job_id = cleanup_generation_job_id",
+      ],
+    ]
+  ) {
+    const completionPosition = catalog.indexOf(completion);
+    const postStatePosition = catalog.indexOf(postState, completionPosition);
+    assert(
+      completionPosition >= 0 && postStatePosition > completionPosition,
+      "A mutating completion call must finish in its own statement before post-state reads.",
+    );
+  }
+
+  assertEquals(
+    /IF\s+(?:NOT\s+)?public\.(?:complete_scan_deletion|complete_dwca_archive_cleanup_job)\([^)]*\)\s+(?:OR|AND)\s+(?:NOT\s+)?EXISTS/s
+      .test(downloadAndFinalizationCatalog),
+    false,
+    "A mutating completion call cannot be embedded in a composite Boolean assertion.",
+  );
+});
+
 Deno.test("scan Data API privileges are explicit and least-privilege", () => {
   for (
     const fragment of [

@@ -515,6 +515,13 @@ unknown-terminal, and different-generation evidence must remain nonrecoverable.
 Do not insert a scan directly or relax the production recovery predicate to
 repair the fixture.
 
+Never embed a mutating routine call in an `AND` or `OR` assertion that also
+reads the state it changes. PostgreSQL does not define subexpression evaluation
+order and may skip or reorder the call. Execute the mutation in its own
+statement, validate its returned status, and only then issue separate post-state
+queries. Keep those queries independent enough to identify which invariant
+failed.
+
 If any catalog fixture instead fails a `public.users` identity constraint,
 update the owner-only fixture to include `public_username`,
 `public_author_name`, and `public_identity_source`. Direct table inserts bypass

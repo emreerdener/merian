@@ -8,6 +8,11 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- Disposable-catalog scan deletion and current-generation archive cleanup now
+  execute their mutating completion calls in dedicated statements before reading
+  post-state. This removes dependence on PostgreSQL's undefined Boolean
+  subexpression order, preserves every terminal-state assertion, and reports
+  RPC, owner-row, grant, tombstone, and snapshot failures independently.
 - The disposable-catalog deletion scenario now establishes an exact
   same-generation `failed_terminal / replay_exhausted` ingestion ledger before
   expecting owner recovery. This preserves the production fail-closed rule that

@@ -115,6 +115,8 @@ DECLARE
     authorization_result JSONB;
     health_row RECORD;
     deletion_claim RECORD;
+    scan_deletion_completed BOOLEAN;
+    current_archive_cleanup_completed BOOLEAN;
     attempt INTEGER;
     retention_requested_count INTEGER;
     allowed_authenticated_scan_update_columns CONSTANT TEXT[] := ARRAY[
@@ -929,14 +931,22 @@ BEGIN
         WHEN SQLSTATE '55000' THEN NULL;
     END;
 
-    IF NOT public.complete_scan_deletion(
+    SELECT public.complete_scan_deletion(
         deletion_scan_id,
         test_user_id
-    ) OR EXISTS (
+    )
+    INTO STRICT scan_deletion_completed;
+    IF scan_deletion_completed IS DISTINCT FROM TRUE THEN
+        RAISE EXCEPTION 'verified scan deletion RPC returned false';
+    END IF;
+    IF EXISTS (
         SELECT 1
         FROM public.scans AS scans
         WHERE scans.id = deletion_scan_id
-    ) OR NOT EXISTS (
+    ) THEN
+        RAISE EXCEPTION 'verified scan deletion left the owner row';
+    END IF;
+    IF NOT EXISTS (
         SELECT 1
         FROM internal.scan_deletion_tombstones AS tombstones
         WHERE tombstones.scan_id = deletion_scan_id
@@ -945,7 +955,7 @@ BEGIN
           AND tombstones.claim_token IS NULL
           AND tombstones.lease_expires_at IS NULL
     ) THEN
-        RAISE EXCEPTION 'verified scan deletion did not complete';
+        RAISE EXCEPTION 'verified scan deletion left a nonterminal tombstone';
     END IF;
 
     SELECT public.recover_missing_owned_scan(
@@ -1215,23 +1225,30 @@ BEGIN
         pg_catalog.NOW() + INTERVAL '1 minute'
     );
 
-    IF NOT public.complete_dwca_archive_cleanup_job(
+    SELECT public.complete_dwca_archive_cleanup_job(
         current_cleanup_id,
         current_cleanup_claim_token
-    ) OR NOT EXISTS (
+    )
+    INTO STRICT current_archive_cleanup_completed;
+    IF current_archive_cleanup_completed IS DISTINCT FROM TRUE THEN
+        RAISE EXCEPTION 'current archive cleanup RPC returned false';
+    END IF;
+    IF NOT EXISTS (
         SELECT 1
         FROM internal.export_download_grants AS grants
         WHERE grants.job_id = cleanup_generation_job_id
           AND grants.revoked_at IS NOT NULL
           AND grants.cleaned_at IS NOT NULL
-    ) OR NOT EXISTS (
+    ) THEN
+        RAISE EXCEPTION 'current archive cleanup did not retire its grant';
+    END IF;
+    IF NOT EXISTS (
         SELECT 1
         FROM internal.export_job_source_state AS source_state
         WHERE source_state.job_id = cleanup_generation_job_id
           AND source_state.purged_at IS NOT NULL
     ) THEN
-        RAISE EXCEPTION
-            'current archive cleanup did not retire its grant and snapshot';
+        RAISE EXCEPTION 'current archive cleanup did not purge its snapshot';
     END IF;
 
     SELECT *

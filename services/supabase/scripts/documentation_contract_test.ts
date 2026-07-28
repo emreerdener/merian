@@ -387,6 +387,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "same-generation `failed_terminal / replay_exhausted` ingestion ledger",
   );
   assertStringIncludes(
+    compact(changelog),
+    "execute their mutating completion calls in dedicated statements before reading post-state",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -439,6 +443,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "Never direct-write `complete`, which must remain protected by the completion fence.",
   );
   assertStringIncludes(
+    compact(runbook),
+    "Never embed a mutating routine call in an `AND` or `OR` assertion",
+  );
+  assertStringIncludes(
     compact(releaseHold),
     "DwC-A is not part of the active initial-launch product surface",
   );
@@ -461,6 +469,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(releaseHold),
     "Recovery-fixture evidence: run 1544 attempt 1",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Completion-order evidence: run 1545 attempt 1",
   );
   assertStringIncludes(
     compact(releaseHold),

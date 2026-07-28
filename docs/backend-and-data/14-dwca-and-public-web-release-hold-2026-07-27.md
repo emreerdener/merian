@@ -390,6 +390,26 @@ schema, policy, routine, or privilege changed. Run 1544 remains failed evidence;
 all twenty-one catalog files must pass from the corrected exact SHA before
 promotion.
 
+### Completion-order evidence: run 1545 attempt 1
+
+GitHub run 1545 evaluated commit `6e0e995c24f0e288669e072dfa0b03d08f718b74`.
+Twenty of twenty-one catalog files passed. The recovery-fixture correction
+succeeded, and the remaining fixture advanced to scan deletion completion. Its
+assertion embedded `complete_scan_deletion(...)` in an `OR` expression with
+reads of the scan and tombstone state that routine changes. PostgreSQL does not
+define subexpression evaluation order, so the assertion was not a valid
+completion sequence.
+
+The corrected fixture executes scan deletion completion in a dedicated
+statement, validates the returned Boolean, and then independently verifies row
+removal and terminal tombstone state. Review found the same unsafe shape in the
+later current-generation archive-cleanup assertion; it is corrected before
+another replay can reach it. A source contract rejects both completion routines
+inside composite Boolean state assertions. No production deletion, cleanup,
+schema, policy, routine, or privilege changed. Run 1545 remains failed evidence;
+all twenty-one catalog files must pass from the corrected exact SHA before
+promotion.
+
 ### Production monitor catalog gap after failed deploys
 
 The independent DwC-A monitor subsequently received `PGRST202` for
