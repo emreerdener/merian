@@ -24,6 +24,9 @@ Service-role health endpoint for scan media durability.
   asset, plus public Explore audio rows without playable URLs.
 - Includes the latest reconciliation run status so operators can tell whether
   the repair worker is healthy.
+- Includes the private scan-erasure outbox summary. It warns when the oldest
+  requested deletion reaches 15 minutes or 25 jobs are pending, and becomes
+  critical at one hour, 100 pending jobs, or any expired lease.
 
 The endpoint is read-only. It does not repair media or replay inference. Repairs
 stay owned by `identify-multimodal`, `replay-scan-ingestion`, the iOS offline
@@ -86,10 +89,10 @@ Response:
 }
 ```
 
-`status = critical` means a video/share durability invariant is broken or an
-active ingestion job is stuck past its lease. `status = warning` means
-repair/retry work may still succeed, or a terminal ingestion failure may need
-review if unexpected.
+`status = critical` means a video/share durability invariant is broken, an
+active ingestion job is stuck past its lease, or durable privacy erasure is
+outside its SLA. `status = warning` means repair/retry work may still succeed, a
+terminal ingestion failure may need review, or erasure is approaching its SLA.
 
 ## Scheduled Monitor
 

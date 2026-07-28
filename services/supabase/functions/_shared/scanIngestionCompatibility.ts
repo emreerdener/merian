@@ -1,19 +1,17 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
-import { fetchCaptureUploadSessionIdsForKeys } from "./scanMediaAssets.ts";
+import { PublicHttpError } from "./http.ts";
 import {
-  claimScanIngestionJob,
-  type ScanIngestionJobStatus,
+  beginScanIngestion,
+  completeScanIngestionFinalization,
+  type MutableScanIngestionJobStatus,
   scanIngestionManifestChecksum,
   type ScanIngestionMediaCounts,
   type ScanIngestionMediaObjectKeys,
   scanIngestionMediaObjectKeys,
   updateScanIngestionJob,
 } from "./scanIngestionJobs.ts";
-import {
-  recordScanIngestionIntent,
-  SCAN_INGESTION_INTENT_SCHEMA_VERSION,
-} from "./scanIngestionIntents.ts";
+import { SCAN_INGESTION_INTENT_SCHEMA_VERSION } from "./scanIngestionIntents.ts";
 
 export type CompatibilityScanIngestionEndpoint =
   | "identify"
@@ -82,20 +80,30 @@ export interface CompatibilityScanIngestionLedgerInput
   ) => void;
 }
 
+export interface CompatibilityScanFinalization {
+  promotedUrlsByStorageKey?: Map<string, string>;
+  deletedStorageKeys?: string[];
+}
+
 export interface CompatibilityScanIngestionLedger {
   intent: CompatibilityScanIngestionIntent;
   mark(
-    status: ScanIngestionJobStatus,
+    status: MutableScanIngestionJobStatus,
     stage: string,
     options?: {
       lastError?: string | null;
       retryAfter?: string | null;
       leaseSeconds?: number;
+      terminalReasonCode?: string | null;
     },
   ): Promise<void>;
-  markComplete(stage?: string): Promise<void>;
+  markComplete(options?: CompatibilityScanFinalization): Promise<void>;
   markRetryableFailure(stage: string, error: unknown): Promise<void>;
-  markTerminalFailure(stage: string, error: unknown): Promise<void>;
+  markTerminalFailure(
+    stage: string,
+    error: unknown,
+    terminalReasonCode?: string,
+  ): Promise<void>;
 }
 
 function cleanString(value: unknown): string | undefined {
@@ -336,32 +344,10 @@ export async function createCompatibilityScanIngestionLedger(
     ...(input.audioKeys ?? []),
     ...(input.videoKeys ?? []),
   ];
-  let uploadSessionIds = cleanStringArray(input.uploadSessionIds).sort();
-  if (uploadSessionIds.length === 0 && storageKeys.length > 0) {
-    try {
-      uploadSessionIds = await fetchCaptureUploadSessionIdsForKeys(
-        {
-          userId: input.userId,
-          clientScanId: input.scanId,
-          storageKeys,
-        },
-        supabaseAdmin,
-      );
-    } catch (error) {
-      input.logStructuredError?.(
-        `${input.endpoint}/scan_ingestion_upload_sessions_failed`,
-        {
-          user_id: input.userId,
-          scan_id: input.scanId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
-    }
-  }
 
-  const intent = await buildCompatibilityScanIngestionIntent({
+  let intent = await buildCompatibilityScanIngestionIntent({
     ...input,
-    uploadSessionIds,
+    uploadSessionIds: cleanStringArray(input.uploadSessionIds).sort(),
   });
 
   const logUpdateFailure = (
@@ -378,25 +364,7 @@ export async function createCompatibilityScanIngestionLedger(
   };
 
   try {
-    await claimScanIngestionJob(
-      {
-        scanId: input.scanId,
-        userId: input.userId,
-        endpoint: input.endpoint,
-        mediaCounts: intent.mediaCounts,
-        mediaObjectKeys: intent.mediaObjectKeys,
-        uploadSessionIds: intent.uploadSessionIds,
-        manifestChecksum: intent.manifestChecksum,
-        leaseSeconds: 300,
-      },
-      supabaseAdmin,
-    );
-  } catch (error) {
-    logUpdateFailure("scan_ingestion_job_claim_failed", error);
-  }
-
-  try {
-    await recordScanIngestionIntent(
+    const atomicIngestion = await beginScanIngestion(
       {
         scanId: input.scanId,
         userId: input.userId,
@@ -404,26 +372,51 @@ export async function createCompatibilityScanIngestionLedger(
         requestPayload: intent.requestPayload,
         mediaCounts: intent.mediaCounts,
         mediaObjectKeys: intent.mediaObjectKeys,
-        uploadSessionIds: intent.uploadSessionIds,
+        storageKeys,
         manifestChecksum: intent.manifestChecksum,
         payloadChecksum: intent.payloadChecksum,
         resumable: intent.resumable,
         inlineMediaRedacted: intent.inlineMediaRedacted,
         redactedMediaCounts: intent.redactedMediaCounts,
+        payloadSchemaVersion: SCAN_INGESTION_INTENT_SCHEMA_VERSION,
+        leaseSeconds: 300,
       },
       supabaseAdmin,
     );
+    if (atomicIngestion.alreadyComplete) {
+      throw new PublicHttpError(
+        409,
+        "scan_already_complete",
+        "This observation was already saved.",
+      );
+    }
+    intent = {
+      ...intent,
+      uploadSessionIds: atomicIngestion.uploadSessionIds,
+      manifestChecksum: atomicIngestion.manifestChecksum ??
+        intent.manifestChecksum,
+      payloadChecksum: atomicIngestion.payloadChecksum ??
+        intent.payloadChecksum,
+    };
   } catch (error) {
-    logUpdateFailure("scan_ingestion_intent_record_failed", error);
+    logUpdateFailure("scan_ingestion_setup_failed", error);
+    if (error instanceof PublicHttpError) throw error;
+    throw new PublicHttpError(
+      503,
+      "scan_ingestion_unavailable",
+      "Observation persistence is temporarily unavailable.",
+      30,
+    );
   }
 
   const mark = async (
-    status: ScanIngestionJobStatus,
+    status: MutableScanIngestionJobStatus,
     stage: string,
     options: {
       lastError?: string | null;
       retryAfter?: string | null;
       leaseSeconds?: number;
+      terminalReasonCode?: string | null;
     } = {},
   ) => {
     try {
@@ -436,6 +429,7 @@ export async function createCompatibilityScanIngestionLedger(
           lastError: options.lastError ?? null,
           retryAfter: options.retryAfter ?? null,
           leaseSeconds: options.leaseSeconds,
+          terminalReasonCode: options.terminalReasonCode,
         },
         supabaseAdmin,
       );
@@ -447,22 +441,45 @@ export async function createCompatibilityScanIngestionLedger(
     }
   };
 
-  await mark("finalizing", "background_ingestion_queued", {
-    leaseSeconds: 300,
-  });
-
   return {
     intent,
     mark,
-    markComplete: (stage = "scan_inserted") => mark("complete", stage),
+    markComplete: async ({
+      promotedUrlsByStorageKey = new Map<string, string>(),
+      deletedStorageKeys = [],
+    }: CompatibilityScanFinalization = {}) => {
+      try {
+        await completeScanIngestionFinalization(
+          {
+            scanId: input.scanId,
+            userId: input.userId,
+            promotedUrlsByStorageKey,
+            deletedStorageKeys,
+          },
+          supabaseAdmin,
+        );
+      } catch (error) {
+        logUpdateFailure("scan_ingestion_finalization_failed", error);
+        await mark("failed_retryable", "media_finalization_failed", {
+          lastError: error instanceof Error ? error.message : String(error),
+          retryAfter: retryAfterIso(),
+        });
+        throw error;
+      }
+    },
     markRetryableFailure: (stage: string, error: unknown) =>
       mark("failed_retryable", stage, {
         lastError: error instanceof Error ? error.message : String(error),
         retryAfter: retryAfterIso(),
       }),
-    markTerminalFailure: (stage: string, error: unknown) =>
+    markTerminalFailure: (
+      stage: string,
+      error: unknown,
+      terminalReasonCode = "content_policy_rejected",
+    ) =>
       mark("failed_terminal", stage, {
         lastError: error instanceof Error ? error.message : String(error),
+        terminalReasonCode,
       }),
   };
 }

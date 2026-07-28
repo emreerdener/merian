@@ -29,10 +29,10 @@ Explore post while preserving its saved post-level location-sharing choice.
 
 ## Production Path
 
-> **Active release evidence gate (2026-07-27):** The DwC-A
-> version-2/public-web Explore design repairs are implemented. Do not use this
-> path to promote that release unit until the exact-SHA fresh-catalog,
-> complete-CI, production-smoke, and hosted maximum-shape criteria in
+> **Active release evidence gate (2026-07-27):** The DwC-A version-2/public-web
+> Explore design repairs are implemented. Do not use this path to promote that
+> release unit until the exact-SHA fresh-catalog, complete-CI, production-smoke,
+> and hosted maximum-shape criteria in
 > [`14-dwca-and-public-web-release-hold-2026-07-27.md`](./14-dwca-and-public-web-release-hold-2026-07-27.md)
 > are complete. Unrelated releases must isolate that held unit rather than
 > treating the checks below as an exception.
@@ -1623,11 +1623,122 @@ Migrations `20260724230849_harden_dwca_export_jobs.sql`,
 `20260726025103_snapshot_dwca_export_sources.sql`, followed by
 `20260726230837_scale_dwca_export_continuations.sql` and
 `20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`,
-then `20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql`,
-must land with `request-export-dwca` and the resumable `export-dwca` bundle.
-This describes migration/bundle compatibility, not production sign-off; the
-active evidence gate must still pass before promotion.
-Before the first deployment, generate a dedicated version-1 pseudonym key:
+then `20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql`, then
+`20260728035237_harden_dwca_downloads_and_scan_finalization.sql`, must land with
+`request-export-dwca`, the resumable `export-dwca` bundle, `download-dwca`, and
+`reconcile-dwca-archive-cleanup`. This describes migration/bundle compatibility,
+not production sign-off; the active evidence gate must still pass before
+promotion. Before the first deployment, generate a dedicated version-1 pseudonym
+key:
+
+The same final migration must precede the updated `delete-scan`, all four
+scan-producing routes, `replay-scan-ingestion`, and
+`reconcile-scan-media-assets`, and must deploy `reconcile-scan-deletions` in the
+same release unit. Confirm `internal.scan_deletion_tombstones` is RLS-enabled
+and has no API-role table privileges; `request_scan_deletion(uuid,uuid)` and
+`complete_scan_deletion(uuid,uuid)`,
+`request_nonbiological_scan_retention_deletions(integer)`,
+`claim_scan_deletion_jobs(...)`, `release_scan_deletion_job(...)`, and
+`get_scan_deletion_health()` must be executable only by `service_role`. In
+staging, interrupt deletion after its request transaction, stop the client
+retry, verify a delayed scan update and owner-row recovery both fail, then let
+the independent server reaper finish it. R2 404 must converge to success, the
+scan row must disappear, and the private tombstone must remain completed with
+`user_id`, `claim_token`, and `lease_expires_at` null. Finally run account
+deletion on a fixture with a pending scan deletion tombstone and verify the same
+unlink/completion state while the scan UUID fence remains.
+
+Before pushing the migration, run a read-only legacy-data audit. Any nonzero
+count will make constraint validation stop the deployment and must be corrected
+through a reviewed data repair, not by dropping or leaving the constraint
+unvalidated:
+
+```sql
+SELECT
+    COUNT(*) FILTER (
+        WHERE NOT internal.text_array_elements_are_bounded(
+            video_storage_urls,
+            5,
+            4096
+        )
+    ) AS invalid_video_arrays,
+    COUNT(*) FILTER (
+        WHERE NOT internal.text_array_elements_are_bounded(
+            audio_storage_urls,
+            5,
+            4096
+        )
+    ) AS invalid_audio_arrays,
+    COUNT(*) FILTER (
+        WHERE NOT internal.text_array_elements_are_bounded(
+            custom_tags,
+            50,
+            256
+        )
+    ) AS invalid_tag_arrays,
+    COUNT(*) FILTER (
+        WHERE user_identification_override IS NOT NULL
+          AND OCTET_LENGTH(user_identification_override) > 1024
+    ) AS invalid_override_text
+FROM public.scans;
+```
+
+After migration replay, verify the API-role boundary explicitly:
+
+```sql
+SELECT
+    HAS_TABLE_PRIVILEGE('anon', 'public.scans', 'INSERT')
+        AS anon_can_insert,
+    HAS_TABLE_PRIVILEGE('anon', 'public.scans', 'UPDATE')
+        AS anon_can_update,
+    HAS_TABLE_PRIVILEGE('anon', 'public.scans', 'DELETE')
+        AS anon_can_delete,
+    HAS_TABLE_PRIVILEGE('authenticated', 'public.scans', 'INSERT')
+        AS authenticated_can_insert,
+    HAS_TABLE_PRIVILEGE('authenticated', 'public.scans', 'DELETE')
+        AS authenticated_can_delete;
+
+SELECT grantee, column_name
+FROM information_schema.column_privileges
+WHERE table_schema = 'public'
+  AND table_name = 'scans'
+  AND privilege_type = 'UPDATE'
+  AND grantee IN ('anon', 'authenticated')
+ORDER BY grantee, column_name;
+
+SELECT
+    checks.signature,
+    HAS_FUNCTION_PRIVILEGE('anon', checks.signature, 'EXECUTE')
+        AS anon_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        checks.signature,
+        'EXECUTE'
+    ) AS authenticated_can_execute,
+    HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        checks.signature,
+        'EXECUTE'
+    ) AS service_role_can_execute
+FROM (
+    VALUES
+        ('public.update_owned_scan_custom_tags(uuid,text[])'),
+        ('public.update_owned_scan_identification_review(uuid,text,boolean,uuid,public.user_review_state)'),
+        ('public.request_nonbiological_scan_retention_deletions(integer)')
+) AS checks(signature);
+```
+
+All five table booleans must be false. `anon` must have no UPDATE column rows;
+`authenticated` must have exactly the five documented tag/review columns and no
+owner/media/privacy column. Each metadata RPC row must be `false`, `true`,
+`false`; the retention RPC row must be `false`, `false`, `true`. Remove the
+five-column bridge only after the minimum supported app version uses both
+metadata RPCs. In staging, copy another owner's otherwise-valid public media URL
+into a controlled legacy fixture, delete the fixture scan, and prove that only
+the exact canonical-owner URL was sent to R2. The foreign object must remain.
+Also prove that a no-ledger recovery request returns `deferred`, while an
+existing complete-but-missing or exact `replay_exhausted` fixture can recover
+once.
 
 ```bash
 openssl rand -base64 32
@@ -1637,6 +1748,13 @@ Store the output as `DWCA_PSEUDONYM_HMAC_KEY_V1` in the GitHub `Production`
 environment. Do not reuse a JWT secret, service-role key, R2 credential, Resend
 key, or an example value. CI requires valid Base64 decoding to at least 32 bytes
 and synchronizes the exact value to Supabase before function deployment.
+
+The download endpoint requires the existing bucket-scoped
+`R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` credentials. Optional
+`DWCA_DOWNLOAD_IP_HASH_SECRET` can provide a dedicated Base64/random server-only
+HMAC secret; without it, the shared client-address helper domain-separates the
+active platform server key. This optional value belongs in Supabase Edge
+secrets, not Vercel or an iOS configuration.
 
 The public request route queues personal exports only. Do not expose global
 scope to iOS or ordinary authenticated callers; repository-wide exports require
@@ -1655,23 +1773,43 @@ the active claim; validated row checks bound media, interactions, and selected
 taxonomy before the read. Job insertion examines at most the canonical row
 budget plus one lookahead as UUIDs, then a parameterized lateral cursor
 projects, measures, and inserts one DTO at a time. Total source JSON is limited
-to four times the archive budget with a 64 MiB hard cap; projection stops at
-the first violation and removes partial rows. Confirmed identity is
-authoritative. Exact GPS keys are persisted only for an opted-in,
-snapshot-unprotected personal export. A later scan or ordinary edit cannot
-change immutable DTO content.
+to four times the archive budget with a 64 MiB hard cap; projection stops at the
+first violation and removes partial rows. Confirmed identity is authoritative.
+Exact GPS keys are persisted only for an opted-in, snapshot-unprotected personal
+export. A later scan or ordinary edit cannot change immutable DTO content.
 
 The compact page hash remains, and a separate full-member predicate verifies
 count, version, durable invalidation, current eligibility, and every stored hash
 before assembly, staging, email, and completion. Relevant scan and taxonomy
 changes durably invalidate affected jobs. A mismatch is terminal and removes
-the uploaded/staged object. Signed URLs stay in private work state while
-processing; the public URL and completed status appear in one final-fence
-transaction. Terminal jobs purge DTO rows and erase the private staged URL. A
-fixed-capacity incremental encoder caps CSV output at 512 KiB.
-CSV pages are stored as claim-token-fenced R2 chunks and committed to a durable
+download authority immediately while durable cleanup removes the uploaded/staged
+object. Opaque application capabilities stay in private work state while
+processing; the public application URL and completed status appear in one
+final-fence transaction. Failed jobs purge DTO rows immediately; completed DTOs
+remain only until verified grant cleanup. Every download click reruns the
+full-member predicate before a read-only R2 redirect valid for at most 30
+seconds. A fixed-capacity incremental encoder caps CSV output at 512 KiB. CSV
+pages are stored as claim-token-fenced R2 chunks and committed to a durable
 cursor/manifest with cumulative budgets. These phase, deadline, and byte
 boundaries are the production memory/time contract.
+
+Every mixed source/grant/cleanup transition must lock in this order: canonical
+`public.export_jobs` row `FOR UPDATE`, per-job advisory generation lock, then
+child rows. Privacy triggers visit affected job UUIDs in order. A lock timeout
+is a failed release gate; do not bypass the helper or weaken timeouts. The
+fresh-catalog suite must exercise delivery, privacy invalidation, job deletion,
+and stale cleanup concurrently to prove no deadlock or cross-generation
+revocation.
+
+Do not take an export-parent row lock from a scan/species `TRUNCATE` trigger.
+The statement already owns source-table `ACCESS EXCLUSIVE`, while an export
+worker can own the parent and wait for source-table `ACCESS SHARE`; requesting
+the parent there would deadlock. The reviewed trigger only sets monotonic
+`source_state.invalidated_at`/reason values. Click-time authorization then fails
+closed, and the independent cleanup claimant discovers those states through
+`export_job_source_state_invalidated_cleanup_idx`, visits parents in UUID order,
+revokes grants, and enqueues archives. Revoked-grant discovery is supported by
+`export_download_grants_revoked_due_idx`.
 
 Before the database push, run this owner-only, read-only legacy-row preflight.
 It must return zero rows. Repair invalid source values through the canonical
@@ -1797,7 +1935,11 @@ Preflight:
 ```bash
 deno fmt --check \
   services/supabase/functions/export-dwca \
+  services/supabase/functions/download-dwca \
+  services/supabase/functions/reconcile-dwca-archive-cleanup \
+  services/supabase/functions/reconcile-scan-deletions \
   services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+  services/supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
   services/supabase/functions/_tests/publicWebExploreCoverage.test.ts \
   services/supabase/functions/_tests/publicWebExploreMigrationContract.test.ts
@@ -1806,6 +1948,7 @@ deno test --frozen \
   --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,.github/workflows \
   services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+  services/supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
   services/supabase/functions/_tests/publicWebExploreCoverage.test.ts \
   services/supabase/functions/_tests/publicWebExploreMigrationContract.test.ts \
@@ -1818,7 +1961,14 @@ deno test --frozen \
   services/supabase/functions/export-dwca/pseudonym_test.ts \
   services/supabase/functions/export-dwca/storage_test.ts \
   services/supabase/functions/export-dwca/worker_test.ts \
-  services/supabase/functions/export-dwca/zip_test.ts
+  services/supabase/functions/export-dwca/zip_test.ts \
+  services/supabase/functions/download-dwca/handler_test.ts \
+  services/supabase/functions/download-dwca/db_test.ts \
+  services/supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
+  services/supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
+  services/supabase/functions/delete-scan/db_test.ts \
+  services/supabase/functions/reconcile-scan-deletions/worker_test.ts \
+  services/supabase/functions/reconcile-scan-deletions/db_test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
@@ -1831,6 +1981,7 @@ supabase --workdir services test db --local \
   services/supabase/tests/export_dwca_security.sql \
   services/supabase/tests/export_dwca_snapshot_security.sql \
   services/supabase/tests/dwca_export_queue_security.sql \
+  services/supabase/tests/dwca_download_and_scan_finalization_security.sql \
   services/supabase/tests/public_web_explore_security.sql
 ```
 
@@ -1841,9 +1992,15 @@ ceiling, and the returned completion flag remains false when more keyset work
 exists. Both phases must retain creation-time DTOs, confirmed identity must win
 over the original AI identity, ordinary source edits must leave the stored DTO
 unchanged, privacy revocation in the current candidate page must return no
-payload, terminal status must purge DTOs, and queue health must distinguish due,
-live-claim, and expired-claim work without widening its ACL. Those existing
-assertions are insufficient for release.
+payload, failed status must purge DTOs, and queue health must distinguish due,
+live-claim, and expired-claim work without widening its ACL. The new catalog
+test must additionally prove hash-indexed grants, distributed rate limits,
+click-time full-source revocation, leased archive cleanup and health, atomic
+claim-versus-recovery ordering, claimed-key disposition checks, and
+completion-last canonical media verification. It must also prove a stale cleanup
+generation cannot revoke a replacement grant or purge active source state, and
+that every mixed DwC-A transition uses the parent-first generation lock. Those
+existing assertions are insufficient for release.
 
 The exact-SHA database/worker suites must pass the implemented regression
 scenarios: revoke an early row after final paging, revoke after preparation and
@@ -1999,6 +2156,19 @@ SELECT
 FROM public.get_dwca_export_queue_health() AS health;
 
 SELECT
+    grants.job_id,
+    grants.expires_at,
+    grants.revoked_at,
+    grants.revocation_reason,
+    grants.cleaned_at,
+    grants.token_sha256 ~ '^[0-9a-f]{64}$' AS hashed_capability
+FROM internal.export_download_grants AS grants
+WHERE grants.job_id = '<test-job-uuid>'::UUID;
+
+SELECT *
+FROM public.get_dwca_archive_cleanup_health();
+
+SELECT
     checks.routine_signature,
     HAS_FUNCTION_PRIVILEGE(
         'anon',
@@ -2021,8 +2191,14 @@ FROM (
         ('public.claim_export_job_step(uuid,uuid)'),
         ('public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,bigint,boolean)'),
         ('public.get_export_job_chunks(uuid,uuid)'),
-        ('public.stage_prepared_export_archive(uuid,uuid,text,text)'),
-        ('public.complete_prepared_export_job(uuid,uuid)'),
+        ('public.stage_prepared_export_archive_with_download_grant(uuid,uuid,text,text,text,timestamp with time zone)'),
+        ('public.complete_prepared_export_job_with_download_grant(uuid,uuid)'),
+        ('public.enqueue_dwca_archive_cleanup(uuid,text,text)'),
+        ('public.authorize_dwca_archive_download(text,text)'),
+        ('public.claim_dwca_archive_cleanup_jobs(uuid,integer,integer)'),
+        ('public.complete_dwca_archive_cleanup_job(uuid,uuid)'),
+        ('public.release_dwca_archive_cleanup_job(uuid,uuid,text)'),
+        ('public.get_dwca_archive_cleanup_health()'),
         ('public.release_export_job_step(uuid,uuid,text,boolean)'),
         ('public.renew_export_job_claim(uuid,uuid)'),
         ('public.get_dwca_export_queue_health()')
@@ -2037,19 +2213,48 @@ key version `1`, have an attempt-scoped `exports/{user}/{job}/{claim}.zip` key,
 and have no failure code. The work phase must be `completed`; every chunk key
 must be claim-fenced and every CRC must be in `0...4294967295`. ACL results must
 be `false`, `false`, `true` for each routine. Verify the received message
-contains one 24-hour signed URL and that duplicate processing did not send a
-second email. The private protocol/work/manifest tables are owner-visible
+contains one 24-hour `/functions/v1/download-dwca?token=...` application
+capability and no direct R2 host/signature. Click it before and after a
+controlled source-privacy change: the first request must produce only a no-store
+redirect with `X-Amz-Expires <= 30`; the second must fail closed and enqueue the
+exact archive for deletion. Verify duplicate processing did not send a second
+email. The private protocol/work/manifest/grant/cleanup tables are owner-visible
 operational state only; API roles, including `service_role`, must lack direct
 `SELECT`.
 
-Confirm the **DwC-A Export Queue Health Monitor** workflow is enabled for the
-Production environment. Dispatch it once with the default 5/15-minute age,
-25/100-job backlog, and `fail_on=warning` settings. A drained staging queue
-should report `ok`, zero due jobs, and no expired claim. During an alert,
-inspect the structured `dwca_export_queue_health` and
-`dwca_export_step_complete` events, repair R2/database/Resend availability, and
-let claim-fenced retries resume. Never clear a claim or rewrite a cursor to
-silence the monitor.
+Confirm the **DwC-A Export and Archive Health Monitor** workflow is enabled for
+the Production environment. Dispatch it once with the default 5/15-minute age,
+25/100-job backlog, and `fail_on=warning` settings. It independently calls both
+the continuation and archive-cleanup health RPCs, so a missing worker cron or
+Vault configuration cannot make the system appear healthy. A drained staging
+queue should report `ok`, zero due jobs, no expired claim, zero pending archive
+deletes, and no expired cleanup lease. During an alert, inspect the structured
+`dwca_export_queue_health`, `dwca_export_step_complete`, and
+`dwca_archive_cleanup_health` events, repair cron/Vault/R2/database/Resend
+availability, and let claim-fenced retries resume. Never clear a claim, rewrite
+a cursor, or edit the cleanup outbox to silence the monitor.
+
+The production deployment smoke invokes `reconcile-dwca-archive-cleanup` once
+with the exact server credential, validates its bounded counters, and rejects a
+critical cleanup-health result. For a manual deployment, perform the same
+invocation and inspect `get_dwca_archive_cleanup_health()`. Before promotion,
+legacy `file_url` values must be scrubbed, all due legacy/revoked archive rows
+must drain, `expired_lease_count` must be zero, and oldest-due age must be below
+15 minutes. Confirm a transient R2 failure releases the row for retry and does
+not restore download authorization. In staging, complete an older-attempt
+cleanup after a replacement archive/grant has been staged for the same job. The
+old outbox row may complete, but the current grant and unpurged source state
+must remain unchanged.
+
+The same deployment smoke invokes `reconcile-scan-deletions` with the exact
+server credential and rejects a critical health result. Confirm
+`reconcile_scan_deletions_every_five_minutes` exists and the independent Scan
+Media Health Monitor is enabled for Production. A clean queue reports no expired
+lease and oldest-pending age below 15 minutes. Simulate one transient R2 failure
+in staging: the exact lease must release with a future `next_attempt_at`, a
+stale token must not clear a replacement lease, and a later run must finish
+without a client retry. Worker and health logs must contain aggregate counters
+only, never scan IDs, owner IDs, or media URLs.
 
 Do not treat the 40-step ceiling as a guaranteed per-minute rate or calculate a
 fixed delivery time from it. The dispatcher checks its soft cutoff between
@@ -2071,11 +2276,12 @@ pseudonyms for jobs already pinned to version 1.
 If storage or Resend is transiently unavailable, do not bypass the claim RPC,
 edit a job to completed, reuse a stale claim token, or restore caller-supplied
 scope/user fields. Let the lease/watchdog expose the normal failed/retry path.
-Cloudflare's lifecycle policy must remove orphan attempt objects and completed
-export objects after their documented retention window. Before release, compare
-the live rules with `docs/r2-lifecycle.json`: the bucket must retain the global
-seven-day incomplete-multipart abort rule as well as the one-day `exports/`
-expiration rule.
+Cloudflare's lifecycle policy remains a safety net for orphan attempt/work
+objects and incomplete multipart sessions; the durable cleanup outbox owns known
+final archives. Before release, compare the live rules with
+`docs/r2-lifecycle.json`: the bucket must retain the global seven-day
+incomplete-multipart abort rule as well as the one-day `exports/` expiration
+rule.
 
 ### RevenueCat Webhook Release Gate
 
@@ -2719,9 +2925,9 @@ The image-analysis latency change is a staged operational rollout, not a reason
 to change Gemini configuration. Free remains `gemini-2.5-flash`; Pro remains
 `gemini-2.5-pro`. Prompts, schema, thinking budgets, image resolution,
 `maxOutputTokens`, and the single primary identification model call per scan are
-release invariants. The original latency pass changed eligible live-camera
-still orchestration only; the later owner-row durability release below applies
-the server success boundary to still, gallery, audio, describe, mixed-media, and
+release invariants. The original latency pass changed eligible live-camera still
+orchestration only; the later owner-row durability release below applies the
+server success boundary to still, gallery, audio, describe, mixed-media, and
 video observations.
 
 Release in three observable waves:
@@ -2739,8 +2945,8 @@ Release in three observable waves:
    fallback for propagation safety; repeated fallback logs after rollout are an
    incident, not a steady state.
 
-Advance Edge traffic through 10%, 50%, and 100% only when the observation
-window meets every segmented gate:
+Advance Edge traffic through 10%, 50%, and 100% only when the observation window
+meets every segmented gate:
 
 - cache-hit non-Gemini p95 is at most 1 second (target p50 at most 300 ms);
 - primary cache-miss external resolution is measured separately, remains within
@@ -2813,8 +3019,8 @@ This release closes the false-success condition where iOS could persist an AI
 result while `public.scans` was still absent, leaving Explore sharing and Field
 Chat without their required owner row. Repository implementation is not
 production remediation. Keep the
-[July 2026 incident](../incidents/2026-07-scan-owner-row-durability-gap.md)
-open until the backend and iOS exit criteria below are complete.
+[July 2026 incident](../incidents/2026-07-scan-owner-row-durability-gap.md) open
+until the backend and iOS exit criteria below are complete.
 
 ### Release unit and order
 
@@ -2826,18 +3032,20 @@ Treat these components as one compatibility release:
    Explore publication; recovery must not disguise a stale privileged-key
    boundary.
 2. From one exact SHA, run the normal production backend workflow and promote
-   `identify-multimodal`, `check-scan-status`, and
-   `share-scan-to-explore`. Their `_shared/identify/db.ts` and
-   `_shared/scanRecovery.ts` dependencies bundle transitively. If an emergency
-   manual function deploy is unavoidable, deploy in that order so new false
-   successes stop before repair-capable clients arrive.
+   `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
+   `check-scan-status`, and `share-scan-to-explore`. Their
+   `_shared/identify/db.ts`, `_shared/scanIngestionJobs.ts`,
+   `_shared/scanIngestionCompatibility.ts`, and `_shared/scanRecovery.ts`
+   dependencies bundle transitively. If an emergency manual function deploy is
+   unavoidable, deploy in that order so new false successes stop before
+   repair-capable clients arrive.
 3. Build and release iOS from the matching reviewed source. The iOS release
    carries `recovery_scan`, staged image/video/audio restoration, Field Chat
    preflight repair, and customer-facing toast translation. A backend workflow
    success is not evidence that this app build shipped.
 
-Old clients remain compatible with the new backend. Release backend first;
-never require the new app to compensate for an old false-success function.
+Old clients remain compatible with the new backend. Release backend first; never
+require the new app to compensate for an old false-success function.
 
 Before promotion, retain results for:
 
@@ -2856,13 +3064,17 @@ Docker is missing evidence, not a passing integration result.
 
 Use disposable staging identities and media:
 
-1. Submit a new known biological cache-hit still. After identify returns
-   `200`, immediately call `/check-scan-status`; it must return `found` without
-   polling delay. Open Field Chat, then share the same scan to Explore and
-   verify the public post snapshot.
-2. Repeat the immediate owner-row check for standalone audio and playback
-   video. Video is successful only with its required promoted `.mp4` and ready
-   playback representation.
+1. Submit a new known biological cache-hit still. After identify returns `200`,
+   immediately call `/check-scan-status`; it must return `found` without polling
+   delay. Open Field Chat, then share the same scan to Explore and verify the
+   public post snapshot.
+2. Repeat the immediate owner-row check for standalone audio and playback video.
+   Video is successful only with its required promoted `.mp4` and ready playback
+   representation. Inspect the ledger:
+   `complete /
+   media_finalization_complete` may appear only after every
+   claimed storage key is promoted or explicitly deleted and every promoted
+   image/video/audio URL has a ready canonical row.
 3. With controlled staging fault injection, make the scan insert or owner
    read-back fail. Identify must return customer-safe
    `503 scan_persistence_failed` with `Retry-After: 5`, and iOS must not save a
@@ -2870,50 +3082,66 @@ Use disposable staging identities and media:
 4. Exercise a controlled moderation rejection. Identify must return generic
    `400 observation_rejected`, leave no scan row, and preserve the exact
    terminal policy fence against recovery.
-5. Create an eligible legacy missing-row fixture. A single
-   `/check-scan-status` request with bounded non-media `recovery_scan` must
-   create and reload only the authenticated owner row. Bulk status remains
-   read-only.
-6. Verify processing, finalizing, retrying, and `failed_retryable` jobs defer
-   repair. Verify an exact moderation/provider-policy terminal signal blocks
-   repair, while a non-policy operational `failed_terminal` fixture remains
-   recoverable.
+5. Create an eligible legacy missing-row fixture. A single `/check-scan-status`
+   request with bounded non-media `recovery_scan` must create and reload only
+   the authenticated owner row. Bulk status remains read-only.
+6. Force claim and recovery concurrently for one UUID. Exactly one generation
+   may win: recovery-first makes claim return `already_complete` without a
+   provider call; claim-first makes recovery return `deferred`. Verify
+   processing, finalizing, retrying, and `failed_retryable` jobs defer repair.
+   Verify policy, media-abandonment, legacy-unknown, and arbitrary terminal
+   reason codes block repair; only exact `replay_exhausted` remains recoverable.
+   Repeat through each compatibility route. Its atomic setup must complete
+   before the mocked provider is called; setup error must return
+   `scan_ingestion_unavailable`, refund unused quota, and perform no provider
+   request.
 7. Attempt recovery using another owner's row UUID and a mismatched
    caller-supplied `user_id`. Neither may overwrite or reveal the other row.
 8. For an eligible missing Explore row, combine `recovery_scan` with
    owner-staged image, video, and audio keys. Verify promotion and normal
-   publication checks run before the post is visible; direct URLs and
-   non-owner staging keys must fail.
+   publication checks run before the post is visible; direct URLs and non-owner
+   staging keys must fail.
 9. Verify Ask the Community repairs through `/check-scan-status` before image
    restoration, and that a transient Field Chat still-syncing result leaves the
    toolbar action available for retry.
+10. Fault one required promotion or canonical audio refresh after scan insert.
+    Identify must return retryable `503`, retain a noncomplete ledger, and let
+    replay/reconciliation finish only through
+    `complete_scan_ingestion_finalization`. No alternate worker may directly
+    update the ledger to `complete`.
+11. Return a controlled 5xx from R2 staging deletion in current multimodal and
+    compatibility audio paths. Neither path may mark the ledger complete. A 404
+    is idempotent success; 5xx, timeout, and every other non-success retain
+    durable retry/reconciliation state.
+12. Race rolling-deployment `claim_scan_ingestion_job`, `begin_scan_ingestion`,
+    and recovery against the same scan UUID. Both routines must use the same
+    advisory lock; every current route must use atomic `begin_scan_ingestion`,
+    and neither routine may replace a completed recovery generation.
 
 ### Monitoring and incident triggers
 
 Monitor structured Edge event `multimodal/scan_persistence_failed`, PostHog
 event `scan_persistence_failed`, `multimodal/observation_rejected`, owner status
-`not_found` rates, share `Scan not found` rates, and
-`scan_ingestion_jobs` retry/terminal age. Segment persistence latency and
-failures by modality, tier, and dictionary cache state in aggregate dashboards.
-Restricted structured error logs contain owner and scan identifiers for
-incident correlation; keep them access-controlled and never copy identifiers,
-coordinates, media keys, request bodies, or raw error details into retained
-release artifacts.
+`not_found` rates, share `Scan not found` rates, and `scan_ingestion_jobs`
+retry/terminal age. Segment persistence latency and failures by modality, tier,
+and dictionary cache state in aggregate dashboards. Restricted structured error
+logs contain owner and scan identifiers for incident correlation; keep them
+access-controlled and never copy identifiers, coordinates, media keys, request
+bodies, or raw error details into retained release artifacts.
 
-Any current identify `200` followed immediately by owner status `not_found` is
-a severity incident, even if recovery later succeeds. Repeated recovery on
-fresh scans is also a deployment/version-skew signal, not acceptable steady
-state.
+Any current identify `200` followed immediately by owner status `not_found` is a
+severity incident, even if recovery later succeeds. Repeated recovery on fresh
+scans is also a deployment/version-skew signal, not acceptable steady state.
 
 ### Rollback and exit criteria
 
-The backend recovery contract is backward compatible, so an iOS rollback is
-safe but restores the old customer experience. Do not roll
-`identify-multimodal` back to a version that can return success before owner-row
-read-back; deploy a forward fix instead. A status/share rollback removes repair
-capability and should be used only to contain a defect while keeping durable
-identify success in place. Never grant direct `scans` writes or privileged RPCs
-to `authenticated`, and never ship a server key in iOS.
+The backend recovery contract is backward compatible, so an iOS rollback is safe
+but restores the old customer experience. Do not roll `identify-multimodal` back
+to a version that can return success before owner-row read-back; deploy a
+forward fix instead. A status/share rollback removes repair capability and
+should be used only to contain a defect while keeping durable identify success
+in place. Never grant direct `scans` writes or privileged RPCs to
+`authenticated`, and never ship a server key in iOS.
 
 Close the incident only after:
 
@@ -2932,9 +3160,8 @@ Close the incident only after:
 Migration
 `20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql` and
 the Next.js Explore reader are one release unit. Push the migration first, then
-apply
-`20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql`, then
-deploy `apps/web/`. The database exposes only
+apply `20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql`,
+then deploy `apps/web/`. The database exposes only
 `get_public_web_explore_posts(...)` and
 `get_public_web_explore_post_detail(...)`, plus the combined
 `get_public_web_explore_post_page(...)`, to the web server credential. Direct
@@ -2972,8 +3199,8 @@ legacy migration fallback. Neither value may use a `NEXT_PUBLIC_` prefix.
 `SUPABASE_PUBLIC_VIEWER_ID` is obsolete and must be removed: viewer identity is
 fixed to `NULL` inside PostgreSQL.
 
-The pre-production database suite directly calls detail for moderated,
-unshared, tombstoned, shadowbanned, media-less, quarantined, and unpublished
+The pre-production database suite directly calls detail for moderated, unshared,
+tombstoned, shadowbanned, media-less, quarantined, and unpublished
 community-resolved posts and receive no row. It must also cover a visibility
 change against the combined routine. Testing only the normal visible web path
 does not satisfy this gate.
@@ -3318,6 +3545,26 @@ is classified as a Data API request instead; inspect the API gateway, PostgREST
 RPC grants, and database logs without expecting a Function marker. Never print
 the response body or `X-Request-ID` value merely to diagnose authorization.
 
+Before credentialed smoke begins, the workflow derives the complete Function
+inventory from the same dependency graph used for deployment. It sends `OPTIONS`
+to every production route and requires `X-Merian-Handler: 1`; all unresolved
+routes share up to 18 bounded attempts with no sleep longer than ten seconds.
+This proves route recognition and Merian execution without invoking business
+work. A validated legacy anon JWT is added only as the preflight execution
+credential required by the routes that retain gateway `verify_jwt = true`;
+publishable keys are never valid Bearer tokens. If the configuration contains
+such a route but the legacy JWT is unavailable, the workflow fails closed before
+route probing. Before deactivating the legacy anon key, migrate every remaining
+gateway-verified route to the reviewed in-handler auth boundary or provision a
+replacement short-lived user smoke identity; do not weaken this probe to accept
+an unmarked gateway response. The workflow then separately probes
+`identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
+`get-explore-composer-media`, and `insight-chat` without Authorization. Each
+critical route must return `401` with the marker, additionally proving
+user-scoped access fails closed. A gateway `404` with no handler marker never
+counts as a missing scan and never permits the production workflow to report
+success. Do not run the matching iOS smoke while either gate is still retrying.
+
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only
 database connection:
@@ -3447,13 +3694,16 @@ health. Start with the structured reconciliation health event and queue error
 codes described in the RevenueCat release gate; preserve claim fencing and let
 the durable worker recover.
 
-## DwC-A Export Queue Health Automation
+## DwC-A Export and Archive Health Automation
 
-The **DwC-A Export Queue Health Monitor** runs every five minutes, offset from
-the once-per-minute database dispatcher. It resolves the production server API
-key through the revealed Management API resolver and calls only the aggregate
-`get_dwca_export_queue_health()` RPC. User IDs, object keys, claim tokens, and
-work cursors are absent from logs and artifacts.
+The **DwC-A Export and Archive Health Monitor** runs every five minutes, offset
+from the once-per-minute database dispatcher. It resolves the production server
+API key through the revealed Management API resolver and calls only the
+aggregate `get_dwca_export_queue_health()` and
+`get_dwca_archive_cleanup_health()` RPCs. User IDs, object keys, capability
+tokens, claim tokens, and work cursors are absent from logs and artifacts. Its
+GitHub schedule is independent of database cron and Vault, so it still alerts
+when the archive-cleanup worker never starts.
 
 Scheduled runs warn and fail when the oldest due job reaches five minutes, the
 outstanding backlog reaches 25 jobs, or any claim has expired. They become
@@ -3464,7 +3714,11 @@ be read. Start with the route's structured queue-health and step events, then
 verify database, R2, and Resend health. Preserve the durable state machine and
 let its retries drain; do not edit private queue tables. A zero due count means
 no work is currently claimable, not necessarily an empty backlog: inspect active
-claims and retry deadlines before declaring the queue fully idle.
+claims and retry deadlines before declaring the queue fully idle. Archive
+cleanup warns at 25 pending rows or 15 minutes oldest-due age and becomes
+critical at 100 pending rows, one hour oldest-due age, or any expired lease.
+Repair cron/Vault/R2 configuration and let the fenced outbox resume; never edit
+cleanup leases or rows directly.
 
 ## Scan Media Health Automation
 
@@ -3506,9 +3760,10 @@ service-role endpoint. Start triage from the issue code:
   with resumable intents are claimed by `replay-scan-ingestion`; rows with
   redacted inline media still require client retry. If the stuck job still has
   staged `scan_media_assets`, `reconcile-scan-media-assets` will keep those rows
-  pending while the lease or retry window is active, mark the job complete after
-  a successful media repair, or mark it `failed_terminal` after the abandonment
-  TTL.
+  pending while the lease or retry window is active, invoke the shared
+  claimed-key/canonical-media finalization transaction after a successful
+  repair, or mark it `failed_terminal` after the abandonment TTL. No worker may
+  directly set `complete`.
 - `ingestion_jobs_missing_intent` / `ingestion_intents_not_resumable`: inspect
   `scan_ingestion_jobs` plus `scan_ingestion_intents`. Missing intents mean the
   accepted job predates the durable outbox or the intent write failed; non-
@@ -3798,7 +4053,10 @@ After deployment:
 - For the DwC-A version-2/public-web Explore release unit, retain the evidence
   hold unless every exit criterion in
   `14-dwca-and-public-web-release-hold-2026-07-27.md` has exact-SHA evidence.
-  Green unit/static suites alone are not release sign-off.
+  Green unit/static suites alone are not release sign-off. Require the stable
+  hosted `iOS Build and Test / Production readiness` result, including the full
+  unit-test target and independent unsigned Release archive, plus the frozen
+  public-web install/audit/test/type-check/build gate for the same release SHA.
 - For an Explore media-health release, complete the structural checks and
   staging smoke matrix in **Explore media-health and reversible-quarantine
   release gate**. Require public-surface agreement, preserved author/engagement
@@ -3851,10 +4109,10 @@ After deployment:
 - For the scan owner-row durability release, confirm production deployment
   records tie the deployed versions of `identify-multimodal`,
   `check-scan-status`, and `share-scan-to-explore` to the same reviewed SHA.
-  Submit a brand-new scan, require immediate owner status `found` after
-  identify `200`, then open Field Chat and publish it to Explore. Run the
-  eligible legacy-repair, active/retryable deferral, exact policy-rejection
-  block, cross-owner isolation, and staged-media restoration cases in
+  Submit a brand-new scan, require immediate owner status `found` after identify
+  `200`, then open Field Chat and publish it to Explore. Run the eligible
+  legacy-repair, active/retryable deferral, exact policy-rejection block,
+  cross-owner isolation, and staged-media restoration cases in
   [Scan Owner-Row Durability and Recovery Rollout](#scan-owner-row-durability-and-recovery-rollout).
   Do not call backend smoke complete until the matching iOS build independently
   passes its customer-facing retry/toast checks.
@@ -3997,9 +4255,12 @@ After deployment:
   `captured_media` audio reference, creates a ready normalized audio asset, and
   moderates before publication. Repeat with the local file unavailable and
   confirm no empty or phantom public post is created.
-- Delete one disposable audio scan and purge one expired non-biological audio
-  scan; confirm their source recordings and derived spectrogram objects
-  disappear before their database rows do.
+- Delete one disposable audio scan and invoke `auto-purge-nonbio` with one
+  expired non-biological audio scan. Confirm the route first leaves the row
+  present with a pending private deletion fence, then `reconcile-scan-deletions`
+  removes its source recording and derived spectrogram before completing row
+  deletion. A recent non-biological control and an expired biological control
+  must remain unfenced.
 - Submit or replay a short video scan and verify Edge logs do not show
   `Payload Too Large` for the normal six-file manifest or `scan_media_assets`
   nullability errors during staged row creation.

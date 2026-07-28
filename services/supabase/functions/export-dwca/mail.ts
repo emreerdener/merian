@@ -27,7 +27,7 @@ async function discardResponseBody(response: Response): Promise<void> {
 
 export async function sendExportEmail(
   email: string,
-  signedUrl: string,
+  capabilityUrl: string,
   jobId: string,
   options: {
     apiKey?: string;
@@ -64,7 +64,7 @@ export async function sendExportEmail(
         <p>Your Darwin Core Archive (DwC-A) containing your scans has finished processing.</p>
         <p>This secure link will expire in 24 hours.</p>
         <a href="${
-            escapeHtml(signedUrl)
+            escapeHtml(capabilityUrl)
           }" style="display:inline-block;padding:12px 24px;background-color:#007AFF;color:white;text-decoration:none;border-radius:8px;">Download Archive</a>
         <br><br>
         <p>Thank you for contributing to Naturebook!</p>

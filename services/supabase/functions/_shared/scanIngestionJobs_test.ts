@@ -1,6 +1,8 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  completeScanIngestionFinalization,
   scanIngestionClientState,
   type ScanIngestionJobRow,
   scanIngestionManifestChecksum,
@@ -138,4 +140,41 @@ Deno.test("scanIngestionClientState preserves retryable failure metadata", () =>
       last_error: "insert timeout",
     },
   );
+});
+
+Deno.test("completeScanIngestionFinalization canonicalizes lifecycle inputs for one RPC", async () => {
+  let rpcName = "";
+  let rpcArguments: Record<string, unknown> = {};
+  const client = {
+    rpc(name: string, arguments_: Record<string, unknown>) {
+      rpcName = name;
+      rpcArguments = arguments_;
+      return Promise.resolve({ data: "completed", error: null });
+    },
+  } as unknown as SupabaseClient;
+
+  const result = await completeScanIngestionFinalization(
+    {
+      scanId: "00000000-0000-4000-8000-000000000091",
+      userId: "00000000-0000-4000-8000-000000000092",
+      promotedUrlsByStorageKey: new Map([
+        ["staging/z.webp", "https://media.merian.app/z.webp"],
+        ["staging/a.wav", "https://media.merian.app/a.wav"],
+      ]),
+      deletedStorageKeys: [" staging/companion.wav ", "staging/companion.wav"],
+    },
+    client,
+  );
+
+  assertEquals(result, "completed");
+  assertEquals(rpcName, "complete_scan_ingestion_finalization");
+  assertEquals(rpcArguments, {
+    p_scan_id: "00000000-0000-4000-8000-000000000091",
+    p_user_id: "00000000-0000-4000-8000-000000000092",
+    p_promoted_urls_by_storage_key: {
+      "staging/a.wav": "https://media.merian.app/a.wav",
+      "staging/z.webp": "https://media.merian.app/z.webp",
+    },
+    p_deleted_storage_keys: ["staging/companion.wav"],
+  });
 });

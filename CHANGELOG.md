@@ -8,22 +8,71 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
-- Implemented the release-blocking DwC-A/public-web repairs: full-member
-  privacy revalidation now fences assembly, staging, email, and completion;
-  processing jobs keep staged signed URLs private and terminal transitions erase
-  that private capability; an in-flight privacy revocation prevents completion
-  and deletes the archive even if the email provider accepted its idempotent
-  request. Explore detail owns the canonical anonymous visibility predicate and
-  page reads are atomic, while snapshot projection stops at cumulative byte
-  limits instead of materializing every candidate DTO. Production promotion
-  remains held only until exact-release-SHA fresh-catalog, complete CI,
-  production smoke, and hosted maximum-shape evidence meets
+- Edge transport and `5xx` retries now replay only audited read routes or
+  endpoint contracts with server-supported idempotency. Ambiguous failures no
+  longer risk duplicating comments/feedback, toggling a reaction twice, or
+  creating another upload staging generation after a lost response. Public
+  species pages also require Merian handler evidence before treating an Edge
+  `404` as a missing species, so router outages remain transient server errors.
+  Retry delays now propagate task cancellation, preventing canceled foreground
+  inference or read work from issuing a delayed replacement request.
+- Implemented the release-blocking DwC-A/public-web repairs: full-member privacy
+  revalidation now fences assembly, staging, email, and completion; completed
+  exports now use revocable application capabilities with click-time full-source
+  privacy checks, distributed rate limits, 30-second read-only storage
+  redirects, and a durable archive-deletion outbox. Permanent email rejection
+  terminates instead of retrying forever. Archive cleanup is attempt-key fenced,
+  so stale cleanup cannot invalidate a replacement grant. Mixed export
+  transitions now take the parent job row and one advisory generation lock
+  before source/grant/outbox rows, preventing lock inversion. Atomic setup,
+  rolling-compatibility claim, and owner recovery share one normalized per-scan
+  generation lock. Every current scan-producing route establishes its job/intent
+  before provider dispatch, fails closed with unused-quota refund if setup is
+  unavailable, and verifies claimed media dispositions, confirmed storage
+  deletions, and ready image/video/audio rows before completion is written last.
+  A database trigger rejects every unfenced completion and completed-generation
+  rewrite; only the atomic ghost-profile merge's exact source/target transaction
+  markers may reparent completed evidence. Catalog replacement invalidates
+  source authority without taking export-parent locks inside `TRUNCATE`, then
+  the independent cleanup claimant performs parent-first grant revocation and
+  archive enqueue. Compatibility finalization failure becomes explicit retryable
+  work. Individual scan deletion now commits a private generation tombstone
+  before storage erasure, so delayed inference, replay, or another device cannot
+  resurrect a deleted UUID. A leased five-minute server reaper finishes
+  interrupted erasure without the deleting device, independent monitoring alerts
+  on SLA/backlog/expired leases, and completion removes the tombstone's owner
+  linkage without removing that fence. Scan-media erasure now requires the exact
+  canonical owner UUID in a flat free/Pro object key, preventing poisoned rows
+  from nominating another user's object. Broad API-role scan mutation is
+  revoked; current iOS metadata writes use owner-derived RPCs while a documented
+  five-column grant bridges already-installed clients. No-ledger recovery now
+  defers rather than allowing a modified client to fabricate history.
+  Non-biological retention now generation-locks and revalidates candidates,
+  writes the same durable erasure fence, and leaves all R2/row work to the
+  independent reaper, closing the finalizer-versus-inline-purge window. Bulk R2
+  deletion treats an already-absent object as idempotent success and omits
+  object URLs from logs. Explore detail owns the canonical anonymous visibility
+  predicate and page reads are atomic, while snapshot projection stops at
+  cumulative byte limits instead of materializing every candidate DTO.
+  Production promotion remains held until exact-release-SHA fresh-catalog,
+  complete CI, production smoke, and hosted maximum-shape evidence meets
   `docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`.
 
 ### Explore
 
 - Fixed Scan Library observations being denied when sharing to Explore after
   server-side routine authorization hardening.
+- Scan creation/status, Explore sharing/composer media, and Field Chat now retry
+  only Supabase's platform-level missing-function response during transient
+  route propagation. Handler-owned missing-scan responses still use owner-row
+  recovery, while an exhausted router outage becomes a typed temporary-service
+  error so it cannot mark a scan unavailable or expose
+  `Requested function was not found`. Background inference now applies the same
+  boundary before HTTP classification. Supabase routing failures, expired queued
+  authentication, timeouts, duplicate/finalized requests, early requests, and
+  throttling preserve the scan for durable retry. Other handler-owned `4xx`
+  responses preserve queued media as user-actionable; only exact
+  `observation_rejected` policy responses are terminal.
 - Field Chat now preserves a confidence-focused prompt for identifications below
   70% confidence, even when generated suggestions fill the available chips.
 
@@ -63,6 +112,13 @@ TestFlight, App Store, support, and QA.
 
 ### Beta Operations
 
+- Production deploys now prove that every configured Edge Function route reaches
+  a marked Merian handler before reporting success. Gateway-verified preflight
+  uses only a validated legacy anon JWT and never a publishable Bearer key. Scan
+  creation/status, Explore sharing/composer media, and Field Chat additionally
+  prove unauthenticated access fails closed. Regional gateway `404` responses
+  receive bounded propagation retries and fail the rollout if route recognition
+  does not recover.
 - Fixed the proactive feedback survey so restored account history cannot open it
   during startup. Eligible returning testers can now be prompted only after
   another successful biological scan and dismissal of its result sheet.
@@ -1219,9 +1275,9 @@ TestFlight, App Store, support, and QA.
 
 - Fixed successful identification returning before its cloud scan row existed,
   which could leave an otherwise completed observation unavailable to Field
-  Chat, Explore sharing, field trips, and owner sync. Added
-  owner-authenticated recovery for observations already affected by the gap
-  across image, video, audio, mixed-media, and non-visual scans.
+  Chat, Explore sharing, field trips, and owner sync. Added owner-authenticated
+  recovery for observations already affected by the gap across image, video,
+  audio, mixed-media, and non-visual scans.
 - Replaced technical Explore and Field Chat sync errors with customer-facing
   retry guidance. A transient Field Chat sync delay no longer hides the action
   permanently.

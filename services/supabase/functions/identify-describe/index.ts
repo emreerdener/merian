@@ -176,6 +176,45 @@ Deno.serve((req: Request) =>
     const diagnosticTrigger = diagnosticTriggerForTier(
       userTier === "pro" ? "pro" : "flash",
     );
+    const generatedScanId: string =
+      typeof client_scan_id === "string" && client_scan_id.length > 0
+        ? client_scan_id
+        : quotaLease.reservation.requestId;
+    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
+      {
+        scanId: generatedScanId,
+        userId: user.id,
+        endpoint: "identify-describe",
+        description,
+        preferredGoal: preferred_goal,
+        observationContexts: observation_context &&
+            typeof observation_context === "object" &&
+            !Array.isArray(observation_context)
+          ? [observation_context as Record<string, unknown>]
+          : [],
+        telemetry: {
+          timestamp,
+          gpsLatitude: safeGpsLat,
+          gpsLongitude: safeGpsLon,
+          gpsElevation,
+          semanticLocation,
+          publicLocationLabel: publicExploreLocationLabel,
+          geoprivacy,
+          weatherCondition,
+          weatherTemperatureF,
+          deviceLocale,
+          deviceTimeZone,
+          deviceRegion,
+          currentMonth: normalizedCurrentMonth,
+          timeOfDay,
+        },
+        logStructuredError,
+      },
+      supabaseAdmin,
+    ).catch(async (error) => {
+      await quotaLease.refund();
+      throw error;
+    });
     const modelCfg = targetModel === "gemini-2.5-pro"
       ? modelConfigs.pro
       : modelConfigs.flash;
@@ -259,6 +298,10 @@ Deno.serve((req: Request) =>
       const errMsg = genError instanceof Error
         ? genError.message
         : String(genError);
+      await compatibilityLedger.markRetryableFailure(
+        "ai_provider_failed",
+        errMsg,
+      );
       logStructuredError("identify-describe/gemini_failed", {
         user_id: user.id,
         model: targetModel,
@@ -278,6 +321,18 @@ Deno.serve((req: Request) =>
       const isPermanentContentFailure = finishReason === "SAFETY" ||
         finishReason === "PROHIBITED_CONTENT";
       if (!isPermanentContentFailure) await quotaLease.fail();
+      if (isPermanentContentFailure) {
+        await compatibilityLedger.markTerminalFailure(
+          "ai_provider_policy_rejected",
+          `Provider finish reason: ${finishReason}`,
+          "content_policy_rejected",
+        );
+      } else {
+        await compatibilityLedger.markRetryableFailure(
+          "ai_provider_non_stop_finish",
+          `Provider finish reason: ${finishReason}`,
+        );
+      }
       logStructuredError("identify-describe/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -296,6 +351,10 @@ Deno.serve((req: Request) =>
       );
     } catch (parseError) {
       await quotaLease.fail();
+      await compatibilityLedger.markRetryableFailure(
+        "ai_response_parse_failed",
+        parseError,
+      );
       logStructuredError("identify-describe/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
@@ -417,11 +476,6 @@ Deno.serve((req: Request) =>
 
     // Describes always have zero blur (no image).
     parsedData.blur_score = 0;
-
-    const generatedScanId: string =
-      typeof client_scan_id === "string" && client_scan_id.length > 0
-        ? client_scan_id
-        : quotaLease.reservation.requestId;
 
     let payloadReadyForClient: ClientPayload = {
       ...parsedData,
@@ -547,6 +601,10 @@ Deno.serve((req: Request) =>
       payloadReadyForClient = responseEnvelope.data;
     } catch (error) {
       await quotaLease.fail();
+      await compatibilityLedger.markRetryableFailure(
+        "wire_contract_failed",
+        error,
+      );
       logStructuredError("identify-describe/wire_contract_failed", {
         user_id: user.id,
         scan_id: generatedScanId,
@@ -561,32 +619,10 @@ Deno.serve((req: Request) =>
       );
     }
 
-    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "identify-describe",
-        description,
-        preferredGoal: preferred_goal,
-        telemetry: {
-          timestamp,
-          gpsLatitude: safeGpsLat,
-          gpsLongitude: safeGpsLon,
-          gpsElevation,
-          semanticLocation,
-          publicLocationLabel: publicExploreLocationLabel,
-          geoprivacy,
-          weatherCondition,
-          weatherTemperatureF,
-          deviceLocale,
-          deviceTimeZone,
-          deviceRegion,
-          currentMonth: normalizedCurrentMonth,
-          timeOfDay,
-        },
-        logStructuredError,
-      },
-      supabaseAdmin,
+    await compatibilityLedger.mark(
+      "finalizing",
+      "background_ingestion_queued",
+      { leaseSeconds: 300 },
     );
 
     const runBackgroundIngestion = async () => {

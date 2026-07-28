@@ -117,11 +117,12 @@ Bulk responses include the probed scan id on each result:
 - A single request with `recovery_scan` may idempotently recreate an absent
   owner row. The route derives identity from the authenticated user, requires
   matching UUIDs, validates all fields, derives public coordinates from
-  geoprivacy, and uses duplicate protection so it cannot overwrite an existing
-  row. The shared repair write allows only legacy jobs with no ledger entry,
-  completed-but-missing rows, and non-policy terminal failures; active,
-  retryable, moderation-rejected, and provider-policy-rejected jobs remain
-  untouched.
+  geoprivacy, and calls one per-scan-locked database routine so the row plus
+  completed recovery ledger are atomic and cannot overwrite an existing row. The
+  shared repair write requires an existing ledger and allows only
+  completed-but-missing or structured `replay_exhausted` state. No-ledger,
+  active, retryable, policy, media-abandonment, legacy-unknown, and arbitrary
+  terminal reasons remain untouched.
 - When `required_video_count > 0`, the endpoint returns `found` only if the scan
   row has at least that many non-empty `video_storage_urls` and at least that
   many ready playback entries in `scan_media_assets` or video entries in

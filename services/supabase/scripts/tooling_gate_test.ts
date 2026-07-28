@@ -99,7 +99,7 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   );
   assertMatch(
     gate,
-    /--allow-read=services\/supabase,\.github\/workflows,\.github\/dependabot\.yml,Makefile,README\.md,CHANGELOG\.md,docs,apps\/web,apps\/ios/,
+    /--allow-read=services\/supabase,\.github\/workflows,\.github\/dependabot\.yml,Makefile,README\.md,CHANGELOG\.md,docs,apps/,
   );
   assertMatch(gate, /--allow-run=bash/);
 });
@@ -283,6 +283,10 @@ Deno.test("production deploy reports aggregate Explore publication health", asyn
   assertMatch(
     workflow,
     /publication_health_response[\s\S]*post_server_json[\s\S]*get_explore_publication_health_summary/,
+  );
+  assertMatch(
+    workflow,
+    /dwca_cleanup_response[\s\S]*post_server_json[\s\S]*reconcile-dwca-archive-cleanup[\s\S]*health_status == "healthy"[\s\S]*health_status == "warning"/,
   );
   assertMatch(
     workflow,

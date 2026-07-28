@@ -146,7 +146,9 @@ export async function fetchSpeciesDictionary(
   const { data, error } = await invoke(normalizedId);
   if (error) {
     const status = functionsErrorStatus(error);
-    if (status === 404) return null;
+    if (status === 404 && functionsErrorReachedMerianHandler(error)) {
+      return null;
+    }
     throw new SpeciesDictionaryUpstreamError(status);
   }
 
@@ -247,6 +249,24 @@ function functionsErrorStatus(error: unknown): number | null {
   const context = optionalRecordValue(errorRecord?.context);
   const status = context?.status;
   return typeof status === "number" && Number.isInteger(status) ? status : null;
+}
+
+function functionsErrorReachedMerianHandler(error: unknown): boolean {
+  const errorRecord = optionalRecordValue(error);
+  const context = optionalRecordValue(errorRecord?.context);
+  const headers = context?.headers;
+  if (!headers || typeof headers !== "object") return false;
+
+  const get = (headers as { get?: unknown }).get;
+  if (typeof get === "function") {
+    const marker = get.call(headers, "X-Merian-Handler");
+    return typeof marker === "string" && marker.trim() === "1";
+  }
+
+  const headerRecord = optionalRecordValue(headers);
+  const marker = headerRecord?.["x-merian-handler"] ??
+    headerRecord?.["X-Merian-Handler"];
+  return typeof marker === "string" && marker.trim() === "1";
 }
 
 function similarSpeciesValues(value: unknown): WebSimilarSpecies[] {

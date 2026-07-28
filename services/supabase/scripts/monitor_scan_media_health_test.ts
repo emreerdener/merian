@@ -267,6 +267,17 @@ Deno.test("issueActionFor maps known and future issue codes to operator guidance
 
   assertEquals(
     issueActionFor({
+      code: "scan_deletion_cleanup_backlog",
+      severity: "critical",
+      message: "Erasure outside SLA.",
+      count: 1,
+      sample: [],
+    }).owner,
+    "privacy erasure",
+  );
+
+  assertEquals(
+    issueActionFor({
       code: "future_media_issue",
       severity: "warning",
       message: "A future issue.",

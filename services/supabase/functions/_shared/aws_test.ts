@@ -7,8 +7,10 @@ import r2Lifecycle from "../../../../docs/r2-lifecycle.json" with {
 };
 import {
   avatarR2KeyFromPublicUrl,
+  deleteR2ObjectIfPresent,
   deleteR2Objects,
   deleteScanMediaR2Objects,
+  isOwnedScanMediaR2Url,
   isScanMediaR2Url,
   listR2ObjectKeys,
   R2_MEDIA_PREFIXES,
@@ -141,8 +143,38 @@ Deno.test("deleteR2Objects caps in-flight deletes and rewrites public media URLs
   );
 });
 
-Deno.test("deleteScanMediaR2Objects skips durable avatar objects", async () => {
+Deno.test("scan media ownership requires the exact canonical owner path", () => {
+  const owner = "00000000-0000-4000-8000-000000000201";
+  assertEquals(
+    isOwnedScanMediaR2Url(
+      `https://media.merian.app/public_uploads/free/${owner}/photo.webp`,
+      owner,
+    ),
+    true,
+  );
+  assertEquals(
+    isOwnedScanMediaR2Url(
+      `https://media.merian.app/public_uploads/pro/${owner}/spectrogram-v1-a.png`,
+      owner,
+    ),
+    true,
+  );
+  for (
+    const url of [
+      "https://media.merian.app/public_uploads/free/00000000-0000-4000-8000-000000000999/photo.webp",
+      `https://media.merian.app/public_uploads/free/${owner}/nested/photo.webp`,
+      `https://media.merian.app/public_uploads/free/${owner}/../photo.webp`,
+      `https://media.merian.app/public_uploads/free/${owner}/photo.webp?version=1`,
+      `http://media.merian.app/public_uploads/free/${owner}/photo.webp`,
+    ]
+  ) {
+    assertEquals(isOwnedScanMediaR2Url(url, owner), false);
+  }
+});
+
+Deno.test("deleteScanMediaR2Objects skips foreign and non-scan objects", async () => {
   const deletedUrls: string[] = [];
+  const owner = "00000000-0000-4000-8000-000000000201";
 
   const config = {
     bucketName: "media-bucket",
@@ -163,17 +195,22 @@ Deno.test("deleteScanMediaR2Objects skips durable avatar objects", async () => {
   const originalWarn = console.warn;
   console.warn = () => {};
   try {
-    await deleteScanMediaR2Objects([
-      "https://media.merian.app/public_uploads/free/user/photo.webp",
-      "https://media.merian.app/avatars/user/avatar.webp",
-      "https://media.merian.app/staging/user/temp.webp",
-    ], config);
+    await deleteScanMediaR2Objects(
+      [
+        `https://media.merian.app/public_uploads/free/${owner}/photo.webp`,
+        "https://media.merian.app/public_uploads/free/00000000-0000-4000-8000-000000000999/victim.webp",
+        `https://media.merian.app/avatars/${owner}/avatar.webp`,
+        `https://media.merian.app/staging/${owner}/temp.webp`,
+      ],
+      owner,
+      config,
+    );
   } finally {
     console.warn = originalWarn;
   }
 
   assertEquals(deletedUrls, [
-    "https://account.r2.cloudflarestorage.com/media-bucket/public_uploads/free/user/photo.webp",
+    `https://account.r2.cloudflarestorage.com/media-bucket/public_uploads/free/${owner}/photo.webp`,
   ]);
 });
 
@@ -202,6 +239,48 @@ Deno.test("deleteR2Objects rejects when Cloudflare does not confirm deletion", a
   } finally {
     console.error = originalError;
   }
+});
+
+Deno.test("deleteR2Objects treats an already absent object as success", async () => {
+  const config = {
+    bucketName: "media-bucket",
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    s3Client: {
+      fetch() {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      },
+    },
+  } as unknown as R2Config;
+
+  await deleteR2Objects([
+    "https://media.merian.app/public_uploads/free/already-gone.webp",
+  ], config);
+});
+
+Deno.test("deleteR2ObjectIfPresent accepts absence but rejects provider failures", async () => {
+  let status = 404;
+  const config = {
+    bucketName: "media-bucket",
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    s3Client: {
+      fetch() {
+        return Promise.resolve(new Response(null, { status }));
+      },
+    },
+  } as unknown as R2Config;
+
+  await deleteR2ObjectIfPresent("public_uploads/pro/user/audio.wav", config);
+
+  status = 503;
+  await assertRejects(
+    () =>
+      deleteR2ObjectIfPresent(
+        "public_uploads/pro/user/audio.wav",
+        config,
+      ),
+    Error,
+    "R2 object deletion failed with HTTP 503",
+  );
 });
 
 Deno.test("R2 prefix helpers classify scan media separately from avatars", () => {

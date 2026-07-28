@@ -34,6 +34,23 @@ function publicUrlForKey(key: string): string {
   return `https://media.merian.app/${key}`;
 }
 
+async function deletePromotedOrStagedObject(
+  key: string,
+  r2Config: PromotionR2Config,
+  deleteObject: typeof deleteR2Object,
+): Promise<void> {
+  const response = await deleteObject(key, r2Config);
+  try {
+    if (!response.ok && response.status !== 404) {
+      throw new Error(
+        `Failed to delete R2 object after promotion: ${key}`,
+      );
+    }
+  } finally {
+    await response.body?.cancel().catch(() => undefined);
+  }
+}
+
 export async function promoteSafeMedia(
   {
     userId,
@@ -97,14 +114,22 @@ export async function promoteSafeMedia(
         const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
 
         const copyRes = await copyObject(r2Key, publicUploadKey, r2Config);
-        if (!copyRes.ok) {
-          throw new Error(
-            `Failed to promote staging image to public storage: ${r2Key}`,
-          );
+        try {
+          if (!copyRes.ok) {
+            throw new Error(
+              `Failed to promote staging image to public storage: ${r2Key}`,
+            );
+          }
+        } finally {
+          await copyRes.body?.cancel().catch(() => undefined);
         }
 
         promotedKeys.push(publicUploadKey);
-        await deleteObject(r2Key, r2Config);
+        await deletePromotedOrStagedObject(
+          r2Key,
+          r2Config,
+          deleteObject,
+        );
       }
     }
 
@@ -112,7 +137,13 @@ export async function promoteSafeMedia(
   } catch (error) {
     if (promotedKeys.length > 0) {
       const rollbackResults = await Promise.allSettled(
-        promotedKeys.map((key) => deleteObject(key, r2Config)),
+        promotedKeys.map((key) =>
+          deletePromotedOrStagedObject(
+            key,
+            r2Config,
+            deleteObject,
+          )
+        ),
       );
       const failedRollbacks = rollbackResults.filter((result) =>
         result.status === "rejected"
@@ -171,9 +202,21 @@ export async function evaluateAndProcessPayload(
         ...additionalStagedKeysToDeleteOnUnsafe,
       ];
       if (stagedKeysToDelete.length > 0) {
-        await Promise.allSettled(
-          stagedKeysToDelete.map((key) => deleteR2Object(key, r2Config)),
+        const deletionResults = await Promise.allSettled(
+          stagedKeysToDelete.map((key) =>
+            deletePromotedOrStagedObject(key, r2Config, deleteR2Object)
+          ),
         );
+        const failedDeletionCount = deletionResults.filter((result) =>
+          result.status === "rejected"
+        ).length;
+        if (failedDeletionCount > 0) {
+          logStructuredError("moderation/unsafe_staging_cleanup_failed", {
+            user_id: userId,
+            failed_count: failedDeletionCount,
+            total_count: stagedKeysToDelete.length,
+          });
+        }
       }
 
       const { data: userData, error: fetchError } = await supabase

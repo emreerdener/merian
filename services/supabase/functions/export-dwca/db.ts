@@ -70,7 +70,7 @@ function databaseFailure(message: string, cause: unknown): ExportWorkerError {
   return new ExportWorkerError(
     "database_unavailable",
     message,
-    true,
+    false,
     { cause },
   );
 }
@@ -511,16 +511,20 @@ export async function stagePreparedExportArchive(
   jobId: string,
   claimToken: string,
   archiveObjectKey: string,
-  fileUrl: string,
+  downloadUrl: string,
+  downloadToken: string,
+  downloadExpiresAt: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
   const { data, error } = await supabaseAdmin.rpc(
-    "stage_prepared_export_archive",
+    "stage_prepared_export_archive_with_download_grant",
     {
       p_job_id: jobId,
       p_claim_token: claimToken,
       p_archive_object_key: archiveObjectKey,
-      p_file_url: fileUrl,
+      p_download_url: downloadUrl,
+      p_download_token: downloadToken,
+      p_download_expires_at: downloadExpiresAt,
     },
   );
   if (error) {
@@ -547,7 +551,7 @@ export async function completePreparedExportJob(
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
   const { data, error } = await supabaseAdmin.rpc(
-    "complete_prepared_export_job",
+    "complete_prepared_export_job_with_download_grant",
     { p_job_id: jobId, p_claim_token: claimToken },
   );
   if (error) {
@@ -564,6 +568,28 @@ export async function completePreparedExportJob(
       "database_unavailable",
       "The prepared export completion fence was rejected.",
       false,
+    );
+  }
+}
+
+export async function enqueueDwcaArchiveCleanup(
+  jobId: string,
+  objectKey: string,
+  reasonCode: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "enqueue_dwca_archive_cleanup",
+    {
+      p_job_id: jobId,
+      p_object_key: objectKey,
+      p_reason_code: reasonCode,
+    },
+  );
+  if (error || typeof data !== "string" || data.length === 0) {
+    throw databaseFailure(
+      "Failed to enqueue durable export archive cleanup.",
+      error ?? data,
     );
   }
 }

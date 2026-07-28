@@ -941,11 +941,15 @@ deployment selection for route-local, transitive shared, config,
 dependency-policy, docs, and test-only changes.
 `deploy_function_batches_test.sh` uses a fake Supabase CLI to prove a failed
 batch retries only its own members and rejects malformed function names.
-`_tests/workflowSecurity.test.ts` independently locks immutable action SHAs,
-least-privilege workflow permissions, and step-scoped secrets across the whole
-workflow directory. This suite exists specifically to prevent local checks from
-passing against a parent config that the remote function bundler does not
-discover.
+`scripts/function_caller_contract_test.ts` scans literal iOS, web, workflow,
+Function-to-Function, operator-script, and migration callers; every target must
+exist in both `config.toml` and the entrypoint graph. Reviewed historical
+retirements require exact later unschedule evidence instead of silently allowing
+stale names. `_tests/workflowSecurity.test.ts` independently locks immutable
+action SHAs, least-privilege workflow permissions, and step-scoped secrets
+across the whole workflow directory. This suite exists specifically to prevent
+local checks from passing against a parent config that the remote function
+bundler does not discover.
 
 JSON ingress and public error behavior have four complementary Deno checks:
 
@@ -1017,13 +1021,16 @@ locks sanitized replay-intent construction and inline-media redaction;
 `_shared/scanIngestionCompatibility_test.ts` locks the legacy
 identify/describe/audio compatibility bridge so staged media and text-only
 requests replay through `/identify-multimodal` while inline media stays redacted
-and non-resumable; `replay-scan-ingestion/worker_test.ts` covers staged payload
-reconstruction, existing complete scan and ownerless-tombstone short-circuiting,
-incomplete video rows being left for repair instead of duplicate AI replay, the
-120-second downstream deadline, the 150-second minimum lease invariant, and the
-8 KiB diagnostic-response ceiling; `reconcile-scan-media-assets/worker_test.ts`
-covers video repair, abandoned media cleanup, active-job waiting, ownership
-matching by user plus scan id, and job completion/failure feedback;
+and non-resumable. It also verifies one atomic pre-provider setup call,
+already-complete/database fail-closed outcomes, no premature finalizing
+transition, and durable retryable propagation when finalization fails;
+`replay-scan-ingestion/worker_test.ts` covers staged payload reconstruction,
+existing complete scan and ownerless-tombstone short-circuiting, incomplete
+video rows being left for repair instead of duplicate AI replay, the 120-second
+downstream deadline, the 150-second minimum lease invariant, and the 8 KiB
+diagnostic-response ceiling; `reconcile-scan-media-assets/worker_test.ts` covers
+video repair, abandoned media cleanup, active-job waiting, ownership matching by
+user plus scan id, and job completion/failure feedback;
 `_tests/scanMediaIngestionContract.test.ts` is the media-type matrix that keeps
 image, audio, text-only, and video replay, status, repair, and Explore-share
 contracts aligned; `_shared/mediaBudgets_test.ts` and
@@ -1200,10 +1207,17 @@ production checks:
   secret. Before deployment, the workflow masks and synchronizes the selected
   value to `MERIAN_SUPABASE_SERVER_API_KEY`, then verifies the stored hash
   before Function rollout; static coverage requires that ordering. Positive
-  calls make six bounded retries for transient routing/deployment statuses.
-  Final Function failures classify only whether the fixed `X-Merian-Handler: 1`
-  marker was present; Data API failures use separate PostgREST/RPC guidance and
-  never expect a Function marker. Both paths keep the body and request-ID value
+  calls make six bounded retries for transient routing/deployment statuses. A
+  separate graph-derived preflight probes every configured Function and requires
+  `X-Merian-Handler: 1` before the rollout succeeds; unresolved routes share one
+  bounded propagation window. It uses only a validated legacy anon JWT to cross
+  any intentional gateway `verify_jwt = true` boundary and fails closed if that
+  execution credential is unavailable; a publishable key is never sent in Bearer
+  authorization. The five customer-critical scan and Explore routes additionally
+  return marked fail-closed `401` responses without user Authorization. Final
+  Function failures classify only whether the fixed `X-Merian-Handler: 1` marker
+  was present; Data API failures use separate PostgREST/RPC guidance and never
+  expect a Function marker. Both paths keep the body and request-ID value
   private and never print a variable header value. Do not create a production
   user merely to obtain an authenticated JWT for this smoke: exact-value
   matching is covered deterministically and the disposable catalog exercises the
@@ -1453,9 +1467,15 @@ Identification latency has focused contract coverage at each boundary:
 - `_shared/identify/db_test.ts` locks duplicate-safe insertion followed by
   owner-scoped read-back. `_shared/scanRecovery_test.ts` locks the bounded
   non-media payload, derived privacy fields, cross-owner/UUID rejection, direct
-  media-URL rejection, and the active/retryable/terminal policy decision
-  matrix. `share-scan-to-explore/db_test.ts` locks repair-and-reload before
-  media restoration and publication.
+  media-URL rejection, and delegation to the atomic recovery RPC.
+  `dwcaDownloadAndScanFinalizationMigrationContract.test.ts` locks the shared
+  current/rolling-compatibility claim and recovery generation lock, exact
+  `replay_exhausted` allowlist, completion-last media finalization, strict
+  compatibility audio deletion ordering, worker compare-before-complete
+  behavior, strict atomic-setup RPC decoding, the parent-first DwC-A generation
+  lock, and the revocable grant/cleanup protocol.
+  `share-scan-to-explore/db_test.ts` locks repair-and-reload before media
+  restoration and publication.
 - `_tests/auth.test.ts` covers valid anonymous claims plus expired,
   malformed-issuer/audience/subject, and public service-role rejection. Internal
   replay continues to use its separate service-role/replay-user tests; never
@@ -1463,15 +1483,19 @@ Identification latency has focused contract coverage at each boundary:
 - `_tests/migrationMediaContract.test.ts` verifies that `begin_scan_ingestion`,
   `hydrate_identification_dictionary`, and `apply_or_stage_scan_context` are
   service-role-only and that deferred context is RLS-protected and merged at
-  scan insert. `_shared/identify/latencyDb_test.ts` verifies that the atomic
-  setup client consumes the RPC's server-canonicalized upload-session ids and
-  checksums.
+  scan insert. `_shared/identify/latencyDb_test.ts` exercises the canonical
+  `_shared/scanIngestionJobs.ts` setup client and verifies that it consumes the
+  RPC's server-canonicalized upload-session ids, checksums, stage, and
+  already-complete state. `dwca_download_and_scan_finalization_security.sql`
+  exercises the same invariants against a fresh PostgreSQL catalog with pgTAP.
 - `MerianNetworkClientTests` verifies pinned-session `OPTIONS` prewarming,
   idempotent inline request-body completion, and owner-scoped
   `/update-scan-context` construction. It also verifies single-status recovery,
   combined Explore recovery/media restoration, and the Ask/Field Chat repair
-  seams. `MerianConfigTests` locks customer-facing Explore error translation;
-  `InsightChatTests` locks retryable still-syncing feedback.
+  seams. Its route-retry coverage also cancels a request during the retry delay
+  and proves no second request is issued. `MerianConfigTests` locks
+  customer-facing Explore error translation; `InsightChatTests` locks retryable
+  still-syncing feedback.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
 for slow WeatherKit, reverse geocoding, awards, Field trips, Wikipedia, and
@@ -1481,27 +1505,27 @@ durable success; they must stay within the Edge/client timeout and be
 rebaselined separately from response-to-first-render. Analytics, group tags,
 candidate enrichment, awards, and Field trips must not delay the result.
 Exercise queue durability rejection, inline request failure, connectivity loss,
-app background during upload,
-termination/relaunch, duplicate live/background completion, and the two-second
-upload fail-safe. Verify specifically that releasing the body-upload hold does
-not release foreground inference ownership: staged recovery media must wait
-until live success, failure, cancellation, or app backgrounding resolves that
-ownership. After replacement B is registered, a delayed body-sent callback
-carrying A must also leave B's recovery-upload hold intact. Cancelling the
-current owner must release its hold synchronously before its now-invalidated
-task exits. Run the same-scan overlap case with foreground generation A replaced
-by B: `BackgroundDatabaseActorTests` must reject A's fenced save, and
-`OfflineQueueManagerTests` must prove A can neither release B's durable claim
-nor cancel B's retry slot or delete B's queued row. `InferenceEngineTests` must
-also prove that background recovery invalidates A's presentation UUID before
-cancellation, so A cannot resume an error/result commit over the recovered UI
-state. Exercise visual and nonvisual replacement at task entry, after an awaited
-preflight operation, and immediately before provider dispatch. Once A has been
-retired or B has replaced it, A must not issue a provider request, emit failure
-telemetry, record a circuit-breaker failure, trigger an error haptic, or publish
-an error placeholder. The terminal-error case must also prove that the valid
-current owner can snapshot its full ownership, register synchronous retirement,
-and publish its own error without reopening the stale-task window.
+app background during upload, termination/relaunch, duplicate live/background
+completion, and the two-second upload fail-safe. Verify specifically that
+releasing the body-upload hold does not release foreground inference ownership:
+staged recovery media must wait until live success, failure, cancellation, or
+app backgrounding resolves that ownership. After replacement B is registered, a
+delayed body-sent callback carrying A must also leave B's recovery-upload hold
+intact. Cancelling the current owner must release its hold synchronously before
+its now-invalidated task exits. Run the same-scan overlap case with foreground
+generation A replaced by B: `BackgroundDatabaseActorTests` must reject A's
+fenced save, and `OfflineQueueManagerTests` must prove A can neither release B's
+durable claim nor cancel B's retry slot or delete B's queued row.
+`InferenceEngineTests` must also prove that background recovery invalidates A's
+presentation UUID before cancellation, so A cannot resume an error/result commit
+over the recovered UI state. Exercise visual and nonvisual replacement at task
+entry, after an awaited preflight operation, and immediately before provider
+dispatch. Once A has been retired or B has replaced it, A must not issue a
+provider request, emit failure telemetry, record a circuit-breaker failure,
+trigger an error haptic, or publish an error placeholder. The terminal-error
+case must also prove that the valid current owner can snapshot its full
+ownership, register synchronous retirement, and publish its own error without
+reopening the stale-task window.
 `foregroundGenerationCannotBeStartedTwiceOrDuringRetirement` covers both
 single-use boundaries: a duplicate active UUID is an idempotent no-op, and the
 same UUID cannot restart between synchronous cancellation and the asynchronous
@@ -1966,13 +1990,18 @@ The surrounding export suite is intentionally split by boundary:
   deterministic output using precomputed entry CRCs, and proves assembly fails
   closed when streamed bytes do not match the durable manifest length.
 - `storage_test.ts` proves fixed-size multipart buffering, bounded provider XML,
-  completion/signing, rejection of an embedded HTTP-200 `<Error>`, and
-  best-effort abort after a failed part or completion. Work-chunk reads prove
-  exact manifest bytes both with a valid declared length and with no
-  `Content-Length`; absent length is never coerced to zero, and the streamed
-  byte ceiling remains authoritative.
+  completion, 30-second read-only archive signing, strict archive-key deletion,
+  rejection of an embedded HTTP-200 `<Error>`, and best-effort abort after a
+  failed part or completion. Work-chunk reads prove exact manifest bytes both
+  with a valid declared length and with no `Content-Length`; absent length is
+  never coerced to zero, and the streamed byte ceiling remains authoritative.
+- `_shared/aws_test.ts` and `_shared/identify/moderation_test.ts` prove
+  completion-sensitive R2 deletion accepts only 2xx or idempotent 404, rejects
+  provider failure, and rolls back already-promoted public objects when staging
+  deletion cannot be confirmed.
 - `scripts/monitor_dwca_export_queue_test.ts` proves production monitor
-  thresholds, aggregate-response consistency, severity/failure policy, and
+  thresholds, continuation and archive-cleanup aggregate-response consistency,
+  independent expired-lease/stuck-delete severity, failure policy, and
   operator-summary rendering.
 - `tests/dwca_export_queue_security.sql` executes the service-only health RPC
   across due, live-claim, and expired-claim states and verifies its ACL,
@@ -1982,15 +2011,16 @@ The surrounding export suite is intentionally split by boundary:
   expiration rule for durable avatars. Deployment smoke checks separately
   require no expiration rule for durable free uploads or Pro uploads.
 - `mail_test.ts` locks the job-scoped Resend idempotency key, bounded reply
-  parsing, and transient versus terminal error classification.
+  parsing, deterministic 4xx terminality, and ambiguous/transient retry
+  classification.
 - `worker_test.ts` proves duplicate deliveries do no work, the database claim is
   canonical, exactly one durable phase executes per call, row/byte overflows are
   terminal, source-snapshot changes are terminal before encoding/assembly/email,
   delivery revalidates after recipient lookup, an in-flight provider acceptance
-  cannot make a newly invalid export complete, invalidated objects are deleted,
-  temporary chunk and final archive keys include the claim token, staged
-  archives are reused privately, and only the winning lease can
-  advance/finalize.
+  cannot make a newly invalid export complete, invalidated objects enter durable
+  cleanup, permanent delivery rejection cannot retry forever, temporary chunk
+  and final archive keys include the claim token, staged archives are reused
+  privately, and only the winning lease can advance/finalize.
 - `_tests/exportDwcaSecurityCoverage.test.ts` rejects webhook authority creep,
   public global-export access, OFFSET/full-buffer regressions, unbounded
   invocation work, JWT-secret reuse, and fallback salts.
@@ -2001,8 +2031,8 @@ The surrounding export suite is intentionally split by boundary:
   pages, version-2 creation-time immutable occurrence/multimedia DTOs,
   authoritative confirmed identity, row-at-a-time aggregate source-byte
   enforcement, page and full-member privacy fences, durable invalidation,
-  private processing URLs, terminal DTO purge, 512 KiB chunks, claim-token key
-  validation, minute resume cron, sorted canonical-job fencing before chunk
+  private processing capabilities, failed DTO purge, 512 KiB chunks, claim-token
+  key validation, minute resume cron, sorted canonical-job fencing before chunk
   DDL, and replacement CRC-bearing advance/manifest signatures and ACLs.
 - `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
   immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
@@ -2010,7 +2040,7 @@ The surrounding export suite is intentionally split by boundary:
   aggregate page-byte cutoff, immutable DTOs, confirmed-identity projection,
   exact-GPS omission for non-precise jobs, ordinary-edit stability, live privacy
   revocation, private delivery URL constraints, phased cursor/manifest
-  transition, terminal private-URL cleanup, budget overflow, and
+  transition, terminal private-capability cleanup, budget overflow, and
   idempotent-completion contract against local Postgres.
 - `tests/export_dwca_snapshot_security.sql` independently proves job insertion
   freezes both phase DTOs, later scans stay excluded, live taxonomy/media edits
@@ -2018,17 +2048,47 @@ The surrounding export suite is intentionally split by boundary:
   protected-species coordinate-policy escalation or tombstone revocation returns
   no payload, an early paged row fails the full pre-assembly fence, oversized
   aggregate projection stops without retaining partial rows, snapshot routines
-  pass static PL/pgSQL validation, and a terminal job purges the DTOs.
+  pass static PL/pgSQL validation, and a terminal failed job purges the DTOs.
   `privileged_routine_security.sql` independently runs static
   PL/pgSQL/search-path/grant validation over the new definer RPCs.
+- `downloadGrant_test.ts` and `download-dwca/*_test.ts` prove 256-bit opaque
+  capability generation, hash lookup, exact query shape, stable fail-closed
+  states, distributed retry windows, and no-store 30-second read redirects.
+- `reconcile-dwca-archive-cleanup/*_test.ts` proves bounded oldest-due claim
+  waves, delete concurrency, idempotent completion, durable release, runtime
+  deadline exit, malformed-row rejection, and aggregate health thresholds.
+- `delete-scan/db_test.ts` distinguishes true absence from database failure and
+  locks the request-before-storage/completion-after-storage RPC boundary.
+- `auto-purge-nonbio/db_test.ts` proves the retention intake accepts only
+  bounded integer RPC results and fails closed on database errors, malformed
+  values, and local/remote limit violations.
+- `reconcile-scan-deletions/*_test.ts` proves strict claim/health parsing,
+  owner-fence validation, bounded multi-wave draining, compare-before-release,
+  runtime-deadline exit, and warning/critical erasure-SLA thresholds.
+- `scan-media-health/health_test.ts` plus `monitor_scan_media_health_test.ts`
+  prove independent aggregate deletion backlog/expired-lease alerting and
+  actionable privacy-erasure ownership.
+- `_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts` locks the
+  private grant/rate/outbox schema, per-click full-member fence, legacy URL
+  scrub, cleanup cron/ACL ledger, shared scan-generation lock, parent-row then
+  advisory lock order for mixed DwC-A transitions, complete claimed-key
+  disposition, completion-last canonical media invariant, and the bounded
+  generation-locked non-biological retention selector with service-only ACLs.
+- `tests/dwca_download_and_scan_finalization_security.sql` executes those ACL,
+  static-validation, ordering, rate-limit, capability-state, cleanup-lease, and
+  health contracts against a disposable catalog. It also proves cleanup for an
+  older archive generation cannot revoke the replacement grant or purge its
+  source snapshot, while exact-current terminal cleanup can, and proves
+  retention fences only expired non-biological controls while recent,
+  biological, and account-tombstoned controls remain unfenced.
 
 Public-web migration/DB/source-boundary coverage proves direct detail owns the
 canonical anonymous card predicate and page reads use one combined statement.
 Focused tests cover revocation after preparation, during staging, before
 delivery, after recipient lookup, and while provider delivery is in flight.
-Fresh-catalog replay and hosted maximum-shape PostgreSQL/Edge measurements remain
-mandatory exact-SHA production evidence. The regression matrix and release
-verdict are maintained in
+Fresh-catalog replay and hosted maximum-shape PostgreSQL/Edge measurements
+remain mandatory exact-SHA production evidence. The regression matrix and
+release verdict are maintained in
 [`14-dwca-and-public-web-release-hold-2026-07-27.md`](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 The CRC tests deliberately assert correctness and bounded algorithm shape rather

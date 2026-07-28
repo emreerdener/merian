@@ -7,6 +7,7 @@ enum ExploreErrorFormatter {
     private static let duplicateScanMessage = "This scan is already saved. Try sharing again."
     private static let mediaPreparationMessage = "We couldn’t prepare this media for sharing. Please try again."
     private static let exploreUnavailableMessage = "Explore is temporarily unavailable. Please try again in a few minutes."
+    private static let speciesStatsUnavailableMessage = "Live observation statistics are temporarily unavailable. Please try again later."
     private static let scanSyncMessage = "This observation is still syncing. Please wait a moment and try sharing again."
 
     private struct ErrorEnvelope: Decodable {
@@ -21,6 +22,8 @@ enum ExploreErrorFormatter {
     static func message(for error: Error) -> String {
         if let merianError = error as? MerianError {
             switch merianError {
+            case .edgeFunctionUnavailable:
+                return exploreUnavailableMessage
             case .httpError(let statusCode, let rawMessage):
                 if let parsed = parsedMessage(from: rawMessage) {
                     return sanitizedMessage(from: parsed) ?? parsed
@@ -46,6 +49,13 @@ enum ExploreErrorFormatter {
 
     static func titledMessage(_ title: String, for error: Error) -> String {
         "\(title)\n\(message(for: error))"
+    }
+
+    static func speciesStatsMessage(for error: Error) -> String {
+        if case MerianError.edgeFunctionUnavailable = error {
+            return speciesStatsUnavailableMessage
+        }
+        return message(for: error)
     }
 
     static func fieldTripDetailMessage(for error: Error) -> String {
@@ -107,7 +117,8 @@ enum ExploreErrorFormatter {
 
         guard !normalized.isEmpty else { return nil }
 
-        if normalized.contains("service_role authorization required") {
+        if normalized.contains("service_role authorization required")
+            || normalized.contains("requested function was not found") {
             return exploreUnavailableMessage
         }
 

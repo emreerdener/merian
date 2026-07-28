@@ -145,12 +145,14 @@ orphaned object does not reconstruct its relational context.
 - The latency-sensitive route verifies ES256 JWT claims through cached JWKS,
   combines pre-inference ingestion setup in `begin_scan_ingestion`, and combines
   post-inference cache hydration in `hydrate_identification_dictionary`.
+  Ingestion claim and compatibility recovery share a database generation lock.
   Moderation, required media promotion, primary cache-miss species resolution,
-  scan insertion, and an owner-scoped read-back complete before HTTP success for
-  every modality. Analytics, group tags, and candidate enrichment remain
-  optional background tasks. Privacy-safe `Server-Timing` separates auth,
-  request body, database, Gemini, dictionary, and response work; the Gemini
-  timer stops as soon as the single `generateContent` call returns.
+  scan insertion, owner-scoped read-back, and claimed-key/canonical-media
+  finalization complete before HTTP success for every modality; ledger
+  completion is the last required write. Analytics, group tags, and candidate
+  enrichment remain optional background tasks. Privacy-safe `Server-Timing`
+  separates auth, request body, database, Gemini, dictionary, and response work;
+  the Gemini timer stops as soon as the single `generateContent` call returns.
 - Free remains `gemini-2.5-flash` and Pro remains `gemini-2.5-pro`. Thinking,
   prompt/schema, media resolution, output limits, and one-call semantics are not
   latency tuning levers in this work.
@@ -213,16 +215,19 @@ single-responsibility functions under `/services/supabase/functions/`.
     produce mixed output. Page hashes and a shared full-member predicate
     revalidate privacy eligibility before assembly, staging, email, and
     completion; scan/taxonomy triggers durably invalidate affected work.
-    Personal geoprivacy is irrelevant, while protected-species coordinate
-    policy is revalidated for both scopes. Cardinality/UTF-8 source constraints,
+    Personal geoprivacy is irrelevant, while protected-species coordinate policy
+    is revalidated for both scopes. Cardinality/UTF-8 source constraints,
     row-at-a-time aggregate source enforcement, 256 KiB claimed database pages,
     a fixed 512 KiB incremental CSV encoder, durable cursors, and claim-fenced
     byte-count/CRC manifests enforce canonical budgets before streaming the
-    Darwin Core ZIP to R2. Processing signed URLs stay in private work state
-    until final fenced completion. Checksum assembly composes bounded chunk CRCs
-    instead of scanning the full archive in JavaScript, then dispatches an
-    idempotent Resend request. Aggregate oldest-due/backlog telemetry feeds a
-    separate production monitor. Exact-SHA promotion evidence is tracked in
+    Darwin Core ZIP to R2. Processing application capabilities stay in private
+    work state until final fenced completion. Every capability click reruns the
+    full-source privacy fence before a 30-second read-only redirect; revocation
+    feeds a durable leased archive-cleanup outbox. Checksum assembly composes
+    bounded chunk CRCs instead of scanning the full archive in JavaScript, then
+    dispatches an idempotent Resend request. Aggregate queue and cleanup
+    oldest-due/backlog telemetry feed production monitoring. Exact-SHA promotion
+    evidence is tracked in
     `docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge
@@ -230,7 +235,12 @@ single-responsibility functions under `/services/supabase/functions/`.
 - **Data Lifecycle & Offline Sync**
   - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the
     Postgres single source of truth.
-  - `/delete-scan`: Owner-bound scan and Cloudflare R2 media erasure.
+  - `/delete-scan`: Owner-bound fast path that fences the scan generation before
+    Cloudflare R2 and database erasure. Storage signing additionally requires
+    the canonical owner UUID in a flat free/Pro object key; prefix-only
+    nomination is forbidden.
+  - `/reconcile-scan-deletions`: Service-only leased reaper that independently
+    resumes interrupted scan erasure and emits aggregate SLA health.
   - `/safe-delete`: Persists a private deletion job, atomically tombstones and
     clears ownership/personal fields from retained observations, verifies
     relational data, then cursor-sweeps every canonical R2 prefix and performs a
@@ -260,8 +270,9 @@ single-responsibility functions under `/services/supabase/functions/`.
     degraded and quarantined published posts.
   - `/ingest-r2-media-events`: Optional dedicated-secret event accelerator;
     create/delete events only make rows due and never establish object state.
-  - `/auto-purge-nonbio`: Automated webhook/cron job trimming non-biological
-    captures while preserving biological sighting evidence.
+  - `/auto-purge-nonbio`: Service-only cron selector that generation-locks and
+    revalidates expired non-biological captures, then enqueues them for the
+    durable independent scan-erasure reaper.
 - **Public Species Content**
   - `/species-dictionary`: Public species-level dictionary projection for the
     in-app species page and server-rendered web species route.

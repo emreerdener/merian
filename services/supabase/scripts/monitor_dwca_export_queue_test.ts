@@ -4,8 +4,11 @@ import {
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  assertDwcaArchiveCleanupHealth,
   assertDwcaExportQueueHealth,
   buildDwcaMonitorSummary,
+  type DwcaArchiveCleanupHealth,
+  dwcaArchiveCleanupStatus,
   type DwcaExportQueueHealth,
   dwcaQueueStatus,
   parseDwcaMonitorArgs,
@@ -19,6 +22,15 @@ const HEALTHY: DwcaExportQueueHealth = {
   due_count: 0,
   active_claim_count: 0,
   expired_claim_count: 0,
+  oldest_due_at: null,
+  oldest_due_age_seconds: null,
+};
+
+const HEALTHY_CLEANUP: DwcaArchiveCleanupHealth = {
+  generated_at: "2026-07-26T22:00:00.000Z",
+  pending_count: 0,
+  processing_count: 0,
+  expired_lease_count: 0,
   oldest_due_at: null,
   oldest_due_age_seconds: null,
 };
@@ -107,6 +119,32 @@ Deno.test("assertDwcaExportQueueHealth validates one consistent row", () => {
   );
 });
 
+Deno.test("assertDwcaArchiveCleanupHealth validates one consistent row", () => {
+  const backlog = {
+    ...HEALTHY_CLEANUP,
+    pending_count: 7,
+    processing_count: 2,
+    expired_lease_count: 1,
+    oldest_due_at: "2026-07-26T21:50:00.000Z",
+    oldest_due_age_seconds: 600,
+  };
+  assertEquals(assertDwcaArchiveCleanupHealth([backlog]), backlog);
+  assertThrows(() => assertDwcaArchiveCleanupHealth([]));
+  assertThrows(() =>
+    assertDwcaArchiveCleanupHealth([{
+      ...HEALTHY_CLEANUP,
+      processing_count: 1,
+      expired_lease_count: 2,
+    }])
+  );
+  assertThrows(() =>
+    assertDwcaArchiveCleanupHealth([{
+      ...HEALTHY_CLEANUP,
+      oldest_due_at: "2026-07-26T21:50:00.000Z",
+    }])
+  );
+});
+
 Deno.test("dwcaQueueStatus alerts on age, depth, and expired claims", () => {
   const args = parseDwcaMonitorArgs([]);
   assertEquals(dwcaQueueStatus(HEALTHY, args), "ok");
@@ -140,6 +178,34 @@ Deno.test("dwcaQueueStatus alerts on age, depth, and expired claims", () => {
   );
 });
 
+Deno.test("dwcaArchiveCleanupStatus independently alerts on stuck deletion", () => {
+  assertEquals(dwcaArchiveCleanupStatus(HEALTHY_CLEANUP), "ok");
+  assertEquals(
+    dwcaArchiveCleanupStatus({
+      ...HEALTHY_CLEANUP,
+      pending_count: 25,
+    }),
+    "warning",
+  );
+  assertEquals(
+    dwcaArchiveCleanupStatus({
+      ...HEALTHY_CLEANUP,
+      processing_count: 1,
+      expired_lease_count: 1,
+    }),
+    "critical",
+  );
+  assertEquals(
+    dwcaArchiveCleanupStatus({
+      ...HEALTHY_CLEANUP,
+      pending_count: 1,
+      oldest_due_at: "2026-07-26T21:00:00.000Z",
+      oldest_due_age_seconds: 60 * 60,
+    }),
+    "critical",
+  );
+});
+
 Deno.test("shouldFailDwcaMonitor honors the configured severity", () => {
   assertEquals(shouldFailDwcaMonitor("ok", "warning"), false);
   assertEquals(shouldFailDwcaMonitor("warning", "warning"), true);
@@ -160,6 +226,7 @@ Deno.test("renderDwcaMonitorMarkdown includes queue state and recovery guidance"
   };
   const summary = buildDwcaMonitorSummary(
     health,
+    HEALTHY_CLEANUP,
     parseDwcaMonitorArgs([]),
     new Date("2026-07-26T22:00:00.000Z"),
   );
@@ -167,9 +234,26 @@ Deno.test("renderDwcaMonitorMarkdown includes queue state and recovery guidance"
 
   assertEquals(summary.status, "warning");
   assertEquals(summary.failure_policy.should_fail, true);
-  assertStringIncludes(markdown, "# DwC-A Export Queue Health");
+  assertStringIncludes(markdown, "# DwC-A Export and Archive Health");
   assertStringIncludes(markdown, "- Outstanding jobs: `7`");
   assertStringIncludes(markdown, "- Due jobs: `5`");
   assertStringIncludes(markdown, "- Expired claims: `1`");
+  assertStringIncludes(markdown, "- Pending deletes: `0`");
   assertStringIncludes(markdown, "Do not edit private queue");
+});
+
+Deno.test("archive cleanup health can fail an otherwise drained export queue", () => {
+  const summary = buildDwcaMonitorSummary(
+    HEALTHY,
+    {
+      ...HEALTHY_CLEANUP,
+      processing_count: 1,
+      expired_lease_count: 1,
+    },
+    parseDwcaMonitorArgs([]),
+    new Date("2026-07-26T22:00:00.000Z"),
+  );
+
+  assertEquals(summary.status, "critical");
+  assertEquals(summary.failure_policy.should_fail, true);
 });

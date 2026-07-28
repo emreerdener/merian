@@ -1,4 +1,4 @@
-import { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface DBScanRow {
   id: string;
@@ -19,11 +19,14 @@ export async function fetchScanRecord(
       "id, user_id, image_storage_urls, video_storage_urls, audio_storage_urls",
     )
     .eq("id", scanId)
-    .single();
+    .maybeSingle();
 
-  if (fetchError || !scan) {
-    return null;
+  if (fetchError) {
+    throw new Error(
+      `Failed to fetch the canonical scan: ${fetchError.message}`,
+    );
   }
+  if (!scan) return null;
 
   const [
     { data: assets, error: assetError },
@@ -77,18 +80,48 @@ export async function fetchScanRecord(
   };
 }
 
-export async function deleteScanRecord(
-  scanId: string,
-  supabaseAdmin: SupabaseClient,
-) {
-  const { error: deleteError } = await supabaseAdmin
-    .from("scans")
-    .delete()
-    .eq("id", scanId);
+export type ScanDeletionRequestResult =
+  | "accepted"
+  | "already_deleted"
+  | "not_found"
+  | "forbidden";
 
-  if (deleteError) {
-    throw new Error(
-      `Database deletion failed for ${scanId}: ${deleteError.message}`,
-    );
+export async function requestScanDeletion(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<ScanDeletionRequestResult> {
+  const { data, error } = await supabaseAdmin.rpc("request_scan_deletion", {
+    p_scan_id: scanId,
+    p_user_id: userId,
+  });
+  if (error) {
+    throw new Error(`Failed to persist scan deletion: ${error.message}`);
+  }
+  if (
+    data !== "accepted" &&
+    data !== "already_deleted" &&
+    data !== "not_found" &&
+    data !== "forbidden"
+  ) {
+    throw new Error("Scan deletion returned an invalid state.");
+  }
+  return data;
+}
+
+export async function completeScanDeletion(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc("complete_scan_deletion", {
+    p_scan_id: scanId,
+    p_user_id: userId,
+  });
+  if (error) {
+    throw new Error(`Failed to complete scan deletion: ${error.message}`);
+  }
+  if (data !== true) {
+    throw new Error("Scan deletion lost its durable owner fence.");
   }
 }

@@ -9,6 +9,7 @@ import {
   checkExportSourceFence,
   claimExportJob,
   completePreparedExportJob,
+  enqueueDwcaArchiveCleanup,
   fetchExportJobChunks,
   fetchExportScanBatch,
   fetchUserEmail,
@@ -16,10 +17,10 @@ import {
   renewExportJobClaim,
   stagePreparedExportArchive,
 } from "./db.ts";
+import { createDwcaDownloadGrant, DwcaDownloadGrant } from "./downloadGrant.ts";
 import { sendExportEmail } from "./mail.ts";
 import { loadUserPseudonymizer, UserPseudonymizer } from "./pseudonym.ts";
 import {
-  deleteDwcaArchiveObject,
   exportObjectKey,
   ExportUploadResult,
   exportWorkChunkObjectKey,
@@ -102,15 +103,26 @@ export interface ExportWorkerServices {
     onProgress: () => Promise<void>,
     maximumBytes: number,
   ): Promise<ExportUploadResult>;
-  deleteArchive(objectKey: string): Promise<void>;
+  createDownloadGrant(): DwcaDownloadGrant;
   stageArchive(
     jobId: string,
     claimToken: string,
     objectKey: string,
-    signedUrl: string,
+    downloadUrl: string,
+    downloadToken: string,
+    downloadExpiresAt: string,
+  ): Promise<void>;
+  enqueueCleanup(
+    jobId: string,
+    objectKey: string,
+    reasonCode: string,
   ): Promise<void>;
   fetchEmail(userId: string): Promise<string>;
-  sendEmail(email: string, signedUrl: string, jobId: string): Promise<string>;
+  sendEmail(
+    email: string,
+    capabilityUrl: string,
+    jobId: string,
+  ): Promise<string>;
   complete(jobId: string, claimToken: string): Promise<void>;
   release(
     jobId: string,
@@ -186,13 +198,30 @@ function defaultServices(
         undefined,
         maximumBytes,
       ),
-    deleteArchive: deleteDwcaArchiveObject,
-    stageArchive: (jobId, claimToken, objectKey, signedUrl) =>
+    createDownloadGrant: () =>
+      createDwcaDownloadGrant(Deno.env.get("SUPABASE_URL") ?? ""),
+    stageArchive: (
+      jobId,
+      claimToken,
+      objectKey,
+      downloadUrl,
+      downloadToken,
+      downloadExpiresAt,
+    ) =>
       stagePreparedExportArchive(
         jobId,
         claimToken,
         objectKey,
-        signedUrl,
+        downloadUrl,
+        downloadToken,
+        downloadExpiresAt,
+        supabaseAdmin,
+      ),
+    enqueueCleanup: (jobId, objectKey, reasonCode) =>
+      enqueueDwcaArchiveCleanup(
+        jobId,
+        objectKey,
+        reasonCode,
         supabaseAdmin,
       ),
     fetchEmail: (userId) => fetchUserEmail(userId, supabaseAdmin),
@@ -394,24 +423,29 @@ async function processAssemblyStep(
     heartbeat,
     job.maxArchiveBytes,
   );
+  const grant = services.createDownloadGrant();
   try {
     await services.stageArchive(
       job.id,
       claimToken,
       objectKey,
-      uploaded.signedUrl,
+      grant.url,
+      grant.token,
+      grant.expiresAt,
     );
   } catch (error) {
     try {
-      await services.deleteArchive(objectKey);
-    } catch (deleteError) {
+      await services.enqueueCleanup(
+        job.id,
+        objectKey,
+        "archive_staging_failed",
+      );
+    } catch (cleanupError) {
       console.error(JSON.stringify({
-        event: "dwca_unstaged_archive_delete_failed",
-        job_id: job.id,
-        object_key: objectKey,
-        error: deleteError instanceof Error
-          ? deleteError.message
-          : String(deleteError),
+        event: "dwca_unstaged_archive_cleanup_enqueue_failed",
+        error: cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
         ts: new Date().toISOString(),
       }));
     }
@@ -450,7 +484,11 @@ async function processDeliveryStep(
       error instanceof ExportWorkerError &&
       error.code === "source_snapshot_changed"
     ) {
-      await services.deleteArchive(job.archiveObjectKey);
+      await services.enqueueCleanup(
+        job.id,
+        job.archiveObjectKey,
+        "privacy_boundary_changed",
+      );
     }
     throw error;
   }
@@ -465,7 +503,11 @@ async function processDeliveryStep(
       error instanceof ExportWorkerError &&
       error.code === "source_snapshot_changed"
     ) {
-      await services.deleteArchive(job.archiveObjectKey);
+      await services.enqueueCleanup(
+        job.id,
+        job.archiveObjectKey,
+        "privacy_boundary_changed",
+      );
     }
     throw error;
   }
@@ -496,7 +538,8 @@ export async function processExportJobStep(
     }
   } catch (error) {
     const failure = failureFrom(error);
-    const terminal = TERMINAL_FAILURE_CODES.has(failure.code);
+    const terminal = TERMINAL_FAILURE_CODES.has(failure.code) ||
+      failure.safeToFailJob;
     try {
       await services.release(
         job.id,

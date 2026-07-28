@@ -81,6 +81,30 @@ Deno.test("transient Resend errors keep the job retryable", async () => {
   assertEquals(error.safeToFailJob, false);
 });
 
+Deno.test("permanent Resend rejection terminates the job", async () => {
+  const error = await assertRejects(
+    () =>
+      sendExportEmail(
+        "user@example.invalid",
+        "https://example.invalid/functions/v1/download-dwca?token=test",
+        "00000000-0000-4000-8000-000000000308",
+        {
+          apiKey: "re_test",
+          from: "Naturebook <exports@example.invalid>",
+          fetcher: () =>
+            Promise.resolve(
+              new Response(JSON.stringify({ message: "invalid recipient" }), {
+                status: 400,
+              }),
+            ),
+        },
+      ),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "delivery_failed");
+  assertEquals(error.safeToFailJob, true);
+});
+
 Deno.test("ambiguous Resend timeout responses keep the job retryable", async () => {
   const error = await assertRejects(
     () =>

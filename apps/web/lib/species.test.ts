@@ -142,7 +142,7 @@ test("publishes only reference images with complete web attribution", () => {
   ]);
 });
 
-test("returns not found for invalid UUIDs and function 404 responses", async () => {
+test("returns not found only for marked handler-owned function 404 responses", async () => {
   let invoked = false;
   assert.equal(await fetchSpeciesDictionary("not-a-uuid", async () => {
     invoked = true;
@@ -152,8 +152,32 @@ test("returns not found for invalid UUIDs and function 404 responses", async () 
 
   assert.equal(await fetchSpeciesDictionary(speciesId, async () => ({
     data: null,
-    error: { context: { status: 404 } },
+    error: {
+      context: {
+        status: 404,
+        headers: new Headers({ "X-Merian-Handler": "1" }),
+      },
+    },
   })), null);
+});
+
+test("propagates an unmarked platform function 404 instead of caching it as missing", async () => {
+  await assert.rejects(
+    fetchSpeciesDictionary(speciesId, async () => ({
+      data: null,
+      error: {
+        context: {
+          status: 404,
+          headers: new Headers({ "SB-Error-Code": "NOT_FOUND" }),
+        },
+      },
+    })),
+    (error: unknown) => {
+      assert.ok(error instanceof SpeciesDictionaryUpstreamError);
+      assert.equal(error.status, 404);
+      return true;
+    },
+  );
 });
 
 test("propagates transient function failures instead of caching them as missing", async () => {

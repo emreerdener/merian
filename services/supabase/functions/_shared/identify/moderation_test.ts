@@ -144,3 +144,43 @@ Deno.test("promoteSafeMedia returns public URLs for a successful staging promoti
     "staging/user-789/second.webp",
   ]);
 });
+
+Deno.test("promoteSafeMedia fails and rolls back when staging deletion is not confirmed", async () => {
+  const deletedKeys: string[] = [];
+
+  await assertRejects(
+    () =>
+      promoteSafeMedia(
+        {
+          userId: "user-delete-proof",
+          r2ObjectKeys: [
+            "staging/user-delete-proof/audio.wav",
+          ],
+          imageBase64s: [],
+          userTier: "pro",
+          r2Config: makeR2Config(),
+          contentType: "audio/wav",
+          fallbackExtension: "wav",
+        },
+        {
+          copyObject: () =>
+            Promise.resolve(new Response(null, { status: 200 })),
+          deleteObject: (key) => {
+            deletedKeys.push(key);
+            return Promise.resolve(
+              new Response(null, {
+                status: key.startsWith("staging/") ? 503 : 204,
+              }),
+            );
+          },
+        },
+      ),
+    Error,
+    "Failed to delete R2 object after promotion",
+  );
+
+  assertEquals(deletedKeys, [
+    "staging/user-delete-proof/audio.wav",
+    "public_uploads/pro/user-delete-proof/audio.wav",
+  ]);
+});

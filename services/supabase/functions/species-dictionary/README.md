@@ -149,13 +149,13 @@ documented public fields. The slug is derived from returned names and is never
 part of this function's request or identity contract. It must not replace the
 Edge call with direct service-role table reads.
 
-Invalid UUIDs and this function's `404` response become non-indexable Next.js
-not-found pages. Configuration failures, network failures, non-404 responses,
-malformed payloads, unsupported schema versions, and identity mismatches remain
-server errors so transient failures are not cached as missing species.
-Successful UUID-only or stale-slug requests permanently redirect to the current
-canonical UUID-plus-slug path. Successful web pages revalidate every five
-minutes.
+Invalid UUIDs and this function's marked handler-owned `404` response become
+non-indexable Next.js not-found pages. An unmarked platform `404`, configuration
+failure, network failure, other non-success response, malformed payload,
+unsupported schema version, or identity mismatch remains a server error so
+transient failures are not cached as missing species. Successful UUID-only or
+stale-slug requests permanently redirect to the current canonical UUID-plus-slug
+path. Successful web pages revalidate every five minutes.
 
 The web mapper audits every candidate reference image with
 `publicWebReferenceImageAttributionIssues(...)` before page or metadata use and

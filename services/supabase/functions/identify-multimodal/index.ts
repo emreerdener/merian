@@ -6,6 +6,7 @@ import {
   jsonResponse,
   logStructuredError,
   runBackground,
+  serveEdge,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
@@ -22,7 +23,7 @@ import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
-import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
+import { deleteR2ObjectIfPresent, getR2Config } from "../_shared/aws.ts";
 import {
   coalesceTaxonomyValue,
   normalizeTaxonomyValue,
@@ -52,10 +53,7 @@ import {
   upsertGhostUserIfMissing,
   upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
-import {
-  beginScanIngestion,
-  fetchIdentificationDictionaryHydration,
-} from "../_shared/identify/latencyDb.ts";
+import { fetchIdentificationDictionaryHydration } from "../_shared/identify/latencyDb.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 import { processWAV } from "./audio.ts";
 import {
@@ -72,24 +70,15 @@ import {
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 import {
-  claimScanIngestionJob,
-  type ScanIngestionJobStatus,
+  beginScanIngestion,
+  completeScanIngestionFinalization,
+  type MutableScanIngestionJobStatus,
   scanIngestionManifestChecksum,
   scanIngestionMediaObjectKeys,
   updateScanIngestionJob,
 } from "../_shared/scanIngestionJobs.ts";
-import {
-  buildScanIngestionIntent,
-  recordScanIngestionIntent,
-} from "../_shared/scanIngestionIntents.ts";
-import {
-  fetchCaptureUploadSessionIdsForKeys,
-  markStagedScanMediaAssetsDeleted,
-  markStagedScanMediaAssetsFailed,
-  markStagedScanMediaAssetsPromoted,
-  refreshScanMediaAssets,
-  refreshScanMediaAssetsBestEffort,
-} from "../_shared/scanMediaAssets.ts";
+import { buildScanIngestionIntent } from "../_shared/scanIngestionIntents.ts";
+import { markStagedScanMediaAssetsFailed } from "../_shared/scanMediaAssets.ts";
 import {
   buildContextText,
   normalizeCurrentMonth,
@@ -665,12 +654,13 @@ export async function handleIdentifyMultimodalRequest(
       : crypto.randomUUID();
 
   const updateIngestionJobBestEffort = async (
-    status: ScanIngestionJobStatus,
+    status: MutableScanIngestionJobStatus,
     stage: string,
     options: {
       lastError?: string | null;
       retryAfter?: string | null;
       leaseSeconds?: number;
+      terminalReasonCode?: string | null;
     } = {},
   ) => {
     try {
@@ -683,6 +673,7 @@ export async function handleIdentifyMultimodalRequest(
           lastError: options.lastError ?? null,
           retryAfter: options.retryAfter ?? null,
           leaseSeconds: options.leaseSeconds,
+          terminalReasonCode: options.terminalReasonCode,
         },
         supabaseAdmin,
       );
@@ -913,7 +904,7 @@ export async function handleIdentifyMultimodalRequest(
     mediaObjectKeys,
     uploadSessionIds,
   });
-  let ingestionIntent = await buildScanIngestionIntent({
+  const ingestionIntent = await buildScanIngestionIntent({
     scanId: generatedScanId,
     payload,
     mediaCounts,
@@ -965,97 +956,32 @@ export async function handleIdentifyMultimodalRequest(
     );
     uploadSessionIds = atomicIngestion.uploadSessionIds;
     manifestChecksum = atomicIngestion.manifestChecksum ?? manifestChecksum;
+    if (atomicIngestion.alreadyComplete) {
+      await quotaLease.refund();
+      return publicErrorResponse(
+        req,
+        409,
+        "scan_already_finalized",
+        "This observation is already saved.",
+      );
+    }
   } catch (error) {
-    // Safe rollout fallback while the atomic RPC migration propagates.
-    logStructuredError("multimodal/atomic_ingestion_setup_fallback", {
+    // Migrations are deployed before Edge code. Falling back to independent
+    // ledger writes would reintroduce the recovery/claim race, so setup fails
+    // closed until the atomic routine is available.
+    await quotaLease.refund();
+    logStructuredError("multimodal/scan_ingestion_setup_failed", {
       user_id: user.id,
       scan_id: generatedScanId,
       error: error instanceof Error ? error.message : String(error),
     });
-
-    try {
-      uploadSessionIds = await fetchCaptureUploadSessionIdsForKeys(
-        { userId: user.id, clientScanId: generatedScanId, storageKeys },
-        supabaseAdmin,
-      );
-      manifestChecksum = await scanIngestionManifestChecksum({
-        mediaCounts,
-        mediaObjectKeys,
-        uploadSessionIds,
-      });
-      ingestionIntent = await buildScanIngestionIntent({
-        scanId: generatedScanId,
-        payload,
-        mediaCounts,
-        mediaObjectKeys,
-        uploadSessionIds,
-        manifestChecksum,
-        visualMediaItems: normalizedVisualMediaItems,
-        audioMediaItems: normalizedAudioMediaItems,
-        normalizedTelemetry: {
-          timestamp,
-          gpsLatitude: safeGpsLat,
-          gpsLongitude: safeGpsLon,
-          gpsElevation,
-          semanticLocation,
-          publicLocationLabel: publicExploreLocationLabel,
-          geoprivacy: scanGeoprivacy,
-          weatherCondition,
-          weatherTemperatureF,
-          deviceLocale,
-          deviceTimeZone,
-          deviceRegion,
-          currentMonth,
-          timeOfDay,
-          depthScaleText,
-          zoomFactor,
-          estimatedSizeCm,
-        },
-      });
-      await claimScanIngestionJob(
-        {
-          scanId: generatedScanId,
-          userId: user.id,
-          endpoint: "identify-multimodal",
-          mediaCounts,
-          mediaObjectKeys,
-          uploadSessionIds,
-          manifestChecksum,
-          leaseSeconds: 300,
-        },
-        supabaseAdmin,
-      );
-      await recordScanIngestionIntent(
-        {
-          scanId: generatedScanId,
-          userId: user.id,
-          endpoint: "identify-multimodal",
-          requestPayload: ingestionIntent.payload,
-          mediaCounts,
-          mediaObjectKeys,
-          uploadSessionIds,
-          manifestChecksum,
-          payloadChecksum: ingestionIntent.payloadChecksum,
-          resumable: ingestionIntent.resumable,
-          inlineMediaRedacted: ingestionIntent.inlineMediaRedacted,
-          redactedMediaCounts: ingestionIntent.redactedMediaCounts,
-        },
-        supabaseAdmin,
-      );
-      await updateIngestionJobBestEffort(
-        "processing",
-        "ai_inference_started",
-        { leaseSeconds: 300 },
-      );
-    } catch (fallbackError) {
-      logStructuredError("multimodal/scan_ingestion_setup_failed", {
-        user_id: user.id,
-        scan_id: generatedScanId,
-        error: fallbackError instanceof Error
-          ? fallbackError.message
-          : String(fallbackError),
-      });
-    }
+    return publicErrorResponse(
+      req,
+      503,
+      "scan_ingestion_unavailable",
+      "We couldn’t start saving this observation. Please try again.",
+      { retryAfterSeconds: 5 },
+    );
   }
   const preGeminiDbMs = performance.now() - preGeminiDbStart;
 
@@ -1148,6 +1074,7 @@ export async function handleIdentifyMultimodalRequest(
       {
         lastError: `AI finish reason: ${finishReason}`,
         retryAfter: isPermanent ? null : retryAfterIso(),
+        terminalReasonCode: isPermanent ? "provider_policy_rejected" : null,
       },
     );
     return jsonResponse(
@@ -1532,48 +1459,6 @@ export async function handleIdentifyMultimodalRequest(
       }
     };
 
-    const markUploadAssetsPromotedBestEffort = async (
-      urlsByStorageKey: Map<string, string>,
-    ) => {
-      try {
-        await markStagedScanMediaAssetsPromoted(
-          {
-            userId: user.id,
-            scanId: generatedScanId,
-            promotedUrlsByStorageKey: urlsByStorageKey,
-          },
-          supabaseAdmin,
-        );
-      } catch (error) {
-        logStructuredError("multimodal/upload_assets_mark_promoted_error", {
-          user_id: user.id,
-          scan_id: generatedScanId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    };
-
-    const markUploadAssetsDeletedBestEffort = async (
-      storageKeys: string[],
-    ) => {
-      try {
-        await markStagedScanMediaAssetsDeleted(
-          {
-            userId: user.id,
-            scanId: generatedScanId,
-            storageKeys,
-          },
-          supabaseAdmin,
-        );
-      } catch (error) {
-        logStructuredError("multimodal/upload_assets_mark_deleted_error", {
-          user_id: user.id,
-          scan_id: generatedScanId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    };
-
     try {
       await updateIngestionJobBestEffort(
         "finalizing",
@@ -1630,7 +1515,10 @@ export async function handleIdentifyMultimodalRequest(
           await updateIngestionJobBestEffort(
             "failed_terminal",
             "moderation_rejected",
-            { lastError: "Multimodal media rejected by moderation." },
+            {
+              lastError: "Multimodal media rejected by moderation.",
+              terminalReasonCode: "content_policy_rejected",
+            },
           );
           throw new ModerationRejectedError(
             "Multimodal media rejected by moderation.",
@@ -1716,9 +1604,9 @@ export async function handleIdentifyMultimodalRequest(
         );
         if (companionAudioUrls.length > 0) {
           const r2Config = getR2Config();
-          await Promise.allSettled(
+          await Promise.all(
             companionAudioUrls.map((url) =>
-              deleteR2Object(
+              deleteR2ObjectIfPresent(
                 url.replace("https://media.merian.app/", ""),
                 r2Config,
               )
@@ -1856,31 +1744,25 @@ export async function handleIdentifyMultimodalRequest(
         supabaseAdmin,
       );
       scanInserted = true;
-      await updateIngestionJobBestEffort(
-        "complete",
-        "scan_inserted",
+      await completeScanIngestionFinalization(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          promotedUrlsByStorageKey: new Map([
+            ...publicUrlsByStorageKey(
+              r2ObjectKeys,
+              modResult?.publicUrls ?? [],
+            ),
+            ...publicUrlsByStorageKey(videoR2ObjectKeys, videoStorageUrls),
+            ...publicUrlsByStorageKey(
+              standaloneAudioStorageKeys,
+              audioStorageUrls,
+            ),
+          ]),
+          deletedStorageKeys: companionAudioStorageKeys,
+        },
+        supabaseAdmin,
       );
-      await markUploadAssetsPromotedBestEffort(
-        new Map([
-          ...publicUrlsByStorageKey(
-            r2ObjectKeys,
-            modResult?.publicUrls ?? [],
-          ),
-          ...publicUrlsByStorageKey(videoR2ObjectKeys, videoStorageUrls),
-          ...publicUrlsByStorageKey(
-            standaloneAudioStorageKeys,
-            audioStorageUrls,
-          ),
-        ]),
-      );
-      await markUploadAssetsDeletedBestEffort(companionAudioStorageKeys);
-      await refreshScanMediaAssetsBestEffort(generatedScanId, supabaseAdmin);
-      if (audioStorageUrls.length > 0) {
-        // Audio is a required durable asset, so unlike the visual compatibility
-        // refresh above, standalone-audio normalization must fail ingestion if
-        // the canonical database refresh cannot create its ready rows.
-        await refreshScanMediaAssets(generatedScanId, supabaseAdmin);
-      }
 
       let candidateEnrichmentTask: Promise<void> = Promise.resolve();
       if (missingCandidates.length > 0) {
@@ -2066,6 +1948,9 @@ export async function handleIdentifyMultimodalRequest(
         {
           lastError: errorMsg,
           retryAfter: terminalFailure ? null : retryAfterIso(),
+          terminalReasonCode: terminalFailure
+            ? "content_policy_rejected"
+            : null,
         },
       );
       logStructuredError("multimodal/background_ingestion_failed", {
@@ -2111,7 +1996,9 @@ export async function handleIdentifyMultimodalRequest(
           url.replace("https://media.merian.app/", "")
         );
         const rollbackResults = await Promise.allSettled(
-          keysToPurge.map((key: string) => deleteR2Object(key, r2Config)),
+          keysToPurge.map((key: string) =>
+            deleteR2ObjectIfPresent(key, r2Config)
+          ),
         );
         const failedRollbacks = rollbackResults.filter((r) =>
           r.status === "rejected"
@@ -2272,7 +2159,7 @@ async function tryHandleInternalReplayRequest(
   );
 }
 
-Deno.serve(async (req: Request) => {
+serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

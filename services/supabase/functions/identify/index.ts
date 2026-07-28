@@ -6,7 +6,7 @@ import {
 } from "@google/genai";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
-import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
+import { deleteR2ObjectIfPresent, getR2Config } from "../_shared/aws.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -268,6 +268,46 @@ Deno.serve((req: Request) =>
     const diagnosticTrigger = diagnosticTriggerForTier(
       userTier === "pro" ? "pro" : "flash",
     );
+    const generatedScanId: string =
+      typeof client_scan_id === "string" && client_scan_id.length > 0
+        ? client_scan_id
+        : quotaLease.reservation.requestId;
+    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
+      {
+        scanId: generatedScanId,
+        userId: user.id,
+        endpoint: "identify",
+        imageKeys: r2ObjectKeys ?? [],
+        inlineImageCount: imageBase64s?.length ?? 0,
+        description,
+        preferredGoal: preferred_goal,
+        mimeType,
+        telemetry: {
+          timestamp,
+          gpsLatitude: safeGpsLat,
+          gpsLongitude: safeGpsLon,
+          gpsElevation,
+          semanticLocation,
+          publicLocationLabel: publicExploreLocationLabel,
+          geoprivacy: body.geoprivacy,
+          weatherCondition,
+          weatherTemperatureF,
+          deviceLocale,
+          deviceTimeZone,
+          deviceRegion,
+          currentMonth: normalizedCurrentMonth,
+          timeOfDay,
+          depthScaleText,
+          zoomFactor,
+          estimatedSizeCm: estimated_size_cm,
+        },
+        logStructuredError,
+      },
+      supabaseAdmin,
+    ).catch(async (error) => {
+      await quotaLease.refund();
+      throw error;
+    });
 
     const modelCfg = targetModel === "gemini-2.5-pro"
       ? modelConfigs.pro
@@ -396,6 +436,10 @@ Deno.serve((req: Request) =>
       } else {
         await quotaLease.refund();
       }
+      await compatibilityLedger.markRetryableFailure(
+        "ai_provider_failed",
+        errMsg,
+      );
       logStructuredError("identify/gemini_failed", {
         user_id: user.id,
         model: modelCfg.model,
@@ -425,6 +469,18 @@ Deno.serve((req: Request) =>
       const isPermanentContentFailure = finishReason === "SAFETY" ||
         finishReason === "PROHIBITED_CONTENT";
       if (!isPermanentContentFailure) await quotaLease.fail();
+      if (isPermanentContentFailure) {
+        await compatibilityLedger.markTerminalFailure(
+          "ai_provider_policy_rejected",
+          `Provider finish reason: ${finishReason}`,
+          "content_policy_rejected",
+        );
+      } else {
+        await compatibilityLedger.markRetryableFailure(
+          "ai_provider_non_stop_finish",
+          `Provider finish reason: ${finishReason}`,
+        );
+      }
       logStructuredError("identify/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -444,6 +500,10 @@ Deno.serve((req: Request) =>
       );
     } catch (parseError) {
       await quotaLease.fail();
+      await compatibilityLedger.markRetryableFailure(
+        "ai_response_parse_failed",
+        parseError,
+      );
       // Log enough context to diagnose the root cause without re-reading the code.
       // finish_reason, response_length, and the first 500 chars of responseText cover
       // the two main failure modes: truncated JSON (MAX_TOKENS) and empty response.
@@ -620,13 +680,6 @@ Deno.serve((req: Request) =>
       (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10,
     );
 
-    // Use the client-provided scan ID when available so the iOS offline queue can
-    // correlate the server record with its local OfflineQueuedScan. Combined with the
-    // idempotent upsert in insertScan, this makes replayed inference requests safe.
-    const generatedScanId: string =
-      typeof client_scan_id === "string" && client_scan_id.length > 0
-        ? client_scan_id
-        : quotaLease.reservation.requestId;
     let payloadReadyForClient: ClientPayload = {
       ...parsedData,
       scan_id: generatedScanId,
@@ -740,6 +793,10 @@ Deno.serve((req: Request) =>
       payloadReadyForClient = responseEnvelope.data;
     } catch (error) {
       await quotaLease.fail();
+      await compatibilityLedger.markRetryableFailure(
+        "wire_contract_failed",
+        error,
+      );
       logStructuredError("identify/wire_contract_failed", {
         user_id: user.id,
         scan_id: generatedScanId,
@@ -754,37 +811,10 @@ Deno.serve((req: Request) =>
       );
     }
 
-    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "identify",
-        imageKeys: r2ObjectKeys ?? [],
-        inlineImageCount: imageBase64s?.length ?? 0,
-        description,
-        preferredGoal: preferred_goal,
-        mimeType,
-        telemetry: {
-          timestamp,
-          gpsLatitude: safeGpsLat,
-          gpsLongitude: safeGpsLon,
-          gpsElevation,
-          semanticLocation,
-          publicLocationLabel: publicExploreLocationLabel,
-          weatherCondition,
-          weatherTemperatureF,
-          deviceLocale,
-          deviceTimeZone,
-          deviceRegion,
-          currentMonth: normalizedCurrentMonth,
-          timeOfDay,
-          depthScaleText,
-          zoomFactor,
-          estimatedSizeCm: estimated_size_cm,
-        },
-        logStructuredError,
-      },
-      supabaseAdmin,
+    await compatibilityLedger.mark(
+      "finalizing",
+      "background_ingestion_queued",
+      { leaseSeconds: 300 },
     );
 
     const runBackgroundIngestion = async () => {
@@ -1021,7 +1051,19 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
-        await compatibilityLedger.markComplete();
+        const promotedUrlsByStorageKey = new Map<string, string>();
+        for (const [index, storageKey] of (r2ObjectKeys ?? []).entries()) {
+          const publicUrl = modResult.publicUrls?.[index];
+          if (!publicUrl) {
+            throw new Error(
+              `Missing promoted URL for staged image ${storageKey}.`,
+            );
+          }
+          promotedUrlsByStorageKey.set(storageKey, publicUrl);
+        }
+        await compatibilityLedger.markComplete({
+          promotedUrlsByStorageKey,
+        });
 
         // Capture the candidate enrichment promise before the final bgWriteTasks await so
         // EdgeRuntime.waitUntil cannot terminate the isolate while external DNS resolution
@@ -1167,7 +1209,9 @@ Deno.serve((req: Request) =>
             url.replace("https://media.merian.app/", "")
           );
           const rollbackResults = await Promise.allSettled(
-            keysToPurge.map((key: string) => deleteR2Object(key, r2Config)),
+            keysToPurge.map((key: string) =>
+              deleteR2ObjectIfPresent(key, r2Config)
+            ),
           );
           const failedRollbacks = rollbackResults.filter((r) =>
             r.status === "rejected"

@@ -10,6 +10,7 @@ public enum MerianError: LocalizedError, Equatable {
     case decodingFailed
     case payloadTooLarge
     case httpError(statusCode: Int, message: String)
+    case edgeFunctionUnavailable
     case networkTimeout
 
     // MARK: - Subscriptions / Entitlements
@@ -32,6 +33,8 @@ public enum MerianError: LocalizedError, Equatable {
             return String(localized: "The combined size of the captured media is too large. Please remove a photo or audio recording and try again.")
         case .httpError(let statusCode, let message):
             return String(localized: "Network Error (\(statusCode)): \(message)")
+        case .edgeFunctionUnavailable:
+            return String(localized: "This service is temporarily unavailable. Please try again in a few minutes.")
         case .networkTimeout:
             return String(localized: "The network request timed out. Please check your connection and try again.")
         case .proRequiredForOfflineTracking:

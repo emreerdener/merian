@@ -1,54 +1,39 @@
-import { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export interface DBScanRow {
-  id: string;
-  image_storage_urls: string[];
-  video_storage_urls: string[];
-  audio_storage_urls: string[];
-}
+const MAXIMUM_RETENTION_BATCH_SIZE = 500;
 
 /**
- * Fetches non-biological scans older than the specified timestamp boundary.
- * Limited to 500 rows to prevent Deno memory pressure and R2 API throttling.
+ * Atomically selects, generation-locks, revalidates, and fences one bounded
+ * batch of expired non-biological scans. External media erasure is deliberately
+ * owned by reconcile-scan-deletions rather than this request.
  */
-export async function fetchStaleNonBioScans(
-  timestampBoundary: string,
+export async function requestNonBiologicalScanRetentionDeletions(
+  limit: number,
   supabaseAdmin: SupabaseClient,
-): Promise<DBScanRow[]> {
-  const { data: scans, error: fetchError } = await supabaseAdmin
-    .from("scans")
-    .select("id, image_storage_urls, video_storage_urls, audio_storage_urls")
-    .eq("is_biological_subject", false)
-    .lt("timestamp", timestampBoundary)
-    .limit(500);
+): Promise<number> {
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > MAXIMUM_RETENTION_BATCH_SIZE
+  ) {
+    throw new Error("Invalid non-biological retention batch size.");
+  }
 
-  if (fetchError) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "request_nonbiological_scan_retention_deletions",
+    { p_limit: limit },
+  );
+
+  if (
+    error ||
+    !Number.isSafeInteger(data) ||
+    Number(data) < 0 ||
+    Number(data) > limit
+  ) {
     throw new Error(
-      `Failed to fetch non-biological scans: ${fetchError.message}`,
+      "Failed to request non-biological scan retention deletions.",
     );
   }
 
-  return scans ? (scans as DBScanRow[]) : [];
-}
-
-/**
- * Executes a batch deletion of `scans` by ID.
- * Expects the underlying storage buckets to be wiped prior to invocation.
- */
-export async function deleteScansBulk(
-  idsToDelete: string[],
-  supabaseAdmin: SupabaseClient,
-) {
-  if (idsToDelete.length === 0) return;
-
-  const { error: deleteError } = await supabaseAdmin
-    .from("scans")
-    .delete()
-    .in("id", idsToDelete);
-
-  if (deleteError) {
-    throw new Error(
-      `Failed to batch delete scans from database: ${deleteError.message}`,
-    );
-  }
+  return Number(data);
 }

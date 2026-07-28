@@ -20,9 +20,10 @@ expires after ten minutes.
 
 ## Durability
 
-Before returning success, `audio-spec` records a `scan_ingestion_jobs` row plus
-a sanitized `scan_ingestion_intents` row through
-`_shared/scanIngestionCompatibility.ts`.
+Before provider dispatch, `audio-spec` atomically records a
+`scan_ingestion_jobs` row plus a sanitized `scan_ingestion_intents` row through
+`_shared/scanIngestionCompatibility.ts`. Setup failure fails closed before paid
+work and refunds the unused quota reservation.
 
 - Staged `audio_r2_key` requests are shaped as multimodal replay payloads with
   `audioR2ObjectKeys` and `audioMediaItems`, subject to the shared 10-claim
@@ -30,10 +31,10 @@ a sanitized `scan_ingestion_intents` row through
 - Inline `audio_base64` bytes are never stored in the intent. They are counted
   in `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
-- Successful background insert marks the job `complete`; insert failures mark it
-  `failed_retryable`.
-- Staged audio remains an inference input only and is deleted after successful
-  scan persistence.
+- Successful background insert delegates to the shared completion-last
+  finalization RPC; insert/finalization failures become durable retryable work.
+- Staged audio remains inference-only. R2 must confirm deletion with 2xx or
+  idempotent 404 before finalization may mark the job complete.
 
 ## Dictionary Common Names
 

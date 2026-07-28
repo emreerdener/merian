@@ -109,17 +109,25 @@ function successfulServices(
       events.push(`upload:${objectKey}:${maximumBytes}`);
       return Promise.resolve({
         objectKey,
-        signedUrl: "https://r2.example.invalid/export.zip?signed=1",
         uploadedBytes: 3,
         uploadedParts: 1,
       });
     },
-    deleteArchive(objectKey) {
-      events.push(`delete:${objectKey}`);
-      return Promise.resolve();
+    createDownloadGrant() {
+      events.push("download_grant");
+      return {
+        token: "a".repeat(43),
+        url:
+          "https://project-ref.supabase.co/functions/v1/download-dwca?token=opaque",
+        expiresAt: "2026-07-26T23:00:00.000Z",
+      };
     },
     stageArchive() {
       events.push("stage");
+      return Promise.resolve();
+    },
+    enqueueCleanup(_jobId, objectKey, reasonCode) {
+      events.push(`cleanup:${objectKey}:${reasonCode}`);
       return Promise.resolve();
     },
     fetchEmail() {
@@ -293,7 +301,7 @@ Deno.test("assembly rejects a changed earlier source before reading its manifest
   assertEquals(events.at(-1), "release:source_snapshot_changed:true");
 });
 
-Deno.test("a source change at archive staging deletes the unstaged object", async () => {
+Deno.test("a source change at archive staging durably enqueues the unstaged object", async () => {
   const events: string[] = [];
   const assembling: ClaimedExportJob = {
     ...job,
@@ -324,13 +332,16 @@ Deno.test("a source change at archive staging deletes the unstaged object", asyn
   );
   assertEquals(error.code, "source_snapshot_changed");
   assertEquals(
-    events.some((event) => event.startsWith("delete:exports/")),
+    events.some((event) =>
+      event.startsWith("cleanup:exports/") &&
+      event.endsWith(":archive_staging_failed")
+    ),
     true,
   );
   assertEquals(events.at(-1), "release:source_snapshot_changed:true");
 });
 
-Deno.test("delivery deletes a staged archive and sends no email after revocation", async () => {
+Deno.test("delivery enqueues a staged archive and sends no email after revocation", async () => {
   const events: string[] = [];
   const archiveObjectKey = `exports/${job.userId}/${job.id}/staged.zip`;
   const delivering: ClaimedExportJob = {
@@ -356,7 +367,12 @@ Deno.test("delivery deletes a staged archive and sends no email after revocation
     ExportWorkerError,
   );
   assertEquals(error.code, "source_snapshot_changed");
-  assertEquals(events.includes(`delete:${archiveObjectKey}`), true);
+  assertEquals(
+    events.includes(
+      `cleanup:${archiveObjectKey}:privacy_boundary_changed`,
+    ),
+    true,
+  );
   assertEquals(events.includes("send"), false);
   assertEquals(events.at(-1), "release:source_snapshot_changed:true");
 });
@@ -391,7 +407,12 @@ Deno.test("delivery revalidates after email lookup before calling the provider",
   assertEquals(error.code, "source_snapshot_changed");
   assertEquals(events.includes("email_lookup"), true);
   assertEquals(events.includes("send"), false);
-  assertEquals(events.includes(`delete:${archiveObjectKey}`), true);
+  assertEquals(
+    events.includes(
+      `cleanup:${archiveObjectKey}:privacy_boundary_changed`,
+    ),
+    true,
+  );
   assertEquals(events.at(-1), "release:source_snapshot_changed:true");
 });
 
@@ -423,7 +444,12 @@ Deno.test("delivery deletes the archive when completion detects an in-flight pri
   assertEquals(error.code, "source_snapshot_changed");
   assertEquals(events.filter((event) => event === "send").length, 1);
   assertEquals(events.filter((event) => event === "complete").length, 1);
-  assertEquals(events.includes(`delete:${archiveObjectKey}`), true);
+  assertEquals(
+    events.includes(
+      `cleanup:${archiveObjectKey}:privacy_boundary_changed`,
+    ),
+    true,
+  );
   assertEquals(events.at(-1), "release:source_snapshot_changed:true");
 });
 
@@ -542,4 +568,32 @@ Deno.test("transient provider or storage failures release for durable retry", as
   );
   assertEquals(error.code, "storage_unavailable");
   assertEquals(events.at(-1), "release:storage_unavailable:false");
+});
+
+Deno.test("permanent delivery rejection becomes terminal and cannot retry forever", async () => {
+  const events: string[] = [];
+  const delivering: ClaimedExportJob = {
+    ...job,
+    workPhase: "delivering",
+    archiveObjectKey: `exports/${job.userId}/${job.id}/archive.zip`,
+    fileUrl:
+      "https://project-ref.supabase.co/functions/v1/download-dwca?token=opaque",
+    archiveReadyAt: "2026-07-25T23:00:00.000Z",
+  };
+  const services = successfulServices(events, delivering);
+  services.sendEmail = () =>
+    Promise.reject(
+      new ExportWorkerError(
+        "delivery_failed",
+        "the recipient was permanently rejected",
+        true,
+      ),
+    );
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "delivery_failed");
+  assertEquals(events.at(-1), "release:delivery_failed:true");
 });

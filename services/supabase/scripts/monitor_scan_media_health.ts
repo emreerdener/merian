@@ -565,6 +565,17 @@ export function issueActionFor(
         sample_hint:
           "Use run id, started_at, completed_at, repaired count, failed count, and errors from the latest run.",
       };
+    case "scan_deletion_cleanup_backlog":
+      return {
+        ...defaults,
+        owner: "privacy erasure",
+        next_step:
+          "Inspect the scan deletion scheduler, R2 delete failures, and expired leases; do not remove the durable UUID fence.",
+        runbook:
+          "services/supabase/functions/reconcile-scan-deletions/README.md",
+        sample_hint:
+          "Use only the aggregate pending, processing, expired-lease, and oldest-pending fields; worker logs intentionally omit scan and user identifiers.",
+      };
     default:
       return {
         ...defaults,

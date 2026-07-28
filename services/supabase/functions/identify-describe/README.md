@@ -25,9 +25,10 @@ by `make validate-edge-dto-contract`.
 
 ## Durability
 
-Before returning success, `identify-describe` records a `scan_ingestion_jobs`
-row plus a sanitized `scan_ingestion_intents` row through
-`_shared/scanIngestionCompatibility.ts`.
+Before provider dispatch, `identify-describe` atomically records a
+`scan_ingestion_jobs` row plus a sanitized `scan_ingestion_intents` row through
+`_shared/scanIngestionCompatibility.ts`. Setup failure fails closed before paid
+work and refunds the unused quota reservation.
 
 - Description text is stored as an `observationContexts` entry in a
   multimodal-shaped replay payload.
@@ -36,8 +37,8 @@ row plus a sanitized `scan_ingestion_intents` row through
 - `replay-scan-ingestion` can recover retryable failures by invoking
   `/identify-multimodal` with the same `client_scan_id`, subject to the shared
   10-claim server replay ceiling.
-- Successful background insert marks the job `complete`; insert failures mark it
-  `failed_retryable`.
+- Successful background insert delegates to the shared completion-last
+  finalization RPC; insert/finalization failures become durable retryable work.
 
 ## Biological Boundary
 

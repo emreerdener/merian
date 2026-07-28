@@ -849,13 +849,16 @@ provider dispatch:
 - **Durable Ingestion Ledger, Compatibility Background Work, and Dead-Letter
   Logging**: Before AI inference, `identify-multimodal` claims
   `scan_ingestion_jobs` with expected media counts, staged object keys,
-  recovered upload-session ids, and a deterministic `manifest_checksum`; stage
-  updates then expose processing, finalizing, retryable, terminal, and complete
-  states to `/check-scan-status` and the media reconciliation worker. The
-  current multimodal route awaits moderation, required media promotion, primary
-  species resolution, scan insertion, and owner-scoped read-back before
-  returning `200`. Only analytics, group tags, and candidate enrichment remain
-  behind `EdgeRuntime.waitUntil`. The same request records
+  recovered upload-session ids, and a deterministic `manifest_checksum`. Claim
+  creation shares a per-scan database generation lock with compatibility
+  recovery; stage updates then expose processing, finalizing, retryable,
+  terminal, and complete states to `/check-scan-status` and the media
+  reconciliation worker. The current multimodal route awaits moderation,
+  required media promotion, primary species resolution, scan insertion,
+  owner-scoped read-back, and a final transaction that proves every claimed key
+  disposition plus every ready canonical media row. That transaction writes
+  ledger completion last. Only analytics, group tags, and candidate enrichment
+  remain behind `EdgeRuntime.waitUntil`. The same request records
   `scan_ingestion_intents`, a service-role-only sanitized replay payload with a
   `payload_checksum`; raw inline media bytes are redacted and mark the intent
   non-resumable. The scheduled `replay-scan-ingestion` worker claims due

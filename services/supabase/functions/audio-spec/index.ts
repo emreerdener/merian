@@ -14,7 +14,7 @@ import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
-import { deleteR2Object } from "../_shared/aws.ts";
+import { deleteR2ObjectIfPresent } from "../_shared/aws.ts";
 import {
   processWavBuffer,
   TARGET_AUDIO_SAMPLE_RATE,
@@ -235,6 +235,42 @@ Deno.serve((req: Request) =>
     });
     const tierResolution = quotaLease.reservation.tier;
     const userTier = tierResolution.effective_tier;
+    const generatedScanId =
+      typeof client_scan_id === "string" && client_scan_id.length > 0
+        ? client_scan_id
+        : quotaLease.reservation.requestId;
+    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
+      {
+        scanId: generatedScanId,
+        userId: user.id,
+        endpoint: "audio-spec",
+        audioKeys: audio_base64 ? [] : [audio_r2_key!],
+        inlineAudioCount: audio_base64 ? 1 : 0,
+        audioMediaItems: [{ kind: "audio", sourceIndex: 0, clipIndex: 0 }],
+        preferredGoal: preferred_goal,
+        telemetry: {
+          timestamp,
+          gpsLatitude: safeGpsLat,
+          gpsLongitude: safeGpsLon,
+          gpsElevation: gps_elevation,
+          semanticLocation: semantic_location,
+          publicLocationLabel: public_location_label,
+          geoprivacy,
+          weatherCondition: weather_condition,
+          weatherTemperatureF: weather_temperature_f,
+          deviceLocale: device_locale,
+          deviceTimeZone: device_time_zone,
+          deviceRegion: device_region,
+          currentMonth: normalizedCurrentMonth,
+          timeOfDay: time_of_day,
+        },
+        logStructuredError,
+      },
+      supabaseAdmin,
+    ).catch(async (error) => {
+      await quotaLease.refund();
+      throw error;
+    });
 
     // 5. Call Gemini with audio inline data
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
@@ -327,6 +363,10 @@ Deno.serve((req: Request) =>
         await quotaLease.refund();
       }
       const errMsg = genErr instanceof Error ? genErr.message : String(genErr);
+      await compatibilityLedger.markRetryableFailure(
+        "ai_provider_failed",
+        errMsg,
+      );
       logStructuredError("audio_spec/gemini_failed", {
         user_id: user.id,
         elapsed_ms: Date.now() - geminiStart,
@@ -345,6 +385,18 @@ Deno.serve((req: Request) =>
       const isPermanent = finishReason === "SAFETY" ||
         finishReason === "PROHIBITED_CONTENT";
       if (!isPermanent) await quotaLease.fail();
+      if (isPermanent) {
+        await compatibilityLedger.markTerminalFailure(
+          "ai_provider_policy_rejected",
+          `Provider finish reason: ${finishReason}`,
+          "content_policy_rejected",
+        );
+      } else {
+        await compatibilityLedger.markRetryableFailure(
+          "ai_provider_non_stop_finish",
+          `Provider finish reason: ${finishReason}`,
+        );
+      }
       logStructuredError("audio_spec/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -361,6 +413,10 @@ Deno.serve((req: Request) =>
       parsedData = extractJson<AudioIdentification>(responseText);
     } catch (parseErr) {
       await quotaLease.fail();
+      await compatibilityLedger.markRetryableFailure(
+        "ai_response_parse_failed",
+        parseErr,
+      );
       logStructuredError("audio_spec/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
@@ -425,11 +481,6 @@ Deno.serve((req: Request) =>
       parsedData.invasive_confidence = undefined;
     }
 
-    const generatedScanId =
-      typeof client_scan_id === "string" && client_scan_id.length > 0
-        ? client_scan_id
-        : quotaLease.reservation.requestId;
-
     const isIdentifiedBio =
       !!(parsedData.is_biological_subject && parsedData.scientific_name);
     const cachedSpecies: CachedSpeciesRow | null = isIdentifiedBio
@@ -474,34 +525,10 @@ Deno.serve((req: Request) =>
       };
     }
 
-    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "audio-spec",
-        audioKeys: audio_base64 ? [] : [audio_r2_key!],
-        inlineAudioCount: audio_base64 ? 1 : 0,
-        audioMediaItems: [{ kind: "audio", sourceIndex: 0, clipIndex: 0 }],
-        preferredGoal: preferred_goal,
-        telemetry: {
-          timestamp,
-          gpsLatitude: safeGpsLat,
-          gpsLongitude: safeGpsLon,
-          gpsElevation: gps_elevation,
-          semanticLocation: semantic_location,
-          publicLocationLabel: public_location_label,
-          geoprivacy,
-          weatherCondition: weather_condition,
-          weatherTemperatureF: weather_temperature_f,
-          deviceLocale: device_locale,
-          deviceTimeZone: device_time_zone,
-          deviceRegion: device_region,
-          currentMonth: normalizedCurrentMonth,
-          timeOfDay: time_of_day,
-        },
-        logStructuredError,
-      },
-      supabaseAdmin,
+    await compatibilityLedger.mark(
+      "finalizing",
+      "background_ingestion_queued",
+      { leaseSeconds: 300 },
     );
 
     // 8. Background ingestion: ghost user, species enrichment, scan insert, R2 cleanup
@@ -684,17 +711,21 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
-        await compatibilityLedger.markComplete();
 
-        // Delete audio staging file after successful scan insert (R2 path only).
-        if (audio_r2_key && r2Config) {
-          deleteR2Object(audio_r2_key, r2Config).catch((e) =>
-            console.error(
-              `audio_spec: failed to delete staging file ${audio_r2_key}:`,
-              e,
-            )
-          );
+        // This audio is inference-only. Confirm its staging object is gone
+        // before the shared finalization transaction can mark the ledger
+        // complete.
+        if (audio_r2_key) {
+          if (!r2Config) {
+            throw new Error(
+              "R2 configuration is unavailable for staged audio deletion.",
+            );
+          }
+          await deleteR2ObjectIfPresent(audio_r2_key, r2Config);
         }
+        await compatibilityLedger.markComplete({
+          deletedStorageKeys: audio_r2_key ? [audio_r2_key] : [],
+        });
 
         const groupTagsResult = await groupTagsPromise;
         if (groupTagsResult?.group_tags?.length && isIdentifiedBio) {

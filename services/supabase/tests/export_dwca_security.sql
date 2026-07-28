@@ -216,8 +216,8 @@ BEGIN
         'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,bigint,boolean)',
         'public.get_export_job_chunks(uuid,uuid)',
         'public.check_dwca_export_source_fence(uuid,uuid,text)',
-        'public.stage_prepared_export_archive(uuid,uuid,text,text)',
-        'public.complete_prepared_export_job(uuid,uuid)',
+        'public.stage_prepared_export_archive_with_download_grant(uuid,uuid,text,text,text,timestamp with time zone)',
+        'public.complete_prepared_export_job_with_download_grant(uuid,uuid)',
         'public.release_export_job_step(uuid,uuid,text,boolean)'
     ]
     LOOP
@@ -258,8 +258,8 @@ BEGIN
               'advance_export_job_step',
               'get_export_job_chunks',
               'check_dwca_export_source_fence',
-              'stage_prepared_export_archive',
-              'complete_prepared_export_job',
+              'stage_prepared_export_archive_with_download_grant',
+              'complete_prepared_export_job_with_download_grant',
               'release_export_job_step'
           )
           AND (

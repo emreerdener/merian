@@ -19,8 +19,9 @@ Service-role worker for staged scan-media upload-session reconciliation.
   object and marks the asset failed for audit.
 - Checks `scan_ingestion_jobs` before abandoning orphaned staged media: active
   leases and future `retry_after` windows keep media pending, repaired scans can
-  mark their job complete once required video media exists, and TTL-abandoned
-  media marks the job `failed_terminal`.
+  mark their job complete only through the shared claimed-key/canonical-media
+  finalization transaction, and TTL-abandoned media marks the job
+  `failed_terminal`.
 - Writes summary rows to `scan_media_reconciliation_runs` and logs structured
   completion counts.
 

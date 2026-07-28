@@ -17,10 +17,10 @@ as their permanent engineering identity.
   `naturebook.earth` origin while retaining `merian.earth` as a legacy redirect
   and AASA compatibility host.
 - **Internal admin**: isolated Next.js + Mantine app in `apps/admin/`, intended
-  for `admin.naturebook.earth`; Google OAuth + TOTP AAL2 and narrow database RPCs
-  only. Its frozen dependency graph, syntax-aware public-environment allowlist,
-  required GitHub quality check, and required Vercel Deployment Check form an
-  independent production gate. See
+  for `admin.naturebook.earth`; Google OAuth + TOTP AAL2 and narrow database
+  RPCs only. Its frozen dependency graph, syntax-aware public-environment
+  allowlist, required GitHub quality check, and required Vercel Deployment Check
+  form an independent production gate. See
   [`backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)
   and the
   [`backend-and-data/11-internal-admin-operations.md`](./backend-and-data/11-internal-admin-operations.md)
@@ -33,9 +33,9 @@ as their permanent engineering identity.
 - **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
   `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
   execute the complete unit-test target and independently inspect an unsigned
-  Release archive from the exact workflow SHA. Repository rules must require
-  the stable `iOS Build and Test / Production readiness` result; the focused
-  Startup Safety lane is supplementary. See the
+  Release archive from the exact workflow SHA. Repository rules must require the
+  stable `iOS Build and Test / Production readiness` result; the focused Startup
+  Safety lane is supplementary. See the
   [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
   and
   [`release runbook`](./development-guides/14-ios-release-versioning.md#current-sha-ci-archive-gate).
@@ -63,10 +63,12 @@ as their permanent engineering identity.
   [`backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md).
 - **Current backend release verdict**: The DwC-A version-2/public-web Explore
   design repairs are implemented: full-lifecycle privacy fencing, independently
-  canonical atomic detail reads, private staged links, and cumulatively bounded
-  snapshot projection. Production promotion remains **blocked on exact-SHA
-  evidence**, including fresh-catalog pgTAP and hosted maximum-shape
-  measurements. See
+  canonical atomic detail reads, revocable click-time download authorization,
+  durable archive cleanup, cumulatively bounded snapshot projection, and atomic
+  scan claim/recovery/media-finalization completion. Production promotion
+  remains **blocked on exact-SHA evidence**, including fresh-catalog pgTAP, the
+  hosted full iOS unit-test/unsigned Release-archive result, the frozen
+  public-web gate, and hosted maximum-shape measurements. See
   [`backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`](./backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still
@@ -85,14 +87,13 @@ as their permanent engineering identity.
   `/identify-describe`, and `/audio-spec` remain documented for compatibility,
   but scan-producing compatibility requests now write the same ingestion ledger;
   staged media and text-only intents can be replayed through
-  `/identify-multimodal`, capped at 10 server replay claims per sanitized intent,
-  while inline media remains client-retry only because raw bytes are never stored
-  server-side. The shared identify boundary demotes
-  manufactured or processed materials to non-biological before candidates,
-  dictionary novelty, or `species_dictionary` writes can run. The active route
-  does not return `200` until moderation, required media promotion, primary
-  species resolution, scan insertion, and an authenticated-owner read-back all
-  succeed.
+  `/identify-multimodal`, capped at 10 server replay claims per sanitized
+  intent, while inline media remains client-retry only because raw bytes are
+  never stored server-side. The shared identify boundary demotes manufactured or
+  processed materials to non-biological before candidates, dictionary novelty,
+  or `species_dictionary` writes can run. The active route does not return `200`
+  until moderation, required media promotion, primary species resolution, scan
+  insertion, and an authenticated-owner read-back all succeed.
 - **Scan owner-row durability and repair**: A successful current multimodal
   response guarantees that its `scan_id` is immediately usable by Field Chat,
   Explore sharing, and owner sync. Operational finalization failures return
@@ -100,32 +101,32 @@ as their permanent engineering identity.
   returns customer-safe `400 observation_rejected`. For older or interrupted
   local/cloud drift, single `/check-scan-status` requests and
   `/share-scan-to-explore` accept a bounded non-media `recovery_scan`. The
-  server defers to active/retryable ingestion, blocks known policy rejections,
-  never overwrites an existing or cross-owner row, and restores media only
-  through owner-scoped staging keys. The repository fix is not a production
-  fix until all three affected Edge Functions and the matching iOS build are
-  promoted. See the
+  server defers to active/retryable ingestion, permits only the exact structured
+  `replay_exhausted` terminal reason, never overwrites an existing or
+  cross-owner row, and restores media only through owner-scoped staging keys.
+  The repository fix is not a production fix until all three affected Edge
+  Functions and the matching iOS build are promoted. See the
   [July 2026 incident report](./incidents/2026-07-scan-owner-row-durability-gap.md).
 - **Image-analysis latency contract**: Durable queue acceptance remains the
-  mandatory gate. The eligible live-camera still path waits no more than 150 ms for shutter-prefetched
-  weather/geocoding, defers its competing background upload until the inline
-  body is sent, and commits parsed/persisted results before awards or Field trips.
-  The Edge path uses verified ES256 claims, one atomic pre-inference RPC, at
-  most one combined post-inference dictionary RPC, privacy-safe `Server-Timing`,
-  and awaited durable finalization. A primary cache miss may require bounded
-  Wikipedia/GBIF species resolution before success; analytics, group tags, and
-  candidate enrichment remain optional background work.
-  `/update-scan-context` applies late owner-scoped context without a second AI
-  request. Model IDs and all inference-quality and unit-economics settings
-  remain unchanged.
+  mandatory gate. The eligible live-camera still path waits no more than 150 ms
+  for shutter-prefetched weather/geocoding, defers its competing background
+  upload until the inline body is sent, and commits parsed/persisted results
+  before awards or Field trips. The Edge path uses verified ES256 claims, one
+  atomic pre-inference RPC, at most one combined post-inference dictionary RPC,
+  privacy-safe `Server-Timing`, and awaited durable finalization. A primary
+  cache miss may require bounded Wikipedia/GBIF species resolution before
+  success; analytics, group tags, and candidate enrichment remain optional
+  background work. `/update-scan-context` applies late owner-scoped context
+  without a second AI request. Model IDs and all inference-quality and
+  unit-economics settings remain unchanged.
 - **Photos share import contract**: A single image shared from iOS Photos opens
   the containing app through its alternate `public.image` document association.
   `ExternalImageImportStore` copies the file into a durable Application Support
   inbox before Capture observes it, so cold launch, onboarding, quota, and tray
   capacity cannot lose the receipt. Embedded date/GPS is read before bounded
-  preparation; the normal required crop, confirmation preference, inference,
-  and offline queue then apply. This path has no Share Extension, App Group
-  handoff, backend import endpoint, or new Photo Library permission.
+  preparation; the normal required crop, confirmation preference, inference, and
+  offline queue then apply. This path has no Share Extension, App Group handoff,
+  backend import endpoint, or new Photo Library permission.
 - **Fresh-launch presentation contract**: The Capture workspace remains the app
   root. After onboarding, the default-off **Open Explore on launch** preference
   can present the generic Explore feed once when a new process starts. It is not
@@ -150,8 +151,8 @@ as their permanent engineering identity.
 - **Explore media-loss contract**: An unavailable object never auto-deletes or
   auto-unpublishes a post. Two spaced direct R2-origin `404` checks confirm
   loss; bad items are omitted, all-missing posts are reversibly quarantined,
-  engagement is preserved, owners receive a recovery queue, and verified
-  repair automatically restores ordinary public visibility. See
+  engagement is preserved, owners receive a recovery queue, and verified repair
+  automatically restores ordinary public visibility. See
   [`backend-and-data/12-explore-media-health-and-quarantine.md`](./backend-and-data/12-explore-media-health-and-quarantine.md).
 - **Public audio poster contract**: Approved standalone WAV shares generate a
   deterministic spectrogram PNG beside the durable R2 recording. The URL is
@@ -189,6 +190,13 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-07-scan-owner-row-durability-gap.md`](./incidents/2026-07-scan-owner-row-durability-gap.md)**
+  — Root cause, atomic compatibility recovery, customer-facing behavior, and
+  production exit criteria for scans that returned identify success without a
+  durable authenticated owner row.
+- **[`/incidents/2026-07-supabase-edge-route-not-found.md`](./incidents/2026-07-supabase-edge-route-not-found.md)**
+  — Evidence, gateway/handler classification, client resilience, rollout gate,
+  and production exit criteria for the July 2026 platform route failure.
 - **[`/incidents/2026-07-server-key-authorization-mismatch.md`](./incidents/2026-07-server-key-authorization-mismatch.md)**
   — Root cause, fleet-wide credential boundary remediation, watch surfaces, and
   production exit criteria for the July 2026 opaque-key authorization failure.
@@ -243,22 +251,21 @@ as their permanent engineering identity.
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
   inference fields, V48 offline job records/events, V49 startup store repair,
-  V50 durable queued Field trip goal hints,
-  private Insight and per-viewer Explore Field chat tables, scan media assets,
-  and Explore Community Identification versioned taxonomy, consensus jobs,
-  projections, and request tables, atomic ingestion setup/dictionary RPCs,
-  deferred scan-context staging, and the private admin/review/audit schema plus
-  canonical AI usage ledger, storage-erasure claim fencing, and atomic owned
-  scan-image reference repair.
+  V50 durable queued Field trip goal hints, private Insight and per-viewer
+  Explore Field chat tables, scan media assets, and Explore Community
+  Identification versioned taxonomy, consensus jobs, projections, and request
+  tables, atomic ingestion setup/dictionary RPCs, deferred scan-context staging,
+  and the private admin/review/audit schema plus canonical AI usage ledger,
+  storage-erasure claim fencing, and atomic owned scan-image reference repair.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,
   `/field-trips` preferred progress and scan contributions,
-  `/update-public-avatar`, Community Identification endpoints, `/species-dictionary`,
-  `/species-observation-stats`, `/report-user`, the internal admin RPC surface,
-  Explore detail similar species, and internal cron workers such as Merian
-  reference-image refresh, diagnostic `Server-Timing`, and
-  `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
+  `/update-public-avatar`, Community Identification endpoints,
+  `/species-dictionary`, `/species-observation-stats`, `/report-user`, the
+  internal admin RPC surface, Explore detail similar species, and internal cron
+  workers such as Merian reference-image refresh, diagnostic `Server-Timing`,
+  and `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
   inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — CI-first Supabase deployment path, required GitHub secrets, local emergency
@@ -284,15 +291,19 @@ as their permanent engineering identity.
   rollback, and troubleshooting.
 - **[`/backend-and-data/12-explore-media-health-and-quarantine.md`](./backend-and-data/12-explore-media-health-and-quarantine.md)**
   — Canonical product and engineering contract for direct-origin media health,
-  reversible public quarantine, owner notification, automatic recovery,
-  explicit deletion, monitoring, and production rollout.
+  reversible public quarantine, owner notification, automatic recovery, explicit
+  deletion, monitoring, and production rollout.
 - **[`/backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md)**
   — Canonical server-key/header matrix, environment resolution, internal worker
   auth, exposed-schema RLS/default ACLs, migration execution/replay safety,
   supervised index construction, orphan triage, and production exit gate.
 - **[`/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`](./backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md)**
   — Implemented repairs, evidence limits, regression coverage, and exact-SHA
-  promotion criteria for DwC-A version 2 and the public-web Explore boundary.
+  promotion criteria for DwC-A version 2, revocable archive delivery, atomic
+  scan finalization, and the public-web Explore boundary.
+- **[`/backend-and-data/15-edge-function-fleet-review-2026-07-28.md`](./backend-and-data/15-edge-function-fleet-review-2026-07-28.md)**
+  — Complete 89-function inventory, corrected cross-cutting findings, boundary
+  classification, and required production evidence for the fleet-wide review.
 
 ### Features & Hardware
 
@@ -349,9 +360,8 @@ as their permanent engineering identity.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**
   — Next.js public web share pages for `naturebook.earth`, including Explore
   posts, UUID-first readable Species Dictionary references, legacy-domain and
-  UUID-only route compatibility,
-  Supabase server reads, media-rights filtering, metadata, privacy boundaries,
-  and Universal Links.
+  UUID-only route compatibility, Supabase server reads, media-rights filtering,
+  metadata, privacy boundaries, and Universal Links.
 - **[`/features-and-hardware/18-species-observation-charts.md`](./features-and-hardware/18-species-observation-charts.md)**
   — Reusable species observation charts, local-on-device aggregation, public
   iNaturalist stats cache, canonical dictionary binding, negative caching,
@@ -380,14 +390,13 @@ as their permanent engineering identity.
   catalog, and Tree of Life canvas routing/data boundaries.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Public Field trips/Outings, the client-staged Events rollout and release
-  checklist, guided outing detail, progress
-  matching, the account-cached active target indicator on visual Scan, focused
-  Tips/Goals routing, active-level progress ring, private completed-scan
-  thumbnails and embedded Insight navigation, persistent scan contribution
-  cards, one credit per experience with multi-experience eligibility, seasonal
-  challenges, challenge badges, publication snapshots,
-  profile pins, access gating, in-app activity, and deferred leaderboard/prize
-  scope.
+  checklist, guided outing detail, progress matching, the account-cached active
+  target indicator on visual Scan, focused Tips/Goals routing, active-level
+  progress ring, private completed-scan thumbnails and embedded Insight
+  navigation, persistent scan contribution cards, one credit per experience with
+  multi-experience eligibility, seasonal challenges, challenge badges,
+  publication snapshots, profile pins, access gating, in-app activity, and
+  deferred leaderboard/prize scope.
 - **[`/features-and-hardware/26-photos-share-import.md`](./features-and-hardware/26-photos-share-import.md)**
   — Single-photo document import from the iOS Photos share sheet, including URL
   routing, durable inbox ownership, EXIF context, capture staging, privacy,
@@ -456,9 +465,9 @@ as their permanent engineering identity.
 
 ## About Naturebook
 
-Naturebook is a native iOS application that identifies plants, animals,
-insects, fungi, and indoor ecology with scientific-grade accuracy across visual,
-audio, and text-described observations. It uses dynamic routing between the
-Gemini 2.5 Flash and Pro APIs via Supabase Edge Functions, with a full
-offline-first architecture backed by SwiftData and Cloudflare R2. Merian is the
-stable technical identity underneath the Naturebook product.
+Naturebook is a native iOS application that identifies plants, animals, insects,
+fungi, and indoor ecology with scientific-grade accuracy across visual, audio,
+and text-described observations. It uses dynamic routing between the Gemini 2.5
+Flash and Pro APIs via Supabase Edge Functions, with a full offline-first
+architecture backed by SwiftData and Cloudflare R2. Merian is the stable
+technical identity underneath the Naturebook product.

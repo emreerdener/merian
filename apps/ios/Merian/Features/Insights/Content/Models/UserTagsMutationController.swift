@@ -1,6 +1,10 @@
 import SwiftData
 
 enum UserTagsMutationController {
+    static let maximumTagCount = 50
+    static let maximumTagCharacters = 64
+    static let maximumTagUTF8Bytes = 256
+
     @MainActor
     static func addTag(
         _ tag: String,
@@ -8,7 +12,15 @@ enum UserTagsMutationController {
         modelContext: ModelContext
     ) -> Bool {
         let trimmed = tag.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, !record.customTags.contains(trimmed) else { return true }
+        guard !trimmed.isEmpty else { return true }
+        guard !record.customTags.contains(trimmed) else { return true }
+        guard
+            record.customTags.count < maximumTagCount,
+            trimmed.count <= maximumTagCharacters,
+            trimmed.utf8.count <= maximumTagUTF8Bytes
+        else {
+            return false
+        }
 
         record.customTags.append(trimmed)
         guard persistTagMutation(modelContext: modelContext, logContext: "add custom tag") else { return false }
@@ -53,12 +65,21 @@ enum UserTagsMutationController {
         let scanId = record.id
         guard SupabaseManager.shared.isAuthenticated else { return }
 
+        struct TagSyncRPCParameters: Encodable, Sendable {
+            let p_scan_id: String
+            let p_custom_tags: [String]
+        }
+
         Task(priority: .background) {
             do {
                 try await SupabaseManager.shared.client
-                    .from("scans")
-                    .update(["custom_tags": tags])
-                    .eq("id", value: scanId)
+                    .rpc(
+                        "update_owned_scan_custom_tags",
+                        params: TagSyncRPCParameters(
+                            p_scan_id: scanId,
+                            p_custom_tags: tags
+                        )
+                    )
                     .execute()
             } catch {
                 MerianLog.data.error("UserTagsMutationController: failed to sync tags to cloud: \(error.localizedDescription, privacy: .public)")

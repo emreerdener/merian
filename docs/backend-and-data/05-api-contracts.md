@@ -1143,12 +1143,12 @@ that has a surviving staged playback video by promoting the video, updating
 `scan_media_assets` rows. It can also delete abandoned staging objects and mark
 their staged rows failed. Before treating an orphan as abandoned, it checks the
 matching `scan_ingestion_jobs` row: active leases and future retry windows keep
-the media pending, repaired scans mark the job complete when required video
-media is present, and TTL-abandoned media marks the job `failed_terminal`.
-Sanitized `scan_ingestion_intents` rows preserve staged media/audio/video and
-text-only replay metadata for operations and `replay-scan-ingestion`, but this
-worker does not replay AI inference for scans that never created a cloud scan
-row.
+the media pending, repaired scans complete only through the shared
+claimed-key/canonical-media finalization routine, and TTL-abandoned media marks
+the job `failed_terminal` with a structured terminal reason. Sanitized
+`scan_ingestion_intents` rows preserve staged media/audio/video and text-only
+replay metadata for operations and `replay-scan-ingestion`, but this worker does
+not replay AI inference for scans that never created a cloud scan row.
 
 ---
 
@@ -1212,18 +1212,26 @@ durable failure settlement before a replacement claim is possible. Non-success
 diagnostics are retained only within an 8 KiB streamed response ceiling.
 
 Compatibility scan-producing endpoints (`/identify`, `/identify-describe`, and
-`/audio-spec`) also write `scan_ingestion_jobs` plus sanitized
-`scan_ingestion_intents` before returning success. Those intents set
-`endpoint: "identify-multimodal"` inside the replay payload and preserve the
-legacy route name as `compatibilityEndpoint`, so staged legacy image/audio and
-text-only rows recover through the same replay worker. Inline base64 media is
-represented only by redacted counts and is marked non-resumable.
+`/audio-spec`) call `begin_scan_ingestion` before provider dispatch and write
+`scan_ingestion_jobs` plus sanitized `scan_ingestion_intents` atomically. A
+setup error returns `503 scan_ingestion_unavailable` and refunds unused quota;
+an owner-recovery winner returns `409 scan_already_complete`; neither path calls
+the provider. Those intents set `endpoint: "identify-multimodal"` inside the
+replay payload and preserve the legacy route name as `compatibilityEndpoint`, so
+staged legacy image/audio and text-only rows recover through the same replay
+worker. Inline base64 media is represented only by redacted counts and is marked
+non-resumable. Compatibility setup uses the same per-scan advisory lock as
+current claim and recovery. Compatibility completion also invokes
+`complete_scan_ingestion_finalization`; staged inference-only audio must receive
+R2 2xx or idempotent 404 deletion confirmation before completion.
 
-If the scan row already exists and has the required video media plus a video
-entry in `captured_media`, the worker marks the job complete without replaying
-AI. If the scan row exists but media is incomplete, the worker leaves the job
-retryable for reconciliation or local video restore instead of rerunning
-inference against an already-created scan row.
+If the scan row already exists, the worker invokes
+`complete_scan_ingestion_finalization` without replaying AI. That transaction
+marks the job complete only after every manifest key has a permitted terminal
+disposition and every promoted image/video/audio URL has a ready canonical row.
+If the scan row or media is incomplete, the worker leaves the job retryable for
+reconciliation or local video restore instead of rerunning inference against an
+already-created scan row.
 
 ---
 
@@ -1372,15 +1380,15 @@ replace public media.
 
 The endpoint intentionally returns `404 { "error": "Scan not found." }` when
 `public.scans` has no row for the authenticated user. The iOS Insight client
-handles that specific error by resolving the server
-`species_dictionary.id` by scientific name and sending a bounded non-media
-`recovery_scan` through the single `/check-scan-status` contract. The server
-defers to active/retryable richer ingestion, blocks known policy rejection,
-creates only an absent authenticated-owner row, and reloads it by owner. After
-status returns `found`, iOS uploads local images to staging and retries this
-endpoint with `restored_object_keys`. This endpoint itself does not accept
-`recovery_scan`; the sequence is compatibility repair for older/interrupted
-drift, not the expected current multimodal success path.
+handles that specific error by resolving the server `species_dictionary.id` by
+scientific name and sending a bounded non-media `recovery_scan` through the
+single `/check-scan-status` contract. The server defers to active/retryable
+richer ingestion, permits only exact structured `replay_exhausted` among
+terminal states, creates only an absent authenticated-owner row, and reloads it
+by owner. After status returns `found`, iOS uploads local images to staging and
+retries this endpoint with `restored_object_keys`. This endpoint itself does not
+accept `recovery_scan`; the sequence is compatibility repair for
+older/interrupted drift, not the expected current multimodal success path.
 
 Before inspecting or returning an existing active request, the endpoint repairs
 any Community request on that `scan_id` whose `requested_by` no longer matches
@@ -1996,8 +2004,8 @@ owner sync. The durability task handles:
    sanitized `pet_identification` when present
 5. **Owner read-back** — reloads by `scan_id` and authenticated `user_id`;
    duplicate no-op or cross-owner collision cannot be reported as success
-6. **Optional post-insert work** — schedules analytics, group tags, and candidate
-   enrichment through `EdgeRuntime.waitUntil`
+6. **Optional post-insert work** — schedules analytics, group tags, and
+   candidate enrichment through `EdgeRuntime.waitUntil`
 
 **Media promotion**: Safe image media is moved from
 `staging/{userId}/{filename}` to `public_uploads/{tier}/{userId}/{filename}`
@@ -2010,15 +2018,15 @@ moderated through five sampled frames, then the staged upload-bounded playback
 Multimodal inserts also write `scans.captured_media`, a canonical ordered media
 timeline that attaches video playback URLs and poster thumbnails together; this
 prevents sampled video inference frames from hydrating as standalone Insight
-carousel images. Ready display/playback scan-media asset rows are refreshed by
-the database trigger plus a best-effort Edge refresh call, so server-side
-composer/status reads can prefer lifecycle media rows before falling back to
-compatibility arrays. Any image promotion failure aborts the entire batch and
-immediately rolls back any already-promoted public objects from that same batch
-before returning `ERROR`; scans are not inserted with partial image arrays.
-Video promotion failure is also a durability failure for video captures: the
-edge cleans up promoted objects/staging where possible and does not insert a
-frame-only scan row.
+carousel images. The required finalization transaction refreshes ready
+display/playback scan-media asset rows and proves the canonical representation
+before ledger completion, so server-side composer/status reads can prefer
+lifecycle media rows before falling back to compatibility arrays. Any image
+promotion failure aborts the entire batch and immediately rolls back any
+already-promoted public objects from that same batch before returning `ERROR`;
+scans are not inserted with partial image arrays. Video promotion failure is
+also a durability failure for video captures: the edge cleans up promoted
+objects/staging where possible and does not insert a frame-only scan row.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
@@ -2037,17 +2045,17 @@ throws during the `imageBase64s` promotion pass.
 
 ### Error Responses
 
-| Status | Body                                                                            | Meaning                                                                                      |
-| ------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `400`  | `{ "error": "Bad Request: Path traversal detected." }`                          | `r2ObjectKeys` contains a `../` traversal attempt                                            |
-| `400`  | `{ "error": "Forbidden: r2ObjectKey does not belong to the requesting user." }` | IDOR — key does not belong to the authenticated user                                         |
-| `400`  | `{ "error": "AI processing error. Please try again." }`                         | Permanent content policy failure (`finishReason` is `SAFETY` or `PROHIBITED_CONTENT`)        |
-| `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Media was rejected by the durable safety-moderation pass                                    |
-| `413`  | `{ "error": "Payload Too Large: Combined images exceed 5MB limit." }`           | Combined image payload exceeds 5 MB                                                          |
-| `422`  | `{ "error": "Processing Error: Malformed AI response." }`                       | Gemini returned output that could not be parsed                                              |
-| `422`  | `{ "error": "Processing Error: Invalid AI response format." }`                  | Gemini returned output in an unexpected format                                               |
-| `503`  | `{ "error": "AI processing error. Please try again." }`                         | Transient Gemini failure (API error, rate limit, timeout, non-SAFETY non-STOP finish reason) |
-| `503`  | `{ "error": "We couldn’t finish saving this observation. Please try again.", "code": "scan_persistence_failed" }` | Durable moderation pipeline, media promotion, species resolution, or scan insertion failed   |
+| Status | Body                                                                                                                              | Meaning                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `400`  | `{ "error": "Bad Request: Path traversal detected." }`                                                                            | `r2ObjectKeys` contains a `../` traversal attempt                                            |
+| `400`  | `{ "error": "Forbidden: r2ObjectKey does not belong to the requesting user." }`                                                   | IDOR — key does not belong to the authenticated user                                         |
+| `400`  | `{ "error": "AI processing error. Please try again." }`                                                                           | Permanent content policy failure (`finishReason` is `SAFETY` or `PROHIBITED_CONTENT`)        |
+| `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Media was rejected by the durable safety-moderation pass                                     |
+| `413`  | `{ "error": "Payload Too Large: Combined images exceed 5MB limit." }`                                                             | Combined image payload exceeds 5 MB                                                          |
+| `422`  | `{ "error": "Processing Error: Malformed AI response." }`                                                                         | Gemini returned output that could not be parsed                                              |
+| `422`  | `{ "error": "Processing Error: Invalid AI response format." }`                                                                    | Gemini returned output in an unexpected format                                               |
+| `503`  | `{ "error": "AI processing error. Please try again." }`                                                                           | Transient Gemini failure (API error, rate limit, timeout, non-SAFETY non-STOP finish reason) |
+| `503`  | `{ "error": "We couldn’t finish saving this observation. Please try again.", "code": "scan_persistence_failed" }`                 | Durable moderation pipeline, media promotion, species resolution, or scan insertion failed   |
 
 `400` on a content policy failure is intentional — the iOS `OfflineQueueManager`
 treats `400` as a permanent failure and marks the queued row as needing user
@@ -2274,11 +2282,12 @@ slug from `common_name`, then `scientific_name`, then `species`. UUID-only and
 stale-slug requests redirect after successful UUID resolution, so name changes
 require neither a database migration nor an Edge contract revision.
 
-Invalid route UUIDs and Edge `404` responses map to a non-indexable Next.js
-not-found page. Missing server configuration, network errors, non-404 Edge
-errors, unsupported schema versions, malformed payloads, and identity mismatch
-remain server failures so transient errors are never cached as missing species.
-Successful pages revalidate every 300 seconds.
+Invalid route UUIDs and marked handler-owned Edge `404` responses map to a
+non-indexable Next.js not-found page. An unmarked Edge `404` is a
+platform/router failure and remains a server error, as do missing server
+configuration, network errors, other Edge failures, unsupported schema versions,
+malformed payloads, and identity mismatch. Transient errors are therefore never
+cached as missing species. Successful pages revalidate every 300 seconds.
 
 Catalog mode:
 
@@ -2979,9 +2988,9 @@ The detail routine independently inner-joins that canonical card projection.
 `get_public_web_explore_post_page(target_post_id)` returns `post_payload` and
 `detail_payload` from one statement/MVCC snapshot, and the page helper uses only
 that combined routine. A direct detail call and the combined call therefore
-return no row for content excluded by canonical anonymous visibility. The
-server must not reconstruct this DTO through direct privileged table reads.
-Exact-SHA verification is tracked in the
+return no row for content excluded by canonical anonymous visibility. The server
+must not reconstruct this DTO through direct privileged table reads. Exact-SHA
+verification is tracked in the
 [release assurance record](./14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### `GET /api/explore/audio?url={canonicalWavUrl}` (Public Web)
@@ -4667,7 +4676,11 @@ ordered compositions of images, audio, and descriptive context.
   counts, staged image/audio/video object keys, recovered upload-session ids,
   and a normalized `manifest_checksum`; subsequent stage updates make
   `/check-scan-status`, health checks, and reconciliation agree on whether the
-  scan is processing, retryable, complete, or terminal.
+  scan is processing, retryable, complete, or terminal. Claim and compatibility
+  owner-row recovery share one transaction-scoped advisory lock for that scan. A
+  recovery-first winner writes a completed recovery ledger, causing claim to
+  return `already_complete` before any provider call; a claim-first winner makes
+  recovery defer.
 - The endpoint also records a `scan_ingestion_intents` row for server recovery.
   That row stores a sanitized replay payload with telemetry, observation
   context, media descriptors, staged keys, upload-session ids, and a
@@ -4676,17 +4689,24 @@ ordered compositions of images, audio, and descriptive context.
   `resumable = false` with `inline_media_redacted = true`; queued/staged
   media/audio/video and text-only requests are resumable. Server-side replay of
   those resumable intents is capped at 10 automatic claims before the paired job
-  becomes `failed_terminal / server_replay_limit_reached`.
+  becomes `failed_terminal / server_replay_limit_reached` with
+  `terminal_reason_code = replay_exhausted`.
+- Completion is one service-only transaction. It validates every submitted
+  promoted/deleted key against the claimed media manifest, permits deletion only
+  for claimed audio companions, locks the owner scan, rebuilds canonical media,
+  verifies every promoted capture URL has a matching ready image/video/audio
+  row, and writes `media_finalization_complete` last. Replay and media
+  reconciliation use this routine rather than updating the ledger directly.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first
   Insight hydration for biological and non-biological video scans. The video
   item carries an audio reference only when extracted video audio exists, so
   downstream `scan_media_assets` and Explore rows can set `has_audio`
-  accurately. The ready display/playback `scan_media_assets` rows are refreshed
-  from the same manifest by the database trigger plus a best-effort Edge refresh
-  call, so server-side composer and status checks no longer need to infer video
-  assets directly from sampled frame arrays.
+  accurately. The required finalization transaction refreshes ready
+  display/playback `scan_media_assets` rows from the same manifest and proves
+  them before completion, so server-side composer and status checks no longer
+  need to infer video assets directly from sampled frame arrays.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
@@ -4760,7 +4780,10 @@ Before Gemini, one service-role-only `begin_scan_ingestion` RPC performs upload
 session lookup, ingestion claim, sanitized intent recording, and the
 `ai_inference_started` stage transition atomically. It returns the recovered
 upload-session ids plus manifest and payload checksums canonicalized from the
-exact stored values. After Gemini, eligible biological results use at most one
+exact stored values. This is also the pre-provider boundary for `/identify`,
+`/identify-describe`, and `/audio-spec`; no route falls back to separate writes.
+The client fails closed on malformed UUID/checksum/stage/completion output.
+After Gemini, eligible biological results use at most one
 `hydrate_identification_dictionary` RPC to return cached primary-species data
 and candidate common names. Primary Wikipedia/GBIF cache misses, moderation,
 required media promotion, and scan insertion complete before success for every
@@ -5068,11 +5091,10 @@ English vernacular entries for the species. The enrichment scope serves this
 field from `species_dictionary.alternative_common_names` on a cache hit. When
 that column is `null` (covering pre-V34 cached species, compatibility-route
 timing, or a current model response that preceded its awaited dictionary
-resolution), the Edge function calls `fetchGBIFVernacularNames` live to
-retrieve English vernacular names from the GBIF API and populates the field
-from the result. Taxonomy fields in the response likewise use `null` for
-unknown ranks; the backend no longer emits placeholder strings like
-`"Unknown"`.
+resolution), the Edge function calls `fetchGBIFVernacularNames` live to retrieve
+English vernacular names from the GBIF API and populates the field from the
+result. Taxonomy fields in the response likewise use `null` for unknown ranks;
+the backend no longer emits placeholder strings like `"Unknown"`.
 
 **iOS mapping**: The array is decoded as
 `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in
@@ -5524,14 +5546,15 @@ or video entries in `captured_media`.
 For one local observation whose owner row is absent, iOS may include a
 `recovery_scan` object containing validated non-media fields. Its `id` must
 match `scan_id`, its `user_id` must match the authenticated user, and
-`image_storage_urls` must be empty. The endpoint idempotently inserts only a
-missing row with duplicate protection; it cannot overwrite an existing scan.
-Direct media URLs are rejected, and recovery is not supported in bulk probes.
-The server checks the owner-scoped ingestion ledger before writing: processing,
-finalizing, retrying, retryable-failure, and known terminal policy-rejection
-jobs are never preempted. Legacy jobs with no ledger row,
-completed-but-missing rows, and non-policy terminal failures remain
-recoverable.
+`image_storage_urls` must be empty. The endpoint delegates to one atomic
+service-only routine, which takes the ingestion claim's per-scan advisory lock,
+inserts only a missing scan, and writes `client_recovery_complete` in the ledger
+within the same transaction. It cannot overwrite an existing scan. Direct media
+URLs are rejected, and recovery is not supported in bulk probes. Processing,
+finalizing, retrying, retryable, policy, legacy-unknown, and every other
+terminal state are never preempted. A missing ledger row also fails closed. Only
+an existing `complete` ledger whose owner row is unexpectedly absent or an
+explicit `terminal_reason_code = replay_exhausted` state is recoverable.
 
 ### Response Payload
 
@@ -5554,12 +5577,11 @@ tools can inspect the optional job fields backed by `scan_ingestion_jobs`:
 `failed_terminal` ledger row. iOS also accepts the legacy `failed_terminal`
 response spelling. `job_stage` names the precise server step, including
 `server_replay_limit_reached` when the scheduled replay budget is exhausted.
-`retry_after` and `last_error` are only populated for failed jobs.
-iOS decodes the full response via `ScanStatusResponse`: queued scans use these
-fields to keep server-owned `.inferencing` rows from being resubmitted while
-media promotion or scan insertion is still finalizing, and to surface terminal
-server replay exhaustion as needs-attention instead of continuing automatic
-retry.
+`retry_after` and `last_error` are only populated for failed jobs. iOS decodes
+the full response via `ScanStatusResponse`: queued scans use these fields to
+keep server-owned `.inferencing` rows from being resubmitted while media
+promotion or scan insertion is still finalizing, and to surface terminal server
+replay exhaustion as needs-attention instead of continuing automatic retry.
 
 ### Authentication & IDOR
 
@@ -5568,19 +5590,18 @@ enforces ownership with a dual `.eq("id", scan_id).eq("user_id", user.id)`
 constraint — a user cannot probe another user's scan IDs. Recovery additionally
 derives the canonical owner from the authenticated user and validates UUIDs,
 numeric ranges, bounded text, enums, and geoprivacy-derived public coordinates.
-The shared write also enforces the ingestion-state and moderation gates
-server-side, independent of iOS polling.
-The query returns only the media fields needed for the durability check (`id`,
-`video_storage_urls`, `captured_media`, normalized scan-media asset rows, and
-the user's own scan-ingestion job state); no private scan content is
-transmitted.
+The atomic database write enforces ownership and ingestion-generation state
+independently of iOS polling. The query returns only the media fields needed for
+the durability check (`id`, `video_storage_urls`, `captured_media`, normalized
+scan-media asset rows, and the user's own scan-ingestion job state); no private
+scan content is transmitted.
 
 ### Architecture
 
 Follows the domain-driven module pattern: `index.ts` orchestrates auth,
 parameter validation, optional owner-row recovery, and video-count gating;
-`db.ts` owns status reads, while `_shared/scanRecovery.ts` owns validation and
-the duplicate-protected repair write. Read or repair errors are caught by
+`db.ts` owns status reads, while `_shared/scanRecovery.ts` owns DTO validation
+and the atomic repair RPC boundary. Read or repair errors are caught by
 `index.ts` and mapped to a structured `logStructuredError` + 500 response.
 
 ---
@@ -6176,6 +6197,27 @@ contract for all three endpoints is
 
 ---
 
+## Authenticated Scan Metadata RPCs
+
+Current iOS clients do not PATCH `public.scans` directly:
+
+- `update_owned_scan_custom_tags(p_scan_id, p_custom_tags)` accepts at most 50
+  control-free tags of at most 256 UTF-8 bytes each.
+- `update_owned_scan_identification_review(p_scan_id, p_override, p_confirmed,
+  p_confirmed_species_id, p_user_review_state)`
+  validates one coherent `unreviewed`, `ai_confirmed`, or `user_overridden`
+  state and updates all four review fields atomically.
+
+Both SECURITY DEFINER routines have an empty fixed `search_path`, derive the
+owner from `auth.uid()`, return the same permission failure for a foreign or
+missing scan, and are executable only by `authenticated`. They never accept a
+caller-supplied user ID. `anon` and `service_role` cannot execute them. A
+temporary column-level UPDATE grant preserves already-installed app versions; it
+covers only these five metadata columns and must be retired after the minimum
+supported iOS version uses the RPCs.
+
+---
+
 ## Deno `/delete-scan` Edge Node
 
 Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
@@ -6192,21 +6234,65 @@ Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
 
 1. Extracts the verified user identity from the GoTrue JWT via the native
    `withEdgeHandler` middleware.
-2. Extracts `scanId` from the payload and queries `public.scans` using the
-   Service Role.
-3. If the scan does not exist (e.g. already purged server-side while offline),
-   returns HTTP 200 so the Swift queue system drops the pending deletion
-   cleanly.
-4. Compares the fetched `scan.user_id === user.id`. A mismatch natively returns
-   `403 Forbidden` as an explicit IDOR trap.
-5. Deletes approved owned Cloudflare R2 objects referenced by the scan and its
-   generated public thumbnails, tolerating already-missing objects.
-6. Deletes the Postgres scan row. The linked Explore post, likes, comments, and
-   media snapshots are permanently removed through foreign-key cascades.
+2. Calls the service-only `request_scan_deletion(scanId, userId)` transaction.
+   It verifies exact ownership under the per-scan generation lock and persists
+   the private deletion tombstone before external work. Foreign ownership
+   returns `403`; a genuinely absent or already-completed owner generation
+   returns idempotent `200`.
+3. Reads the fenced canonical scan, normalized media assets, and post-derived
+   thumbnails. A database read error is a sanitized `5xx`, never not-found.
+4. Deletes only exact
+   `https://media.merian.app/public_uploads/{free|pro}/{verified-owner-uuid}/{safe-filename}`
+   objects, requiring 2xx or idempotent 404 for every accepted object. Foreign
+   owners, nested/dot paths, query strings, fragments, credentials, staging,
+   avatars, and malformed URLs are skipped without logging their values.
+5. Calls `complete_scan_deletion(scanId, userId)`, which verifies the durable
+   owner tombstone, deletes the Postgres row, and records completion. The linked
+   Explore post, likes, comments, and media snapshots are permanently removed
+   through foreign-key cascades.
+
+The private tombstone survives completion and rejects any delayed inference,
+replay, insert/update, or compatibility owner-row recovery for the UUID. A lost
+response leaves a retryable deletion rather than permitting an ABA-style scan
+resurrection. Completion clears the owner UUID from the private fence.
 
 This explicit owner action is destructive and must be preceded by client copy
 that names the linked Explore/engagement deletion. Operational media quarantine
 never invokes this endpoint.
+
+---
+
+## Deno `/reconcile-scan-deletions` Edge Node
+
+Service-only recovery worker for interrupted individual-scan erasure. It accepts
+no caller-selected scan or user identity. Exact platform server-key
+authorization is required before any claim.
+
+PostgreSQL schedules the route every five minutes. One invocation claims
+oldest-due rows in 25-job waves with UUID leases, processes at most 100 jobs at
+concurrency four, and stops claiming near a 40-second deadline. For each claim
+it reloads the canonical fenced source/derived media set, requires every owned
+flat canonical R2 deletion to return 2xx or idempotent 404, and calls
+`complete_scan_deletion(scan_id, user_id)`. A failure is compare-before-released
+with bounded exponential backoff; a stale worker cannot clear a newer lease.
+
+Successful response:
+
+```json
+{
+  "success": true,
+  "claimed": 2,
+  "completed": 2,
+  "deferred": 0,
+  "health_status": "healthy"
+}
+```
+
+The response and structured logs expose aggregate counters only. Scan IDs, owner
+IDs, media URLs, and provider bodies are omitted. The independent Scan Media
+Health Monitor calls the service-only `get_scan_deletion_health()` path every 30
+minutes and warns at 15 minutes/25 pending jobs; it becomes critical at one
+hour/100 pending jobs or any expired lease.
 
 ---
 
@@ -6387,15 +6473,18 @@ This empty-body contract is also bounded by the shared small JSON reader.
   job. Page reads retain a compact post-cursor eligibility check. A shared
   full-member predicate verifies exact count, snapshot/invalidation state,
   current eligibility, and every stored hash before assembly, staging, email,
-  and completion. Relevant scan and protected-species changes durably
-  invalidate affected nonterminal jobs. A revocation becomes terminal
-  `source_snapshot_changed`, sends no not-yet-started email, and removes an
-  uploaded/staged object. Validated row checks separately cap media-array
+  completion, and each download authorization. Relevant scan and
+  protected-species changes durably invalidate affected nonterminal jobs. A
+  revocation becomes terminal `source_snapshot_changed`, sends no
+  not-yet-started email, and removes an uploaded/staged object through the
+  durable cleanup outbox. Validated row checks separately cap media-array
   cardinality/URL size, interaction-array cardinality/element size, and selected
-  taxonomy text in UTF-8 bytes. Terminal jobs purge immutable source DTOs.
-- Signed delivery URLs remain in API-inaccessible work state while processing.
-  The final full-fence transaction publishes `file_url` and `completed` status
-  atomically.
+  taxonomy text in UTF-8 bytes. Failed jobs purge immutable source DTOs;
+  completed DTOs remain only through their live grant and verified cleanup.
+- Opaque application capability URLs remain in API-inaccessible work state while
+  processing. The final full-fence transaction publishes `file_url` and
+  `completed` status atomically. The capability points to `download-dwca`, never
+  directly to storage.
 - Advance, manifest lookup, staging, completion, release, and heartbeat RPCs
   require the same unexpired UUID token; a delayed worker cannot mutate a
   replacement attempt. These definer routines use an empty `search_path`, call
@@ -6429,12 +6518,11 @@ This empty-body contract is also bounded by the shared small JSON reader.
   or contended IDs are suppressed for the remainder of that invocation. Data
   phases use row-and-byte-aware `id > last_id` pages over one immutable DTO
   snapshot with page and final full-member privacy-revocation fences. A
-  fixed-capacity encoder
-  appends one header/row at a time and fails before exceeding 512 KiB; it does
-  not retain a page-wide line array or expanded multimedia-row array. Each
-  chunk's CRC-32 is calculated within that bounded preparation step and
-  committed to the ordered private manifest together with the next cursor and
-  cumulative budgets.
+  fixed-capacity encoder appends one header/row at a time and fails before
+  exceeding 512 KiB; it does not retain a page-wide line array or expanded
+  multimedia-row array. Each chunk's CRC-32 is calculated within that bounded
+  preparation step and committed to the ordered private manifest together with
+  the next cursor and cumulative budgets.
 - **Aggregate queue health**: After every drain, the route calls the
   service-only `get_dwca_export_queue_health()` RPC and logs backlog, due,
   active/expired claim, and oldest-due-age values. The five-minute external
@@ -6454,14 +6542,33 @@ This empty-body contract is also bounded by the shared small JSON reader.
   `exports/{user_id}/{job_id}/{claim_token}.zip`. A stale writer can therefore
   neither overwrite the winning chunk/archive nor commit an unexpected key to
   the manifest. After staging, a replacement lease reuses the stored archive key
-  and signed URL.
+  and opaque application capability.
 - **Idempotent delivery**: Calls Resend directly with
   `Idempotency-Key: dwca-export/{job_id}` and marks the job complete only after
   Resend accepts the request. Re-entry with a staged archive does not regenerate
   it. Because the provider call cannot share a database transaction, completion
   repeats the full-member fence. If privacy changes while Resend is accepting
-  the request, the email may exist, but completion fails terminally and the
-  attempt-fenced archive is deleted rather than published.
+  the request, the email may exist, but completion fails terminally, revokes the
+  capability, and enqueues the attempt-fenced archive for deletion. Permanent
+  Resend 4xx rejection is terminal; ambiguous/transient responses remain
+  retryable.
+- **Revocable downloads**: A capability contains 32 random bytes encoded as an
+  exact 43-character base64url token. The database looks it up by SHA-256 hash,
+  applies a distributed 60-attempt/IP-hash/five-minute ceiling, and reruns the
+  full immutable-membership privacy fence for every click. An authorized request
+  receives only a no-store, read-only R2 redirect valid for at most 30 seconds.
+  Unknown, revoked, expired, rate-limited, and dependency-error states fail
+  closed with stable public codes.
+- **Durable archive cleanup**: Expired/revoked grants, privacy races, terminal
+  failures, deleted jobs, and legacy direct URLs enter a unique leased outbox.
+  `reconcile-dwca-archive-cleanup` drains up to 100 oldest-due rows every five
+  minutes with bounded concurrency and durable backoff. Its service-only health
+  RPC exposes only backlog, oldest-due age, and expired-lease aggregates.
+  Completion compares the leased key with the job's exact current attempt key;
+  an old cleanup generation cannot revoke a replacement grant or purge active
+  source state. An independent scheduled GitHub monitor calls both export queue
+  and cleanup health RPCs, so absent cron/Vault configuration or a stuck
+  deletion worker cannot be silent.
 - **Stuck-job watchdog**: The watchdog fails pending rows with no phase progress
   for 30 minutes and processing rows with no live claim or durable progress for
   two hours. Public rows store stable failure codes/messages; provider responses
@@ -6534,6 +6641,52 @@ terminal failure, appears only as `"disposition":"failed"` plus a stable
 auth/body values or dispatcher discovery/health failures receive stable
 request-correlated HTTP errors; implementation/provider details remain in
 structured logs only.
+
+---
+
+## Deno `/download-dwca` Edge Node
+
+Public `GET` capability endpoint:
+
+```text
+/functions/v1/download-dwca?token={43-character-base64url-token}
+```
+
+The token is the only credential; JWT verification is disabled and
+`Authorization` is not accepted as export ownership. Malformed/unknown tokens
+return `404`, revoked or expired grants return `410`, the narrow
+email-accepted/database-completion race returns retryable `425`, distributed
+address-limit exhaustion returns `429`, and database/storage-signing outages
+fail closed with `503`. All responses are no-store and request-correlated.
+
+An authorized request transactionally reruns the complete source privacy fence,
+then returns `303` to an attachment-only R2 GET signature valid for at most 30
+seconds. Privacy triggers also invalidate every affected unpurged snapshot
+without relying on a concurrently changing job status. No write credential or
+long-lived direct URL is exposed.
+
+---
+
+## Deno `/reconcile-dwca-archive-cleanup` Edge Node
+
+Internal `POST` worker invoked every five minutes. It accepts only one exact
+platform-managed server credential, ignores caller-owned work identifiers, and
+deadline-drains up to 100 leased deletion jobs in 25-row waves with four
+concurrent R2 deletes. A missing object is idempotent success; all other storage
+failures release the UUID-fenced claim with durable backoff.
+
+Database completion is also fenced to the exact current `archive_object_key`.
+Physical deletion for an older attempt can complete its own outbox row, but it
+cannot revoke a replacement grant or purge active source state. Exact-current
+terminal cleanup revokes/marks the grant cleaned and then purges retained source
+DTOs.
+
+The response contains only claimed/completed/deferred counts and aggregate
+health status. Structured health warns at 25 pending or 15 minutes oldest due,
+and becomes critical at 100 pending, one hour oldest due, or any expired lease.
+Tokens, users, object keys, and provider detail never enter the response or
+health event. The independent **DwC-A Export and Archive Health Monitor** reads
+this RPC directly on its own schedule as a worker-independent backstop.
 
 ---
 
@@ -6965,9 +7118,9 @@ Supabase dashboard/service-role tooling rather than public app APIs.
 
 ## Deno `/auto-purge-nonbio` Edge Node
 
-A daily cron-job endpoint responsible for removing stale
-`.is_biological_subject = false` scans to prevent arbitrary file bloat on
-Cloudflare R2 and PostgreSQL.
+A daily service-only retention endpoint responsible for generation-fencing stale
+`.is_biological_subject = false` scans and enqueuing them for the durable
+scan-erasure reaper.
 
 ### Request Payload
 
@@ -6982,17 +7135,43 @@ No JSON body is required. The cron trigger issues an empty POST request.
 
 ### Deletion Safety
 
-1. Queries scans isolated strictly to `is_biological_subject == false` where
-   `timestamp < 30 days ago`.
-2. Employs `.limit(500)` memory pagination barriers to prevent container timeout
-   triggers.
-3. Aggregates all R2 `image_storage_urls` and `video_storage_urls` across the
-   500 scans and passes them to `deleteScanMediaR2Objects([])`, which filters to
-   `public_uploads/free|pro/` before using the bounded R2 delete helper. Durable
-   `avatars/` profile images are skipped.
-4. Executes the discrete `.delete().in("id", [...])` cascade against PostgreSQL
-   only after successfully purging the R2 remote hashes, preventing orphan
-   binaries.
+1. Deadline-drains 500-row database batches, with a 40-second runtime budget and
+   10,000-generation invocation ceiling.
+2. The database selects only rows older than 30 days whose canonical
+   `is_biological_subject` value is false, whose `is_tombstoned` value is false,
+   whose owner is non-null and non-reserved, and which have no existing
+   generation deletion tombstone.
+3. Candidate discovery is oldest first, but generation locks are acquired in
+   UUID order. Age, classification, scan-tombstone state, owner validity, and
+   generation-tombstone absence are rechecked under the generation and scan-row
+   locks.
+4. The transaction writes the permanent private deletion fence and makes any
+   incomplete ingestion ledger terminal. It does no R2 work and leaves the scan
+   row available to the reaper.
+5. `reconcile-scan-deletions` reloads the fenced row, deletes only exact
+   owner-bound scan-media keys, retries interrupted work, and removes the row
+   after external erasure succeeds.
+
+Success reports newly requested work rather than completed object deletion:
+
+```json
+{
+  "success": true,
+  "requested_count": 42,
+  "runtime_deadline_reached": false
+}
+```
+
+`requested_count` is intake telemetry, not proof that R2 or relational erasure
+has completed. Completion is observable only through the service-only
+`get_scan_deletion_health()` summary and the independent health monitor.
+
+| Status | Public contract                                                    |
+| -----: | ------------------------------------------------------------------ |
+|  `200` | Bounded retention intake completed                                 |
+|  `401` | Exact server-key authorization failed                              |
+|  `405` | Non-POST method                                                    |
+|  `500` | Stable `internal_error` envelope with `X-Request-ID`; no raw error |
 
 ## Deno `/report-user`
 

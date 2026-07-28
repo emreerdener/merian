@@ -53,7 +53,7 @@ struct UserTagsCard: View {
             tag,
             to: record,
             modelContext: modelContext
-        ) ? nil : "Tag changes could not be saved."
+        ) ? nil : "Tags are limited to 50 labels and 64 characters each."
     }
     
     private func removeTag(_ tag: String, from record: LocalScanRecord) {

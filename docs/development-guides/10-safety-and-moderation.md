@@ -175,9 +175,10 @@ trigger moderation.
 
 A provider response that ends before structured output with exact finish reason
 `SAFETY` or `PROHIBITED_CONTENT` follows the earlier provider-policy terminal
-path. The ingestion ledger records `ai_inference_non_stop_finish` and the exact
-bounded reason. Owner-row recovery recognizes those exact sentinels and cannot
-convert the rejected request into a scan. This path may not have a usable
+path. The ingestion ledger records `ai_inference_non_stop_finish` plus stable
+`terminal_reason_code = 'provider_policy_rejected'`. Owner-row recovery does not
+interpret provider text and cannot convert that rejected request into a scan.
+This path may not have a usable
 `safetyRatings[]` object and therefore is distinct from the strike-recording
 pass below.
 

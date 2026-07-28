@@ -7,17 +7,17 @@ const routes = [
   {
     path: "../identify/index.ts",
     providerParser: "parseMerianIdentification",
-    persistenceBoundary: "const compatibilityLedger",
+    finalizationBoundary: "await compatibilityLedger.mark(",
   },
   {
     path: "../identify-multimodal/index.ts",
     providerParser: "parseMerianIdentification",
-    persistenceBoundary: "const requireDurableVideo",
+    finalizationBoundary: "const requireDurableVideo",
   },
   {
     path: "../identify-describe/index.ts",
     providerParser: "parseDescribeIdentification",
-    persistenceBoundary: "const compatibilityLedger",
+    finalizationBoundary: "await compatibilityLedger.mark(",
   },
 ] as const;
 
@@ -41,8 +41,8 @@ Deno.test("every Identify route validates provider and final wire values before 
       "parseIdentifySuccessEnvelope({",
       payloadAssembly,
     );
-    const persistenceBoundary = source.indexOf(
-      route.persistenceBoundary,
+    const finalizationBoundary = source.indexOf(
+      route.finalizationBoundary,
       finalParse,
     );
 
@@ -60,7 +60,7 @@ Deno.test("every Identify route validates provider and final wire values before 
       `${route.path} bypasses complete final-envelope validation`,
     );
     assert(
-      persistenceBoundary > finalParse,
+      finalizationBoundary > finalParse,
       `${route.path} persists/finalizes before the final wire parse`,
     );
 

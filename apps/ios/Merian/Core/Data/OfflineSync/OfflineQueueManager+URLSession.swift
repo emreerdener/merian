@@ -17,6 +17,13 @@ enum ScanStatusRecoveryAction: Equatable {
     case unresolved
 }
 
+enum BackgroundInferenceResponseDisposition: Equatable {
+    case success
+    case retry
+    case needsAttention
+    case terminal
+}
+
 // MARK: - URLSession Delegate
 
 extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegate {
@@ -33,7 +40,11 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
 
         let scanId = taskIdentity.scanId
         let generation = taskIdentity.generation
-        let statusCode = (downloadTask.response as? HTTPURLResponse)?.statusCode
+        let httpResponse = downloadTask.response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode
+        let functionRouteEvidence = httpResponse.map {
+            EdgeFunctionRouteResponseEvidence(response: $0)
+        }
         let taskIdentifier = downloadTask.taskIdentifier
         MerianLog.data.debug(
             "urlSession didFinishDownloadingTo: inference scanId=\(scanId, privacy: .private) status=\(statusCode ?? -1, privacy: .public)"
@@ -63,7 +74,8 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
                 scanId: scanId,
                 generation: generation,
                 resultFileURL: tempDestination,
-                statusCode: statusCode
+                statusCode: statusCode,
+                functionRouteEvidence: functionRouteEvidence
             )
         }
     }
@@ -921,14 +933,16 @@ extension OfflineQueueManager {
     /// Processes the JSON file delivered by a completed background inference download task.
     ///
     /// Mirrors the success/failure routing of the former `runInferencePipeline`:
-    /// - HTTP 4xx → tombstone (permanent failure)
-    /// - HTTP 5xx / missing data → retry via durable queue metadata and `.staged` reset
+    /// - exact handler-owned policy rejection → terminal tombstone
+    /// - other handler-owned HTTP 4xx → preserve media for retry/cancel
+    /// - Supabase platform route 404 / HTTP 5xx / missing data → durable retry
     /// - HTTP 200 → persist `LocalScanRecord`, delete `OfflineQueuedScan`, fire notifications
     func processInferenceDownloadResult(
         scanId: String,
         generation proposedGeneration: UUID?,
         resultFileURL: URL,
-        statusCode: Int?
+        statusCode: Int?,
+        functionRouteEvidence: EdgeFunctionRouteResponseEvidence? = nil
     ) async {
         defer { try? FileManager.default.removeItem(at: resultFileURL) }
         guard let generation = claimInferenceGeneration(
@@ -961,22 +975,63 @@ extension OfflineQueueManager {
             "processInferenceDownloadResult: scanId=\(scanId, privacy: .public) status=\(statusCode ?? -1, privacy: .public) file=\(resultFileURL.path, privacy: .public)"
         )
 
-        guard let statusCode, statusCode == 200 else {
+        let resultData = try? Data(contentsOf: resultFileURL)
+        let responseDisposition = Self.backgroundInferenceResponseDisposition(
+            statusCode: statusCode,
+            functionRouteEvidence: functionRouteEvidence,
+            responseData: resultData ?? Data()
+        )
+
+        switch responseDisposition {
+        case .success:
+            break
+        case .retry:
             let code = statusCode ?? 0
-            if (400...499).contains(code) {
-                MerianLog.data.debug("Inference failed permanently for \(scanId, privacy: .private) [\(code)] — tombstoning scan")
-                await MainActor.run { _ = OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
-            } else {
-                MerianLog.data.debug("Inference download non-200 [\(code)] for \(scanId, privacy: .private) — retry")
-                await handleInferenceRetry(
+            MerianLog.data.debug(
+                "Background inference returned a retryable response [\(code)] for \(scanId, privacy: .private) — preserving scan."
+            )
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: generation,
+                reason: "Retryable inference response",
+                minimumRetryDelay: functionRouteEvidence?.retryAfterSeconds
+            )
+            return
+        case .needsAttention:
+            let code = statusCode ?? 0
+            MerianLog.data.debug(
+                "Background inference needs user attention [\(code)] for \(scanId, privacy: .private) — preserving queued media."
+            )
+            await MainActor.run {
+                _ = OfflineQueueManager.shared.softDeleteQueuedScan(
                     scanId: scanId,
-                    generation: generation
+                    reason: "We couldn’t process this queued observation. Please retry it or cancel it.",
+                    errorCode: MerianNetworkClient.stableEdgeErrorCode(
+                        responseData: resultData ?? Data()
+                    ) ?? "inference_http_\(code)",
+                    httpStatus: statusCode,
+                    needsAttention: true
+                )
+            }
+            return
+        case .terminal:
+            let code = statusCode ?? 0
+            MerianLog.data.debug(
+                "Background inference was rejected by policy [\(code)] for \(scanId, privacy: .private)."
+            )
+            await MainActor.run {
+                _ = OfflineQueueManager.shared.softDeleteQueuedScan(
+                    scanId: scanId,
+                    reason: "We couldn’t process this observation. Please try a different photo or recording.",
+                    errorCode: "observation_rejected",
+                    httpStatus: statusCode,
+                    needsAttention: false
                 )
             }
             return
         }
 
-        guard let resultData = try? Data(contentsOf: resultFileURL), !resultData.isEmpty else {
+        guard let resultData, !resultData.isEmpty else {
             MerianLog.data.error("Background inference download: result file unreadable for \(scanId, privacy: .private)")
             await handleInferenceRetry(
                 scanId: scanId,
@@ -1155,6 +1210,54 @@ extension OfflineQueueManager {
             CircuitBreakerManager.shared.recordSuccess()
             OfflineQueueManager.shared.markScanJobComplete(scanId: scanId)
         }
+    }
+
+    static func shouldRetryBackgroundInferenceRouteFailure(
+        statusCode: Int?,
+        functionRouteEvidence: EdgeFunctionRouteResponseEvidence?,
+        responseData: Data
+    ) -> Bool {
+        guard statusCode == 404,
+              let functionRouteEvidence else {
+            return false
+        }
+        return MerianNetworkClient.isPlatformFunctionRouteUnavailable(
+            evidence: functionRouteEvidence,
+            responseData: responseData
+        )
+    }
+
+    static func backgroundInferenceResponseDisposition(
+        statusCode: Int?,
+        functionRouteEvidence: EdgeFunctionRouteResponseEvidence?,
+        responseData: Data
+    ) -> BackgroundInferenceResponseDisposition {
+        guard let statusCode else {
+            return .retry
+        }
+        if statusCode == 200 {
+            return .success
+        }
+        if shouldRetryBackgroundInferenceRouteFailure(
+            statusCode: statusCode,
+            functionRouteEvidence: functionRouteEvidence,
+            responseData: responseData
+        ) {
+            return .retry
+        }
+        if statusCode >= 500
+            || [401, 408, 409, 425, 429].contains(statusCode) {
+            return .retry
+        }
+        if statusCode == 400,
+           MerianNetworkClient.stableEdgeErrorCode(responseData: responseData)
+            == "observation_rejected" {
+            return .terminal
+        }
+        if (400...499).contains(statusCode) {
+            return .needsAttention
+        }
+        return .retry
     }
 
     // MARK: - Inference Failure Handling
@@ -1862,7 +1965,8 @@ extension OfflineQueueManager {
         scanId: String,
         generation: UUID?,
         reason: String = "retry",
-        serverPollToken: UUID? = nil
+        serverPollToken: UUID? = nil,
+        minimumRetryDelay: TimeInterval? = nil
     ) async {
         guard isServerIngestionPollCurrent(
             scanId: scanId,
@@ -1912,7 +2016,14 @@ extension OfflineQueueManager {
             return
         }
 
-        let delay = OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1)
+        let requestedMinimumDelay = min(
+            max(minimumRetryDelay ?? 0, 0),
+            OfflineQueueRetryPolicy.maximumRetryDelay
+        )
+        let delay = max(
+            OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1),
+            requestedMinimumDelay
+        )
         let retryActor = resolvedQueueDbActor(container: container)
         guard let retries = await retryActor.scheduleInferenceRetry(
             id: scanId,

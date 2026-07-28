@@ -409,7 +409,16 @@ verify_jwt = false
 [functions.reconcile-account-deletions]
 verify_jwt = false
 
+[functions.reconcile-scan-deletions]
+verify_jwt = false
+
 [functions.export-dwca]
+verify_jwt = false
+
+[functions.download-dwca]
+verify_jwt = false
+
+[functions.reconcile-dwca-archive-cleanup]
 verify_jwt = false
 
 [functions.get-filtered-discovery-feed]

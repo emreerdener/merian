@@ -1,4 +1,9 @@
-import { deleteR2Object, getR2Config, R2Config } from "../_shared/aws.ts";
+import {
+  deleteR2Object,
+  getR2Config,
+  getR2ReadConfig,
+  R2Config,
+} from "../_shared/aws.ts";
 import { readByteStreamWithinLimit } from "../_shared/http.ts";
 import type { ExportProgressCallback } from "./archive.ts";
 import { MAXIMUM_WORK_CHUNK_BYTES } from "./limits.ts";
@@ -8,7 +13,7 @@ export { MAXIMUM_WORK_CHUNK_BYTES } from "./limits.ts";
 
 export const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const MAXIMUM_MULTIPART_PARTS = 10_000;
-const SIGNED_URL_LIFETIME_SECONDS = 86_400;
+const DOWNLOAD_URL_LIFETIME_SECONDS = 30;
 const R2_REQUEST_TIMEOUT_MS = 60_000;
 const R2_XML_RESPONSE_LIMIT_BYTES = 64 * 1024;
 const MAXIMUM_UPLOAD_ID_CHARACTERS = 2048;
@@ -22,7 +27,6 @@ interface UploadedPart {
 
 export interface ExportUploadResult {
   objectKey: string;
-  signedUrl: string;
   uploadedBytes: number;
   uploadedParts: number;
 }
@@ -31,7 +35,7 @@ function storageFailure(message: string, cause?: unknown): ExportWorkerError {
   return new ExportWorkerError(
     "storage_unavailable",
     message,
-    true,
+    false,
     cause === undefined ? undefined : { cause },
   );
 }
@@ -41,6 +45,44 @@ export function exportObjectKey(
   claimToken: string,
 ): string {
   return `exports/${job.userId}/${job.id}/${claimToken}.zip`;
+}
+
+const ARCHIVE_OBJECT_KEY_PATTERN =
+  /^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.zip$/i;
+
+export async function createDwcaArchiveRedirectUrl(
+  objectKey: string,
+  config: R2Config = getR2ReadConfig(),
+  lifetimeSeconds = DOWNLOAD_URL_LIFETIME_SECONDS,
+): Promise<string> {
+  if (!ARCHIVE_OBJECT_KEY_PATTERN.test(objectKey)) {
+    throw new TypeError("The archive object key is invalid.");
+  }
+  if (
+    !Number.isSafeInteger(lifetimeSeconds) ||
+    lifetimeSeconds < 1 ||
+    lifetimeSeconds > DOWNLOAD_URL_LIFETIME_SECONDS
+  ) {
+    throw new TypeError("The archive redirect lifetime is invalid.");
+  }
+
+  const downloadUrl = new URL(
+    `${config.endpoint}/${config.bucketName}/${objectKey}`,
+  );
+  downloadUrl.searchParams.set("X-Amz-Expires", String(lifetimeSeconds));
+  downloadUrl.searchParams.set(
+    "response-content-disposition",
+    `attachment; filename="naturebook-dwca-${objectKey.split("/")[2]}.zip"`,
+  );
+  downloadUrl.searchParams.set(
+    "response-content-type",
+    "application/zip",
+  );
+  const signed = await config.s3Client.sign(
+    new Request(downloadUrl, { method: "GET" }),
+    { aws: { signQuery: true } },
+  );
+  return signed.url;
 }
 
 export function exportWorkChunkObjectKey(
@@ -339,19 +381,8 @@ export async function uploadDwcaArchive(
     );
     assertMultipartCompletionSucceeded(completeXml);
 
-    const getUrl = new URL(objectUrl);
-    getUrl.searchParams.set(
-      "X-Amz-Expires",
-      String(SIGNED_URL_LIFETIME_SECONDS),
-    );
-    const signedGet = await s3Client.sign(
-      new Request(getUrl, { method: "GET" }),
-      { aws: { signQuery: true } },
-    );
-
     return {
       objectKey,
-      signedUrl: signedGet.url,
       uploadedBytes,
       uploadedParts: uploadedParts.length,
     };
@@ -401,16 +432,7 @@ export async function deleteDwcaArchiveObject(
   objectKey: string,
   config: R2Config = getR2Config(),
 ): Promise<void> {
-  if (
-    objectKey.length < 1 ||
-    objectKey.length > 512 ||
-    !objectKey.startsWith("exports/") ||
-    objectKey.includes("..") ||
-    [...objectKey].some((character) => {
-      const codePoint = character.codePointAt(0) ?? 0;
-      return codePoint <= 0x1f || codePoint === 0x7f;
-    })
-  ) {
+  if (!ARCHIVE_OBJECT_KEY_PATTERN.test(objectKey)) {
     throw new TypeError("The DwC-A archive object key is invalid.");
   }
 

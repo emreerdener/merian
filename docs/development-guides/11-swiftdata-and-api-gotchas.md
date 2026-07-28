@@ -963,15 +963,19 @@ return successResponse(aiResult);
 ```
 
 The durable step includes moderation, required media promotion, primary species
-resolution, duplicate-safe scan creation, and owner read-back. Operational
-failure returns retryable `503 scan_persistence_failed`; terminal policy
-rejection returns `400 observation_rejected`. iOS must retain its durable queue
-source or mark terminal attention according to those statuses instead of
-creating a successful local record.
+resolution, duplicate-safe scan creation, owner read-back, and one database
+finalization transaction. That transaction verifies every claimed staging key
+is promoted or explicitly consumed, rebuilds canonical image/video/audio rows,
+and writes ledger completion last. Operational failure returns retryable
+`503 scan_persistence_failed`; terminal policy rejection returns
+`400 observation_rejected`. iOS must retain its durable queue source or mark
+terminal attention according to those statuses instead of creating a successful
+local record.
 
 Recovery does not weaken this rule. A bounded non-media `recovery_scan` exists
 only for older/interrupted drift. Status/share routes independently validate
-identity and fields, defer to active/retryable richer ingestion, reject exact
-known policy failures, write without overwrite, and reload by owner. Media
+identity and fields, defer to active/retryable richer ingestion, allow only the
+exact structured `replay_exhausted` terminal reason, write without overwrite,
+and reload by owner. Media
 continues through owner staging. Never repair this class of bug with a direct
 iOS table upsert, an `authenticated` grant, or a server key in the app.

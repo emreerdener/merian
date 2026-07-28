@@ -176,7 +176,7 @@ final class SpeciesObservationStatsViewModel {
         } catch {
             if activeLoadId == loadId {
                 publicStats = nil
-                publicErrorMessage = error.localizedDescription
+                publicErrorMessage = ExploreErrorFormatter.speciesStatsMessage(for: error)
             }
         }
     }

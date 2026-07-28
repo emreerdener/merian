@@ -265,6 +265,7 @@ private enum ScanPersistenceProbeResult {
     case found
     case recoverableMissing
     case deferRecovery
+    case serviceUnavailable
 }
 
 struct OwnedScanRecoveryPayload: Encodable, Sendable {
@@ -340,6 +341,27 @@ private struct ExploreCloudSpeciesIdRow: Decodable {
 private struct EdgeErrorPayload: Decodable {
     let code: String?
     let error: String?
+    let message: String?
+}
+
+struct EdgeFunctionRouteResponseEvidence: Sendable {
+    let statusCode: Int
+    let handlerMarker: String?
+    let supabaseErrorCode: String?
+    let hasGatewayVersion: Bool
+    let hasExecutionId: Bool
+    let retryAfterSeconds: TimeInterval?
+
+    init(response: HTTPURLResponse) {
+        statusCode = response.statusCode
+        handlerMarker = response.value(forHTTPHeaderField: "X-Merian-Handler")
+        supabaseErrorCode = response.value(forHTTPHeaderField: "SB-Error-Code")
+        hasGatewayVersion = response.value(forHTTPHeaderField: "SB-Gateway-Version") != nil
+        hasExecutionId = response.value(forHTTPHeaderField: "X-Deno-Execution-Id") != nil
+        retryAfterSeconds = response.value(forHTTPHeaderField: "Retry-After")
+            .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .flatMap { (1...86_400).contains($0) ? TimeInterval($0) : nil }
+    }
 }
 
 private struct InferenceRequestContext: Sendable {
@@ -692,6 +714,47 @@ final class MerianNetworkClient {
     private let speciesObservationStatsCacheLimit = 64
     private let speciesObservationStatsCacheLock = NSLock()
     private var speciesObservationStatsCache: [String: SpeciesObservationStatsCacheEntry] = [:]
+    private static let functionRouteRetryDelays: [UInt64] = [
+        1_000_000_000,
+        2_000_000_000,
+        4_000_000_000
+    ]
+    private static let safelyReplayableReadFunctionNames: Set<String> = [
+        "check-public-username",
+        "check-scan-status",
+        "get-community-identification-detail",
+        "get-community-identification-feed",
+        "get-explore-author-posts",
+        "get-explore-author-profile",
+        "get-explore-comment-replies",
+        "get-explore-comments",
+        "get-explore-composer-media",
+        "get-explore-feed",
+        "get-explore-hashtag-posts",
+        "get-explore-map-points",
+        "get-explore-media-incidents",
+        "get-explore-mention-suggestions",
+        "get-explore-notifications",
+        "get-explore-post",
+        "get-explore-post-detail",
+        "get-explore-species-posts",
+        "get-explore-unread-notification-count",
+        "get-filtered-discovery-feed",
+        "get-scan-explore-share-state",
+        "search-community-taxa",
+        "species-dictionary",
+        "species-observation-stats"
+    ]
+    private static let idempotencyAwareFunctionNames: Set<String> = [
+        "enrich-scan",
+        "explore-post-chat",
+        "identify",
+        "identify-multimodal",
+        "insight-chat",
+        "request-community-identification",
+        "share-scan-to-explore",
+        "update-explore-field-notes"
+    ]
 
     private struct SpeciesDictionaryCacheEntry {
         let value: SpeciesDictionaryEntry
@@ -786,6 +849,98 @@ final class MerianNetworkClient {
         return fallbackMessage.localizedCaseInsensitiveContains("Auth session missing")
     }
 
+    static func isPlatformFunctionRouteUnavailable(
+        evidence: EdgeFunctionRouteResponseEvidence,
+        responseData: Data
+    ) -> Bool {
+        let handlerMarker = evidence.handlerMarker?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard evidence.statusCode == 404,
+              handlerMarker != "1" else {
+            return false
+        }
+
+        if evidence.supabaseErrorCode?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare("NOT_FOUND") == .orderedSame {
+            return true
+        }
+
+        if let payload = try? JSONDecoder().decode(EdgeErrorPayload.self, from: responseData) {
+            if payload.code?.caseInsensitiveCompare("NOT_FOUND") == .orderedSame {
+                return true
+            }
+
+            if payload.message?.localizedCaseInsensitiveContains("Requested function was not found") == true
+                || payload.error?.localizedCaseInsensitiveContains("Requested function was not found") == true {
+                return true
+            }
+        }
+
+        if String(data: responseData, encoding: .utf8)?
+            .localizedCaseInsensitiveContains("Requested function was not found") == true {
+            return true
+        }
+
+        return evidence.hasGatewayVersion && !evidence.hasExecutionId
+    }
+
+    static func stableEdgeErrorCode(responseData: Data) -> String? {
+        guard let payload = try? JSONDecoder().decode(
+            EdgeErrorPayload.self,
+            from: responseData
+        ),
+              let rawCode = payload.code?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+              rawCode.range(
+                of: #"^[a-z][a-z0-9_]{1,63}$"#,
+                options: .regularExpression
+              ) != nil else {
+            return nil
+        }
+        return rawCode
+    }
+
+    private static func canReplayAfterAmbiguousFailure(
+        url: URL,
+        method: String,
+        idempotencyKey: String?
+    ) -> Bool {
+        if method.caseInsensitiveCompare("GET") == .orderedSame {
+            return true
+        }
+        if idempotencyKey != nil,
+           idempotencyAwareFunctionNames.contains(url.lastPathComponent) {
+            return true
+        }
+        return safelyReplayableReadFunctionNames.contains(url.lastPathComponent)
+    }
+
+    #if DEBUG
+    static func isPlatformFunctionRouteUnavailableForTesting(
+        response: HTTPURLResponse,
+        responseData: Data
+    ) -> Bool {
+        isPlatformFunctionRouteUnavailable(
+            evidence: EdgeFunctionRouteResponseEvidence(response: response),
+            responseData: responseData
+        )
+    }
+
+    static func canReplayAfterAmbiguousFailureForTesting(
+        url: URL,
+        method: String,
+        idempotencyKey: String? = nil
+    ) -> Bool {
+        canReplayAfterAmbiguousFailure(
+            url: url,
+            method: method,
+            idempotencyKey: idempotencyKey
+        )
+    }
+    #endif
+
     static func shouldRegenerateSessionAfterMissingAuthSession(
         hasAuthenticatedOAuth: Bool,
         isGuestUser: Bool
@@ -850,6 +1005,7 @@ final class MerianNetworkClient {
         body: Data? = nil,
         timeoutInterval: TimeInterval = 30.0,
         isRetry: Bool = false,
+        functionRouteRetryAttempt: Int = 0,
         idempotencyKey: String? = nil,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> (Data, HTTPURLResponse) {
@@ -909,15 +1065,22 @@ final class MerianNetworkClient {
             let transientCodes: Set<URLError.Code> = [
                 .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet
             ]
-            if transientCodes.contains(urlError.code) && !isRetry {
+            if transientCodes.contains(urlError.code),
+               !isRetry,
+               Self.canReplayAfterAmbiguousFailure(
+                   url: url,
+                   method: method,
+                   idempotencyKey: idempotencyKey
+                ) {
                 MerianLog.network.debug("Transient network error \(urlError.code.rawValue, privacy: .public) — retrying in 2s.")
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try await Task.sleep(nanoseconds: 2_000_000_000)
                 return try await performAuthenticatedRequest(
                     url: url,
                     method: method,
                     body: body,
                     timeoutInterval: timeoutInterval,
                     isRetry: true,
+                    functionRouteRetryAttempt: functionRouteRetryAttempt,
                     idempotencyKey: idempotencyKey,
                     onRequestBodySent: onRequestBodySent
                 )
@@ -936,6 +1099,33 @@ final class MerianNetworkClient {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
             MerianLog.network.debug("Edge function failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
 
+            let platformFunctionRouteUnavailable = Self.isPlatformFunctionRouteUnavailable(
+                evidence: EdgeFunctionRouteResponseEvidence(response: httpResponse),
+                responseData: data
+            )
+            if platformFunctionRouteUnavailable {
+                if functionRouteRetryAttempt < Self.functionRouteRetryDelays.count {
+                    let delay = Self.functionRouteRetryDelays[functionRouteRetryAttempt]
+                    let delaySeconds = delay / 1_000_000_000
+                    MerianLog.network.debug(
+                        "Supabase route metadata unavailable for \(url.lastPathComponent, privacy: .public) — retrying in \(delaySeconds, privacy: .public)s (attempt \(functionRouteRetryAttempt + 1, privacy: .public)/\(Self.functionRouteRetryDelays.count, privacy: .public))."
+                    )
+                    try await Task.sleep(nanoseconds: delay)
+                    return try await performAuthenticatedRequest(
+                        url: url,
+                        method: method,
+                        body: body,
+                        timeoutInterval: timeoutInterval,
+                        isRetry: isRetry,
+                        functionRouteRetryAttempt: functionRouteRetryAttempt + 1,
+                        idempotencyKey: idempotencyKey,
+                        onRequestBodySent: onRequestBodySent
+                    )
+                }
+
+                throw MerianError.edgeFunctionUnavailable
+            }
+
             if httpResponse.statusCode == 401 && !isRetry {
                 if Self.isMissingAuthSessionError(responseData: data, fallbackMessage: errString) {
                     if await SupabaseManager.shared.refreshActiveSessionForRetry() {
@@ -945,6 +1135,7 @@ final class MerianNetworkClient {
                             body: body,
                             timeoutInterval: timeoutInterval,
                             isRetry: true,
+                            functionRouteRetryAttempt: functionRouteRetryAttempt,
                             idempotencyKey: idempotencyKey,
                             onRequestBodySent: onRequestBodySent
                         )
@@ -958,13 +1149,14 @@ final class MerianNetworkClient {
                     ) {
                         MerianLog.network.debug("Missing anonymous auth session detected — regenerating ghost session.")
                         if await SupabaseManager.shared.resetGhostSessionForRetry() {
-                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            try await Task.sleep(nanoseconds: 1_500_000_000)
                             return try await performAuthenticatedRequest(
                                 url: url,
                                 method: method,
                                 body: body,
                                 timeoutInterval: timeoutInterval,
                                 isRetry: true,
+                                functionRouteRetryAttempt: functionRouteRetryAttempt,
                                 idempotencyKey: idempotencyKey,
                                 onRequestBodySent: onRequestBodySent
                             )
@@ -990,7 +1182,7 @@ final class MerianNetworkClient {
                     await SupabaseManager.shared.transitionToGhostSession()
 
                     // Allow ~1.5s for the API gateway to recognize the new token signature.
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    try await Task.sleep(nanoseconds: 1_500_000_000)
 
                     return try await performAuthenticatedRequest(
                         url: url,
@@ -998,6 +1190,7 @@ final class MerianNetworkClient {
                         body: body,
                         timeoutInterval: timeoutInterval,
                         isRetry: true,
+                        functionRouteRetryAttempt: functionRouteRetryAttempt,
                         idempotencyKey: idempotencyKey,
                         onRequestBodySent: onRequestBodySent
                     )
@@ -1006,18 +1199,24 @@ final class MerianNetworkClient {
                 }
             }
 
-            // 5xx — transient server/Edge Function error. Retry once after a brief pause
-            // so a cold-start or momentary Deno isolate failure doesn't surface as a permanent
-            // user-facing "Network timeout". Only safe on idempotent callers (inference, reads).
-            if httpResponse.statusCode >= 500 && !isRetry {
+            // A transport failure or 5xx can occur after a mutation committed.
+            // Replay only reads and calls carrying a server-supported idempotency key.
+            if httpResponse.statusCode >= 500,
+               !isRetry,
+               Self.canReplayAfterAmbiguousFailure(
+                   url: url,
+                   method: method,
+                   idempotencyKey: idempotencyKey
+               ) {
                 MerianLog.network.debug("Server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try await Task.sleep(nanoseconds: 2_000_000_000)
                 return try await performAuthenticatedRequest(
                     url: url,
                     method: method,
                     body: body,
                     timeoutInterval: timeoutInterval,
                     isRetry: true,
+                    functionRouteRetryAttempt: functionRouteRetryAttempt,
                     idempotencyKey: idempotencyKey,
                     onRequestBodySent: onRequestBodySent
                 )
@@ -1056,7 +1255,7 @@ final class MerianNetworkClient {
             ]
             if transientCodes.contains(urlError.code) && !isRetry {
                 MerianLog.network.debug("Transient public network error \(urlError.code.rawValue, privacy: .public) — retrying in 2s.")
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try await Task.sleep(nanoseconds: 2_000_000_000)
                 return try await performPublicGETRequest(url: url, timeoutInterval: timeoutInterval, isRetry: true)
             }
             throw urlError
@@ -1072,7 +1271,7 @@ final class MerianNetworkClient {
 
             if httpResponse.statusCode >= 500 && !isRetry {
                 MerianLog.network.debug("Public server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try await Task.sleep(nanoseconds: 2_000_000_000)
                 return try await performPublicGETRequest(url: url, timeoutInterval: timeoutInterval, isRetry: true)
             }
 
@@ -3131,6 +3330,8 @@ final class MerianNetworkClient {
                     )
                 case .deferRecovery:
                     throw error
+                case .serviceUnavailable:
+                    throw MerianError.edgeFunctionUnavailable
                 case .recoverableMissing:
                     break
                 }
@@ -3257,6 +3458,8 @@ final class MerianNetworkClient {
                     )
                 case .deferRecovery:
                     throw error
+                case .serviceUnavailable:
+                    throw MerianError.edgeFunctionUnavailable
                 case .recoverableMissing:
                     break
                 }
@@ -3813,6 +4016,8 @@ final class MerianNetworkClient {
             return true
         case .deferRecovery:
             return false
+        case .serviceUnavailable:
+            throw MerianError.edgeFunctionUnavailable
         case .recoverableMissing:
             return try await recoverMissingOwnedCloudScan(
                 for: snapshot,
@@ -3839,7 +4044,12 @@ final class MerianNetworkClient {
                 }
             }
 
-            guard let status = try? await checkScanStatusDetails(scanId: scanId) else {
+            let status: ScanStatusResponse
+            do {
+                status = try await checkScanStatusDetails(scanId: scanId)
+            } catch MerianError.edgeFunctionUnavailable {
+                return .serviceUnavailable
+            } catch {
                 return .deferRecovery
             }
             if status.isFound {

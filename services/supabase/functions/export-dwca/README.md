@@ -48,21 +48,25 @@ fields are persisted only for a personal job that explicitly requested them and
 whose snapshot taxonomy did not require protected-species redaction.
 
 All creation-time members have their scope-aware eligibility hash revalidated
-before assembly, staging, email, and completion. Durable scan/taxonomy triggers
-also invalidate affected nonterminal jobs. Ordinary edits after queueing do not
-change immutable DTO content. Deletion, tombstoning, owner/live/ecology changes,
-global geoprivacy changes, taxonomy identity changes, or a privacy/protection
-boundary change produces terminal `source_snapshot_changed`; uploaded or staged
-objects are deleted. Personal snapshots deliberately ignore geoprivacy because
-they export only the requesting owner's captures, but both scopes revalidate
+before assembly, staging, email, completion, and every download click. Durable
+scan/taxonomy triggers invalidate every affected unpurged snapshot without
+depending on a concurrently changing job status. They revoke any present grant
+and enqueue its current archive. Ordinary edits after queueing do not change
+immutable DTO content. Deletion, tombstoning, owner/live/ecology changes, global
+geoprivacy changes, taxonomy identity changes, or a privacy/protection boundary
+change produces terminal `source_snapshot_changed`; uploaded or staged objects
+are deleted. Personal snapshots deliberately ignore geoprivacy because they
+export only the requesting owner's captures, but both scopes revalidate
 protected-species coordinate redaction.
 
-Processing jobs keep the staged signed URL only in private
-`internal.export_job_work`; the final full-fence transaction publishes the URL
-and completed state atomically. Exact-SHA release evidence remains tracked in
-the
+Processing jobs keep only the opaque application capability URL in private
+`internal.export_job_work`; the final full-fence transaction publishes that URL
+and completed state atomically. The emailed URL is authorized again on every
+click and is never a long-lived direct R2 signature. Exact-SHA release evidence
+remains tracked in the
 [release assurance record](../../../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
-Immutable DTO rows are purged when a job becomes terminal.
+Failed-job DTOs are purged immediately; completed DTOs remain only until their
+grant is revoked/expired and archive cleanup succeeds.
 
 ## Bounded archive pipeline
 
@@ -120,6 +124,17 @@ again while uploading the final archive. Exceeding it produces stable terminal
 `export_too_large`. Streaming bounds heap use; the small phased claims bound
 each Edge invocation's database, encoding, and provider work.
 
+Mixed export transitions share one lock hierarchy:
+
+1. canonical `public.export_jobs` row `FOR UPDATE`;
+2. transaction-scoped per-job advisory generation lock;
+3. source/grant/cleanup child rows.
+
+Privacy triggers process affected job UUIDs in order. Archive staging,
+completion, source invalidation, job deletion, and delayed cleanup all use this
+hierarchy, so a stale archive generation cannot cross into or deadlock a
+replacement grant.
+
 Migration `20260726235158_amortize_dwca_archive_crc.sql` adds the required
 `internal.export_job_chunks.crc32` invariant and retires the old advance-RPC
 signature. During rollout it fences and restarts only nonterminal jobs still in
@@ -164,11 +179,13 @@ tables.
 Every dispatcher call emits one structured `dwca_export_queue_health` event. The
 route warns at an oldest-due age of five minutes, 25 outstanding jobs, or any
 expired claim; it becomes critical at 15 minutes or 100 outstanding jobs. The
-independent **DwC-A Export Queue Health Monitor** workflow runs every five
-minutes with the same defaults, writes bounded JSON/Markdown summaries, and
-fails at warning by default. During an alert, inspect queue-health and
-claim-fenced step logs, repair R2/database/provider availability, and let
-durable retries resume. Do not clear private claims or edit work cursors.
+independent **DwC-A Export and Archive Health Monitor** workflow runs every five
+minutes with the same export defaults, also reads restricted archive-cleanup
+health, writes bounded JSON/Markdown summaries, and fails at warning by default.
+Its schedule does not depend on database cron or Vault, so it detects a cleanup
+worker that never starts. During an alert, inspect queue-health and claim-fenced
+step logs, repair R2/database/provider availability, and let durable retries
+resume. Do not clear private claims, cleanup leases, or work cursors.
 
 `backlog_count` includes every nonterminal job, including work in backoff or
 under a live lease. `due_count` and the oldest-due fields describe only work
@@ -194,33 +211,51 @@ exports/{user_id}/{job_id}/{claim_token}.zip
 
 A delayed assembly worker therefore cannot overwrite a newer attempt's final
 object, and claim-fenced work-chunk names provide the same property during CSV
-preparation. Once the winning assembly step stages its object key and signed URL
-transactionally, a later delivery step reuses them instead of regenerating the
-archive. The URL remains in API-inaccessible work state while processing.
-Delivery runs the full-member fence before recipient lookup and again before
-Resend's idempotent provider call. The final full-fence transaction publishes
-the URL and completed status together only after Resend accepts
-`Idempotency-Key: dwca-export/{job_id}`.
+preparation. Once the winning assembly step stages its object key, random
+application capability, and capability hash transactionally, a later delivery
+step reuses them instead of regenerating the archive. The URL remains in
+API-inaccessible work state while processing. Delivery runs the full-member
+fence before recipient lookup and again before Resend's idempotent provider
+call. The final full-fence transaction publishes the URL and completed status
+together only after Resend accepts `Idempotency-Key: dwca-export/{job_id}`.
 
 The provider call and database completion cannot share one transaction. If a
 privacy change commits while Resend is accepting the request, completion returns
-terminal `source_snapshot_changed`; the worker deletes the archive and does not
-publish the URL. An email may have been accepted, but its attempt-fenced object
-is revoked. Retrying the same provider call is unnecessary because its
-idempotency key is job-scoped.
+terminal `source_snapshot_changed`; the worker revokes the capability and
+durably enqueues the archive for deletion. An email may have been accepted, but
+its application URL can no longer authorize the attempt-fenced object. Retrying
+the same provider call is unnecessary because its idempotency key is job-scoped.
+
+The public `download-dwca` route indexes the random capability by hash,
+rate-limits attempts in PostgreSQL, and runs
+`internal.dwca_export_source_is_current(job_id)` over the complete membership on
+every click. An authorized click receives a no-store, read-only R2 redirect
+valid for at most 30 seconds. Revoked and expired grants enter
+`internal.export_archive_cleanup_jobs`; the independent
+`reconcile-dwca-archive-cleanup` worker deadline-drains that leased outbox every
+five minutes. Database completion compares the cleanup row's object key with the
+job's current attempt-scoped archive key. A delayed cleanup for an older
+generation can retire its own outbox row but cannot revoke a replacement grant
+or purge active source state. Successful cleanup of the exact current terminal
+archive purges retained immutable DTOs. Legacy completed jobs are scrubbed and
+queued for deletion by migration
+`20260728035237_harden_dwca_downloads_and_scan_finalization.sql`.
 
 Generation, storage, and permanent delivery failures become public-safe database
 failure codes and fixed messages when the worker still owns the fence, allowing
-an immediate new request. The database transition trigger also replaces raw
-failure text from a rollout-era worker before the owner-readable row is stored.
-A source revision mismatch is terminal because recreating the job is the only
-way to establish a new coherent source snapshot. A lost fence, transient Resend
-rejection, or completion write failure leaves the row processing so the
-lease/watchdog determines the outcome instead of falsely reporting completion.
-R2 lifecycle policy remains responsible for deleting temporary export objects,
-including an orphan from a worker that died before staging, and for aborting
-incomplete multipart sessions after seven days. The checked-in
-`docs/r2-lifecycle.json` contract includes both rules.
+an immediate new request. Deterministic Resend 4xx responses are terminal;
+timeouts, 408/409/425/429, 5xx responses, malformed success responses, and
+storage/database outages retain the durable claim for retry. The database
+transition trigger also replaces raw failure text from a rollout-era worker
+before the owner-readable row is stored. A source revision mismatch is terminal
+because recreating the job is the only way to establish a new coherent source
+snapshot. A lost fence, transient Resend rejection, or completion write failure
+leaves the row processing so the lease/watchdog determines the outcome instead
+of falsely reporting completion. The durable cleanup outbox owns staged/final
+archive deletion. R2 lifecycle policy remains a final safety net for temporary
+work objects, an orphan from a worker that died before staging, and incomplete
+multipart sessions after seven days. The checked-in `docs/r2-lifecycle.json`
+contract includes both rules.
 
 During the two-hour migration cohort, a previous bundle may already be in
 flight. It can finish an unclaimed cohort job, but once the new worker installs
@@ -261,13 +296,16 @@ incremental fixed-buffer CSV encoding, row/archive budgets, phased progress,
 claim-fenced work chunks, exact manifest/CRC reads, ZIP compatibility and
 length-mismatch rejection, bounded multipart upload/abort/provider responses,
 embedded HTTP-200 completion errors, pseudonym key failure/rotation, Resend
-idempotency, canonical claims, staged retry reuse, stale-worker fencing, fair
-multi-wave draining, soft-deadline exit, and failure suppression. Static
-contracts lock the migrations and production-source boundaries. Executable
-database tests prove source constraints, aggregate page byte limits,
-creation-time immutable DTOs, authoritative confirmed identity, durable
-full-member privacy revocation after early paging, bounded aggregate snapshot
-rejection, terminal DTO and private-URL purge, the finite rollout deadline,
+idempotency, permanent-versus-transient delivery classification, opaque
+capabilities, click-time full-source revalidation, 30-second read redirects,
+leased archive cleanup/health, canonical claims, staged retry reuse,
+stale-worker fencing, fair multi-wave draining, soft-deadline exit, and failure
+suppression. Static contracts lock the migrations and production-source
+boundaries. Executable database tests prove source constraints, aggregate page
+byte limits, creation-time immutable DTOs, authoritative confirmed identity,
+durable full-member privacy revocation after early paging, bounded aggregate
+snapshot rejection, terminal DTO and private-URL purge, capability rate
+limiting, atomic scan claim/recovery/finalization, the finite rollout deadline,
 post-deadline claim requirement, queue-health ACL/index behavior, live/expired
 claim accounting, and phased state contract in
 `services/supabase/tests/export_dwca_security.sql` and

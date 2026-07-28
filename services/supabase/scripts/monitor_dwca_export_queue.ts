@@ -1,6 +1,7 @@
 /**
- * Reads service-only DwC-A continuation backlog health and writes operator
- * summaries.
+ * Reads service-only DwC-A continuation and archive-deletion health and writes
+ * operator summaries. The independent schedule detects a missing database cron
+ * or Vault configuration because it does not depend on either worker running.
  *
  * Required env:
  *   SUPABASE_URL
@@ -21,6 +22,10 @@ import {
 
 const MONITOR_REQUEST_TIMEOUT_MS = 15_000;
 const MONITOR_MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
+const CLEANUP_WARNING_AGE_SECONDS = 15 * 60;
+const CLEANUP_CRITICAL_AGE_SECONDS = 60 * 60;
+const CLEANUP_WARNING_COUNT = 25;
+const CLEANUP_CRITICAL_COUNT = 100;
 
 export type DwcaMonitorFailurePolicy = "critical" | "warning" | "never";
 export type DwcaQueueStatus = "ok" | "warning" | "critical";
@@ -45,6 +50,15 @@ export interface DwcaExportQueueHealth {
   oldest_due_age_seconds: number | null;
 }
 
+export interface DwcaArchiveCleanupHealth {
+  generated_at: string;
+  pending_count: number;
+  processing_count: number;
+  expired_lease_count: number;
+  oldest_due_at: string | null;
+  oldest_due_age_seconds: number | null;
+}
+
 export interface DwcaMonitorSummary {
   generated_at: string;
   status: DwcaQueueStatus;
@@ -59,6 +73,7 @@ export interface DwcaMonitorSummary {
     should_fail: boolean;
   };
   health: DwcaExportQueueHealth;
+  archive_cleanup: DwcaArchiveCleanupHealth;
 }
 
 if (import.meta.main) {
@@ -75,8 +90,16 @@ export async function runDwcaExportQueueMonitor(
     maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
   });
 
-  const health = await fetchDwcaExportQueueHealth(supabase);
-  const summary = buildDwcaMonitorSummary(health, args, new Date());
+  const [health, archiveCleanup] = await Promise.all([
+    fetchDwcaExportQueueHealth(supabase),
+    fetchDwcaArchiveCleanupHealth(supabase),
+  ]);
+  const summary = buildDwcaMonitorSummary(
+    health,
+    archiveCleanup,
+    args,
+    new Date(),
+  );
   printSummary(summary);
   await writeSummaryFiles(summary, args);
 
@@ -101,6 +124,22 @@ async function fetchDwcaExportQueueHealth(
   }
 
   return assertDwcaExportQueueHealth(data);
+}
+
+async function fetchDwcaArchiveCleanupHealth(
+  supabase: SupabaseClient,
+): Promise<DwcaArchiveCleanupHealth> {
+  const { data, error } = await supabase.rpc(
+    "get_dwca_archive_cleanup_health",
+  );
+
+  if (error) {
+    throw new Error(
+      `DwC-A archive cleanup health returned an error: ${error.message} (Code: ${error.code})`,
+    );
+  }
+
+  return assertDwcaArchiveCleanupHealth(data);
 }
 
 export function assertDwcaExportQueueHealth(
@@ -155,6 +194,53 @@ export function assertDwcaExportQueueHealth(
   };
 }
 
+export function assertDwcaArchiveCleanupHealth(
+  value: unknown,
+): DwcaArchiveCleanupHealth {
+  if (!Array.isArray(value) || value.length !== 1) {
+    throw new Error("DwC-A archive cleanup health must contain one row.");
+  }
+  const row = value[0] as Record<string, unknown>;
+  const generatedAt = timestamp(row.generated_at, "generated_at");
+  const pendingCount = nonnegativeInteger(
+    row.pending_count,
+    "pending_count",
+  );
+  const processingCount = nonnegativeInteger(
+    row.processing_count,
+    "processing_count",
+  );
+  const expiredLeaseCount = nonnegativeInteger(
+    row.expired_lease_count,
+    "expired_lease_count",
+  );
+  const oldestDueAt = row.oldest_due_at === null
+    ? null
+    : timestamp(row.oldest_due_at, "oldest_due_at");
+  const oldestDueAgeSeconds = row.oldest_due_age_seconds === null
+    ? null
+    : nonnegativeInteger(
+      row.oldest_due_age_seconds,
+      "oldest_due_age_seconds",
+    );
+
+  if (
+    (oldestDueAt === null) !== (oldestDueAgeSeconds === null) ||
+    expiredLeaseCount > processingCount
+  ) {
+    throw new Error("DwC-A archive cleanup health is inconsistent.");
+  }
+
+  return {
+    generated_at: generatedAt,
+    pending_count: pendingCount,
+    processing_count: processingCount,
+    expired_lease_count: expiredLeaseCount,
+    oldest_due_at: oldestDueAt,
+    oldest_due_age_seconds: oldestDueAgeSeconds,
+  };
+}
+
 export function dwcaQueueStatus(
   health: DwcaExportQueueHealth,
   args: Pick<
@@ -182,12 +268,36 @@ export function dwcaQueueStatus(
   return "ok";
 }
 
+export function dwcaArchiveCleanupStatus(
+  health: DwcaArchiveCleanupHealth,
+): DwcaQueueStatus {
+  const oldestDueAgeSeconds = health.oldest_due_age_seconds ?? 0;
+  if (
+    health.expired_lease_count > 0 ||
+    oldestDueAgeSeconds >= CLEANUP_CRITICAL_AGE_SECONDS ||
+    health.pending_count >= CLEANUP_CRITICAL_COUNT
+  ) {
+    return "critical";
+  }
+  if (
+    oldestDueAgeSeconds >= CLEANUP_WARNING_AGE_SECONDS ||
+    health.pending_count >= CLEANUP_WARNING_COUNT
+  ) {
+    return "warning";
+  }
+  return "ok";
+}
+
 export function buildDwcaMonitorSummary(
   health: DwcaExportQueueHealth,
+  archiveCleanup: DwcaArchiveCleanupHealth,
   args: DwcaMonitorArgs,
   now: Date,
 ): DwcaMonitorSummary {
-  const status = dwcaQueueStatus(health, args);
+  const status = maximumStatus(
+    dwcaQueueStatus(health, args),
+    dwcaArchiveCleanupStatus(archiveCleanup),
+  );
   return {
     generated_at: now.toISOString(),
     status,
@@ -202,6 +312,7 @@ export function buildDwcaMonitorSummary(
       should_fail: shouldFailDwcaMonitor(status, args.failOn),
     },
     health,
+    archive_cleanup: archiveCleanup,
   };
 }
 
@@ -220,8 +331,12 @@ export function renderDwcaMonitorMarkdown(
   const oldestDueAge = summary.health.oldest_due_age_seconds === null
     ? "none"
     : `${summary.health.oldest_due_age_seconds}s`;
+  const oldestCleanupDueAge =
+    summary.archive_cleanup.oldest_due_age_seconds === null
+      ? "none"
+      : `${summary.archive_cleanup.oldest_due_age_seconds}s`;
   return [
-    "# DwC-A Export Queue Health",
+    "# DwC-A Export and Archive Health",
     "",
     `Generated: ${summary.generated_at}`,
     "",
@@ -240,6 +355,14 @@ export function renderDwcaMonitorMarkdown(
     `- Oldest due at: \`${summary.health.oldest_due_at ?? "none"}\``,
     `- Oldest due age: \`${oldestDueAge}\``,
     "",
+    "## Archive Cleanup",
+    "",
+    `- Pending deletes: \`${summary.archive_cleanup.pending_count}\``,
+    `- Processing deletes: \`${summary.archive_cleanup.processing_count}\``,
+    `- Expired leases: \`${summary.archive_cleanup.expired_lease_count}\``,
+    `- Oldest due at: \`${summary.archive_cleanup.oldest_due_at ?? "none"}\``,
+    `- Oldest due age: \`${oldestCleanupDueAge}\``,
+    "",
     "## Thresholds",
     "",
     `- Warning age: \`${summary.thresholds.warning_after_minutes}m\``,
@@ -251,9 +374,21 @@ export function renderDwcaMonitorMarkdown(
     "",
     summary.status === "ok"
       ? "No action required."
-      : "Inspect export-dwca queue-health and step logs, verify R2/database/provider health, and let claim-fenced retries resume. Do not edit private queue or claim rows directly.",
+      : "Inspect export and archive-cleanup health, verify cron/Vault/R2/database/provider configuration, and let claim-fenced retries resume. Do not edit private queue, outbox, or claim rows directly.",
     "",
   ].join("\n");
+}
+
+function maximumStatus(
+  lhs: DwcaQueueStatus,
+  rhs: DwcaQueueStatus,
+): DwcaQueueStatus {
+  const severity: Record<DwcaQueueStatus, number> = {
+    ok: 0,
+    warning: 1,
+    critical: 2,
+  };
+  return severity[lhs] >= severity[rhs] ? lhs : rhs;
 }
 
 export function parseDwcaMonitorArgs(rawArgs: string[]): DwcaMonitorArgs {
@@ -432,7 +567,7 @@ async function writeSummaryFiles(
 }
 
 function printSummary(summary: DwcaMonitorSummary): void {
-  console.log("DwC-A export queue health monitor complete");
+  console.log("DwC-A export and archive health monitor complete");
   console.log(`status: ${summary.status}`);
   console.log(`backlog_count: ${summary.health.backlog_count}`);
   console.log(`due_count: ${summary.health.due_count}`);
@@ -441,6 +576,20 @@ function printSummary(summary: DwcaMonitorSummary): void {
   console.log(
     `oldest_due_age_seconds: ${
       summary.health.oldest_due_age_seconds ?? "none"
+    }`,
+  );
+  console.log(
+    `archive_cleanup_pending_count: ${summary.archive_cleanup.pending_count}`,
+  );
+  console.log(
+    `archive_cleanup_processing_count: ${summary.archive_cleanup.processing_count}`,
+  );
+  console.log(
+    `archive_cleanup_expired_lease_count: ${summary.archive_cleanup.expired_lease_count}`,
+  );
+  console.log(
+    `archive_cleanup_oldest_due_age_seconds: ${
+      summary.archive_cleanup.oldest_due_age_seconds ?? "none"
     }`,
   );
   console.log(`should_fail: ${summary.failure_policy.should_fail}`);

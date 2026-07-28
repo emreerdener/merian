@@ -288,14 +288,23 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
 });
 
 Deno.test("documentation navigation and release notes expose the corrected contracts", async () => {
-  const [rootReadme, documentationReadme, changelog, offlinePipeline, testing] =
-    await Promise.all([
-      read("README.md"),
-      read("docs/README.md"),
-      read("CHANGELOG.md"),
-      read("docs/backend-and-data/01-offline-sync-pipeline.md"),
-      read("docs/development-guides/08-testing-strategy.md"),
-    ]);
+  const [
+    rootReadme,
+    documentationReadme,
+    changelog,
+    offlinePipeline,
+    testing,
+    releaseHold,
+  ] = await Promise.all([
+    read("README.md"),
+    read("docs/README.md"),
+    read("CHANGELOG.md"),
+    read("docs/backend-and-data/01-offline-sync-pipeline.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+    read(
+      "docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md",
+    ),
+  ]);
 
   for (const source of [rootReadme, documentationReadme]) {
     assertStringIncludes(
@@ -305,6 +314,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     assertStringIncludes(
       source,
       "14-dwca-and-public-web-release-hold-2026-07-27.md",
+    );
+    assertStringIncludes(
+      source,
+      "15-edge-function-fleet-review-2026-07-28.md",
     );
   }
   assertStringIncludes(
@@ -327,6 +340,38 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     compact(testing),
     "`scripts/documentation_contract_test.ts` locks the same header matrix",
   );
+  assertStringIncludes(
+    compact(releaseHold),
+    "the stable hosted `iOS Build and Test / Production readiness` result",
+  );
+});
+
+Deno.test("fleet review inventory exactly matches configured Edge Functions", async () => {
+  const [configSource, reviewSource] = await Promise.all([
+    read("services/supabase/config.toml"),
+    read(
+      "docs/backend-and-data/15-edge-function-fleet-review-2026-07-28.md",
+    ),
+  ]);
+  const configured = [...configSource.matchAll(/^\[functions\.([^\]]+)]$/gm)]
+    .map((match) => match[1])
+    .sort();
+  const inventoryBlock = reviewSource.match(
+    /## Reviewed Entrypoints\s+```text\s+([\s\S]*?)```/,
+  );
+  assert(inventoryBlock, "Fleet review entrypoint inventory is missing.");
+  const documented = inventoryBlock[1].trim().split(/\s+/).sort();
+
+  assertEquals(configured.length, 89);
+  assertEquals(documented, configured);
+  assertStringIncludes(
+    compact(reviewSource),
+    "Repository review complete. Exact-SHA application CI, production route, and authenticated customer smoke evidence remain release-blocking.",
+  );
+  assertStringIncludes(
+    compact(reviewSource),
+    "Preflight uses a validated legacy anon JWT only to cross the two intentional gateway `verify_jwt = true` boundaries",
+  );
 });
 
 Deno.test("scan owner-row documentation preserves durable success and guarded recovery", async () => {
@@ -343,6 +388,7 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     identifyReadmeSource,
     statusReadmeSource,
     shareReadmeSource,
+    purgeReadmeSource,
   ] = await Promise.all([
     read("README.md"),
     read("docs/README.md"),
@@ -356,6 +402,7 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     read("services/supabase/functions/identify-multimodal/README.md"),
     read("services/supabase/functions/check-scan-status/README.md"),
     read("services/supabase/functions/share-scan-to-explore/README.md"),
+    read("services/supabase/functions/auto-purge-nonbio/README.md"),
   ]);
   const root = compact(rootSource);
   const documentation = compact(documentationSource);
@@ -369,6 +416,7 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   const identifyReadme = compact(identifyReadmeSource);
   const statusReadme = compact(statusReadmeSource);
   const shareReadme = compact(shareReadmeSource);
+  const purgeReadme = compact(purgeReadmeSource);
 
   for (const source of [root, documentation]) {
     assertStringIncludes(
@@ -435,6 +483,24 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     architectureRules,
     "A background promise remains bounded by the worker lifetime and is never a durability mechanism.",
   );
+  assertStringIncludes(api, "request_scan_deletion");
+  assertStringIncludes(api, "complete_scan_deletion");
+  assertStringIncludes(api, "/reconcile-scan-deletions");
+  assertStringIncludes(api, "compare-before-released");
+  assertStringIncludes(runbook, "internal.scan_deletion_tombstones");
+  assertStringIncludes(runbook, "get_scan_deletion_health()");
+  assertStringIncludes(incident, "scan deletion tombstone");
+  assertStringIncludes(incident, "independently leases oldest-due");
+  assertStringIncludes(
+    incident,
+    "Scheduled retention cannot bypass that generation fence.",
+  );
+  assertStringIncludes(
+    purgeReadme,
+    "It does not delete R2 objects or scan rows in its HTTP invocation.",
+  );
+  assertStringIncludes(purgeReadme, "`is_tombstoned = false`");
+  assertStringIncludes(purgeReadme, "`reconcile-scan-deletions`");
 
   const expectedCustomerMessages = [
     "Explore is temporarily unavailable. Please try again in a few minutes.",
@@ -463,6 +529,88 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   }
 });
 
+Deno.test("Edge route availability docs preserve the gateway-handler boundary", async () => {
+  const [
+    networkSource,
+    errorSource,
+    runbookSource,
+    backendSource,
+    documentationIndexSource,
+    incidentSource,
+  ] = await Promise
+    .all([
+      read("apps/ios/Merian/Core/Network/README.md"),
+      read("docs/development-guides/06-error-handling.md"),
+      read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+      read("services/supabase/README.md"),
+      read("docs/README.md"),
+      read("docs/incidents/2026-07-supabase-edge-route-not-found.md"),
+    ]);
+  const network = compact(networkSource);
+  const errors = compact(errorSource);
+  const runbook = compact(runbookSource);
+  const backend = compact(backendSource);
+  const documentationIndex = compact(documentationIndexSource);
+  const incident = compact(incidentSource);
+
+  assertStringIncludes(
+    network,
+    "A Supabase platform `404 NOT_FOUND` is not an application-level missing record.",
+  );
+  assertStringIncludes(
+    network,
+    "A marked handler-owned `404`, including `Scan not found`, is never route-retried",
+  );
+  assertStringIncludes(
+    network,
+    "A platform route `404` preserves the queued scan and schedules its normal durable retry",
+  );
+  assertStringIncludes(
+    network,
+    "A queued handler `401`, `408`, `409`, `425`, or `429` is also retryable",
+  );
+  assertStringIncludes(
+    network,
+    "Other handler-owned `4xx` responses preserve the local media as `queueNeedsAttention`",
+  );
+  assertStringIncludes(
+    errors,
+    "The response must omit `X-Merian-Handler: 1` and match Supabase's stable `SB-Error-Code: NOT_FOUND` header",
+  );
+  for (
+    const functionName of [
+      "`identify-multimodal`",
+      "`check-scan-status`",
+      "`share-scan-to-explore`",
+      "`get-explore-composer-media`",
+      "`insight-chat`",
+    ]
+  ) {
+    assertStringIncludes(runbook, functionName);
+    assertStringIncludes(backend, functionName);
+  }
+  assertStringIncludes(
+    runbook,
+    "Each critical route must return `401` with the marker",
+  );
+  assertStringIncludes(
+    backend,
+    "A platform `404` therefore cannot be mistaken for an application-level missing scan",
+  );
+  assertStringIncludes(
+    documentationIndex,
+    "2026-07-supabase-edge-route-not-found.md",
+  );
+  assertStringIncludes(
+    incident,
+    "Rescanning cannot repair a platform route that did not reach the function.",
+  );
+  assertStringIncludes(
+    incident,
+    "Field Chat does not cache the scan as deterministically unavailable.",
+  );
+});
+
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {
   const maintainedFiles = [
     "README.md",
@@ -480,6 +628,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/12-explore-media-health-and-quarantine.md",
     "docs/backend-and-data/13-server-credentials-and-database-release-safety.md",
     "docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md",
+    "docs/backend-and-data/15-edge-function-fleet-review-2026-07-28.md",
     "docs/codebase-map.md",
     "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
@@ -495,6 +644,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
     "docs/incidents/2026-07-scan-owner-row-durability-gap.md",
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
+    "docs/incidents/2026-07-supabase-edge-route-not-found.md",
     "docs/product/01-master-product-document.md",
     "docs/system-architecture/01-system-architecture.md",
     "docs/system-architecture/02-zero-oom-and-concurrency.md",
@@ -511,6 +661,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/request-community-identification/README.md",
     "services/supabase/functions/request-export-dwca/README.md",
     "services/supabase/functions/share-scan-to-explore/README.md",
+    "services/supabase/functions/species-dictionary/README.md",
   ];
   const failures: string[] = [];
 

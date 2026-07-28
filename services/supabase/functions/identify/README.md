@@ -16,9 +16,11 @@ to modify the pipeline, modify the exact module below rather than cluttering
 `index.ts`:
 
 - **`index.ts`** The main orchestrator. It handles the critical path: routing
-  payloads, calling the Vision Model, checking the cache, returning the payload,
-  claiming the compatibility ingestion ledger, and spinning up the heavy
-  Database Background Task.
+  payloads, atomically establishing the compatibility ingestion ledger, calling
+  the Vision Model, checking the cache, returning the payload, and spinning up
+  the heavy Database Background Task. Ledger setup occurs before provider
+  dispatch; failure is retryable, fails closed, and refunds unused provider
+  quota.
 - **`../_shared/identify/contract.ts`** The executable structural contract. It
   owns provider and final response fields, requiredness, nullability, strings,
   arrays, enums, numeric bounds, inferred TypeScript types, and Swift generation
@@ -91,9 +93,9 @@ Review the generated Swift DTO diff; do not hand-edit its marked block.
 
 ## Ingestion Durability
 
-Before returning success, this compatibility endpoint records a
-`scan_ingestion_jobs` row plus a sanitized `scan_ingestion_intents` row through
-`_shared/scanIngestionCompatibility.ts`.
+Before provider dispatch, this compatibility endpoint records a
+`scan_ingestion_jobs` row plus a sanitized `scan_ingestion_intents` row in one
+transaction through `_shared/scanIngestionCompatibility.ts`.
 
 - Staged image keys and optional description text are shaped as
   `identify-multimodal` replay payloads so `replay-scan-ingestion` can recover
@@ -102,9 +104,10 @@ Before returning success, this compatibility endpoint records a
 - Inline image bytes are never stored in the intent. They are counted in
   `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
-- Successful background insert marks the ingestion job `complete`; insert
-  failures mark it `failed_retryable`; moderation rejection marks it
-  `failed_terminal`.
+- Successful background insert delegates to the shared completion-last
+  finalization RPC; insert/finalization failures retain retryable state, while
+  moderation rejection marks the job `failed_terminal`. Staged-image promotion
+  supplies the exact storage-key-to-public-URL disposition to finalization.
 - `failed_scan_ingestions` is still written as legacy ops history, but
   `scan_ingestion_jobs` / `scan_ingestion_intents` are the primary recovery
   surface for current rows.

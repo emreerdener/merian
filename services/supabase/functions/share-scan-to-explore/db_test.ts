@@ -387,22 +387,13 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
     { data: null, error: null },
     { data: recoveredRow, error: null },
   ];
-  const upserts: unknown[] = [];
+  const rpcCalls: Array<{ name: string; arguments_: unknown }> = [];
   const supabase = {
+    rpc(name: string, arguments_: unknown) {
+      rpcCalls.push({ name, arguments_ });
+      return Promise.resolve({ data: "recovered", error: null });
+    },
     from(table: string) {
-      if (table === "scan_ingestion_jobs") {
-        return {
-          select() {
-            return this;
-          },
-          eq() {
-            return this;
-          },
-          maybeSingle() {
-            return Promise.resolve({ data: null, error: null });
-          },
-        };
-      }
       assertEquals(table, "scans");
       return {
         select() {
@@ -414,10 +405,6 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
               return Promise.resolve(reads.shift());
             },
           };
-        },
-        upsert(value: unknown) {
-          upserts.push(value);
-          return Promise.resolve({ error: null });
         },
       };
     },
@@ -438,5 +425,12 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
   );
 
   assertEquals(result, recoveredRow);
-  assertEquals(upserts, [recoveryScan]);
+  assertEquals(rpcCalls, [{
+    name: "recover_missing_owned_scan",
+    arguments_: {
+      p_scan_id: scanId,
+      p_user_id: userId,
+      p_recovery_scan: recoveryScan,
+    },
+  }]);
 });

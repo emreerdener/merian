@@ -143,6 +143,128 @@ struct OfflineQueueManagerTests {
         )
     }
 
+    @Test func backgroundInferencePlatformRoute404RemainsRetryable() throws {
+        let url = try #require(
+            URL(string: "https://example.supabase.co/functions/v1/identify-multimodal")
+        )
+        let officialPayload = Data(
+            #"{"code":"NOT_FOUND","message":"Requested function was not found"}"#.utf8
+        )
+        let platformResponse = try #require(
+            HTTPURLResponse(
+                url: url,
+                statusCode: 404,
+                httpVersion: nil,
+                headerFields: ["SB-Error-Code": "NOT_FOUND"]
+            )
+        )
+        let handlerResponse = try #require(
+            HTTPURLResponse(
+                url: url,
+                statusCode: 404,
+                httpVersion: nil,
+                headerFields: [
+                    "X-Merian-Handler": "1",
+                    "SB-Error-Code": "NOT_FOUND"
+                ]
+            )
+        )
+
+        #expect(OfflineQueueManager.shouldRetryBackgroundInferenceRouteFailure(
+            statusCode: 404,
+            functionRouteEvidence: EdgeFunctionRouteResponseEvidence(
+                response: platformResponse
+            ),
+            responseData: officialPayload
+        ))
+        #expect(!OfflineQueueManager.shouldRetryBackgroundInferenceRouteFailure(
+            statusCode: 404,
+            functionRouteEvidence: EdgeFunctionRouteResponseEvidence(
+                response: handlerResponse
+            ),
+            responseData: officialPayload
+        ))
+        #expect(!OfflineQueueManager.shouldRetryBackgroundInferenceRouteFailure(
+            statusCode: 503,
+            functionRouteEvidence: EdgeFunctionRouteResponseEvidence(
+                response: platformResponse
+            ),
+            responseData: officialPayload
+        ))
+    }
+
+    @Test func backgroundInferencePreservesRecoverableHTTPFailures() throws {
+        let url = try #require(
+            URL(string: "https://example.supabase.co/functions/v1/identify-multimodal")
+        )
+
+        func evidence(
+            statusCode: Int,
+            headers: [String: String] = ["X-Merian-Handler": "1"]
+        ) throws -> EdgeFunctionRouteResponseEvidence {
+            let response = try #require(
+                HTTPURLResponse(
+                    url: url,
+                    statusCode: statusCode,
+                    httpVersion: nil,
+                    headerFields: headers
+                )
+            )
+            return EdgeFunctionRouteResponseEvidence(response: response)
+        }
+
+        for statusCode in [401, 408, 409, 425, 429, 503] {
+            #expect(
+                OfflineQueueManager.backgroundInferenceResponseDisposition(
+                    statusCode: statusCode,
+                    functionRouteEvidence: try evidence(statusCode: statusCode),
+                    responseData: Data()
+                ) == .retry
+            )
+        }
+
+        let rateLimitEvidence = try evidence(
+            statusCode: 429,
+            headers: [
+                "X-Merian-Handler": "1",
+                "Retry-After": "3600"
+            ]
+        )
+        #expect(rateLimitEvidence.retryAfterSeconds == 3600)
+
+        let rejectedPayload = Data(
+            #"{"code":"observation_rejected","error":"Unable to process."}"#.utf8
+        )
+        #expect(
+            OfflineQueueManager.backgroundInferenceResponseDisposition(
+                statusCode: 400,
+                functionRouteEvidence: try evidence(statusCode: 400),
+                responseData: rejectedPayload
+            ) == .terminal
+        )
+        #expect(
+            OfflineQueueManager.backgroundInferenceResponseDisposition(
+                statusCode: 400,
+                functionRouteEvidence: try evidence(statusCode: 400),
+                responseData: Data(#"{"code":"bad_request"}"#.utf8)
+            ) == .needsAttention
+        )
+        #expect(
+            OfflineQueueManager.backgroundInferenceResponseDisposition(
+                statusCode: 404,
+                functionRouteEvidence: try evidence(statusCode: 404),
+                responseData: Data(#"{"code":"not_found"}"#.utf8)
+            ) == .needsAttention
+        )
+        #expect(
+            OfflineQueueManager.backgroundInferenceResponseDisposition(
+                statusCode: 200,
+                functionRouteEvidence: try evidence(statusCode: 200),
+                responseData: Data()
+            ) == .success
+        )
+    }
+
     @Test func galleryQueueReplayOmitsBookkeepingTimestampWhenPhotoHasNoEmbeddedDate() throws {
         let context = try createIsolatedContext()
         defer { OfflineQueueManager.shared.modelContext = nil }

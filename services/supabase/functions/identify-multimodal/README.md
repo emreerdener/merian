@@ -145,9 +145,16 @@ The endpoint writes two server-side records before AI inference:
 `begin_scan_ingestion` performs upload-session lookup, job claim, intent upsert,
 server-side checksum canonicalization, and the `ai_inference_started` transition
 in one service-role-only database round trip. Checksums are calculated only
-after resolved upload-session ids have been merged into the stored payload. The
-handler retains the former helper sequence only as a rolling-deployment fallback
-when the migration is not yet visible.
+after resolved upload-session ids have been merged into the stored payload. It
+takes the same transaction-scoped per-scan advisory lock as owner-row recovery,
+so recovery-first writes a completed recovery ledger and claim-first makes
+recovery defer before any provider call. There is no independent-write rollout
+fallback; a missing routine fails closed and refunds unused provider quota. The
+three compatibility routes use this same atomic setup before provider dispatch;
+they do not use independent job/intent writes. The legacy
+`claim_scan_ingestion_job` routine remains only as a rolling-deployment
+compatibility boundary. It takes the same lock and preserves a completed
+recovery generation.
 
 Replay intents deliberately do not store raw base64 media bytes or local device
 paths. If a request used inline foreground media, the intent is marked
@@ -156,10 +163,20 @@ the recovery source for that request. Staged-media requests are resumable
 because the payload contains only server-owned object keys and metadata.
 
 Compatibility scan-producing endpoints (`identify`, `identify-describe`, and
-`audio-spec`) write the same job/intent ledger before returning success. Their
-sanitized intents target this endpoint for replay and preserve the legacy route
-name as `compatibilityEndpoint`; inline base64 media remains redacted and
-non-resumable.
+`audio-spec`) atomically establish the same job/intent ledger before any
+provider call. Setup failure returns a stable retryable error and refunds the
+unused quota reservation. Their sanitized intents target this endpoint for
+replay and preserve the legacy route name as `compatibilityEndpoint`; inline
+base64 media remains redacted and non-resumable. They also finish only through
+`complete_scan_ingestion_finalization`; no compatibility helper can write
+`status = complete` directly. A finalization failure is durably marked retryable
+and propagated to the background task.
+
+Required promotion and deletion are completion prerequisites, not best-effort
+cleanup. Staging images and inference-only audio companions must receive an R2
+2xx or idempotent 404 deletion result before their disposition is submitted to
+the finalization transaction. Any other provider response leaves the ingestion
+ledger noncomplete for durable replay or reconciliation.
 
 ## Latency And Authentication Boundary
 
@@ -193,6 +210,16 @@ media-policy rejection returns generic customer-facing code
 `observation_rejected` with HTTP 400, while operational failures in moderation,
 promotion, species resolution, or scan insertion return retryable
 `scan_persistence_failed` with HTTP 503.
+
+`complete_scan_ingestion_finalization` is the only current path that can move a
+nonterminal multimodal ledger to `complete`. Under the same per-scan lock it
+checks every claimed staging key against its capture asset, permits deletion
+only for audio companions, rebuilds canonical image/video/audio rows, verifies
+that promoted URLs are represented by ready canonical rows, and writes
+`media_finalization_complete` last. Server replay and media reconciliation call
+this routine rather than updating the ledger directly. Terminal outcomes carry
+stable `terminal_reason_code` values; compatibility recovery is allowlisted only
+for `replay_exhausted` and fails closed on legacy or unknown reasons.
 
 Successful responses add diagnostic headers without changing the JSON body:
 

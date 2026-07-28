@@ -1,10 +1,6 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { UUID_RE } from "./explore.ts";
 import { publicHttpError } from "./http.ts";
-import {
-  fetchScanIngestionJob,
-  type ScanIngestionJobRow,
-} from "./scanIngestionJobs.ts";
 
 export interface OwnedScanRecoveryRow {
   id: string;
@@ -287,55 +283,35 @@ export function normalizeOwnedScanRecovery(
 }
 
 /**
- * Recreates only a missing owner row. A raced insert or an id collision remains
- * untouched and must be resolved by reloading with both id and owner filters.
- * Recovery also defers to richer active/retryable ingestion and never bypasses
- * a terminal moderation rejection.
+ * Delegates recovery to one service-only transaction. The RPC shares a
+ * per-scan advisory lock with ingestion claim creation, evaluates structured
+ * terminal state, inserts the owner row, and writes its complete recovery
+ * ledger before releasing the lock.
  */
 export async function recoverMissingOwnedScan(
   recoveryScan: OwnedScanRecoveryRow,
   supabaseAdmin: SupabaseClient,
 ): Promise<boolean> {
-  const ingestionJob = await fetchScanIngestionJob(
-    recoveryScan.id,
-    recoveryScan.user_id,
-    supabaseAdmin,
+  const { data, error } = await supabaseAdmin.rpc(
+    "recover_missing_owned_scan",
+    {
+      p_scan_id: recoveryScan.id,
+      p_user_id: recoveryScan.user_id,
+      p_recovery_scan: recoveryScan,
+    },
   );
-  if (!scanIngestionJobAllowsRecovery(ingestionJob)) {
-    return false;
-  }
-
-  const { error } = await supabaseAdmin
-    .from("scans")
-    .upsert(recoveryScan, {
-      onConflict: "id",
-      ignoreDuplicates: true,
-    });
 
   if (error) {
-    throw new Error(`Failed to recover missing scan: ${error.message}`);
+    throw new Error(`recoverMissingOwnedScan: ${error.message}`);
   }
-
-  return true;
-}
-
-export function scanIngestionJobAllowsRecovery(
-  job: ScanIngestionJobRow | null | undefined,
-): boolean {
-  if (!job) return true;
-  const normalizedStage = job.stage.trim().toLowerCase();
-  const normalizedError = job.last_error?.trim().toLowerCase() ?? "";
-  const isModerationRejection = normalizedStage === "moderation_rejected" &&
-    (
-      normalizedError === "multimodal media rejected by moderation." ||
-      normalizedError === "media rejected by moderation."
-    );
-  const isProviderPolicyRejection =
-    normalizedStage === "ai_inference_non_stop_finish" &&
-    (
-      normalizedError === "ai finish reason: safety" ||
-      normalizedError === "ai finish reason: prohibited_content"
-    );
-  if (isModerationRejection || isProviderPolicyRejection) return false;
-  return job.status === "complete" || job.status === "failed_terminal";
+  if (
+    data !== "recovered" &&
+    data !== "already_present" &&
+    data !== "deferred" &&
+    data !== "id_collision" &&
+    data !== "deleted"
+  ) {
+    throw new Error("recoverMissingOwnedScan: invalid database response");
+  }
+  return data === "recovered" || data === "already_present";
 }

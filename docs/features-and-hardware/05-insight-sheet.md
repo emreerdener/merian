@@ -316,19 +316,24 @@ The media step then remains endpoint-specific. Direct Explore sharing combines
 `/share-scan-to-explore`. Ask the Community repairs the row through
 `/check-scan-status`, uploads saved local image paths or the active live image
 buffer to staging, and retries `/request-community-identification` with
-`restored_object_keys`. Field Chat uses status recovery without publishing
-media before it presents `/insight-chat`. No path directly upserts
-`public.scans` from iOS, and a transient still-syncing result stays retryable
-instead of permanently marking Field Chat unavailable. The Ask affordance is
-gated on actual user image media, not a padded display count, so image-less
-historical/text scans cannot enter a request that the server cannot publish.
+`restored_object_keys`. Field Chat uses status recovery without publishing media
+before it presents `/insight-chat`. No path directly upserts `public.scans` from
+iOS, and a transient still-syncing result stays retryable instead of permanently
+marking Field Chat unavailable. The Ask affordance is gated on actual user image
+media, not a padded display count, so image-less historical/text scans cannot
+enter a request that the server cannot publish.
 
 Customer feedback stays at the feature boundary. Explore translates a missing
-row to `This observation is still syncing. Please wait a moment and try sharing
-again.` and an internal service-key failure to `Explore is temporarily
-unavailable. Please try again in a few minutes.` Field Chat uses `This
-observation is still syncing. Please try Field chat again in a moment.` Raw
-database authorization text is never customer-facing.
+row to
+`This observation is still syncing. Please wait a moment and try sharing
+again.`
+and an internal service-key failure to
+`Explore is temporarily
+unavailable. Please try again in a few minutes.` Field
+Chat uses
+`This
+observation is still syncing. Please try Field chat again in a moment.`
+Raw database authorization text is never customer-facing.
 
 The request sheet title is `Ask the community` in sentence case. The shared
 `CommunityIdentificationRequestSheet` is used for both new requests and existing
@@ -1071,9 +1076,11 @@ which:
    local flag bit so old scans cannot carry stale review state forward.
 2. Persists `LocalScanRecord.userIdentificationOverride` via
    `BackgroundDatabaseActor.updateScanWithOverride`.
-3. Syncs to `public.scans.user_identification_override` via a direct PostgREST
-   PATCH (`InferenceEngine.syncIdentificationReviewToCloud`), guarded by
-   `.eq("user_id", userId)`.
+3. Calls the authenticated `update_owned_scan_identification_review(...)` RPC
+   (`InferenceEngine.syncIdentificationReviewToCloud`). The database derives
+   ownership from `auth.uid()`, validates the complete typed review state, and
+   updates override/confirmation/species/state atomically without exposing
+   general scan-table mutation.
 4. Fires `fetchAndPatchOverrideData(scientificName:scanId:modelContext:)` —
    queries `species_dictionary` for a cache hit and patches `speciesData` fields
    (common name, taxonomy, Wikipedia, etc.). On cache miss, calls

@@ -7,6 +7,7 @@ import {
   type ReadyAudioAssetHealthRow,
   type ReadyVideoAssetHealthRow,
   type ReconciliationRunHealthRow,
+  type ScanDeletionHealthRow,
   type ScanIngestionHealthRow,
   type ScanIngestionIntentHealthRow,
   type ScanMediaAssetHealthRow,
@@ -32,6 +33,7 @@ export async function fetchScanMediaHealth(
     exploreVideoMedia,
     exploreAudioMedia,
     reconciliationRuns,
+    scanDeletionHealth,
   ] = await Promise.all([
     fetchIngestionJobs(request.limit, supabaseAdmin),
     fetchStaleCaptureUploadAssets(
@@ -44,6 +46,7 @@ export async function fetchScanMediaHealth(
     fetchExploreVideoMedia(request.limit, supabaseAdmin),
     fetchExploreAudioMedia(request.limit, supabaseAdmin),
     fetchLatestReconciliationRuns(request.limit, supabaseAdmin),
+    fetchScanDeletionHealth(supabaseAdmin),
   ]);
 
   const readyVideoAssets = await fetchReadyVideoAssets(
@@ -72,7 +75,70 @@ export async function fetchScanMediaHealth(
     readyAudioAssets,
     exploreAudioMedia,
     reconciliationRuns,
+    scanDeletionHealth,
   });
+}
+
+async function fetchScanDeletionHealth(
+  supabaseAdmin: SupabaseClient,
+): Promise<ScanDeletionHealthRow> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_scan_deletion_health",
+  );
+  if (error || !Array.isArray(data) || data.length !== 1) {
+    throw new Error("fetchScanDeletionHealth: unavailable");
+  }
+  const row = data[0] as Record<string, unknown>;
+  const generatedAt = healthTimestamp(row.generated_at, "generated_at");
+  const pendingCount = healthCount(row.pending_count, "pending_count");
+  const processingCount = healthCount(
+    row.processing_count,
+    "processing_count",
+  );
+  const expiredLeaseCount = healthCount(
+    row.expired_lease_count,
+    "expired_lease_count",
+  );
+  const oldestPendingAt = row.oldest_pending_at === null
+    ? null
+    : healthTimestamp(row.oldest_pending_at, "oldest_pending_at");
+  const oldestPendingAgeSeconds = row.oldest_pending_age_seconds === null
+    ? null
+    : healthCount(
+      row.oldest_pending_age_seconds,
+      "oldest_pending_age_seconds",
+    );
+  if (
+    (oldestPendingAt === null) !== (oldestPendingAgeSeconds === null)
+  ) {
+    throw new Error("fetchScanDeletionHealth: inconsistent age");
+  }
+  return {
+    generated_at: generatedAt,
+    pending_count: pendingCount,
+    processing_count: processingCount,
+    expired_lease_count: expiredLeaseCount,
+    oldest_pending_at: oldestPendingAt,
+    oldest_pending_age_seconds: oldestPendingAgeSeconds,
+  };
+}
+
+function healthCount(value: unknown, field: string): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 0) {
+    throw new Error(`fetchScanDeletionHealth: invalid ${field}`);
+  }
+  return Number(value);
+}
+
+function healthTimestamp(value: unknown, field: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    !Number.isFinite(Date.parse(value))
+  ) {
+    throw new Error(`fetchScanDeletionHealth: invalid ${field}`);
+  }
+  return value;
 }
 
 async function fetchIngestionIntents(

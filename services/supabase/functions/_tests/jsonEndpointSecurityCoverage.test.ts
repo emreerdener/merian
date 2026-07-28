@@ -24,12 +24,15 @@ Deno.test("production Edge routes do not bypass the bounded request readers", as
 
   for await (const fileUrl of productionTypescriptFiles(functionsRoot)) {
     const source = await Deno.readTextFile(fileUrl);
-    if (
-      fileUrl.pathname.endsWith("/index.ts") &&
-      source.includes("Deno.serve") &&
-      !source.includes("withEdgeHandler")
-    ) {
-      unwrappedEntrypoints.push(fileUrl.pathname);
+    if (fileUrl.pathname.endsWith("/index.ts")) {
+      const directlyWrappedUserHandler =
+        /Deno\.serve\(\s*(?:async\s*)?\([^)]*\)\s*=>\s*withEdgeHandler\(/.test(
+          source,
+        );
+      const registeredPublicHandler = /\bserveEdge\s*\(/.test(source);
+      if (!directlyWrappedUserHandler && !registeredPublicHandler) {
+        unwrappedEntrypoints.push(fileUrl.pathname);
+      }
     }
     if (
       fileUrl.pathname !== sharedHttpUrl.pathname &&

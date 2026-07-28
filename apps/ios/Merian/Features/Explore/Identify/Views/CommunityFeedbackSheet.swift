@@ -198,7 +198,7 @@ struct CommunityFeedbackSheet: View {
                 await MainActor.run {
                     isSubmitting = false
                     HapticManager.shared.triggerErrorThump()
-                    errorMessage = error.localizedDescription
+                    errorMessage = ExploreErrorFormatter.message(for: error)
                 }
             }
         }

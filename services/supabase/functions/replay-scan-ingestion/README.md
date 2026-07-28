@@ -28,7 +28,8 @@ bytes are intentionally redacted from `scan_ingestion_intents`.
 Automatic replay is capped at 10 claims per sanitized intent. Once
 `replay_attempt_count` reaches that ceiling, the claim RPC marks the paired job
 `failed_terminal` with `stage = 'server_replay_limit_reached'` instead of
-claiming it again.
+claiming it again, and records stable
+`terminal_reason_code = 'replay_exhausted'`.
 
 ## Invocation
 
@@ -81,8 +82,9 @@ diagnostic text is retained.
   settlement margin.
 - Over-budget intents are terminal-marked in bounded batches using the same
   claim window as normal replay work.
-- A cloud scan row that already has all required video media is marked complete
-  without replaying AI.
+- A cloud scan row that already has all required media is finalized through the
+  per-scan-locked canonical-media RPC without replaying AI. The worker never
+  updates ledger completion directly.
 - A cloud scan row that exists but lacks required video media is left retryable
   for reconciliation/repair instead of re-running AI against an already-inserted
   scan.

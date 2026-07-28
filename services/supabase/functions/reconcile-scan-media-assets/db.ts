@@ -147,22 +147,22 @@ export async function markReconciliationJobComplete(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("scan_ingestion_jobs")
-    .update({
-      status: "complete",
-      stage: "media_reconciliation_complete",
-      retry_after: null,
-      last_error: null,
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("scan_id", scanId)
-    .eq("user_id", userId)
-    .neq("status", "complete");
+  const { data, error } = await supabaseAdmin.rpc(
+    "complete_scan_ingestion_finalization",
+    {
+      p_scan_id: scanId,
+      p_user_id: userId,
+      p_promoted_urls_by_storage_key: {},
+      p_deleted_storage_keys: [],
+    },
+  );
 
-  if (error) {
-    throw new Error(`markReconciliationJobComplete: ${error.message}`);
+  if (error || (data !== "completed" && data !== "already_complete")) {
+    throw new Error(
+      `markReconciliationJobComplete: ${
+        error?.message ?? `unexpected finalization ${String(data)}`
+      }`,
+    );
   }
 }
 
@@ -179,6 +179,7 @@ export async function markReconciliationJobFailed(
       stage: "media_reconciliation_abandoned",
       retry_after: null,
       last_error: failureReason.slice(0, 500),
+      terminal_reason_code: "media_reconciliation_abandoned",
       updated_at: new Date().toISOString(),
     })
     .eq("scan_id", scanId)

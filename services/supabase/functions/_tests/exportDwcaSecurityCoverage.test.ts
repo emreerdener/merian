@@ -141,12 +141,14 @@ Deno.test("export pages, durable chunks, and archives are bounded end to end", a
     )].length,
     2,
   );
-  assertStringIncludes(worker, "services.deleteArchive");
+  assertStringIncludes(worker, "services.enqueueCleanup");
   assertStringIncludes(worker, '"source_snapshot_changed"');
   assertStringIncludes(db, '"check_dwca_export_source_fence"');
   assertStringIncludes(db, 'error.code === "55001"');
   assertStringIncludes(db, "sentinel.source_revision_changed");
   assertStringIncludes(storage, "deleteDwcaArchiveObject");
+  assertStringIncludes(storage, "createDwcaArchiveRedirectUrl");
+  assertEquals(storage.includes("SIGNED_URL_LIFETIME_SECONDS"), false);
   assertEquals(storage.includes("JSZip"), false);
   assertEquals(storage.includes("arrayBuffer()"), false);
   assertEquals(storage.includes("response.text()"), false);
@@ -217,6 +219,7 @@ Deno.test("DwC-A backlog monitor shares route defaults and emits bounded artifac
       "EXPORT_BACKLOG_WARNING_COUNT",
       "EXPORT_BACKLOG_CRITICAL_COUNT",
       "get_dwca_export_queue_health",
+      "get_dwca_archive_cleanup_health",
     ]
   ) {
     assertStringIncludes(script, expected);

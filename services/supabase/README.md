@@ -325,15 +325,14 @@ Migration
 upgrades the creation-time source snapshot to version 2. Forward migration
 `20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql` keeps the
 same creation-statement MVCC boundary while streaming occurrence and multimedia
-JSON DTOs one at a time into private
-`internal.export_job_source_rows`, records their exact aggregate UTF-8 bytes in
-`internal.export_job_source_state`, and rejects a source that exceeds four times
-the job archive budget (hard-capped at 64 MiB). Both CSV phases traverse those
-same immutable DTOs, so a later scan or edit cannot mix taxonomy, media, or
-privacy revisions. Confirmed species identity is authoritative; the original AI
-`species_id` remains audit history. Exact GPS keys are retained only by an
-opted-in, snapshot-unprotected personal job; global and non-precise personal
-DTOs omit them before persistence.
+JSON DTOs one at a time into private `internal.export_job_source_rows`, records
+their exact aggregate UTF-8 bytes in `internal.export_job_source_state`, and
+rejects a source that exceeds four times the job archive budget (hard-capped at
+64 MiB). Both CSV phases traverse those same immutable DTOs, so a later scan or
+edit cannot mix taxonomy, media, or privacy revisions. Confirmed species
+identity is authoritative; the original AI `species_id` remains audit history.
+Exact GPS keys are retained only by an opted-in, snapshot-unprotected personal
+job; global and non-precise personal DTOs omit them before persistence.
 
 Snapshot construction first counts only UUIDs to the row lookahead, then uses a
 parameterized lateral cursor to project, measure, and persist one DTO at a time.
@@ -344,16 +343,20 @@ amplification during rejection.
 A full-member scope-aware eligibility fence covers deletion, tombstoning,
 owner/live/ecology changes, global geoprivacy changes, taxonomy identity
 changes, and protected-species coordinate-policy changes. Durable invalidation
-triggers mark affected nonterminal jobs. The worker checks every member before
-assembly, before and after recipient lookup, and before email; staging and
-completion repeat the check transactionally. A mismatch becomes terminal
-`source_snapshot_changed` and the uploaded/staged object is removed. Processing
-jobs retain signed URLs only in private work state; the owner-visible URL and
-completed status appear atomically after the final fence. Terminal jobs purge
-immutable DTOs and erase the private staged URL. If a revocation commits while
-Resend is already accepting the request, completion still fails and deletes the
-attempt-fenced object; the email can exist, but its archive is revoked rather
-than published. Exact-SHA deployment evidence is tracked in the
+triggers mark affected nonterminal jobs. A second monotonic trigger path fences
+every affected unpurged snapshot without trusting a concurrently changing job
+status, revokes any already-present grant, and enqueues the current archive. The
+worker checks every member before assembly, before and after recipient lookup,
+and before email; staging and completion repeat the check transactionally. A
+mismatch becomes terminal `source_snapshot_changed`, revokes any application
+capability, and durably enqueues the uploaded/staged object for deletion.
+Processing jobs retain the opaque capability only in private work state; the
+owner-visible application URL and completed status appear atomically after the
+final fence. Failed snapshots purge immediately; completed snapshots remain only
+until grant cleanup. If a revocation commits while Resend is already accepting
+the request, completion still fails; the email can exist, but its capability is
+revoked rather than publishing storage authority. Exact-SHA deployment evidence
+is tracked in the
 [release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 `functions/export-dwca` executes one short durable phase at a time—occurrence
@@ -376,7 +379,9 @@ outstanding-job partial index, the service-only aggregate
 `get_dwca_export_queue_health()` RPC, and response-timeout headroom for the
 minute pg_net wake-up. Dispatcher logs and the five-minute
 `dwca-export-health-monitor.yml` automation alert on oldest due age, backlog
-depth, and expired claims without exposing user IDs or private queue rows.
+depth, and expired claims without exposing user IDs or private queue rows. The
+monitor now also reads archive-cleanup health independently of the database
+worker, detecting absent cron/Vault configuration and stuck deletion leases.
 
 Assembly lazily reads manifest chunks into a streaming ZIP32 writer and bounded
 R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is
@@ -388,6 +393,41 @@ create/complete XML and Resend replies are byte-capped; multipart completion
 rejects an embedded S3 `<Error>` even under HTTP 200. Final archive keys also
 include the claim UUID. Staged archives are reused after lease recovery, and
 Resend delivery uses one job-scoped idempotency key.
+
+Migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql`
+replaces one-day direct R2 URLs with random application capabilities.
+`download-dwca` applies a distributed IP-hash rate limit and rechecks the entire
+immutable source fence on every click before issuing a no-store, read-only R2
+signature valid for at most 30 seconds. Expired/revoked/terminal/legacy archives
+enter a leased deletion outbox. `reconcile-dwca-archive-cleanup` deadline-drains
+it every five minutes, retries provider failures, purges retained completed
+snapshots after exact-current deletion, and emits aggregate
+oldest-due/backlog/expired-lease health. Cleanup completion compares the leased
+object key with the job's current attempt key, so an older cleanup generation
+cannot revoke a replacement grant or purge active source state. Deterministic
+Resend 4xx rejection is terminal; ambiguous or transient provider, storage, and
+database failures remain retryable.
+
+Every transition touching both the canonical job and source/grant/cleanup state
+takes the job row `FOR UPDATE`, then a transaction-scoped per-job advisory lock,
+then child rows. The migration retires the earlier source-state-first
+invalidation triggers before installing the parent-first replacements; leaving
+both active would invert delivery lock order. `TRUNCATE` is the deliberate
+exception: because PostgreSQL has already taken `ACCESS EXCLUSIVE` on the source
+table, its statement trigger performs only a monotonic source-state
+invalidation. Download authorization fails closed immediately after commit; the
+cleanup claimant then discovers the invalidated state and performs grant
+revocation/archive enqueue under the canonical parent-first lock. Partial
+indexes cover revoked grants and invalidated source states so this recovery path
+does not degrade into an unbounded catalog scan.
+
+Scan-ingestion completion is also enforced in the catalog.
+`enforce_scan_ingestion_completion_fence` accepts a transition to `complete`
+only when the atomic recovery/finalization transaction publishes the exact
+owner-and-scan fence. Completed status and scan identity cannot be rewritten.
+The sole owner-transition exception is the atomic ghost-profile merge, bound to
+its exact `internal.ai_usage_reparenting`, source, and target transaction-local
+markers; a generic service-key update cannot use the exception.
 
 The export route's resource contract follows the current
 [hosted Edge Function limits](https://supabase.com/docs/guides/functions/limits)
@@ -409,7 +449,8 @@ Regression coverage lives in
 `functions/_tests/exportDwcaMigrationContract.test.ts`, the route-local export
 tests, `tests/export_dwca_security.sql`, and
 `tests/export_dwca_snapshot_security.sql`, plus
-`tests/dwca_export_queue_security.sql`.
+`tests/dwca_export_queue_security.sql` and
+`tests/dwca_download_and_scan_finalization_security.sql`.
 
 ### Public Web Explore Boundary
 
@@ -427,8 +468,8 @@ helper may invoke them with the validated current or legacy server key. The card
 routine reuses `explore_projected_post_cards(NULL)`, forces engagement counts to
 zero, and forces all viewer/ownership flags to false. Forward migration
 `20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql` makes the
-detail routine independently inner-join that canonical card projection and
-adds `get_public_web_explore_post_page(target_post_id)`, which returns card plus
+detail routine independently inner-join that canonical card projection and adds
+`get_public_web_explore_post_page(target_post_id)`, which returns card plus
 detail from one statement/MVCC snapshot. The web helper uses the combined
 routine. No routine widens grants on Explore, scan, user, or taxonomy source
 relations.
@@ -483,17 +524,64 @@ functions retain their existing `getUser` behavior; `begin_scan_ingestion` for
 atomic pre-Gemini setup; and `hydrate_identification_dictionary` for post-Gemini
 cache hydration. Moderation, required media promotion, primary external
 cache-miss species resolution, duplicate-safe scan creation, and owner-scoped
-read-back complete before HTTP success. Analytics, group tags, and candidate
-enrichment remain optional Edge background tasks. `/update-scan-context`
-applies or stages late owner weather/location fields without rerunning
-inference. See the function-local READMEs and
-`docs/system-architecture/04-ai-engineering.md` for the full contract.
+read-back complete before HTTP success. One per-scan-locked finalization routine
+verifies every claimed staging-key disposition and ready canonical
+image/video/audio row before marking the ingestion ledger complete last. Every
+current scan-producing route, including compatibility identify/audio/describe,
+uses the same atomic setup before provider dispatch. The rolling-deployment
+claim routine and owner-row recovery serialize on that same per-scan transaction
+lock. Setup errors or malformed RPC output fail closed and refund unused quota;
+there is no split-write fallback. Compatibility routes also use the shared
+finalization routine, and a failed finalization becomes durable retryable work.
+Inference-only storage deletion must receive R2 2xx or idempotent 404 before
+completion. Analytics, group tags, and candidate enrichment remain optional Edge
+background tasks. `/update-scan-context` applies or stages late owner
+weather/location fields without rerunning inference. See the function-local
+READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
+contract.
 
-For older/interrupted missing rows, `_shared/scanRecovery.ts` provides a
-server-owned non-media compatibility repair used only by single status and
-Explore share requests. It defers to active/retryable ingestion, blocks exact
-known policy rejection, never overwrites an existing row, and accepts media
-only through separate owner-scoped staging keys.
+For older/interrupted missing rows, `_shared/scanRecovery.ts` delegates to one
+atomic service-only non-media compatibility repair used only by single status
+and Explore share requests. It shares the claim's advisory lock, writes the scan
+and completed recovery ledger in one transaction, defers every active or unknown
+state, and permits recovery from only explicit `replay_exhausted`. Media remains
+accepted only through separate owner-scoped staging keys.
+
+Owner deletion takes the same generation lock first. `/delete-scan` commits an
+`internal.scan_deletion_tombstones` row before touching R2, terminal-marks
+noncomplete ingestion, then removes the canonical row only after every storage
+delete is confirmed. The private tombstone remains after completion, and claim,
+scan mutation, finalization, replay, and recovery all reject that UUID. The
+client's persistent `PendingCloudDeletionTask` can safely resume a lost response
+without allowing cross-device resurrection. `reconcile-scan-deletions` is the
+independent server completion path: every five minutes it deadline-drains
+oldest-due UUID leases, reloads fenced media, and compare-before-releases
+failures with bounded backoff. Successful completion clears the owner UUID from
+the permanent fence. `scan-media-health` exposes only aggregate
+oldest-pending/backlog/expired-lease state to its independent GitHub schedule,
+so missing cron/Vault dispatch cannot silently strand erasure.
+
+The daily `auto-purge-nonbio` route is only a retention intake. Its service-only
+`request_nonbiological_scan_retention_deletions(integer)` RPC selects bounded
+oldest-first candidates, acquires the canonical scan-generation locks in UUID
+order, and rechecks age, `is_biological_subject = false`,
+`is_tombstoned = false`, non-null/non-reserved ownership, and deletion-fence
+absence under each row lock. It writes the same permanent deletion tombstone
+used by owner deletion and performs no R2 or direct scan-row deletion. The
+independent reaper reloads canonical media after fencing, preventing a delayed
+finalizer from appending an object between URL capture and row removal.
+
+Storage deletion is also owner-bound. A URL is eligible only when it is an exact
+HTTPS `media.merian.app` key with the flat shape
+`public_uploads/{free|pro}/{canonical-owner-uuid}/{safe-filename}`. The helper
+rejects foreign owners, nested/dot paths, queries, fragments, credentials, and
+other prefixes before signing and reports only aggregate rejection counts.
+Authenticated API roles cannot insert/delete scans or update ownership, media,
+privacy, ingestion, or model-result columns. Current iOS writes custom tags and
+identification review through owner-derived fixed-search-path RPCs. A temporary
+five-column UPDATE grant is retained solely for already-installed clients and
+must be removed after the minimum supported release uses those RPCs. Database
+checks bound the URL arrays, tags, and override text before service-role work.
 
 ### Incremental Species-Count Boundary
 
@@ -821,12 +909,28 @@ value to `MERIAN_SUPABASE_SERVER_API_KEY`; Supabase reserves built-in
 the stored secret's SHA-256 digest against the exact selected key and stops
 before rollout on a missing, malformed, duplicate, or mismatched entry without
 printing the key or digest. Positive deployment smoke requests make six bounded
-propagation attempts. Final Function failures report only HTTP status plus the
-presence of the fixed `X-Merian-Handler: 1` marker; Data API failures instead
-identify the PostgREST/RPC diagnostic path without expecting a Function header.
-The RevenueCat reconciliation-health monitor uses that resolver and transport
-too. Do not replace the resolver with the CLI API-key listing: its hidden
-secret-key representation cannot pass the exact request boundary. Migration
+propagation attempts. Before credentialed smoke, the workflow derives every
+entrypoint from the reviewed dependency graph and sends an unbilled `OPTIONS`
+probe to each route. Because the platform checks `verify_jwt` before executing
+code, preflight includes the validated legacy anon JWT whenever any configured
+route retains `verify_jwt = true`; a publishable key is never sent as Bearer.
+The rollout fails closed if that execution credential is unavailable. Every
+response must carry fixed `X-Merian-Handler: 1` execution evidence. Missing
+routes retry together under one bounded propagation window and fail the rollout
+without printing bodies or request identifiers. Before deactivating the legacy
+anon key, either migrate every remaining gateway-verified route to the reviewed
+in-handler auth boundary or provide a replacement short-lived user smoke
+identity. Final Function failures report only HTTP status plus handler-marker
+presence; Data API failures instead identify the PostgREST/RPC diagnostic path
+without expecting a Function header. The production gate additionally calls
+`identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
+`get-explore-composer-media`, and `insight-chat` without Authorization until
+each returns fail-closed `401` with the fixed handler marker. A platform `404`
+therefore cannot be mistaken for an application-level missing scan or a
+successful rollout. The RevenueCat reconciliation-health monitor uses that
+resolver and transport too. Do not replace the resolver with the CLI API-key
+listing: its hidden secret-key representation cannot pass the exact request
+boundary. Migration
 `20260726212549_harden_service_role_request_authentication.sql` separately
 revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
 `authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
@@ -929,14 +1033,18 @@ deno check --frozen \
 ```
 
 `test_supabase_tooling.sh` dynamically type-checks every standard script and
-runs every standard `*_test.ts`, including the ghost-user audit and cleanup
-suites. It then tests and executes the executable Identify contract/Swift
-generator under its isolated frozen config, syntax-checks every shell script,
-and runs every `*_test.sh`. It also rejects complete secret-shaped `sb_secret_…`
-literals across repository files before deployment. Tests must construct
-format-valid fake keys from separate fragments, and the gate reports filenames
-rather than matching values. New conventionally named tooling tests therefore
-enter the gate without editing CI.
+runs every standard `*_test.ts`, including the ghost-user suites and the static
+Function-caller contract. That contract requires exact config/entrypoint parity
+and rejects literal calls from any application target, workflow, worker,
+operator script, or migration to missing routes; the one historical retired
+domesticated-purge schedule is accepted only while its later unschedule evidence
+remains exact. The tooling gate then tests and executes the executable Identify
+contract/Swift generator under its isolated frozen config, syntax-checks every
+shell script, and runs every `*_test.sh`. It also rejects complete secret-shaped
+`sb_secret_…` literals across repository files before deployment. Tests must
+construct format-valid fake keys from separate fragments, and the gate reports
+filenames rather than matching values. New conventionally named tooling tests
+therefore enter the gate without editing CI.
 
 `validate_edge_dto_contract.sh` is the shared isolated entrypoint used by both
 the backend deployment workflow and the lightweight iOS project guardrail.
@@ -1288,11 +1396,14 @@ That command is the emergency/manual full-fleet path. Production CI computes the
 affected functions from the transitive runtime import graph, excludes erased
 explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
-imports. A manual workflow dispatch intentionally selects the full fleet.
-Database migrations still run before function deployment, so same-release schema
-changes must follow expand/migrate/contract compatibility: the migration must
-remain safe for the currently live function version, and destructive cleanup
-ships only after the new readers/writers are proven live.
+imports. A manual workflow dispatch intentionally selects the full fleet. Every
+deployment finishes with a graph-derived all-route handler-marker probe,
+followed by stricter fail-closed authorization probes for the five
+customer-critical scan and Explore routes. Database migrations still run before
+function deployment, so same-release schema changes must follow
+expand/migrate/contract compatibility: the migration must remain safe for the
+currently live function version, and destructive cleanup ships only after the
+new readers/writers are proven live.
 
 For identification-latency releases, apply migrations before deploying function
 code that calls the new RPCs, then stage the client and Edge rollout using the

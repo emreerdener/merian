@@ -114,6 +114,15 @@ export interface ReconciliationRunHealthRow {
   created_at?: string | null;
 }
 
+export interface ScanDeletionHealthRow {
+  generated_at: string;
+  pending_count: number;
+  processing_count: number;
+  expired_lease_count: number;
+  oldest_pending_at: string | null;
+  oldest_pending_age_seconds: number | null;
+}
+
 export interface ScanMediaHealthIssue {
   code: string;
   severity: ScanMediaHealthSeverity;
@@ -144,6 +153,9 @@ export interface ScanMediaHealthReport {
     explore_audio_rows_checked: number;
     reconciliation_runs_checked: number;
     ingestion_intents_checked: number;
+    pending_scan_deletions: number;
+    processing_scan_deletions: number;
+    expired_scan_deletion_leases: number;
     issues: number;
     critical_issues: number;
     warning_issues: number;
@@ -170,6 +182,7 @@ export interface BuildScanMediaHealthReportInput {
   readyAudioAssets: ReadyAudioAssetHealthRow[];
   exploreAudioMedia: ExploreAudioMediaHealthRow[];
   reconciliationRuns: ReconciliationRunHealthRow[];
+  scanDeletionHealth: ScanDeletionHealthRow;
 }
 
 const ACTIVE_JOB_STATUSES = new Set(["processing", "finalizing", "retrying"]);
@@ -480,6 +493,35 @@ export function buildScanMediaHealthReport(
     });
   }
 
+  const deletionHealth = input.scanDeletionHealth;
+  const deletionBacklogCount = deletionHealth.pending_count +
+    deletionHealth.processing_count;
+  const oldestDeletionAge = deletionHealth.oldest_pending_age_seconds ?? 0;
+  if (
+    deletionHealth.expired_lease_count > 0 ||
+    deletionHealth.pending_count >= 25 ||
+    oldestDeletionAge >= 15 * 60
+  ) {
+    const critical = deletionHealth.expired_lease_count > 0 ||
+      deletionHealth.pending_count >= 100 ||
+      oldestDeletionAge >= 60 * 60;
+    issues.push({
+      code: "scan_deletion_cleanup_backlog",
+      severity: critical ? "critical" : "warning",
+      message: critical
+        ? "Durable scan erasure is outside its completion SLA."
+        : "Durable scan erasure is approaching its completion SLA.",
+      count: deletionBacklogCount,
+      sample: [{
+        pending_count: deletionHealth.pending_count,
+        processing_count: deletionHealth.processing_count,
+        expired_lease_count: deletionHealth.expired_lease_count,
+        oldest_pending_at: deletionHealth.oldest_pending_at,
+        oldest_pending_age_seconds: deletionHealth.oldest_pending_age_seconds,
+      }],
+    });
+  }
+
   const criticalCount =
     issues.filter((issue) => issue.severity === "critical").length;
   const warningCount =
@@ -513,6 +555,9 @@ export function buildScanMediaHealthReport(
       explore_audio_rows_checked: input.exploreAudioMedia.length,
       reconciliation_runs_checked: input.reconciliationRuns.length,
       ingestion_intents_checked: input.ingestionIntents.length,
+      pending_scan_deletions: deletionHealth.pending_count,
+      processing_scan_deletions: deletionHealth.processing_count,
+      expired_scan_deletion_leases: deletionHealth.expired_lease_count,
       issues: issues.length,
       critical_issues: criticalCount,
       warning_issues: warningCount,

@@ -189,7 +189,9 @@ Deno.test("stage and completion map transactional privacy rejection to a termina
           job.id,
           "00000000-0000-4000-8000-000000000401",
           `exports/${job.userId}/${job.id}/attempt.zip`,
-          "https://r2.example.invalid/export.zip",
+          "https://project-ref.supabase.co/functions/v1/download-dwca?token=opaque",
+          "a".repeat(43),
+          "2026-07-26T23:00:00.000Z",
           rejectedClient,
         ),
       () =>

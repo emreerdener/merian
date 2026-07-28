@@ -114,14 +114,19 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   SDK-owned HTTP transport has a 90-second hard timeout so model calls cannot
   wait for the Edge worker shutdown ceiling.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
-  and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
-  internally so lifecycle workers do not run unbounded delete fanout. Every
-  executed object request carries a hard deadline, including batch delete, copy,
-  upload, list, and inference-media reads. Prefix helpers classify `staging/`,
-  `quarantine/`, and `exports/` as temporary, `public_uploads/free|pro/` as scan
-  media, and `avatars/` as durable profile media. Scan purge flows must use
-  `deleteScanMediaR2Objects(...)`; avatar replacement must use
-  `deleteAvatarR2Object(...)` with the owning user ID.
+  and batch deletion helpers. `deleteR2ObjectIfPresent(...)` is the strict
+  completion-boundary helper: it accepts only 2xx or idempotent 404 and rejects
+  every other provider response. `deleteR2Objects` uses
+  `mapWithConcurrencyLimit` internally so lifecycle workers do not run unbounded
+  delete fanout. Every executed object request carries a hard deadline,
+  including batch delete, copy, upload, list, and inference-media reads. Prefix
+  helpers classify `staging/`, `quarantine/`, and `exports/` as temporary,
+  `public_uploads/free|pro/` as scan media, and `avatars/` as durable profile
+  media. Classification alone is not deletion authority. Scan purge flows must
+  use `deleteScanMediaR2Objects(urls, ownerUserId, config)`, which accepts only
+  flat canonical free/Pro keys containing that exact owner UUID and rejects
+  foreign/nested/malformed candidates before signing. Avatar replacement must
+  use `deleteAvatarR2Object(...)` with the owning user ID.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
   `Content-Length` prechecks. The shared staging cap is six files so one video
@@ -150,13 +155,19 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   because they cannot prove an audio companion survived. `scan-media-health`
   reads the same lifecycle state for deploy smoke checks and operational drift
   alerts, but does not mutate media rows.
-- **`scanIngestionJobs.ts`**: Durable scan-ingestion job helpers. The active
-  multimodal path claims a job row after media validation, updates server-side
-  stages through inference/finalization/failure, and `/check-scan-status`
+- **`scanIngestionJobs.ts`**: Canonical durable scan-ingestion boundary. Every
+  current scan-producing route uses its strict `begin_scan_ingestion` client to
+  establish the job and sanitized intent atomically before provider dispatch,
+  and uses its finalization client for completion-last media verification. The
+  module validates server-canonical UUIDs, SHA-256 values, stage, and completion
+  outcome rather than trusting an untyped RPC response. `/check-scan-status`
   exposes the owner-safe job state when the scan row is not complete yet. Claims
   include expected media counts, staged object keys, recovered upload-session
   ids, and a normalized manifest checksum so retries, server replay, and repair
-  work can detect accidental media-shape drift.
+  work can detect accidental media-shape drift. Finalization delegates all
+  promoted/deleted dispositions to one per-scan-locked database routine, which
+  validates the complete claimed-key manifest, rebuilds ready canonical media,
+  and marks the ledger complete last.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
   descriptors (including validated still-image focus regions), staged object
@@ -169,10 +180,12 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
 - **`scanRecovery.ts`**: Bounded compatibility repair for an authenticated
   owner's missing `public.scans` row. It accepts no media URLs, validates UUIDs,
   ranges, enums, text, and privacy, derives owner/public coordinates
-  server-side, and checks `scan_ingestion_jobs` before a duplicate-safe insert.
-  Active/retryable richer ingestion and exact known policy rejection are never
-  preempted. `check-scan-status` and `share-scan-to-explore` must reload by both
-  scan and owner after calling it.
+  server-side, and calls one atomic service-only RPC. That routine shares the
+  ingestion claim's transaction-scoped advisory lock and writes the scan plus a
+  completed recovery ledger in one transaction. Active/retryable richer
+  ingestion and every terminal reason except explicit `replay_exhausted` are
+  never preempted. `check-scan-status` and `share-scan-to-explore` must reload
+  by both scan and owner after calling it.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
@@ -226,9 +239,12 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
 - **`scanIngestionCompatibility.ts`**: Compatibility ledger for scan-producing
   legacy endpoints. `/identify`, `/identify-describe`, and `/audio-spec` record
   `scan_ingestion_jobs` plus multimodal-shaped sanitized
-  `scan_ingestion_intents` before returning success. Staged media and text-only
-  intents can be replayed through `replay-scan-ingestion`; inline base64 media
-  is redacted and marked non-resumable.
+  `scan_ingestion_intents` in one transaction before provider work. Atomic setup
+  failure fails closed and refunds unused provider quota in the route. Staged
+  media and text-only intents can be replayed through `replay-scan-ingestion`;
+  inline base64 media is redacted and marked non-resumable. Compatibility
+  completion delegates to the shared finalization RPC, cannot issue a direct
+  complete update, and turns finalization failure into durable retryable work.
 
 ## Identify Subdomain
 
@@ -243,15 +259,16 @@ identical:
 - **`db.ts`**: Scan insert/update helpers, species cache writes, and shared
   database boundaries. Duplicate-safe scan creation is followed by owner-scoped
   read-back so a no-op or cross-owner collision cannot resolve as success.
-- **`latencyDb.ts`**: Thin service-role RPC client for atomic ingestion setup
-  (`begin_scan_ingestion`, including its server-canonicalized session ids and
-  checksums) and combined primary/candidate dictionary hydration
-  (`hydrate_identification_dictionary`). Keep rollout compatibility fallbacks in
-  the calling route, not in this module.
+- **`latencyDb.ts`**: Thin service-role RPC client for combined
+  primary/candidate dictionary hydration (`hydrate_identification_dictionary`).
+  Atomic ingestion setup belongs to `scanIngestionJobs.ts`, not this
+  identify-specific subdomain.
 - **`media.ts`**: Image/audio media resolution from inline payloads and R2
   staging keys.
 - **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media
-  promotion.
+  promotion. Copy/upload responses and subsequent staging deletion are checked
+  explicitly; a non-2xx/non-404 deletion fails promotion and triggers strict
+  public-object rollback.
 - **`contract.ts`**: Dependency-free executable model and final wire contract.
   It generates provider schemas, infers TypeScript payloads, validates runtime
   values recursively, and supplies Swift DTO generation metadata.

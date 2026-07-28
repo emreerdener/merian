@@ -45,6 +45,39 @@ private struct GBIFMedia: Decodable {
     let identifier: String?
 }
 
+private struct ReviewSyncRPCParameters: Encodable, Sendable {
+    let scanId: String
+    let override: String?
+    let confirmed: Bool
+    let confirmedSpeciesId: String?
+    let userReviewState: String
+
+    enum CodingKeys: String, CodingKey {
+        case scanId = "p_scan_id"
+        case override = "p_override"
+        case confirmed = "p_confirmed"
+        case confirmedSpeciesId = "p_confirmed_species_id"
+        case userReviewState = "p_user_review_state"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(scanId, forKey: .scanId)
+        if let override {
+            try container.encode(override, forKey: .override)
+        } else {
+            try container.encodeNil(forKey: .override)
+        }
+        try container.encode(confirmed, forKey: .confirmed)
+        if let confirmedSpeciesId {
+            try container.encode(confirmedSpeciesId, forKey: .confirmedSpeciesId)
+        } else {
+            try container.encodeNil(forKey: .confirmedSpeciesId)
+        }
+        try container.encode(userReviewState, forKey: .userReviewState)
+    }
+}
+
 // MARK: - Inference Engine
 
 /// Drives the live AI taxonomy pipeline and manages all active scan state.
@@ -2357,27 +2390,23 @@ private struct GBIFMedia: Decodable {
         }
     }
 
-    /// IDOR-guarded direct PostgREST update persisting both identification review fields.
+    /// Owner-derived RPC persisting the complete identification review atomically.
     /// Accepts nil for `override` to set the column to NULL (reset / confirmed-only path).
     private func syncIdentificationReviewToCloud(scanId: String, override: String?, confirmed: Bool, confirmedSpeciesId: String?, userReviewState: String) async {
-        guard let userId = await MainActor.run(body: { SupabaseManager.shared.currentUser?.id.uuidString }) else { return }
-
-        struct ReviewSyncPayload: Encodable {
-            let user_identification_override: String?
-            let user_confirmed_identification: Bool
-            let confirmed_species_id: String?
-            let user_review_state: String
-        }
+        guard await MainActor.run(body: { SupabaseManager.shared.currentUser != nil }) else { return }
 
         do {
             try await SupabaseManager.shared.client
-                .from("scans")
-                .update(ReviewSyncPayload(user_identification_override: override,
-                                         user_confirmed_identification: confirmed,
-                                         confirmed_species_id: confirmedSpeciesId,
-                                         user_review_state: userReviewState))
-                .eq("id", value: scanId)
-                .eq("user_id", value: userId)
+                .rpc(
+                    "update_owned_scan_identification_review",
+                    params: ReviewSyncRPCParameters(
+                        scanId: scanId,
+                        override: override,
+                        confirmed: confirmed,
+                        confirmedSpeciesId: confirmedSpeciesId,
+                        userReviewState: userReviewState
+                    )
+                )
                 .execute()
 
             if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {

@@ -191,6 +191,32 @@ private final class SendableCallbackProbe: @unchecked Sendable {
     }
 }
 
+private final class NetworkRequestProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requestCount = 0
+    private var idempotencyKeys: [String?] = []
+
+    func record(idempotencyKey: String?) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        requestCount += 1
+        idempotencyKeys.append(idempotencyKey)
+        return requestCount
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestCount
+    }
+
+    var recordedIdempotencyKeys: [String?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return idempotencyKeys
+    }
+}
+
 @Suite("Network Client Tests", .serialized)
 @MainActor
 struct MerianNetworkClientTests {
@@ -553,6 +579,255 @@ struct MerianNetworkClientTests {
 
         #expect(result.success)
         #expect(result.scanId == scanID)
+    }
+
+    @Test func testExploreShareRetriesPlatformFunctionRouteNotFound() async throws {
+        let requestID = "019fa6ef-279f-7c7a-9e18-ec70e067a331"
+        let scanID = "019fa6ef-33ab-77b1-a331-a86678f53043"
+        let probe = NetworkRequestProbe()
+        let notFoundData = Data("{}".utf8)
+        let successData = Data("""
+        {
+          "success": true,
+          "post_id": "019fa6ef-3ba3-7acc-9dbc-a9ec785f4152",
+          "scan_id": "\(scanID)",
+          "shared_at": "2026-07-28T04:00:00Z",
+          "location_sharing": "private",
+          "publication_status": "published"
+        }
+        """.utf8)
+
+        MockURLProtocol.mockEndpoints["/share-scan-to-explore"] = { request in
+            let attempt = probe.record(
+                idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key")
+            )
+            if attempt == 1 {
+                let response = HTTPURLResponse(
+                    url: try #require(request.url),
+                    statusCode: 404,
+                    httpVersion: nil,
+                    headerFields: [
+                        "SB-Error-Code": "NOT_FOUND",
+                        "SB-Gateway-Version": "1"
+                    ]
+                )!
+                return (response, notFoundData)
+            }
+
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["X-Merian-Handler": "1"]
+            )!
+            return (response, successData)
+        }
+
+        let result = try await MerianNetworkClient.shared.shareScanToExplore(
+            scanId: scanID,
+            idempotencyKey: requestID
+        )
+
+        #expect(result.success)
+        #expect(probe.count == 2)
+        #expect(probe.recordedIdempotencyKeys == [requestID, requestID])
+    }
+
+    @Test func testCancelledExploreShareDoesNotReplayAfterRetryDelay() async {
+        let requestID = "019fa6ef-2f9f-7c7a-9e18-ec70e067a331"
+        let scanID = "019fa6ef-39ab-77b1-a331-a86678f53043"
+        let probe = NetworkRequestProbe()
+
+        MockURLProtocol.mockEndpoints["/share-scan-to-explore"] = { request in
+            _ = probe.record(
+                idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key")
+            )
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 503,
+                httpVersion: nil,
+                headerFields: ["X-Merian-Handler": "1"]
+            )!
+            return (
+                response,
+                Data(#"{"code":"service_unavailable"}"#.utf8)
+            )
+        }
+
+        let requestTask = Task {
+            try await MerianNetworkClient.shared.shareScanToExplore(
+                scanId: scanID,
+                idempotencyKey: requestID
+            )
+        }
+        for _ in 0..<100 {
+            if probe.count > 0 { break }
+            await Task.yield()
+        }
+        #expect(probe.count == 1)
+
+        requestTask.cancel()
+        do {
+            _ = try await requestTask.value
+            Issue.record("A canceled request must not survive its retry delay.")
+        } catch is CancellationError {
+            // Expected: cancellation propagates out of Task.sleep before replay.
+        } catch {
+            Issue.record("Expected CancellationError, got \(error).")
+        }
+        #expect(probe.count == 1)
+    }
+
+    @Test func testPlatformFunctionRouteClassifierPreservesGatewayHandlerBoundary() throws {
+        let url = URL(string: "https://example.supabase.co/functions/v1/share-scan-to-explore")!
+        let officialPayload = Data(
+            #"{"code":"NOT_FOUND","message":"Requested function was not found"}"#.utf8
+        )
+        let platformResponse = HTTPURLResponse(
+            url: url,
+            statusCode: 404,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        #expect(MerianNetworkClient.isPlatformFunctionRouteUnavailableForTesting(
+            response: platformResponse,
+            responseData: officialPayload
+        ))
+
+        let headerResponse = HTTPURLResponse(
+            url: url,
+            statusCode: 404,
+            httpVersion: nil,
+            headerFields: ["SB-Error-Code": "not_found"]
+        )!
+        #expect(MerianNetworkClient.isPlatformFunctionRouteUnavailableForTesting(
+            response: headerResponse,
+            responseData: Data("{}".utf8)
+        ))
+
+        let handlerResponse = HTTPURLResponse(
+            url: url,
+            statusCode: 404,
+            httpVersion: nil,
+            headerFields: [
+                "X-Merian-Handler": " 1 ",
+                "SB-Error-Code": "NOT_FOUND"
+            ]
+        )!
+        #expect(!MerianNetworkClient.isPlatformFunctionRouteUnavailableForTesting(
+            response: handlerResponse,
+            responseData: officialPayload
+        ))
+
+        let gatewayResponse = HTTPURLResponse(
+            url: url,
+            statusCode: 404,
+            httpVersion: nil,
+            headerFields: ["SB-Gateway-Version": "1"]
+        )!
+        #expect(MerianNetworkClient.isPlatformFunctionRouteUnavailableForTesting(
+            response: gatewayResponse,
+            responseData: Data("{}".utf8)
+        ))
+
+        let executedResponse = HTTPURLResponse(
+            url: url,
+            statusCode: 404,
+            httpVersion: nil,
+            headerFields: [
+                "SB-Gateway-Version": "1",
+                "X-Deno-Execution-Id": "019fa6ef-3ba3-7acc-9dbc-a9ec785f4152"
+            ]
+        )!
+        #expect(!MerianNetworkClient.isPlatformFunctionRouteUnavailableForTesting(
+            response: executedResponse,
+            responseData: Data("{}".utf8)
+        ))
+
+        let serverErrorResponse = HTTPURLResponse(
+            url: url,
+            statusCode: 503,
+            httpVersion: nil,
+            headerFields: ["SB-Error-Code": "NOT_FOUND"]
+        )!
+        #expect(!MerianNetworkClient.isPlatformFunctionRouteUnavailableForTesting(
+            response: serverErrorResponse,
+            responseData: officialPayload
+        ))
+    }
+
+    @Test func testAmbiguousFailureReplayIsLimitedToReadsAndIdempotentRequests() throws {
+        let baseURL = try #require(URL(string: "https://example.supabase.co/functions/v1/"))
+        let readURL = baseURL.appendingPathComponent("get-explore-feed")
+        let commentURL = baseURL.appendingPathComponent("create-explore-comment")
+        let reactionURL = baseURL.appendingPathComponent("toggle-explore-comment-reaction")
+        let feedbackURL = baseURL.appendingPathComponent("submit-feedback-survey")
+        let uploadURL = baseURL.appendingPathComponent("generate-upload-urls")
+
+        #expect(MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: readURL,
+            method: "POST"
+        ))
+        #expect(!MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: commentURL,
+            method: "POST"
+        ))
+        #expect(!MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: reactionURL,
+            method: "POST"
+        ))
+        #expect(!MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: feedbackURL,
+            method: "POST"
+        ))
+        #expect(!MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: uploadURL,
+            method: "POST"
+        ))
+        #expect(!MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: commentURL,
+            method: "POST",
+            idempotencyKey: "019fa6ef-4fab-7d42-84d8-74dc8b1b5bb0"
+        ))
+        #expect(MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: baseURL.appendingPathComponent("identify-multimodal"),
+            method: "POST",
+            idempotencyKey: "019fa6ef-4fab-7d42-84d8-74dc8b1b5bb0"
+        ))
+        #expect(MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: commentURL,
+            method: "GET"
+        ))
+    }
+
+    @Test func testExploreShareDoesNotRetryHandlerOwnedNotFound() async {
+        let scanID = "019fa6ef-43ab-77b1-a331-a86678f53043"
+        let rawError = #"{"error":"Scan not found.","code":"not_found"}"#
+        let probe = NetworkRequestProbe()
+
+        MockURLProtocol.mockEndpoints["/share-scan-to-explore"] = { request in
+            _ = probe.record(
+                idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key")
+            )
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 404,
+                httpVersion: nil,
+                headerFields: ["X-Merian-Handler": "1"]
+            )!
+            return (response, Data(rawError.utf8))
+        }
+
+        await #expect(
+            throws: MerianError.httpError(statusCode: 404, message: rawError)
+        ) {
+            try await MerianNetworkClient.shared.shareScanToExplore(
+                scanId: scanID,
+                idempotencyKey: "019fa6ef-4fab-7d42-84d8-74dc8b1b5bb0"
+            )
+        }
+
+        #expect(probe.count == 1)
     }
 
     @Test func testExploreShareSendsMissingScanRecoveryPayload() async throws {

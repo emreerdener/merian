@@ -3,7 +3,11 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
 
-import { deleteScanRecord, fetchScanRecord } from "./db.ts";
+import {
+  completeScanDeletion,
+  fetchScanRecord,
+  requestScanDeletion,
+} from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -21,52 +25,50 @@ Deno.serve((req: Request) =>
       return jsonResponse({ error: "scanId must be a valid UUID." }, 400);
     }
 
-    // 1. Fetch the scan record
-    const scan = await fetchScanRecord(scanId, supabaseAdmin);
+    // Persist the owner-bound deletion fence before touching R2. This makes a
+    // lost response safely retryable and prevents delayed inference/recovery
+    // from reconstructing the same UUID on another device.
+    const deletion = await requestScanDeletion(
+      scanId,
+      user.id,
+      supabaseAdmin,
+    );
 
-    // If the scan doesn't exist remotely, treat as success — offline sync will drop it cleanly.
-    if (!scan) {
-      console.log(
-        `Scan ${scanId} not found remotely; skipping for offline sync.`,
+    if (deletion === "forbidden") {
+      console.error(
+        `IDOR attempt: User ${user.id} tried to delete scan ${scanId}`,
       );
       return jsonResponse(
-        { success: true, message: "Scan not found remotely." },
+        { error: "You do not have permission to delete this record." },
+        403,
+      );
+    }
+    if (deletion === "not_found" || deletion === "already_deleted") {
+      console.log(
+        `Scan ${scanId} was already absent for user ${user.id}.`,
+      );
+      return jsonResponse(
+        { success: true, message: "Scan already deleted." },
         200,
       );
     }
 
-    // 2. Verify ownership before deletion (IDOR protection)
-    if (scan.user_id !== user.id) {
-      console.error(
-        `IDOR attempt: User ${user.id} tried to delete scan ${scanId} owned by ${scan.user_id}`,
-      );
-      return jsonResponse(
-        {
-          error: "Forbidden: You do not have permission to delete this record.",
-        },
-        403,
-        // Using explicit 403 to indicate malicious tracking, not just 404
-      );
+    // The durable fence blocks all later scan mutation, so this post-fence
+    // media snapshot cannot miss a concurrently appended canonical object.
+    const scan = await fetchScanRecord(scanId, supabaseAdmin);
+
+    if (scan) {
+      const mediaUrls = collectScanMediaUrls(scan);
+      if (mediaUrls.length > 0) {
+        const r2Config = getR2Config();
+        await deleteScanMediaR2Objects(mediaUrls, user.id, r2Config);
+      }
     }
 
-    // 3. Delete scan media from Cloudflare R2 native
-    const mediaUrls = collectScanMediaUrls(scan);
-    if (mediaUrls.length > 0) {
-      const r2Config = getR2Config();
-      await deleteScanMediaR2Objects(mediaUrls, r2Config);
-    }
-
-    // 4. Execute cascading scan database deletion
-    try {
-      await deleteScanRecord(scanId, supabaseAdmin);
-    } catch (dbError: unknown) {
-      const err = dbError as Error;
-      console.error(err.message);
-      return jsonResponse(
-        { error: "Internal Server Error: Failed to delete scan record." },
-        500,
-      );
-    }
+    // The owner row is removed only after every R2 delete returned 2xx/404.
+    // Any failure leaves the tombstone and row available for the client's
+    // persistent PendingCloudDeletionTask to resume.
+    await completeScanDeletion(scanId, user.id, supabaseAdmin);
 
     console.log(`Deleted scan ${scanId} for user ${user.id}`);
 

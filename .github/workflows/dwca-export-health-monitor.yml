@@ -1,4 +1,4 @@
-name: DwC-A Export Queue Health Monitor
+name: DwC-A Export and Archive Health Monitor
 
 on:
   schedule:
@@ -110,7 +110,7 @@ jobs:
           echo "::add-mask::$server_api_key"
           echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
 
-      - name: Run DwC-A export queue health monitor
+      - name: Run DwC-A export and archive health monitor
         env:
           SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
           SUPABASE_URL: https://${{ env.PROJECT_ID }}.supabase.co
@@ -151,7 +151,7 @@ jobs:
 
           exit "$exit_code"
 
-      - name: Upload DwC-A export queue health summary
+      - name: Upload DwC-A export and archive health summary
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

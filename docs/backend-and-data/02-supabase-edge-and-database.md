@@ -269,10 +269,12 @@ completion.
 
 The worker now reads `scan_ingestion_jobs` before deciding whether stale media
 is truly abandoned. Active `processing` / `finalizing` leases and future
-`retry_after` windows keep media pending; repaired existing scans can mark the
-job `complete` once the required video count and captured-media manifest match;
-media abandoned after the TTL marks the job `failed_terminal` so status polling
-and health checks have one server-authoritative reason.
+`retry_after` windows keep media pending. Repaired existing scans can complete
+only through `complete_scan_ingestion_finalization`, which verifies every
+claimed key disposition and every required canonical media row before writing
+the ledger's `complete` state last. Media abandoned after the TTL marks the job
+`failed_terminal` with a structured reason code so status polling, compatibility
+recovery, and health checks share one server-authoritative decision.
 
 ## The Scan Ingestion Replay Worker (`replay-scan-ingestion`)
 
@@ -293,8 +295,9 @@ This worker is deliberately a dispatcher, not a second inference pipeline.
 calls, scan-ingestion moderation, playback-video promotion, scan insertion,
 `captured_media`, and asset finalization. Explore publication moderation is a
 separate fail-closed classifier owned by `share-scan-to-explore`. Existing
-complete scan rows are marked complete without replay; existing incomplete video
-rows are left retryable for media reconciliation or local-video repair.
+complete scan rows are revalidated through the same finalization routine without
+replay; existing incomplete video rows are left retryable for media
+reconciliation or local-video repair.
 
 The downstream multimodal invocation has a 120-second hard deadline and reads a
 failed response through an 8 KiB ceiling. Database claims are clamped to at
@@ -302,13 +305,16 @@ least 150 seconds, so the request deadline always leaves a 30-second settlement
 margin before another worker can replace the lease.
 
 Legacy scan-producing endpoints (`identify`, `identify-describe`, and
-`audio-spec`) write compatibility `scan_ingestion_jobs` and
-`scan_ingestion_intents` before returning success. Their sanitized intents are
-shaped as multimodal replay payloads, so staged image/audio and text-only
-requests can recover through the same worker. Requests that used inline base64
-media are recorded with redacted counts and `resumable = false`; the iOS offline
-queue remains the recovery owner because the server never stores raw private
-media bytes.
+`audio-spec`) call the same atomic `begin_scan_ingestion` boundary before
+provider dispatch. It writes compatibility `scan_ingestion_jobs` and
+`scan_ingestion_intents` in one transaction, returns server-canonical upload
+sessions/checksums, and reports an already-complete recovery winner before paid
+work begins. Setup failure fails closed and refunds unused quota; there is no
+independent-write fallback. Their sanitized intents are shaped as multimodal
+replay payloads, so staged image/audio and text-only requests can recover
+through the same worker. Requests that used inline base64 media are recorded
+with redacted counts and `resumable = false`; the iOS offline queue remains the
+recovery owner because the server never stores raw private media bytes.
 
 ## Scan Media Health (`scan-media-health`)
 
@@ -496,41 +502,57 @@ The `/identify` Edge Function acts as the inference proxy:
    annotation (`sex`, `sex_confidence`, `sex_evidence`), population counts
    (`individual_count`), and cross-species relationships
    (`ecological_interactions`) synchronously within this zero-OOM primary pass.
-5. **Durability Boundary and Optional Edge Decoupling**:
-   `/identify-multimodal` claims a scan-ingestion job after media validation and
-   before AI inference, then completes moderation, required media promotion,
-   primary species resolution, and `public.scans` insertion before returning
+5. **Durability Boundary and Optional Edge Decoupling**: `/identify-multimodal`
+   claims a scan-ingestion job after media validation and before AI inference.
+   Claim and owner-row recovery share a transaction-scoped per-scan advisory
+   lock; recovery-first writes the row plus completed recovery ledger
+   atomically, while claim-first makes recovery defer before provider work.
+   After inference, one service-only finalization transaction checks every
+   claimed staging-key disposition, rebuilds ready canonical image/video/audio
+   rows, and marks the ledger complete last. Only then can the route return
    success. Field Chat, Explore, field trips, and owner sync can therefore use
    the returned `scan_id` immediately. Analytics, group tags, and candidate
    enrichment remain deferred via `runBackground(task)` from
-   `_shared/edgeHandler.ts`. Compatibility scan-producing endpoints claim the
-   same ledger after inference and before returning success, using
+   `_shared/edgeHandler.ts`. Compatibility scan-producing endpoints establish
+   the same job/intent ledger atomically before inference, using
    multimodal-shaped sanitized intents so staged media and text-only rows have
-   the same recovery surface. Active multimodal persistence failures are
-   captured in the older dead-letter table as a fallback and return retryable
-   `scan_persistence_failed` instead of delivering a local-only observation.
-   Compatibility post-response insert failures retain their ledger/dead-letter
-   recovery path. The job ledger gives `/check-scan-status` live state, including
-   bulk status probes, authenticated single-row repair, and video-completeness
-   checks via `required_video_count`; dead letters are legacy ops evidence
-   rather than the primary recovery surface. Replay is safe because
-   `insertScan` uses `ignoreDuplicates: true` and then proves the row exists for
-   the authenticated owner before success. Repair writes independently defer to
-   active/retryable ingestion and refuse known terminal moderation or provider
-   safety-policy rejection.
+   the same recovery surface. Setup is fail-closed and takes the same per-scan
+   lock; they can complete only through the shared finalization RPC. Active
+   multimodal persistence failures are captured in the older dead-letter table
+   as a fallback and return retryable `scan_persistence_failed` instead of
+   delivering a local-only observation. Compatibility post-response insert or
+   finalization failures become retryable ledger/dead-letter work. The job
+   ledger gives `/check-scan-status` live state, including bulk status probes,
+   atomic authenticated single-row repair, and video-completeness checks via
+   `required_video_count`; dead letters are legacy ops evidence rather than the
+   primary recovery surface. Replay is safe because `insertScan` uses
+   `ignoreDuplicates: true` and then proves the row exists for the authenticated
+   owner before success. Repair writes independently defer to active/retryable
+   ingestion and fail closed on every terminal reason except explicit
+   `replay_exhausted`. Server replay and media reconciliation use the same
+   finalization RPC instead of directly writing `complete`; compatibility
+   identify/audio/describe routes have no direct complete path either. A catalog
+   trigger independently rejects completion unless that transaction publishes
+   the exact owner-and-scan finalization fence. Completed status and scan
+   identity are immutable. The atomic ghost-profile merge remains compatible
+   through its pre-existing exact source/target/enabled transaction-local
+   markers; no generic service-key owner update is accepted.
 6. **Moderation Pipeline (`_shared/identify/moderation.ts`)**: Evaluates Gemini
-   Safety Ratings before scan-media publication and final scan insertion.
-   Unsafe media increments abuse strikes, sets `is_shadowbanned` when the new
-   total reaches three, deletes staged R2 objects, and rejects the observation.
-   Safe biological media is promoted into durable scan storage under the
-   current `.userTier` prefix. The shared moderation module calls
-   `getR2Config()` once at the top and reuses the resulting `AwsClient`.
-   **Moderation ERROR guard**: When `modResult.status === "ERROR"` (for example,
-   an abuse-strike write or promotion batch fails), the active multimodal
-   durability boundary rolls back promoted objects and returns retryable
-   `503 scan_persistence_failed`; compatibility background insertion halts and
-   records its failure. Neither path inserts a scan from an unrecorded or
-   operationally uncertain moderation result.
+   Safety Ratings before scan-media publication and final scan insertion. Unsafe
+   media increments abuse strikes, sets `is_shadowbanned` when the new total
+   reaches three, deletes staged R2 objects, and rejects the observation. Safe
+   biological media is promoted into durable scan storage under the current
+   `.userTier` prefix. The shared moderation module calls `getR2Config()` once
+   at the top and reuses the resulting `AwsClient`. **Moderation ERROR guard**:
+   When `modResult.status === "ERROR"` (for example, an abuse-strike write or
+   promotion batch fails), the active multimodal durability boundary rolls back
+   promoted objects and returns retryable `503 scan_persistence_failed`;
+   compatibility background insertion halts and records its failure. Neither
+   path inserts a scan from an unrecorded or operationally uncertain moderation
+   result. Copy, promotion, and staging deletion responses are checked
+   explicitly. Completion-sensitive deletion accepts only R2 2xx or idempotent
+   404; every other provider response fails before a deletion disposition can be
+   finalized.
 7. **R2 Promotion Rollback (Orphan Leak Prevention)**: After `moderation.ts`
    successfully copies the `1024px` downsampled binaries from `staging/` to
    `public_uploads/`, the final pipeline step runs the PostgreSQL `scans`
@@ -969,9 +991,11 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    replay payload and a `payload_checksum`; inline base64 media is redacted and
    marks the intent non-resumable, while queued/staged media requests become
    eligible for future server-side replay. The `scan_media_assets` lifecycle
-   table is refreshed by the database trigger plus a best-effort Edge refresh
-   call, so newer media readers can use ready display/playback rows instead of
-   inferring user-visible media from compatibility arrays.
+   table is refreshed inside the required database finalization transaction. The
+   ledger cannot become complete unless every claimed promoted URL is
+   represented by a ready canonical row, so newer media readers can use ready
+   display/playback rows instead of inferring user-visible media from
+   compatibility arrays.
 
 ### Latency Boundary and Database Round Trips
 
@@ -990,9 +1014,9 @@ and candidate common-name lookup. Both functions revoke execution from `PUBLIC`,
 
 Primary cache-miss Wikipedia/GBIF resolution, moderation, required media
 promotion, and scan insertion complete before success for every current
-multimodal observation. Analytics, group tags, and candidate enrichment run behind
-`EdgeRuntime.waitUntil` so they cannot delay the response after the durability
-boundary.
+multimodal observation. Analytics, group tags, and candidate enrichment run
+behind `EdgeRuntime.waitUntil` so they cannot delay the response after the
+durability boundary.
 
 Successful responses expose privacy-safe `Server-Timing` metrics for auth, body
 read, tier resolution, pre-Gemini database work, Gemini, dictionary hydration,
@@ -1169,13 +1193,12 @@ The public Next.js app uses a separate server-only boundary for
 `get_public_web_explore_post_detail(...)`. Both wrappers fix the viewer to
 `NULL`, expose only the web DTO, and are executable only by `service_role`;
 browser `anon` and `authenticated` roles are explicitly denied. Both
-independently require the canonical
-`explore_projected_post_cards(NULL)` visibility/privacy projection.
-`get_public_web_explore_post_page(...)` returns card and detail from one
-statement/MVCC snapshot, and Next.js uses that combined routine. The server
-must not query private Explore, scan, user, taxonomy, or Auth tables directly.
-Engagement counts are zero and viewer state is false. Exact-SHA promotion
-evidence is tracked in the
+independently require the canonical `explore_projected_post_cards(NULL)`
+visibility/privacy projection. `get_public_web_explore_post_page(...)` returns
+card and detail from one statement/MVCC snapshot, and Next.js uses that combined
+routine. The server must not query private Explore, scan, user, taxonomy, or
+Auth tables directly. Engagement counts are zero and viewer state is false.
+Exact-SHA promotion evidence is tracked in the
 [release assurance record](./14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 Explore post common names are post snapshots, not live dictionary labels. The
@@ -1450,10 +1473,10 @@ from global rows and from personal rows that did not opt into precise
 coordinates; protected personal rows omit them even when precision was
 requested.
 
-The repaired materializer counts only bounded UUID membership first, then uses
-a parameterized lateral cursor to project, measure, and insert one DTO at a
-time. It stops at the first per-row or cumulative byte violation and removes
-partial rows, so the aggregate source ceiling also bounds JSON DTO memory and
+The repaired materializer counts only bounded UUID membership first, then uses a
+parameterized lateral cursor to project, measure, and insert one DTO at a time.
+It stops at the first per-row or cumulative byte violation and removes partial
+rows, so the aggregate source ceiling also bounds JSON DTO memory and
 temporary-sort amplification during rejection.
 
 The page RPC reads those immutable DTOs rather than querying live scan/taxonomy
@@ -1466,12 +1489,13 @@ durably invalidate affected nonterminal jobs. Personal geoprivacy changes are
 irrelevant because that scope contains only the requesting owner's rows; both
 scopes revalidate protected-species coordinate redaction.
 
-A mismatch becomes terminal `source_snapshot_changed` and removes an
-uploaded/staged object. Processing jobs keep the signed URL in private work
-state; the owner-visible URL and completed status are published atomically
-after the final full fence. Terminal status purges the DTOs. Existing
-nonterminal jobs are fenced, discard prior manifests, and restart from
-occurrence against one version-2 snapshot.
+A mismatch becomes terminal `source_snapshot_changed`, revokes any application
+capability, and durably enqueues the uploaded/staged object for deletion.
+Processing jobs keep the opaque application URL in private work state; the
+owner-visible URL and completed status are published atomically after the final
+full fence. Failed status purges DTOs immediately; completed DTOs remain only
+until grant cleanup succeeds. Existing nonterminal jobs are fenced, discard
+prior manifests, and restart from occurrence against one version-2 snapshot.
 `get_dwca_export_scan_batch(...)` remains executable only by `service_role`,
 verifies the active claim token and exact durable cursor, and returns no more
 than 100 rows or 256 KiB of serialized source. Exact-SHA verification is in the
@@ -1481,15 +1505,43 @@ Each claimed step remains independently bounded:
 
 1. `occurrence` or `multimedia` reads one monotonic row-and-byte-aware keyset
    page from shared immutable DTO rows after the page live-eligibility fence,
-   incrementally RFC-4180 encodes into a fixed buffer of at most 512 KiB,
-   writes one temporary R2 CSV chunk, and transactionally commits its object
-   key, cursor, cumulative budgets, byte count, and CRC-32.
+   incrementally RFC-4180 encodes into a fixed buffer of at most 512 KiB, writes
+   one temporary R2 CSV chunk, and transactionally commits its object key,
+   cursor, cumulative budgets, byte count, and CRC-32.
 2. `assembling` reads the manifest in order and lazily streams the CSV chunks
    through the ZIP32 writer into a bounded R2 multipart upload after a
    full-member fence. Staging repeats that fence transactionally.
 3. `delivering` resolves the canonical owner's Auth email, calls Resend with
    `Idempotency-Key: dwca-export/{job_id}`, and completes the job. Full-member
    checks run before and after email lookup; completion repeats the fence.
+
+Migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql`
+removes long-lived direct storage authority from delivery. The worker creates a
+32-byte random application capability, stages its SHA-256 index with the
+attempt-fenced archive, and emails `/functions/v1/download-dwca?token=...`. Scan
+and protected-species policy triggers invalidate every affected unpurged
+snapshot without trusting a concurrently changing job status, revoke any
+already-present grant, and enqueue the current archive. Every click is also
+distributed-rate-limited and reruns the complete source-membership predicate
+against current deletion, ownership, taxonomy, protection, and privacy state.
+Authorization returns only a no-store, read-only R2 redirect valid for at most
+30 seconds.
+
+Expired, revoked, terminal, staging-race, deleted-job, and legacy direct-URL
+archives enter `internal.export_archive_cleanup_jobs`.
+`reconcile-dwca-archive-cleanup` claims oldest-due rows with UUID leases every
+five minutes, treats R2 `404` as success, and durably backs off other storage
+failures. Its service-only health summary reports aggregate backlog, oldest-due
+age, and expired leases. Completion is fenced to the job's exact current attempt
+key, so stale cleanup cannot revoke a replacement grant or purge active source
+state. Successful exact-current terminal cleanup purges retained source DTOs.
+Deterministic Resend 4xx responses are terminal; ambiguous, rate-limited,
+server, network, storage, and database failures remain retryable.
+
+The independent five-minute GitHub export-health workflow reads both
+`get_dwca_export_queue_health()` and `get_dwca_archive_cleanup_health()`. It
+therefore alerts on stuck physical deletion even when the database worker cron
+or its Vault configuration is absent and no worker log can be emitted.
 
 Migration `20260726230837_scale_dwca_export_continuations.sql` changes only
 dispatcher throughput and observability, not step ownership. One synchronous
@@ -1503,8 +1555,8 @@ without concurrently assembling several archives in one Edge isolate.
 The same migration adds the service-only aggregate
 `get_dwca_export_queue_health()` RPC and an outstanding-job partial index. Every
 dispatch logs backlog depth, due count, live/expired claim count, and oldest-due
-age. A separate five-minute GitHub workflow reads only that aggregate RPC and
-alerts on age, backlog, or expired leases.
+age. A separate five-minute GitHub workflow reads this aggregate and the
+archive-cleanup aggregate, then alerts on age, backlog, or expired leases.
 
 Temporary CSV keys include the active claim token as well as phase and sequence.
 A lease-expired worker that resumes after its replacement can therefore neither
@@ -1709,20 +1761,27 @@ be restored from Cloudflare.
 ### Automated 30-Day Non-Biological Purge
 
 The `auto-purge-nonbio` Edge Function, triggered by `pg_cron` via `pg_net`,
-removes non-biological scans and their durable image, video, and standalone
-audio objects after 30 days. A standard Cloudflare R2 Object Lifecycle rule
-cannot be used here because R2 lifecycle rules operate on object age and prefix,
-not on the PostgreSQL `is_biological_subject = false` flag. A bare Postgres
-`DELETE` without R2 coordination would orphan stored objects. The Edge Function
-handles both the database deletion and the R2 object removal as one ordered
-operation: any rejected or non-successful R2 delete aborts the database deletion
-so the job can retry without orphaning media. Webhook secret validation in this
-function uses `timingSafeCompare()` for constant-time comparison. The function
-must delete R2 objects through `deleteScanMediaR2Objects(...)`, not raw
-`deleteR2Objects(...)`, so only `public_uploads/free/` and `public_uploads/pro/`
-URLs are eligible for scan purge deletion. `avatars/`, `staging/`,
-`quarantine/`, and `exports/` URLs are skipped even if a malformed scan row
-contains them.
+selects non-biological scans for durable erasure after 30 days. A standard
+Cloudflare R2 Object Lifecycle rule cannot be used because R2 lifecycle rules
+operate on object age and prefix, not on the canonical PostgreSQL
+`is_biological_subject = false` flag. The route drains bounded calls to
+`request_nonbiological_scan_retention_deletions(integer)`. That routine
+discovers candidates oldest first, acquires canonical scan-generation locks in
+UUID order, rechecks age, classification, `is_tombstoned = false`,
+non-null/non-reserved ownership, and generation-tombstone absence under each row
+lock, and commits the permanent deletion fence. Ownerless, reserved-owner, and
+rows already tombstoned by account erasure remain exclusively owned by the
+account-erasure pipeline. The route never captures media URLs, deletes R2
+objects, or deletes scan rows.
+
+The independent `reconcile-scan-deletions` reaper subsequently reloads each
+fenced row and performs idempotent external erasure. It accepts only the exact
+owner's flat `public_uploads/{free|pro}/{owner}/...` objects; `avatars/`,
+`staging/`, `quarantine/`, `exports/`, foreign-owner keys, and malformed URLs
+are ineligible. A failed R2 delete compare-before-releases its lease for retry,
+and the database row is removed only after media erasure succeeds. This closes
+the former race in which a finalizer could append a media URL after retention
+selection but before an inline purge deleted the row.
 
 The iOS app mirrors this retention boundary locally.
 `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` is invoked on
@@ -1986,18 +2045,53 @@ device session is not revoked.
 Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 
 1. **Auth**: JWT is extracted and verified manually. Deletion is locked to the
-   scan's `owner_id`.
-2. **R2 Deletion**: The function reads `image_storage_urls` from Supabase. Since
-   these URLs use the public Cloudflare Web domain
-   (`https://media.merian.app/...`), the function rewrites them to the R2
-   storage domain (`https://<account>.r2.cloudflarestorage.com/<bucket>/...`)
-   before issuing signed `DELETE` requests via `AwsClient` from `aws4fetch`.
-3. **Database Erasure**: A `.delete()` call removes the scan row.
-4. **Gamification Projection**: The statement-level scan-delete trigger
+   scan's `user_id`.
+2. **Durable Generation Fence**: The service-only
+   `request_scan_deletion(scan_id, user_id)` routine locks the scan generation,
+   verifies exact ownership, inserts a private deletion tombstone, and
+   terminal-marks any noncomplete ingestion job. From that commit onward,
+   inserts, updates, provider completion, replay, and owner-row recovery for the
+   UUID fail closed.
+3. **Owner-bound R2 Deletion**: The function reads canonical source and derived
+   media only after the fence. A candidate is deletable only when it is an exact
+   HTTPS URL on `media.merian.app` with the flat key
+   `public_uploads/{free|pro}/{verified-owner-uuid}/{safe-filename}`. Foreign
+   owners, nested/dot paths, query strings, fragments, credentials, staging,
+   avatars, and malformed names are rejected before signing. Accepted URLs are
+   rewritten to the private R2 API and issued as signed `DELETE` requests via
+   `AwsClient` from `aws4fetch`. Every accepted object must return 2xx or
+   idempotent 404.
+4. **Database Erasure**: `complete_scan_deletion(scan_id, user_id)` rechecks the
+   private owner tombstone, removes the scan row, and records completion. The
+   tombstone remains indefinitely because the UUID is a deleted generation, not
+   a reusable identity.
+5. **Independent Completion**: The authenticated request is only the fast path.
+   `reconcile-scan-deletions` leases oldest-due pending tombstones every five
+   minutes, drains at most 100 with bounded concurrency and a runtime deadline,
+   and compare-before-releases failures with exponential backoff. Completion
+   clears the owner UUID while retaining the content-free scan-generation fence.
+6. **Gamification Projection**: The statement-level scan-delete trigger
    subtracts the deleted rows from `internal.user_species_scan_counts`. If a
    `(user_id, species_id)` row reaches zero, the ledger row is removed and
    `users.total_species_discovered` decreases by one without going below zero. A
    multi-row delete aggregates each affected pair once.
+
+If R2 or database completion fails, the scan row and durable tombstone remain
+for both the iOS `PendingCloudDeletionTask` and the independent server reaper to
+retry. Database lookup failures are never translated into idempotent not-found
+success. The GitHub-backed Scan Media Health Monitor reads
+`get_scan_deletion_health()` every 30 minutes and reports aggregate backlog,
+oldest-pending age, and expired leases independently of database cron/Vault
+dispatch.
+
+Authenticated API roles cannot insert/delete scans or mutate owner, media,
+privacy, or inference columns. Current clients write tags and identification
+review through fixed-search-path SECURITY DEFINER routines that derive the owner
+from `auth.uid()`. A narrow five-column UPDATE grant is retained only as a
+rolling-compatibility bridge for already-installed clients; remove it after the
+minimum supported iOS release uses the RPCs. Database cardinality and
+element-byte constraints bound every still/video/audio URL array, custom tags,
+and identification override before any service-role fetch or deletion path.
 
 #### V8 Execution Abstractions
 

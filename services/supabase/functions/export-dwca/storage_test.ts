@@ -1,10 +1,10 @@
 import {
-  assert,
   assertEquals,
   assertRejects,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { R2Config } from "../_shared/aws.ts";
 import {
+  createDwcaArchiveRedirectUrl,
   deleteDwcaArchiveObject,
   fetchExportWorkChunk,
   fixedSizeParts,
@@ -98,7 +98,7 @@ function fakeR2Config(options: {
   } as unknown as R2Config;
 }
 
-Deno.test("multipart upload streams, completes, and signs one attempt key", async () => {
+Deno.test("multipart upload streams and completes one attempt key", async () => {
   const requests: Array<{ method: string; url: string; bytes: number }> = [];
   const archive = readableStreamFromAsyncIterable(
     byteChunks([[1, 2], [3, 4, 5]]),
@@ -113,13 +113,51 @@ Deno.test("multipart upload streams, completes, and signs one attempt key", asyn
   assertEquals(result.objectKey, "exports/user/job.zip");
   assertEquals(result.uploadedBytes, 5);
   assertEquals(result.uploadedParts, 1);
-  assert(new URL(result.signedUrl).searchParams.has("signed"));
   assertEquals(requests.map((request) => request.method), [
     "POST",
     "PUT",
     "POST",
   ]);
   assertEquals(requests[1].bytes, 5);
+});
+
+Deno.test("authorized download redirects use a thirty-second read-only signature", async () => {
+  const objectKey =
+    "exports/00000000-0000-4000-8000-000000000201/00000000-0000-4000-8000-000000000202/00000000-0000-4000-8000-000000000203.zip";
+  const url = new URL(
+    await createDwcaArchiveRedirectUrl(
+      objectKey,
+      fakeR2Config({ requests: [] }),
+    ),
+  );
+
+  assertEquals(url.searchParams.get("X-Amz-Expires"), "30");
+  assertEquals(url.searchParams.get("signed"), "true");
+  assertEquals(
+    url.searchParams.get("response-content-type"),
+    "application/zip",
+  );
+  assertEquals(
+    url.searchParams.get("response-content-disposition"),
+    'attachment; filename="naturebook-dwca-00000000-0000-4000-8000-000000000202.zip"',
+  );
+});
+
+Deno.test("download signatures reject noncanonical keys and long lifetimes", async () => {
+  const config = fakeR2Config({ requests: [] });
+  await assertRejects(
+    () => createDwcaArchiveRedirectUrl("../private.zip", config),
+    TypeError,
+  );
+  await assertRejects(
+    () =>
+      createDwcaArchiveRedirectUrl(
+        "exports/00000000-0000-4000-8000-000000000201/00000000-0000-4000-8000-000000000202/00000000-0000-4000-8000-000000000203.zip",
+        config,
+        31,
+      ),
+    TypeError,
+  );
 });
 
 Deno.test("multipart upload aborts an incomplete upload on failure", async () => {
@@ -218,7 +256,7 @@ Deno.test("prepared work chunks enforce their hard byte limit before PUT", async
 Deno.test("privacy revocation deletes only a validated DwC-A archive key", async () => {
   const requests: Array<{ method: string; url: string; bytes: number }> = [];
   await deleteDwcaArchiveObject(
-    "exports/user/job/attempt.zip",
+    "exports/00000000-0000-4000-8000-000000000201/00000000-0000-4000-8000-000000000202/00000000-0000-4000-8000-000000000203.zip",
     fakeR2Config({ requests }),
   );
   assertEquals(requests.map((request) => request.method), ["DELETE"]);

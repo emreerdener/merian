@@ -86,16 +86,17 @@ observation whose authenticated owner row is absent. It contains bounded
 non-media fields; `id` must match `scan_id`, `user_id` must match the
 authenticated user, and `image_storage_urls` must be empty. The server validates
 UUIDs, numeric ranges, enums, text limits, and geoprivacy-derived public
-coordinates. It then uses a duplicate-safe insert and reloads by both scan and
-owner before continuing. A raced existing row is never overwritten, and a
-cross-owner UUID remains indistinguishable from a missing scan.
+coordinates. It then calls the same per-scan-locked atomic repair RPC as status
+polling and reloads by both scan and owner before continuing. A raced existing
+row is never overwritten, and a cross-owner UUID remains indistinguishable from
+a missing scan.
 
-The server reads the owner-scoped ingestion job before recovery. Processing,
-finalizing, retrying, and retryable jobs defer to the richer original attempt.
-Exact known moderation and provider safety-policy rejections cannot be repaired.
-A missing ledger entry, a complete-but-missing row, or a non-policy terminal
-operational failure may be repaired. Media is never accepted inside
-`recovery_scan`; owner-scoped `restored_object_keys`,
+The database reads the owner-scoped ingestion job under the claim's generation
+lock. Processing, finalizing, retrying, retryable, policy, media-abandonment,
+legacy-unknown, and arbitrary terminal reasons defer to the richer original
+attempt. Only a missing ledger entry, a complete-but-missing row, or exact
+`terminal_reason_code = replay_exhausted` may be repaired. Media is never
+accepted inside `recovery_scan`; owner-scoped `restored_object_keys`,
 `restored_video_object_keys`, and `restored_audio_object_keys` remain the only
 repair inputs and still pass the endpoint's normal promotion, eligibility, and
 publication gates.

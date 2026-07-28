@@ -75,22 +75,25 @@ export async function markReplayJobComplete(
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
   const now = new Date().toISOString();
-  const { error: jobError } = await supabaseAdmin
-    .from("scan_ingestion_jobs")
-    .update({
-      status: "complete",
-      stage: input.stage,
-      retry_after: null,
-      last_error: null,
-      completed_at: now,
-      updated_at: now,
-    })
-    .eq("scan_id", input.scanId)
-    .eq("user_id", input.userId)
-    .neq("status", "complete");
+  const { data: finalization, error: jobError } = await supabaseAdmin.rpc(
+    "complete_scan_ingestion_finalization",
+    {
+      p_scan_id: input.scanId,
+      p_user_id: input.userId,
+      p_promoted_urls_by_storage_key: {},
+      p_deleted_storage_keys: [],
+    },
+  );
 
-  if (jobError) {
-    throw new Error(`markReplayJobComplete: ${jobError.message}`);
+  if (
+    jobError ||
+    (finalization !== "completed" && finalization !== "already_complete")
+  ) {
+    throw new Error(
+      `markReplayJobComplete: ${
+        jobError?.message ?? `unexpected finalization ${String(finalization)}`
+      }`,
+    );
   }
 
   const { error: intentError } = await supabaseAdmin
@@ -126,6 +129,7 @@ export async function markReplayDispatchFailure(
       status,
       stage: input.stage,
       last_error: input.errorMessage.slice(0, 500),
+      terminal_reason_code: input.terminal ? "replay_exhausted" : null,
       retry_after: input.terminal ? null : input.retryAfterIso,
       updated_at: now,
     })

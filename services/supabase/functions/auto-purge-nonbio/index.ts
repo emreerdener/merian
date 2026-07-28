@@ -1,11 +1,13 @@
-import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
 import { serveEdge } from "../_shared/edgeHandler.ts";
-import { collectScanMediaUrls } from "../_shared/scanMediaDeletion.ts";
 import { corsHeaders, publicErrorResponse } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 
-import { deleteScansBulk, fetchStaleNonBioScans } from "./db.ts";
+import { requestNonBiologicalScanRetentionDeletions } from "./db.ts";
+
+const BATCH_SIZE = 500;
+const MAXIMUM_GENERATIONS_PER_INVOCATION = 10_000;
+const RUNTIME_BUDGET_MS = 40_000;
 
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -32,63 +34,51 @@ serveEdge(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseAdmin = createServiceRoleClient(
-      supabaseUrl,
+      Deno.env.get("SUPABASE_URL") ?? "",
       auth.serverApiKey,
     );
+    const deadline = Date.now() + RUNTIME_BUDGET_MS;
+    let requestedCount = 0;
+    let runtimeDeadlineReached = false;
 
-    // 2. Query non-biological scans older than 30 days
-    step = "fetch_stale_nonbio_scans";
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const boundaryIso = thirtyDaysAgo.toISOString();
+    step = "request_retention_deletions";
+    while (requestedCount < MAXIMUM_GENERATIONS_PER_INVOCATION) {
+      if (Date.now() >= deadline) {
+        runtimeDeadlineReached = true;
+        break;
+      }
 
-    const scans = await fetchStaleNonBioScans(boundaryIso, supabaseAdmin);
-
-    if (scans.length === 0) {
-      return jsonResponse(
-        { message: "No non-biological scans to purge." },
-        200,
+      const accepted = await requestNonBiologicalScanRetentionDeletions(
+        Math.min(
+          BATCH_SIZE,
+          MAXIMUM_GENERATIONS_PER_INVOCATION - requestedCount,
+        ),
+        supabaseAdmin,
       );
+      requestedCount += accepted;
+      if (accepted < BATCH_SIZE) break;
     }
-
-    const r2Config = getR2Config();
-    const idsToDelete: string[] = [];
-    const mediaToWipe: string[] = [];
-
-    // 3. Batch extract media URLs and IDs
-    for (const scan of scans) {
-      idsToDelete.push(scan.id);
-      mediaToWipe.push(...collectScanMediaUrls(scan));
-    }
-
-    // 4. Delete all aggregated R2 images via Cloudflare AWS protocol natively
-    if (mediaToWipe.length > 0) {
-      step = "delete_r2_objects";
-      await deleteScanMediaR2Objects(mediaToWipe, r2Config);
-    }
-
-    // 5. Purge the IDs cleanly from Postgres
-    step = "delete_scan_rows";
-    await deleteScansBulk(idsToDelete, supabaseAdmin);
 
     console.log(JSON.stringify({
-      event: "auto_purge_nonbio_complete",
-      scan_count: idsToDelete.length,
-      media_count: mediaToWipe.length,
+      event: "auto_purge_nonbio_requested",
+      requested_count: requestedCount,
+      runtime_deadline_reached: runtimeDeadlineReached,
     }));
 
     return jsonResponse(
-      { success: true, count: idsToDelete.length },
+      {
+        success: true,
+        requested_count: requestedCount,
+        runtime_deadline_reached: runtimeDeadlineReached,
+      },
       200,
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     console.error(JSON.stringify({
       event: "auto_purge_nonbio_failed",
       step,
-      error: message,
+      error: err instanceof Error ? err.name : typeof err,
     }));
     return publicErrorResponse(
       req,

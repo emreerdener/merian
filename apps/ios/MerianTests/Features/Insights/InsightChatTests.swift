@@ -607,6 +607,13 @@ struct InsightChatTests {
         #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
             MerianError.httpError(statusCode: 429, message: #"{"code":"daily_limit_reached"}"#)
         ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.edgeFunctionUnavailable
+        ))
+        #expect(
+            InsightChatViewModel.userFacingMessage(for: MerianError.edgeFunctionUnavailable)
+                == "Chat is unavailable right now."
+        )
     }
 
     @Test func testMarkUnavailableStoresScanScopedChatUnavailableState() {

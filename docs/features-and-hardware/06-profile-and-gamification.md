@@ -337,9 +337,10 @@ Server-side work advances through claim-fenced, cursor-persisted 100-row/256 KiB
 pages over that immutable source, bounded streaming assembly, and idempotent
 delivery rather than blocking the client or one Edge invocation. A full-member
 privacy fence runs before assembly, staging, email, and completion. A later
-tombstone or privacy/protection change terminates the job and removes its
-archive; processing jobs keep signed URLs private until the completed
-transition. The user receives an email when the export is ready. See
+tombstone or privacy/protection change terminates the job, revokes its
+application capability, and enqueues the archive for durable cleanup; each
+download click reruns that fence before a 30-second read-only redirect. The user
+receives an email when the export is ready. See
 [API Contracts](../backend-and-data/05-api-contracts.md#deno-request-export-dwca-edge-node)
 and the
 [release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).

@@ -8,9 +8,7 @@ import { PublicHttpError } from "./http.ts";
 import {
   normalizeOwnedScanRecovery,
   recoverMissingOwnedScan,
-  scanIngestionJobAllowsRecovery,
 } from "./scanRecovery.ts";
-import type { ScanIngestionJobRow } from "./scanIngestionJobs.ts";
 
 const scanId = "00000000-0000-0000-0000-000000000001";
 const userId = "00000000-0000-0000-0000-000000000002";
@@ -133,33 +131,14 @@ Deno.test("owned scan recovery requires canonical UUID identities", () => {
   assertEquals((error as PublicHttpError).status, 400);
 });
 
-Deno.test("recoverMissingOwnedScan inserts with duplicate protection", async () => {
-  const calls: Array<{
-    value: unknown;
-    options: unknown;
-  }> = [];
+Deno.test("recoverMissingOwnedScan delegates the complete row to its atomic RPC", async () => {
+  let rpcName = "";
+  let rpcArguments: Record<string, unknown> = {};
   const supabase = {
-    from(table: string) {
-      if (table === "scan_ingestion_jobs") {
-        return {
-          select() {
-            return this;
-          },
-          eq() {
-            return this;
-          },
-          maybeSingle() {
-            return Promise.resolve({ data: null, error: null });
-          },
-        };
-      }
-      assertEquals(table, "scans");
-      return {
-        upsert(value: unknown, options: unknown) {
-          calls.push({ value, options });
-          return Promise.resolve({ error: null });
-        },
-      };
+    rpc(name: string, arguments_: Record<string, unknown>) {
+      rpcName = name;
+      rpcArguments = arguments_;
+      return Promise.resolve({ data: "recovered", error: null });
     },
   } as unknown as SupabaseClient;
   const recovery = normalizeOwnedScanRecovery(
@@ -172,35 +151,21 @@ Deno.test("recoverMissingOwnedScan inserts with duplicate protection", async () 
   const recovered = await recoverMissingOwnedScan(recovery, supabase);
 
   assertEquals(recovered, true);
-  assertEquals(calls, [{
-    value: recovery,
-    options: { onConflict: "id", ignoreDuplicates: true },
-  }]);
+  assertEquals(rpcName, "recover_missing_owned_scan");
+  assertEquals(rpcArguments, {
+    p_scan_id: scanId,
+    p_user_id: userId,
+    p_recovery_scan: recovery,
+  });
 });
 
 Deno.test("recoverMissingOwnedScan reports database failures truthfully", async () => {
   const supabase = {
-    from(table: string) {
-      if (table === "scan_ingestion_jobs") {
-        return {
-          select() {
-            return this;
-          },
-          eq() {
-            return this;
-          },
-          maybeSingle() {
-            return Promise.resolve({ data: null, error: null });
-          },
-        };
-      }
-      return {
-        upsert() {
-          return Promise.resolve({
-            error: { message: "trigger rejected insert" },
-          });
-        },
-      };
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: { message: "transaction rejected recovery" },
+      });
     },
   } as unknown as SupabaseClient;
   const recovery = normalizeOwnedScanRecovery(
@@ -213,89 +178,47 @@ Deno.test("recoverMissingOwnedScan reports database failures truthfully", async 
   await assertRejects(
     () => recoverMissingOwnedScan(recovery, supabase),
     Error,
-    "Failed to recover missing scan: trigger rejected insert",
+    "recoverMissingOwnedScan: transaction rejected recovery",
   );
 });
 
-function ingestionJob(
-  status: ScanIngestionJobRow["status"],
-  stage = "background_ingestion_failed",
-  lastError: string | null = null,
-): ScanIngestionJobRow {
-  return {
-    id: "00000000-0000-0000-0000-000000000010",
-    scan_id: scanId,
-    user_id: userId,
-    endpoint: "identify-multimodal",
-    status,
-    stage,
-    attempt_count: 1,
-    last_error: lastError,
-  };
-}
-
-Deno.test("owned scan recovery defers to active and retryable ingestion", () => {
-  for (
-    const status of [
-      "processing",
-      "finalizing",
-      "retrying",
-      "failed_retryable",
-    ] as const
-  ) {
-    assertEquals(scanIngestionJobAllowsRecovery(ingestionJob(status)), false);
-  }
-});
-
-Deno.test("owned scan recovery permits legacy and safely terminal missing rows", () => {
-  assertEquals(scanIngestionJobAllowsRecovery(null), true);
-  assertEquals(
-    scanIngestionJobAllowsRecovery(ingestionJob("complete", "scan_inserted")),
-    true,
+Deno.test("recoverMissingOwnedScan maps nonrecoverable outcomes to false", async () => {
+  const recovery = normalizeOwnedScanRecovery(
+    validRecovery(),
+    scanId,
+    userId,
   );
-  assertEquals(
-    scanIngestionJobAllowsRecovery(ingestionJob("failed_terminal")),
-    true,
-  );
-});
+  if (!recovery) throw new Error("Expected recovery row.");
 
-Deno.test("owned scan recovery never bypasses terminal policy rejection", () => {
-  for (
-    const [stage, lastError] of [
-      [
-        "moderation_rejected",
-        "Multimodal media rejected by moderation.",
-      ],
-      ["moderation_rejected", "Media rejected by moderation."],
-      ["ai_inference_non_stop_finish", "AI finish reason: SAFETY"],
-      [
-        "ai_inference_non_stop_finish",
-        "AI finish reason: PROHIBITED_CONTENT",
-      ],
-    ]
-  ) {
+  for (const outcome of ["deferred", "id_collision", "deleted"]) {
+    const supabase = {
+      rpc() {
+        return Promise.resolve({ data: outcome, error: null });
+      },
+    } as unknown as SupabaseClient;
     assertEquals(
-      scanIngestionJobAllowsRecovery(
-        ingestionJob(
-          "failed_terminal",
-          stage,
-          lastError,
-        ),
-      ),
+      await recoverMissingOwnedScan(recovery, supabase),
       false,
     );
   }
 });
 
-Deno.test("owned scan recovery permits legacy operational errors misclassified by text", () => {
-  assertEquals(
-    scanIngestionJobAllowsRecovery(
-      ingestionJob(
-        "failed_terminal",
-        "moderation_rejected",
-        "Database trigger rejected insert.",
-      ),
-    ),
-    true,
+Deno.test("recoverMissingOwnedScan fails closed on an unknown catalog outcome", async () => {
+  const recovery = normalizeOwnedScanRecovery(
+    validRecovery(),
+    scanId,
+    userId,
+  );
+  if (!recovery) throw new Error("Expected recovery row.");
+  const supabase = {
+    rpc() {
+      return Promise.resolve({ data: "legacy_allowed", error: null });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () => recoverMissingOwnedScan(recovery, supabase),
+    Error,
+    "invalid database response",
   );
 });

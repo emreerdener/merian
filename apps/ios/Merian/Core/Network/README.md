@@ -25,12 +25,13 @@ session from creating an anonymous production user.
 - Builds authenticated requests to Supabase Edge Functions and retains the
   existing response/request DTO contracts.
 - Uses one pinned `URLSession` for both inference and connection prewarming.
-  `prewarmInferenceEndpoint()` sends `OPTIONS` to `/identify-multimodal`; an auth
-  SDK request is not considered a prewarm because it uses another connection
-  pool.
+  `prewarmInferenceEndpoint()` sends `OPTIONS` to `/identify-multimodal`; an
+  auth SDK request is not considered a prewarm because it uses another
+  connection pool.
 - Adds `X-Merian-Constrained-Network` for aggregate diagnostics without exposing
   the active interface or user identity.
-- Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response headers.
+- Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response
+  headers.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 - Treats current `/identify-multimodal` `200` as a server durability fence:
@@ -57,12 +58,12 @@ the authenticated `/field-trips` Edge Function, which supplies the verified
 caller ID. Never add this field to public Field trip profiles, publication or
 challenge DTOs, Explore feed/map DTOs, or the capture-context DTO.
 
-Template detail additionally decodes optional
-`FieldTripProgress.publicationId` / `publishedAt`. These fields refer only to
-the requesting owner's active, non-deleted outing publication. The title badge
-derives Published from a non-null publication ID; completion and Community
-results are not substitutes. Missing fields remain backward-compatible and
-render Private during a staged backend/client rollout.
+Template detail additionally decodes optional `FieldTripProgress.publicationId`
+/ `publishedAt`. These fields refer only to the requesting owner's active,
+non-deleted outing publication. The title badge derives Published from a
+non-null publication ID; completion and Community results are not substitutes.
+Missing fields remain backward-compatible and render Private during a staged
+backend/client rollout.
 
 ## Field trip scan progress
 
@@ -71,13 +72,13 @@ render Private during a staged backend/client rollout.
 `preferred_goal` object containing `user_field_trip_id` and `item_id`. The hint
 is best effort and server-validated; older callers omit it. The client decodes
 standard updates from `data` plus Seasonal Challenge updates from
-`challenge_updates`. Both update models optionally decode
-`creditedLevelNumber`, `creditedLevelTitle`, `creditedCompletedCount`, and
-`creditedTargetCount`, plus removed-item metadata used when a correction
-invalidates earlier unfinished credit. These fields describe the level changed by the scan;
-when a completion advances immediately, current counts describe the next level
-while credited counts preserve the just-completed full ring. Toast accessors
-fall back to current counts against the legacy response shape.
+`challenge_updates`. Both update models optionally decode `creditedLevelNumber`,
+`creditedLevelTitle`, `creditedCompletedCount`, and `creditedTargetCount`, plus
+removed-item metadata used when a correction invalidates earlier unfinished
+credit. These fields describe the level changed by the scan; when a completion
+advances immediately, current counts describe the next level while credited
+counts preserve the just-completed full ring. Toast accessors fall back to
+current counts against the legacy response shape.
 
 Only updates with nonempty `newlyCompletedItems` represent a new credit. The
 first item is in server checklist order and supplies the toast label/focus
@@ -96,9 +97,9 @@ as no card.
 
 `getFieldTripCaptureContext()` posts `{"action":"capture_context"}` to the
 authenticated `/field-trips` Edge Function and decodes the narrow
-`FieldTripCaptureContextResponse`. The response contains standard field trip/current
-level metadata, aggregate progress, and unfinished target prompts only. It must
-not contain scan evidence, media, location, or field notes.
+`FieldTripCaptureContextResponse`. The response contains standard field
+trip/current level metadata, aggregate progress, and unfinished target prompts
+only. It must not contain scan evidence, media, location, or field notes.
 
 `MerianNetworkClient` performs the request. `FieldTripCaptureGoalProvider` maps
 the source DTOs into a generic `CaptureGoalContextSnapshot`. After a successful
@@ -106,9 +107,9 @@ empty response it uses the existing authenticated `template_detail` slug lookup
 to validate the optional Backyard Safari introduction. No database or Edge
 contract changes are required. `ActiveCaptureGoalStore` owns the five-minute
 freshness policy, per-account cache, selected-goal persistence, and silent
-stale-data retention. Concurrent freshness checks share the provider request;
-an explicit invalidation received while that request is active queues at most
-one forced follow-up. Capture never imports these Field trip DTOs. Callers must
+stale-data retention. Concurrent freshness checks share the provider request; an
+explicit invalidation received while that request is active queues at most one
+forced follow-up. Capture never imports these Field trip DTOs. Callers must
 never await this request before starting the camera or accepting a capture. See
 `docs/backend-and-data/05-api-contracts.md` and
 `docs/features-and-hardware/25-field-trips.md`. The source-agnostic ownership
@@ -125,9 +126,9 @@ progress; a transport failure fires it immediately.
 
 For eligible live-camera still-image analysis this callback releases the durable
 queue row for background upload after the inline body no longer competes for
-uplink capacity.
-The caller also installs a two-second fail-safe. Connectivity loss and app
-backgrounding release ownership through `OfflineQueueManager` directly.
+uplink capacity. The caller also installs a two-second fail-safe. Connectivity
+loss and app backgrounding release ownership through `OfflineQueueManager`
+directly.
 
 ## Deferred Context
 
@@ -143,6 +144,45 @@ headers. TLS pin failures, invalid HTTPS URLs, and response validation failures
 remain fail-closed. Upload-completion callbacks release queue ownership on
 failure, but they do not delete the durable row; the existing live-success path
 alone performs queue cleanup and task cancellation.
+
+Transport failures and returned `5xx` responses are ambiguous: the server may
+have committed before the connection failed. Foreground replay is therefore
+limited to the audited read-route inventory and exact endpoint contracts that
+receive a server-supported idempotency key. New routes default to no ambiguous
+replay. Insert-only comments/feedback/flags, toggle actions, and multi-action
+Field trip requests never gain replay merely because they use `POST`. Signed
+upload-session and upload-URL preparation is also excluded because a lost
+response may already have committed a new staging generation.
+
+Every retry delay is cancellation-propagating. A task canceled while waiting
+for transport, server, route-propagation, or guest-session retry exits with
+`CancellationError` before constructing another request. Do not replace these
+awaits with `try?`: URLSession cancellation is cooperative, and swallowing the
+sleep error would let stale inference work replay after ownership moved to a
+newer generation.
+
+A Supabase platform `404 NOT_FOUND` is not an application-level missing record.
+`performAuthenticatedRequest` classifies it only when the fixed
+`X-Merian-Handler: 1` response marker is absent and the response contains the
+stable `SB-Error-Code: NOT_FOUND` header, official missing-function envelope, or
+equivalent gateway-without-execution headers. It then replays the same request
+after one-, two-, and four-second delays. The handler did not execute, so replay
+is safe; request bodies and idempotency keys remain unchanged. A marked
+handler-owned `404`, including `Scan not found`, is never route-retried and
+remains eligible for the normal owner-row recovery flow. Exhausted platform
+route retries become `MerianError.edgeFunctionUnavailable`, so downstream
+missing-record logic cannot mark the scan unavailable. Customer surfaces use
+temporary-availability copy rather than exposing Supabase router text.
+
+Background `/identify-multimodal` downloads retain the same selected response
+headers and run this classifier before general HTTP handling. A platform route
+`404` preserves the queued scan and schedules its normal durable retry. A queued
+handler `401`, `408`, `409`, `425`, or `429` is also retryable because a fresh
+request can refresh authentication, recover an already-finalized result, or
+honor transient capacity. Integer `Retry-After` values are bounded by the
+queue's maximum delay. Other handler-owned `4xx` responses preserve the local
+media as `queueNeedsAttention`; only the exact stable `observation_rejected`
+policy response is terminal.
 
 Owner-row repair is not a fallback table upsert. The server derives owner
 identity, validates/gates recovery, inserts without overwrite, reloads by owner,
@@ -164,10 +204,10 @@ invalidated.
 Call `transitionToGhostSession()` for user-facing sign-out or anonymous-session
 recovery. It creates the replacement guest identity only after sign-out and
 external identity cleanup finish. Account deletion intentionally calls
-`signOut()` alone so it does not recreate an identity during deletion.
-The `/safe-delete` call may return immediate `200` completion or `202` durable
+`signOut()` alone so it does not recreate an identity during deletion. The
+`/safe-delete` call may return immediate `200` completion or `202` durable
 acceptance; the shared request layer treats either 2xx response as success.
-Backend intent and relational cleanup are persisted before the client signs
-out. The scheduled account-deletion reaper owns cursor-persisted R2 sweeps,
-delayed empty verification, and terminal Auth removal; a new request therefore
-normally receives `202`.
+Backend intent and relational cleanup are persisted before the client signs out.
+The scheduled account-deletion reaper owns cursor-persisted R2 sweeps, delayed
+empty verification, and terminal Auth removal; a new request therefore normally
+receives `202`.

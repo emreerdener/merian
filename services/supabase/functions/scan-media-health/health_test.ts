@@ -293,6 +293,35 @@ Deno.test("buildScanMediaHealthReport detects durable and public audio drift", (
   ]);
 });
 
+Deno.test("buildScanMediaHealthReport enforces scan erasure SLA", () => {
+  const warning = buildScanMediaHealthReport(baseInput({
+    scanDeletionHealth: {
+      generated_at: NOW.toISOString(),
+      pending_count: 2,
+      processing_count: 1,
+      expired_lease_count: 0,
+      oldest_pending_at: "2026-07-05T14:45:00.000Z",
+      oldest_pending_age_seconds: 900,
+    },
+  }));
+  assertEquals(warning.status, "warning");
+  assertEquals(warning.issues[0].code, "scan_deletion_cleanup_backlog");
+  assertEquals(warning.counts.pending_scan_deletions, 2);
+
+  const critical = buildScanMediaHealthReport(baseInput({
+    scanDeletionHealth: {
+      generated_at: NOW.toISOString(),
+      pending_count: 1,
+      processing_count: 0,
+      expired_lease_count: 1,
+      oldest_pending_at: "2026-07-05T14:59:00.000Z",
+      oldest_pending_age_seconds: 60,
+    },
+  }));
+  assertEquals(critical.status, "critical");
+  assertEquals(critical.issues[0].severity, "critical");
+});
+
 function baseInput(
   overrides: Partial<BuildScanMediaHealthReportInput> = {},
 ): BuildScanMediaHealthReportInput {
@@ -309,6 +338,14 @@ function baseInput(
     readyAudioAssets: [],
     exploreAudioMedia: [],
     reconciliationRuns: [],
+    scanDeletionHealth: {
+      generated_at: NOW.toISOString(),
+      pending_count: 0,
+      processing_count: 0,
+      expired_lease_count: 0,
+      oldest_pending_at: null,
+      oldest_pending_age_seconds: null,
+    },
     ...overrides,
   };
 }

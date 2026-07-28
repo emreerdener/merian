@@ -145,6 +145,7 @@ jobs:
             supabase/functions/_shared/serviceRoleClient_test.ts \
             supabase/functions/_shared/edgeHandler.ts \
             supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
             supabase/functions/_tests/publicWebExploreCoverage.test.ts \
@@ -214,6 +215,13 @@ jobs:
             supabase/functions/safe-delete/handler.ts \
             supabase/functions/safe-delete/worker.ts \
             supabase/functions/reconcile-account-deletions/index.ts \
+            supabase/functions/download-dwca/handler_test.ts \
+            supabase/functions/download-dwca/db_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
+            supabase/functions/reconcile-scan-deletions/index.ts \
+            supabase/functions/reconcile-scan-deletions/worker_test.ts \
+            supabase/functions/reconcile-scan-deletions/db_test.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/update-scan-context/index.ts \
@@ -358,7 +366,10 @@ jobs:
           deno test --frozen --config supabase/functions/deno.json \
             --allow-read=supabase/functions,supabase/migrations,supabase/scripts,../.github/workflows \
             supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+            supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+            supabase/functions/download-dwca/handler_test.ts \
+            supabase/functions/download-dwca/db_test.ts \
             supabase/functions/export-dwca/archive_test.ts \
             supabase/functions/export-dwca/crc32_test.ts \
             supabase/functions/export-dwca/db_test.ts \
@@ -368,7 +379,12 @@ jobs:
             supabase/functions/export-dwca/pseudonym_test.ts \
             supabase/functions/export-dwca/storage_test.ts \
             supabase/functions/export-dwca/worker_test.ts \
-            supabase/functions/export-dwca/zip_test.ts
+            supabase/functions/export-dwca/zip_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
+            supabase/functions/delete-scan/db_test.ts \
+            supabase/functions/reconcile-scan-deletions/worker_test.ts \
+            supabase/functions/reconcile-scan-deletions/db_test.ts
 
       - name: Test production workflow security
         run: |
@@ -735,6 +751,162 @@ jobs:
             return 1
           }
 
+          probe_user_function_route() {
+            local function_name="$1"
+            local endpoint="/functions/v1/${function_name}"
+            local route_smoke_max_attempts=18
+            local status="network_error"
+            local attempt
+            local delay
+
+            for ((attempt = 1; attempt <= route_smoke_max_attempts; attempt++)); do
+              : > "$smoke_header_file"
+              if status="$(
+                curl -sS \
+                  --connect-timeout 10 \
+                  --max-time 30 \
+                  --dump-header "$smoke_header_file" \
+                  -o /dev/null \
+                  -w "%{http_code}" \
+                  -X POST "${supabase_url}${endpoint}" \
+                  -H "Content-Type: application/json" \
+                  --data '{}'
+              )"; then
+                if [ "$status" = "401" ] &&
+                  grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$' "$smoke_header_file"; then
+                  echo "Confirmed production route ${function_name} reaches its fail-closed Merian handler."
+                  return 0
+                fi
+              else
+                status="network_error"
+              fi
+
+              if [ "$attempt" -eq "$route_smoke_max_attempts" ]; then
+                break
+              fi
+              delay=$((attempt * 2))
+              if [ "$delay" -gt 10 ]; then
+                delay=10
+              fi
+              echo "Critical production route ${function_name} was not ready (HTTP ${status}); retrying in ${delay}s (attempt ${attempt}/${route_smoke_max_attempts})." >&2
+              sleep "$delay"
+            done
+
+            echo "Critical production route ${function_name} did not reach a fail-closed Merian handler after ${attempt} attempts (HTTP ${status})." >&2
+            echo "Inspect the Supabase Function deployment router; response body and request identifiers are intentionally withheld." >&2
+            return 1
+          }
+
+          probe_all_function_routes() {
+            local function_plan_file="$RUNNER_TEMP/supabase-all-functions.txt"
+            local route_smoke_max_attempts=18
+            local -a pending_functions
+            local -a next_pending_functions
+            local function_name
+            local endpoint
+            local status
+            local attempt
+            local delay
+            local total_function_count
+            local route_probe_jwt
+            local -a route_probe_headers
+
+            deno run --quiet --frozen \
+              --config supabase/functions/deno.json \
+              --allow-read=supabase/functions \
+              supabase/scripts/plan_function_deploy.ts \
+              --all > "$function_plan_file"
+            mapfile -t pending_functions < "$function_plan_file"
+            if [ "${#pending_functions[@]}" -eq 0 ]; then
+              echo "The canonical Edge Function inventory was unexpectedly empty." >&2
+              return 1
+            fi
+            total_function_count="${#pending_functions[@]}"
+
+            route_probe_jwt="$(
+              jq -r \
+                'map(select(startswith("sb_publishable_") | not)) | first // empty' \
+                "$RUNNER_TEMP/supabase-public-api-keys.json"
+            )"
+            if grep -Eq \
+              '^[[:space:]]*verify_jwt[[:space:]]*=[[:space:]]*true([[:space:]]*(#.*)?)?$' \
+              supabase/config.toml &&
+              [ -z "$route_probe_jwt" ]; then
+              echo "A configured gateway-verified route requires a legacy anon JWT for the handler-execution preflight." >&2
+              echo "A publishable API key is never valid Bearer authorization." >&2
+              return 1
+            fi
+            route_probe_headers=(
+              -H "Origin: https://naturebook.app"
+              -H "Access-Control-Request-Method: POST"
+            )
+            if [ -n "$route_probe_jwt" ]; then
+              route_probe_headers+=(
+                -H "apikey: ${route_probe_jwt}"
+                -H "Authorization: Bearer ${route_probe_jwt}"
+              )
+            fi
+
+            for ((attempt = 1; attempt <= route_smoke_max_attempts; attempt++)); do
+              next_pending_functions=()
+              for function_name in "${pending_functions[@]}"; do
+                endpoint="/functions/v1/${function_name}"
+                : > "$smoke_header_file"
+                if status="$(
+                  curl -sS \
+                    --connect-timeout 10 \
+                    --max-time 30 \
+                    --dump-header "$smoke_header_file" \
+                    -o /dev/null \
+                    -w "%{http_code}" \
+                    -X OPTIONS "${supabase_url}${endpoint}" \
+                    "${route_probe_headers[@]}"
+                )" &&
+                  grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$' "$smoke_header_file"; then
+                  continue
+                fi
+                next_pending_functions+=("${function_name}:${status:-network_error}")
+              done
+
+              if [ "${#next_pending_functions[@]}" -eq 0 ]; then
+                echo "Confirmed all ${total_function_count} production Edge routes reach Merian handlers."
+                return 0
+              fi
+              if [ "$attempt" -eq "$route_smoke_max_attempts" ]; then
+                break
+              fi
+
+              pending_functions=()
+              for function_name in "${next_pending_functions[@]}"; do
+                pending_functions+=("${function_name%%:*}")
+              done
+              delay=$((attempt * 2))
+              if [ "$delay" -gt 10 ]; then
+                delay=10
+              fi
+              echo "${#pending_functions[@]} production Edge routes were not ready; retrying in ${delay}s (attempt ${attempt}/${route_smoke_max_attempts})." >&2
+              sleep "$delay"
+            done
+
+            echo "Production Edge route verification failed after ${attempt} attempts:" >&2
+            printf '  %s\n' "${next_pending_functions[@]}" >&2
+            echo "Inspect the Supabase Function deployment router; response bodies and request identifiers are intentionally withheld." >&2
+            return 1
+          }
+
+          probe_all_function_routes
+
+          critical_user_functions=(
+            identify-multimodal
+            check-scan-status
+            share-scan-to-explore
+            get-explore-composer-media
+            insight-chat
+          )
+          for function_name in "${critical_user_functions[@]}"; do
+            probe_user_function_route "$function_name"
+          done
+
           public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"
           for ((index = 0; index < public_key_count; index++)); do
             public_key="$(
@@ -826,6 +998,42 @@ jobs:
           )"
           echo "$media_health_response" | jq -e '.success == true and (.status == "ok" or .status == "warning" or .status == "critical")'
           echo "$media_health_response" | jq '{status, counts}'
+
+          scan_deletion_response="$(
+            post_server_json \
+              "/functions/v1/reconcile-scan-deletions" \
+              '{}'
+          )"
+          echo "$scan_deletion_response" | jq -e '
+            .success == true
+            and (.claimed | type) == "number"
+            and (.completed | type) == "number"
+            and (.deferred | type) == "number"
+            and (
+              .health_status == "healthy"
+              or .health_status == "warning"
+            )
+          '
+          echo "$scan_deletion_response" | jq \
+            '{claimed, completed, deferred, health_status}'
+
+          dwca_cleanup_response="$(
+            post_server_json \
+              "/functions/v1/reconcile-dwca-archive-cleanup" \
+              '{}'
+          )"
+          echo "$dwca_cleanup_response" | jq -e '
+            .success == true
+            and (.claimed | type) == "number"
+            and (.completed | type) == "number"
+            and (.deferred | type) == "number"
+            and (
+              .health_status == "healthy"
+              or .health_status == "warning"
+            )
+          '
+          echo "$dwca_cleanup_response" | jq \
+            '{claimed, completed, deferred, health_status}'
 
           explore_media_response="$(
             post_server_json \

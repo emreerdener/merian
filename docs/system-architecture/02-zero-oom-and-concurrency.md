@@ -1256,16 +1256,16 @@ per-DTO limit or total source limit of four times the archive budget, with a 64
 MiB hard cap, and partial rows are removed. This bounds JSON DTO memory and
 temporary-sort amplification during rejection. Each claimed page stops at 100
 rows or 256 KiB of serialized source. Occurrence DTOs contain no media arrays;
-multimedia DTOs contain no taxonomy/coordinates. Both keyset passes traverse
-the same immutable rows. Global and non-precise personal occurrence DTOs omit
-exact GPS before persistence.
+multimedia DTOs contain no taxonomy/coordinates. Both keyset passes traverse the
+same immutable rows. Global and non-precise personal occurrence DTOs omit exact
+GPS before persistence.
 
 Normal source edits cannot alter immutable DTOs. Page hashes and a full-member
 predicate reject deletion or relevant privacy revocation before assembly,
-staging, email, and completion; scan/taxonomy triggers persist invalidation.
-CSV encoding appends one row at a time into a fixed buffer capped at 512 KiB
-and commits it with its cursor and cumulative row/byte budgets. The durable
-queue, not one Edge isolate, owns the full database scan.
+staging, email, and completion; scan/taxonomy triggers persist invalidation. CSV
+encoding appends one row at a time into a fixed buffer capped at 512 KiB and
+commits it with its cursor and cumulative row/byte budgets. The durable queue,
+not one Edge isolate, owns the full database scan.
 
 Assembly lazily GETs the ordered chunk manifest into the ZIP stream and
 coalesces only one 8 MiB R2 multipart part at a time. Preparation persists the
@@ -1287,9 +1287,12 @@ duplicate work after an Edge restart without pretending the runtime has
 unlimited duration. Public callers may queue personal exports only; global
 exports remain a reviewed internal workflow.
 
-Processing signed URLs remain in API-inaccessible work state and are published
-only with final fenced completion. Fresh-catalog and hosted maximum-shape
-measurements remain required promotion evidence in
+Processing application capabilities remain in API-inaccessible work state and
+are published only with final fenced completion. Each click is
+database-rate-limited and reruns the full source fence before a no-store,
+30-second read redirect; expired/revoked archives are removed by a durable
+claim-fenced cleanup outbox. Fresh-catalog and hosted maximum-shape measurements
+remain required promotion evidence in
 [`14-dwca-and-public-web-release-hold-2026-07-27.md`](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### Main Thread Search Thrashing (`ScansManager`)
@@ -2167,6 +2170,13 @@ independent HTTP round-trip to the `delete-scan` Edge function (~300–600 ms
 each). For a user who deleted 10 scans offline, draining the queue required 3–6
 seconds of sequential network time.
 
+The client fan-out is only an acceleration path. Each server request first
+commits a permanent per-scan generation tombstone; an independent leased reaper
+finishes interrupted work. R2 candidates must match
+`public_uploads/{free|pro}/{verified-owner-uuid}/{safe-filename}` exactly, so
+parallel service-role deletion cannot be redirected through a foreign URL in a
+poisoned row. URL/tag arrays are bounded in PostgreSQL before Edge allocation.
+
 The loop was replaced with a `withTaskGroup` fan-out, batched in groups of 10 to
 prevent connection-pool exhaustion when users accumulate large queues:
 
@@ -2196,6 +2206,13 @@ A single `context.save()` runs after all batches settle, batching all successful
 tombstone removals into one write. For 10 deletions the wall time drops from ~4
 s to ~600 ms; the cap prevents unbounded concurrency for users with hundreds of
 queued deletions.
+
+This client fan-out is not the privacy durability boundary. The server first
+writes a generation tombstone, and `reconcile-scan-deletions` independently
+drains interrupted erasure with 25-job claim waves, 100-job/40-second invocation
+bounds, job concurrency four, and finite per-object request deadlines. Thus the
+device may disappear without leaving a resumable scan generation or an
+unmonitored cleanup backlog.
 
 ### `@MainActor` Sort Offload (`ScansManager`)
 

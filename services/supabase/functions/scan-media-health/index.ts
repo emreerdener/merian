@@ -55,6 +55,9 @@ serveEdge(async (req: Request) => {
       stale_capture_upload_assets: report.counts.stale_capture_upload_assets,
       failed_assets: report.counts.failed_assets,
       recent_scans_checked: report.counts.recent_scans_checked,
+      pending_scan_deletions: report.counts.pending_scan_deletions,
+      processing_scan_deletions: report.counts.processing_scan_deletions,
+      expired_scan_deletion_leases: report.counts.expired_scan_deletion_leases,
       ts: report.generated_at,
     }));
 

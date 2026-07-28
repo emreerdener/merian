@@ -13,18 +13,17 @@ remain in
 
 ## Credential and Header Matrix
 
-Key class and HTTP transport are separate decisions. Do not infer transport
-from the destination, a successful capability probe, or the length of a
-credential.
+Key class and HTTP transport are separate decisions. Do not infer transport from
+the destination, a successful capability probe, or the length of a credential.
 
-| Credential | Authority | `apikey` | `Authorization` |
-| --- | --- | --- | --- |
-| Current publishable project key (`sb_publishable_…`) | Identifies the project; never privileged | Yes | Never |
-| Legacy anon project JWT | Identifies the project; policies still govern access | Yes | Not as a user session |
-| Current secret project key (`sb_secret_…`) | Server-only project authority | Yes | Never |
-| Legacy `service_role` JWT | Temporary server migration fallback | Yes | `Bearer <same JWT>` |
-| User access JWT | Bound user identity | A public project key accompanies raw client requests | `Bearer <user JWT>` |
-| Supabase Management API access token | Hosted management-plane operations only | No | `Bearer <management token>` |
+| Credential                                           | Authority                                            | `apikey`                                             | `Authorization`             |
+| ---------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- | --------------------------- |
+| Current publishable project key (`sb_publishable_…`) | Identifies the project; never privileged             | Yes                                                  | Never                       |
+| Legacy anon project JWT                              | Identifies the project; policies still govern access | Yes                                                  | Not as a user session       |
+| Current secret project key (`sb_secret_…`)           | Server-only project authority                        | Yes                                                  | Never                       |
+| Legacy `service_role` JWT                            | Temporary server migration fallback                  | Yes                                                  | `Bearer <same JWT>`         |
+| User access JWT                                      | Bound user identity                                  | A public project key accompanies raw client requests | `Bearer <user JWT>`         |
+| Supabase Management API access token                 | Hosted management-plane operations only              | No                                                   | `Bearer <management token>` |
 
 Rules:
 
@@ -63,9 +62,9 @@ dictionary, not a new credential class or request header. It contains the same
 complete project server key and follows the same format-aware transport. Never
 attempt to set a built-in `SUPABASE_*` secret through the CLI. After the write,
 the workflow compares the exact local key's SHA-256 digest with the digest
-returned by `supabase secrets list --output json`. Function rollout stops if
-the named secret is missing, duplicated, malformed, or different; neither the
-key nor either digest is logged.
+returned by `supabase secrets list --output json`. Function rollout stops if the
+named secret is missing, duplicated, malformed, or different; neither the key
+nor either digest is logged.
 
 ### Edge Functions and Deno tooling
 
@@ -87,11 +86,11 @@ entries, and an opaque key placed only in the legacy variable are rejected.
 Each environment source is classified independently. A malformed source
 contributes no authorization candidate and cannot veto an exact key supplied by
 another valid source. If no valid source matches, the presence of any malformed
-source produces `invalid_secret_key_configuration` instead of an ordinary
-token mismatch. This source isolation lets a separately valid explicit,
-synchronized, singular, or legacy source keep a controlled environment
-available while another source is corrected without ever promoting the bad
-value. Unknown plural entries never become candidates.
+source produces `invalid_secret_key_configuration` instead of an ordinary token
+mismatch. This source isolation lets a separately valid explicit, synchronized,
+singular, or legacy source keep a controlled environment available while another
+source is corrected without ever promoting the bad value. Unknown plural entries
+never become candidates.
 
 Outbound selection keeps strict precedence. A configured malformed scalar
 encountered at its priority point fails rather than silently selecting a lower
@@ -113,16 +112,16 @@ The public Next.js server supports `SUPABASE_SERVER_API_KEY`,
 `SUPABASE_SECRET_KEYS`, and the legacy `SUPABASE_SERVICE_ROLE_KEY`. It does not
 support the singular local Edge fallback. No server-key variable may use a
 `NEXT_PUBLIC_` prefix or enter a client bundle. It applies the same strict
-precedence and source isolation: a malformed configured explicit override
-fails, while a valid selected higher source is not vetoed by a malformed lower
+precedence and source isolation: a malformed configured explicit override fails,
+while a valid selected higher source is not vetoed by a malformed lower
 migration fallback.
 
 ### Management API resolution
 
 CI health checks, taxonomy imports, and deployment smoke tests use
 `scripts/resolve_project_api_keys.ts`. It calls
-`/v1/projects/<ref>/api-keys?reveal=true` with a 15-second deadline and a
-512 KiB streaming response ceiling. It:
+`/v1/projects/<ref>/api-keys?reveal=true` with a 15-second deadline and a 512
+KiB streaming response ceiling. It:
 
 - prefers the current secret key named `default`, then another named current
   secret, then only the exact legacy key named `service_role`;
@@ -146,6 +145,13 @@ as a PostgREST/RPC diagnostic path and does not expect a Function marker.
 Response bodies and request-ID values remain withheld; no variable header value
 is printed.
 
+Before positive credentialed smoke, the graph-derived route preflight requires
+every configured Function to return the fixed handler marker. It uses a
+validated legacy anon JWT only to cross an intentional gateway
+`verify_jwt = true` boundary; a publishable key is never sent as Bearer. If
+gateway verification remains configured but that JWT is unavailable, rollout
+fails closed rather than accepting an unmarked platform response.
+
 ## Edge Function Authentication
 
 `verify_jwt = false` means the handler owns authentication. It does not make a
@@ -162,25 +168,23 @@ For a server-only worker or status route, the handler:
 2. rejects opaque project keys in Bearer;
 3. rejects conflicting `apikey` and Bearer values;
 4. compares the candidate exactly against configured server keys; and
-5. creates downstream clients from the environment-resolved key, never from
-   the accepted request value.
+5. creates downstream clients from the environment-resolved key, never from the
+   accepted request value.
 
 `functions/_shared/serviceRoleClient.ts` is the only privileged SDK factory. Its
 final fetch adapter removes only supabase-js's exact inherited
 `Authorization: Bearer <opaque secret key>` fallback. It preserves a different
 user JWT and all unrelated caller headers. PostgREST, Storage, Functions, and
-Auth Admin therefore share one format-aware transport. Operational JSON
-Function calls also pass through `invokeServiceRoleJson(...)`. On failure it
-cancels the response body and exposes only the numeric status, bounded SDK
-failure class, and whether the fixed `X-Merian-Handler: 1` marker was present.
-It withholds response bodies, request IDs, variable header values, and
-credentials.
+Auth Admin therefore share one format-aware transport. Operational JSON Function
+calls also pass through `invokeServiceRoleJson(...)`. On failure it cancels the
+response body and exposes only the numeric status, bounded SDK failure class,
+and whether the fixed `X-Merian-Handler: 1` marker was present. It withholds
+response bodies, request IDs, variable header values, and credentials.
 
 Database authorization remains a second boundary. A server-exposed privileged
 RPC must still be allowlisted, have an empty fixed `search_path`, and call
 `internal.require_service_role()`. Mixed user/server routines dispatch on bound
-user identity first; a no-user branch then invokes the service guard.
-Migration
+user identity first; a no-user branch then invokes the service guard. Migration
 `20260727183356_restore_identity_first_media_incident_guard.sql` is the
 corrective example: it restores that final shape after a later migration
 accidentally reintroduced role-first dispatch.
@@ -191,9 +195,8 @@ The repository does not rely on Supabase's changing default Data API exposure.
 Every table created in `public` must have effective RLS enabled in migration
 history, even when no direct client policy is intended.
 
-Migration
-`20260727190637_secure_explore_comment_reactions_and_defaults.sql` establishes
-the final direct-access contract:
+Migration `20260727190637_secure_explore_comment_reactions_and_defaults.sql`
+establishes the final direct-access contract:
 
 - `public.explore_comment_reactions` has RLS enabled and no client policy;
 - all table privileges are revoked from `PUBLIC`, `anon`, `authenticated`, and
@@ -228,8 +231,8 @@ Therefore:
   `DROP INDEX CONCURRENTLY`, or concurrent `REINDEX`, including dynamically
   executed forms;
 - top-level `lock_timeout` and `statement_timeout` guards use session `SET` with
-  a matching `RESET`; `SET LOCAL` timeout guards are forbidden because they
-  only warn and have no effect outside a transaction;
+  a matching `RESET`; `SET LOCAL` timeout guards are forbidden because they only
+  warn and have no effect outside a transaction;
 - migration filenames and applied historical contents are immutable; and
 - historical migrations that contain explicit transaction controls remain
   compatibility artifacts, not examples for future work.
@@ -243,11 +246,10 @@ from a curated list.
 
 ### Large or partitioned indexes
 
-Migration
-`20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql` catalogs
-single-column foreign keys from `public` and `internal` to `public.users` or
-`auth.users`. A valid, ready, non-partial, non-expression index whose first key
-is the FK column is reusable.
+Migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`
+catalogs single-column foreign keys from `public` and `internal` to
+`public.users` or `auth.users`. A valid, ready, non-partial, non-expression
+index whose first key is the FK column is reusable.
 
 The migration creates an ordinary index inline only when the relation is at most
 32 MiB. For a larger relation it aborts with SQLSTATE `55000` and a supervised
@@ -263,18 +265,18 @@ perform a blocking parent build.
 ## Destructive Queue and Orphan Triage
 
 An old `pending_storage_deletions` row is not deletion authority. Storage work
-is claimable only when a matching private deletion job is in
-`storage_pending`, relational cleanup completed, storage did not complete, and
-no live profile or owned scan exists. A stale marker fenced by those conditions
-is inert but remains a critical provenance signal.
+is claimable only when a matching private deletion job is in `storage_pending`,
+relational cleanup completed, storage did not complete, and no live profile or
+owned scan exists. A stale marker fenced by those conditions is inert but
+remains a critical provenance signal.
 
-Health workflow artifacts stay aggregate and identity-free. When an orphan
-alert fires, a restricted operator may inspect the exact row, private job,
-request provenance, audit trail, and live ownership without copying identifiers
-into tickets, logs, or chat.
+Health workflow artifacts stay aggregate and identity-free. When an orphan alert
+fires, a restricted operator may inspect the exact row, private job, request
+provenance, audit trail, and live ownership without copying identifiers into
+tickets, logs, or chat.
 
-- If durable deletion intent is legitimate, restore it only through the
-  reviewed account-deletion request boundary.
+- If durable deletion intent is legitimate, restore it only through the reviewed
+  account-deletion request boundary.
 - If a stale or unauthorized marker caused the alert, preserve evidence and
   prepare a reviewed forward metadata migration after provenance is understood.
 

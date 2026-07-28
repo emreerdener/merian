@@ -148,13 +148,15 @@ boundary, not an application work budget.
   rather than checksumming the complete archive in JavaScript; R2 completion XML
   is bounded and parsed for HTTP-200 embedded errors. Reintroducing
   `generateAsync()`, `arrayBuffer()`, `response.text()`, one complete CSV, or an
-  archive-sized checksum loop violates that resource boundary.
-  Assembly may start only after the claim-fenced full-member privacy predicate
-  revalidates every immutable source row. Staging and completion repeat that
-  fence transactionally. Delivery keeps the signed URL in private work state,
-  checks again after recipient lookup and immediately before Resend, and deletes
-  the attempt-fenced archive when a concurrent privacy revocation prevents
-  staging or completion.
+  archive-sized checksum loop violates that resource boundary. Assembly may
+  start only after the claim-fenced full-member privacy predicate revalidates
+  every immutable source row. Staging and completion repeat that fence
+  transactionally. Delivery keeps the opaque application capability in private
+  work state, checks again after recipient lookup and immediately before Resend,
+  and durably enqueues the attempt-fenced archive when a concurrent privacy
+  revocation prevents staging or completion. Download authorization reruns the
+  same full fence before a 30-second read signature; a leased cleanup worker
+  owns final-archive deletion.
 - **`_shared/aws.ts`**: Shared Cloudflare R2 helpers. Pre-signed PUT generation
   accepts an explicit `Content-Type`; callers must sign image and audio uploads
   with the same header the client will send. The scan-media reconciliation
@@ -185,12 +187,19 @@ boundary, not an application work budget.
   those rows promoted/deleted/failed during finalization, and
   `reconcile-scan-media-assets` repairs or garbage-collects stale staged rows.
   The helpers can recover upload-session ids for a scan's staged media so the
-  ingestion ledger can bind retries to the same upload session. Write paths make
-  best-effort `refreshScanMediaAssets(...)` calls after scan inserts or video
-  repair updates. Composer/status readers prefer ready display/playback
-  `scan_media_assets` rows before falling back to `captured_media` and legacy
-  media arrays. `scan-media-health` and the scheduled monitor read this
-  lifecycle state for operational drift detection without mutating media.
+  ingestion ledger can bind retries to the same upload session. The canonical
+  current multimodal, compatibility identify/audio/describe, replay, and
+  reconciliation paths complete through one
+  `complete_scan_ingestion_finalization` transaction that refreshes canonical
+  rows and writes ledger completion last. Current claim, compatibility claim,
+  and owner recovery use the same per-scan transaction lock. Storage deletion
+  dispositions require confirmed R2 2xx or idempotent 404. Composer/status
+  readers prefer ready display/playback `scan_media_assets` rows before falling
+  back to `captured_media` and legacy media arrays. `scan-media-health` and the
+  scheduled monitor read this lifecycle state for operational drift detection
+  without mutating media. Owner deletion first writes a private generation
+  fence; `reconcile-scan-deletions` independently leases and resumes interrupted
+  erasure without accepting caller-selected work.
 - **`_shared/scanIngestionJobs.ts`**: Shared scan-ingestion lifecycle helpers.
   `identify-multimodal` claims a job with expected media counts, staged object
   keys, upload-session ids, and a normalized manifest checksum; status and
@@ -231,14 +240,15 @@ machine-parseable and can trigger alerting pipelines on the ops side.
   when it stays within the hard video byte cap. For video captures, durable
   playback video promotion is a success gate: `identify-multimodal` must promote
   every requested `videoR2ObjectKey` and persist both `video_storage_urls` and a
-  video `captured_media` item before returning success; upload-session rows are
-  finalized before ready playback rows in `scan_media_assets` are refreshed by
-  the DB trigger plus a best-effort Edge refresh call. When the iOS client
-  extracts audio from a video clip, that Int16 PCM WAV travels through the same
-  audio path with `audioMediaItems` metadata marking it as `video_audio`. Audio
-  handling covers inline `audioBase64s` decode guards and staged
-  `audioR2ObjectKeys` R2 reads through one shared `resolveAudioBuffers(...)`
-  path. Shared by `identify`, `identify-multimodal`, and `audio-spec`.
+  video `captured_media` item before returning success; one required database
+  finalization transaction updates upload-session rows, refreshes ready playback
+  rows in `scan_media_assets`, proves the canonical representation, and writes
+  ledger completion last. When the iOS client extracts audio from a video clip,
+  that Int16 PCM WAV travels through the same audio path with `audioMediaItems`
+  metadata marking it as `video_audio`. Audio handling covers inline
+  `audioBase64s` decode guards and staged `audioR2ObjectKeys` R2 reads through
+  one shared `resolveAudioBuffers(...)` path. Shared by `identify`,
+  `identify-multimodal`, and `audio-spec`.
 - **Audio payload rule**: `identify-multimodal` accepts queued audio as
   `audioR2ObjectKeys` and live audio as `audioBase64s`; `audio-spec` accepts one
   staged or inline audio payload. Both endpoints must reject oversized declared
@@ -268,8 +278,8 @@ machine-parseable and can trigger alerting pipelines on the ops side.
 By explicitly decoupling Data mapping from HTTP orchestration natively, the Deno
 backend becomes immediately immune to traditional Node.JS monolith
 "spaghetti-code" scaling failures. Engineers can formally upgrade complex
-PostgREST schemas in `db.ts` without jeopardizing the critical
-shared authentication boundary invoked by `index.ts`.
+PostgREST schemas in `db.ts` without jeopardizing the critical shared
+authentication boundary invoked by `index.ts`.
 
 All shared primitives natively driving API functions (`aws.ts`, `biology.ts`,
 `concurrency.ts`, `encoding.ts`, `http.ts`, `mediaBudgets.ts`, `posthog.ts`,

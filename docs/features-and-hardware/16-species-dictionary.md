@@ -106,8 +106,9 @@ user-visible states:
 - `error(String)`
 
 The model trims the incoming scientific name before fetching and prefers a
-`speciesId` lookup when the route provides one. A `404` from the backend maps to
-`notFound`; other failures map to `error`.
+`speciesId` lookup when the route provides one. A marked handler-owned `404`
+maps to `notFound`; a platform route `404` becomes the typed temporary-service
+error and cannot cache the species as missing. Other failures map to `error`.
 
 `SpeciesObservationChartsCard` is embedded in the loaded dictionary content
 after Habitat & Distribution. It owns its own

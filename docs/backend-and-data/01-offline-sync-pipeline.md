@@ -62,8 +62,8 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    reading — so even scans captured during a GPS satellite acquisition carry a
    macro-region coordinate. Weather and `locationName` may be absent from the
    initial queue record. A late shutter-prefetch result is merged into
-   `OfflineQueuedScan` and submitted to `/update-scan-context`; background replay
-   can still backfill missing historical context before its own inference
+   `OfflineQueuedScan` and submitted to `/update-scan-context`; background
+   replay can still backfill missing historical context before its own inference
    dispatch.
 3. The visual submit path waits for `onQueued` before presenting queued/offline
    success or starting live analysis. A durable-queue rejection rolls back the
@@ -77,25 +77,24 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    creation of the live analysis `Task` below, returning control to the
    viewfinder immediately. A non-intrusive `ToastBanner` natively informs the
    user that there is no network connection and the scan is queued for upload,
-   saving battery and tokens by recognizing that live inference would
-   inevitably result in a network timeout.
+   saving battery and tokens by recognizing that live inference would inevitably
+   result in a network timeout.
 5. Concurrently (if online and the submission is an eligible live-camera still
    with no audio or video), a `Task {}` gives the pre-fetched
    `EnvironmentContext` (GPS + WeatherKit/geocoding, started at shutter press)
    at most **150 ms** to finish. If that grace period expires, it fires
    `InferenceEngine.analyze(scanId:foregroundInferenceGeneration:imageDatas:...)`
-   with shutter-time
-   coordinates, date/time, distance, and cached telemetry. The late context is
-   merged through the authenticated deferred-context endpoint and never causes
-   a second identification request. This is the **live inference path** — it delivers results faster
-   than the background upload + Gemini round-trip, directly to the open insight
-   sheet. Before calling `analyze()`, the Task checks
-   `pendingAnalyzeScanId == scanId` on the main actor — a property set on
-   `CaptureWorkspaceViewModel` at scan submission time. If a newer scan has been
-   submitted in the interim (overwriting `pendingAnalyzeScanId`), the Task
-   returns without calling `analyze()` and the offline queue handles the scan
-   independently. This replaces the weaker `guard isProcessing` that only
-   detected completion (not supersession).
+   with shutter-time coordinates, date/time, distance, and cached telemetry. The
+   late context is merged through the authenticated deferred-context endpoint
+   and never causes a second identification request. This is the **live
+   inference path** — it delivers results faster than the background upload +
+   Gemini round-trip, directly to the open insight sheet. Before calling
+   `analyze()`, the Task checks `pendingAnalyzeScanId == scanId` on the main
+   actor — a property set on `CaptureWorkspaceViewModel` at scan submission
+   time. If a newer scan has been submitted in the interim (overwriting
+   `pendingAnalyzeScanId`), the Task returns without calling `analyze()` and the
+   offline queue handles the scan independently. This replaces the weaker
+   `guard isProcessing` that only detected completion (not supersession).
 
 Gallery images and audio-bearing or video visual submissions keep the existing
 full-context wait and immediate queue-sync race in this first optimization pass.
@@ -103,23 +102,24 @@ They still emit the same pipeline timing instrumentation.
 
 An eligible live visual Capture can also supply a selected standard-outing goal
 as `preferredGoal`. V50 stores the two goal IDs in the scan-keyed companion
-model `OfflineQueuedScanGoalHint`, leaving the released V49
-`OfflineQueuedScan` entity byte-for-byte stable. The companion row is inserted
-in the same model-context transaction as the queued scan, read by foreground
-and background completion paths, and forwarded only to the later
-`apply_scan_progress` call. It is not inference input and never changes upload
-eligibility. Camera-only still evidence may retain the hint; gallery, audio,
-video, Describe, Record, refinement, and mixed camera/gallery evidence must
-discard it before queue insertion.
+model `OfflineQueuedScanGoalHint`, leaving the released V49 `OfflineQueuedScan`
+entity byte-for-byte stable. The companion row is inserted in the same
+model-context transaction as the queued scan, read by foreground and background
+completion paths, and forwarded only to the later `apply_scan_progress` call. It
+is not inference input and never changes upload eligibility. Camera-only still
+evidence may retain the hint; gallery, audio, video, Describe, Record,
+refinement, and mixed camera/gallery evidence must discard it before queue
+insertion.
 
 For an eligible live-camera still, the live inference path owns the uplink
-initially. The durable background path
-is handed off as soon as the inline request body has finished sending:
+initially. The durable background path is handed off as soon as the inline
+request body has finished sending:
 
 - **Deferred background start**: `OfflineQueueManager` excludes the active live
   `scanId` from normal pending batches. `MerianRequestUploadDelegate` observes
   request-body progress and releases the row when all bytes are sent. A
-  two-second fail-safe handles transports that do not provide progress callbacks.
+  two-second fail-safe handles transports that do not provide progress
+  callbacks.
 - **Single inference owner**: recovery media may stage after that handoff, but
   `foregroundInferenceGenerations[scanId]` prevents staged replay from
   dispatching a second identification while the exact foreground generation
@@ -134,15 +134,15 @@ is handed off as soon as the inline request body has finished sending:
 
 Every online live submission, including gallery, audio-bearing, video, and
 text-only Describe paths, is queued before provider dispatch and registers the
-same exact foreground-generation owner. Describe uses a zero-byte `.staged`
-row. Only the eligible camera-still optimization defers the recovery upload;
-other paths may stage recovery media immediately, but staged inference still
-waits until the foreground generation succeeds or relinquishes ownership.
+same exact foreground-generation owner. Describe uses a zero-byte `.staged` row.
+Only the eligible camera-still optimization defers the recovery upload; other
+paths may stage recovery media immediately, but staged inference still waits
+until the foreground generation succeeds or relinquishes ownership.
 
 Current `/identify-multimodal` HTTP success is also a server durability fence:
-moderation, required media promotion, primary species resolution, scan
-creation, and owner-scoped read-back complete before `200`. The live path may
-persist and clean up its queue row only after that response. A retryable
+moderation, required media promotion, primary species resolution, scan creation,
+and owner-scoped read-back complete before `200`. The live path may persist and
+clean up its queue row only after that response. A retryable
 `503 scan_persistence_failed` leaves the durable queue source available for
 normal replay; a terminal `400 observation_rejected` follows the permanent
 failure path and cannot be converted into a successful scan by owner-row
@@ -152,10 +152,10 @@ After handoff, either path can finish first:
 
 - **Live wins**: `analyze()` first persists through a
   `LiveInferencePersistenceFence`, then calls `deleteQueuedScan` with the exact
-  `ForegroundInferenceGenerationExpectation`. The generation is validated
-  before and after URLSession task enumeration; only its current owner may
-  cancel tasks, clear retry slots, remove the SwiftData row and goal hint,
-  delete queue-only inference frames, or preserve media adopted by the final
+  `ForegroundInferenceGenerationExpectation`. The generation is validated before
+  and after URLSession task enumeration; only its current owner may cancel
+  tasks, clear retry slots, remove the SwiftData row and goal hint, delete
+  queue-only inference frames, or preserve media adopted by the final
   `LocalScanRecord`.
 - **Background wins** (user backgrounded or dismissed): the upload completes via
   the OS-managed background URLSession, `dispatchInferenceDownloadTask` issues a
@@ -177,10 +177,10 @@ After handoff, either path can finish first:
 Once queued media has been written or adopted into `URL.documentsDirectory`, a
 new `OfflineQueuedScan` SwiftData record is inserted with the available
 telemetry payload attached. On a successful `context.save()`,
-`AppTelemetry.trackOfflineQueued()` fires a `ScanQueuedForSync` PostHog event
-to measure offline usage rate. If the save fails, the main context rolls
-back, any consumed free-tier quota token is refunded, and staged files are
-deleted without dispatching sync.
+`AppTelemetry.trackOfflineQueued()` fires a `ScanQueuedForSync` PostHog event to
+measure offline usage rate. If the save fails, the main context rolls back, any
+consumed free-tier quota token is refunded, and staged files are deleted without
+dispatching sync.
 
 If cleanup encounters an orphaned hint after its queued scan was already
 removed, `flushOfflineQueuedScan` deletes the companion and saves that repair.
@@ -219,10 +219,10 @@ audio, or display media adopted by the final local scan.
 
 Still-image descriptors may also contain an optional normalized `focusRegion`.
 The existing `visualMediaItemsJSON` field preserves it across queued upload and
-replay without a SwiftData migration. `QueuedScanContext` snapshots the same JSON
-so an analyzing queued Insight can render the identical region without touching
-a live SwiftData model. Focus coordinates are transient and are not copied onto
-completed scan records.
+replay without a SwiftData migration. `QueuedScanContext` snapshots the same
+JSON so an analyzing queued Insight can render the identical region without
+touching a live SwiftData model. Focus coordinates are transient and are not
+copied onto completed scan records.
 
 **UI Surface**: While a scan awaits network transit, its `OfflineQueuedScan`
 record is rendered at the **top** of the Scans Library grid (`ScansGrid`) with a
@@ -280,8 +280,8 @@ non-biological outcomes or malformed responses, consume the server reservation;
 only a proven pre-provider no-op may refund it. Provider failures move to a
 charged `failed` state so a later retry of the same scan can make a newly
 metered attempt; an abandoned pre-provider reservation expires and is
-automatically refunded. The non-biological correction entry point may bypass
-the Pro-only reanalysis feature lock, but once the user submits that replacement
+automatically refunded. The non-biological correction entry point may bypass the
+Pro-only reanalysis feature lock, but once the user submits that replacement
 capture it still consumes normal free-tier daily quota and uses the normal free
 inference settings.
 
@@ -333,9 +333,9 @@ Batch sizing is governed by `MerianConfig`:
   The selected scan batch is additionally capped by
   `MediaStagingContract.maxUploadItemsPerRequest` /
   `MerianConfig.mediaStagingMaxFilesPerRequest` to the `generate-upload-urls`
-  limit of 6 media files total. This covers the canonical Pro video shape
-  (five sampled inference frames plus one playback clip) while keeping mixed
-  scans inside the pre-signed URL contract.
+  limit of 6 media files total. This covers the canonical Pro video shape (five
+  sampled inference frames plus one playback clip) while keeping mixed scans
+  inside the pre-signed URL contract.
 - **`mediaStagingMaxAudioFilesPerRequest`** (2): maximum audio files in one
   upload-signing request, matching the Edge parser and the documented
   cross-language contract in
@@ -385,11 +385,12 @@ repair stale staged media when the scan row already exists, or clean abandoned
 upload-session objects after their TTL. Before cleanup, reconciliation checks
 the server `scan_ingestion_jobs` row keyed by the same user and
 `client_scan_id`: active leases and future `retry_after` windows keep staged
-media pending, repaired scans can mark their job complete once required playback
-video media is present, and abandoned media marks the job terminal for status
-polling. Inline foreground requests still depend on the iOS queue because raw
-media bytes are not stored in replay intents. Queue diagnostics can be exported
-through `OfflineQueueManager.writeQueueDiagnosticsExport(eventLimit:)`; the JSON
+media pending, repaired scans complete only through the shared claimed-key and
+canonical-media finalization transaction, and abandoned media records a
+structured terminal reason for status polling. Inline foreground requests still
+depend on the iOS queue because raw media bytes are not stored in replay
+intents. Queue diagnostics can be exported through
+`OfflineQueueManager.writeQueueDiagnosticsExport(eventLimit:)`; the JSON
 contains jobs, redacted scan queue metadata, and bounded event rows only, never
 raw media paths or private media bytes.
 
@@ -405,11 +406,11 @@ position `N` could silently return mismatched values for mixed-media batches.
 URLSession upload task descriptions now use
 `upload|{scanId}|{uploadIndex}|{syncGeneration}` through the same contract,
 preserving scan IDs that contain underscores and binding each callback to its
-originating batch. The parser still accepts the previous three-part form and
-the legacy underscore form for OS-owned tasks created by an older app build;
-new tasks always carry a generation. Staged image roles are a signing-time
-hint; final user-visible media still comes from the saved `captured_media`
-manifest and ready `scan_media_assets` rows.
+originating batch. The parser still accepts the previous three-part form and the
+legacy underscore form for OS-owned tasks created by an older app build; new
+tasks always carry a generation. Staged image roles are a signing-time hint;
+final user-visible media still comes from the saved `captured_media` manifest
+and ready `scan_media_assets` rows.
 
 **`ScanQueueState` enum (SchemaV33)**: `OfflineQueuedScan` uses a single
 `scanStateRaw: Int` column (added in V32→V33 custom migration, replacing the old
@@ -492,57 +493,56 @@ additional callback fence, but they are not the persistence authority:
   stored durably, becomes the active inference generation, and is encoded as
   `inference_v2|{generation}|{scanId}` in the background download task. Request
   preparation, delayed status probes, retry scheduling, delegate callbacks,
-  result processing, task cancellation, and queue deletion all compare that
-  UUID before mutating state.
+  result processing, task cancellation, and queue deletion all compare that UUID
+  before mutating state.
 - An online queue-backed submission receives a foreground inference UUID before
   enqueue. The queue transaction stores it in the scan-ingestion job and
   registers the same in-memory owner before upload/replay can start. Provider
   preflight, provider dispatch and completion, live local persistence,
   main-actor result or failure commit, and queue cleanup all carry that UUID.
-  `scanId` alone is never sufficient ownership.
-  The UUID is single-use: `OfflineQueueManager` atomically consumes an exact
-  generation before any engine instance dispatches its provider pipeline.
-  Cancellation and pre-provider exits register a tokenized retirement task
-  synchronously so the UUID cannot restart before asynchronous durable handoff
-  completes. Transient handoff fetch/save failures retain that registry slot and
-  retry with bounded backoff rather than reopening the UUID or permanently
-  abandoning recovery suppression. Merely registering retirement immediately
-  makes the attempt non-current, so delayed saves and UI/cleanup callbacks
-  cannot act during the durable handoff window.
-  Failure handlers also compare the full scan, presentation-attempt, and
-  foreground generation before emitting telemetry, recording a circuit-breaker
-  failure, triggering a haptic, or publishing an error placeholder. A current
-  owner snapshots that proof immediately before synchronous retirement and
-  performs its terminal commit without another suspension; a stale handler is
-  an idempotent no-op.
-  Confidence-zero responses preserve their terminal no-record behavior, but
-  queue-backed foreground and generated background paths require the response
-  to echo the exact scan ID before cleanup is allowed. A mismatched or missing
-  ID leaves the durable row intact for recovery.
-  App backgrounding, connectivity loss, failure, or cancellation clears only
-  the expected generation and then hands the durable row to recovery.
-  Replacing the insight presentation with a persisted library record performs
-  the same exact-generation handoff before changing `activeScanId`; it never
-  abandons the old foreground claim or deletes its queued capture.
+  `scanId` alone is never sufficient ownership. The UUID is single-use:
+  `OfflineQueueManager` atomically consumes an exact generation before any
+  engine instance dispatches its provider pipeline. Cancellation and
+  pre-provider exits register a tokenized retirement task synchronously so the
+  UUID cannot restart before asynchronous durable handoff completes. Transient
+  handoff fetch/save failures retain that registry slot and retry with bounded
+  backoff rather than reopening the UUID or permanently abandoning recovery
+  suppression. Merely registering retirement immediately makes the attempt
+  non-current, so delayed saves and UI/cleanup callbacks cannot act during the
+  durable handoff window. Failure handlers also compare the full scan,
+  presentation-attempt, and foreground generation before emitting telemetry,
+  recording a circuit-breaker failure, triggering a haptic, or publishing an
+  error placeholder. A current owner snapshots that proof immediately before
+  synchronous retirement and performs its terminal commit without another
+  suspension; a stale handler is an idempotent no-op. Confidence-zero responses
+  preserve their terminal no-record behavior, but queue-backed foreground and
+  generated background paths require the response to echo the exact scan ID
+  before cleanup is allowed. A mismatched or missing ID leaves the durable row
+  intact for recovery. App backgrounding, connectivity loss, failure, or
+  cancellation clears only the expected generation and then hands the durable
+  row to recovery. Replacing the insight presentation with a persisted library
+  record performs the same exact-generation handoff before changing
+  `activeScanId`; it never abandons the old foreground claim or deletes its
+  queued capture.
 - Retry accounting plus `.inferencing → .staged` is one persistence operation
   and succeeds only when the `OfflineJobRecord` still contains the expected
   generation. A stale callback therefore cannot consume retry budget or make a
   replacement runnable. Upgrade recovery may adopt a generation only when the
   legacy metadata is `nil`; once any UUID is present, ownership is exact.
-- Delayed probe, server-poll, and replay tasks live in
-  `GenerationTaskRegistry`. Each registry entry has both an owner generation
-  and a unique slot token. Replacing an entry removes the old slot before
-  cooperative cancellation; a resumed old task can neither clear the
-  replacement nor perform delayed work unless its token still owns the slot.
-  Status probes and server polls retain that slot through their awaited status,
-  cancellation, database-transition, and recovery work, then compare before
-  clearing it. A replacement also cancels the old Swift task, and post-await
-  guards require both a live token and non-cancelled task before mutation.
+- Delayed probe, server-poll, and replay tasks live in `GenerationTaskRegistry`.
+  Each registry entry has both an owner generation and a unique slot token.
+  Replacing an entry removes the old slot before cooperative cancellation; a
+  resumed old task can neither clear the replacement nor perform delayed work
+  unless its token still owns the slot. Status probes and server polls retain
+  that slot through their awaited status, cancellation, database-transition, and
+  recovery work, then compare before clearing it. A replacement also cancels the
+  old Swift task, and post-await guards require both a live token and
+  non-cancelled task before mutation.
 - Upload-completion callbacks use independent membership tokens until ownership
   transfers to inference preparation. A callback removes only its own token;
   another callback for the same multi-file scan remains visible to orphan
-  reconciliation. The scan's latest upload generation is revalidated after
-  every suspension before either callback may mutate queue state or dispatch
+  reconciliation. The scan's latest upload generation is revalidated after every
+  suspension before either callback may mutate queue state or dispatch
   inference.
 - Inference-driven queue deletion carries either a background
   `InferenceGenerationExpectation` or foreground
@@ -556,53 +556,60 @@ additional callback fence, but they are not the persistence authority:
 - Connectivity loss invalidates the current upload and inference generations,
   cancels registered delayed tasks, clears preparation ownership, and calls
   `SyncStateManager.forceIdle()`. Late callbacks carry retired UUIDs and become
-  no-ops; reconnect reconciliation returns durable `.uploading` /
-  `.inferencing` orphans to runnable states.
+  no-ops; reconnect reconciliation returns durable `.uploading` / `.inferencing`
+  orphans to runnable states.
 
 **Startup reconciliation & ongoing orphan recovery**: On first connectivity
 restore per process life, `replayInferenceForUploadedScans` runs a gated
-cold-start
-`reconcileOrphanedUploadingScans(activeScanIds:observedThrough:)` that
-cross-references pre-existing URLSession tasks. The task-list snapshot captures
-`observedThrough` before its first suspension, and the actor resets only rows
-whose `queueUpdatedAt` is not newer than that cutoff. Upload claims,
+cold-start `reconcileOrphanedUploadingScans(activeScanIds:observedThrough:)`
+that cross-references pre-existing URLSession tasks. The task-list snapshot
+captures `observedThrough` before its first suspension, and the actor resets
+only rows whose `queueUpdatedAt` is not newer than that cutoff. Upload claims,
 reconciliation, inference claims, and retries all use the same cached queue
 actor, so a replacement claim that reaches the actor before an older reconcile
 is ordered first and excluded by the cutoff. This closes the snapshot/actor
 queue ABA window without relying on task cancellation.
-`reconcileOrphanedUploadingScans` returns `Bool` — `true` if at least one
-orphan was reset. The cold-start callback calls
-`syncPendingScans()` **only when the return value is `true`**. This is critical:
-the initial `syncPendingScans()` call from `handleActivePhase` runs before the
-cold-start reconcile completes (the reconcile is async), so it finds no
-`.pending` scans (the orphaned scan is still `.uploading` at that moment).
-Without calling `syncPendingScans()` after the reconcile, the reset scan would
-sit in `.pending` indefinitely — there is no subsequent trigger until the next
-connectivity change or foreground. Guarding on the return value prevents a
-spurious second sync in the common case (no orphaned uploads). On every
-subsequent call it also runs `reconcileOrphanedUploadingScans` again via a
-live-task cross-reference — this catches `.uploading` orphans created
-mid-session when `generateUploadURLs` fails or the `syncPendingScans` Task is
-killed before its catch block can run, and resets them to `.pending` so the next
-retry can pick them up. Additionally, on every call it runs
+`reconcileOrphanedUploadingScans` returns `Bool` — `true` if at least one orphan
+was reset. The cold-start callback calls `syncPendingScans()` **only when the
+return value is `true`**. This is critical: the initial `syncPendingScans()`
+call from `handleActivePhase` runs before the cold-start reconcile completes
+(the reconcile is async), so it finds no `.pending` scans (the orphaned scan is
+still `.uploading` at that moment). Without calling `syncPendingScans()` after
+the reconcile, the reset scan would sit in `.pending` indefinitely — there is no
+subsequent trigger until the next connectivity change or foreground. Guarding on
+the return value prevents a spurious second sync in the common case (no orphaned
+uploads). On every subsequent call it also runs
+`reconcileOrphanedUploadingScans` again via a live-task cross-reference — this
+catches `.uploading` orphans created mid-session when `generateUploadURLs` fails
+or the `syncPendingScans` Task is killed before its catch block can run, and
+resets them to `.pending` so the next retry can pick them up. Additionally, on
+every call it runs
 `reconcileOrphanedInferencingScans(activeInferenceScanIds:observedThrough:)`
-with the same snapshot cutoff. It
-cross-references live background URLSession inference tasks, preparation slots,
-completion slots, active generation owners, and server-poll slots before
-resetting `.inferencing → .staged`. Current tasks use
-`inference_v2|{generation}|{scanId}` descriptions; the parser also recognizes
-legacy `"inference_{scanId}"` tasks created before generation tagging. This
-replaces the old blind `resetOrphanedInferencingScans()` — a background
-download task for inference can survive app suspension and re-attach after a
-relaunch, so blindly resetting all `.inferencing` scans would dispatch a
+with the same snapshot cutoff. It cross-references live background URLSession
+inference tasks, preparation slots, completion slots, active generation owners,
+and server-poll slots before resetting `.inferencing → .staged`. Current tasks
+use `inference_v2|{generation}|{scanId}` descriptions; the parser also
+recognizes legacy `"inference_{scanId}"` tasks created before generation
+tagging. This replaces the old blind `resetOrphanedInferencingScans()` — a
+background download task for inference can survive app suspension and re-attach
+after a relaunch, so blindly resetting all `.inferencing` scans would dispatch a
 duplicate inference task against a scan already owned by a live OS task.
-Transient inference failures
-reset the scan back to `.staged` (via `transitionScanToStaged(id:)`) so
-`replayInferenceForUploadedScans` can reclaim it on the next connectivity
-restore. `transitionScanToStaged` is source-state guarded — it only writes if
-the scan is currently `.inferencing`, preventing a concurrent
-`softDeleteQueuedScan` tombstone from being overwritten by a background actor
-that resolves slightly later.
+Transient inference failures reset the scan back to `.staged` (via
+`transitionScanToStaged(id:)`) so `replayInferenceForUploadedScans` can reclaim
+it on the next connectivity restore. `transitionScanToStaged` is source-state
+guarded — it only writes if the scan is currently `.inferencing`, preventing a
+concurrent `softDeleteQueuedScan` tombstone from being overwritten by a
+background actor that resolves slightly later.
+
+Background inference classifies a Supabase platform route `404` before general
+HTTP handling. The response must omit `X-Merian-Handler: 1` and carry the stable
+platform code, official missing-function envelope, or gateway-without-execution
+evidence. That outcome preserves the local queue row and enters the normal
+durable retry path. Handler-owned `401`, `408`, `409`, `425`, and `429`
+responses do the same; `Retry-After` can raise the bounded persisted delay.
+Other handler-owned `4xx` responses retain the media in a user-actionable failed
+row. Only an exact stable `observation_rejected` response is a non-actionable
+terminal policy outcome.
 
 **Server idempotency**: The iOS client passes its local `scanId` as
 `client_scan_id` in the active `buildMultiModalRequest(...)` request body. The
@@ -614,14 +621,16 @@ after it resolves the upload-session ids. It also writes a service-role-only
 `scan_ingestion_intents` row containing the sanitized replay intent: telemetry,
 observation context, media descriptors, staged keys, upload-session ids, and a
 payload checksum calculated from the exact stored payload. Raw inline media
-bytes are not stored; if a foreground request
-used inline base64 media, the intent is marked non-resumable and the iOS queue
-remains the recovery source. The scheduled `replay-scan-ingestion` worker claims
-due resumable jobs, reconstructs the staged request, and invokes
-`/identify-multimodal` with the same `client_scan_id`. `insertScan` still uses
-an upsert with `onConflict: "id", ignoreDuplicates: true`, so a replayed
-inference request for an already-inserted scan is a silent no-op rather than a
-duplicate-key error, while the job ledger plus intent lets status polling,
+bytes are not stored; if a foreground request used inline base64 media, the
+intent is marked non-resumable and the iOS queue remains the recovery source.
+The scheduled `replay-scan-ingestion` worker claims due resumable jobs,
+reconstructs the staged request, and invokes `/identify-multimodal` with the
+same `client_scan_id`. `insertScan` still uses an upsert with
+`onConflict: "id", ignoreDuplicates: true`, so a replayed inference request for
+an already-inserted scan is a silent no-op rather than a duplicate-key error.
+Completion is separate: the shared finalization RPC proves all claimed
+staging-key dispositions and ready canonical media rows before writing
+`complete` last. The job ledger plus intent therefore lets status polling,
 reconciliation, and server replay distinguish the same-media retry from a
 changed media shape for the same scan id. Account-deletion tombstones have no
 owner and are terminal for replay; a delayed ingestion job cannot dispatch
@@ -633,10 +642,9 @@ another provider request for them.
 > position across the entire batch. `processUploadCompletion` parses the
 > identity structurally and scans `session.allTasks` for active chunks with the
 > same scan ID and generation. Because iOS multiplexed HTTP/3 background tasks
-> can complete out of order, relying on `indexPart == count - 1` would allow
-> the nominal final chunk to trigger before earlier chunks. A callback also
-> aborts when a different generation is preparing or transferring the same
-> scan.
+> can complete out of order, relying on `indexPart == count - 1` would allow the
+> nominal final chunk to trigger before earlier chunks. A callback also aborts
+> when a different generation is preparing or transferring the same scan.
 
 **Concurrent staging (`withTaskGroup`)**: Pre-flight guards — URL validation,
 file existence checks, and tombstoning — remain serial. Once all guards clear,
@@ -646,23 +654,23 @@ ms–2 s of head-of-line blocking before the background session takes ownership.
 
 **Bounded backoff for `generateUploadURLs` failures**: When the pre-signed URL
 request fails, `syncPendingScans` first calls
-`reconcileOrphanedUploadingScans(activeScanIds:observedThrough:)` to reset any `.uploading`
-scans — which were transitioned before `generateUploadURLs` was called — back to
-`.pending`. Without this reset those scans would be invisible to the retry since
-`fetchPendingScans` only returns `.pending` records. After the reset, each
-affected scan records durable retry metadata through `OfflineQueueRetryPolicy`.
-Retries use jittered backoff capped by `maximumRetryDelay`; once
-`maximumAutomaticRetryAttempts` is exhausted, the queued scan is marked
-`queueNeedsAttention` instead of scheduling another process-local retry. The
-retry task is cancelled immediately on connectivity loss so stale retries never
-fire while offline.
+`reconcileOrphanedUploadingScans(activeScanIds:observedThrough:)` to reset any
+`.uploading` scans — which were transitioned before `generateUploadURLs` was
+called — back to `.pending`. Without this reset those scans would be invisible
+to the retry since `fetchPendingScans` only returns `.pending` records. After
+the reset, each affected scan records durable retry metadata through
+`OfflineQueueRetryPolicy`. Retries use jittered backoff capped by
+`maximumRetryDelay`; once `maximumAutomaticRetryAttempts` is exhausted, the
+queued scan is marked `queueNeedsAttention` instead of scheduling another
+process-local retry. The retry task is cancelled immediately on connectivity
+loss so stale retries never fire while offline.
 
 All this payload work runs inside a `BackgroundTaskWrapper.execute` block so iOS
 does not suspend the process during disk I/O or URL generation. Its expiration
 handler captures the batch UUID and calls `expireUploadSync(generation:)`.
 Expiration cancels and clears only the still-matching `syncTask`, removes only
-preparation entries owned by that batch, and completes only that upload token
-in `SyncStateManager`. A delayed expiration from batch A therefore cannot reset
+preparation entries owned by that batch, and completes only that upload token in
+`SyncStateManager`. A delayed expiration from batch A therefore cannot reset
 batch B. If OS-level caching attempts fail locally and create zero transfer
 tasks, the same generation-checked `finishUploadSync(generation:)` path releases
 the latch without waiting for a URLSession delegate callback.
@@ -703,14 +711,14 @@ the latch without waiting for a URLSession delegate callback.
   > Retry ownership lives on `OfflineQueuedScan.queue*` fields and the paired
   > `OfflineJobRecord`. Automatic scan-ingestion retries are capped by
   > `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`, use jittered
-  > backoff up to `maximumRetryDelay`, and then move to `queueNeedsAttention`.
-  > A process kill no longer resets retry history or deletes user media after
-  > three local failures. Successful upload/inference paths clear retry metadata;
-  > server-owned work persists `job_status`, `job_stage`, and `retry_after` from
-  > `/check-scan-status`.
-  > Server-side resumable replay is also bounded: after 10 replay claims for the
-  > same sanitized intent, `claim_replayable_scan_ingestion_jobs` marks the job
-  > `failed_terminal` at `server_replay_limit_reached`.
+  > backoff up to `maximumRetryDelay`, and then move to `queueNeedsAttention`. A
+  > process kill no longer resets retry history or deletes user media after
+  > three local failures. Successful upload/inference paths clear retry
+  > metadata; server-owned work persists `job_status`, `job_stage`, and
+  > `retry_after` from `/check-scan-status`. Server-side resumable replay is
+  > also bounded: after 10 replay claims for the same sanitized intent,
+  > `claim_replayable_scan_ingestion_jobs` marks the job `failed_terminal` at
+  > `server_replay_limit_reached`.
 
   > **Failed Upload Notifications**: Any pathway that natively tombstones a
   > queue payload (due to transient exhaustion, HTTP 4xx permanence, or explicit
@@ -722,43 +730,40 @@ the latch without waiting for a URLSession delegate callback.
 - **Step D**:
   `dispatchInferenceDownloadTask(scanId:extracted:preparationGeneration:)`
   validates the single-flight preparation owner, builds an authenticated
-  `URLRequest` via
-  `MerianNetworkClient.buildMultiModalRequest(...)`, and issues a **background
-  URLSession download task** (`backgroundSession.downloadTask(with: request)`).
-  The preparation UUID is claimed before any suspending status/request work and
-  becomes the task identity:
-  `"inference_v2|{generation}|{scanId}"`.
+  `URLRequest` via `MerianNetworkClient.buildMultiModalRequest(...)`, and issues
+  a **background URLSession download task**
+  (`backgroundSession.downloadTask(with: request)`). The preparation UUID is
+  claimed before any suspending status/request work and becomes the task
+  identity: `"inference_v2|{generation}|{scanId}"`.
   `SyncStateManager.shared.beginInferencing(generation:)` registers that exact
   token. The inference download is suppressed until the **last** media file for
   the scan and upload generation has landed (guarded by the strict
   `session.allTasks` lookahead filter validated in Step C), preventing
-  partial-payload submissions.
-  The request body is small for queued media: images travel as `r2ObjectKeys`,
-  audio travels as `audioR2ObjectKeys`, and only descriptions/telemetry are
-  inline. Because this is a background URLSession download task (not a data
-  task), iOS can deliver the response body even while the app is completely
-  suspended. To pass the server's case-sensitive IDOR block, the
-  deterministically awaited user UUID embedded within the R2 keys is strictly
-  lowercased. Weather backfill is persisted to `OfflineQueuedScan` via
-  `BackgroundDatabaseActor.updateScanTelemetry` before dispatch so the delegate
-  can read hydrated telemetry from SwiftData on result delivery. The current
-  implementation deliberately skips optional WeatherKit backfill during
-  background replay so request construction cannot hold the queue; already
-  persisted telemetry is still included.
+  partial-payload submissions. The request body is small for queued media:
+  images travel as `r2ObjectKeys`, audio travels as `audioR2ObjectKeys`, and
+  only descriptions/telemetry are inline. Because this is a background
+  URLSession download task (not a data task), iOS can deliver the response body
+  even while the app is completely suspended. To pass the server's
+  case-sensitive IDOR block, the deterministically awaited user UUID embedded
+  within the R2 keys is strictly lowercased. Weather backfill is persisted to
+  `OfflineQueuedScan` via `BackgroundDatabaseActor.updateScanTelemetry` before
+  dispatch so the delegate can read hydrated telemetry from SwiftData on result
+  delivery. The current implementation deliberately skips optional WeatherKit
+  backfill during background replay so request construction cannot hold the
+  queue; already persisted telemetry is still included.
 - **Step E (background)**: When the inference download task completes,
   `urlSession(_:downloadTask:didFinishDownloadingTo:)` fires. The temp file is
   immediately copied to a task-specific stable path and
-  `processInferenceDownloadResult(scanId:generation:resultFileURL:statusCode:)`
+  `processInferenceDownloadResult(scanId:generation:resultFileURL:statusCode:functionRouteEvidence:)`
   is invoked inside a `BackgroundTaskWrapper`. The parsed generation must still
   own the scan; otherwise the result is discarded as stale.
   `SyncStateManager.shared.beginFinalizing(generation:)` transitions that exact
-  token to `.finalizing`.
-  `BackgroundDatabaseActor.processAndCleanupOfflineScan` decodes the JSON,
-  inserts `LocalScanRecord` when confidence is positive, writes
-  `audioFilePaths`, `videoFilePaths`, and `capturedMediaJSON`, and calls
+  token to `.finalizing`. `BackgroundDatabaseActor.processAndCleanupOfflineScan`
+  decodes the JSON, inserts `LocalScanRecord` when confidence is positive,
+  writes `audioFilePaths`, `videoFilePaths`, and `capturedMediaJSON`, and calls
   `modelContext.save()` while the same per-scan persistence coordinator still
-  protects the durable generation. The background actor intentionally does not delete the
-  `OfflineQueuedScan`; after the save succeeds,
+  protects the durable generation. The background actor intentionally does not
+  delete the `OfflineQueuedScan`; after the save succeeds,
   `processInferenceDownloadResult` rechecks the inference generation before it
   calls
   `deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:preservePreferredGoalHint:inferenceExpectation:serverPollTokenToPreserve:)`
@@ -766,24 +771,23 @@ the latch without waiting for a URLSession delegate callback.
   enumeration, so a delayed finalizer cannot cancel or delete a replacement
   generation. The generation is checked again before job-completion, UI,
   notification, and retry-accounting side effects. That main-context deletion
-  still provides the reliable `@Query`
-  re-evaluation trigger for open sheets, but it also has access to the queued
-  row before deletion, so it can delete `inferenceImagePaths` and other
-  queue-only files while preserving display images, video clips, and audio
-  files adopted by the saved `LocalScanRecord`. If the background save fails,
-  `wasCleaned` is `false`, no push/discovery/hydration side effects fire, and
-  the queue record remains retryable. If the main-context delete fails, final
-  user-facing side effects stay suppressed until a later retry can commit
-  cleanup. On zero-confidence HTTP 200 responses no `LocalScanRecord` is
-  inserted; successful queue deletion removes the queued row and purges its
-  media footprint. Inference download task failures and non-200 HTTP responses
-  route through
+  still provides the reliable `@Query` re-evaluation trigger for open sheets,
+  but it also has access to the queued row before deletion, so it can delete
+  `inferenceImagePaths` and other queue-only files while preserving display
+  images, video clips, and audio files adopted by the saved `LocalScanRecord`.
+  If the background save fails, `wasCleaned` is `false`, no
+  push/discovery/hydration side effects fire, and the queue record remains
+  retryable. If the main-context delete fails, final user-facing side effects
+  stay suppressed until a later retry can commit cleanup. On zero-confidence
+  HTTP 200 responses no `LocalScanRecord` is inserted; successful queue deletion
+  removes the queued row and purges its media footprint. Inference download task
+  failures and retryable non-200 HTTP responses route through
   `handleInferenceTaskNetworkFailure(scanId:generation:error:)` before entering
-  `handleInferenceRetry(scanId:generation:reason:)`.
-  `NSURLErrorCancelled` (Code=-999) is short-circuited because it is produced
-  when an owner path cancels background work after live inference already
-  succeeded or the user deleted the queued scan. Before scheduling a retry,
-  `handleInferenceRetry` calls
+  `handleInferenceRetry(scanId:generation:reason:)`. `NSURLErrorCancelled`
+  (Code=-999) is short-circuited because it is produced when an owner path
+  cancels background work after live inference already succeeded or the user
+  deleted the queued scan. Before scheduling a retry, `handleInferenceRetry`
+  calls
   `MerianNetworkClient.shared.checkScanStatusDetails(scanId:requiredVideoCount:)`
   (POST `/check-scan-status`) to probe whether the scan already landed in
   `public.scans` or is still owned by a server ingestion job. For queued video
@@ -799,16 +803,20 @@ the latch without waiting for a URLSession delegate callback.
   `failed_retryable` honors the server `retry_after` before returning the row to
   `.staged`. A retry timestamp that is already stale schedules a one-second
   recheck rather than the maximum five-minute wait, so clock skew or an expired
-  lease cannot stall recovery; terminal failure marks the queue row as needing
-  attention. Unresolved `not_found`
-  responses or status-probe failures fall back to the same persisted retry budget
+  lease cannot stall recovery. HTTP `401`, `408`, `409`, `425`, and `429` are
+  retryable; a safe integer `Retry-After` raises the persisted delay up to the
+  queue maximum. Other handler-owned `4xx` responses preserve local media in
+  `queueNeedsAttention`, while exact `observation_rejected` is terminal.
+  Server-ledger terminal failure marks the queue row as needing attention.
+  Unresolved `not_found` responses or status-probe failures fall back to the
+  same persisted retry budget
   (`OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`) used by upload
   staging, rather than a separate process-local attempt counter.
 
   **InferenceEngine hydration (background-wins race)**: After the shared scan
-  milestone coordinator task is started, if `processingResult.speciesData` is non-nil,
-  `processInferenceDownloadResult` checks whether `InferenceEngine` is still
-  presenting the exact released live-attempt generation for the same scan.
+  milestone coordinator task is started, if `processingResult.speciesData` is
+  non-nil, `processInferenceDownloadResult` checks whether `InferenceEngine` is
+  still presenting the exact released live-attempt generation for the same scan.
   `commitRecoveredBackgroundResult` compares `activeScanId`, the live
   presentation UUID, its released foreground UUID, and the absence of a new
   foreground owner before publishing. When these checks succeed, the background
@@ -819,12 +827,11 @@ the latch without waiting for a URLSession delegate callback.
   exact live task cancelled. That ownership transfer prevents a cooperatively
   cancelled live error handler from overwriting the recovered result. A stale
   background completion that finds replacement generation B returns without
-  cancelling B.
-  This prevents the old live task from resuming after foregrounding,
-  finding a cold network, and showing "Network timeout" on a scan whose result
-  is already committed to the database. The insight sheet's `InsightContentView`
-  observer (`isProcessing == false && speciesData != nil`) transitions out of
-  "Analyzing..." mode immediately.
+  cancelling B. This prevents the old live task from resuming after
+  foregrounding, finding a cold network, and showing "Network timeout" on a scan
+  whose result is already committed to the database. The insight sheet's
+  `InsightContentView` observer (`isProcessing == false && speciesData != nil`)
+  transitions out of "Analyzing..." mode immediately.
 - **UUID Terminality**: `OfflineQueueManager` strictly awaits the resolved
   finalized database UUID from `dbActor.processAndCleanupOfflineScan()` (the
   "Terminal ID"). This effectively terminates the ephemeral offline properties
@@ -832,18 +839,18 @@ the latch without waiting for a URLSession delegate callback.
   ALWAYS execute traversing the Terminal ID, guaranteeing user interactions bind
   directly to `.biological` persistence blocks instead of ghost records.
 - **Long-lived actors**: `BackgroundDatabaseActor` and `ProfileDatabaseActor`
-  are now stored as persistent properties (`_queueDbActor`,
-  `_profileDbActor`) on `OfflineQueueManager` and initialized lazily on first
-  use. Reusing a single actor instance across consecutive completions avoids
-  repeated actor allocation + `ModelContext` setup. Each `@ModelActor`
-  serializes concurrent calls through its executor automatically, so rapid burst
-  completions queue safely. `resolvedQueueDbActor(container:)` tracks the
-  container that owns the cached actor (`_queueDbActorContainer`). If the
-  caller provides a different container, the cache is invalidated and a fresh
-  actor is created. In production the container is a process-lifetime singleton
-  so this is a no-op; in tests each suite creates a fresh in-memory container,
-  and the identity check ensures a stale actor bound to a previous test's
-  already-deallocated store is never returned.
+  are now stored as persistent properties (`_queueDbActor`, `_profileDbActor`)
+  on `OfflineQueueManager` and initialized lazily on first use. Reusing a single
+  actor instance across consecutive completions avoids repeated actor
+  allocation + `ModelContext` setup. Each `@ModelActor` serializes concurrent
+  calls through its executor automatically, so rapid burst completions queue
+  safely. `resolvedQueueDbActor(container:)` tracks the container that owns the
+  cached actor (`_queueDbActorContainer`). If the caller provides a different
+  container, the cache is invalidated and a fresh actor is created. In
+  production the container is a process-lifetime singleton so this is a no-op;
+  in tests each suite creates a fresh in-memory container, and the identity
+  check ensures a stale actor bound to a previous test's already-deallocated
+  store is never returned.
 - **Step F**: `GamificationManager.shared.recordNewSpeciesDiscovered()` and the
   inference-complete push notification fire immediately per completion. The
   final database scan ID, decoded `SpeciesData`, and model container then enter
@@ -853,19 +860,19 @@ the latch without waiting for a URLSession delegate callback.
   foreground/background races by final scan ID, waits for remote persistence,
   retrieves the idempotent progress receipt through the Edge action, publishes
   progress refresh events, calculates newly eligible achievements without
-  immediately presenting them, and atomically enqueues standard outing
-  progress, Events-visible Seasonal Challenge progress, achievements, then
-  **New to Naturebook**. A failed or no-match progress attempt releases the
-  later milestones only after it finishes. Award calculation is per final scan
-  rather than process-lifetime burst-debounced, because strict notification
-  ordering and scan-level deduplication are now the contract. The
-  Retryable progress failures leave the SwiftData goal-hint outbox intact and
-  schedule bounded in-process retries; a later scheduler pass replays it after
-  termination. `UserDefaultsKeys.hasUnseenScan` is set to trigger the MainTabBar red
-  dot, **unless** `suppressInferenceBanners` is `true` (the insight sheet is
-  open and the user is watching the transition to results — setting the badge in
-  that case would cause it to appear and immediately need clearing on sheet
-  dismiss). The push notification is scheduled unconditionally via
+  immediately presenting them, and atomically enqueues standard outing progress,
+  Events-visible Seasonal Challenge progress, achievements, then **New to
+  Naturebook**. A failed or no-match progress attempt releases the later
+  milestones only after it finishes. Award calculation is per final scan rather
+  than process-lifetime burst-debounced, because strict notification ordering
+  and scan-level deduplication are now the contract. The Retryable progress
+  failures leave the SwiftData goal-hint outbox intact and schedule bounded
+  in-process retries; a later scheduler pass replays it after termination.
+  `UserDefaultsKeys.hasUnseenScan` is set to trigger the MainTabBar red dot,
+  **unless** `suppressInferenceBanners` is `true` (the insight sheet is open and
+  the user is watching the transition to results — setting the badge in that
+  case would cause it to appear and immediately need clearing on sheet dismiss).
+  The push notification is scheduled unconditionally via
   `PushNotificationManager.shared.sendInferenceCompleteNotification` —
   foreground banner suppression is delegated to
   `PushNotificationManager.willPresent`, which reads `suppressInferenceBanners`
@@ -886,9 +893,9 @@ takes ownership.
 When all background upload tasks for a batch settle,
 `finishUploadSync(generation:)` calls
 `SyncStateManager.shared.completeUploadPhase(generation:)`. A stale delegate
-cannot clear a replacement batch. If `unsyncedItemsCount > 0` after the
-matching batch completes, `syncPendingScans()` is called recursively to drain
-the queue automatically.
+cannot clear a replacement batch. If `unsyncedItemsCount > 0` after the matching
+batch completes, `syncPendingScans()` is called recursively to drain the queue
+automatically.
 
 ## The Sync State Machine (`SyncStateManager`)
 
@@ -957,7 +964,16 @@ operations commit first, file deletion runs after**.
 
 A `PendingCloudDeletionTask` SwiftData record is inserted at deletion time,
 queuing the `scanId` for cloud erasure. The UI executes an optimistic delete
-immediately.
+immediately. On the server, `/delete-scan` first commits a private,
+owner-verified generation tombstone, then erases canonical R2 media, then
+removes the PostgreSQL row. A failed or lost response leaves both the local task
+and server tombstone available for idempotent retry; stale inference or a second
+device cannot recreate that UUID. The local task is a latency optimization, not
+the only completion mechanism: `reconcile-scan-deletions` independently leases
+and resumes pending server tombstones every five minutes, so uninstalling the
+app or permanently losing the deleting device cannot strand the privacy request.
+The GitHub-backed Scan Media Health Monitor separately alerts on oldest-pending
+age, backlog, and expired leases.
 
 ### 3. Upload Interception (`softDeleteQueuedScan` & `deleteQueuedScan`)
 
@@ -993,9 +1009,10 @@ user with 10 offline deletions the wall time still drops from ~4 s (serial) to
 and the task is removed. All other errors retain the task for the next cycle
 until `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts` is exhausted; the
 paired `OfflineJobRecord` then moves to `needsAttention` and is no longer
-runnable. The result-processing loop builds a `[String: PendingCloudDeletionTask]`
-dictionary once before iterating results, making each lookup O(1) instead of the
-previous O(n) linear scan (was O(n²) overall for large batches).
+runnable. The result-processing loop builds a
+`[String: PendingCloudDeletionTask]` dictionary once before iterating results,
+making each lookup O(1) instead of the previous O(n) linear scan (was O(n²)
+overall for large batches).
 
 ## The Collections Pipeline
 
@@ -1033,8 +1050,8 @@ disconnected.
    `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`,
    resuming after the last composite primary key rather than using range/OFFSET
    pages or one round trip per collection. Only the delta (rows to add and rows
-   to remove) is written. We intentionally do not use implicit destructive
-   diffs for whole collections to prevent devices with missing histories from
+   to remove) is written. We intentionally do not use implicit destructive diffs
+   for whole collections to prevent devices with missing histories from
    obliterating remote databases. The Edge function actively pre-filters any
    mappings for scans that haven't synced to the cloud yet, preventing Postgres
    FK constraint violations from aborting the overarching database chunk.
@@ -1072,10 +1089,10 @@ disconnected.
    > must be deployed with `verify_jwt = false` / `--no-verify-jwt`. This
    > bypasses Kong's fast-path validation and allows our internal `requireAuth`
    > wrapper in `_shared/auth.ts` to validate the token. Most routes retain
-   > `supabaseClient.auth.getUser()`; latency-sensitive identify/deferred-context
-   > routes use the cached-JWKS `getClaims(token)` path with explicit claims
-   > validation. Both strategies natively support `ES256`.
-   > Deliberately public routes such as `species-dictionary` also use
+   > `supabaseClient.auth.getUser()`; latency-sensitive
+   > identify/deferred-context routes use the cached-JWKS `getClaims(token)`
+   > path with explicit claims validation. Both strategies natively support
+   > `ES256`. Deliberately public routes such as `species-dictionary` also use
    > `verify_jwt = false`, but skip `requireAuth` and must document their public
    > data boundary.
 
@@ -1213,13 +1230,13 @@ app recovers foreground state (`AppDIContainer.handleActivePhase`).
 Historical scans restore their Cloudflare R2 URLs directly into `localImagePath`
 and `additionalImagePaths` when the physical photo is absent locally.
 `LocalImageLoader` evaluates HTTP boundaries implicitly. Eligible durable R2
-URLs first consult the process-local recovery registry for a surviving
-Documents file established by exact filename, read-only rescue-store alignment,
-or constrained timestamp grouping. Without a match, the loader routes the
-bounded async network fetch transparently so the user downloads only what is on
-screen. A local recovery hit can enqueue authenticated cloud repair that
-promotes a new object and atomically updates Scan and Explore references; it
-does not change offline-queue inference ownership.
+URLs first consult the process-local recovery registry for a surviving Documents
+file established by exact filename, read-only rescue-store alignment, or
+constrained timestamp grouping. Without a match, the loader routes the bounded
+async network fetch transparently so the user downloads only what is on screen.
+A local recovery hit can enqueue authenticated cloud repair that promotes a new
+object and atomically updates Scan and Explore references; it does not change
+offline-queue inference ownership.
 
 ### SwiftData Typealias UI Quirks
 

@@ -130,6 +130,36 @@ struct ExploreErrorFormatterTests {
         )
     }
 
+    @Test func platformFunctionNotFoundUsesCustomerFacingAvailabilityCopy() {
+        let message = ExploreErrorFormatter.titledMessage(
+            "Couldn’t share to Explore",
+            for: MerianError.httpError(
+                statusCode: 404,
+                message: #"{"code":"NOT_FOUND","message":"Requested function was not found"}"#
+            )
+        )
+
+        #expect(
+            message == "Couldn’t share to Explore\nExplore is temporarily unavailable. Please try again in a few minutes."
+        )
+    }
+
+    @Test func classifiedPlatformRouteFailureUsesCustomerFacingAvailabilityCopy() {
+        #expect(
+            ExploreErrorFormatter.message(for: MerianError.edgeFunctionUnavailable)
+                == "Explore is temporarily unavailable. Please try again in a few minutes."
+        )
+    }
+
+    @Test func speciesStatsUsesContextualTemporaryServiceCopy() {
+        #expect(
+            ExploreErrorFormatter.speciesStatsMessage(
+                for: MerianError.edgeFunctionUnavailable
+            )
+                == "Live observation statistics are temporarily unavailable. Please try again later."
+        )
+    }
+
     @Test func missingCloudScansUseCustomerFacingSyncCopy() {
         let message = ExploreErrorFormatter.titledMessage(
             "Couldn’t share to Explore",

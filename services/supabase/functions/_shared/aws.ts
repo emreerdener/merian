@@ -92,6 +92,55 @@ export function isScanMediaR2Url(publicUrl: string): boolean {
     R2_MEDIA_PREFIXES.scanMedia.some((prefix) => key.startsWith(prefix));
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SCAN_MEDIA_FILE_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,255}$/;
+
+/**
+ * Proves that a durable scan-media URL belongs to the expected user.
+ *
+ * Prefix-only checks are insufficient because an authenticated owner could
+ * otherwise copy another user's public URL into one of their mutable scan
+ * columns and ask a service-role route to delete the victim object.
+ */
+export function isOwnedScanMediaR2Url(
+  publicUrl: string,
+  ownerUserId: string,
+): boolean {
+  if (!UUID_PATTERN.test(ownerUserId)) return false;
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(publicUrl);
+  } catch {
+    return false;
+  }
+  if (
+    parsedUrl.protocol !== "https:" ||
+    parsedUrl.hostname !== "media.merian.app" ||
+    parsedUrl.port !== "" ||
+    parsedUrl.username !== "" ||
+    parsedUrl.password !== "" ||
+    parsedUrl.search !== "" ||
+    parsedUrl.hash !== ""
+  ) {
+    return false;
+  }
+
+  const key = r2ObjectKeyFromPublicUrl(publicUrl);
+  if (!key) return false;
+  const segments = key.split("/");
+  if (segments.length !== 4) return false;
+
+  const [root, tier, keyOwner, fileName] = segments;
+  return root === "public_uploads" &&
+    (tier === "free" || tier === "pro") &&
+    keyOwner === ownerUserId.toLowerCase() &&
+    fileName !== "." &&
+    fileName !== ".." &&
+    SCAN_MEDIA_FILE_NAME_PATTERN.test(fileName);
+}
+
 export function isAvatarR2Key(key: string, userId?: string): boolean {
   const prefix = userId
     ? `${R2_MEDIA_PREFIXES.avatars}${userId}/`
@@ -133,34 +182,35 @@ export function r2RequestWithDeadline(
 
 export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
   const { s3Client } = r2Config;
-  const failures: Array<{ url: string; reason: string }> = [];
+  const failures: string[] = [];
   await mapWithConcurrencyLimit(
     urls,
     R2_DELETE_CONCURRENCY,
     async (url: string) => {
       try {
-        console.log(`Deleting R2 object: ${url}`);
         const s3Url = getInternalS3Url(url, r2Config);
         const response = await s3Client.fetch(
           r2RequestWithDeadline(s3Url, { method: "DELETE" }),
         );
-        if (!response.ok) {
+        if (!response.ok && response.status !== 404) {
           await response.body?.cancel().catch(() => undefined);
           throw new Error(`R2 delete returned HTTP ${response.status}`);
         }
         await response.body?.cancel().catch(() => undefined);
       } catch (e) {
-        console.error(`Failed to wipe media at ${url} from Cloudflare R2:`, e);
-        failures.push({
-          url,
-          reason: e instanceof Error ? e.message : String(e),
-        });
+        failures.push(e instanceof Error ? e.message : "R2 delete failed");
       }
     },
   );
   if (failures.length > 0) {
+    console.error(JSON.stringify({
+      event: "r2_bulk_delete_failed",
+      requested_count: urls.length,
+      failure_count: failures.length,
+      ts: new Date().toISOString(),
+    }));
     throw new AggregateError(
-      failures.map((failure) => new Error(`${failure.url}: ${failure.reason}`)),
+      failures.map((reason) => new Error(reason)),
       `Failed to delete ${failures.length}/${urls.length} R2 object(s).`,
     );
   }
@@ -168,14 +218,27 @@ export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
 
 export async function deleteScanMediaR2Objects(
   urls: string[],
+  ownerUserId: string,
   r2Config: R2Config,
 ) {
-  const scanMediaUrls = urls.filter(isScanMediaR2Url);
-  const skippedCount = urls.length - scanMediaUrls.length;
+  const acceptedUrls = urls.filter((url) =>
+    isOwnedScanMediaR2Url(url, ownerUserId)
+  );
+  const scanMediaUrls = [
+    ...new Set(
+      acceptedUrls,
+    ),
+  ];
+  const skippedCount = urls.length - acceptedUrls.length;
   if (skippedCount > 0) {
-    console.warn(
-      `Skipped ${skippedCount} non-scan R2 object(s) during scan media deletion.`,
-    );
+    console.warn(JSON.stringify({
+      event: "scan_media_delete_owner_fence_rejected",
+      requested_count: urls.length,
+      accepted_count: acceptedUrls.length,
+      accepted_unique_count: scanMediaUrls.length,
+      rejected_count: skippedCount,
+      ts: new Date().toISOString(),
+    }));
   }
   await deleteR2Objects(scanMediaUrls, r2Config);
 }
@@ -219,6 +282,22 @@ export async function deleteR2Object(
       method: "DELETE",
     }),
   );
+}
+
+export async function deleteR2ObjectIfPresent(
+  key: string,
+  config: R2Config,
+): Promise<void> {
+  const response = await deleteR2Object(key, config);
+  try {
+    if (!response.ok && response.status !== 404) {
+      throw new Error(
+        `R2 object deletion failed with HTTP ${response.status}.`,
+      );
+    }
+  } finally {
+    await response.body?.cancel().catch(() => undefined);
+  }
 }
 
 function decodeXmlText(value: string): string {

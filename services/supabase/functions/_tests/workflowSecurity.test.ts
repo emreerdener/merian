@@ -186,6 +186,92 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
   );
 });
 
+Deno.test("production smoke proves critical user Edge routes reach Merian handlers", async () => {
+  const deployWorkflow = await Deno.readTextFile(
+    new URL("deploy.yml", workflowsDirectory),
+  );
+
+  assertStringIncludes(deployWorkflow, "probe_user_function_route()");
+  assertStringIncludes(
+    deployWorkflow,
+    "grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$'",
+  );
+  assertStringIncludes(deployWorkflow, '[ "$status" = "401" ]');
+  for (
+    const functionName of [
+      "identify-multimodal",
+      "check-scan-status",
+      "share-scan-to-explore",
+      "get-explore-composer-media",
+      "insight-chat",
+    ]
+  ) {
+    assertMatch(
+      deployWorkflow,
+      new RegExp(`^\\s+${functionName}$`, "m"),
+      `${functionName} must be route-probed before production smoke completes.`,
+    );
+  }
+});
+
+Deno.test("production smoke proves every Edge route reaches a Merian handler", async () => {
+  const deployWorkflow = await Deno.readTextFile(
+    new URL("deploy.yml", workflowsDirectory),
+  );
+
+  assertStringIncludes(deployWorkflow, "probe_all_function_routes()");
+  assertMatch(
+    deployWorkflow,
+    /plan_function_deploy\.ts\s+\\\n\s+--all > "\$function_plan_file"/,
+  );
+  assertStringIncludes(deployWorkflow, "-X OPTIONS");
+  assertStringIncludes(
+    deployWorkflow,
+    'mapfile -t pending_functions < "$function_plan_file"',
+  );
+  assertStringIncludes(
+    deployWorkflow,
+    'map(select(startswith("sb_publishable_") | not)) | first // empty',
+  );
+  assertStringIncludes(
+    deployWorkflow,
+    '-H "Authorization: Bearer ${route_probe_jwt}"',
+  );
+  assertStringIncludes(
+    deployWorkflow,
+    "A publishable API key is never valid Bearer authorization.",
+  );
+  assertMatch(
+    deployWorkflow,
+    /grep -Eq \\\n\s+'\^\[\[:space:\]\]\*verify_jwt/,
+  );
+  assertStringIncludes(
+    deployWorkflow,
+    "grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$'",
+  );
+  assertMatch(
+    deployWorkflow,
+    /probe_all_function_routes\s*\n\s*critical_user_functions=/,
+  );
+});
+
+Deno.test("production smoke drains and checks the private DwCA cleanup outbox", async () => {
+  const deployWorkflow = await Deno.readTextFile(
+    new URL("deploy.yml", workflowsDirectory),
+  );
+
+  assertMatch(
+    deployWorkflow,
+    /dwca_cleanup_response[\s\S]*post_server_json[\s\S]*\/functions\/v1\/reconcile-dwca-archive-cleanup/,
+  );
+  assertStringIncludes(deployWorkflow, '.health_status == "healthy"');
+  assertStringIncludes(deployWorkflow, '.health_status == "warning"');
+  assertStringIncludes(
+    deployWorkflow,
+    "'{claimed, completed, deferred, health_status}'",
+  );
+});
+
 Deno.test("operational Supabase scripts run with least-privilege Deno scopes", async () => {
   const sources = new Map(await workflowSources());
   const monitorWorkflows = [
