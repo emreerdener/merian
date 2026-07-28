@@ -55,18 +55,18 @@ TestFlight, App Store, support, and QA.
 - Consolidated the Supabase server credential and database release contract.
   Opaque project keys now use only standard `apikey` transport, every real
   public project key is a required negative deployment smoke control, and
-  internal failures withhold operational response bodies and all
-  secret-derived diagnostics. Production deploys now synchronize the exact
-  revealed active key into a non-reserved Edge fallback before Function rollout
-  and verify its stored SHA-256 digest without logging either value. Edge and
-  web credential sources are classified independently so a malformed migration
-  slot cannot veto an exact valid key or enter the accepted candidate set.
-  Bounded propagation retries and endpoint-aware diagnostics replace opaque
-  final Function/Data API errors with safe handler-versus-router or
-  PostgREST-specific guidance. Scheduled JSON Function callers now preserve the
-  same safe status and fixed handler-marker classification instead of reducing
-  failures to the SDK's generic non-2xx message; the read-only scan-media
-  monitor also retries only bounded transient failures.
+  internal failures withhold operational response bodies and all secret-derived
+  diagnostics. Production deploys now synchronize the exact revealed active key
+  into a non-reserved Edge fallback before Function rollout and verify its
+  stored SHA-256 digest without logging either value. Edge and web credential
+  sources are classified independently so a malformed migration slot cannot veto
+  an exact valid key or enter the accepted candidate set. Bounded propagation
+  retries and endpoint-aware diagnostics replace opaque final Function/Data API
+  errors with safe handler-versus-router or PostgREST-specific guidance.
+  Scheduled JSON Function callers now preserve the same safe status and fixed
+  handler-marker classification instead of reducing failures to the SDK's
+  generic non-2xx message; the read-only scan-media monitor also retries only
+  bounded transient failures.
 - Closed the remaining exposed-table security gap for Explore comment reactions,
   revoked unsafe global and `public`-schema default table/sequence privileges,
   and added static plus live catalog enforcement for RLS and PostgreSQL 17
@@ -118,9 +118,9 @@ TestFlight, App Store, support, and QA.
   successful empty table read was mistaken for service-role authority. Every
   shared internal boundary now accepts only an exact platform-managed service
   key, rejects mixed credentials, keeps caller credentials out of downstream
-  database clients, and denies real anon/publishable keys in the production smoke
-  suite. Operational callers now retrieve revealed current secret keys through
-  the Management API, use API-key-only transport, reject masked key
+  database clients, and denies real anon/publishable keys in the production
+  smoke suite. Operational callers now retrieve revealed current secret keys
+  through the Management API, use API-key-only transport, reject masked key
   representations, and fall back only to the exact legacy service-role key.
 - Privileged Edge, webhook, and public-data clients now resolve the
   platform-managed current secret-key dictionary through one factory. Opaque
@@ -148,9 +148,15 @@ TestFlight, App Store, support, and QA.
   source arrays and selected taxonomy values now have validated
   cardinality/UTF-8 byte bounds, each claimed keyset page stops by serialized
   bytes as well as rows, and CSV is encoded one row at a time into a fixed-size
-  buffer. Occurrence and multimedia now share one creation-time scan membership
-  snapshot with revision fingerprints, so later scans stay out and a changed or
-  deleted source fails safely instead of producing a mixed archive.
+  buffer. Occurrence and multimedia now share one bounded immutable
+  creation-time DTO snapshot, so later scans and edits cannot mix taxonomy,
+  privacy, or media revisions. Confirmed identity is authoritative while the
+  original AI identity remains history; exact GPS is omitted before persistence
+  unless an unprotected personal job explicitly requested it. A narrow live
+  eligibility fence still stops deletion or privacy revocation before delivery,
+  including a protected-species coordinate-policy change in either scope, and
+  chunk downloads accept missing `Content-Length` only while enforcing the exact
+  streamed manifest bytes.
 - Made account deletion durable and recoverable. Naturebook now records the
   deletion request before anonymizing account data, verifies that cleanup, and
   cursor-sweeps durable uploads, staging data, avatars, and exports. A delayed
@@ -198,10 +204,13 @@ TestFlight, App Store, support, and QA.
   their availability state when the displayed scan changes.
 - Hardened the public web boundary with the patched exact Next.js release,
   per-request nonce CSP, explicit browser security headers, and a `server-only`
-  service-role client separated from anonymous projection reads. Reviewed
-  transitive overrides now replace Next.js's vulnerable PostCSS and Sharp
-  versions, and web CI blocks current or future high/critical dependency
-  findings instead of treating the documented audit as optional.
+  service-role client separated from anonymous projection reads. Explore now
+  uses two narrowly scoped, fixed-anonymous server projections: browser roles
+  cannot execute them, no synthetic viewer can be supplied, and engagement or
+  ownership state is withheld. Reviewed transitive overrides now replace
+  Next.js's vulnerable PostCSS and Sharp versions, and web CI blocks current or
+  future high/critical dependency findings instead of treating the documented
+  audit as optional.
 - Patched the separately deployed internal-admin dependency graph and added an
   independent quality check. Admin changes now use a frozen install, reject
   reviewed-vulnerable Next.js/PostCSS/Sharp versions, block live high/critical

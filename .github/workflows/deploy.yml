@@ -147,6 +147,8 @@ jobs:
             supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
             supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+            supabase/functions/_tests/publicWebExploreCoverage.test.ts \
+            supabase/functions/_tests/publicWebExploreMigrationContract.test.ts \
             supabase/functions/_tests/workflowSecurity.test.ts \
             supabase/functions/_shared/http.ts \
             supabase/functions/_shared/http_test.ts \
@@ -761,6 +763,26 @@ jobs:
               echo "A public Supabase API credential unexpectedly passed the internal-route authorization boundary (HTTP ${denied_status})."
               exit 1
             fi
+
+            explore_denied_response="$RUNNER_TEMP/public-web-explore-rpc-denied-${index}.json"
+            explore_denied_status="$(
+              curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
+                -o "$explore_denied_response" \
+                -w "%{http_code}" \
+                -X POST "${supabase_url}/rest/v1/rpc/get_public_web_explore_posts" \
+                "${public_headers[@]}" \
+                --data '{"p_target_post_id":null,"p_max_limit":1}'
+            )"
+            case "$explore_denied_status" in
+              401 | 403 | 404)
+                ;;
+              *)
+                echo "A public Supabase API credential unexpectedly executed the server-only public-web Explore projection (HTTP ${explore_denied_status})."
+                exit 1
+                ;;
+            esac
           done
 
           status_response="$(
@@ -812,6 +834,25 @@ jobs:
             and (.[0].missing_media_item_count | type) == "number"
           '
           echo "$publication_health_response" | jq '.[0]'
+
+          public_web_explore_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_public_web_explore_posts" \
+              '{"p_target_post_id":null,"p_max_limit":1}'
+          )"
+          echo "$public_web_explore_response" | jq -e '
+            type == "array"
+            and length <= 1
+            and all(
+              .[];
+              (.post_id | type) == "string"
+              and (.scan_id | type) == "string"
+              and .like_count == 0
+              and .comment_count == 0
+              and .viewer_has_liked == false
+              and .is_owned_by_viewer == false
+            )
+          '
 
           owned_incidents_response="$(
             post_server_json \

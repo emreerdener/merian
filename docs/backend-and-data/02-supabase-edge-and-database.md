@@ -1152,13 +1152,21 @@ release gate, not database authorization. Publishing Events later requires a new
 client build but no schema or function change unless the backend contract has
 changed independently.
 
-`get-explore-post` is an important routing helper for the iOS client and the
-public Next.js web app: it returns a single privacy-safe feed-card projection so
-notification taps, deep links, and
-`https://naturebook.earth/explore/post/{postId}` pages do not depend on the
-target post already existing in the currently paged `ExploreFeedViewModel.posts`
-array. Public web consumers must treat this as the maximum public projection and
-avoid querying private scan/auth tables directly.
+`get-explore-post` is an important routing helper for the iOS client: it returns
+a single privacy-safe feed-card projection so notification taps and deep links
+do not depend on the target post already existing in the currently paged
+`ExploreFeedViewModel.posts` array.
+
+The public Next.js app uses a separate server-only boundary for
+`https://naturebook.earth/explore/post/{postId}`:
+`get_public_web_explore_posts(...)` and
+`get_public_web_explore_post_detail(...)`. Both wrappers fix the viewer to
+`NULL`, reuse the canonical visibility/privacy projections, and expose only the
+web DTO. They are executable only by `service_role`; browser `anon` and
+`authenticated` roles are explicitly denied. The Next.js server invokes them
+through its validated server key and must not query private Explore, scan, user,
+taxonomy, or Auth tables directly. Engagement counts are zero and viewer state
+is false on this anonymous surface.
 
 Explore post common names are post snapshots, not live dictionary labels. The
 share and edit functions may write `explore_posts.species_common_name` from the
@@ -1419,24 +1427,37 @@ UTF-8 bytes, ecological interaction arrays to 10 elements of 2,048 bytes, and
 selected taxonomy text to finite lengths. Those validated write-time limits
 remain prerequisites for every snapshot page.
 
-Migration `20260726025103_snapshot_dwca_export_sources.sql` moves scope
-evaluation to job creation and fixes one private `(job_id, scan_id)` membership
-set for both CSV passes. It stores three compact SHA-256 fingerprints per scan:
-eligibility/privacy, occurrence fields including joined taxonomy, and multimedia
-fields. The page RPC traverses that membership and returns a live projection
-only when it still matches the creation-time fingerprint. Scans created later
-cannot enter the job, and changed/deleted revisions terminate with
-`source_snapshot_changed` instead of mixing phase revisions. Fingerprints are
-deleted at terminal status. Existing nonterminal jobs are fenced, their
-pre-snapshot manifests are discarded, and they restart from occurrence.
+Migration
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
+upgrades source snapshots to version 2. Scope evaluation, membership, and both
+phase DTOs are materialized by one MVCC statement at job creation. Private
+`internal.export_job_source_rows` stores the immutable occurrence and multimedia
+JSON plus exact byte counts; confirmed species identity is used when present,
+with the original AI identity retained only as scan history. Total source JSON
+is capped at four times the immutable archive budget and never above 64 MiB.
+Each phase DTO is independently capped at 256 KiB. Exact GPS keys are omitted
+from global rows and from personal rows that did not opt into precise
+coordinates; protected personal rows omit them even when precision was
+requested.
+
+The page RPC reads those immutable DTOs rather than querying live scan/taxonomy
+state. A later scan or ordinary edit therefore cannot enter, alter, or
+needlessly fail the export. Before returning a page, it revalidates one compact
+scope-aware live eligibility hash: source deletion, tombstoning, owner change,
+or a relevant privacy/protection change terminates with
+`source_snapshot_changed`. Personal geoprivacy changes are irrelevant because
+that scope contains only the requesting owner's rows; both scopes still
+revalidate whether protected-species coordinate redaction is required. Terminal
+status purges the DTOs. Existing nonterminal jobs are fenced, discard prior
+manifests, and restart from occurrence against one version-2 snapshot.
 `get_dwca_export_scan_batch(...)` remains executable only by `service_role`,
 verifies the active claim token and exact durable cursor, and returns no more
 than 100 rows or 256 KiB of serialized source.
 
 Each claimed step remains independently bounded:
 
-1. `occurrence` or `multimedia` reads one narrow, revision-checked monotonic
-   row-and-byte-aware keyset page from shared immutable job membership,
+1. `occurrence` or `multimedia` reads one monotonic row-and-byte-aware keyset
+   page from shared immutable DTO rows after the live privacy-revocation fence,
    incrementally RFC-4180 encodes into a fixed buffer of at most 512 KiB, writes
    one temporary R2 CSV chunk, and transactionally commits its object key,
    cursor, cumulative budgets, byte count, and CRC-32.
@@ -1558,9 +1579,8 @@ that operate on anonymous IDFV boundaries:
     closed, and accepted request values are never reused as downstream database
     credentials. This internal category includes species refresh,
     reference-image refresh, taxonomy import/status/refresh, consensus
-    processing, non-biological purge,
-    `backfill-explore-audio-spectrograms`, and `reconcile-ghost-profile-merges`
-    workers.
+    processing, non-biological purge, `backfill-explore-audio-spectrograms`, and
+    `reconcile-ghost-profile-merges` workers.
 - **Rule for new Edge Functions**: Every new function directory under
   `services/supabase/functions/` MUST have a corresponding `[functions.<name>]`
   entry in `config.toml` before deployment. Use `verify_jwt = true` for routes
@@ -1620,16 +1640,15 @@ indexes:
   O(page_size) regardless of library size.
 
 All migration-owned index DDL intentionally omits `CONCURRENTLY`. Supabase CLI
-`2.109.1` owns migration transaction and history boundaries; new migrations
-omit top-level transaction controls so those boundaries cannot be split.
-Top-level timeout guards use session `SET` plus matching `RESET`, not
-`SET LOCAL`, so they remain effective during fresh replay. The static migration
-contracts cover the full migration directory, including dynamic concurrent DDL,
-transaction aliases, and replay-safe timeout handling.
-Zero-downtime index creation on a populated production table is an explicit,
-supervised pre-deploy operation. A size-gated migration may converge with an
-ordinary index only after it verifies a reusable index or a relation small
-enough for the bounded inline path. See the canonical
+`2.109.1` owns migration transaction and history boundaries; new migrations omit
+top-level transaction controls so those boundaries cannot be split. Top-level
+timeout guards use session `SET` plus matching `RESET`, not `SET LOCAL`, so they
+remain effective during fresh replay. The static migration contracts cover the
+full migration directory, including dynamic concurrent DDL, transaction aliases,
+and replay-safe timeout handling. Zero-downtime index creation on a populated
+production table is an explicit, supervised pre-deploy operation. A size-gated
+migration may converge with an ordinary index only after it verifies a reusable
+index or a relation small enough for the bounded inline path. See the canonical
 [migration execution and index contract](./13-server-credentials-and-database-release-safety.md#migration-execution-contract).
 
 ## Storage Economics & Evidence Retention
@@ -2203,23 +2222,22 @@ optional controls are set in the Supabase Edge secret store via the CLI
 (`supabase secrets set KEY=VALUE`):
 
 - Supabase automatically provides **`SUPABASE_URL`**, the legacy
-  **`SUPABASE_ANON_KEY`** and server-only
-  **`SUPABASE_SERVICE_ROLE_KEY`**, plus JSON dictionaries
-  **`SUPABASE_PUBLISHABLE_KEYS`** and **`SUPABASE_SECRET_KEYS`** containing the
-  project's named current keys. Do not manually overwrite these built-ins.
-  `_shared/publishableKey.ts` resolves the public project key for user-scoped
-  clients; `_shared/serviceRoleAuth.ts` independently resolves and exactly
-  matches server-only keys. Neither boundary accepts the other key class.
-  **`SUPABASE_SECRET_KEY`** is an optional singular current-key fallback for
-  local/manual Deno environments; it is not a replacement for the hosted plural
-  dictionary.
+  **`SUPABASE_ANON_KEY`** and server-only **`SUPABASE_SERVICE_ROLE_KEY`**, plus
+  JSON dictionaries **`SUPABASE_PUBLISHABLE_KEYS`** and
+  **`SUPABASE_SECRET_KEYS`** containing the project's named current keys. Do not
+  manually overwrite these built-ins. `_shared/publishableKey.ts` resolves the
+  public project key for user-scoped clients; `_shared/serviceRoleAuth.ts`
+  independently resolves and exactly matches server-only keys. Neither boundary
+  accepts the other key class. **`SUPABASE_SECRET_KEY`** is an optional singular
+  current-key fallback for local/manual Deno environments; it is not a
+  replacement for the hosted plural dictionary.
 - **`MERIAN_SUPABASE_SERVER_API_KEY`**: Non-reserved hosted fallback containing
   the exact active project server key selected from the reveal-explicit
-  Management API response. The production deploy workflow masks and refreshes
-  it before Function deployment; it is not a separate GitHub secret. It closes
-  runtime provisioning lag without changing the standard `apikey`/legacy
-  Bearer request protocol. A project-key rotation must pass the production
-  deploy during overlap before the old key is revoked.
+  Management API response. The production deploy workflow masks and refreshes it
+  before Function deployment; it is not a separate GitHub secret. It closes
+  runtime provisioning lag without changing the standard `apikey`/legacy Bearer
+  request protocol. A project-key rotation must pass the production deploy
+  during overlap before the old key is revoked.
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
 - **`AI_QUOTA_IP_HASH_SECRET`** (optional override): At least 32 high-entropy

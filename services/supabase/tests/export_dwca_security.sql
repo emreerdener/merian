@@ -20,6 +20,8 @@ DECLARE
     post_rollout_token UUID := '00000000-0000-4000-8000-00000000e123';
     bounded_token UUID := '00000000-0000-4000-8000-00000000e124';
     crc_token UUID := '00000000-0000-4000-8000-00000000e125';
+    confirmed_species_id UUID :=
+        '00000000-0000-4000-8000-00000000e129';
     test_species_id UUID := '00000000-0000-4000-8000-00000000e130';
     first_scan_id UUID := '00000000-0000-4000-8000-00000000e131';
     second_scan_id UUID := '00000000-0000-4000-8000-00000000e132';
@@ -108,18 +110,41 @@ BEGIN
         'SELECT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
-        'internal.export_job_source_membership',
+        'internal.export_job_source_rows',
         'SELECT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
-        'internal.export_job_source_membership',
+        'internal.export_job_source_rows',
         'SELECT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
-        'internal.export_job_source_membership',
+        'internal.export_job_source_rows',
         'SELECT'
     ) THEN
         RAISE EXCEPTION 'an API role can bypass private export batch state';
+    END IF;
+
+    IF NOT (
+        SELECT class_row.relrowsecurity
+        FROM pg_catalog.pg_class AS class_row
+        WHERE class_row.oid =
+              'internal.export_job_source_rows'::REGCLASS
+    ) OR (
+        SELECT pg_catalog.COUNT(*)
+        FROM information_schema.columns AS column_row
+        WHERE column_row.table_schema = 'internal'
+          AND column_row.table_name = 'export_job_source_rows'
+          AND column_row.column_name IN (
+              'eligibility_sha256',
+              'occurrence_payload',
+              'occurrence_byte_count',
+              'multimedia_payload',
+              'multimedia_byte_count'
+          )
+          AND column_row.is_nullable = 'NO'
+    ) <> 5 THEN
+        RAISE EXCEPTION
+            'the private immutable export DTO store is not fully constrained';
     END IF;
 
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
@@ -342,19 +367,19 @@ BEGIN
 
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
-        'internal.dwca_export_current_source',
+        'internal.dwca_export_snapshot_source',
         'SELECT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
-        'internal.dwca_export_current_source',
+        'internal.dwca_export_snapshot_source',
         'SELECT'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
-        'internal.dwca_export_current_source',
+        'internal.dwca_export_snapshot_source',
         'SELECT'
     ) THEN
         RAISE EXCEPTION
-            'an API role can bypass the revision-fenced export page RPC';
+            'an API role can bypass the immutable export page RPC';
     END IF;
 
     IF pg_catalog.TO_REGCLASS(
@@ -463,23 +488,37 @@ BEGIN
         genus,
         native_region
     )
-    VALUES (
-        test_species_id,
-        'Exporta boundedensis',
-        '{"en":"Bounded export species"}'::JSONB,
-        'Animalia',
-        'Chordata',
-        'Aves',
-        'Passeriformes',
-        'Exportidae',
-        'Exporta',
-        'Test region'
-    );
+    VALUES
+        (
+            test_species_id,
+            'Exporta boundedensis',
+            '{"en":"Bounded export species"}'::JSONB,
+            'Animalia',
+            'Chordata',
+            'Aves',
+            'Passeriformes',
+            'Exportidae',
+            'Exporta',
+            'Test region'
+        ),
+        (
+            confirmed_species_id,
+            'Exporta confirmata',
+            '{"en":"Confirmed export species"}'::JSONB,
+            'Animalia',
+            'Chordata',
+            'Aves',
+            'Passeriformes',
+            'Exportidae',
+            'Exporta',
+            'Confirmed region'
+        );
 
     INSERT INTO public.scans (
         id,
         user_id,
         species_id,
+        confirmed_species_id,
         image_storage_urls,
         ecological_interactions,
         ai_confidence_score
@@ -489,6 +528,7 @@ BEGIN
             first_scan_id,
             test_user_id,
             test_species_id,
+            confirmed_species_id,
             ARRAY[
                 'https://media.example.invalid/first-one.webp',
                 'https://media.example.invalid/first-two.webp'
@@ -500,6 +540,7 @@ BEGIN
             second_scan_id,
             test_user_id,
             test_species_id,
+            NULL,
             ARRAY['https://media.example.invalid/second.webp'],
             ARRAY[pg_catalog.REPEAT('second interaction ', 20)],
             0.8
@@ -508,6 +549,7 @@ BEGIN
             third_scan_id,
             test_user_id,
             test_species_id,
+            NULL,
             ARRAY['https://media.example.invalid/third.webp'],
             ARRAY[pg_catalog.REPEAT('third interaction ', 20)],
             0.7
@@ -592,17 +634,30 @@ BEGIN
 
     IF returned_rows <> 3 OR boolean_result THEN
         RAISE EXCEPTION
-            'job creation did not freeze the expected source membership';
+            'job creation did not freeze the expected immutable source rows';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.export_job_source_state AS source_state
+        WHERE source_state.job_id = bounded_job_id
+          AND source_state.snapshot_version = 2
+          AND source_state.source_byte_count > 0
+          AND source_state.source_byte_count
+              <= source_state.max_source_bytes
+    ) THEN
+        RAISE EXCEPTION
+            'job creation did not persist a bounded version-two snapshot';
     END IF;
 
     SELECT pg_catalog.COUNT(*)::INTEGER
     INTO returned_rows
-    FROM internal.export_job_source_membership AS membership
-    WHERE membership.job_id = bounded_job_id;
+    FROM internal.export_job_source_rows AS source_rows
+    WHERE source_rows.job_id = bounded_job_id;
 
     IF returned_rows <> 3 THEN
         RAISE EXCEPTION
-            'job creation did not persist every source membership fingerprint';
+            'job creation did not persist every immutable source DTO';
     END IF;
 
     -- This scan is eligible but was created after the export job. Neither CSV
@@ -650,7 +705,30 @@ BEGIN
        OR NOT batch_complete
        OR batch_revision_changed THEN
         RAISE EXCEPTION
-            'the occurrence phase did not use immutable job membership';
+            'the occurrence phase did not use immutable job DTOs';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.get_dwca_export_scan_batch(
+            bounded_job_id,
+            bounded_token,
+            'occurrence',
+            NULL,
+            100,
+            262144
+        ) AS bounded_page
+        WHERE bounded_page.scan_id = first_scan_id
+          AND bounded_page.scan_payload ->> 'effective_species_id' =
+              confirmed_species_id::TEXT
+          AND NOT (bounded_page.scan_payload ? 'gps_lat_exact')
+          AND NOT (bounded_page.scan_payload ? 'gps_long_exact')
+          AND bounded_page.scan_payload #>>
+              '{species_dictionary,scientific_name}' =
+              'Exporta confirmata'
+    ) THEN
+        RAISE EXCEPTION
+            'the immutable occurrence DTO ignored confirmed species identity';
     END IF;
 
     SELECT bounded_page.source_byte_count
@@ -739,6 +817,44 @@ BEGIN
 
     SELECT
         pg_catalog.COUNT(*)::INTEGER,
+        pg_catalog.BOOL_OR(bounded_page.source_revision_changed),
+        pg_catalog.BOOL_AND(
+            CASE
+                WHEN bounded_page.scan_id = first_scan_id THEN
+                    bounded_page.scan_payload -> 'image_storage_urls' =
+                    pg_catalog.JSONB_BUILD_ARRAY(
+                        'https://media.example.invalid/first-one.webp',
+                        'https://media.example.invalid/first-two.webp'
+                    )
+                ELSE TRUE
+            END
+        )
+    INTO
+        returned_rows,
+        batch_revision_changed,
+        boolean_result
+    FROM public.get_dwca_export_scan_batch(
+        bounded_job_id,
+        bounded_token,
+        'multimedia',
+        NULL,
+        100,
+        262144
+    ) AS bounded_page;
+
+    IF returned_rows <> 3
+       OR batch_revision_changed
+       OR NOT boolean_result THEN
+        RAISE EXCEPTION
+            'a live media change altered an immutable multimedia DTO';
+    END IF;
+
+    UPDATE public.scans AS scans
+    SET is_tombstoned = TRUE
+    WHERE scans.id = first_scan_id;
+
+    SELECT
+        pg_catalog.COUNT(*)::INTEGER,
         pg_catalog.BOOL_AND(bounded_page.source_revision_changed),
         pg_catalog.BOOL_OR(bounded_page.scan_payload IS NOT NULL)
     INTO
@@ -758,8 +874,12 @@ BEGIN
        OR NOT batch_revision_changed
        OR boolean_result THEN
         RAISE EXCEPTION
-            'a changed multimedia revision escaped the snapshot fence';
+            'a privacy eligibility revocation escaped the live export fence';
     END IF;
+
+    UPDATE public.scans AS scans
+    SET is_tombstoned = FALSE
+    WHERE scans.id = first_scan_id;
 
     SELECT public.release_export_job_step(
         bounded_job_id,
@@ -776,8 +896,8 @@ BEGIN
 
     SELECT pg_catalog.COUNT(*)::INTEGER
     INTO returned_rows
-    FROM internal.export_job_source_membership AS membership
-    WHERE membership.job_id = bounded_job_id;
+    FROM internal.export_job_source_rows AS source_rows
+    WHERE source_rows.job_id = bounded_job_id;
 
     SELECT source_state.purged_at IS NOT NULL
     INTO STRICT boolean_result
@@ -786,7 +906,7 @@ BEGIN
 
     IF returned_rows <> 0 OR NOT boolean_result THEN
         RAISE EXCEPTION
-            'terminal export did not purge its source membership';
+            'terminal export did not purge its immutable source DTOs';
     END IF;
 
     INSERT INTO public.export_jobs (

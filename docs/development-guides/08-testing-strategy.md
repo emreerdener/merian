@@ -23,6 +23,9 @@ detail/social spectrogram precedence and the grid-only species-reference policy.
 deduplication. `lib/audioProxy.test.ts` locks the Boost Audio stream to public
 Naturebook WAV URLs on the exact durable `media.merian.app` technical host and
 rejects arbitrary hosts, staging paths, credentials, and unsupported formats.
+`lib/supabaseBoundary.test.ts` locks Explore to the `server-only` client and its
+two dedicated fixed-anonymous RPCs; it rejects a public-client fallback,
+synthetic viewer ID, direct user-table enrichment, or native Explore RPC.
 Browser verification should cover Boost → Boosted → original transitions because
 Web Audio context activation cannot be proven by TypeScript alone.
 
@@ -70,11 +73,11 @@ directory, and the web waitlist route. Deployment CI runs this task after the
 disposable database is migrated, so database-backed cases execute rather than
 reporting connection skips; its explicit `SUPABASE_DB_TEST_URL` makes an
 unavailable database a test failure. CI must run the complete task rather than
-substituting a hand-selected subset whose permissions happen to pass.
-Pure request-mapping tests, including `sync-collections/index.test.ts`, never
+substituting a hand-selected subset whose permissions happen to pass. Pure
+request-mapping tests, including `sync-collections/index.test.ts`, never
 conditionally write to credentials inherited from the developer shell. Live
-database behavior belongs to the disposable catalog or an explicitly
-configured `SUPABASE_DB_TEST_URL` test that fails when it cannot connect.
+database behavior belongs to the disposable catalog or an explicitly configured
+`SUPABASE_DB_TEST_URL` test that fails when it cannot connect.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -93,8 +96,8 @@ script, runs every `*_test.sh`, and rejects complete provider-shaped
 `sb_secret_…` literals anywhere in the repository. Format-valid secret-key
 fixtures must be assembled at runtime from separate fragments; diagnostics
 identify only matching filenames so the gate cannot echo an accidentally
-committed credential. `tooling_gate_test.ts` protects that discovery policy.
-The same test locks `validate_migration_contracts.sh`, the discovery-based
+committed credential. `tooling_gate_test.ts` protects that discovery policy. The
+same test locks `validate_migration_contracts.sh`, the discovery-based
 source-migration entrypoint shared by `make validate-supabase-migrations` and
 the production deploy lane.
 
@@ -982,6 +985,23 @@ with a high-severity failure threshold, those tests, TypeScript checking, and a
 production Next.js build for affected web changes. High and critical findings,
 or an unavailable audit registry, block the job.
 
+Public-web Explore authorization has three additional layers:
+
+- `_tests/publicWebExploreMigrationContract.test.ts` locks empty search paths,
+  service-role caller checks, fixed `NULL` viewer identity, bounded feed size,
+  forced anonymous engagement/viewer state, explicit browser-role revocations,
+  and privileged-routine allowlist entries.
+- `_tests/publicWebExploreCoverage.test.ts` locks real public-key negative
+  controls and the resolved server-key positive control into the production
+  workflow without allowing the credential matrices to be mixed.
+- `tests/public_web_explore_security.sql` impersonates `anon`, `authenticated`,
+  and `service_role`. It proves browser roles cannot execute either wrapper,
+  while the server role receives a visible post with private location redacted
+  and no viewer-specific state.
+- The production deploy smoke sends every real anon/publishable project key
+  directly to the posts RPC as a negative control, then uses the resolved server
+  key as a positive control and validates the narrow response shape.
+
 Function-local tests under `services/supabase/functions/insight-chat/` verify
 the expanded text-only prompt context, raw image URL/storage-key/coordinate
 exclusion, raw-image-access system instruction, supported action parsing,
@@ -1051,10 +1071,10 @@ top-level transaction controls, which can split schema state from history.
 Top-level timeout guards use session `SET` plus matching `RESET`, not
 `SET LOCAL`, so they remain effective during fresh replay. Historical applied
 migrations with explicit controls remain immutable compatibility artifacts.
-Checked-in migrations also reject direct and dynamic concurrent index DDL;
-large production indexes use the supervised preflight.
-After a hosted deployment, use migration history plus read-only constraint
-inspection to verify that both push-token constraints exist and are validated.
+Checked-in migrations also reject direct and dynamic concurrent index DDL; large
+production indexes use the supervised preflight. After a hosted deployment, use
+migration history plus read-only constraint inspection to verify that both
+push-token constraints exist and are validated.
 
 Privileged routine security has three complementary checks:
 
@@ -1156,35 +1176,36 @@ production checks:
   user/service identity dispatch, and a forward-only ban on new Bearer-only
   `pg_net` server-key construction.
 - `scripts/documentation_contract_test.ts` locks the same header matrix,
-  hosted-plural versus singular environment shape, migration
-  transaction/history ownership, replay-safe timeout guards, default-ACL/RLS
-  behavior, supervised user-FK indexes, orphan triage, and run-attempt-specific
-  operational evidence in the canonical docs.
-- `tests/privileged_routine_security.sql` verifies the same effective ACL
-  and transport policy against a fully migrated disposable catalog under real
+  hosted-plural versus singular environment shape, migration transaction/history
+  ownership, replay-safe timeout guards, default-ACL/RLS behavior, supervised
+  user-FK indexes, orphan triage, and run-attempt-specific operational evidence
+  in the canonical docs.
+- `tests/privileged_routine_security.sql` verifies the same effective ACL and
+  transport policy against a fully migrated disposable catalog under real
   `anon`, `authenticated`, and `service_role` database roles. It scans current
   routine/cron source and executes the mixed media-incident routine through
   simulated PostgREST role impersonation.
 - The production deployment smoke retrieves the project's real legacy anon
   and/or current publishable keys and requires `401` from
-  `community-taxonomy-status`, then prefers a real current secret key (falling
-  back to the legacy service-role key) as the positive control. Current secret
-  keys are sent only in `apikey`; only legacy JWT keys receive Bearer transport.
-  Key retrieval uses the tested Management API resolver because the CLI key-list
-  command does not reveal a callable current secret. Before deployment, the
-  workflow masks and synchronizes the selected value to
-  `MERIAN_SUPABASE_SERVER_API_KEY`, then verifies the stored hash before
-  Function rollout; static coverage requires that ordering. Positive calls make
-  six bounded retries for transient routing/deployment statuses. Final Function
-  failures classify only whether the fixed
-  `X-Merian-Handler: 1` marker was present; Data API failures use separate
-  PostgREST/RPC guidance and never expect a Function marker. Both paths keep the
-  body and request-ID value private and never print a variable header value. Do
-  not create a production user merely to obtain an authenticated JWT for this
-  smoke: exact-value matching is covered deterministically and the disposable
-  catalog exercises the authenticated role. Use a dedicated staging user for
-  end-to-end authenticated-JWT testing when a credential-transport change is
-  under review.
+  `community-taxonomy-status`. The same public keys must receive only
+  `401`/`403`/`404` when sent directly to `get_public_web_explore_posts`; a
+  `2xx` is an authorization regression. The workflow then prefers a real current
+  secret key (falling back to the legacy service-role key) as the positive
+  control. Current secret keys are sent only in `apikey`; only legacy JWT keys
+  receive Bearer transport. Key retrieval uses the tested Management API
+  resolver because the CLI key-list command does not reveal a callable current
+  secret. Before deployment, the workflow masks and synchronizes the selected
+  value to `MERIAN_SUPABASE_SERVER_API_KEY`, then verifies the stored hash
+  before Function rollout; static coverage requires that ordering. Positive
+  calls make six bounded retries for transient routing/deployment statuses.
+  Final Function failures classify only whether the fixed `X-Merian-Handler: 1`
+  marker was present; Data API failures use separate PostgREST/RPC guidance and
+  never expect a Function marker. Both paths keep the body and request-ID value
+  private and never print a variable header value. Do not create a production
+  user merely to obtain an authenticated JWT for this smoke: exact-value
+  matching is covered deterministically and the disposable catalog exercises the
+  authenticated role. Use a dedicated staging user for end-to-end
+  authenticated-JWT testing when a credential-transport change is under review.
 
 Run the focused Deno tests from `services`:
 
@@ -1927,7 +1948,10 @@ The surrounding export suite is intentionally split by boundary:
   closed when streamed bytes do not match the durable manifest length.
 - `storage_test.ts` proves fixed-size multipart buffering, bounded provider XML,
   completion/signing, rejection of an embedded HTTP-200 `<Error>`, and
-  best-effort abort after a failed part or completion.
+  best-effort abort after a failed part or completion. Work-chunk reads prove
+  exact manifest bytes both with a valid declared length and with no
+  `Content-Length`; absent length is never coerced to zero, and the streamed
+  byte ceiling remains authoritative.
 - `scripts/monitor_dwca_export_queue_test.ts` proves production monitor
   thresholds, aggregate-response consistency, severity/failure policy, and
   operator-summary rendering.
@@ -1952,22 +1976,25 @@ The surrounding export suite is intentionally split by boundary:
   migration shape, immutable canonical budgets, durable phase/cursor/manifest,
   lock-safe install/validation ordering, validated source
   cardinality/element-byte constraints, claim-bound 100-row/256 KiB source
-  pages, creation-time membership and SHA-256 revision fences, terminal
-  membership purge, 512 KiB chunks, claim-token key validation, minute resume
-  cron, sorted canonical-job fencing before chunk DDL, and the replacement
-  CRC-bearing advance/manifest signatures and ACLs.
+  pages, version-2 creation-time immutable occurrence/multimedia DTOs,
+  authoritative confirmed identity, aggregate source-byte budgets, the live
+  privacy-eligibility fence, terminal DTO purge, 512 KiB chunks, claim-token key
+  validation, minute resume cron, sorted canonical-job fencing before chunk DDL,
+  and the replacement CRC-bearing advance/manifest signatures and ACLs.
 - `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
   immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
   legacy-error sanitization, post-deadline claim, validated source constraints,
-  aggregate page-byte cutoff, immutable membership/revision rejection, phased
-  cursor/manifest transition, budget overflow, and idempotent-completion
-  contract against local Postgres.
+  aggregate page-byte cutoff, immutable DTOs, confirmed-identity projection,
+  exact-GPS omission for non-precise jobs, ordinary-edit stability, live privacy
+  revocation, phased cursor/manifest transition, budget overflow, and
+  idempotent-completion contract against local Postgres.
 - `tests/export_dwca_snapshot_security.sql` independently proves job insertion
-  freezes membership, later scans stay excluded, changed privacy, taxonomy, or
-  multimedia revisions return no payload, snapshot routines pass static PL/pgSQL
-  validation, and a terminal job purges membership.
-  `privileged_routine_security.sql` independently runs static
-  PL/pgSQL/search-path/grant validation over the new definer RPCs.
+  freezes both phase DTOs, later scans stay excluded, live taxonomy/media edits
+  cannot change stored payloads, personal geoprivacy is scope-irrelevant, a
+  protected-species coordinate-policy escalation or tombstone revocation returns
+  no payload, snapshot routines pass static PL/pgSQL validation, and a terminal
+  job purges the DTOs. `privileged_routine_security.sql` independently runs
+  static PL/pgSQL/search-path/grant validation over the new definer RPCs.
 
 The CRC tests deliberately assert correctness and bounded algorithm shape rather
 than wall-clock timing, which is unstable on shared CI runners. The development

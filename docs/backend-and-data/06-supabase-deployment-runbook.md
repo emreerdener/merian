@@ -118,24 +118,23 @@ The workflow performs the following steps:
     `Production` environment to Supabase Edge secrets.
 17. Synchronizes required bucket-scoped R2 Object Read credentials and the
     optional R2 event-ingress secret to Supabase Edge.
-18. Resolves a callable production server key plus every real public project
-    key through the Management API and masks the selected server value.
+18. Resolves a callable production server key plus every real public project key
+    through the Management API and masks the selected server value.
 19. Synchronizes that exact selected key into the non-reserved
     `MERIAN_SUPABASE_SERVER_API_KEY` Edge fallback. This closes a management
     plane/runtime provisioning gap without changing request transport or trying
     to overwrite a reserved built-in.
-20. Reads the stored secret's SHA-256 digest through the pinned CLI and
-    compares it with the exact selected key locally. A missing, duplicate,
-    malformed, or mismatched digest stops the release without printing the key
-    or digest.
+20. Reads the stored secret's SHA-256 digest through the pinned CLI and compares
+    it with the exact selected key locally. A missing, duplicate, malformed, or
+    mismatched digest stops the release without printing the key or digest.
 21. Deploys the planned functions in bounded batches. A failed batch is retried
     function-by-function, so a transient graph failure cannot restart the whole
     fleet deployment.
 22. Requires every public key to receive `401` from Community Taxonomy status
     before the propagation-aware, format-aware positive suite smoke-tests
-    internal functions and PostgREST RPCs, including scan-media health,
-    one-item Explore direct-origin reconciliation, and a dry-run bounded GBIF
-    import. Positive requests make at most six attempts for transient deployment
+    internal functions and PostgREST RPCs, including scan-media health, one-item
+    Explore direct-origin reconciliation, and a dry-run bounded GBIF import.
+    Positive requests make at most six attempts for transient deployment
     statuses. Final Function failures report endpoint, status, and only whether
     the fixed `X-Merian-Handler: 1` marker was present. Final Data API failures
     are classified separately as PostgREST/RPC diagnostics and do not expect a
@@ -143,15 +142,15 @@ The workflow performs the following steps:
     variable header value is printed.
 
 Local and CI database rebuilds use the exact reviewed Supabase CLI `2.109.1`.
-The CLI owns migration transaction and history boundaries. Its normal apply
-path wraps pipeline-compatible statements with the history insert, while
-pipeline-incompatible statements and immutable historical boundary artifacts
-can require standalone handling. New migrations must not add top-level
-transaction controls because an embedded commit can split schema state from
-migration history. Top-level timeout guards use session `SET` plus matching
-`RESET`, not `SET LOCAL`, so they remain effective during fresh replay.
-Historical applied files that contain explicit controls remain immutable
-compatibility artifacts, not future examples.
+The CLI owns migration transaction and history boundaries. Its normal apply path
+wraps pipeline-compatible statements with the history insert, while
+pipeline-incompatible statements and immutable historical boundary artifacts can
+require standalone handling. New migrations must not add top-level transaction
+controls because an embedded commit can split schema state from migration
+history. Top-level timeout guards use session `SET` plus matching `RESET`, not
+`SET LOCAL`, so they remain effective during fresh replay. Historical applied
+files that contain explicit controls remain immutable compatibility artifacts,
+not future examples.
 
 Checked-in migrations may not contain `CREATE INDEX CONCURRENTLY`,
 `DROP INDEX CONCURRENTLY`, or `REINDEX ... CONCURRENTLY`, including executable
@@ -683,8 +682,8 @@ Migration `20260724222838_optimize_species_count_trigger.sql` is database-only.
 It replaces the `unified_species_count_sync` row trigger with the private
 `internal.user_species_scan_counts` ledger and four statement-level transition
 triggers. No Edge Function deployment or new secret is required. This already
-applied file is an immutable historical explicit-boundary exception; it is not
-a template for a new migration.
+applied file is an immutable historical explicit-boundary exception; it is not a
+template for a new migration.
 
 The migration deliberately takes `SHARE ROW EXCLUSIVE` on `public.scans`.
 Existing writes finish first; new scan inserts, updates, deletes, and cascading
@@ -734,11 +733,10 @@ Workflow run 1458 failed during disposable `supabase db start` with
 `SQLSTATE 25P01: LOCK TABLE can only be used in transaction blocks`. Treat that
 signature as an explicit-boundary regression: restore `BEGIN` before the scan
 lock and keep `COMMIT` after the final trigger. Do not remove the lock, split
-the backfill from the trigger swap, copy this exception into a new migration,
-or run `supabase migration repair`.
-Disposable database validation runs before the production `db push`, so this
-failure does not create a hosted migration-history entry; fix the unapplied
-migration file and rerun the workflow.
+the backfill from the trigger swap, copy this exception into a new migration, or
+run `supabase migration repair`. Disposable database validation runs before the
+production `db push`, so this failure does not create a hosted migration-history
+entry; fix the unapplied migration file and rerun the workflow.
 
 After production migration history confirms the file, use a direct read-only
 database session—not PostgREST—to verify the trigger catalog:
@@ -1615,9 +1613,10 @@ Migrations `20260724230849_harden_dwca_export_jobs.sql`,
 `20260725175312_bound_dwca_export_source_bytes.sql` /
 `20260725180321_validate_dwca_export_source_bounds.sql`, and
 `20260726025103_snapshot_dwca_export_sources.sql`, followed by
-`20260726230837_scale_dwca_export_continuations.sql`, must land with
-`request-export-dwca` and the resumable `export-dwca` bundle. Before the first
-deployment, generate a dedicated version-1 pseudonym key:
+`20260726230837_scale_dwca_export_continuations.sql` and
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`,
+must land with `request-export-dwca` and the resumable `export-dwca` bundle.
+Before the first deployment, generate a dedicated version-1 pseudonym key:
 
 ```bash
 openssl rand -base64 32
@@ -1643,13 +1642,16 @@ work, while failed/contended IDs are suppressed for the rest of that invocation.
 The database caps data pages at 100 scans and 256 KiB of serialized source under
 the active claim; validated row checks bound media, interactions, and selected
 taxonomy before the read. Job insertion examines at most the canonical row
-budget plus one lookahead and fixes one scan-ID membership set and three SHA-256
-revision fingerprints per scan for both CSV phases. A later scan is excluded; a
-changed/deleted revision terminates the job rather than mixing source states.
-Terminal jobs purge those membership rows. A fixed-capacity incremental encoder
-caps CSV output at 512 KiB. CSV pages are stored as claim-token-fenced R2 chunks
-and committed to a durable cursor/manifest with cumulative budgets. These phase,
-deadline, and byte boundaries are the production memory/time contract.
+budget plus one lookahead and materializes both bounded phase DTOs in one
+statement. Total source JSON is limited to four times the archive budget with a
+64 MiB hard cap. Confirmed identity is authoritative. Exact GPS keys are
+persisted only for an opted-in, snapshot-unprotected personal export. A later
+scan or ordinary edit cannot change the job, while the compact live eligibility
+hash terminates on deletion or relevant privacy revocation. Terminal jobs purge
+those DTO rows. A fixed-capacity incremental encoder caps CSV output at 512 KiB.
+CSV pages are stored as claim-token-fenced R2 chunks and committed to a durable
+cursor/manifest with cumulative budgets. These phase, deadline, and byte
+boundaries are the production memory/time contract.
 
 Before the database push, run this owner-only, read-only legacy-row preflight.
 It must return zero rows. Repair invalid source values through the canonical
@@ -1776,13 +1778,17 @@ Preflight:
 deno fmt --check \
   services/supabase/functions/export-dwca \
   services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
-  services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts
+  services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+  services/supabase/functions/_tests/publicWebExploreCoverage.test.ts \
+  services/supabase/functions/_tests/publicWebExploreMigrationContract.test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,.github/workflows \
   services/supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
   services/supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+  services/supabase/functions/_tests/publicWebExploreCoverage.test.ts \
+  services/supabase/functions/_tests/publicWebExploreMigrationContract.test.ts \
   services/supabase/functions/export-dwca/archive_test.ts \
   services/supabase/functions/export-dwca/crc32_test.ts \
   services/supabase/functions/export-dwca/db_test.ts \
@@ -1804,17 +1810,29 @@ supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/export_dwca_security.sql \
   services/supabase/tests/export_dwca_snapshot_security.sql \
-  services/supabase/tests/dwca_export_queue_security.sql
+  services/supabase/tests/dwca_export_queue_security.sql \
+  services/supabase/tests/public_web_explore_security.sql
 ```
 
 The database test must prove all three source constraints are validated, API
-roles cannot read the internal projections or membership fingerprints, only
-`service_role` can execute the source-page RPC, a byte ceiling can stop a page
-before its row ceiling, the returned completion flag remains false when more
-keyset work exists, both phases retain creation-time membership, changed
-revisions return no payload, terminal status purges membership, and queue health
-correctly distinguishes due, live-claim, and expired-claim work without widening
-its ACL.
+roles cannot read the immutable DTO store/projection, only `service_role` can
+execute the source-page RPC, a byte ceiling can stop a page before its row
+ceiling, and the returned completion flag remains false when more keyset work
+exists. Both phases must retain creation-time DTOs, confirmed identity must win
+over the original AI identity, ordinary source edits must leave the stored DTO
+unchanged, later privacy revocation must return no payload, terminal status must
+purge DTOs, and queue health must distinguish due, live-claim, and expired-claim
+work without widening its ACL.
+
+Migration
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
+fences and restarts all nonterminal export preparation because hash-only source
+membership cannot be upgraded into immutable DTOs. Expect prior attempt-scoped
+CSV objects to become lifecycle-cleaned orphans. The migration rebuilds every
+active source snapshot under a 64 MiB hard source cap before releasing the
+export-job lock. A lock or statement timeout is a deployment failure; inspect
+active export RPCs and roll forward rather than manually copying live rows into
+the private source table.
 
 Migration `20260726235158_amortize_dwca_archive_crc.sql` intentionally fences
 and restarts nonterminal jobs in occurrence, multimedia, or assembly because
@@ -1901,13 +1919,15 @@ SELECT
     source_state.snapshot_version,
     source_state.snapshot_at,
     source_state.source_scan_count,
+    source_state.source_byte_count,
+    source_state.max_source_bytes,
     source_state.source_too_large,
     source_state.purged_at,
     (
         SELECT COUNT(*)
-        FROM internal.export_job_source_membership AS membership
-        WHERE membership.job_id = source_state.job_id
-    ) AS retained_membership_rows
+        FROM internal.export_job_source_rows AS source_rows
+        WHERE source_rows.job_id = source_state.job_id
+    ) AS retained_source_rows
 FROM internal.export_job_source_state AS source_state
 WHERE source_state.job_id = '<test-job-uuid>'::UUID;
 
@@ -2740,6 +2760,47 @@ waves and the final observation window complete. After validation, update the
 changelog and latency/AI/API/logging/offline-queue docs with the measured
 p50/p95 and the chosen Edge-region policy.
 
+## Public Web Explore Read Boundary
+
+Migration
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql` and
+the Next.js Explore reader are one release unit. Push the migration first, then
+deploy `apps/web/`. The migrated database exposes only
+`get_public_web_explore_posts(...)` and
+`get_public_web_explore_post_detail(...)` to the web server credential. Direct
+`anon` and `authenticated` execution is intentionally denied.
+
+Before production:
+
+```bash
+deno test --frozen --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions,services/supabase/migrations,.github/workflows \
+  services/supabase/functions/_tests/publicWebExploreCoverage.test.ts \
+  services/supabase/functions/_tests/publicWebExploreMigrationContract.test.ts
+
+npm --prefix apps/web test
+
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/public_web_explore_security.sql
+```
+
+The Vercel Production environment must contain `SUPABASE_URL` and exactly one
+supported server-key source. Prefer `SUPABASE_SERVER_API_KEY` with the current
+`sb_secret_...` key; retain `SUPABASE_SERVICE_ROLE_KEY` only as the documented
+legacy migration fallback. Neither value may use a `NEXT_PUBLIC_` prefix.
+`SUPABASE_PUBLIC_VIEWER_ID` is obsolete and must be removed: viewer identity is
+fixed to `NULL` inside PostgreSQL.
+
+After deployment, the backend workflow exercises the posts RPC with every real
+anon/publishable project key and accepts only `401`, `403`, or `404`. It then
+uses the resolved server key as the positive control and checks that the result
+is a bounded JSON array with zero engagement counts and false viewer/ownership
+flags. Treat a public-key `2xx`, an empty server-key result when production has
+known visible posts, a raw source-table grant, or viewer-specific state as a
+release blocker. Do not repair this path by granting native Explore RPCs or
+their source relations to browser roles.
+
 ## Public Waitlist Security Rollout
 
 Migration `20260724192124_harden_json_endpoints_and_waitlist.sql` and the
@@ -3002,16 +3063,16 @@ malformed keys, and partial name matches fail closed.
 The deploy workflow then copies the masked selected value to the non-reserved
 Edge secret `MERIAN_SUPABASE_SERVER_API_KEY` before Function deployment.
 Operators do not provision a separate GitHub secret for this fallback: the
-Management API result is its source of truth. Do not rename it to a
-`SUPABASE_*` variable; Supabase reserves those names and rejects CLI writes to
-them. Immediately after the write,
+Management API result is its source of truth. Do not rename it to a `SUPABASE_*`
+variable; Supabase reserves those names and rejects CLI writes to them.
+Immediately after the write,
 `services/supabase/scripts/verify_edge_secret_digest.ts` compares the exact
 selected key's SHA-256 digest with the named digest returned by
-`supabase secrets list --output json`. The gate fails before Function rollout
-if the entry is missing, duplicated, malformed, or mismatched and never prints
-the key or either digest. A project-key rotation is incomplete until the new
-key has been added, this deploy workflow has passed with the overlap in place,
-all Vault and server callers have moved, and only then the old key is revoked.
+`supabase secrets list --output json`. The gate fails before Function rollout if
+the entry is missing, duplicated, malformed, or mismatched and never prints the
+key or either digest. A project-key rotation is incomplete until the new key has
+been added, this deploy workflow has passed with the overlap in place, all Vault
+and server callers have moved, and only then the old key is revoked.
 
 If the Supabase dashboard or Management API is unavailable, do not guess the
 pooler host in production secrets. Wait for the dashboard to recover, or get the
@@ -3048,24 +3109,23 @@ keys.
 Every source is classified independently for inbound authorization. A malformed
 source contributes no candidate and cannot veto an exact request key from
 another valid source. If no key matches, any malformed source still produces
-`invalid_secret_key_configuration`; it is never normalized or silently
-accepted. Outbound selection preserves strict priority: a malformed configured
-scalar encountered at its priority point fails, while a valid higher-priority
-source is not vetoed by a malformed lower migration fallback. The publishable
-Edge resolver and public web server-key resolver apply equivalent source
-isolation for their supported migration sources.
+`invalid_secret_key_configuration`; it is never normalized or silently accepted.
+Outbound selection preserves strict priority: a malformed configured scalar
+encountered at its priority point fails, while a valid higher-priority source is
+not vetoed by a malformed lower migration fallback. The publishable Edge
+resolver and public web server-key resolver apply equivalent source isolation
+for their supported migration sources.
 
 Positive smoke requests retry `401`, `404`, `429`, `500`, `502`, `503`, and
 `504` with bounded backoff for at most six attempts so routing propagation is
 not mistaken for a final release failure. A final error still fails closed. For
 a `/functions/v1/*` failure, a fixed `X-Merian-Handler: 1` marker means the
-request reached the handler: inspect `community_taxonomy_status_auth_denied`
-and its stable reason in restricted Edge logs. If the marker was absent, inspect
-the Supabase gateway, Function deployment status, and router. A `/rest/v1/*`
-failure is classified as a Data API request instead; inspect the API gateway,
-PostgREST RPC grants, and database logs without expecting a Function marker.
-Never print the response body or `X-Request-ID` value merely to diagnose
-authorization.
+request reached the handler: inspect `community_taxonomy_status_auth_denied` and
+its stable reason in restricted Edge logs. If the marker was absent, inspect the
+Supabase gateway, Function deployment status, and router. A `/rest/v1/*` failure
+is classified as a Data API request instead; inspect the API gateway, PostgREST
+RPC grants, and database logs without expecting a Function marker. Never print
+the response body or `X-Request-ID` value merely to diagnose authorization.
 
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only
@@ -3146,9 +3206,8 @@ runs use:
 The import job has only `contents: read`, uploads JSON/Markdown summary
 artifacts plus a one-day checklist artifact, and writes the GitHub job summary.
 When a real import changes the checklist, a separate five-minute writer job
-downloads that artifact and performs the commit with the workflow's sole
-scoped `contents: write` grant. The import process cannot read a checkout
-credential.
+downloads that artifact and performs the commit with the workflow's sole scoped
+`contents: write` grant. The import process cannot read a checkout credential.
 
 ## Account Deletion Health Automation
 
@@ -3222,19 +3281,19 @@ The **Scan Media Health Monitor** workflow runs every 30 minutes and can also be
 started manually from GitHub Actions. It resolves a revealed production server
 key through `resolve_project_api_keys.ts` and the Management API, then calls
 `/scan-media-health` with format-aware standard headers. The request has a
-15-second deadline and a 2 MiB streaming response ceiling. Because this
-endpoint is read-only, transient network, routing, authorization-propagation,
-rate-limit, and server statuses receive at most six attempts with a bounded
+15-second deadline and a 2 MiB streaming response ceiling. Because this endpoint
+is read-only, transient network, routing, authorization-propagation, rate-limit,
+and server statuses receive at most six attempts with a bounded
 2/4/6/8/10-second backoff. A final invocation failure reports only HTTP status,
 bounded SDK failure class, and whether the fixed `X-Merian-Handler: 1` marker
 was present; the body, request ID, variable headers, and credential remain
 withheld. It writes JSON and Markdown summary artifacts and appends the Markdown
-report to the job summary after a successful endpoint response.
-The Markdown report includes an **Incident Actions** table that maps each issue
-code to an owner, next step, runbook, and sample-field hint; use that table as
-the first triage view before opening raw database rows. It also includes a
-visible **Sample Preview** table with the first sample row for each issue code.
-Expand the per-issue sample blocks or download the
+report to the job summary after a successful endpoint response. The Markdown
+report includes an **Incident Actions** table that maps each issue code to an
+owner, next step, runbook, and sample-field hint; use that table as the first
+triage view before opening raw database rows. It also includes a visible
+**Sample Preview** table with the first sample row for each issue code. Expand
+the per-issue sample blocks or download the
 `scan-media-health-summary-<run_number>-attempt-<run_attempt>` artifact when you
 need the complete sample set. Attempt-specific names preserve evidence from
 workflow reruns.
@@ -3704,10 +3763,9 @@ After deployment:
   result.
 - Confirm the deploy's hash-only gate matched the stored SHA-256 digest for
   `MERIAN_SUPABASE_SERVER_API_KEY` to the exact selected production key before
-  Function rollout. Never print the key or either digest. A final positive
-  `401` with the fixed
-  `X-Merian-Handler: 1` marker is a handler-owned denial; use the restricted
-  structured auth event rather than bypassing the guard.
+  Function rollout. Never print the key or either digest. A final positive `401`
+  with the fixed `X-Merian-Handler: 1` marker is a handler-owned denial; use the
+  restricted structured auth event rather than bypassing the guard.
 - Confirm `community-taxonomy-status` accepts a service-role request with
   `view = coverage` and returns the Birds coverage target quickly.
 - Confirm `scan-media-health` accepts a service-role request and returns

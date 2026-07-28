@@ -1107,9 +1107,9 @@ and trigger swap open one explicit transaction before taking the scan write lock
 and commit only after the final trigger exists, so there is no untracked cutover
 interval. PostgreSQL requires this explicit boundary for `LOCK TABLE`; the
 static migration contract rejects a missing or early commit in this immutable
-historical file. It is not a template for new migrations, which rely on
-Supabase CLI `2.109.1` to transact the migration and history insert together and
-must not add top-level transaction controls.
+historical file. It is not a template for new migrations, which rely on Supabase
+CLI `2.109.1` to transact the migration and history insert together and must not
+add top-level transaction controls.
 
 ### Inference Payload Racing (`identify` vs `enrich-scan`)
 
@@ -1227,11 +1227,11 @@ executing animation sweeps on unearned badges.
 
 Requesting a Darwin Core Archive (DwC-A) over `/request-export-dwca` performs
 only the bounded queue transaction synchronously. That transaction fixes the
-eligible scan IDs and compact revision fingerprints, capped by the job's
-canonical row budget plus one lookahead; CSV generation, R2 upload, and email
-remain on the resumable `/export-dwca` worker. The request is not assumed to
-complete within a fixed sub-100ms latency, so awaiting it on the UI thread would
-still be incorrect.
+eligible scan IDs plus both immutable phase DTOs in one MVCC statement, capped
+by the job's canonical row budget plus one lookahead and an aggregate source
+byte budget; CSV generation, R2 upload, and email remain on the resumable
+`/export-dwca` worker. The request is not assumed to complete within a fixed
+sub-100ms latency, so awaiting it on the UI thread would still be incorrect.
 
 `ExportScans` now launches the export request from a structured `Task` owned by
 the view lifecycle, keeping `isExporting` on `@MainActor` while the actual
@@ -1248,15 +1248,18 @@ phase after a 40-second soft cutoff and attempts no more than 40 phases. It
 requests five-job oldest-due waves, requeues successful progress behind older
 work, and suppresses failed/contended jobs to avoid hot-loop allocation or
 provider traffic. Validated row constraints bound media URL and interaction
-arrays plus selected taxonomy fields before the read; job creation fixes one
-membership set and three SHA-256 revision fingerprints per scan, and each
-claimed page stops at 100 rows or 256 KiB of serialized source. Occurrence pages
-do not fetch media arrays; multimedia pages do not fetch taxonomy/coordinates.
-Both keyset passes traverse the same membership and emit only projections that
-still match their creation-time revision. CSV encoding appends one row at a time
-into a fixed buffer capped at 512 KiB and commits it with its cursor and
-cumulative row/byte budgets. The durable queue, not one Edge isolate, owns the
-full database scan.
+arrays plus selected taxonomy fields before the read. Job creation materializes
+the narrow occurrence and multimedia JSON separately, rejects any projection
+above 256 KiB, and limits total source JSON to four times the archive budget
+with a 64 MiB hard cap. Each claimed page stops at 100 rows or 256 KiB of
+serialized source. Occurrence DTOs contain no media arrays; multimedia DTOs
+contain no taxonomy/coordinates. Both keyset passes traverse the same immutable
+rows. Global and non-precise personal occurrence DTOs also omit exact GPS before
+persistence. Normal source edits cannot alter them, while a compact live
+eligibility hash rejects deletion or relevant privacy revocation. CSV encoding
+appends one row at a time into a fixed buffer capped at 512 KiB and commits it
+with its cursor and cumulative row/byte budgets. The durable queue, not one Edge
+isolate, owns the full database scan.
 
 Assembly lazily GETs the ordered chunk manifest into the ZIP stream and
 coalesces only one 8 MiB R2 multipart part at a time. Preparation persists the
@@ -1265,9 +1268,9 @@ algebraically instead of running an archive-sized JavaScript byte loop, while
 still requiring exact manifest byte counts. No full result history, CSV, or ZIP
 is retained. Canonical job defaults cap all CSV rows at 5,000 and the final
 archive at 8 MiB; database constraints impose 20,000-row and 16 MiB hard
-ceilings for reviewed internal jobs. R2 XML and Resend responses are byte-capped,
-and multipart completion parses the body so an embedded S3 error under HTTP 200
-cannot be mistaken for a durable archive.
+ceilings for reviewed internal jobs. R2 XML and Resend responses are
+byte-capped, and multipart completion parses the body so an embedded S3 error
+under HTTP 200 cannot be mistaken for a durable archive.
 
 Storage side effects are fenced too: every temporary CSV key includes phase,
 sequence, and claim UUID, while an unstaged final object also includes the claim

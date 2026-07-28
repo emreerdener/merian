@@ -158,12 +158,11 @@ orphaned object does not reconstruct its relational context.
   UTC-day/user/IP counters. Database errors and missing user rows fail closed;
   the iOS local meter is advisory.
 - Privileged database RPCs stay behind the authenticated Edge API; no
-  service-role credential ships to Apple clients. Reviewed
-  `SECURITY DEFINER` signatures are allowlisted for `service_role`, and their
-  bodies independently verify either the legacy JWT role or PostgREST's
-  protected role impersonation used by opaque server keys. The two layers
-  prevent a key-format compatibility repair from widening direct client
-  execution.
+  service-role credential ships to Apple clients. Reviewed `SECURITY DEFINER`
+  signatures are allowlisted for `service_role`, and their bodies independently
+  verify either the legacy JWT role or PostgREST's protected role impersonation
+  used by opaque server keys. The two layers prevent a key-format compatibility
+  repair from widening direct client execution.
 - All Edge server-key selection flows through `serviceRoleAuth.ts`, and all
   privileged supabase-js construction flows through `serviceRoleClient.ts`.
   Opaque keys use `apikey` only; legacy service-role JWTs retain dual
@@ -207,10 +206,13 @@ single-responsibility functions under `/services/supabase/functions/`.
     perform one bounded row-and-byte-aware keyset page, archive assembly, or
     delivery phase. A minute invocation sequentially deadline-drains oldest-due
     waves with a 40-step ceiling; lease fencing still permits safe overlap and
-    fair rotation. Both CSV passes share creation-time scan membership and
-    revision fingerprints; changed/deleted source revisions fail the job before
-    mixed output is assembled. Cardinality/UTF-8 source constraints, 256 KiB
-    claimed database pages, a fixed 512 KiB incremental CSV encoder, durable
+    fair rotation. Both CSV passes share bounded immutable creation-time DTOs,
+    with confirmed species identity applied once; later scans and edits cannot
+    produce mixed output. A separate scope-aware live eligibility hash still
+    fails deletion or privacy revocation before delivery; personal geoprivacy is
+    irrelevant, but protected-species coordinate policy is revalidated for both
+    scopes. Cardinality/UTF-8 source constraints, aggregate source budgets, 256
+    KiB claimed database pages, a fixed 512 KiB incremental CSV encoder, durable
     cursors, and claim-fenced byte-count/CRC manifests enforce canonical budgets
     before streaming the Darwin Core ZIP to R2. Final checksum assembly composes
     bounded chunk CRCs instead of scanning the full archive in JavaScript, then

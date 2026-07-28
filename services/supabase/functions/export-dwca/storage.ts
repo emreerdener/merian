@@ -423,16 +423,20 @@ export async function fetchExportWorkChunk(
       ),
       "work chunk download",
     );
-    const declaredLength = Number(response.headers.get("Content-Length"));
-    if (
-      Number.isFinite(declaredLength) &&
-      declaredLength !== expectedByteCount
-    ) {
-      await discardResponseBody(response);
-      throw new ExportWorkerError(
-        "archive_generation_failed",
-        "A prepared work chunk did not match its manifest.",
-      );
+    const rawDeclaredLength = response.headers.get("Content-Length");
+    if (rawDeclaredLength !== null) {
+      const declaredLength = Number(rawDeclaredLength);
+      if (
+        !/^(0|[1-9][0-9]*)$/.test(rawDeclaredLength) ||
+        !Number.isSafeInteger(declaredLength) ||
+        declaredLength !== expectedByteCount
+      ) {
+        await discardResponseBody(response);
+        throw new ExportWorkerError(
+          "archive_generation_failed",
+          "A prepared work chunk did not match its manifest.",
+        );
+      }
     }
     const result = await readByteStreamWithinLimit(
       response.body,

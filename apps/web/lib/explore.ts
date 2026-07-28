@@ -1,22 +1,13 @@
-import { createPublicServerSupabaseClient } from "./supabasePublic";
+import "server-only";
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { createAdminSupabaseClient } from "./supabaseAdmin";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(value: string): boolean {
   return UUID_REGEX.test(value);
 }
-
-function cleanViewerId(value: string | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed && isValidUuid(trimmed) ? trimmed : null;
-}
-
-type SupabaseRpcError = {
-  code?: string;
-  details?: string;
-  hint?: string;
-  message?: string;
-};
 
 type ExplorePostRow = {
   post_id: string;
@@ -43,14 +34,16 @@ type ExplorePostRow = {
   comment_count: number;
   viewer_has_liked: boolean;
   is_owned_by_viewer: boolean;
-  media_items?: Array<{
-    kind?: "image" | "video" | "audio";
-    url?: string;
-    thumbnail_url?: string | null;
-    order_index?: number;
-    duration_seconds?: number | null;
-    has_audio?: boolean;
-  }> | null;
+  media_items?:
+    | Array<{
+      kind?: "image" | "video" | "audio";
+      url?: string;
+      thumbnail_url?: string | null;
+      order_index?: number;
+      duration_seconds?: number | null;
+      has_audio?: boolean;
+    }>
+    | null;
 };
 
 type ExplorePostDetailRow = {
@@ -394,7 +387,10 @@ function normalizedStringList(values?: string[] | null) {
   return normalized;
 }
 
-function isHumanSubject(commonName?: string | null, scientificName?: string | null) {
+function isHumanSubject(
+  commonName?: string | null,
+  scientificName?: string | null,
+) {
   return commonName?.trim().toLowerCase() === "human" ||
     scientificName?.trim().toLowerCase() === "homo sapiens";
 }
@@ -405,10 +401,15 @@ function shouldSuppressReferenceImages(post: ExplorePost) {
   }
 
   const scientificName = post.speciesScientificName.trim().toLowerCase();
-  return scientificName === "felis catus" || scientificName === "canis lupus familiaris";
+  return scientificName === "felis catus" ||
+    scientificName === "canis lupus familiaris";
 }
 
-function referenceImageSource(urlString: string, index: number, wikipediaUrl?: string | null): ExploreReferenceImage["source"] {
+function referenceImageSource(
+  urlString: string,
+  index: number,
+  wikipediaUrl?: string | null,
+): ExploreReferenceImage["source"] {
   let host = "";
   try {
     host = new URL(urlString).host.toLowerCase();
@@ -431,7 +432,10 @@ function referenceImageSource(urlString: string, index: number, wikipediaUrl?: s
   return "GBIF";
 }
 
-function referenceImagesFrom(value?: string | null, wikipediaUrl?: string | null) {
+function referenceImagesFrom(
+  value?: string | null,
+  wikipediaUrl?: string | null,
+) {
   const seen = new Set<string>();
   const urls = (value ?? "")
     .split(",")
@@ -471,22 +475,27 @@ function mapExplorePost(row: ExplorePostRow): ExplorePost {
   const mediaItems = Array.isArray(row.media_items)
     ? row.media_items.flatMap((item, fallbackIndex) => {
       if (
-        (item?.kind !== "image" && item?.kind !== "video" && item?.kind !== "audio") ||
+        (item?.kind !== "image" && item?.kind !== "video" &&
+          item?.kind !== "audio") ||
         typeof item.url !== "string" || !item.url.trim()
       ) {
         return [];
       }
-      return [{
-        kind: item.kind,
-        url: item.url.trim(),
-        thumbnailUrl: trimmedString(item.thumbnail_url),
-        orderIndex: Number.isFinite(item.order_index) ? item.order_index! : fallbackIndex,
-        durationSeconds: typeof item.duration_seconds === "number" &&
-            Number.isFinite(item.duration_seconds)
-          ? item.duration_seconds
-          : null,
-        hasAudio: item.has_audio === true,
-      } satisfies ExplorePostMediaItem];
+      return [
+        {
+          kind: item.kind,
+          url: item.url.trim(),
+          thumbnailUrl: trimmedString(item.thumbnail_url),
+          orderIndex: Number.isFinite(item.order_index)
+            ? item.order_index!
+            : fallbackIndex,
+          durationSeconds: typeof item.duration_seconds === "number" &&
+              Number.isFinite(item.duration_seconds)
+            ? item.duration_seconds
+            : null,
+          hasAudio: item.has_audio === true,
+        } satisfies ExplorePostMediaItem,
+      ];
     }).sort((left, right) => left.orderIndex - right.orderIndex)
     : [];
 
@@ -549,7 +558,8 @@ function logExplorePostRpcError(
   console.error(event, {
     post_id: postId,
     code: error?.code,
-    message: error?.message || (error instanceof Error ? error.message : String(error)),
+    message: error?.message ||
+      (error instanceof Error ? error.message : String(error)),
     details: error?.details,
     hint: error?.hint,
     raw_error: error,
@@ -576,17 +586,18 @@ async function fetchExplorePostDetail(
     return null;
   }
 
-  const supabase = createPublicServerSupabaseClient();
+  const supabase = createAdminSupabaseClient();
 
   if (!supabase) {
     return null;
   }
 
-  const publicViewerId = cleanViewerId(process.env.SUPABASE_PUBLIC_VIEWER_ID);
-  const { data, error } = await supabase.rpc("get_explore_post_detail", {
-    self_id: publicViewerId,
-    target_post_id: postId,
-  });
+  const { data, error } = await supabase.rpc(
+    "get_public_web_explore_post_detail",
+    {
+      p_target_post_id: postId,
+    },
+  );
 
   if (error) {
     logExplorePostRpcError("explore_post_detail_rpc_failed", postId, error);
@@ -620,7 +631,7 @@ export async function fetchExplorePost(
     return null;
   }
 
-  const supabase = createPublicServerSupabaseClient();
+  const supabase = createAdminSupabaseClient();
 
   if (!supabase) {
     console.error("explore_post_supabase_config_missing", {
@@ -629,11 +640,13 @@ export async function fetchExplorePost(
     return null;
   }
 
-  const publicViewerId = cleanViewerId(process.env.SUPABASE_PUBLIC_VIEWER_ID);
-  const { data, error } = await supabase.rpc("get_explore_post", {
-    self_id: publicViewerId,
-    target_post_id: postId,
-  });
+  const { data, error } = await supabase.rpc(
+    "get_public_web_explore_posts",
+    {
+      p_target_post_id: postId,
+      p_max_limit: 1,
+    },
+  );
 
   if (error) {
     logExplorePostRpcError("explore_post_rpc_failed", postId, error);
@@ -650,31 +663,8 @@ export async function fetchExplorePost(
     });
     return null;
   }
-  let authorUsername: string | null = null;
-  let isPro = false;
   try {
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("public_username, subscription_tier")
-      .eq("id", post.author_user_id)
-      .single();
-    if (!userError && userData) {
-      authorUsername = userData.public_username ?? null;
-      isPro = userData.subscription_tier === "pro";
-    }
-  } catch (err) {
-    console.warn("explore_post_author_enrichment_failed", {
-      author_user_id: post.author_user_id,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  try {
-    return mapExplorePost({
-      ...post,
-      author_username: authorUsername,
-      author_is_pro: isPro,
-    });
+    return mapExplorePost(post);
   } catch (error) {
     console.error("explore_post_map_failed", {
       post_id: postId,
@@ -706,17 +696,25 @@ export async function fetchExplorePostPage(
   return { post, detail: detailForPostSubject(detail, post) };
 }
 
-export async function fetchExploreFeedPosts(limit = 16): Promise<ExplorePost[]> {
-  const supabase = createPublicServerSupabaseClient();
+export async function fetchExploreFeedPosts(
+  limit = 16,
+): Promise<ExplorePost[]> {
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    return [];
+  }
+
+  const supabase = createAdminSupabaseClient();
   if (!supabase) {
     return [];
   }
 
-  const publicViewerId = cleanViewerId(process.env.SUPABASE_PUBLIC_VIEWER_ID);
-  const { data, error } = await supabase.rpc("get_explore_feed", {
-    self_id: publicViewerId,
-    max_limit: limit,
-  });
+  const { data, error } = await supabase.rpc(
+    "get_public_web_explore_posts",
+    {
+      p_target_post_id: null,
+      p_max_limit: Math.min(limit, 48),
+    },
+  );
 
   if (error) {
     logExplorePostRpcError("fetch_explore_feed_rpc_failed", "feed", error);

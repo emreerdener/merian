@@ -37,6 +37,7 @@ function fakeR2Config(options: {
   failPart?: boolean;
   getBody?: Uint8Array;
   getDeclaredLength?: number;
+  omitGetDeclaredLength?: boolean;
   requests: Array<{ method: string; url: string; bytes: number }>;
 }): R2Config {
   const client = {
@@ -73,7 +74,7 @@ function fakeR2Config(options: {
       }
       if (request.method === "GET" && options.getBody) {
         return new Response(options.getBody as unknown as BodyInit, {
-          headers: {
+          headers: options.omitGetDeclaredLength ? undefined : {
             "Content-Length": String(
               options.getDeclaredLength ?? options.getBody.byteLength,
             ),
@@ -230,5 +231,21 @@ Deno.test("prepared work chunk downloads must exactly match the durable manifest
   );
 
   assertEquals(error.code, "archive_generation_failed");
+  assertEquals(requests.map((request) => request.method), ["GET"]);
+});
+
+Deno.test("prepared work chunk downloads accept bounded streams without Content-Length", async () => {
+  const requests: Array<{ method: string; url: string; bytes: number }> = [];
+  const bytes = await fetchExportWorkChunk(
+    "exports/user/job/work/occurrence/00000000.csv",
+    3,
+    fakeR2Config({
+      getBody: new Uint8Array([1, 2, 3]),
+      omitGetDeclaredLength: true,
+      requests,
+    }),
+  );
+
+  assertEquals([...bytes], [1, 2, 3]);
   assertEquals(requests.map((request) => request.method), ["GET"]);
 });

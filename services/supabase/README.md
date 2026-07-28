@@ -320,17 +320,26 @@ selected taxonomy fields are finite too. The service-only
 cursor, then caps each keyset response at 100 scans and 256 KiB of serialized
 source payload.
 
-Migration `20260726025103_snapshot_dwca_export_sources.sql` fixes source
-membership at job insertion in one MVCC statement. Private
-`internal.export_job_source_state` and `internal.export_job_source_membership`
-rows retain only scan IDs and fixed-size SHA-256 fingerprints for eligibility,
-occurrence, and multimedia projections. Both CSV phases traverse that same
-membership; a later scan is not discovered, while a changed/deleted projection
-returns a revision sentinel and becomes terminal `source_snapshot_changed`
-before mixed output can be assembled. Terminal jobs purge their membership
-fingerprints. Nonterminal jobs created before this migration are claim-fenced,
-have their old manifests discarded, and restart against one newly established
-snapshot.
+Migration
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
+upgrades the creation-time source snapshot to version 2. One MVCC statement
+materializes bounded occurrence and multimedia JSON DTOs in private
+`internal.export_job_source_rows`, records their exact aggregate UTF-8 bytes in
+`internal.export_job_source_state`, and rejects a source that exceeds four times
+the job archive budget (hard-capped at 64 MiB). Both CSV phases traverse those
+same immutable DTOs, so a later scan or edit cannot mix taxonomy, media, or
+privacy revisions. Confirmed species identity is authoritative; the original AI
+`species_id` remains audit history. Exact GPS keys are retained only by an
+opted-in, snapshot-unprotected personal job; global and non-precise personal
+DTOs omit them before persistence.
+
+A compact scope-aware eligibility hash remains live. Deletion, tombstoning,
+owner changes, or a global geoprivacy change returns a revocation sentinel; both
+scopes also revalidate the protected-species coordinate-redaction requirement. A
+revocation becomes terminal `source_snapshot_changed`, while ordinary edits do
+not alter or fail the queued export. Terminal jobs purge the immutable DTOs.
+Nonterminal jobs created before the upgrade are claim-fenced, have old manifests
+discarded, and restart against one newly established version-2 snapshot.
 
 `functions/export-dwca` executes one short durable phase at a time—occurrence
 page, multimedia page, assembly, or delivery—but a scheduled invocation now
@@ -339,11 +348,11 @@ attempts only its canonical job once and returns, which bounds insert-burst
 fan-out. Empty-body cron wake-ups request five-job oldest-due waves until a
 40-second soft cutoff or a 40-step hard ceiling. Successful work is requeued
 behind older due jobs; failed/contended jobs are not retried in a hot loop. The
-two data phases use row-and-byte-aware keyset reads over immutable job
-membership and narrow revision-checked projections. A fixed 512 KiB encoder
-appends one CSV row at a time, so page strings and media rows are never expanded
-into an unbounded intermediate array. Each page becomes a claim-token-fenced R2
-CSV chunk and is committed to a durable manifest with its cursor and cumulative
+two data phases use row-and-byte-aware keyset reads over immutable job DTO rows
+and a narrow live privacy-revocation fence. A fixed 512 KiB encoder appends one
+CSV row at a time, so page strings and media rows are never expanded into an
+unbounded intermediate array. Each page becomes a claim-token-fenced R2 CSV
+chunk and is committed to a durable manifest with its cursor and cumulative
 budgets and unsigned CRC-32 in one transaction. A late expired worker can
 neither overwrite the replacement worker's chunk nor add it to the manifest.
 
@@ -386,6 +395,29 @@ Regression coverage lives in
 tests, `tests/export_dwca_security.sql`, and
 `tests/export_dwca_snapshot_security.sql`, plus
 `tests/dwca_export_queue_security.sql`.
+
+### Public Web Explore Boundary
+
+The public Next.js application does not execute native Explore RPCs with an
+anonymous browser key and cannot provide a synthetic viewer ID. Migration
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
+adds two fixed-anonymous projections:
+
+- `get_public_web_explore_posts(target_post_id, max_limit)`
+- `get_public_web_explore_post_detail(target_post_id)`
+
+Both routines reuse the canonical Explore visibility/privacy projections, have
+empty search paths and service-role caller checks, and are revoked from
+`PUBLIC`, `anon`, and `authenticated`. Only the server-rendered web helper may
+invoke them with the validated current or legacy server key. The card result
+forces engagement counts to zero and all viewer/ownership flags to false. It
+does not widen grants on Explore, scan, user, or taxonomy source relations.
+
+`functions/_tests/publicWebExploreMigrationContract.test.ts`,
+`functions/_tests/publicWebExploreCoverage.test.ts`,
+`tests/public_web_explore_security.sql`, the web source-boundary test, and the
+production deploy smoke prove that browser roles are denied while the server
+credential can obtain only the scoped projection.
 
 ### Public Web Waitlist Boundary
 
@@ -761,16 +793,15 @@ propagation attempts. Final Function failures report only HTTP status plus the
 presence of the fixed `X-Merian-Handler: 1` marker; Data API failures instead
 identify the PostgREST/RPC diagnostic path without expecting a Function header.
 The RevenueCat reconciliation-health monitor uses that resolver and transport
-too.
-Do not replace the resolver with the CLI API-key listing: its hidden secret-key
-representation cannot pass the exact request boundary. Migration
+too. Do not replace the resolver with the CLI API-key listing: its hidden
+secret-key representation cannot pass the exact request boundary. Migration
 `20260726212549_harden_service_role_request_authentication.sql` separately
 revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
 `authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
 `UPDATE`.
 
-No custom server credential header is supported. Diagnostics never expose a
-key prefix, suffix, length, partial fingerprint, accepted candidate, or failed
+No custom server credential header is supported. Diagnostics never expose a key
+prefix, suffix, length, partial fingerprint, accepted candidate, or failed
 internal response body. The complete environment/header matrix and production
 exit gate are in the
 [server credential and database release safety
@@ -792,9 +823,9 @@ table/sequence grants (including Postgres 17 `MAINTAIN`), and create any missing
 leading indexes for owned single-column user foreign keys. The index migration
 refuses to build against a relation larger than 32 MiB while holding a blocking
 migration lock and never recursively builds a missing index on a partitioned
-parent; use the deployment runbook's supervised concurrent procedure first.
-The static migration contract and `tests/public_schema_security.sql` enforce
-the same effective-schema invariants.
+parent; use the deployment runbook's supervised concurrent procedure first. The
+static migration contract and `tests/public_schema_security.sql` enforce the
+same effective-schema invariants.
 
 ### Ghost Account Upgrade Boundary
 
@@ -994,8 +1025,8 @@ Public species stats have both static and executable security contracts:
 `_tests/migrationExecutionContract.test.ts` lexically masks comments and
 inspects executable direct and dynamic SQL before rejecting concurrent
 `CREATE INDEX`, `DROP INDEX`, or `REINDEX`. The public-schema migration contract
-separately rejects top-level transaction-control aliases in new migrations
-after masking quoted values and routine bodies. Supabase CLI `2.109.1` owns the
+separately rejects top-level transaction-control aliases in new migrations after
+masking quoted values and routine bodies. Supabase CLI `2.109.1` owns the
 migration transaction and history boundary. Its normal apply path wraps
 pipeline-compatible statements with the history insert, but fresh replay also
 passes immutable historical compatibility artifacts. Top-level timeout guards

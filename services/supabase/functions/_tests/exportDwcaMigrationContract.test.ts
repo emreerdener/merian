@@ -51,6 +51,13 @@ const crcMigrationUrl = new URL(
   import.meta.url,
 );
 const crcMigration = await Deno.readTextFile(crcMigrationUrl);
+const immutableRowsMigrationUrl = new URL(
+  "../../migrations/20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql",
+  import.meta.url,
+);
+const immutableRowsMigration = await Deno.readTextFile(
+  immutableRowsMigrationUrl,
+);
 
 Deno.test("DwC-A migration installs a private atomic claim lease", () => {
   for (
@@ -376,6 +383,119 @@ Deno.test("DwC-A phases share one immutable creation-time membership snapshot", 
     sourceSnapshotMigration.includes("pg_catalog.COALESCE"),
     false,
   );
+});
+
+Deno.test("DwC-A source snapshots materialize bounded immutable authoritative DTO rows", () => {
+  for (
+    const expected of [
+      "CREATE TABLE internal.export_job_source_rows",
+      "occurrence_payload JSONB NOT NULL",
+      "occurrence_byte_count INTEGER NOT NULL",
+      "multimedia_payload JSONB NOT NULL",
+      "multimedia_byte_count INTEGER NOT NULL",
+      "occurrence_byte_count BETWEEN 1 AND 262144",
+      "multimedia_byte_count BETWEEN 1 AND 262144",
+      "ALTER TABLE internal.export_job_source_rows ENABLE ROW LEVEL SECURITY",
+      "REVOKE ALL ON TABLE internal.export_job_source_rows",
+      "ALTER COLUMN snapshot_version SET DEFAULT 2",
+      "ADD COLUMN source_byte_count BIGINT",
+      "ADD COLUMN max_source_bytes BIGINT",
+      "max_source_bytes BETWEEN 4194304 AND 67108864",
+      "COALESCE(scans.confirmed_species_id, scans.species_id)",
+      "CREATE VIEW internal.dwca_export_snapshot_source",
+      "personal_eligibility_payload",
+      "global_eligibility_payload",
+      "coordinate_protection_required",
+      "'critically_endangered'",
+      "WITH eligible_membership AS MATERIALIZED",
+      "projected_rows AS MATERIALIZED",
+      "snapshot_rows AS MATERIALIZED",
+      "source.occurrence_payload",
+      "job_row.include_precise_coordinates",
+      "- ARRAY['gps_lat_exact', 'gps_long_exact']::TEXT[]",
+      "source.multimedia_payload",
+      "stats.source_byte_count > budget.max_source_bytes",
+      "INSERT INTO internal.export_job_source_rows",
+      "DELETE FROM internal.export_job_source_rows",
+      "FROM internal.export_job_source_rows AS source_rows",
+      "source_rows.occurrence_payload",
+      "source_rows.multimedia_payload",
+      "source_rows.eligibility_sha256",
+      "current_source.personal_eligibility_payload",
+      "current_source.global_eligibility_payload",
+      "source_state.snapshot_version = 2",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+      "TO service_role",
+      "RESET lock_timeout",
+      "RESET statement_timeout",
+    ]
+  ) {
+    assertStringIncludes(immutableRowsMigration, expected);
+  }
+
+  const snapshotProjection = immutableRowsMigration.slice(
+    immutableRowsMigration.indexOf(
+      "CREATE VIEW internal.dwca_export_snapshot_source",
+    ),
+    immutableRowsMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.materialize_dwca_export_source_snapshot",
+    ),
+  );
+  assertStringIncludes(
+    snapshotProjection,
+    "ON species.id = COALESCE(\n        scans.confirmed_species_id,\n        scans.species_id",
+  );
+  const personalEligibility = snapshotProjection.slice(
+    snapshotProjection.indexOf(
+      "pg_catalog.JSONB_BUILD_OBJECT(\n        'user_id'",
+    ),
+    snapshotProjection.indexOf(
+      ") AS personal_eligibility_payload",
+    ),
+  );
+  assertStringIncludes(
+    personalEligibility,
+    "'coordinate_protection_required'",
+  );
+  assertEquals(personalEligibility.includes("'effective_species_id'"), false);
+  assertEquals(personalEligibility.includes("'iucn_red_list_status'"), false);
+  const globalEligibility = snapshotProjection.slice(
+    snapshotProjection.indexOf(
+      ") AS personal_eligibility_payload",
+    ),
+    snapshotProjection.indexOf(
+      ") AS global_eligibility_payload",
+    ),
+  );
+  assertStringIncludes(
+    globalEligibility,
+    "'coordinate_protection_required'",
+  );
+  assertEquals(globalEligibility.includes("'effective_species_id'"), false);
+  assertEquals(globalEligibility.includes("'iucn_red_list_status'"), false);
+
+  const pageRpc = immutableRowsMigration.slice(
+    immutableRowsMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.get_dwca_export_scan_batch",
+    ),
+  );
+  assertEquals(
+    pageRpc.includes("current_source.occurrence_payload"),
+    false,
+  );
+  assertEquals(
+    pageRpc.includes("current_source.multimedia_payload"),
+    false,
+  );
+  assertEquals(
+    pageRpc.includes("candidates.immutable_payload"),
+    true,
+  );
+  assertEquals(immutableRowsMigration.includes(" OFFSET "), false);
+  assertEquals(immutableRowsMigration.includes("GRANT SELECT"), false);
+  assertEquals(immutableRowsMigration.includes("pg_catalog.LEAST"), false);
+  assertEquals(immutableRowsMigration.includes("pg_catalog.COALESCE"), false);
 });
 
 Deno.test("DwC-A continuation dispatch has fair backlog telemetry and timeout headroom", () => {

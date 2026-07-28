@@ -35,15 +35,27 @@ ordering behind older due jobs. This raises continuation throughput without
 making one `waitUntil` workload own the complete export or allowing concurrent
 archive assemblies inside one isolate.
 
-Migration `20260726025103_snapshot_dwca_export_sources.sql` freezes the eligible
-scan IDs when the job is inserted. It stores only fixed-size SHA-256
-fingerprints for the eligibility, occurrence, and multimedia projections rather
-than duplicating complete private payloads. Occurrence and multimedia therefore
-traverse the same `(job_id, scan_id)` membership. The database returns a payload
-only when its projection still matches the creation-time fingerprint; a changed
-or deleted revision produces terminal `source_snapshot_changed`, and no archive
-is assembled from mixed revisions. Membership is purged when the job becomes
-terminal.
+Migration
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
+upgrades every nonterminal job to source snapshot version 2. When a job is
+inserted, one database statement materializes the bounded, privacy-projected
+occurrence and multimedia JSON DTOs for every eligible scan. Both phases
+therefore traverse the same immutable `(job_id, scan_id)` rows and can never mix
+taxonomy, media, or privacy revisions from separate live queries. The taxonomy
+join uses `confirmed_species_id` when present and otherwise falls back to the
+original AI `species_id`. Exact GPS fields are persisted only for a personal job
+that explicitly requested them and whose snapshot taxonomy did not require
+protected-species redaction.
+
+Only the scope-aware eligibility hash is revalidated against live state before a
+page is returned. Ordinary edits after queueing do not change the archive.
+Deletion, tombstoning, owner changes, or a privacy/protection change that makes
+a row unsafe produces terminal `source_snapshot_changed`. Personal snapshots
+deliberately ignore geoprivacy because they export only the requesting owner's
+captures. Both scopes still revalidate whether protected-species coordinate
+redaction is required, so a conservation escalation cannot release coordinates
+under a stale unprotected projection. Immutable DTO rows are purged when the job
+becomes terminal.
 
 ## Bounded archive pipeline
 
@@ -54,14 +66,18 @@ terminal.
   lengths. The first transaction enforces new writes and releases its
   `ALTER TABLE` lock; the second validates legacy rows before activating the
   source-page RPC.
+- Snapshot version 2 records the exact UTF-8 byte count of both JSON projections
+  before inserting any DTO. Each projection is limited to 256 KiB, total source
+  bytes are limited to four times the job archive budget with a 64 MiB hard cap,
+  and a row-budget-plus-one lookahead rejects an oversized job without exposing
+  its source rows to Edge.
 - `db.ts` calls `get_dwca_export_scan_batch(...)` under the active claim. The
   database validates the durable `id > last_id` cursor, reads from immutable job
-  membership, compares the selected live projection with its snapshot
-  fingerprint, and stops at 100 scans or 256 KiB of serialized source payload.
-  Sentinels distinguish a finished keyset, an unexpectedly oversized first
-  source row, and a changed source revision. Eligibility is evaluated once when
-  the job is created. Occurrence pages omit media arrays; multimedia pages omit
-  taxonomy and coordinate fields.
+  DTO rows, revalidates only live scope-aware eligibility, and stops at 100
+  scans or 256 KiB of serialized source payload. Sentinels distinguish a
+  finished keyset, an unexpectedly oversized first source row, and a revoked
+  source. Occurrence DTOs omit media arrays; multimedia DTOs omit taxonomy and
+  coordinate fields.
 - `archive.ts` uses a fixed-capacity incremental UTF-8 encoder. It appends one
   header or CSV row at a time—without a page-wide string array, `Promise.all`,
   multimedia expansion array, or final `join()`—and can never allocate an output
@@ -232,10 +248,10 @@ idempotency, canonical claims, staged retry reuse, stale-worker fencing, fair
 multi-wave draining, soft-deadline exit, and failure suppression. Static
 contracts lock the migrations and production-source boundaries. Executable
 database tests prove source constraints, aggregate page byte limits,
-creation-time membership, revision rejection, terminal purge, the finite rollout
-deadline, post-deadline claim requirement, queue-health ACL/index behavior,
-live/expired claim accounting, and phased state contract in
-`services/supabase/tests/export_dwca_security.sql` and
+creation-time immutable DTOs, authoritative confirmed identity, live privacy
+revocation, terminal purge, the finite rollout deadline, post-deadline claim
+requirement, queue-health ACL/index behavior, live/expired claim accounting, and
+phased state contract in `services/supabase/tests/export_dwca_security.sql` and
 `services/supabase/tests/export_dwca_snapshot_security.sql`, plus
 `services/supabase/tests/dwca_export_queue_security.sql`; the repository-wide
 privileged-routine catalog validator checks the definer RPC.

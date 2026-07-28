@@ -18,9 +18,9 @@ compatibility artifacts and are not examples for future migrations.
 No checked-in migration may execute concurrent index DDL. A large production
 index is built through the deployment runbook's separately supervised owner
 session and then recognized by the unchanged migration. Every table created in
-the Data API's exposed `public` schema must have effective RLS enabled.
-Default table and sequence ACLs for the `postgres` migration role are revoked
-globally and in `public`; API access is explicitly granted and reviewed. See
+the Data API's exposed `public` schema must have effective RLS enabled. Default
+table and sequence ACLs for the `postgres` migration role are revoked globally
+and in `public`; API access is explicitly granted and reviewed. See
 [`13-server-credentials-and-database-release-safety.md`](./13-server-credentials-and-database-release-safety.md)
 for the complete release contract.
 
@@ -67,8 +67,7 @@ opaque `sb_secret_...` keys use `apikey` only and legacy service-role JWTs use
 both supported headers. API roles cannot execute the helper. The same migration
 makes `get_owned_explore_media_incidents(self_id)` choose its service branch
 from server-side identity state, allowing both server-key formats while
-retaining the exact `auth.uid() = self_id` check for ordinary callers.
-Migration
+retaining the exact `auth.uid() = self_id` check for ordinary callers. Migration
 `20260727183356_restore_identity_first_media_incident_guard.sql` restores that
 final identity-first body after a later migration accidentally reintroduced
 role-first dispatch. Future migration coverage rejects the JWT-only pattern.
@@ -110,15 +109,14 @@ corruption. A truncate trigger clears the ledger and projections.
 
 This immutable historical migration opens an explicit transaction, takes a
 `SHARE ROW EXCLUSIVE` lock on `public.scans`, backfills the ledger once, repairs
-historical
-`users.total_species_discovered` drift, atomically swaps the triggers, and
-commits only after the final trigger exists. PostgreSQL rejects `LOCK TABLE`
-outside a transaction block; the explicit boundary is therefore part of the
-historical file's compatibility contract, not syntax to copy into a new
-migration. Ownerless tombstones are excluded because their user ID is null; the
-historical all-zero owner guard remains as migration compatibility. The ledger
-intentionally follows raw non-null `scans.species_id`; it does not change public
-Explore's separate biological/confirmed-species counting contract.
+historical `users.total_species_discovered` drift, atomically swaps the
+triggers, and commits only after the final trigger exists. PostgreSQL rejects
+`LOCK TABLE` outside a transaction block; the explicit boundary is therefore
+part of the historical file's compatibility contract, not syntax to copy into a
+new migration. Ownerless tombstones are excluded because their user ID is null;
+the historical all-zero owner guard remains as migration compatibility. The
+ledger intentionally follows raw non-null `scans.species_id`; it does not change
+public Explore's separate biological/confirmed-species counting contract.
 
 The dictionary foreign key lives in the `internal` namespace. Any diagnostic or
 test that forces its deferred check must use
@@ -1414,29 +1412,40 @@ applies both a 100-row ceiling and a 256 KiB cumulative serialized-source
 ceiling before returning payloads to Edge. API roles have no direct read grant
 on either source projection.
 
-Migration `20260726025103_snapshot_dwca_export_sources.sql` replaces those two
-live phase projections with:
+Migration `20260726025103_snapshot_dwca_export_sources.sql` initially replaced
+those two live phase projections with compact membership fingerprints. Migration
+`20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
+replaces that representation with source snapshot version 2:
 
 - `internal.export_job_source_state`: one private row recording snapshot
   version/time, the exact eligible scan count (or the canonical row budget plus
-  one when known too large), terminal purge time, and the early-too-large flag.
-- `internal.export_job_source_membership`: the immutable `(job_id, scan_id)` set
-  plus three 32-byte SHA-256 fingerprints covering eligibility/privacy fields,
-  the occurrence projection, and the multimedia projection.
-- `internal.dwca_export_current_source`: a private, unfiltered current
-  projection used only for same-statement revision comparison.
+  one when known too large), exact projected-source byte count, immutable source
+  budget, terminal purge time, and the early-too-large flag. Version 2 source
+  bytes are capped at four times `max_archive_bytes`, never above 64 MiB.
+- `internal.export_job_source_rows`: the immutable `(job_id, scan_id)` set, one
+  32-byte scope-aware eligibility hash, bounded occurrence/multimedia JSON DTOs,
+  and the exact UTF-8 byte count of each DTO. Each projection is limited to 256
+  KiB. Exact GPS fields exist only in an opted-in, unprotected personal
+  occurrence DTO; global and non-precise personal rows omit those keys. The
+  table has RLS and no API-role grants.
+- `internal.dwca_export_snapshot_source`: a private projection used once to
+  create the DTOs and later only to recompute live eligibility. Its taxonomy
+  join uses `COALESCE(confirmed_species_id, species_id)`.
 
-An insertion trigger materializes membership and fingerprints from one MVCC
-snapshot before the webhook can run. There is intentionally no `scan_id` foreign
-key: deleting a scan must cause a revision mismatch rather than silently
-removing it from a later phase. The page RPC keyset-paginates the membership
-primary key and returns a current payload only when both its eligibility and
-phase fingerprint still match. Later scans are never discovered. A mismatch or
-physical deletion yields `source_revision_changed`, which the worker records as
-terminal `source_snapshot_changed`; no mixed archive reaches assembly.
-Pre-migration nonterminal jobs are fenced and restarted with their prior chunk
-manifests discarded. Terminal transitions delete membership rows and retain only
-the nonsensitive source-state metadata with `purged_at`.
+An insertion trigger materializes membership, both immutable DTOs, source
+statistics, and eligibility hashes in one MVCC statement before the webhook can
+run. There is intentionally no `scan_id` foreign key: deleting a scan must
+revoke delivery rather than silently remove it from a later phase. The page RPC
+keyset-paginates the source-row primary key and returns the stored phase DTO
+after checking live scope-aware eligibility. Later scans and ordinary edits are
+never discovered. Deletion, tombstoning, owner change, or a relevant
+privacy/protection change yields `source_revision_changed`, which the worker
+records as terminal `source_snapshot_changed`. Personal snapshots ignore
+geoprivacy because only the requesting owner is exported, but both scopes
+revalidate the protected-species coordinate-redaction requirement. Pre-upgrade
+nonterminal jobs are fenced and restarted with prior chunk manifests discarded.
+Terminal transitions delete DTO rows and retain only the nonsensitive
+source-state metadata with `purged_at`.
 
 ### `failed_scan_ingestions`
 
@@ -2067,17 +2076,15 @@ Emoji reactions for Explore comments. Added in migration
 - `created_at` (TIMESTAMPTZ)
 - Unique constraint: `(comment_id, user_id, emoji)` prevents a single user from
   casting the same reaction twice on a single comment.
-- Migration
-  `20260727190637_secure_explore_comment_reactions_and_defaults.sql` enables
-  RLS with no direct client policy, revokes every table privilege from
+- Migration `20260727190637_secure_explore_comment_reactions_and_defaults.sql`
+  enables RLS with no direct client policy, revokes every table privilege from
   `PUBLIC`, `anon`, `authenticated`, and `service_role`, then grants
   `service_role` only `SELECT`, `INSERT`, and `DELETE`. Authenticated clients
   mutate reactions only through the ownership-validating Edge action's
   privileged SDK client.
 - The same corrective migration removes unsafe global and `public`-schema
-  default table/sequence privileges for the `postgres` migration role,
-  including PostgreSQL 17 `MAINTAIN`. Future objects require an explicit,
-  reviewed grant.
+  default table/sequence privileges for the `postgres` migration role, including
+  PostgreSQL 17 `MAINTAIN`. Future objects require an explicit, reviewed grant.
 
 ### `explore_comment_reports`
 
@@ -2284,9 +2291,8 @@ coordinates to the client contract.
   coordinate boundary used by the map.
 - `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same
   public card projection for a single post, including canonical ordered
-  `media_items`. This is used by native routing and the public web detail page
-  so video/audio playback does not query private scan tables or depend on an
-  already-loaded feed row.
+  `media_items`. This is used by native routing so video/audio playback does not
+  query private scan tables or depend on an already-loaded feed row.
 - `public.get_explore_post_detail(self_id UUID, target_post_id UUID)`: Returns a
   single public species-detail projection for the Explore detail page. Fields
   currently include `field_notes`, `species_dictionary_id`,
@@ -2306,6 +2312,16 @@ coordinates to the client contract.
   shadowban, and block filters as the feed. Post `location_sharing` is returned
   so edit surfaces can hydrate the saved post-level location choice, but it does
   not hide an otherwise visible detail page.
+- `public.get_public_web_explore_posts(target_post_id UUID, max_limit INTEGER)`:
+  Service-only, fixed-anonymous web projection over
+  `explore_projected_post_cards(NULL)`. It returns one post or a
+  reverse-chronological page of at most 48 cards, includes copied public
+  username/Pro state, and forces engagement counts to zero plus viewer/ownership
+  flags to false. It is revoked from `PUBLIC`, `anon`, and `authenticated`.
+- `public.get_public_web_explore_post_detail(target_post_id UUID)`:
+  Service-only, fixed-anonymous wrapper over the canonical detail projection.
+  The two public-web routines are the only Explore database boundary used by the
+  Next.js server; they do not grant browser roles access to source relations.
 - `public.get_species_content_refresh_queue(max_rows INTEGER DEFAULT 100, as_of TIMESTAMPTZ DEFAULT NOW())`:
   Internal service-role queue query over `species_content_provenance`. It
   returns stale or low-confidence species content rows with `species_id`,
@@ -2711,10 +2727,9 @@ R2 object deletion to prevent storage bloat.
 
 Adds `public.replace_species_reference_images(...)` and schedules the
 `refresh_species_content_hourly` `pg_cron` job. The job posts to
-`/functions/v1/refresh-species-content` at minute 17 every hour using
-the effective server key from the compatibility-named Vault/current-setting
-slot and a small
-`{ "limit": 25 }` body. The Edge worker consumes
+`/functions/v1/refresh-species-content` at minute 17 every hour using the
+effective server key from the compatibility-named Vault/current-setting slot and
+a small `{ "limit": 25 }` body. The Edge worker consumes
 `get_species_content_refresh_queue(...)`, refreshes externally authoritative
 species fields, and leaves model/curation-backed fields untouched until
 dedicated tooling exists.
@@ -3016,16 +3031,15 @@ blank Vault row therefore does not fall through to an app setting. The field is
 configuration readiness, not credential validation: it does not prove that the
 URL resolves, the key matches the Edge secret, or a reconciler request succeeds.
 
-Migration
-`20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql` additionally
-catalogs every owned single-column foreign key in `public` and `internal` that
-references `public.users` or `auth.users`. It reuses only a valid, ready,
-non-partial, non-expression index led by that FK column. Missing indexes are
-created inline only on relations no larger than 32 MiB. Larger relations abort
-with SQLSTATE `55000` and a supervised concurrent command; partitioned parents
-require valid leaf indexes plus a reviewed metadata-only parent operation.
-This bounds identity updates and account deletion without turning a forgotten
-production preflight into an unbounded write lock.
+Migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`
+additionally catalogs every owned single-column foreign key in `public` and
+`internal` that references `public.users` or `auth.users`. It reuses only a
+valid, ready, non-partial, non-expression index led by that FK column. Missing
+indexes are created inline only on relations no larger than 32 MiB. Larger
+relations abort with SQLSTATE `55000` and a supervised concurrent command;
+partitioned parents require valid leaf indexes plus a reviewed metadata-only
+parent operation. This bounds identity updates and account deletion without
+turning a forgotten production preflight into an unbounded write lock.
 
 `trg_reject_account_deletion_profile_recreation` runs before inserts on
 `public.users` and rejects the original UUID while an active job exists. This

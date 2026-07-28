@@ -15,13 +15,11 @@ redirects to the current readable canonical path after resolving the species.
 
 The Explore route fetches the public post and detail projections from Supabase
 on the server, renders a rich read-only post page with default Mantine
-components, and emits Open Graph metadata so Messages/social shares can render
-a clean preview.
-Unshared, administratively hidden, tombstoned, blocked, and otherwise
-privacy-filtered posts resolve to the application not-found page with
+components, and emits Open Graph metadata so Messages/social shares can render a
+clean preview. Unshared, administratively hidden, tombstoned, blocked, and
+otherwise privacy-filtered posts resolve to the application not-found page with
 non-indexable metadata; server code must not reconstruct them from direct table
-reads.
-Standalone-audio post details and social previews consume the persisted
+reads. Standalone-audio post details and social previews consume the persisted
 `media_items.thumbnail_url` spectrogram. The home grid uses the public species
 reference thumbnail instead, with the spectrogram as a legacy fallback. The
 public web app never downloads recordings to calculate FFT data in a visitor's
@@ -40,9 +38,9 @@ https://naturebook.earth
 ```
 
 Species pages are server-rendered from the existing privacy-safe
-`species-dictionary` Edge Function. They publish only licensed reference
-imagery with complete attribution and intentionally omit observations,
-Community sightings, user media, locations, and scan-specific data.
+`species-dictionary` Edge Function. They publish only licensed reference imagery
+with complete attribution and intentionally omit observations, Community
+sightings, user media, locations, and scan-specific data.
 
 ## Setup
 
@@ -64,14 +62,14 @@ npm ci
 Required server-side variables:
 
 - `SUPABASE_URL`
-- One privileged Supabase server key:
-  `SUPABASE_SERVER_API_KEY=sb_secret_...` is preferred. The
-  platform-managed `SUPABASE_SECRET_KEYS` dictionary is also supported when
-  present; `SUPABASE_SERVICE_ROLE_KEY` remains a legacy service-role JWT
-  migration fallback. The server-only client rejects public or malformed values
-  and gives every Supabase SDK request a 30-second hard deadline. A configured
-  malformed explicit override fails; once a valid higher-priority source is
-  selected, an unrelated malformed lower migration source cannot veto it.
+- One privileged Supabase server key: `SUPABASE_SERVER_API_KEY=sb_secret_...` is
+  preferred. The platform-managed `SUPABASE_SECRET_KEYS` dictionary is also
+  supported when present; `SUPABASE_SERVICE_ROLE_KEY` remains a legacy
+  service-role JWT migration fallback. The server-only client rejects public or
+  malformed values and gives every Supabase SDK request a 30-second hard
+  deadline. A configured malformed explicit override fails; once a valid
+  higher-priority source is selected, an unrelated malformed lower migration
+  source cannot veto it.
 - `WAITLIST_IP_HASH_SECRET` — at least 32 random characters. Generate a
   dedicated value; do not reuse a Supabase, Turnstile, or application secret.
 - `TURNSTILE_SECRET_KEY` — server-side secret for the production Cloudflare
@@ -89,25 +87,23 @@ Ingress configuration:
 - `WAITLIST_TRUSTED_IP_HEADER` — use `x-vercel-forwarded-for` on Vercel. The
   application accepts only a small header allowlist and uses only the first
   syntactically valid address. A non-Vercel proxy must overwrite its configured
-  header at the trusted ingress; never trust a client-appended forwarding
-  chain.
+  header at the trusted ingress; never trust a client-appended forwarding chain.
 
 Optional public variables:
 
 - `NEXT_PUBLIC_SITE_URL` — set to `https://naturebook.earth` in production.
 - `NEXT_PUBLIC_APP_STORE_URL`
-- `NEXT_PUBLIC_SUPPORT_EMAIL` — set to `support@naturebook.earth` in
-  production.
-- `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe web playback events
+- `NEXT_PUBLIC_SUPPORT_EMAIL` — set to `support@naturebook.earth` in production.
+- `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe
+  web playback events
 
 Optional server/public fallback variables:
 
-- `SUPABASE_PUBLIC_VIEWER_ID`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-Every privileged server-key format must stay server-side only. Do not prefix
-one with `NEXT_PUBLIC_`.
+Every privileged server-key format must stay server-side only. Do not prefix one
+with `NEXT_PUBLIC_`.
 
 ### Environment Ownership Boundary
 
@@ -138,10 +134,10 @@ need live backend behavior. See the canonical destination matrix in
 The package pins the reviewed Next.js release exactly; do not replace it with a
 range or `latest`. Use `npm ci` so CI and production consume the committed lock
 file. Next currently declares older PostCSS and Sharp releases, so the root
-manifest explicitly overrides those two transitive edges to the reviewed
-patched versions. Keep the overrides until a stable Next.js release declares
-equal or newer versions. Do not remove them merely because image optimization
-is disabled or CSS inputs are currently trusted.
+manifest explicitly overrides those two transitive edges to the reviewed patched
+versions. Keep the overrides until a stable Next.js release declares equal or
+newer versions. Do not remove them merely because image optimization is disabled
+or CSS inputs are currently trusted.
 
 The PostCSS 8.5.18 floor covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
@@ -171,15 +167,20 @@ Production HTTPS responses additionally receive HSTS. Keep
 
 Supabase clients have two explicit trust levels:
 
-- `lib/supabasePublic.ts` contains only the anonymous public projection client.
+- `lib/supabasePublic.ts` contains only the anonymous client used for explicitly
+  public Data API reads such as species content. It is not an Explore fallback.
 - `lib/supabaseAdmin.ts` imports `server-only` and is the sole owner of
   privileged server-key environment access. `lib/serverApiKey.ts` validates
   platform-shaped `sb_secret_...` values, including a URL-safe opaque suffix of
-  at least 20 characters, and complete legacy HS256 `service_role` JWTs before
-  a client can be created; a publishable, anon, user, truncated placeholder, or
+  at least 20 characters, and complete legacy HS256 `service_role` JWTs before a
+  client can be created; a publishable, anon, user, truncated placeholder, or
   malformed selected value fails closed. Sources are evaluated independently at
   their priority points so stale lower migration fallbacks cannot veto a valid
   selected key.
+
+Explore uses the privileged client only to invoke the two narrowly scoped
+public-web RPCs. It must never use that client for direct Explore, scan, user,
+or taxonomy table reads.
 
 Do not merge these modules or export an admin-capable default client. Server
 routes must import the admin module directly, while public projection readers
@@ -213,13 +214,13 @@ stable `503` without consuming a database counter or contacting Cloudflare.
 After that claim, the route verifies Turnstile with action `waitlist`, exact
 hostname allowlisting, the trusted remote IP, a five-second deadline, a 32 KiB
 streamed response ceiling, and the request UUID as the Siteverify idempotency
-key. A successful challenge permits the separate
-`submit_beta_waitlist_signup` call. Direct table access is revoked. PostgreSQL
-atomically enforces tighter verified limits of 5 attempts per IP/10 minutes, 20
-per IP/day, and 2,000 new unique addresses globally/day. Duplicate addresses
-receive the same success copy and consume only the verified IP budget,
-preventing address enumeration and unbounded table growth. Turnstile tokens,
-raw IP addresses, and emails must not appear in logs.
+key. A successful challenge permits the separate `submit_beta_waitlist_signup`
+call. Direct table access is revoked. PostgreSQL atomically enforces tighter
+verified limits of 5 attempts per IP/10 minutes, 20 per IP/day, and 2,000 new
+unique addresses globally/day. Duplicate addresses receive the same success copy
+and consume only the verified IP budget, preventing address enumeration and
+unbounded table growth. Turnstile tokens, raw IP addresses, and emails must not
+appear in logs.
 
 Errors use stable `code` and server-generated `request_id` fields, plus the same
 ID in `X-Request-ID`. A `429` includes `Retry-After: 600`; internal database or
@@ -240,11 +241,10 @@ Configure the Vercel project as a monorepo app:
 All aliases must be assigned to the same Vercel project that builds from
 `apps/web`; do not configure provider-level redirects in front of the app.
 `naturebook.earth` must be the project's primary production domain. `proxy.ts`
-issues permanent path- and query-preserving redirects to `naturebook.earth`.
-The two Apple App Site Association paths on the exact `naturebook.earth` and
+issues permanent path- and query-preserving redirects to `naturebook.earth`. The
+two Apple App Site Association paths on the exact `naturebook.earth` and
 `merian.earth` hosts are served directly with HTTP 200. They must never pass
-through a host redirect. A plain
-Vercel response like:
+through a host redirect. A plain Vercel response like:
 
 ```text
 404: NOT_FOUND
@@ -276,10 +276,10 @@ curl -I 'https://merian.earth/.well-known/apple-app-site-association'
 ```
 
 The canonical host may return the route's normal status. Every alias must
-permanently redirect to the matching path and query on `naturebook.earth`.
-All four AASA checks must return HTTP 200 directly with JSON content and no redirect.
-The AASA payload must continue to use `TA8S64ST9W.app.merian.Merian` with the
-exact path list `["/explore/post/*", "/species/*"]`.
+permanently redirect to the matching path and query on `naturebook.earth`. All
+four AASA checks must return HTTP 200 directly with JSON content and no
+redirect. The AASA payload must continue to use `TA8S64ST9W.app.merian.Merian`
+with the exact path list `["/explore/post/*", "/species/*"]`.
 
 For a real species UUID, also verify the UUID-only and stale-slug Naturebook
 paths return a permanent redirect to the current UUID-plus-slug canonical path.
@@ -295,10 +295,10 @@ npm run audit:dependencies
 ```
 
 `.github/workflows/web-quality.yml` runs a frozen install, a registry-backed
-dependency audit that blocks high and critical findings, unit tests,
-TypeScript, and a production build when the web route, its security helpers,
-the waitlist migration, or the workflow changes. A registry outage is a failed
-security gate, not an implicit pass.
+dependency audit that blocks high and critical findings, unit tests, TypeScript,
+and a production build when the web route, its security helpers, the waitlist
+migration, or the workflow changes. A registry outage is a failed security gate,
+not an implicit pass.
 
 ## Share URL Shape
 
@@ -309,7 +309,8 @@ https://naturebook.earth/explore/post/{postId}
 https://naturebook.earth/species/{speciesId}/{slug}
 ```
 
-Universal Links are active, meaning the HTTPS URL opens the native iOS app when installed, and gracefully falls back to the public web preview otherwise.
+Universal Links are active, meaning the HTTPS URL opens the native iOS app when
+installed, and gracefully falls back to the public web preview otherwise.
 
 The web page includes a native-app CTA using:
 
@@ -318,7 +319,8 @@ naturebook://explore/post/{postId}
 naturebook://species/{speciesId}
 ```
 
-Keep the HTTPS URL as the primary shared link so recipients without the app still get a real page and a rich Open Graph preview.
+Keep the HTTPS URL as the primary shared link so recipients without the app
+still get a real page and a rich Open Graph preview.
 
 ## Theme Preference Bridge
 
@@ -331,39 +333,42 @@ Naturebook-owned links opened from the iOS app may append:
 ```
 
 The web app maps `system` to Mantine's `auto` color scheme and stores the value
-in Mantine's color scheme storage key before hydration. Public share links should
-omit this parameter so recipients see their own browser/system preference.
+in Mantine's color scheme storage key before hydration. Public share links
+should omit this parameter so recipients see their own browser/system
+preference.
 
 ## Public Routes
 
 - `/` — lightweight Naturebook public home.
 - `/explore/post/[postId]` — public Explore share page. The MVP is read-only:
   anonymous visitors can view post context and send a support-email report from
-  the centered action below the Taxonomy card, but
-  cannot like, comment, reply, follow, or edit from the web page. Engagement
-  counts are intentionally omitted from the public detail presentation.
-  Ordered image, video, and audio media appear in the detail carousel. Its
-  active video autoplays muted and inline on a continuous loop with native
-  controls, while inactive videos pause and rewind. The homepage Explore grid
-  remains poster-only and uses species reference images for audio posts. Audio
-  detail slides retain their spectrogram, bottom-anchored controls, and optional
-  browser-local Boost Audio toggle.
+  the centered action below the Taxonomy card, but cannot like, comment, reply,
+  follow, or edit from the web page. Engagement counts are intentionally omitted
+  from the public detail presentation. Ordered image, video, and audio media
+  appear in the detail carousel. Its active video autoplays muted and inline on
+  a continuous loop with native controls, while inactive videos pause and
+  rewind. The homepage Explore grid remains poster-only and uses species
+  reference images for audio posts. Audio detail slides retain their
+  spectrogram, bottom-anchored controls, and optional browser-local Boost Audio
+  toggle.
 - `/species/[speciesId]/[slug]` — public Species Dictionary reference page. The
-  lowercase ASCII slug is derived from the common name, with the scientific
-  name and then `species` as fallbacks; it is descriptive only and never used
-  for lookup. UUID-only and stale-slug requests permanently redirect to the
-  current canonical path. Successful pages revalidate every five minutes, emit
+  lowercase ASCII slug is derived from the common name, with the scientific name
+  and then `species` as fallbacks; it is descriptive only and never used for
+  lookup. UUID-only and stale-slug requests permanently redirect to the current
+  canonical path. Successful pages revalidate every five minutes, emit
   canonical/Open Graph/Twitter metadata, link similar species textually, and
   filter every rendered or metadata image through the shared attribution audit.
   Invalid IDs and missing species are non-indexable 404s; transient Edge
   failures remain server errors.
 - `/api/explore/audio?url={canonicalWavUrl}` — range-capable same-origin stream
   used only by Boost Audio. It accepts canonical public Naturebook WAV URLs on
-  the stable `media.merian.app` infrastructure host, is not
-  a general media proxy, and stores no derived audio.
-- `/apple-app-site-association` and `/.well-known/apple-app-site-association` — served Apple App Site Association file for iOS deep linking capabilities.
+  the stable `media.merian.app` infrastructure host, is not a general media
+  proxy, and stores no derived audio.
+- `/apple-app-site-association` and `/.well-known/apple-app-site-association` —
+  served Apple App Site Association file for iOS deep linking capabilities.
 - `/privacy` — App Store privacy policy URL.
-- `/privacy-choices` — optional App Store privacy choices URL and data deletion help.
+- `/privacy-choices` — optional App Store privacy choices URL and data deletion
+  help.
 - `/terms` — Terms of Service.
 - `/guidelines` — Community Guidelines. `/community-guidelines` redirects here.
 - `/support` — support/contact page.
@@ -372,15 +377,22 @@ omit this parameter so recipients see their own browser/system preference.
 
 ## Privacy Notes
 
-The public page should consume only the privacy-safe Explore projections
-returned by `get_explore_post` and `get_explore_post_detail`: public image,
-species labels, public author identity, engagement counts (not rendered on the
-detail page), shared timestamp,
-privacy-filtered location/telemetry, public field notes, normalized hashtags,
-reference images, overview text, conservation status, taxonomy labels, and
-alternate names. If the public projection supplies `author_username`, render it
-only as a public handle. Do not expose exact coordinates, private field notes,
-raw scan telemetry, auth data, private email, or server credentials.
+The Explore page is server-rendered through the dedicated
+`get_public_web_explore_posts` and `get_public_web_explore_post_detail`
+projections. Those routines fix the viewer to anonymous, reuse the canonical
+visibility/privacy filters, and are executable only by the validated server
+credential. Browser `anon` and `authenticated` roles cannot invoke them
+directly. The card projection returns zero engagement counts and false
+viewer/ownership flags rather than leaking or inventing viewer state.
+
+The page may consume the resulting public image, species labels, public author
+identity, shared timestamp, privacy-filtered location/telemetry, public field
+notes, normalized hashtags, reference images, overview text, conservation
+status, taxonomy labels, and alternate names. If the projection supplies
+`author_username`, render it only as a public handle. Do not expose exact
+coordinates, private field notes, raw scan telemetry, auth data, private email,
+or server credentials. Never reconstruct an Explore response with direct
+service-role table queries.
 
 Species pages consume only the versioned public payload returned by the
 `species-dictionary` Edge Function with `species_id`. Server code must not query
@@ -391,11 +403,10 @@ lookalike payload does not carry the required license and attribution fields.
 The Explore share page intentionally uses default Mantine components and
 component props instead of route-specific CSS classes or custom page chrome.
 Post visibility comes exclusively from the public projection contract. In
-particular, do not bypass its `moderated_at IS NULL` rule with service-role table
-queries or cached page data.
+particular, do not bypass its `moderated_at IS NULL` rule with service-role
+table queries or cached page data.
 
-See
-`../../docs/system-architecture/08-public-brand-compatibility.md` for the
+See `../../docs/system-architecture/08-public-brand-compatibility.md` for the
 permanent brand and compatibility contract,
 `../../docs/development-guides/15-naturebook-rebrand-rollout.md` for production
 rollout and rollback steps, and

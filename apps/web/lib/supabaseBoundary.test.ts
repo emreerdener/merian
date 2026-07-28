@@ -45,3 +45,23 @@ test("the public Supabase client cannot consume privileged credentials", async (
   assert.doesNotMatch(source, /SERVICE_ROLE|sb_secret_/);
   assert.match(source, /SUPABASE_ANON_KEY/);
 });
+
+test("anonymous Explore pages use only the scoped server projection", async () => {
+  const [source, environmentExample] = await Promise.all([
+    readFile(new URL("./explore.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /^import "server-only";/);
+  assert.match(source, /createAdminSupabaseClient/);
+  assert.match(source, /get_public_web_explore_posts/);
+  assert.match(source, /get_public_web_explore_post_detail/);
+  assert.match(source, /p_target_post_id: null/);
+  assert.match(source, /p_max_limit: Math\.min\(limit, 48\)/);
+  assert.doesNotMatch(source, /createPublicServerSupabaseClient/);
+  assert.doesNotMatch(source, /SUPABASE_PUBLIC_VIEWER_ID/);
+  assert.doesNotMatch(source, /\.from\("users"\)/);
+  assert.doesNotMatch(source, /get_explore_feed|get_explore_post\b/);
+  assert.match(environmentExample, /^SUPABASE_SERVER_API_KEY=/m);
+  assert.doesNotMatch(environmentExample, /SUPABASE_PUBLIC_VIEWER_ID/);
+});

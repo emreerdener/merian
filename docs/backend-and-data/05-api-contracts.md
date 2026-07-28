@@ -2868,13 +2868,11 @@ single post:
 }
 ```
 
-This endpoint exists for notification routing, native deep links, and the
-privacy-safe projection behind public web share pages such as
-`https://naturebook.earth/explore/post/{postId}`. It solves the case where the
-tapped or shared post is not already present in the currently loaded in-memory
-feed page. The Next.js web route may call the underlying `get_explore_post` SQL
-RPC directly from the server, but it must preserve this response boundary rather
-than querying private scan/auth tables.
+This endpoint exists for notification routing and native deep links. It solves
+the case where the tapped post is not already present in the currently loaded
+in-memory feed page. Public web routes do not call this viewer-parameterized RPC
+directly; they use the dedicated fixed-anonymous server projection described
+below.
 
 Current response shape:
 
@@ -2926,6 +2924,42 @@ The recent `get_explore_feed` SQL projection additionally exposes
 grid cards use the species reference thumbnail for audio posts, while detail and
 social-preview surfaces retain the audio spectrogram from the canonical media
 snapshot.
+
+### Public-web Explore database projection
+
+`https://naturebook.earth/explore/post/{postId}` and the anonymous discovery
+grid are server-rendered. `apps/web/lib/explore.ts` invokes only:
+
+```json
+{
+  "rpc": "get_public_web_explore_posts",
+  "args": {
+    "p_target_post_id": "uuid-or-null",
+    "p_max_limit": 16
+  }
+}
+```
+
+and, for detail metadata:
+
+```json
+{
+  "rpc": "get_public_web_explore_post_detail",
+  "args": {
+    "p_target_post_id": "uuid"
+  }
+}
+```
+
+The Next.js helper is `server-only` and uses the validated platform-managed
+server API key. Both SQL routines call `internal.require_service_role()`, fix
+the canonical viewer to `NULL`, and are revoked from `PUBLIC`, `anon`, and
+`authenticated`; callers cannot supply or configure a synthetic viewer. The card
+result exposes no viewer-dependent engagement state: `like_count` and
+`comment_count` are zero, while `viewer_has_liked` and `is_owned_by_viewer` are
+false. Visibility, moderation, tombstone, media-health, shadowban, block, and
+location redaction remain owned by the canonical Explore projections. The server
+must not reconstruct this DTO through direct privileged table reads.
 
 ### `GET /api/explore/audio?url={canonicalWavUrl}` (Public Web)
 
@@ -5539,8 +5573,8 @@ The endpoint extracts user identity from the `Authorization: Bearer` header via
 `URLSession` instead of the Supabase Swift SDK, requests send both
 `Authorization: Bearer <user JWT>` and `apikey: <public project key>`. The
 gateway can reject a request that does not identify the project, while the
-handler independently validates the Bearer user JWT. Do not describe this as
-the gateway stripping Authorization.
+handler independently validates the Bearer user JWT. Do not describe this as the
+gateway stripping Authorization.
 
 Any request with a manipulated JSON body but no valid JWT signature in the
 header returns `401 Unauthorized`.
@@ -6196,10 +6230,10 @@ This endpoint is not the Explore post-content reporting API.
 Queues an asynchronous Darwin Core Archive (DwC-A) export. Because zipping
 thousands of records exceeds 30-second HTTP connection limits, this endpoint
 validates the user and performs a bounded `export_jobs` insertion transaction.
-That transaction fixes compact source membership/revision metadata under a
-canonical row-budget-plus-one lookahead; CSV, ZIP, storage, and email work
-remains asynchronous. The iOS client awaits the queue response off-main with a
-15-second HTTP timeout.
+That transaction fixes bounded immutable phase DTOs plus compact live
+eligibility metadata under canonical row- and source-byte budgets; CSV, ZIP,
+storage, and email work remains asynchronous. The iOS client awaits the queue
+response off-main with a 15-second HTTP timeout.
 
 ### Request Payload
 
@@ -6228,12 +6262,14 @@ remains asynchronous. The iOS client awaits the queue response off-main with a
   are excluded so a worker/configuration failure can be retried. If the limit
   applies, returns `429 Too Many Requests`.
 - Inserts a row into `export_jobs` with status `pending`. Before the `pg_net`
-  webhook can run, an ordered database trigger snapshots the eligible scan IDs
-  and creation-time revision fingerprints in the same transaction. The insert is
-  idempotent against concurrent duplicate submissions: a `23505`
-  unique-constraint violation (two requests racing in before either commits) is
-  caught and also returns `429 Too Many Requests`, consistent with the explicit
-  rate-limit path and preventing a `500` error from surfacing to the client.
+  webhook can run, an ordered database trigger materializes the eligible scan
+  IDs plus immutable bounded occurrence/multimedia JSON DTOs in one MVCC
+  statement. Taxonomy follows `confirmed_species_id` when present, otherwise the
+  original AI `species_id`. The insert is idempotent against concurrent
+  duplicate submissions: a `23505` unique-constraint violation (two requests
+  racing in before either commits) is caught and also returns
+  `429 Too Many Requests`, consistent with the explicit rate-limit path and
+  preventing a `500` error from surfacing to the client.
 - `anon` and `authenticated` have no direct `INSERT` privilege on `export_jobs`;
   callers cannot bypass this validation/rate-limit boundary through the Data
   API.
@@ -6271,8 +6307,8 @@ This empty-body contract is also bounded by the shared small JSON reader.
 ### Security & Enforcement
 
 - Authenticates the Postgres origin by exact comparison with an
-  environment-managed current or legacy server key. Current `sb_secret_...`
-  keys use `apikey` only; legacy service-role JWTs may use matching Bearer and
+  environment-managed current or legacy server key. Current `sb_secret_...` keys
+  use `apikey` only; legacy service-role JWTs may use matching Bearer and
   `apikey` transport. The route accepts only `POST`, uses the shared small
   bounded JSON reader, and returns stable request-correlated errors.
 - Treats `job_id` only as an opaque wake-up identifier and never reads the
@@ -6286,16 +6322,22 @@ This empty-body contract is also bounded by the shared small JSON reader.
 - Calls service-only
   `get_dwca_export_scan_batch(job_id, claim_token, phase, cursor, 100, 262144)`
   for data phases. The database revalidates the claim and canonical cursor,
-  keyset-paginates the creation-time `(job_id, scan_id)` membership, and stops
-  at either 100 scans or 256 KiB of serialized source. Every returned payload
-  must match the stored SHA-256 eligibility fingerprint and the fingerprint for
-  that phase's narrow projection. A later scan is not part of the job; a changed
-  or deleted source returns `source_revision_changed` and becomes terminal
-  `source_snapshot_changed` rather than producing a mixed archive. Validated row
-  checks separately cap media-array cardinality/URL size, interaction-array
+  keyset-paginates immutable creation-time `(job_id, scan_id)` DTO rows, and
+  stops at either 100 scans or 256 KiB of serialized source. Each projection is
+  limited to 256 KiB before insertion; total source JSON is limited to four
+  times the job archive budget and at most 64 MiB. Global and non-precise
+  personal DTOs omit exact GPS keys; an opted-in personal DTO retains them only
+  when its snapshot taxonomy does not require protected-species redaction. A
+  later scan or ordinary taxonomy/media edit is not part of and cannot alter the
+  job. Before a stored DTO is returned, a compact scope-aware eligibility hash
+  is revalidated against live state. Deletion, tombstoning, owner changes, or a
+  global geoprivacy change returns `source_revision_changed`; both scopes also
+  revalidate the protected-species coordinate-redaction requirement. A
+  revocation becomes terminal `source_snapshot_changed`. Validated row checks
+  separately cap media-array cardinality/URL size, interaction-array
   cardinality/element size, and selected taxonomy text in UTF-8 bytes. The
   worker rechecks those bounds before encoding. Terminal jobs purge their
-  source-membership rows.
+  immutable source DTOs.
 - Advance, manifest lookup, staging, completion, release, and heartbeat RPCs
   require the same unexpired UUID token; a delayed worker cannot mutate a
   replacement attempt. These definer routines use an empty `search_path`, call
@@ -6327,11 +6369,11 @@ This empty-body contract is also bounded by the shared small JSON reader.
   wake-up attempts only its requested job once. Five-job discovery waves remain
   oldest-due ordered, so a successful advance rotates behind older work; failed
   or contended IDs are suppressed for the remainder of that invocation. Data
-  phases use row-and-byte-aware `id > last_id` pages over one immutable
-  membership snapshot with narrow revision-checked projections. A fixed-capacity
-  encoder appends one header/row at a time and fails before exceeding 512 KiB;
-  it does not retain a page-wide line array or expanded multimedia-row array.
-  Each chunk's CRC-32 is calculated within that bounded preparation step and
+  phases use row-and-byte-aware `id > last_id` pages over one immutable DTO
+  snapshot with a narrow live privacy-revocation fence. A fixed-capacity encoder
+  appends one header/row at a time and fails before exceeding 512 KiB; it does
+  not retain a page-wide line array or expanded multimedia-row array. Each
+  chunk's CRC-32 is calculated within that bounded preparation step and
   committed to the ordered private manifest together with the next cursor and
   cumulative budgets.
 - **Aggregate queue health**: After every drain, the route calls the

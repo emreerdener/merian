@@ -424,8 +424,11 @@ attach `naturebook.earth`, `naturebook.app`, their `www` aliases, and the legacy
 `404: NOT_FOUND` response means the request has not reached the Next.js app.
 Use only the environment variables allowlisted by `apps/web/.env.example`;
 never mirror GitHub `Production` secrets or direct database credentials into
-Vercel. The exact GitHub, Supabase Edge, public-web, and internal-admin ownership
-matrix is documented in
+Vercel. Public Explore server rendering requires `SUPABASE_URL` plus the
+validated `SUPABASE_SERVER_API_KEY`; the browser-facing
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` cannot execute that scoped server projection.
+The exact GitHub, Supabase Edge, public-web, and internal-admin ownership matrix
+is documented in
 [`docs/development-guides/05-keychain-and-secrets.md`](docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
 ### Local Internal Admin

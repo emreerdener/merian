@@ -43,9 +43,11 @@ Web runtime config:
   `SUPABASE_SECRET_KEY` is deliberately unsupported by web. Never expose any
   server key through a `NEXT_PUBLIC_` variable or client component. Their only
   web owner is `apps/web/lib/supabaseAdmin.ts`, guarded by `server-only`;
-  `supabasePublic.ts` contains the anonymous projection client. Credential
-  sources are classified independently so a malformed lower migration source
-  cannot veto a valid selected source or enter the candidate set.
+  `explore.ts` uses that client only through fixed-anonymous, service-only web
+  RPCs. `supabasePublic.ts` contains the anonymous Species Dictionary projection
+  client. Credential sources are classified independently so a malformed lower
+  migration source cannot veto a valid selected source or enter the candidate
+  set.
 
 ## Public Brand and Compatibility
 
@@ -205,7 +207,7 @@ the native iOS source tree.
 | Public beta waitlist       | `apps/web/app/api/waitlist/route.ts`, `apps/web/components/WaitlistForm.tsx`, `apps/web/lib/boundedJson.ts`, `apps/web/lib/waitlistSecurity.ts`                                             | 4 KiB streamed JSON boundary, conservative email normalization, explicit Turnstile widget/Siteverify flow, trusted-proxy daily IP HMAC, distributed pre-provider rate claim, stable request IDs, and service-only atomic database insertion. |
 | Policy/support pages       | `apps/web/app/privacy/`, `apps/web/app/privacy-choices/`, `apps/web/app/terms/`, `apps/web/app/guidelines/`, `apps/web/app/support/`, `apps/web/app/legal/`                                 | App Store-friendly public policy, data-choice, community, support, and legal hub pages.                                                                                                                                                      |
 | Legal/public components    | `apps/web/components/PublicPageShell.tsx`, `apps/web/components/LegalPage.tsx`, `apps/web/components/ThemePreferenceBridge.tsx`, `apps/web/lib/site.ts`, `apps/web/lib/theme-preference.ts` | Shared public page chrome, legal document layout, iOS-to-Mantine theme preference sync, support email/site URL config.                                                                                                                       |
-| Supabase access            | `apps/web/lib/supabaseAdmin.ts`, `apps/web/lib/supabasePublic.ts`, `apps/web/lib/explore.ts`, `apps/web/lib/species.ts`                                                                     | Explicit `server-only` service-role client separated from the anonymous public projection client, plus strict Explore RPC and Species Dictionary mapping.                                                                                    |
+| Supabase access            | `apps/web/lib/supabaseAdmin.ts`, `apps/web/lib/supabasePublic.ts`, `apps/web/lib/explore.ts`, `apps/web/lib/species.ts`                                                                     | Explicit `server-only` server-key client used only through scoped Explore/waitlist RPCs, separated from the anonymous Species Dictionary projection client, plus strict wire mapping.                                                          |
 | Web response security      | `apps/web/proxy.ts`, `apps/web/app/layout.tsx`, `apps/web/lib/securityHeaders.ts`                                                                                                           | Per-request nonce CSP, nonce-bound bootstrap script, production HSTS, and explicit browser defense headers.                                                                                                                                  |
 | Universal Links            | `apps/web/app/apple-app-site-association/route.ts`, `apps/web/lib/appleAppSiteAssociation.ts`, `apps/web/lib/canonicalHost.ts`, `apps/web/proxy.ts`                                         | Exact Explore/species AASA paths, direct legacy-host AASA exception, and canonical alias redirects.                                                                                                                                          |
 | Formatting helpers         | `apps/web/lib/formatting.ts`                                                                                                                                                                | Shared Naturebook web copy and URL formatting.                                                                                                                                                                                               |

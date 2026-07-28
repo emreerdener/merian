@@ -111,7 +111,19 @@ Deno.test("export pages, durable chunks, and archives are bounded end to end", a
   assertStringIncludes(storage, "MAXIMUM_WORK_CHUNK_BYTES");
   assertStringIncludes(
     storage,
+    'response.headers.get("Content-Length")',
+  );
+  assertStringIncludes(storage, "rawDeclaredLength !== null");
+  assertStringIncludes(storage, "Number.isSafeInteger(declaredLength)");
+  assertStringIncludes(
+    storage,
     "uploadedBytes + part.byteLength > maximumBytes",
+  );
+  assertEquals(
+    storage.includes(
+      'Number(response.headers.get("Content-Length"))',
+    ),
+    false,
   );
   assertStringIncludes(worker, "manifestBytes !== job.csvBytes");
   assertStringIncludes(worker, "job.maxArchiveBytes");
