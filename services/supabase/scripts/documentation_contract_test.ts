@@ -88,6 +88,9 @@ Deno.test("credential documentation preserves the format-aware header contract",
       "singular `SUPABASE_SECRET_KEY` for local/manual environments",
       "`/v1/projects/<ref>/api-keys?reveal=true`",
       "returns every real current publishable and exact legacy `anon` key for negative smoke controls",
+      "makes at most five attempts for transport failures, HTTP 408/425/429, and HTTP 5xx",
+      "fails immediately on HTTP 401/403",
+      "never prints a credential, response body, token, or raw transport error",
       "creates downstream clients from the environment-resolved key, never from the accepted request value",
       "A malformed source contributes no authorization candidate and cannot veto an exact key supplied by another valid source.",
       "compares the exact local key's SHA-256 digest",
@@ -261,6 +264,11 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
     runbook,
     "PostgREST RPC grants, and database logs without expecting a Function marker.",
   );
+  assertStringIncludes(
+    runbook,
+    "If key resolution exhausts its five attempts on a retryable status such as HTTP 502",
+  );
+  assertStringIncludes(runbook, "rerun the same workflow SHA");
   assertStringIncludes(
     agent,
     "A queue marker is not destructive authority.",

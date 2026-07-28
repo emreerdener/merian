@@ -154,12 +154,16 @@ Field trip requests never gain replay merely because they use `POST`. Signed
 upload-session and upload-URL preparation is also excluded because a lost
 response may already have committed a new staging generation.
 
-Every retry delay is cancellation-propagating. A task canceled while waiting
-for transport, server, route-propagation, or guest-session retry exits with
+Every retry delay is cancellation-propagating. A task canceled while waiting for
+transport, server, route-propagation, or guest-session retry exits with
 `CancellationError` before constructing another request. Do not replace these
 awaits with `try?`: URLSession cancellation is cooperative, and swallowing the
 sleep error would let stale inference work replay after ownership moved to a
-newer generation.
+newer generation. Foundation may surface its async URLSession bridge as
+`NSURLErrorCancelled`; the shared request boundary normalizes that error to
+`CancellationError` only when the enclosing Swift task is canceled. Session
+invalidation or another transport-owned cancellation retains its original
+`URLError`.
 
 A Supabase platform `404 NOT_FOUND` is not an application-level missing record.
 `performAuthenticatedRequest` classifies it only when the fixed

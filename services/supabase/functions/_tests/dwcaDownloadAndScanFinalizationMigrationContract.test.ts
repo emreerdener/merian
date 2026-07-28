@@ -10,6 +10,21 @@ const migration = await Deno.readTextFile(
     import.meta.url,
   ),
 );
+const downloadAndFinalizationCatalog = await Deno.readTextFile(
+  new URL(
+    "../../tests/dwca_download_and_scan_finalization_security.sql",
+    import.meta.url,
+  ),
+);
+const exportCatalog = await Deno.readTextFile(
+  new URL("../../tests/export_dwca_security.sql", import.meta.url),
+);
+const exportSnapshotCatalog = await Deno.readTextFile(
+  new URL("../../tests/export_dwca_snapshot_security.sql", import.meta.url),
+);
+const speciesCountCatalog = await Deno.readTextFile(
+  new URL("../../tests/species_count_trigger_security.sql", import.meta.url),
+);
 const replayDb = await Deno.readTextFile(
   new URL("../replay-scan-ingestion/db.ts", import.meta.url),
 );
@@ -298,6 +313,18 @@ Deno.test("scan claim and recovery share one durable generation lock", () => {
   assertStringIncludes(recovery, "RETURN 'deferred'");
   assertStringIncludes(recovery, "RETURN 'deleted'");
   assertStringIncludes(recovery, "'client_recovery_complete'");
+  assertStringIncludes(
+    recovery,
+    "recovered.geoprivacy::public.geoprivacy_enum",
+  );
+  assertStringIncludes(
+    recovery,
+    "recovered.ecology_type::public.ecology_type_enum",
+  );
+  assertStringIncludes(
+    recovery,
+    "recovered.user_review_state::public.user_review_state",
+  );
   assertEquals(
     recovery.indexOf("INSERT INTO public.scans") <
       recovery.indexOf("INSERT INTO public.scan_ingestion_jobs"),
@@ -459,6 +486,14 @@ Deno.test("DwCA mixed-object transitions share a parent-first generation lock", 
   ) {
     assertStringIncludes(migration, retiredTrigger);
   }
+  assertStringIncludes(
+    migration,
+    "DROP FUNCTION IF EXISTS internal.invalidate_dwca_exports_for_scan()",
+  );
+  assertStringIncludes(
+    migration,
+    "DROP FUNCTION IF EXISTS internal.invalidate_dwca_exports_for_species()",
+  );
 
   for (
     const [name, nextName] of [
@@ -581,5 +616,37 @@ Deno.test("new privileged routines are deny-by-default and narrowly ledgered", (
   assertStringIncludes(
     migration,
     "INSERT INTO internal.privileged_routine_grants",
+  );
+});
+
+Deno.test("fresh-catalog fixtures follow current identifiers and generations", () => {
+  assertStringIncludes(
+    downloadAndFinalizationCatalog,
+    "authorization_result JSONB",
+  );
+  assertEquals(
+    downloadAndFinalizationCatalog.includes("authorization JSONB"),
+    false,
+  );
+  for (
+    const catalog of [exportCatalog, exportSnapshotCatalog]
+  ) {
+    assertStringIncludes(
+      catalog,
+      "internal.revoke_completed_dwca_exports_for_scan()",
+    );
+    assertStringIncludes(
+      catalog,
+      "internal.revoke_completed_dwca_exports_for_species()",
+    );
+  }
+  assertStringIncludes(speciesCountCatalog, "dictionary_scan_id UUID");
+  assertStringIncludes(
+    speciesCountCatalog,
+    "VALUES (\n        dictionary_scan_id,",
+  );
+  assertStringIncludes(
+    speciesCountCatalog,
+    "WHERE scans.id = dictionary_scan_id",
   );
 });

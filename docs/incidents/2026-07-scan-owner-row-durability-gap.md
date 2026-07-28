@@ -209,7 +209,7 @@ Completed local evidence:
 - complete Edge Function suite: `1238 passed`, `0 failed`;
 - focused owner-row/recovery suite: `35 passed`, `0 failed`;
 - migration contracts: `144 passed`, `0 failed`;
-- discovery-based Supabase tooling suite: `96 passed`, `0 failed`;
+- discovery-based Supabase tooling suite: `100 passed`, `0 failed`;
 - workflow security contracts: `11 passed`, `0 failed`;
 - documentation contracts: `8 passed`, `0 failed`;
 - generated DTO contract tests: `16 passed` and `10 passed`;

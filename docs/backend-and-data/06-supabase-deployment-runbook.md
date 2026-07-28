@@ -482,6 +482,21 @@ idempotent insert using
 `ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`, use
 `event_inserted IS NOT TRUE` to recognize the null left when no row is returned.
 
+Treat a `jsonb_to_record(...)` field declared as `TEXT` as wire input, not as a
+catalog enum. Validate the allowed strings first, then cast explicitly to the
+fully qualified enum type at the write boundary. Otherwise migration replay can
+succeed while `plpgsql_check` later reports SQLSTATE `42804` for the embedded
+statement. Avoid PL/pgSQL variable names such as `authorization` that collide
+with SQL grammar; use a purpose-qualified name such as `authorization_result`.
+
+Durable scan deletion tombstones intentionally reserve a scan UUID forever.
+After a fixture exercises deletion or ownerless tombstoning, it must use a new
+deterministic UUID for later insert coverage. Do not disable the generation
+guard or delete its tombstone merely to make a test reusable. Likewise, when a
+migration replaces a trigger to correct lock order, catalog tests must validate
+the replacement trigger and function; remove the detached predecessor routine
+once all dependencies have moved.
+
 If any catalog fixture instead fails a `public.users` identity constraint,
 update the owner-only fixture to include `public_username`,
 `public_author_name`, and `public_identity_source`. Direct table inserts bypass
@@ -3478,6 +3493,15 @@ revealed current key named `default`, then another revealed current secret, and
 falls back only to the exact legacy key named `service_role`. Masked values,
 malformed keys, and partial name matches fail closed.
 
+The shared resolver tolerates a short Management API incident without weakening
+that classification. It makes at most five attempts for transport failures, HTTP
+408/425/429, and HTTP 5xx. Delay uses capped exponential equal jitter and a
+bounded numeric `Retry-After`; every individual request retains its 15-second
+deadline. HTTP 401/403, other caller errors, malformed or oversized responses,
+and invalid or ambiguous key lists fail immediately. Retry diagnostics contain
+only `transport_error` or the HTTP status class, delay, and attempt count—never
+the access token, key, response body, or raw transport message.
+
 The deploy workflow then copies the masked selected value to the non-reserved
 Edge secret `MERIAN_SUPABASE_SERVER_API_KEY` before Function deployment.
 Operators do not provision a separate GitHub secret for this fallback: the
@@ -3500,7 +3524,11 @@ responses during a Supabase incident can block linking even when the migration
 SQL itself is fine. Using `db push --db-url` only removes the project-status
 lookup from the migration step. Edge Function deploys, service-role key lookup,
 and smoke tests still depend on Supabase's hosted APIs and can fail during an
-active platform incident.
+active platform incident. If key resolution exhausts its five attempts on a
+retryable status such as HTTP 502, leave migrations and secrets unchanged,
+confirm Supabase Management API health, and rerun the same workflow SHA. Do not
+replace the revealed lookup with a masked CLI result, bypass the digest gate, or
+paste a project key into workflow YAML.
 
 The workflow also inherits normal Supabase project Edge secrets at runtime. Most
 live only in Supabase. The three RevenueCat credentials, required DwC-A

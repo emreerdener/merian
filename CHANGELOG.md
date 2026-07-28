@@ -8,6 +8,16 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- Fresh-catalog database assurance now validates the current parent-first DwC-A
+  privacy-revocation triggers instead of retired source-state-first routines.
+  Scan recovery explicitly casts validated wire strings to catalog enum types,
+  and catalog fixtures use distinct scan generations after a durable deletion
+  tombstone has been written.
+- Supabase Management API key discovery now retries only bounded transient
+  transport, throttling, timeout, early-retry, and server failures before
+  deployment or monitoring fails. Invalid credentials, malformed responses, and
+  ambiguous key classifications still fail immediately, and retry diagnostics
+  expose only a stable reason, attempt count, and bounded delay.
 - Edge transport and `5xx` retries now replay only audited read routes or
   endpoint contracts with server-supported idempotency. Ambiguous failures no
   longer risk duplicating comments/feedback, toggling a reaction twice, or

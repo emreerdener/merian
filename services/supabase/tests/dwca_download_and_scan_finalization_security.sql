@@ -107,7 +107,7 @@ DECLARE
     recovery_payload JSONB;
     result_text TEXT;
     result_json JSONB;
-    authorization JSONB;
+    authorization_result JSONB;
     health_row RECORD;
     deletion_claim RECORD;
     attempt INTEGER;
@@ -1030,8 +1030,8 @@ BEGIN
         pg_catalog.REPEAT('a', 64),
         pg_catalog.REPEAT('b', 64)
     )
-    INTO STRICT authorization;
-    IF authorization ->> 'status' <> 'not_found' THEN
+    INTO STRICT authorization_result;
+    IF authorization_result ->> 'status' <> 'not_found' THEN
         RAISE EXCEPTION 'an unknown DwCA capability was not rejected';
     END IF;
 
@@ -1040,9 +1040,9 @@ BEGIN
             pg_catalog.REPEAT('a', 64),
             pg_catalog.REPEAT('b', 64)
         )
-        INTO STRICT authorization;
+        INTO STRICT authorization_result;
     END LOOP;
-    IF authorization ->> 'status' <> 'rate_limited' THEN
+    IF authorization_result ->> 'status' <> 'rate_limited' THEN
         RAISE EXCEPTION 'distributed DwCA download rate limiting failed';
     END IF;
 

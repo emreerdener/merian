@@ -1168,7 +1168,10 @@ production checks:
   requests `reveal=true`, prefers the revealed current `default` secret, rejects
   masked or malformed values and loosely named legacy keys, returns every exact
   public negative-control key, and retains the exact legacy service-role
-  fallback.
+  fallback. It also proves transport, HTTP 408/425/429, and HTTP 5xx retries are
+  attempt/delay bounded; numeric `Retry-After` is capped; response-body disposal
+  failure cannot suppress retry; transport details are sanitized; and
+  authorization or malformed-response failures remain fail-fast.
 - `scripts/verify_edge_secret_digest_test.ts` proves the deploy gate accepts
   exactly one strict named SHA-256 digest, compares it to the exact classified
   local key, and rejects missing, duplicate, malformed, mismatched, or
@@ -1492,10 +1495,11 @@ Identification latency has focused contract coverage at each boundary:
   idempotent inline request-body completion, and owner-scoped
   `/update-scan-context` construction. It also verifies single-status recovery,
   combined Explore recovery/media restoration, and the Ask/Field Chat repair
-  seams. Its route-retry coverage also cancels a request during the retry delay
-  and proves no second request is issued. `MerianConfigTests` locks
-  customer-facing Explore error translation; `InsightChatTests` locks retryable
-  still-syncing feedback.
+  seams. Its route-retry coverage also cancels a replayable request after its
+  first dispatch and proves no second request is issued or noncanonical
+  `URLError.cancelled` escapes the task-owned transport boundary.
+  `MerianConfigTests` locks customer-facing Explore error translation;
+  `InsightChatTests` locks retryable still-syncing feedback.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
 for slow WeatherKit, reverse geocoding, awards, Field trips, Wikipedia, and
@@ -2073,7 +2077,11 @@ The surrounding export suite is intentionally split by boundary:
   scrub, cleanup cron/ACL ledger, shared scan-generation lock, parent-row then
   advisory lock order for mixed DwC-A transitions, complete claimed-key
   disposition, completion-last canonical media invariant, and the bounded
-  generation-locked non-biological retention selector with service-only ACLs.
+  generation-locked non-biological retention selector with service-only ACLs. It
+  also fails closed if disposable-catalog fixtures regress to a reserved
+  PL/pgSQL identifier, reuse a tombstoned scan generation, omit explicit
+  wire-string-to-enum casts, or validate the retired source-state-first DwC-A
+  trigger routines.
 - `tests/dwca_download_and_scan_finalization_security.sql` executes those ACL,
   static-validation, ordering, rate-limit, capability-state, cleanup-lease, and
   health contracts against a disposable catalog. It also proves cleanup for an

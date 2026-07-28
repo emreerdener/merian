@@ -231,7 +231,7 @@ Local validation in the remediation working tree passed:
 - 83 focused DwC-A/download/scan-finalization TypeScript tests;
 - the complete Edge Function suite: 1,238 tests, zero failures;
 - all 144 tests across 21 discovered migration contract files;
-- the complete Supabase tooling gate, including its 96 standard tests, 16 DTO
+- the complete Supabase tooling gate, including its 100 standard tests, 16 DTO
   validator tests, 10 executable Identify contract tests, shell tests, and
   database-catalog discovery;
 - whole-tree Supabase formatting across 656 files and lint across 501 files;

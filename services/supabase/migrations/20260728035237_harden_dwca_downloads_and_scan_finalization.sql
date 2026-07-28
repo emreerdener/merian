@@ -1736,11 +1736,11 @@ BEGIN
             ELSE NULL
         END,
         recovered.gps_elevation,
-        recovered.geoprivacy,
+        recovered.geoprivacy::public.geoprivacy_enum,
         recovered.weather_condition,
         recovered.weather_temperature_f,
         recovered.ai_confidence_score,
-        recovered.ecology_type,
+        recovered.ecology_type::public.ecology_type_enum,
         recovered.is_invasive,
         recovered.invasive_status_region,
         recovered.invasive_rationale,
@@ -1757,7 +1757,7 @@ BEGIN
         recovered.image_quality_score,
         recovered.user_identification_override,
         recovered.user_confirmed_identification,
-        recovered.user_review_state
+        recovered.user_review_state::public.user_review_state
     )
     ON CONFLICT (id) DO NOTHING
     RETURNING id INTO inserted_id;
@@ -3065,6 +3065,12 @@ CREATE TRIGGER revoke_completed_dwca_exports_for_species_truncate
 AFTER TRUNCATE ON public.species_dictionary
 FOR EACH STATEMENT
 EXECUTE FUNCTION internal.revoke_completed_dwca_exports_for_species();
+
+-- The replacement triggers above use parent-first generation locking. Remove
+-- the retired source-state-first routines as well as their triggers so future
+-- catalog checks cannot accidentally validate or reuse the unsafe lock order.
+DROP FUNCTION IF EXISTS internal.invalidate_dwca_exports_for_scan();
+DROP FUNCTION IF EXISTS internal.invalidate_dwca_exports_for_species();
 
 -- Existing completed jobs may contain a one-day direct R2 signature generated
 -- by the previous worker. Scrub every database copy and enqueue every known

@@ -633,7 +633,7 @@ struct MerianNetworkClientTests {
         #expect(probe.recordedIdempotencyKeys == [requestID, requestID])
     }
 
-    @Test func testCancelledExploreShareDoesNotReplayAfterRetryDelay() async {
+    @Test func testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay() async {
         let requestID = "019fa6ef-2f9f-7c7a-9e18-ec70e067a331"
         let scanID = "019fa6ef-39ab-77b1-a331-a86678f53043"
         let probe = NetworkRequestProbe()
@@ -669,9 +669,10 @@ struct MerianNetworkClientTests {
         requestTask.cancel()
         do {
             _ = try await requestTask.value
-            Issue.record("A canceled request must not survive its retry delay.")
+            Issue.record("A canceled request must not survive or replay.")
         } catch is CancellationError {
-            // Expected: cancellation propagates out of Task.sleep before replay.
+            // Expected whether cancellation reaches URLSession or Task.sleep:
+            // the transport boundary normalizes task-owned cancellation.
         } catch {
             Issue.record("Expected CancellationError, got \(error).")
         }

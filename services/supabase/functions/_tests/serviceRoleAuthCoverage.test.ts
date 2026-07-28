@@ -29,6 +29,10 @@ const scanMediaWorkflowUrl = new URL(
   "../../../../.github/workflows/scan-media-health-monitor.yml",
   import.meta.url,
 );
+const accountDeletionMonitorWorkflowUrl = new URL(
+  "../../../../.github/workflows/account-deletion-health-monitor.yml",
+  import.meta.url,
+);
 const revenueCatMonitorWorkflowUrl = new URL(
   "../../../../.github/workflows/revenuecat-reconciliation-health-monitor.yml",
   import.meta.url,
@@ -522,6 +526,7 @@ Deno.test("operational callers use exact server-key discovery and shared transpo
     const workflowUrl of [
       importWorkflowUrl,
       scanMediaWorkflowUrl,
+      accountDeletionMonitorWorkflowUrl,
       revenueCatMonitorWorkflowUrl,
       dwcaMonitorWorkflowUrl,
     ]

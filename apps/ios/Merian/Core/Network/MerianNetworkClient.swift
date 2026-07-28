@@ -1009,6 +1009,8 @@ final class MerianNetworkClient {
         idempotencyKey: String? = nil,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> (Data, HTTPURLResponse) {
+        try Task.checkCancellation()
+
         let requestStart = CFAbsoluteTimeGetCurrent()
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
         request.httpMethod = method
@@ -1036,10 +1038,13 @@ final class MerianNetworkClient {
             request.setValue(val, forHTTPHeaderField: key)
         }
         #endif
+        try Task.checkCancellation()
 
         let constrainedNetwork = await MainActor.run {
             OfflineQueueManager.shared.isCurrentNetworkConstrained
         }
+        try Task.checkCancellation()
+
         request.setValue(constrainedNetwork ? "true" : "false", forHTTPHeaderField: "X-Merian-Constrained-Network")
         let authCompletedAt = CFAbsoluteTimeGetCurrent()
 
@@ -1062,6 +1067,12 @@ final class MerianNetworkClient {
             // the callback is idempotent and remains safe if upload progress
             // already reported completion.
             onRequestBodySent?()
+            // Foundation commonly represents cancellation of URLSession's async
+            // bridge as NSURLErrorCancelled. Normalize it only when this Swift
+            // task owns the cancellation; independently canceled sessions retain
+            // their original transport error.
+            try Task.checkCancellation()
+
             let transientCodes: Set<URLError.Code> = [
                 .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet
             ]
@@ -1090,6 +1101,7 @@ final class MerianNetworkClient {
         // Some custom URLProtocol implementations do not emit upload progress.
         // A received response proves the request body finished sending.
         requestUploadDelegate?.notifyBodySentIfNeeded()
+        try Task.checkCancellation()
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MerianError.invalidResponse
@@ -1242,6 +1254,8 @@ final class MerianNetworkClient {
         timeoutInterval: TimeInterval = 20.0,
         isRetry: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
+        try Task.checkCancellation()
+
         var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: timeoutInterval)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -1250,6 +1264,8 @@ final class MerianNetworkClient {
         do {
             (data, response) = try await activeSession.data(for: request)
         } catch let urlError as URLError {
+            try Task.checkCancellation()
+
             let transientCodes: Set<URLError.Code> = [
                 .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet
             ]
@@ -1260,6 +1276,7 @@ final class MerianNetworkClient {
             }
             throw urlError
         }
+        try Task.checkCancellation()
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MerianError.invalidResponse

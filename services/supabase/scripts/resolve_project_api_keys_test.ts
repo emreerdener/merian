@@ -154,9 +154,190 @@ Deno.test("Management API lookup explicitly reveals keys without logging credent
   assertEquals(result.server_api_key, DEFAULT_SECRET);
 });
 
-Deno.test("Management API lookup fails closed on authorization errors", async () => {
-  const fetchImplementation: typeof fetch = () =>
-    Promise.resolve(new Response(null, { status: 403 }));
+Deno.test("Management API lookup retries only the reviewed HTTP status classes", async () => {
+  for (const status of [408, 425, 429, 500, 502, 599]) {
+    let attempts = 0;
+    const fetchImplementation: typeof fetch = () => {
+      attempts += 1;
+      if (attempts === 1) {
+        return Promise.resolve(new Response(null, { status }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
+            {
+              type: "secret",
+              name: "default",
+              api_key: DEFAULT_SECRET,
+            },
+          ]),
+        ),
+      );
+    };
+
+    await fetchRevealedProjectApiKeys(
+      "abcdefghijklmnopqrst",
+      "management-access-token",
+      fetchImplementation,
+      {
+        maximumAttempts: 2,
+        random: () => 0,
+        wait: () => Promise.resolve(),
+      },
+    );
+    assertEquals(attempts, 2, `status ${status}`);
+  }
+
+  for (const status of [400, 401, 403, 404]) {
+    let attempts = 0;
+    const fetchImplementation: typeof fetch = () => {
+      attempts += 1;
+      return Promise.resolve(new Response(null, { status }));
+    };
+
+    await assertRejects(
+      () =>
+        fetchRevealedProjectApiKeys(
+          "abcdefghijklmnopqrst",
+          "management-access-token",
+          fetchImplementation,
+          {
+            maximumAttempts: 2,
+            wait: () => Promise.resolve(),
+          },
+        ),
+      Error,
+      `HTTP ${status}`,
+    );
+    assertEquals(attempts, 1, `status ${status}`);
+  }
+});
+
+Deno.test("Management API lookup retries transient HTTP failures with bounded delay", async () => {
+  let attempts = 0;
+  const waits: number[] = [];
+  const retries: unknown[] = [];
+  const fetchImplementation: typeof fetch = () => {
+    attempts += 1;
+    if (attempts === 1) {
+      return Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            cancel() {
+              throw new Error("response disposal failed");
+            },
+          }),
+          { status: 502 },
+        ),
+      );
+    }
+    if (attempts === 2) {
+      return Promise.resolve(
+        new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        }),
+      );
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify([
+          {
+            type: "secret",
+            name: "default",
+            api_key: DEFAULT_SECRET,
+          },
+        ]),
+      ),
+    );
+  };
+
+  const result = await fetchRevealedProjectApiKeys(
+    "abcdefghijklmnopqrst",
+    "management-access-token",
+    fetchImplementation,
+    {
+      maximumAttempts: 3,
+      random: () => 0,
+      wait: (milliseconds) => {
+        waits.push(milliseconds);
+        return Promise.resolve();
+      },
+      onRetry: (retry) => retries.push(retry),
+    },
+  );
+
+  assertEquals(result.server_api_key, DEFAULT_SECRET);
+  assertEquals(attempts, 3);
+  assertEquals(waits, [500, 8_000]);
+  assertEquals(retries, [
+    {
+      attempt: 1,
+      maximumAttempts: 3,
+      delayMs: 500,
+      reason: "http_502",
+    },
+    {
+      attempt: 2,
+      maximumAttempts: 3,
+      delayMs: 8_000,
+      reason: "http_429",
+    },
+  ]);
+});
+
+Deno.test("Management API lookup retries transport errors without exposing them", async () => {
+  let attempts = 0;
+  const waits: number[] = [];
+  const fetchImplementation: typeof fetch = () => {
+    attempts += 1;
+    if (attempts === 1) {
+      return Promise.reject(
+        new TypeError("request failed with sensitive transport detail"),
+      );
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify([
+          {
+            type: "secret",
+            name: "default",
+            api_key: DEFAULT_SECRET,
+          },
+        ]),
+      ),
+    );
+  };
+
+  assertEquals(
+    (
+      await fetchRevealedProjectApiKeys(
+        "abcdefghijklmnopqrst",
+        "management-access-token",
+        fetchImplementation,
+        {
+          maximumAttempts: 2,
+          random: () => 0,
+          wait: (milliseconds) => {
+            waits.push(milliseconds);
+            return Promise.resolve();
+          },
+        },
+      )
+    ).server_api_key,
+    DEFAULT_SECRET,
+  );
+  assertEquals(attempts, 2);
+  assertEquals(waits, [500]);
+});
+
+Deno.test("Management API lookup stops after the bounded retry ceiling", async () => {
+  let attempts = 0;
+  const waits: number[] = [];
+  const fetchImplementation: typeof fetch = () => {
+    attempts += 1;
+    return Promise.resolve(new Response(null, { status: 502 }));
+  };
 
   await assertRejects(
     () =>
@@ -164,19 +345,98 @@ Deno.test("Management API lookup fails closed on authorization errors", async ()
         "abcdefghijklmnopqrst",
         "management-access-token",
         fetchImplementation,
+        {
+          maximumAttempts: 3,
+          random: () => 1,
+          wait: (milliseconds) => {
+            waits.push(milliseconds);
+            return Promise.resolve();
+          },
+        },
+      ),
+    Error,
+    "failed after 3 attempts with HTTP 502",
+  );
+  assertEquals(attempts, 3);
+  assertEquals(waits, [1_000, 2_000]);
+
+  await assertRejects(
+    () =>
+      fetchRevealedProjectApiKeys(
+        "abcdefghijklmnopqrst",
+        "management-access-token",
+        fetchImplementation,
+        { maximumAttempts: 6 },
+      ),
+    TypeError,
+    "maximumAttempts must be between 1 and 5",
+  );
+
+  let transportFailureMessage = "";
+  try {
+    await fetchRevealedProjectApiKeys(
+      "abcdefghijklmnopqrst",
+      "management-access-token",
+      () =>
+        Promise.reject(
+          new TypeError("sensitive upstream transport diagnostic"),
+        ),
+      {
+        maximumAttempts: 2,
+        random: () => 0,
+        wait: () => Promise.resolve(),
+      },
+    );
+  } catch (error) {
+    transportFailureMessage = error instanceof Error
+      ? error.message
+      : String(error);
+  }
+  assertEquals(
+    transportFailureMessage,
+    "Supabase Management API key lookup failed after 2 attempts due to transport errors.",
+  );
+});
+
+Deno.test("Management API lookup fails closed on authorization errors", async () => {
+  let attempts = 0;
+  const waits: number[] = [];
+  const fetchImplementation: typeof fetch = () => {
+    attempts += 1;
+    return Promise.resolve(new Response(null, { status: 403 }));
+  };
+
+  await assertRejects(
+    () =>
+      fetchRevealedProjectApiKeys(
+        "abcdefghijklmnopqrst",
+        "management-access-token",
+        fetchImplementation,
+        {
+          wait: (milliseconds) => {
+            waits.push(milliseconds);
+            return Promise.resolve();
+          },
+        },
       ),
     Error,
     "HTTP 403",
   );
+  assertEquals(attempts, 1);
+  assertEquals(waits, []);
 });
 
 Deno.test("Management API lookup rejects malformed UTF-8 before JSON parsing", async () => {
-  const fetchImplementation: typeof fetch = () =>
-    Promise.resolve(
+  let attempts = 0;
+  const waits: number[] = [];
+  const fetchImplementation: typeof fetch = () => {
+    attempts += 1;
+    return Promise.resolve(
       new Response(Uint8Array.of(0xff), {
         headers: { "Content-Type": "application/json" },
       }),
     );
+  };
 
   await assertRejects(
     () =>
@@ -184,7 +444,39 @@ Deno.test("Management API lookup rejects malformed UTF-8 before JSON parsing", a
         "abcdefghijklmnopqrst",
         "management-access-token",
         fetchImplementation,
+        {
+          wait: (milliseconds) => {
+            waits.push(milliseconds);
+            return Promise.resolve();
+          },
+        },
       ),
     TypeError,
   );
+  assertEquals(attempts, 1);
+  assertEquals(waits, []);
+
+  attempts = 0;
+  const invalidJsonFetch: typeof fetch = () => {
+    attempts += 1;
+    return Promise.resolve(new Response("{"));
+  };
+  await assertRejects(
+    () =>
+      fetchRevealedProjectApiKeys(
+        "abcdefghijklmnopqrst",
+        "management-access-token",
+        invalidJsonFetch,
+        {
+          wait: (milliseconds) => {
+            waits.push(milliseconds);
+            return Promise.resolve();
+          },
+        },
+      ),
+    Error,
+    "invalid key JSON",
+  );
+  assertEquals(attempts, 1);
+  assertEquals(waits, []);
 });

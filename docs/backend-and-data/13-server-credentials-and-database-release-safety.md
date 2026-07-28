@@ -127,8 +127,15 @@ KiB streaming response ceiling. It:
   secret, then only the exact legacy key named `service_role`;
 - returns every real current publishable and exact legacy `anon` key for
   negative smoke controls;
+- makes at most five attempts for transport failures, HTTP 408/425/429, and HTTP
+  5xx, using capped exponential equal-jitter delay and a bounded numeric
+  `Retry-After`;
+- fails immediately on HTTP 401/403, other caller errors, malformed UTF-8/JSON,
+  oversized responses, missing revealed keys, and ambiguous key classifications;
 - applies strict UTF-8, JSON, key-format, type, and exact-name checks; and
-- never prints a credential on failure.
+- never prints a credential, response body, token, or raw transport error on
+  failure. Retry progress contains only the stable failure class, bounded delay,
+  and attempt count.
 
 Do not replace this with a CLI key-list command unless the reviewed CLI version
 has an equivalent reveal contract.

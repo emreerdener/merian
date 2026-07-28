@@ -15,6 +15,7 @@ DECLARE
     second_scan_id UUID := '00000000-0000-4000-8000-00000000d122';
     third_scan_id UUID := '00000000-0000-4000-8000-00000000d123';
     null_species_scan_id UUID := '00000000-0000-4000-8000-00000000d124';
+    dictionary_scan_id UUID := '00000000-0000-4000-8000-00000000d125';
     target_signature TEXT;
 BEGIN
     IF (
@@ -508,7 +509,7 @@ BEGIN
         ai_confidence_score
     )
     VALUES (
-        third_scan_id,
+        dictionary_scan_id,
         first_user_id,
         third_species_id,
         0.92
@@ -522,7 +523,7 @@ BEGIN
     IF (
         SELECT scans.species_id
         FROM public.scans AS scans
-        WHERE scans.id = third_scan_id
+        WHERE scans.id = dictionary_scan_id
     ) IS NOT NULL OR (
         SELECT users.total_species_discovered
         FROM public.users AS users

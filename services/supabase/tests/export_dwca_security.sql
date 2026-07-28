@@ -314,8 +314,8 @@ BEGIN
         'internal.dwca_export_source_is_current(uuid)',
         'internal.initialize_dwca_export_source_snapshot()',
         'internal.purge_dwca_export_source_snapshot()',
-        'internal.invalidate_dwca_exports_for_scan()',
-        'internal.invalidate_dwca_exports_for_species()'
+        'internal.revoke_completed_dwca_exports_for_scan()',
+        'internal.revoke_completed_dwca_exports_for_species()'
     ]
     LOOP
         IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -344,15 +344,15 @@ BEGIN
             (
                 trigger_row.tgrelid = 'public.scans'::REGCLASS
                 AND trigger_row.tgname IN (
-                    'invalidate_dwca_exports_for_scan',
-                    'invalidate_dwca_exports_for_scan_truncate'
+                    'revoke_completed_dwca_exports_for_scan',
+                    'revoke_completed_dwca_exports_for_scan_truncate'
                 )
             ) OR (
                 trigger_row.tgrelid =
                     'public.species_dictionary'::REGCLASS
                 AND trigger_row.tgname IN (
-                    'invalidate_dwca_exports_for_species',
-                    'invalidate_dwca_exports_for_species_truncate'
+                    'revoke_completed_dwca_exports_for_species',
+                    'revoke_completed_dwca_exports_for_species_truncate'
                 )
             )
         )

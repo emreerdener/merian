@@ -35,7 +35,7 @@ BEGIN
 
         SELECT 1
         FROM extensions.plpgsql_check_function_tb(
-            'internal.invalidate_dwca_exports_for_scan()'
+            'internal.revoke_completed_dwca_exports_for_scan()'
                 ::REGPROCEDURE,
             'public.scans'::REGCLASS
         ) AS issue
@@ -45,7 +45,7 @@ BEGIN
 
         SELECT 1
         FROM extensions.plpgsql_check_function_tb(
-            'internal.invalidate_dwca_exports_for_species()'
+            'internal.revoke_completed_dwca_exports_for_species()'
                 ::REGPROCEDURE,
             'public.species_dictionary'::REGCLASS
         ) AS issue

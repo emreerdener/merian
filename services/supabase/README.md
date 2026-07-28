@@ -450,7 +450,11 @@ Regression coverage lives in
 tests, `tests/export_dwca_security.sql`, and
 `tests/export_dwca_snapshot_security.sql`, plus
 `tests/dwca_export_queue_security.sql` and
-`tests/dwca_download_and_scan_finalization_security.sql`.
+`tests/dwca_download_and_scan_finalization_security.sql`. The latter migration
+contract also keeps those disposable-catalog fixtures on the current
+parent-first privacy trigger routines, requires explicit enum casts at
+scan-recovery writes, and prevents reuse of a UUID after the fixture creates a
+durable deletion tombstone.
 
 ### Public Web Explore Boundary
 
@@ -903,6 +907,12 @@ transport. The deploy smoke, Community Taxonomy import, and scan-media health
 workflows use `scripts/resolve_project_api_keys.ts` to request revealed values
 from the Management API, prefer the current `default` secret key, fall back only
 to the exact legacy `service_role` key, and use the same shared transport rule.
+The shared resolver makes at most five attempts for transport failures, HTTP
+408/425/429, and HTTP 5xx with capped jitter/`Retry-After`; credentials, other
+caller errors, malformed responses, and invalid or ambiguous key lists fail
+immediately. Retry diagnostics expose no key, token, response body, or raw
+transport message.
+
 Before Function deployment, the production workflow masks and copies that exact
 value to `MERIAN_SUPABASE_SERVER_API_KEY`; Supabase reserves built-in
 `SUPABASE_*` names, so the fallback must not use one. The workflow then verifies
