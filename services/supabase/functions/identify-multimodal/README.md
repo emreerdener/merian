@@ -188,8 +188,8 @@ returned `scan_id` is immediately usable by Field Chat, Explore sharing, field
 trips, and owner sync. Analytics, group tags, and candidate enrichment remain
 optional `EdgeRuntime.waitUntil` work. The duplicate-protected scan insert is
 followed by an owner-scoped read-back; a no-op collision or moderation branch
-therefore cannot resolve into HTTP success without the owner row.
-Terminal media-policy rejection returns generic customer-facing code
+therefore cannot resolve into HTTP success without the owner row. Terminal
+media-policy rejection returns generic customer-facing code
 `observation_rejected` with HTTP 400, while operational failures in moderation,
 promotion, species resolution, or scan insertion return retryable
 `scan_persistence_failed` with HTTP 503.

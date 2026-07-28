@@ -92,9 +92,9 @@ cross-owner UUID remains indistinguishable from a missing scan.
 
 The server reads the owner-scoped ingestion job before recovery. Processing,
 finalizing, retrying, and retryable jobs defer to the richer original attempt.
-Exact known moderation and provider safety-policy rejections cannot be
-repaired. A missing ledger entry, a complete-but-missing row, or a non-policy
-terminal operational failure may be repaired. Media is never accepted inside
+Exact known moderation and provider safety-policy rejections cannot be repaired.
+A missing ledger entry, a complete-but-missing row, or a non-policy terminal
+operational failure may be repaired. Media is never accepted inside
 `recovery_scan`; owner-scoped `restored_object_keys`,
 `restored_video_object_keys`, and `restored_audio_object_keys` remain the only
 repair inputs and still pass the endpoint's normal promotion, eligibility, and

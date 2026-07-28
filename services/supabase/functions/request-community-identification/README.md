@@ -39,15 +39,15 @@ provider, or moderation failure publishes nothing.
 the device still has local image media but the cloud scan row lacks publishable
 images.
 
-This endpoint does not accept `recovery_scan`. For older/interrupted
-local-cloud drift, current iOS first sends the bounded non-media payload to the
-single `/check-scan-status` recovery contract. The server defers to
-active/retryable ingestion, blocks known moderation/provider-policy rejection,
-and duplicate-safely reloads the authenticated owner row. Only after that
-succeeds does iOS stage the local image and retry this endpoint with
+This endpoint does not accept `recovery_scan`. For older/interrupted local-cloud
+drift, current iOS first sends the bounded non-media payload to the single
+`/check-scan-status` recovery contract. The server defers to active/retryable
+ingestion, blocks known moderation/provider-policy rejection, and
+duplicate-safely reloads the authenticated owner row. Only after that succeeds
+does iOS stage the local image and retry this endpoint with
 `restored_object_keys`. Normal current `/identify-multimodal` success already
-guarantees the owner row, so this sequence is a compatibility repair rather
-than the expected scan path.
+guarantees the owner row, so this sequence is a compatibility repair rather than
+the expected scan path.
 
 ## Response
 

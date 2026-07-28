@@ -49,10 +49,10 @@ The full object includes the optional observation fields accepted by
 media separately through validated owner staging keys. Recovery is deliberately
 unavailable in bulk probes. iOS polls the ingestion ledger first and defers
 repair while the original job is processing, finalizing, retrying, or still
-eligible for retry so a minimal recovery row cannot race the richer insert.
-The server independently enforces the same guard and refuses recovery after
-known terminal moderation or provider safety-policy rejection, so correctness
-does not depend on client behavior.
+eligible for retry so a minimal recovery row cannot race the richer insert. The
+server independently enforces the same guard and refuses recovery after known
+terminal moderation or provider safety-policy rejection, so correctness does not
+depend on client behavior.
 
 Bulk probes use the same fields per scan and are capped at 50 entries:
 
