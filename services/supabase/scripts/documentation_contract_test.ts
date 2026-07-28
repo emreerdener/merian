@@ -302,6 +302,7 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     changelog,
     offlinePipeline,
     testing,
+    logging,
     runbook,
     backendReadme,
     releaseHold,
@@ -311,6 +312,7 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     read("CHANGELOG.md"),
     read("docs/backend-and-data/01-offline-sync-pipeline.md"),
     read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/development-guides/04-logging-and-debugging.md"),
     read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
     read("services/supabase/README.md"),
     read(
@@ -365,6 +367,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "Focused DwC-A CI now grants Deno read access to every repository root",
   );
   assertStringIncludes(
+    compact(changelog),
+    "DwC-A health acquisition failures now fail closed",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -373,8 +379,20 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "Focused source-inspection lanes have a separate Deno permission contract.",
   );
   assertStringIncludes(
+    compact(testing),
+    "stable catalog/read/shape failure classification",
+  );
+  assertStringIncludes(
+    compact(logging),
+    "`catalog_contract_missing/archive_cleanup` means production does not currently expose the required zero-argument cleanup-health RPC",
+  );
+  assertStringIncludes(
     compact(backendReadme),
     "Selected source-inspection lanes retain narrow permissions",
+  );
+  assertStringIncludes(
+    compact(backendReadme),
+    "An unreadable aggregate never becomes a zero-count result.",
   );
   assertStringIncludes(
     compact(releaseHold),
@@ -383,6 +401,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(releaseHold),
     "Focused test evidence: run 1539 attempt 1",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Production monitor catalog gap after failed deploys",
   );
   assertStringIncludes(
     compact(releaseHold),

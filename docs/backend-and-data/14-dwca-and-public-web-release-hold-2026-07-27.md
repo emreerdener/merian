@@ -280,7 +280,7 @@ Local validation in the remediation working tree passed:
 - 138 focused DwC-A/download/scan-finalization TypeScript tests;
 - the complete Edge Function suite: 1,246 tests, zero failures;
 - all 145 tests across 21 discovered migration contract files;
-- the complete Supabase tooling gate, including its 101 standard tests, 16 DTO
+- the complete Supabase tooling gate, including its 102 standard tests, 16 DTO
   validator tests, 10 executable Identify contract tests, shell tests, and
   database-catalog discovery;
 - whole-tree Supabase formatting across 660 files and lint across 505 files;
@@ -321,6 +321,27 @@ The correction adds the complete `supabase/tests` fixture root to that focused
 lane and adds an earlier tooling contract requiring both that root and the iOS
 release-boundary source root. The exact corrected SHA must replay the lane; run
 1539 remains red and is not promoted as evidence.
+
+### Production monitor catalog gap after failed deploys
+
+The independent DwC-A monitor subsequently received `PGRST202` for
+`public.get_dwca_archive_cleanup_health()`. Production therefore did not expose
+the zero-argument health contract introduced by
+`20260728035237_harden_dwca_downloads_and_scan_finalization.sql`; no queue or
+cleanup health conclusion can be drawn from that run. This is expected
+release-blocking evidence consistent with deployment stopping before migration
+push. A direct catalog check must distinguish an absent routine from a stale
+PostgREST cache; neither case is a reason to disable monitoring or substitute
+zero values.
+
+The monitor correction preserves a nonzero exit while writing a stable critical
+artifact with `catalog_contract_missing/archive_cleanup` and unavailable health
+values. Forward migration
+`20260728144336_reload_postgrest_after_health_routines.sql` requests a PostgREST
+schema reload after the required routines deploy. The base promotion hold
+remains until exact-SHA deployment applies the routines, the service-only grants
+pass catalog enforcement, and the independent monitor returns real consistent
+rows.
 
 ## Remaining Base-release Evidence
 

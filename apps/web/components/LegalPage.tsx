@@ -7,6 +7,7 @@ type LegalPageProps = {
   eyebrow: string;
   title: string;
   description: string;
+  lastUpdated?: string;
   children: ReactNode;
 };
 
@@ -15,7 +16,13 @@ type LegalSectionProps = {
   children: ReactNode;
 };
 
-export function LegalPage({ eyebrow, title, description, children }: LegalPageProps) {
+export function LegalPage({
+  eyebrow,
+  title,
+  description,
+  lastUpdated,
+  children,
+}: LegalPageProps) {
   return (
     <PublicPageShell>
       <Paper radius="md" shadow="sm" withBorder p={{ base: "lg", sm: "xl" }}>
@@ -29,7 +36,7 @@ export function LegalPage({ eyebrow, title, description, children }: LegalPagePr
               {description}
             </Text>
             <Text size="sm" c="dimmed">
-              Last updated: {siteConfig.legalUpdatedAt}
+              Last updated: {lastUpdated ?? siteConfig.legalUpdatedAt}
             </Text>
           </Stack>
 

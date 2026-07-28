@@ -2031,8 +2031,10 @@ The surrounding export suite is intentionally split by boundary:
   deletion cannot be confirmed.
 - `scripts/monitor_dwca_export_queue_test.ts` proves production monitor
   thresholds, continuation and archive-cleanup aggregate-response consistency,
-  independent expired-lease/stuck-delete severity, failure policy, and
-  operator-summary rendering.
+  independent expired-lease/stuck-delete severity, failure policy, stable
+  catalog/read/shape failure classification, always-fail acquisition behavior,
+  unavailable queue values, raw-detail suppression, and operator-summary
+  rendering.
 - `tests/dwca_export_queue_security.sql` executes the service-only health RPC
   across due, live-claim, and expired-claim states and verifies its ACL,
   privilege allowlist, and outstanding-job partial index.

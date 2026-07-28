@@ -8,6 +8,14 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- DwC-A health acquisition failures now fail closed with stable
+  `catalog_contract_missing`, `health_read_failed`, or `health_response_invalid`
+  codes while still writing bounded JSON/Markdown evidence with queue values
+  marked unavailable. Raw PostgREST/database details are withheld. A forward
+  migration explicitly reloads the PostgREST schema after the service-only
+  health routines are installed; a persistently missing routine remains a
+  critical deployment/catalog failure rather than being treated as an empty
+  queue.
 - Focused DwC-A CI now grants Deno read access to every repository root its
   source-inspection contracts traverse, including the complete pgTAP fixture
   directory and iOS release-boundary sources. An earlier tooling contract

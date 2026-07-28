@@ -29,6 +29,14 @@ const CLEANUP_CRITICAL_COUNT = 100;
 
 export type DwcaMonitorFailurePolicy = "critical" | "warning" | "never";
 export type DwcaQueueStatus = "ok" | "warning" | "critical";
+export type DwcaMonitorErrorCode =
+  | "catalog_contract_missing"
+  | "health_read_failed"
+  | "health_response_invalid";
+export type DwcaMonitorComponent =
+  | "queue"
+  | "archive_cleanup"
+  | "monitor";
 
 export interface DwcaMonitorArgs {
   warningAfterMinutes: number;
@@ -76,6 +84,42 @@ export interface DwcaMonitorSummary {
   archive_cleanup: DwcaArchiveCleanupHealth;
 }
 
+export interface DwcaMonitorFailureSummary {
+  generated_at: string;
+  status: "critical";
+  thresholds: DwcaMonitorSummary["thresholds"];
+  failure_policy: {
+    fail_on: DwcaMonitorFailurePolicy;
+    should_fail: true;
+  };
+  health: null;
+  archive_cleanup: null;
+  monitor_error: {
+    code: DwcaMonitorErrorCode;
+    component: DwcaMonitorComponent;
+  };
+}
+
+export type DwcaMonitorOutputSummary =
+  | DwcaMonitorSummary
+  | DwcaMonitorFailureSummary;
+
+export interface DwcaMonitorDependencies {
+  supabase?: SupabaseClient;
+  now?: () => Date;
+}
+
+class DwcaMonitorReadError extends Error {
+  constructor(
+    readonly monitorError: DwcaMonitorFailureSummary["monitor_error"],
+  ) {
+    super(
+      `DwC-A monitor read failed: ${monitorError.code}/${monitorError.component}`,
+    );
+    this.name = "DwcaMonitorReadError";
+  }
+}
+
 if (import.meta.main) {
   const exitCode = await runDwcaExportQueueMonitor(Deno.args);
   Deno.exit(exitCode);
@@ -83,22 +127,38 @@ if (import.meta.main) {
 
 export async function runDwcaExportQueueMonitor(
   rawArgs: string[],
+  dependencies: DwcaMonitorDependencies = {},
 ): Promise<number> {
   const args = parseDwcaMonitorArgs(rawArgs);
-  const supabase = createServiceRoleClientFromEnvironmentWithOptions({
-    requestTimeoutMs: MONITOR_REQUEST_TIMEOUT_MS,
-    maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
-  });
+  const now = dependencies.now?.() ?? new Date();
+  let health: DwcaExportQueueHealth;
+  let archiveCleanup: DwcaArchiveCleanupHealth;
 
-  const [health, archiveCleanup] = await Promise.all([
-    fetchDwcaExportQueueHealth(supabase),
-    fetchDwcaArchiveCleanupHealth(supabase),
-  ]);
+  try {
+    const supabase = dependencies.supabase ??
+      createServiceRoleClientFromEnvironmentWithOptions({
+        requestTimeoutMs: MONITOR_REQUEST_TIMEOUT_MS,
+        maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
+      });
+    [health, archiveCleanup] = await Promise.all([
+      fetchDwcaExportQueueHealth(supabase),
+      fetchDwcaArchiveCleanupHealth(supabase),
+    ]);
+  } catch (error) {
+    const summary = buildDwcaMonitorFailureSummary(error, args, now);
+    printSummary(summary);
+    await writeSummaryFiles(summary, args);
+    console.error(
+      `DwC-A health monitor failed closed: code=${summary.monitor_error.code} component=${summary.monitor_error.component}.`,
+    );
+    return 1;
+  }
+
   const summary = buildDwcaMonitorSummary(
     health,
     archiveCleanup,
     args,
-    new Date(),
+    now,
   );
   printSummary(summary);
   await writeSummaryFiles(summary, args);
@@ -118,12 +178,19 @@ async function fetchDwcaExportQueueHealth(
   const { data, error } = await supabase.rpc("get_dwca_export_queue_health");
 
   if (error) {
-    throw new Error(
-      `DwC-A queue health returned an error: ${error.message} (Code: ${error.code})`,
+    throw new DwcaMonitorReadError(
+      classifyDwcaMonitorRpcFailure("queue", error.code),
     );
   }
 
-  return assertDwcaExportQueueHealth(data);
+  try {
+    return assertDwcaExportQueueHealth(data);
+  } catch {
+    throw new DwcaMonitorReadError({
+      code: "health_response_invalid",
+      component: "queue",
+    });
+  }
 }
 
 async function fetchDwcaArchiveCleanupHealth(
@@ -134,12 +201,31 @@ async function fetchDwcaArchiveCleanupHealth(
   );
 
   if (error) {
-    throw new Error(
-      `DwC-A archive cleanup health returned an error: ${error.message} (Code: ${error.code})`,
+    throw new DwcaMonitorReadError(
+      classifyDwcaMonitorRpcFailure("archive_cleanup", error.code),
     );
   }
 
-  return assertDwcaArchiveCleanupHealth(data);
+  try {
+    return assertDwcaArchiveCleanupHealth(data);
+  } catch {
+    throw new DwcaMonitorReadError({
+      code: "health_response_invalid",
+      component: "archive_cleanup",
+    });
+  }
+}
+
+export function classifyDwcaMonitorRpcFailure(
+  component: Exclude<DwcaMonitorComponent, "monitor">,
+  postgrestCode: unknown,
+): DwcaMonitorFailureSummary["monitor_error"] {
+  return {
+    code: postgrestCode === "PGRST202"
+      ? "catalog_contract_missing"
+      : "health_read_failed",
+    component,
+  };
 }
 
 export function assertDwcaExportQueueHealth(
@@ -316,6 +402,37 @@ export function buildDwcaMonitorSummary(
   };
 }
 
+export function buildDwcaMonitorFailureSummary(
+  error: unknown,
+  args: DwcaMonitorArgs,
+  now: Date,
+): DwcaMonitorFailureSummary {
+  const monitorError = error instanceof DwcaMonitorReadError
+    ? error.monitorError
+    : {
+      code: "health_read_failed" as const,
+      component: "monitor" as const,
+    };
+
+  return {
+    generated_at: now.toISOString(),
+    status: "critical",
+    thresholds: {
+      warning_after_minutes: args.warningAfterMinutes,
+      critical_after_minutes: args.criticalAfterMinutes,
+      warning_backlog: args.warningBacklog,
+      critical_backlog: args.criticalBacklog,
+    },
+    failure_policy: {
+      fail_on: args.failOn,
+      should_fail: true,
+    },
+    health: null,
+    archive_cleanup: null,
+    monitor_error: monitorError,
+  };
+}
+
 export function shouldFailDwcaMonitor(
   status: DwcaQueueStatus,
   policy: DwcaMonitorFailurePolicy,
@@ -326,8 +443,36 @@ export function shouldFailDwcaMonitor(
 }
 
 export function renderDwcaMonitorMarkdown(
-  summary: DwcaMonitorSummary,
+  summary: DwcaMonitorOutputSummary,
 ): string {
+  if ("monitor_error" in summary) {
+    const action = summary.monitor_error.code === "catalog_contract_missing"
+      ? "Verify the required migration and exact zero-argument health RPC exist with the service-only grant, then refresh the PostgREST schema cache. Do not suppress the monitor or infer empty queues."
+      : "Inspect database/Data API availability and the aggregate health contract. Do not suppress the monitor or infer empty queues.";
+    return [
+      "# DwC-A Export and Archive Health",
+      "",
+      `Generated: ${summary.generated_at}`,
+      "",
+      "## Status",
+      "",
+      "- Health: `critical`",
+      "- Failing this run: `true`",
+      `- Fail policy: \`${summary.failure_policy.fail_on}\``,
+      "",
+      "## Monitor Contract Error",
+      "",
+      `- Code: \`${summary.monitor_error.code}\``,
+      `- Component: \`${summary.monitor_error.component}\``,
+      "- Queue values: `unavailable`",
+      "",
+      "## Operator Action",
+      "",
+      action,
+      "",
+    ].join("\n");
+  }
+
   const oldestDueAge = summary.health.oldest_due_age_seconds === null
     ? "none"
     : `${summary.health.oldest_due_age_seconds}s`;
@@ -549,7 +694,7 @@ function optionalPath(
 }
 
 async function writeSummaryFiles(
-  summary: DwcaMonitorSummary,
+  summary: DwcaMonitorOutputSummary,
   args: DwcaMonitorArgs,
 ): Promise<void> {
   if (args.summaryJsonPath) {
@@ -566,7 +711,17 @@ async function writeSummaryFiles(
   }
 }
 
-function printSummary(summary: DwcaMonitorSummary): void {
+function printSummary(summary: DwcaMonitorOutputSummary): void {
+  if ("monitor_error" in summary) {
+    console.log("DwC-A export and archive health monitor failed closed");
+    console.log("status: critical");
+    console.log(`monitor_error_code: ${summary.monitor_error.code}`);
+    console.log(`monitor_error_component: ${summary.monitor_error.component}`);
+    console.log("queue_values: unavailable");
+    console.log("should_fail: true");
+    return;
+  }
+
   console.log("DwC-A export and archive health monitor complete");
   console.log(`status: ${summary.status}`);
   console.log(`backlog_count: ${summary.health.backlog_count}`);

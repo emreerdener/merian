@@ -397,7 +397,13 @@ minute pg_net wake-up. Dispatcher logs and the five-minute
 `dwca-export-health-monitor.yml` automation alert on oldest due age, backlog
 depth, and expired claims without exposing user IDs or private queue rows. The
 monitor now also reads archive-cleanup health independently of the database
-worker, detecting absent cron/Vault configuration and stuck deletion leases.
+worker, detecting absent cron/Vault configuration and stuck deletion leases. An
+unreadable aggregate never becomes a zero-count result. The monitor fails
+closed, writes a bounded artifact with health payloads `null`, and emits only a
+stable error code/component. Persistent `PGRST202` maps to
+`catalog_contract_missing`; forward migration
+`20260728144336_reload_postgrest_after_health_routines.sql` explicitly requests
+a PostgREST schema reload after the routines are installed.
 
 Assembly lazily reads manifest chunks into a streaming ZIP32 writer and bounded
 R2 multipart upload; neither complete SQL results nor a complete CSV/ZIP is

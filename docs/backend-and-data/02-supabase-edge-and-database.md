@@ -1550,7 +1550,12 @@ server, network, storage, and database failures remain retryable.
 The independent five-minute GitHub export-health workflow reads both
 `get_dwca_export_queue_health()` and `get_dwca_archive_cleanup_health()`. It
 therefore alerts on stuck physical deletion even when the database worker cron
-or its Vault configuration is absent and no worker log can be emitted.
+or its Vault configuration is absent and no worker log can be emitted. If either
+aggregate cannot be read, the workflow writes a critical summary with queue
+values unavailable and a stable monitor code; it never substitutes zero counts.
+`catalog_contract_missing` identifies a missing/stale zero-argument PostgREST
+routine contract, while other read and response-shape failures remain separate
+stable categories.
 
 Migration `20260726230837_scale_dwca_export_continuations.sql` changes only
 dispatcher throughput and observability, not step ownership. One synchronous

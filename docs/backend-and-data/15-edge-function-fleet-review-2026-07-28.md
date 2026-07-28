@@ -109,7 +109,7 @@ reference a missing or unconfigured route.
 
 - complete Edge Function suite: `1246 passed`, `0 failed`;
 - migration contracts: `145 passed`, `0 failed`;
-- discovery-based Supabase tooling: `101 passed`, `0 failed`, plus `16` DTO and
+- discovery-based Supabase tooling: `102 passed`, `0 failed`, plus `16` DTO and
   `10` Identify wire-contract tests;
 - workflow security and documentation contracts: `11 passed` and `8 passed`;
 - all `89` function-local deployment graphs checked in isolation;

@@ -6,15 +6,19 @@ import {
 import {
   assertDwcaArchiveCleanupHealth,
   assertDwcaExportQueueHealth,
+  buildDwcaMonitorFailureSummary,
   buildDwcaMonitorSummary,
+  classifyDwcaMonitorRpcFailure,
   type DwcaArchiveCleanupHealth,
   dwcaArchiveCleanupStatus,
   type DwcaExportQueueHealth,
   dwcaQueueStatus,
   parseDwcaMonitorArgs,
   renderDwcaMonitorMarkdown,
+  runDwcaExportQueueMonitor,
   shouldFailDwcaMonitor,
 } from "./monitor_dwca_export_queue.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const HEALTHY: DwcaExportQueueHealth = {
   generated_at: "2026-07-26T22:00:00.000Z",
@@ -256,4 +260,59 @@ Deno.test("archive cleanup health can fail an otherwise drained export queue", (
 
   assertEquals(summary.status, "critical");
   assertEquals(summary.failure_policy.should_fail, true);
+});
+
+Deno.test("monitor catalog failures fail closed with stable artifact data", async () => {
+  assertEquals(
+    classifyDwcaMonitorRpcFailure("archive_cleanup", "PGRST202"),
+    {
+      code: "catalog_contract_missing",
+      component: "archive_cleanup",
+    },
+  );
+  assertEquals(
+    classifyDwcaMonitorRpcFailure("queue", "42501"),
+    {
+      code: "health_read_failed",
+      component: "queue",
+    },
+  );
+
+  const failure = buildDwcaMonitorFailureSummary(
+    new Error("provider detail that must not be serialized"),
+    parseDwcaMonitorArgs(["--fail-on", "never"]),
+    new Date("2026-07-28T14:30:00.000Z"),
+  );
+  const markdown = renderDwcaMonitorMarkdown(failure);
+  assertEquals(failure.status, "critical");
+  assertEquals(failure.failure_policy.should_fail, true);
+  assertEquals(failure.health, null);
+  assertStringIncludes(markdown, "- Code: `health_read_failed`");
+  assertStringIncludes(markdown, "- Queue values: `unavailable`");
+  assertEquals(markdown.includes("provider detail"), false);
+
+  const supabase = {
+    rpc(name: string) {
+      if (name === "get_dwca_export_queue_health") {
+        return Promise.resolve({ data: [HEALTHY], error: null });
+      }
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "PGRST202",
+          message: "raw PostgREST detail",
+        },
+      });
+    },
+  } as unknown as SupabaseClient;
+  assertEquals(
+    await runDwcaExportQueueMonitor(
+      ["--fail-on", "never"],
+      {
+        supabase,
+        now: () => new Date("2026-07-28T14:30:00.000Z"),
+      },
+    ),
+    1,
+  );
 });

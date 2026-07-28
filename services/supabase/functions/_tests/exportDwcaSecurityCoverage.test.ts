@@ -220,6 +220,9 @@ Deno.test("DwC-A backlog monitor shares route defaults and emits bounded artifac
       "EXPORT_BACKLOG_CRITICAL_COUNT",
       "get_dwca_export_queue_health",
       "get_dwca_archive_cleanup_health",
+      "catalog_contract_missing",
+      "health_response_invalid",
+      "queue_values: unavailable",
     ]
   ) {
     assertStringIncludes(script, expected);

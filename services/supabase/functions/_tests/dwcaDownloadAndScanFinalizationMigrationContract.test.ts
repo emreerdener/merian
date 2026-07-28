@@ -10,6 +10,12 @@ const migration = await Deno.readTextFile(
     import.meta.url,
   ),
 );
+const postgrestReloadMigration = await Deno.readTextFile(
+  new URL(
+    "../../migrations/20260728144336_reload_postgrest_after_health_routines.sql",
+    import.meta.url,
+  ),
+);
 const downloadAndFinalizationCatalog = await Deno.readTextFile(
   new URL(
     "../../tests/dwca_download_and_scan_finalization_security.sql",
@@ -593,6 +599,10 @@ Deno.test("DwCA deletion is a leased retry outbox with independent health", () =
   assertStringIncludes(
     migration,
     "source_state.invalidated_at,\n                source_state.purged_at",
+  );
+  assertStringIncludes(
+    postgrestReloadMigration,
+    "NOTIFY pgrst, 'reload schema';",
   );
 });
 

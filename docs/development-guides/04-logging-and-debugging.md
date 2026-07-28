@@ -202,6 +202,13 @@ configuration rather than Merian application faults:
 | `Invalid frame dimension` or non-finite SwiftUI geometry near Explore detail/audio                                                                            | A proposed layout or playback progress contained `NaN`/infinity/non-positive values.                                                                                                                                                                                                                                                                                                                                    | Current layout and spectrogram policies sanitize these values. Reproduce only if a new frame/offset calculation bypasses `ExploreDetailZoomLayoutPolicy` or `AudioSpectrogramSeekingPolicy`.                                                                                                                                                                                                                                                                                     |
 | `AttributeGraph: cycle detected through attribute ...`                                                                                                        | SwiftUI detected a dependency cycle. The numeric attribute is process-local and does not identify a source view by itself. Capture previously combined eager off-screen pages, nested SwiftUI scroll containers, sheet state, and layout-preference feedback.                                                                                                                                                           | Record the screen and interaction that reproduce it, then use Instruments' SwiftUI View Properties instrument. Confirm the pager still uses `LazyHStack`, Describe still uses its UIKit vertical-scroll boundary with lifecycle/sheet ownership outside the pager, and the capture bar still uses a fixed layout reservation. Cold-launch all three configurable first modes with `AG_PRINT_CYCLES=3`; guard any new layout-derived state writes with equality/tolerance checks. |
 
+For a monitor-only DwC-A failure, inspect `monitor_error_code` before queue
+fields. `catalog_contract_missing/archive_cleanup` means production does not
+currently expose the required zero-argument cleanup-health RPC; queue values are
+deliberately unavailable, not zero. Verify migration history and the routine
+signature/grant, refresh the PostgREST schema only after the routine exists, and
+rerun the same SHA. Never disable the independent monitor to clear this signal.
+
 ### Healthy startup and sync signals
 
 Use nearby application logs to decide whether a framework warning is paired with

@@ -3830,6 +3830,27 @@ User IDs, object keys, capability tokens, claim tokens, and work cursors are
 absent from logs and artifacts. Its GitHub schedule is independent of database
 cron and Vault, so it still alerts when the archive-cleanup worker never starts.
 
+Health acquisition errors are always release-blocking, including when
+`fail_on=never` suppresses queue-threshold failures. The monitor still writes
+bounded JSON and Markdown evidence, sets both health payloads to `null`, marks
+queue values unavailable, and emits only a stable code/component pair:
+
+- `catalog_contract_missing` means PostgREST returned `PGRST202` for a required
+  zero-argument aggregate;
+- `health_read_failed` means the client, database, Data API, grant, or another
+  RPC dependency failed; and
+- `health_response_invalid` means an aggregate returned a malformed or
+  inconsistent row.
+
+For `catalog_contract_missing`, first verify linked migration history and
+`to_regprocedure('public.get_dwca_archive_cleanup_health()')`. Do not manually
+create a substitute routine or interpret the missing data as a drained queue. If
+the routine and service-only grant exist but PostgREST still returns `PGRST202`,
+run `NOTIFY pgrst, 'reload schema';` through a reviewed owner session and rerun
+the same workflow SHA. Forward migration
+`20260728144336_reload_postgrest_after_health_routines.sql` performs that reload
+after normal deployment.
+
 Scheduled runs warn and fail when the oldest due job reaches five minutes, the
 outstanding backlog reaches 25 jobs, or any claim has expired. They become
 critical at 15 minutes or 100 outstanding jobs. The monitor request has a
