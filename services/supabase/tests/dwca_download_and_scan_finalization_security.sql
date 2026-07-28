@@ -453,209 +453,132 @@ BEGIN
         RAISE EXCEPTION 'a public API role can invoke an internal fence';
     END IF;
 
+    -- plpgsql_check requires a valid relation OID for trigger routines.
+    -- Keep one typed registry so every new trigger must declare its analysis
+    -- relation instead of being accidentally checked as an ordinary routine.
     IF EXISTS (
         SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.update_owned_scan_custom_tags(uuid,text[])'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.update_owned_scan_identification_review(uuid,text,boolean,uuid,public.user_review_state)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.request_scan_deletion(uuid,uuid)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.request_nonbiological_scan_retention_deletions(integer)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.claim_scan_deletion_jobs(uuid,integer,integer)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.release_scan_deletion_job(uuid,uuid,uuid,text)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.get_scan_deletion_health()'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.complete_scan_deletion(uuid,uuid)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'internal.reject_deleted_scan_generation_mutation()'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'internal.record_deleted_scan_generation()'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'internal.unlink_deleted_user_scan_tombstones()'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.claim_scan_ingestion_job(text,uuid,text,jsonb,jsonb,uuid[],text,integer)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.begin_scan_ingestion(text,uuid,text,jsonb,jsonb,jsonb,text[],text,text,boolean,boolean,jsonb,integer,integer)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.recover_missing_owned_scan(uuid,uuid,jsonb)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.complete_scan_ingestion_finalization(uuid,uuid,jsonb,text[])'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'internal.enforce_scan_ingestion_completion_fence()'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.authorize_dwca_archive_download(text,text)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.check_dwca_export_source_fence(uuid,uuid,text)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.claim_dwca_archive_cleanup_jobs(uuid,integer,integer)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'internal.lock_dwca_export_generation(uuid)'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'internal.revoke_completed_dwca_exports_for_scan()'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'internal.revoke_completed_dwca_exports_for_species()'
-                ::REGPROCEDURE
-        ) AS issue
-        WHERE issue.level IN ('error', 'fatal')
-
-        UNION ALL
-
-        SELECT 1
-        FROM extensions.plpgsql_check_function_tb(
-            'public.complete_dwca_archive_cleanup_job(uuid,uuid)'
-                ::REGPROCEDURE
+        FROM (
+            VALUES
+                (
+                    'public.update_owned_scan_custom_tags(uuid,text[])'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.update_owned_scan_identification_review(uuid,text,boolean,uuid,public.user_review_state)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.request_scan_deletion(uuid,uuid)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.request_nonbiological_scan_retention_deletions(integer)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.claim_scan_deletion_jobs(uuid,integer,integer)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.release_scan_deletion_job(uuid,uuid,uuid,text)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.get_scan_deletion_health()'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.complete_scan_deletion(uuid,uuid)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'internal.reject_deleted_scan_generation_mutation()'
+                        ::REGPROCEDURE::OID,
+                    'public.scans'::REGCLASS::OID
+                ),
+                (
+                    'internal.record_deleted_scan_generation()'
+                        ::REGPROCEDURE::OID,
+                    'public.scans'::REGCLASS::OID
+                ),
+                (
+                    'internal.unlink_deleted_user_scan_tombstones()'
+                        ::REGPROCEDURE::OID,
+                    'public.users'::REGCLASS::OID
+                ),
+                (
+                    'public.claim_scan_ingestion_job(text,uuid,text,jsonb,jsonb,uuid[],text,integer)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.begin_scan_ingestion(text,uuid,text,jsonb,jsonb,jsonb,text[],text,text,boolean,boolean,jsonb,integer,integer)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.recover_missing_owned_scan(uuid,uuid,jsonb)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.complete_scan_ingestion_finalization(uuid,uuid,jsonb,text[])'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'internal.enforce_scan_ingestion_completion_fence()'
+                        ::REGPROCEDURE::OID,
+                    'public.scan_ingestion_jobs'::REGCLASS::OID
+                ),
+                (
+                    'public.authorize_dwca_archive_download(text,text)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.check_dwca_export_source_fence(uuid,uuid,text)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.claim_dwca_archive_cleanup_jobs(uuid,integer,integer)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'internal.lock_dwca_export_generation(uuid)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'internal.revoke_completed_dwca_exports_for_scan()'
+                        ::REGPROCEDURE::OID,
+                    'public.scans'::REGCLASS::OID
+                ),
+                (
+                    'internal.revoke_completed_dwca_exports_for_species()'
+                        ::REGPROCEDURE::OID,
+                    'public.species_dictionary'::REGCLASS::OID
+                ),
+                (
+                    'public.complete_dwca_archive_cleanup_job(uuid,uuid)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                )
+        ) AS checked(function_oid, trigger_relation_oid)
+        CROSS JOIN LATERAL extensions.plpgsql_check_function_tb(
+            checked.function_oid,
+            checked.trigger_relation_oid
         ) AS issue
         WHERE issue.level IN ('error', 'fatal')
     ) THEN

@@ -470,6 +470,13 @@ line, SQLSTATE, statement, query, detail, and hint. The later pg_prove output
 (`Dubious`, `Bad plan`, or `planned 1 tests but ran 0`) only means the exception
 aborted the pgTAP block before its planned assertion.
 
+Every `plpgsql_check` call for a trigger routine must pass the trigger table OID
+as its second argument. In a mixed routine registry, carry
+`(function_oid, trigger_relation_oid)` explicitly: use zero only for ordinary
+routines and the concrete relation OID for each trigger. A
+missing-trigger-relation exception means the assurance harness omitted that
+context; do not remove the trigger routine from static validation.
+
 For SQLSTATE `42883`, compare both the function name and argument types with the
 actual `pg_proc` identity. An explicit schema does not repair a misspelling or
 select an unavailable overload. The AI quota advisory key intentionally calls

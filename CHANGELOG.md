@@ -8,6 +8,11 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- Fresh-catalog static analysis now passes an explicit trigger-relation OID for
+  every trigger routine and zero only for ordinary routines. A typed registry
+  preserves all routine checks while preventing `plpgsql_check` from aborting
+  with `missing trigger relation`; no production schema, policy, or privilege
+  changed.
 - Scan-table Data API privileges are now explicit rather than inherited from
   project-era Supabase defaults. A forward migration clears table and
   column-level grants, restores RLS-governed reads to API roles, restores

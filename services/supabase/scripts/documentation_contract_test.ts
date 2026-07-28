@@ -379,6 +379,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "Scan-table Data API privileges are now explicit",
   );
   assertStringIncludes(
+    compact(changelog),
+    "Fresh-catalog static analysis now passes an explicit trigger-relation OID",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -397,6 +401,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(testing),
     "exact `service_role` CRUD",
+  );
+  assertStringIncludes(
+    compact(testing),
+    "every trigger routine to declare the relation OID that supplies its trigger context",
   );
   assertStringIncludes(
     compact(logging),
@@ -419,6 +427,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "All six client-mutation table booleans must be false.",
   );
   assertStringIncludes(
+    compact(runbook),
+    "use zero only for ordinary routines and the concrete relation OID for each trigger",
+  );
+  assertStringIncludes(
     compact(releaseHold),
     "DwC-A is not part of the active initial-launch product surface",
   );
@@ -433,6 +445,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(releaseHold),
     "Explicit scan ACL evidence: run 1542 attempt 1",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Trigger static-validation evidence: run 1543 attempt 1",
   );
   assertStringIncludes(
     compact(releaseHold),

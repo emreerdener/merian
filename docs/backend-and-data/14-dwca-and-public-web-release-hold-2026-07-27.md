@@ -357,6 +357,22 @@ truncate/reference/trigger/maintain authority. Run 1542 remains failed evidence;
 all twenty-one catalog files must pass from the corrected exact SHA before
 promotion.
 
+### Trigger static-validation evidence: run 1543 attempt 1
+
+GitHub run 1543 evaluated commit `a0db2b89c34994ca384e74fde9a8bf246d1c4559`.
+Twenty of twenty-one catalog files passed. The remaining fixture reached
+`plpgsql_check` after its ACL assertions passed, then invoked six trigger
+routines without the relation OID required to provide trigger context. The
+resulting `missing trigger relation` exception was an assurance-harness failure,
+not passing static-validation evidence.
+
+The corrected fixture keeps all twenty-three routines in one typed registry,
+passes zero only for ordinary routines, and supplies the expected table OID for
+every trigger routine. It does not skip static validation or change a production
+schema, policy, routine, or privilege. Run 1543 remains failed evidence; all
+twenty-one catalog files must pass from the corrected exact SHA before
+promotion.
+
 ### Production monitor catalog gap after failed deploys
 
 The independent DwC-A monitor subsequently received `PGRST202` for

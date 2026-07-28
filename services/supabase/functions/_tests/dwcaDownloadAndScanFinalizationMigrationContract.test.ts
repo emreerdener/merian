@@ -105,6 +105,10 @@ function routineBody(name: string, nextName: string): string {
   return migration.slice(start, end);
 }
 
+function compactSql(value: string): string {
+  return value.replaceAll(/\s+/g, " ").trim();
+}
+
 Deno.test("scan deletion durably fences a UUID before external erasure", () => {
   const requestDeletion = routineBody(
     "public.request_scan_deletion",
@@ -653,6 +657,64 @@ Deno.test("fresh-catalog scan ACL uses one exact compatibility allowlist", () =>
   assertStringIncludes(
     downloadAndFinalizationCatalog,
     "'authenticated',\n        'public.scans',\n        'UPDATE'",
+  );
+});
+
+Deno.test("fresh-catalog trigger validation supplies every relation OID", () => {
+  const catalog = compactSql(downloadAndFinalizationCatalog);
+  const registryStart = catalog.indexOf(
+    "-- plpgsql_check requires a valid relation OID",
+  );
+  const registryEnd = catalog.indexOf("IF NOT EXISTS (", registryStart);
+  assert(
+    registryStart >= 0 && registryEnd > registryStart,
+    "The typed static-analysis registry must remain bounded and discoverable.",
+  );
+  const registry = catalog.slice(registryStart, registryEnd);
+
+  assertStringIncludes(
+    registry,
+    "AS checked(function_oid, trigger_relation_oid) CROSS JOIN LATERAL extensions.plpgsql_check_function_tb( checked.function_oid, checked.trigger_relation_oid ) AS issue",
+  );
+  assertEquals([...registry.matchAll(/::REGPROCEDURE::OID/g)].length, 23);
+  assertEquals([...registry.matchAll(/::REGCLASS::OID/g)].length, 6);
+  assertEquals([...registry.matchAll(/0::OID/g)].length, 17);
+  for (
+    const [signature, relation] of [
+      [
+        "internal.reject_deleted_scan_generation_mutation()",
+        "public.scans",
+      ],
+      [
+        "internal.record_deleted_scan_generation()",
+        "public.scans",
+      ],
+      [
+        "internal.unlink_deleted_user_scan_tombstones()",
+        "public.users",
+      ],
+      [
+        "internal.enforce_scan_ingestion_completion_fence()",
+        "public.scan_ingestion_jobs",
+      ],
+      [
+        "internal.revoke_completed_dwca_exports_for_scan()",
+        "public.scans",
+      ],
+      [
+        "internal.revoke_completed_dwca_exports_for_species()",
+        "public.species_dictionary",
+      ],
+    ]
+  ) {
+    assertStringIncludes(
+      registry,
+      `'${signature}' ::REGPROCEDURE::OID, '${relation}'::REGCLASS::OID`,
+    );
+  }
+  assertStringIncludes(
+    registry,
+    "'public.update_owned_scan_custom_tags(uuid,text[])' ::REGPROCEDURE::OID, 0::OID",
   );
 });
 
