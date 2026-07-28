@@ -18,8 +18,21 @@ durable app-sandbox copy before Capture begins this pipeline:
    context instead; shared files preserve only valid EXIF date/GPS values and do
    not invent missing metadata.
 2. **Durable Acceptance**: `OfflineQueueManager` persists the ordered media timeline and one stable `scan_id` before live inference. Eligible online work also persists a single-use foreground inference UUID on its scan-ingestion job; the live provider, persistence, UI, and cleanup paths carry that exact owner. An eligible live-camera still scan is temporarily excluded from background upload so it does not compete with the inline request.
-3. **Biological Inference (`InferenceEngine.swift`)**: For that live-camera still path, after at most 150 ms of environmental-context grace, the pinned network client sends inline media and `CaptureTelemetry` to `/identify-multimodal`, keeping `GEMINI_API_KEY` off the client. The request-body completion callback then releases the durable queue for R2/background recovery. Late context is applied through `/update-scan-context` without a second model call. Gallery, audio-bearing, and video submissions retain their existing behavior while receiving pipeline instrumentation.
-4. **First Result**: The Edge route verifies cached ES256 claims, performs one atomic ingestion-setup RPC, calls the unchanged tier model once, and uses at most one combined cached dictionary-hydration RPC for eligible biological results. Parsed and locally persisted `speciesData` renders before awards, Field trips, and cache-miss enrichment.
+3. **Biological Inference (`InferenceEngine.swift`)**: The pinned network client
+   sends all current still, gallery, audio, Describe, mixed-media, and video
+   submissions to `/identify-multimodal`, keeping `GEMINI_API_KEY` off the
+   client. The eligible live-camera still path first gives shutter-prefetched
+   environmental context at most 150 ms; request-body completion then releases
+   its durable queue source for R2/background recovery. Late context is applied
+   through `/update-scan-context` without a second model call.
+4. **Durable First Result**: The Edge route verifies cached ES256 claims,
+   performs one atomic ingestion-setup RPC, calls the unchanged tier model once,
+   and uses at most one combined cached dictionary-hydration RPC for eligible
+   biological results. It then awaits moderation, required media promotion,
+   primary cache-miss species resolution, scan creation, and authenticated-owner
+   read-back before `200`. iOS persists and renders `speciesData` only after that
+   durable success. Analytics, group tags, candidate enrichment, awards, and
+   Field trips remain secondary work.
 5. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing uses `UsageManager.canPerformScan` as an advisory capture/paywall gate; queued rows upload unconditionally. On reconnection, Supabase atomically applies the authoritative entitlement and UTC-day/user/IP quota before provider dispatch, so clearing local state cannot create model capacity. Successful non-biological provider attempts count; the scoped correction flow bypasses only its Pro UI gate.
 
 Free inference remains `gemini-2.5-flash` and Pro remains

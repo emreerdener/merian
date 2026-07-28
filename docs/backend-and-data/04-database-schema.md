@@ -161,15 +161,18 @@ Tracks the global state of the anonymous/authenticated user.
   aggregated, owner transfers update both OLD and NEW owners, and unrelated scan
   updates leave it untouched. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR
   EDGE FUNCTIONS.
-- `abuse_strikes` (INT, DEFAULT 0): Incremented by the `/identify` background
+- `abuse_strikes` (INT, DEFAULT 0): Incremented by the shared identify
   moderation pipeline each time Gemini's safety ratings flag submitted media as
-  `MEDIUM` or `HIGH` probability, or when `finishReason === "SAFETY"`. Never
-  decremented automatically. See
+  `MEDIUM` or `HIGH` probability, or when `finishReason === "SAFETY"`. The
+  active multimodal route awaits this pass; compatibility scan insertion may
+  still run after its response. Never decremented automatically. See
   [Safety & Moderation](../development-guides/10-safety-and-moderation.md).
 - `is_shadowbanned` (BOOLEAN, DEFAULT false): Set to `true` when `abuse_strikes`
-  reaches 3. Shadowbanned users continue to receive AI identification responses
-  (the HTTP response is unchanged), but all background ingestion silently halts
-  — no scans are persisted. Not currently read by the iOS client.
+  reaches 3. Public Explore, Community Identification, notification, and related
+  projections exclude shadowbanned authors. The moderation helper does not use
+  the flag as a blanket veto for every later safe private scan insert; the
+  unsafe request itself is rejected, while later owner rows may persist without
+  becoming publicly visible. Not currently read by the iOS client.
 - `public_author_name` (TEXT, NOT NULL): Explore-facing public display label
   derived from auth metadata (`First L.`) when safe, otherwise from a stable
   alias fallback. For alias-source identities this now matches
@@ -369,8 +372,10 @@ results, not dictionary taxa.
 - `alternative_common_names` (Text Array): All known English vernacular synonyms
   for the species beyond the primary `common_names.en` value. Populated from the
   GBIF vernacular names endpoint
-  (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) during the
-  background enrichment pass that fires on the first Cache Miss. English-only
+  (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) during primary
+  external species resolution. The current multimodal route may await that
+  bounded cache-miss resolution as part of durable finalization; compatibility
+  routes may populate it in their background insertion path. English-only
   filter applied (`language: eng | en`), normalised to Title Case, and
   deduplicated. The primary `common_names.en` value is excluded from this array
   (case-insensitive). `NULL` when GBIF returned no additional names or the
@@ -1477,25 +1482,30 @@ Dead-letter table for background scan ingestion failures. Added in migration
 
 **Context**: Older background ingestion originally wrote this row only after
 `insertScan()` failed (FK violation, DB timeout, network partition) even though
-the iOS client had already received a `200` with the AI result. Current
-scan-producing paths should first write `scan_ingestion_jobs` plus sanitized
-`scan_ingestion_intents`; `/identify-multimodal` does this natively and the
-compatibility endpoints (`/identify`, `/identify-describe`, `/audio-spec`) use
-the shared compatibility ledger. `failed_scan_ingestions` remains as legacy ops
-evidence and detailed insert-failure history, not the primary recovery surface.
-Insight-originated Explore sharing and Ask the Community can still repair the
-user-facing path by recreating a minimal owned `public.scans` row from the local
-record before retrying media restore.
+the iOS client had already received a `200` with the AI result.
+`/identify-multimodal` now treats insertion as part of its success boundary and
+returns retryable `scan_persistence_failed` instead of delivering a new
+local-only observation. Current scan-producing paths write
+`scan_ingestion_jobs` plus sanitized `scan_ingestion_intents`;
+`/identify-multimodal` does this natively and the compatibility endpoints
+(`/identify`, `/identify-describe`, `/audio-spec`) use the shared compatibility
+ledger. `failed_scan_ingestions` remains as legacy ops evidence and detailed
+insert-failure history, not the primary recovery surface. Field Chat
+availability checks and Insight-originated Explore or Ask the Community actions
+can still repair an already-affected observation by recreating a validated
+minimal owned `public.scans` row from the local record before media restore.
 
 **Ops workflow**: Query by `user_id` and `failed_at` to identify affected users.
 Prefer `scan_ingestion_jobs` plus `scan_ingestion_intents` for current rows and
 let `replay-scan-ingestion` re-invoke `identify-multimodal` with the same
 `client_scan_id` when the intent is resumable. Inline-media compatibility rows
 are intentionally non-resumable because raw media bytes are redacted. The
-`ignoreDuplicates: true` guard in `insertScan` makes replay safe. Row Level
-Security is enabled; the table is never read by the client SDK — only the edge
-function (service role) writes to it and ops queries it via the Supabase
-dashboard.
+`ignoreDuplicates: true` guard plus owner-scoped read-back in `insertScan`
+makes replay safe without turning a no-op/cross-owner collision into success.
+Compatibility recovery additionally checks the owner ingestion state before a
+duplicate-safe write and reload. Row Level Security is enabled; the table is
+never read by the client SDK—only the Edge Function service role writes to it
+and ops queries it through restricted tooling.
 
 **Indexes**: `idx_failed_scan_ingestions_user_id` on `(user_id, failed_at DESC)`
 for per-user lookups; `idx_failed_scan_ingestions_failed_at` on
@@ -3798,15 +3808,18 @@ Tracks locally synchronized species scans for the Scans library.
   tile overlay driven by `gbifTaxonKey`.
 - `gbifTaxonKey`: Int? (Added in `MerianSchemaV18`. The GBIF species usage key
   sourced from `species_dictionary.gbif_taxon_key`, which is populated by
-  `fetchExternalEnrichment` during the `identify` background task via a REST
-  call to `api.gbif.org/v1/species/match`. Not AI-generated — it is GBIF's own
+  `fetchExternalEnrichment` via a REST call to
+  `api.gbif.org/v1/species/match`. Current multimodal cache misses may perform
+  that resolution during awaited durable finalization; compatibility routes
+  may perform it in background insertion. It is not AI-generated—this is GBIF's
   deterministic taxonomy ID. Forwarded to the client at the top-level of the
   `/identify` response for **all tiers** on Cache Hit, and via `/enrich-scan`
   for all users on the enrichment path. Used by `GBIFHeatmapMapView` in
   `HabitatAndDistributionCard` to fetch occurrence density tile overlays from
   `api.gbif.org/v2/map/occurrence/density`, visible to free and Pro users alike.
-  `nil` for scans of Cache Miss species where the GBIF background lookup has not
-  yet completed, or for scans captured before V18.)
+  `nil` when the model response predates or omits the later dictionary result,
+  when external resolution failed to find a match, or for scans captured before
+  V18.)
 - `estimatedSizeCm`: Double? (Added in `MerianSchemaV20`. Physical dimension
   metric computed via LiDAR / AI context. Parsed and persistently cached
   locally.)

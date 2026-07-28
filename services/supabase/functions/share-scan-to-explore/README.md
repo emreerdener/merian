@@ -37,8 +37,26 @@ client or grant the maintenance RPC to users.
   "species_common_name": "Black-Tailed Deer",
   "hashtags": ["deer", "urbanwildlife"],
   "location_sharing": "obscured",
+  "restored_object_keys": ["staging/user-id/restored-image.webp"],
   "restored_video_object_keys": ["staging/user-id/restored-video.mp4"],
   "restored_audio_object_keys": ["staging/user-id/restored-audio.wav"],
+  "recovery_scan": {
+    "id": "same-scan-uuid",
+    "user_id": "authenticated-user-uuid",
+    "species_id": "server-species-uuid",
+    "confirmed_species_id": null,
+    "image_storage_urls": [],
+    "timestamp": "2026-07-27T18:00:00Z",
+    "geoprivacy": "private",
+    "ai_confidence_score": 0.94,
+    "ecology_type": "wild",
+    "is_invasive": false,
+    "is_live_capture": true,
+    "is_biological_subject": true,
+    "inference_tier": "flash",
+    "user_confirmed_identification": false,
+    "user_review_state": "unreviewed"
+  },
   "media_items": [
     {
       "kind": "image",
@@ -62,6 +80,25 @@ client or grant the maintenance RPC to users.
 `location_sharing` is optional for backward compatibility. When omitted, the new
 or reactivated post uses the scan's current `geoprivacy` as the initial
 post-owned value.
+
+`recovery_scan` is optional and intended only for an older/interrupted local
+observation whose authenticated owner row is absent. It contains bounded
+non-media fields; `id` must match `scan_id`, `user_id` must match the
+authenticated user, and `image_storage_urls` must be empty. The server validates
+UUIDs, numeric ranges, enums, text limits, and geoprivacy-derived public
+coordinates. It then uses a duplicate-safe insert and reloads by both scan and
+owner before continuing. A raced existing row is never overwritten, and a
+cross-owner UUID remains indistinguishable from a missing scan.
+
+The server reads the owner-scoped ingestion job before recovery. Processing,
+finalizing, retrying, and retryable jobs defer to the richer original attempt.
+Exact known moderation and provider safety-policy rejections cannot be
+repaired. A missing ledger entry, a complete-but-missing row, or a non-policy
+terminal operational failure may be repaired. Media is never accepted inside
+`recovery_scan`; owner-scoped `restored_object_keys`,
+`restored_video_object_keys`, and `restored_audio_object_keys` remain the only
+repair inputs and still pass the endpoint's normal promotion, eligibility, and
+publication gates.
 
 Clients should attach one UUID `Idempotency-Key` to the share request and reuse
 it across transport, auth-refresh, and media-restoration retries. On audible
@@ -184,6 +221,9 @@ to historical blank WAV snapshots in bounded service-role-only batches.
 
 - Requires an authenticated user through `withEdgeHandler`.
 - `scan_id` must belong to the current user.
+- An absent owner row may be reconstructed only through the validated
+  `recovery_scan` contract above. The endpoint never accepts caller-selected
+  ownership, direct media URLs, or a client-side database upsert as repair.
 - Tombstoned scans, media-less scans, and scans without a resolved species are
   not share-eligible.
 - Sharing snapshots public image/video/audio URLs into `explore_post_media` for
@@ -246,7 +286,7 @@ coordinates with `coordinate_visibility = "obscured"`.
 make validate-supabase-migrations
 make test-supabase-privileged-routines
 deno check --config services/supabase/functions/deno.json services/supabase/functions/share-scan-to-explore/index.ts
-deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/communityIdentificationDb.test.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/scanRecovery_test.ts services/supabase/functions/share-scan-to-explore/db_test.ts
 ```
 
 DB integration tests require a running local Supabase Postgres instance at the

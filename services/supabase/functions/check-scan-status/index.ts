@@ -11,10 +11,16 @@ import {
   hasRequiredVideoMedia,
   normalizeRequiredVideoCount,
 } from "./status.ts";
+import {
+  normalizeOwnedScanRecovery,
+  type OwnedScanRecoveryRow,
+  recoverMissingOwnedScan,
+} from "../_shared/scanRecovery.ts";
 
 interface ScanStatusRequest {
   scan_id: string;
   required_video_count?: unknown;
+  recovery_scan?: OwnedScanRecoveryRow | null;
 }
 
 async function buildScanStatusResponse(
@@ -25,28 +31,28 @@ async function buildScanStatusResponse(
   const requiredVideoCount = normalizeRequiredVideoCount(
     request.required_video_count,
   );
-  const row = await fetchScanStatusMedia(
+  let row = await fetchScanStatusMedia(
     request.scan_id,
     userId,
     supabaseAdmin,
   );
+  if (!row && request.recovery_scan) {
+    await recoverMissingOwnedScan(request.recovery_scan, supabaseAdmin);
+    row = await fetchScanStatusMedia(
+      request.scan_id,
+      userId,
+      supabaseAdmin,
+    );
+  }
   let exists = row?.id != null;
 
   if (exists && requiredVideoCount > 0) {
     exists = hasRequiredVideoMedia(row, requiredVideoCount);
   }
 
-  let job = null;
-  if (!exists) {
-    try {
-      job = await fetchScanStatusJob(request.scan_id, userId, supabaseAdmin);
-    } catch (error) {
-      logStructuredError("check_scan_status_job_fetch_failed", {
-        scan_id: request.scan_id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
+  const job = exists
+    ? null
+    : await fetchScanStatusJob(request.scan_id, userId, supabaseAdmin);
   const jobState = scanIngestionClientState(job);
 
   return {
@@ -77,6 +83,14 @@ Deno.serve((req: Request) =>
         if (!entry || typeof entry !== "object") {
           return jsonResponse({
             error: "Each scan status request must be an object.",
+          }, 400);
+        }
+        if (
+          Object.hasOwn(entry as Record<string, unknown>, "recovery_scan")
+        ) {
+          return jsonResponse({
+            error:
+              "recovery_scan is available only for a single scan status request.",
           }, 400);
         }
         const scanId = (entry as Record<string, unknown>).scan_id;
@@ -119,6 +133,11 @@ Deno.serve((req: Request) =>
     if (typeof scanId !== "string") {
       return jsonResponse({ error: "scan_id must be a string." }, 400);
     }
+    const recoveryScan = normalizeOwnedScanRecovery(
+      body.recovery_scan,
+      scanId,
+      user.id,
+    );
 
     let requiredVideoCount: number;
     try {
@@ -133,7 +152,11 @@ Deno.serve((req: Request) =>
 
     try {
       const response = await buildScanStatusResponse(
-        { scan_id: scanId, required_video_count: requiredVideoCount },
+        {
+          scan_id: scanId,
+          required_video_count: requiredVideoCount,
+          recovery_scan: recoveryScan,
+        },
         user.id,
         supabaseAdmin,
       );

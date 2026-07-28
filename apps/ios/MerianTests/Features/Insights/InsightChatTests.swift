@@ -619,6 +619,16 @@ struct InsightChatTests {
         #expect(viewModel.errorMessage == "Field chat isn't available for this scan.")
     }
 
+    @Test func testMarkAvailableClearsRecoveredScanUnavailableState() {
+        let viewModel = InsightChatViewModel()
+        viewModel.markUnavailable(scanId: "scan_1")
+
+        viewModel.markAvailable(scanId: "scan_1")
+
+        #expect(!viewModel.isUnavailable(for: "scan_1"))
+        #expect(viewModel.errorMessage == nil)
+    }
+
     @Test func testConcurrentPresentationRequestsSharePreparationResult() async {
         let viewModel = InsightChatViewModel(source: .explorePost)
         let (preparationGate, gateContinuation) = AsyncStream<Void>.makeStream()

@@ -33,6 +33,15 @@ session from creating an anonymous production user.
 - Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response headers.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
+- Treats current `/identify-multimodal` `200` as a server durability fence:
+  moderation, required media promotion, primary species resolution, scan
+  creation, and owner-scoped read-back have completed.
+- Builds `OwnedScanRecoveryPayload` only from an owned local record. Single
+  `/check-scan-status` can repair eligible non-media state; record-based Explore
+  sharing can combine it with owner-staged local image/video/audio. Ask the
+  Community repairs status first. Bulk status never mutates server state.
+- Translates known technical Explore failures at the UI boundary so database
+  authorization and missing-row implementation detail are not customer-facing.
 
 ## Field trip completion evidence
 
@@ -134,6 +143,11 @@ headers. TLS pin failures, invalid HTTPS URLs, and response validation failures
 remain fail-closed. Upload-completion callbacks release queue ownership on
 failure, but they do not delete the durable row; the existing live-success path
 alone performs queue cleanup and task cancellation.
+
+Owner-row repair is not a fallback table upsert. The server derives owner
+identity, validates/gates recovery, inserts without overwrite, reloads by owner,
+and restores media only through validated staging keys. A processing/retryable
+or exact policy-rejected job remains unrepaired.
 
 ## Sign-out transition
 

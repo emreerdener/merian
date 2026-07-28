@@ -9,7 +9,7 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
-import { corsHeaders } from "../_shared/http.ts";
+import { corsHeaders, publicErrorResponse } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
@@ -110,6 +110,10 @@ import {
   sanitizePetIdentification,
   sanitizeScientificName,
 } from "../identify/sanitize.ts";
+
+class ModerationRejectedError extends Error {
+  override name = "ModerationRejectedError";
+}
 
 const BIOACOUSTIC_SYSTEM_INSTRUCTION = `# Role
 You are a world-class bioacoustic field biologist with expertise in identifying species from their acoustic signatures across all taxa: birds, insects, frogs, mammals, and other wildlife.
@@ -1493,15 +1497,13 @@ export async function handleIdentifyMultimodalRequest(
   }
 
   const requireDurableVideo = videoR2ObjectKeys.length > 0;
-  if (requireDurableVideo) {
-    await updateIngestionJobBestEffort(
-      "finalizing",
-      "ai_inference_complete",
-      { leaseSeconds: 300 },
-    );
-  }
+  await updateIngestionJobBestEffort(
+    "finalizing",
+    "ai_inference_complete",
+    { leaseSeconds: requireDurableVideo ? 300 : 600 },
+  );
 
-  const runBackgroundIngestion = async () => {
+  const runDurableIngestion = async () => {
     let modResult:
       | Awaited<ReturnType<typeof evaluateAndProcessPayload>>
       | undefined;
@@ -1573,13 +1575,6 @@ export async function handleIdentifyMultimodalRequest(
     };
 
     try {
-      if (!requireDurableVideo) {
-        await updateIngestionJobBestEffort(
-          "finalizing",
-          "ai_inference_complete",
-          { leaseSeconds: 600 },
-        );
-      }
       await updateIngestionJobBestEffort(
         "finalizing",
         "background_ingestion_started",
@@ -1605,7 +1600,7 @@ export async function handleIdentifyMultimodalRequest(
         );
         if (modResult.status === "ERROR") {
           console.error(
-            "Multimodal moderation pipeline returned ERROR. Halting background data ingestion.",
+            "Multimodal moderation pipeline returned ERROR. Halting durable scan finalization.",
           );
           await markUploadAssetsFailedBestEffort(
             [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
@@ -1619,17 +1614,14 @@ export async function handleIdentifyMultimodalRequest(
               retryAfter: retryAfterIso(),
             },
           );
-          if (requireDurableVideo) {
-            throw new Error("Multimodal moderation pipeline failed.");
-          }
-          return;
+          throw new Error("Multimodal moderation pipeline failed.");
         }
         if (
           modResult.status === "SHADOWBANNED" ||
           modResult.status === "DELETED_WARNING"
         ) {
           console.error(
-            "Multimodal media flagged by safety moderation. Halting background data ingestion.",
+            "Multimodal media flagged by safety moderation. Halting durable scan finalization.",
           );
           await markUploadAssetsFailedBestEffort(
             [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
@@ -1640,10 +1632,9 @@ export async function handleIdentifyMultimodalRequest(
             "moderation_rejected",
             { lastError: "Multimodal media rejected by moderation." },
           );
-          if (requireDurableVideo) {
-            throw new Error("Multimodal media rejected by moderation.");
-          }
-          return;
+          throw new ModerationRejectedError(
+            "Multimodal media rejected by moderation.",
+          );
         }
       }
 
@@ -1751,16 +1742,6 @@ export async function handleIdentifyMultimodalRequest(
 
       const needsGroupTags = isIdentifiedBio &&
         !cachedSpecies?.group_tags?.length;
-      const groupTagsPromise = needsGroupTags
-        ? fetchQuotaGuardedGroupTags(
-          req,
-          user,
-          parsedData.scientific_name!,
-          supabaseAdmin,
-          quotaLease.reservation.requestId,
-        )
-        : Promise.resolve(null);
-
       if (isIdentifiedBio) {
         if (cachedSpecies && normalizeTaxonomyValue(cachedSpecies.kingdom)) {
           speciesId = cachedSpecies.id;
@@ -1975,58 +1956,70 @@ export async function handleIdentifyMultimodalRequest(
         });
       }
 
-      trackPostHogEvent(user.id, "scan_completed", {
-        scan_id: generatedScanId,
-        inference_tier: inferenceTier,
-        tier: userTier,
-        ...tierTelemetryProperties(tierResolution),
-        media_type: mediaTelemetry.mediaType,
-        media_kinds: [
-          mediaTelemetry.hasImage ? "image" : null,
-          mediaTelemetry.hasVideo ? "video" : null,
-          processedAudios.length > 0 ? "audio" : null,
-          hasObservationContextText ? "description" : null,
-        ].filter((kind): kind is string => kind != null),
-        has_image: mediaTelemetry.hasImage,
-        has_video: mediaTelemetry.hasVideo,
-        has_audio: processedAudios.length > 0,
-        has_description: hasObservationContextText,
-        image_count: mediaTelemetry.imageCount,
-        video_clip_count: mediaTelemetry.videoClipCount,
-        video_frame_count: mediaTelemetry.declaredVideoFrameCount,
-        video_inference_frame_count: mediaTelemetry.videoInferenceFrameCount,
-        durable_video_required: requireDurableVideo,
-        video_r2_object_key_count: videoR2ObjectKeys.length,
-        video_storage_url_count: videoStorageUrls.length,
-        captured_media_item_count: capturedMedia?.length ?? 0,
-        captured_media_video_count: capturedMediaVideoCount(capturedMedia),
-        audio_clip_count: processedAudios.length,
-        llm_model: targetModel,
-        llm_prompt_tokens: llmPromptTokens,
-        llm_candidate_tokens: llmCandidateTokens,
-        llm_thinking_tokens: llmThinkingTokens,
-        llm_total_tokens: llmTotalTokens,
-        video_llm_prompt_tokens: mediaTelemetry.hasVideo
-          ? llmPromptTokens
-          : null,
-        video_llm_candidate_tokens: mediaTelemetry.hasVideo
-          ? llmCandidateTokens
-          : null,
-        video_llm_thinking_tokens: mediaTelemetry.hasVideo
-          ? llmThinkingTokens
-          : null,
-        video_llm_total_tokens: mediaTelemetry.hasVideo ? llmTotalTokens : null,
-        video_token_accounting: mediaTelemetry.hasVideo
-          ? "full_multimodal_request"
-          : null,
-        is_identified: isIdentifiedBio,
-        species_name: parsedData.scientific_name || null,
-        gemini_latency_ms: geminiLatencyMs,
-      }).catch((e) => console.error("PostHog tracking failed:", e));
+      runBackground(
+        trackPostHogEvent(user.id, "scan_completed", {
+          scan_id: generatedScanId,
+          inference_tier: inferenceTier,
+          tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
+          media_type: mediaTelemetry.mediaType,
+          media_kinds: [
+            mediaTelemetry.hasImage ? "image" : null,
+            mediaTelemetry.hasVideo ? "video" : null,
+            processedAudios.length > 0 ? "audio" : null,
+            hasObservationContextText ? "description" : null,
+          ].filter((kind): kind is string => kind != null),
+          has_image: mediaTelemetry.hasImage,
+          has_video: mediaTelemetry.hasVideo,
+          has_audio: processedAudios.length > 0,
+          has_description: hasObservationContextText,
+          image_count: mediaTelemetry.imageCount,
+          video_clip_count: mediaTelemetry.videoClipCount,
+          video_frame_count: mediaTelemetry.declaredVideoFrameCount,
+          video_inference_frame_count: mediaTelemetry.videoInferenceFrameCount,
+          durable_video_required: requireDurableVideo,
+          video_r2_object_key_count: videoR2ObjectKeys.length,
+          video_storage_url_count: videoStorageUrls.length,
+          captured_media_item_count: capturedMedia?.length ?? 0,
+          captured_media_video_count: capturedMediaVideoCount(capturedMedia),
+          audio_clip_count: processedAudios.length,
+          llm_model: targetModel,
+          llm_prompt_tokens: llmPromptTokens,
+          llm_candidate_tokens: llmCandidateTokens,
+          llm_thinking_tokens: llmThinkingTokens,
+          llm_total_tokens: llmTotalTokens,
+          video_llm_prompt_tokens: mediaTelemetry.hasVideo
+            ? llmPromptTokens
+            : null,
+          video_llm_candidate_tokens: mediaTelemetry.hasVideo
+            ? llmCandidateTokens
+            : null,
+          video_llm_thinking_tokens: mediaTelemetry.hasVideo
+            ? llmThinkingTokens
+            : null,
+          video_llm_total_tokens: mediaTelemetry.hasVideo
+            ? llmTotalTokens
+            : null,
+          video_token_accounting: mediaTelemetry.hasVideo
+            ? "full_multimodal_request"
+            : null,
+          is_identified: isIdentifiedBio,
+          species_name: parsedData.scientific_name || null,
+          gemini_latency_ms: geminiLatencyMs,
+        }),
+      );
 
       const runOptionalSpeciesWrites = async () => {
         try {
-          const groupTagsResult = await groupTagsPromise;
+          const groupTagsResult = needsGroupTags
+            ? await fetchQuotaGuardedGroupTags(
+              req,
+              user,
+              parsedData.scientific_name!,
+              supabaseAdmin,
+              quotaLease.reservation.requestId,
+            )
+            : null;
           const bgWriteResults = await Promise.allSettled([
             needsGroupTags && groupTagsResult?.group_tags?.length
               ? updateGroupTags(
@@ -2063,14 +2056,10 @@ export async function handleIdentifyMultimodalRequest(
         }
       };
 
-      if (requireDurableVideo) {
-        runBackground(runOptionalSpeciesWrites());
-      } else {
-        await runOptionalSpeciesWrites();
-      }
+      runBackground(runOptionalSpeciesWrites());
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
-      const terminalFailure = errorMsg.toLowerCase().includes("rejected");
+      const terminalFailure = e instanceof ModerationRejectedError;
       await updateIngestionJobBestEffort(
         terminalFailure ? "failed_terminal" : "failed_retryable",
         terminalFailure ? "moderation_rejected" : "background_ingestion_failed",
@@ -2136,36 +2125,64 @@ export async function handleIdentifyMultimodalRequest(
           });
         }
       }
-      if (requireDurableVideo) {
-        throw e;
-      }
+      throw e;
     }
   };
 
-  if (requireDurableVideo) {
-    try {
-      await runBackgroundIngestion();
-    } catch (error) {
-      logStructuredError("multimodal/video_durable_insert_failed", {
+  try {
+    // A successful identify response is also the durability boundary consumed
+    // by Field Chat, Explore sharing, field trips, and owner sync. Optional
+    // analytics, group tags, and candidate enrichment are registered separately.
+    await runDurableIngestion();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (error instanceof ModerationRejectedError) {
+      logStructuredError("multimodal/observation_rejected", {
         user_id: user.id,
         scan_id: generatedScanId,
-        error: error instanceof Error ? error.message : String(error),
+        has_video: requireDurableVideo,
       });
-      trackPostHogEvent(user.id, "video_scan_persistence_failed", {
+      runBackground(
+        trackPostHogEvent(user.id, "scan_rejected", {
+          scan_id: generatedScanId,
+          inference_tier: inferenceTier,
+          tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
+          has_video: requireDurableVideo,
+          video_r2_object_key_count: videoR2ObjectKeys.length,
+        }),
+      );
+      return publicErrorResponse(
+        req,
+        400,
+        "observation_rejected",
+        "We couldn’t process this observation. Please try a different photo or recording.",
+      );
+    }
+
+    logStructuredError("multimodal/scan_persistence_failed", {
+      user_id: user.id,
+      scan_id: generatedScanId,
+      has_video: requireDurableVideo,
+      error: errorMessage,
+    });
+    runBackground(
+      trackPostHogEvent(user.id, "scan_persistence_failed", {
         scan_id: generatedScanId,
         inference_tier: inferenceTier,
         tier: userTier,
         ...tierTelemetryProperties(tierResolution),
+        has_video: requireDurableVideo,
         video_r2_object_key_count: videoR2ObjectKeys.length,
-        error: error instanceof Error ? error.message : String(error),
-      }).catch((e) => console.error("PostHog tracking failed:", e));
-      return jsonResponse(
-        { error: "Video media could not be saved. Please retry." },
-        503,
-      );
-    }
-  } else {
-    runBackground(runBackgroundIngestion());
+      }),
+    );
+    return publicErrorResponse(
+      req,
+      503,
+      "scan_persistence_failed",
+      "We couldn’t finish saving this observation. Please try again.",
+      { retryAfterSeconds: 5 },
+    );
   }
 
   const edgeTotalMs = Date.now() - fnStart + authDurationMs;

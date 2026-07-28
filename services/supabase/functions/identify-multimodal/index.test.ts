@@ -955,18 +955,73 @@ Deno.test("latency work preserves the scoped Gemini model and generation configu
   }
 });
 
-Deno.test("cache-miss external enrichment begins inside background ingestion", async () => {
+Deno.test("cache-miss external enrichment begins inside durable ingestion", async () => {
   const source = await Deno.readTextFile(
     new URL("./index.ts", import.meta.url),
   );
-  const backgroundStart = source.indexOf(
-    "const runBackgroundIngestion = async () =>",
+  const durableIngestionStart = source.indexOf(
+    "const runDurableIngestion = async () =>",
   );
   const primaryExternalFetch = source.indexOf(
     "externalData = await fetchExternalEnrichment",
   );
-  assert(backgroundStart >= 0);
-  assert(primaryExternalFetch > backgroundStart);
+  assert(durableIngestionStart >= 0);
+  assert(primaryExternalFetch > durableIngestionStart);
+});
+
+Deno.test("identify success waits for durable scan persistence for every media type", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+
+  assert(source.includes("await runDurableIngestion();"));
+  assert(
+    !source.includes("runBackground(runDurableIngestion())"),
+    "scan insertion must not be deferred beyond a successful identify response",
+  );
+  assert(
+    source.includes("runBackground(runOptionalSpeciesWrites());"),
+    "only optional species enrichment should remain deferred",
+  );
+  assert(source.includes('"scan_persistence_failed"'));
+
+  const moderationRejectionStart = source.indexOf(
+    'modResult.status === "SHADOWBANNED"',
+  );
+  const scanInsertStart = source.indexOf(
+    "let speciesId: string | null = null;",
+    moderationRejectionStart,
+  );
+  assert(
+    moderationRejectionStart >= 0 && scanInsertStart > moderationRejectionStart,
+  );
+  const moderationRejectionBlock = source.slice(
+    moderationRejectionStart,
+    scanInsertStart,
+  );
+  assert(
+    moderationRejectionBlock.includes(
+      "throw new ModerationRejectedError(",
+    ),
+    "moderation rejection must not resolve as a successful persistence task",
+  );
+  assert(
+    !moderationRejectionBlock.includes("return;"),
+    "moderation rejection must not bypass scan persistence with a success response",
+  );
+  assert(
+    source.includes(
+      "const terminalFailure = e instanceof ModerationRejectedError;",
+    ),
+    "operational errors containing the word rejected must remain retryable",
+  );
+  assert(source.includes('"observation_rejected"'));
+  assert(source.includes("error instanceof ModerationRejectedError"));
+  assert(
+    source.includes(
+      "We couldn’t process this observation. Please try a different photo or recording.",
+    ),
+  );
 });
 
 Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact", async () => {

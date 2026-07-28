@@ -29,6 +29,7 @@ import {
   reserveAIProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
+import { normalizeOwnedScanRecovery } from "../_shared/scanRecovery.ts";
 
 function makeHttpError(
   status: number,
@@ -270,6 +271,11 @@ Deno.serve((req: Request) =>
       body.location_sharing,
     );
     const mediaItems = normalizeMediaItems(body.media_items);
+    const recoveryScan = normalizeOwnedScanRecovery(
+      body.recovery_scan,
+      scanId,
+      user.id,
+    );
     let moderationParentRequestId: string | null = null;
 
     runBackground(trackPostHogEvent(user.id, "ExplorePostShareStarted", {
@@ -287,6 +293,7 @@ Deno.serve((req: Request) =>
         restoredVideoObjectKeys,
         restoredAudioObjectKeys,
         supabaseAdmin,
+        recoveryScan,
       );
       await assertCommunityRequestCanPublishToExplore(
         scanId,

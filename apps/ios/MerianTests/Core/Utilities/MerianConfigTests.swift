@@ -130,6 +130,20 @@ struct ExploreErrorFormatterTests {
         )
     }
 
+    @Test func missingCloudScansUseCustomerFacingSyncCopy() {
+        let message = ExploreErrorFormatter.titledMessage(
+            "Couldn’t share to Explore",
+            for: MerianError.httpError(
+                statusCode: 404,
+                message: #"{"error":"Scan not found.","code":"not_found"}"#
+            )
+        )
+
+        #expect(
+            message == "Couldn’t share to Explore\nThis observation is still syncing. Please wait a moment and try sharing again."
+        )
+    }
+
     @Test func fieldTripDetailHidesBackendIdentifierValidation() {
         let message = ExploreErrorFormatter.fieldTripDetailMessage(for: MerianError.httpError(
             statusCode: 400,

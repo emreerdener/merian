@@ -169,6 +169,13 @@ final class InsightChatViewModel {
         errorMessage = message ?? "Field chat isn't available for this scan."
     }
 
+    func markAvailable(scanId: String) {
+        if unavailableScanId == scanId {
+            unavailableScanId = nil
+        }
+        errorMessage = nil
+    }
+
     func loadIfNeeded(scanId: String, isProActive: Bool) async {
         guard isProActive else {
             clearLoadedState()

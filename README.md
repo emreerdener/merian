@@ -52,18 +52,26 @@ steps are tracked in the
   For eligible live-camera still scans, elevation, WeatherKit, and semantic
   location join within a 150 ms grace period or are patched into the owner scan
   afterward.
-- `/identify-multimodal` is the shared live and replay endpoint for visual, audio, describe, and mixed submissions; queued media uploads through R2 staging before inference.
+- `/identify-multimodal` is the shared live and replay endpoint for visual,
+  audio, Describe, mixed-media, and video submissions; queued media uploads
+  through R2 staging before inference. HTTP `200` is a durability guarantee:
+  moderation, required media promotion, primary species resolution, scan
+  creation, and authenticated-owner read-back have completed.
 - Live-camera still-image analysis becomes eligible to start as soon as the
   durable local queue accepts the scan. WeatherKit/reverse geocoding receive a 150 ms grace period,
   late context is patched without re-identifying, and the live request hands the
   uplink to background recovery after its body finishes sending. Parsed and
-  persisted results render before awards, Field trips, or cache-miss enrichment.
-  Gallery, audio-bearing, and video submissions retain their existing context
-  and upload behavior in this first optimization pass, while receiving timing
-  instrumentation.
+  persisted results render before awards, Field trips, or optional client
+  enrichment. Primary Wikipedia/GBIF species resolution on a cache miss may
+  extend the required server finalization interval; analytics, group tags, and
+  candidate enrichment remain background work.
   Free remains on `gemini-2.5-flash` and Pro remains on `gemini-2.5-pro`; prompts,
   schema, thinking budgets, image resolution, output limits, and the single
   Gemini call per scan are unchanged.
+- Older/interrupted observations missing their owner cloud row can be repaired
+  through authenticated Edge contracts before Field Chat, Ask the Community,
+  or Explore sharing. Recovery never grants iOS direct scan-table writes and
+  restores media only through owner-scoped staging keys.
 
 ### Scans Library
 - Grid view of all personal captures, sorted by newest, oldest, or alphabetical.

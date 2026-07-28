@@ -1372,11 +1372,15 @@ replace public media.
 
 The endpoint intentionally returns `404 { "error": "Scan not found." }` when
 `public.scans` has no row for the authenticated user. The iOS Insight client
-handles that specific error by inserting a minimal owned `scans` row from the
-local `LocalScanRecord`, resolving the server `species_dictionary.id` by
-scientific name, uploading local images to staging, and retrying with
-`restored_object_keys`. This is the recovery path for scans where inference
-returned to the device but background scan ingestion failed.
+handles that specific error by resolving the server
+`species_dictionary.id` by scientific name and sending a bounded non-media
+`recovery_scan` through the single `/check-scan-status` contract. The server
+defers to active/retryable richer ingestion, blocks known policy rejection,
+creates only an absent authenticated-owner row, and reloads it by owner. After
+status returns `found`, iOS uploads local images to staging and retries this
+endpoint with `restored_object_keys`. This endpoint itself does not accept
+`recovery_scan`; the sequence is compatibility repair for older/interrupted
+drift, not the expected current multimodal success path.
 
 Before inspecting or returning an existing active request, the endpoint repairs
 any Community request on that `scan_id` whose `requested_by` no longer matches
@@ -1975,11 +1979,12 @@ constraint in the Deno schema.
 > `502` with stable code `identify_response_invalid` before persistence or
 > client delivery.
 
-### Background Ingestion & Media Moderation
+### Durable Ingestion & Media Moderation
 
-After the HTTP `200 OK` response is returned to the client, `runBackground`
-schedules asynchronous ingestion via `EdgeRuntime.waitUntil`. This background
-task handles:
+For `/identify-multimodal`, the route completes the owner-row durability work
+before returning HTTP `200 OK`. A successful response therefore guarantees the
+returned `scan_id` is available to Field Chat, Explore sharing, field trips, and
+owner sync. The durability task handles:
 
 1. **Ghost user upsert** — ensures the `users` table row exists before the
    `scans` FK insert
@@ -1989,8 +1994,10 @@ task handles:
    `fetchExternalEnrichment` for Wikipedia/GBIF data
 4. **`insertScan`** — writes the final scan row to `public.scans`, including
    sanitized `pet_identification` when present
-5. **Group tags** — fires a background Flash call to populate
-   `species_dictionary.group_tags` for first-time species
+5. **Owner read-back** — reloads by `scan_id` and authenticated `user_id`;
+   duplicate no-op or cross-owner collision cannot be reported as success
+6. **Optional post-insert work** — schedules analytics, group tags, and candidate
+   enrichment through `EdgeRuntime.waitUntil`
 
 **Media promotion**: Safe image media is moved from
 `staging/{userId}/{filename}` to `public_uploads/{tier}/{userId}/{filename}`
@@ -2016,8 +2023,10 @@ frame-only scan row.
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
 deleted, `users.abuse_strikes` is incremented, and the scan is not inserted. At
-3+ strikes `users.is_shadowbanned` is set to `true` and all future ingestion
-silently halts. See
+3+ strikes `users.is_shadowbanned` is set to `true`; public/social projections
+exclude that author. The flag is not currently a blanket veto for every later
+safe private scan insert. The rejected current multimodal request returns
+generic `400 observation_rejected` rather than a successful phantom scan. See
 [Safety & Moderation](../development-guides/10-safety-and-moderation.md) for
 full details.
 
@@ -2033,10 +2042,12 @@ throws during the `imageBase64s` promotion pass.
 | `400`  | `{ "error": "Bad Request: Path traversal detected." }`                          | `r2ObjectKeys` contains a `../` traversal attempt                                            |
 | `400`  | `{ "error": "Forbidden: r2ObjectKey does not belong to the requesting user." }` | IDOR — key does not belong to the authenticated user                                         |
 | `400`  | `{ "error": "AI processing error. Please try again." }`                         | Permanent content policy failure (`finishReason` is `SAFETY` or `PROHIBITED_CONTENT`)        |
+| `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Media was rejected by the durable safety-moderation pass                                    |
 | `413`  | `{ "error": "Payload Too Large: Combined images exceed 5MB limit." }`           | Combined image payload exceeds 5 MB                                                          |
 | `422`  | `{ "error": "Processing Error: Malformed AI response." }`                       | Gemini returned output that could not be parsed                                              |
 | `422`  | `{ "error": "Processing Error: Invalid AI response format." }`                  | Gemini returned output in an unexpected format                                               |
 | `503`  | `{ "error": "AI processing error. Please try again." }`                         | Transient Gemini failure (API error, rate limit, timeout, non-SAFETY non-STOP finish reason) |
+| `503`  | `{ "error": "We couldn’t finish saving this observation. Please try again.", "code": "scan_persistence_failed" }` | Durable moderation pipeline, media promotion, species resolution, or scan insertion failed   |
 
 `400` on a content policy failure is intentional — the iOS `OfflineQueueManager`
 treats `400` as a permanent failure and marks the queued row as needing user
@@ -2047,10 +2058,12 @@ codes and is treated as a terminal validation failure.
 
 ## The Standardized JSON Return Payload (From Supabase to Swift)
 
-To reduce latency, the `/identify` Edge Function generates `scan_id` locally via
-`crypto.randomUUID()` and returns the `data` payload to iOS as soon as Gemini
-inference completes. All PostgreSQL insertions, R2 uploads, and parallel API
-calls (GBIF/Wikipedia) run asynchronously behind `EdgeRuntime.waitUntil`.
+The compatibility `/identify` Edge Function generates `scan_id` locally via
+`crypto.randomUUID()` and returns the `data` payload as soon as Gemini inference
+completes. Its PostgreSQL insertions, R2 uploads, and parallel external calls
+still run asynchronously behind `EdgeRuntime.waitUntil`. Current app traffic
+uses `/identify-multimodal`; its durable success boundary is defined above and
+must not be weakened to match this legacy timing behavior.
 
 ### Gemini Parsing and Error Mitigation
 
@@ -3646,6 +3659,13 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   `video_storage_urls`, rebuilds `captured_media`, makes a best-effort
   `scan_media_assets` refresh for ready playback rows, and then writes the
   public Explore snapshot.
+- If the authenticated owner's local observation exists but its cloud row does
+  not, current clients may combine those validated staging keys with a bounded
+  non-media `recovery_scan` object. The handler derives and verifies the owner,
+  inserts with duplicate protection, reloads by both scan and owner, and then
+  follows the normal eligibility and media-promotion path. The server refuses
+  this repair while richer ingestion is active or retryable and after a known
+  terminal moderation or provider safety-policy rejection.
 - Sharing snapshots image, video, and standalone-audio URLs into
   `explore_post_media`, ordered for the public carousel. `hero_image_url`
   remains the backward-compatible image field; author-post reads also return
@@ -4700,12 +4720,12 @@ ordered compositions of images, audio, and descriptive context.
   when `confidence_score >= diagnosticTrigger`, enriches forwarded candidates
   with cached English common names when available, and schedules background
   enrichment for cache misses.
-- The multimodal background ingestion path shares the same `_shared/identify`
-  DB, media, schema, threshold, and moderation primitives as `/identify`.
+- The multimodal durable-ingestion path shares the same `_shared/identify` DB,
+  media, schema, threshold, and moderation primitives as `/identify`.
 
 The Gemini object and final server-enriched response are both parsed through
-`_shared/identify/contract.ts`. The second parse occurs before synchronous video
-finalization and HTTP success, so cache/provider drift cannot reach the
+`_shared/identify/contract.ts`. The second parse occurs before durable image or
+video finalization and HTTP success, so cache/provider drift cannot reach the
 generated Swift decoder or durable scan state. Contract failures use stable
 public code `identify_response_invalid`; detailed path errors remain in
 structured server logs.
@@ -4742,9 +4762,10 @@ session lookup, ingestion claim, sanitized intent recording, and the
 upload-session ids plus manifest and payload checksums canonicalized from the
 exact stored values. After Gemini, eligible biological results use at most one
 `hydrate_identification_dictionary` RPC to return cached primary-species data
-and candidate common names. External Wikipedia/GBIF cache misses, analytics, and
-optional image-scan ingestion updates run under `EdgeRuntime.waitUntil`; video
-finalization retains its existing synchronous durability gate.
+and candidate common names. Primary Wikipedia/GBIF cache misses, moderation,
+required media promotion, and scan insertion complete before success for every
+current multimodal observation. Analytics, group tags, and candidate enrichment
+remain optional `EdgeRuntime.waitUntil` work.
 
 ## Deno `/update-scan-context` Edge Node
 
@@ -5045,12 +5066,13 @@ enrichment writes also record source/freshness metadata in
 `alternative_common_names` is `string[] | null` — `null` when GBIF has no
 English vernacular entries for the species. The enrichment scope serves this
 field from `species_dictionary.alternative_common_names` on a cache hit. When
-that column is `null` (covering both pre-V34 cached species and the timing race
-where a first scan's background ingestion has not yet written to the
-dictionary), the Edge function calls `fetchGBIFVernacularNames` live to retrieve
-English vernacular names from the GBIF API and populates the field from the
-result. Taxonomy fields in the response likewise use `null` for unknown ranks;
-the backend no longer emits placeholder strings like `"Unknown"`.
+that column is `null` (covering pre-V34 cached species, compatibility-route
+timing, or a current model response that preceded its awaited dictionary
+resolution), the Edge function calls `fetchGBIFVernacularNames` live to
+retrieve English vernacular names from the GBIF API and populates the field
+from the result. Taxonomy fields in the response likewise use `null` for
+unknown ranks; the backend no longer emits placeholder strings like
+`"Unknown"`.
 
 **iOS mapping**: The array is decoded as
 `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in
@@ -5482,11 +5504,10 @@ as gateway header stripping.
 
 ## Deno `/check-scan-status` Edge Node
 
-Provides a lightweight outbox confirmation endpoint. After the iOS client
-receives an HTTP 200 from `/identify`, it can poll this endpoint to confirm the
-scan row actually landed in the `scans` table — mitigating the transactional
-outbox gap where the 200 is returned before the background `insertScan` has
-committed.
+Provides a lightweight outbox confirmation endpoint. Current
+`/identify-multimodal` success already includes durable owner-row insertion;
+polling remains useful for compatibility endpoints, interrupted older requests,
+and queued recovery.
 
 ### Request Payload
 
@@ -5499,6 +5520,18 @@ present and greater than zero, the endpoint returns `"found"` only if the scan
 row exists for the authenticated user and has at least that many public
 `video_storage_urls` plus matching ready playback entries in `scan_media_assets`
 or video entries in `captured_media`.
+
+For one local observation whose owner row is absent, iOS may include a
+`recovery_scan` object containing validated non-media fields. Its `id` must
+match `scan_id`, its `user_id` must match the authenticated user, and
+`image_storage_urls` must be empty. The endpoint idempotently inserts only a
+missing row with duplicate protection; it cannot overwrite an existing scan.
+Direct media URLs are rejected, and recovery is not supported in bulk probes.
+The server checks the owner-scoped ingestion ledger before writing: processing,
+finalizing, retrying, retryable-failure, and known terminal policy-rejection
+jobs are never preempted. Legacy jobs with no ledger row,
+completed-but-missing rows, and non-policy terminal failures remain
+recoverable.
 
 ### Response Payload
 
@@ -5517,9 +5550,11 @@ or video entries in `captured_media`.
 `"not_found"`. When the scan row is not complete yet, newer clients and ops
 tools can inspect the optional job fields backed by `scan_ingestion_jobs`:
 `job_status` may be `processing`, `finalizing`, `retrying`, `failed_retryable`,
-`failed_terminal`, or `complete`; `job_stage` names the precise server step,
-including `server_replay_limit_reached` when the scheduled replay budget is
-exhausted. `retry_after` and `last_error` are only populated for failed jobs.
+`failed`, or `complete`; `failed` is the client-safe projection of a
+`failed_terminal` ledger row. iOS also accepts the legacy `failed_terminal`
+response spelling. `job_stage` names the precise server step, including
+`server_replay_limit_reached` when the scheduled replay budget is exhausted.
+`retry_after` and `last_error` are only populated for failed jobs.
 iOS decodes the full response via `ScanStatusResponse`: queued scans use these
 fields to keep server-owned `.inferencing` rows from being resubmitted while
 media promotion or scan insertion is still finalizing, and to surface terminal
@@ -5530,18 +5565,23 @@ retry.
 
 The `Authorization: Bearer` JWT is verified by `withEdgeHandler`. The DB query
 enforces ownership with a dual `.eq("id", scan_id).eq("user_id", user.id)`
-constraint — a user cannot probe another user's scan IDs. The query returns only
-the media fields needed for the durability check (`id`, `video_storage_urls`,
-`captured_media`, normalized scan-media asset rows, and the user's own
-scan-ingestion job state); no private scan content is transmitted.
+constraint — a user cannot probe another user's scan IDs. Recovery additionally
+derives the canonical owner from the authenticated user and validates UUIDs,
+numeric ranges, bounded text, enums, and geoprivacy-derived public coordinates.
+The shared write also enforces the ingestion-state and moderation gates
+server-side, independent of iOS polling.
+The query returns only the media fields needed for the durability check (`id`,
+`video_storage_urls`, `captured_media`, normalized scan-media asset rows, and
+the user's own scan-ingestion job state); no private scan content is
+transmitted.
 
 ### Architecture
 
 Follows the domain-driven module pattern: `index.ts` orchestrates auth,
-parameter validation, and optional video-count gating; `db.ts` owns the
-`fetchScanStatusMedia(scanId, userId, supabaseAdmin)` PostgREST call. No `db.ts`
-writes occur. Errors from `fetchScanStatusMedia` are caught by `index.ts` and
-mapped to a structured `logStructuredError` + 500 response.
+parameter validation, optional owner-row recovery, and video-count gating;
+`db.ts` owns status reads, while `_shared/scanRecovery.ts` owns validation and
+the duplicate-protected repair write. Read or repair errors are caught by
+`index.ts` and mapped to a structured `logStructuredError` + 500 response.
 
 ---
 

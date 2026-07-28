@@ -344,4 +344,23 @@ export async function insertScan(
       ignoreDuplicates: true,
     });
   if (error) throw new Error(`insertScan: ${error.message}`);
+
+  // ON CONFLICT DO NOTHING is idempotent, but a successful statement does not
+  // prove this owner has a row (for example, when another owner holds the ID).
+  const { data: persistedScan, error: verificationError } = await supabaseAdmin
+    .from("scans")
+    .select("id")
+    .eq("id", row.id)
+    .eq("user_id", row.user_id)
+    .maybeSingle();
+  if (verificationError) {
+    throw new Error(
+      `insertScan verification: ${verificationError.message}`,
+    );
+  }
+  if (!persistedScan) {
+    throw new Error(
+      "insertScan verification: persisted scan row was not found for owner",
+    );
+  }
 }

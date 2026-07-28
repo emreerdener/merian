@@ -1217,11 +1217,20 @@ TestFlight, App Store, support, and QA.
 
 ### Offline Sync, Geoprivacy & Edge Functions
 
+- Fixed successful identification returning before its cloud scan row existed,
+  which could leave an otherwise completed observation unavailable to Field
+  Chat, Explore sharing, field trips, and owner sync. Added
+  owner-authenticated recovery for observations already affected by the gap
+  across image, video, audio, mixed-media, and non-visual scans.
+- Replaced technical Explore and Field Chat sync errors with customer-facing
+  retry guidance. A transient Field Chat sync delay no longer hides the action
+  permanently.
 - Fixed Supabase Edge Function deploy reliability by routing runtime
   dependencies through the function import map and removing deploy-time
   deno.land/esm.sh runtime fetches from function graphs.
-- Fixed Insight sharing and Ask the community requests for local scans whose
-  cloud scan row was missing after background ingestion failed.
+- Fixed Insight sharing and Ask the Community requests for older/interrupted
+  local scans whose cloud owner row is missing, using guarded server recovery
+  before owner-staged media restoration.
 - Fixed non-biological corrections so they now explain the result and start
   reanalysis instead of creating an unidentified biological scan with incorrect
   confidence, phantom reference media, or premature Explore sharing.

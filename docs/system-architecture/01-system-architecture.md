@@ -145,10 +145,12 @@ orphaned object does not reconstruct its relational context.
 - The latency-sensitive route verifies ES256 JWT claims through cached JWKS,
   combines pre-inference ingestion setup in `begin_scan_ingestion`, and combines
   post-inference cache hydration in `hydrate_identification_dictionary`.
-  Cache-miss external enrichment and analytics run as background tasks for
-  non-video scans. Privacy-safe `Server-Timing` separates auth, request body,
-  database, Gemini, dictionary, and response work; the Gemini timer stops as
-  soon as the single `generateContent` call returns.
+  Moderation, required media promotion, primary cache-miss species resolution,
+  scan insertion, and an owner-scoped read-back complete before HTTP success for
+  every modality. Analytics, group tags, and candidate enrichment remain
+  optional background tasks. Privacy-safe `Server-Timing` separates auth,
+  request body, database, Gemini, dictionary, and response work; the Gemini
+  timer stops as soon as the single `generateContent` call returns.
 - Free remains `gemini-2.5-flash` and Pro remains `gemini-2.5-pro`. Thinking,
   prompt/schema, media resolution, output limits, and one-call semantics are not
   latency tuning levers in this work.

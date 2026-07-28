@@ -140,6 +140,9 @@ to write.
 | Some Explore primary media is confirmed missing          | Omit confirmed-missing items, keep the post public as `degraded`, preserve engagement, and expose owner recovery state. |
 | All Explore primary media is confirmed missing           | Reversibly quarantine every public projection; preserve author publish state, row, likes, comments, reports, and recovery evidence. |
 | Explore origin check times out or returns non-404 failure | Record a retryable result. Never turn transport, credentials, `5xx`, CDN, or client failure into confirmed loss. |
+| Explore share exposes internal service-role authorization text | Translate to `Explore is temporarily unavailable. Please try again in a few minutes.` |
+| Explore share cannot find an eligible owner row after recovery | Translate to `This observation is still syncing. Please wait a moment and try sharing again.` |
+| Insight Field Chat owner row is still syncing | Show `This observation is still syncing. Please try Field chat again in a moment.` and keep the action retryable |
 | SwiftData save failure during deletion                    | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted)                                                                                        |
 | SwiftData store corruption at startup                     | Store artifacts are quarantined, a support manifest is written, store-aware persistent open is retried once, and the user sees "Library Repaired" if recovery succeeds                                        |
 | SwiftData schema migration failure at startup             | Legacy store artifacts are archived under `store-rescue/`, a fresh persistent current-schema store opens, and the user sees "Library Rebuilt" with `legacy_store_rescued` telemetry; safe mode is only used if rescue fails |
@@ -169,15 +172,22 @@ hide. See
 
 ---
 
-## Background Ingestion Dead-Letter Pattern
+## Durable Ingestion, Compatibility Dead Letters, and Owner Repair
 
-When an inference endpoint fires `runBackgroundIngestion()` and `insertScan()`
-fails (FK violation, DB timeout, network partition), the iOS client may already
-have received a `200 OK` with the AI result. The active multimodal path claims a
-`scan_ingestion_jobs` row before AI inference and updates it through
-`processing`, `finalizing`, `failed_retryable`, `failed_terminal`, and
-`complete` states so `/check-scan-status` can report more than a bare not-found
-result.
+The active `/identify-multimodal` route does not return `200 OK` until
+moderation, required media promotion, primary species resolution, the
+duplicate-safe scan write, and an owner-scoped read-back all succeed. A
+constraint failure, database timeout, network partition, or other operational
+finalization failure returns retryable `503 scan_persistence_failed`; a known
+terminal media-policy rejection returns customer-safe
+`400 observation_rejected`. The client must not persist either response as a
+successful local observation.
+
+The route claims `scan_ingestion_jobs` before AI inference and updates it
+through `processing`, `finalizing`, `failed_retryable`, `failed_terminal`, and
+`complete` states. `/check-scan-status` can therefore distinguish active,
+retryable, terminal, complete, and genuinely absent work instead of reducing
+every missing row to a bare `404`.
 
 For eligible live-camera still-image analysis, request-body completion releases the matching durable
 queue row for background upload. Transport failure, connectivity loss, app
@@ -197,7 +207,8 @@ and `audio-spec`) now use the shared compatibility ledger to claim the same
 job/intent rows after inference and before returning success; staged image/audio
 and text-only compatibility intents are shaped for `/identify-multimodal`
 replay, while inline media is redacted and remains client-retry only. The
-background task still catches insertion failures and:
+compatibility background insertion task may still fail after its HTTP success.
+That path:
 
 1. Logs a structured error via
    `logStructuredError("background_ingestion_failed", { scan_id, user_id, error })`.
@@ -216,15 +227,38 @@ only as the older dead-letter fallback and detailed insert-failure history. The
 scheduled `replay-scan-ingestion` worker claims staged media/audio/video and
 text-only jobs with resumable intents and re-invokes `identify-multimodal` with
 the same `client_scan_id` and media manifest; inline-media redacted jobs still
-require the iOS queue to retry. The `ignoreDuplicates: true` guard in
-`insertScan` makes replay idempotent - a re-run will not create duplicate rows.
-The `ERROR` status guard in `identify/index.ts` prevents inserting scans where
-the moderation pipeline returned an error status (null images), so only genuine
-ingestion failures reach the dead-letter table. Staged media that still belongs
-to an active lease or future retry remains pending in
+require the iOS queue to retry. Scan creation uses duplicate protection and
+then reloads by both `id` and authenticated `user_id`; a raced insert, no-op
+collision, or cross-owner UUID can never be reported as success without the
+correct owner row. The compatibility `ERROR` status guard prevents inserting
+scans where moderation itself failed, so only genuine insertion failures reach
+the dead-letter table. Staged media that still belongs to an active lease or
+future retry remains pending in
 `reconcile-scan-media-assets`; after TTL abandonment the worker marks the job
 `failed_terminal` with the `media_reconciliation_abandoned` stage so support can
 separate missing-media terminal failures from retryable server failures.
+
+### Owner-row recovery decision
+
+Recovery is a compatibility repair for older/interrupted local-cloud drift; it
+is not part of a normal current multimodal success.
+
+| Server state | Recovery action |
+| --- | --- |
+| Owner row exists | Return `found`; do not write |
+| Job is processing, finalizing, retrying, or `failed_retryable` | Defer to the richer ingestion attempt |
+| Job is a known moderation or provider safety-policy rejection | Refuse repair |
+| No job, `complete` without a row, or a non-policy `failed_terminal` job | Allow duplicate-safe minimal owner-row repair, then reload by owner |
+
+Single `/check-scan-status` requests may include a bounded, non-media
+`recovery_scan`; bulk status probes remain read-only. Explore sharing may
+combine the same object with staged image, video, or audio restoration and then
+continues through normal eligibility and publication checks. Ask the Community
+first repairs through `/check-scan-status`, then restores owner image media
+through its existing endpoint. Field Chat also preflights the single status
+contract before presentation. Direct media URLs, caller-selected ownership,
+and client-side table upserts are not recovery paths. A transient still-syncing
+result remains retryable and must not permanently hide Field Chat.
 
 ## Startup and Auth Failures Are Recoverable
 

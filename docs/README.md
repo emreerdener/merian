@@ -89,17 +89,35 @@ as their permanent engineering identity.
   while inline media remains client-retry only because raw bytes are never stored
   server-side. The shared identify boundary demotes
   manufactured or processed materials to non-biological before candidates,
-  dictionary novelty, or `species_dictionary` writes can run.
+  dictionary novelty, or `species_dictionary` writes can run. The active route
+  does not return `200` until moderation, required media promotion, primary
+  species resolution, scan insertion, and an authenticated-owner read-back all
+  succeed.
+- **Scan owner-row durability and repair**: A successful current multimodal
+  response guarantees that its `scan_id` is immediately usable by Field Chat,
+  Explore sharing, and owner sync. Operational finalization failures return
+  retryable `503 scan_persistence_failed`; terminal media-policy rejection
+  returns customer-safe `400 observation_rejected`. For older or interrupted
+  local/cloud drift, single `/check-scan-status` requests and
+  `/share-scan-to-explore` accept a bounded non-media `recovery_scan`. The
+  server defers to active/retryable ingestion, blocks known policy rejections,
+  never overwrites an existing or cross-owner row, and restores media only
+  through owner-scoped staging keys. The repository fix is not a production
+  fix until all three affected Edge Functions and the matching iOS build are
+  promoted. See the
+  [July 2026 incident report](./incidents/2026-07-scan-owner-row-durability-gap.md).
 - **Image-analysis latency contract**: Durable queue acceptance remains the
   mandatory gate. The eligible live-camera still path waits no more than 150 ms for shutter-prefetched
   weather/geocoding, defers its competing background upload until the inline
   body is sent, and commits parsed/persisted results before awards or Field trips.
   The Edge path uses verified ES256 claims, one atomic pre-inference RPC, at
-  most one combined post-inference dictionary RPC, privacy-safe `Server-Timing`, and background
-  cache-miss enrichment. `/update-scan-context` applies late owner-scoped
-  context without a second AI request. Model IDs and all inference-quality and
-  unit-economics settings remain unchanged. Gallery, audio-bearing, and video
-  submissions are instrumented but retain their existing behavior in this pass.
+  most one combined post-inference dictionary RPC, privacy-safe `Server-Timing`,
+  and awaited durable finalization. A primary cache miss may require bounded
+  Wikipedia/GBIF species resolution before success; analytics, group tags, and
+  candidate enrichment remain optional background work.
+  `/update-scan-context` applies late owner-scoped context without a second AI
+  request. Model IDs and all inference-quality and unit-economics settings
+  remain unchanged.
 - **Photos share import contract**: A single image shared from iOS Photos opens
   the containing app through its alternate `public.image` document association.
   `ExternalImageImportStore` copies the file into a durable Application Support

@@ -303,15 +303,32 @@ feed/map/author/hashtag projections. Resolved community requests remain public
 inside Identify, but they do not enter normal Explore surfaces until the owner
 explicitly publishes them afterward.
 
-If the Edge function returns `Scan not found`, `MerianNetworkClient` treats that
-as a local/cloud drift case for Insight-originated actions. It recreates a
-minimal owned cloud scan row from the local record, resolves the server species
-id by scientific name instead of trusting local-only UUIDs, restores saved local
-image paths or the active live image buffer to staging, then retries the
-Community request with `restored_object_keys`. The same recovery path is shared
-with direct Explore sharing. The Ask affordance is gated on actual user image
-media, not a padded display count, so image-less historical/text scans cannot
-enter a request that the server cannot publish.
+If an Insight-originated action finds that the authenticated owner's cloud row
+is absent, `MerianNetworkClient` first polls `/check-scan-status`. Active or
+retryable ingestion remains authoritative, and known moderation/provider-policy
+rejection is not repaired. Eligible legacy drift uses the single-request
+`recovery_scan` contract to recreate only bounded non-media fields; server
+species IDs are resolved by scientific name instead of trusting local-only
+UUIDs.
+
+The media step then remains endpoint-specific. Direct Explore sharing combines
+`recovery_scan` with staged local image, video, or audio keys in
+`/share-scan-to-explore`. Ask the Community repairs the row through
+`/check-scan-status`, uploads saved local image paths or the active live image
+buffer to staging, and retries `/request-community-identification` with
+`restored_object_keys`. Field Chat uses status recovery without publishing
+media before it presents `/insight-chat`. No path directly upserts
+`public.scans` from iOS, and a transient still-syncing result stays retryable
+instead of permanently marking Field Chat unavailable. The Ask affordance is
+gated on actual user image media, not a padded display count, so image-less
+historical/text scans cannot enter a request that the server cannot publish.
+
+Customer feedback stays at the feature boundary. Explore translates a missing
+row to `This observation is still syncing. Please wait a moment and try sharing
+again.` and an internal service-key failure to `Explore is temporarily
+unavailable. Please try again in a few minutes.` Field Chat uses `This
+observation is still syncing. Please try Field chat again in a moment.` Raw
+database authorization text is never customer-facing.
 
 The request sheet title is `Ask the community` in sentence case. The shared
 `CommunityIdentificationRequestSheet` is used for both new requests and existing
@@ -1194,8 +1211,10 @@ Extended ecological media data is loaded in three passes:
 1. **Cached with the inference response** (live scans): the post-Gemini
    dictionary RPC includes an already-cached primary species row, so existing
    `wikipedia_overview`, `wikipedia_url`, and reference imagery can populate
-   immediately. A cache miss is not fetched synchronously; Edge Wikipedia/GBIF
-   work runs behind `EdgeRuntime.waitUntil` and cannot delay the response.
+   immediately. A cache miss is not added to the already-validated live
+   response; primary Wikipedia/GBIF resolution may run during the required scan
+   persistence finalization, while group-tag and candidate enrichment remain
+   optional `EdgeRuntime.waitUntil` work.
 2. **Retroactive Wikipedia hydration** (live scans where Wikipedia was missing,
    and all historical scans): `InferenceEngine.fetchWikipediaAndHydrate` fires a
    `GET` to

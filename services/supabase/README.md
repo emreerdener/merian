@@ -481,11 +481,19 @@ The latency-sensitive path uses cached ES256 JWKS verification through
 `auth.getClaims`, injected only by the two latency-sensitive routes so unrelated
 functions retain their existing `getUser` behavior; `begin_scan_ingestion` for
 atomic pre-Gemini setup; and `hydrate_identification_dictionary` for post-Gemini
-cache hydration. External cache misses and optional ingestion work run as Edge
-background tasks except for required video durability. `/update-scan-context`
+cache hydration. Moderation, required media promotion, primary external
+cache-miss species resolution, duplicate-safe scan creation, and owner-scoped
+read-back complete before HTTP success. Analytics, group tags, and candidate
+enrichment remain optional Edge background tasks. `/update-scan-context`
 applies or stages late owner weather/location fields without rerunning
-inference. See the function- local READMEs and
+inference. See the function-local READMEs and
 `docs/system-architecture/04-ai-engineering.md` for the full contract.
+
+For older/interrupted missing rows, `_shared/scanRecovery.ts` provides a
+server-owned non-media compatibility repair used only by single status and
+Explore share requests. It defers to active/retryable ingestion, blocks exact
+known policy rejection, never overwrites an existing row, and accepts media
+only through separate owner-scoped staging keys.
 
 ### Incremental Species-Count Boundary
 

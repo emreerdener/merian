@@ -98,16 +98,32 @@ extension InsightSheetView {
                 if RevenueCatManager.shared.isProActive {
                     guard let scanId = inferenceEngine.speciesData?.scanId else { return }
                     Task { @MainActor in
+                        if let record = viewModel.activeLocalRecord {
+                            do {
+                                let isAvailable = try await MerianNetworkClient.shared
+                                    .ensureCloudScanAvailableForFieldChat(scan: record)
+                                guard isAvailable else {
+                                    let message = "This observation is still syncing. Please try Field chat again in a moment."
+                                    presentFieldChatUnavailableToast(message)
+                                    return
+                                }
+                                chatViewModel.markAvailable(scanId: scanId)
+                            } catch {
+                                presentFieldChatUnavailableToast(
+                                    "Field chat is temporarily unavailable. Please try again."
+                                )
+                                return
+                            }
+                        }
                         let canPresent = await chatViewModel.prepareForPresentation(scanId: scanId)
                         if canPresent {
                             HapticManager.shared.triggerSheetSpring()
                             viewModel.state.isInsightChatSheetPresented = true
                         } else {
-                            HapticManager.shared.triggerErrorThump()
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                viewModel.state.toastMessage = chatViewModel.errorMessage
+                            presentFieldChatUnavailableToast(
+                                chatViewModel.errorMessage
                                     ?? "Field chat isn't available for this scan."
-                            }
+                            )
                         }
                     }
                 } else {
@@ -168,5 +184,13 @@ extension InsightSheetView {
         }
 
         return true
+    }
+
+    @MainActor
+    private func presentFieldChatUnavailableToast(_ message: String) {
+        HapticManager.shared.triggerErrorThump()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            viewModel.state.toastMessage = message
+        }
     }
 }

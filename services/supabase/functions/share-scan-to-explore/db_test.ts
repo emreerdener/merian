@@ -1,18 +1,22 @@
 import {
   assertEquals,
+  assertRejects,
   assertThrows,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
+import { PublicHttpError } from "../_shared/http.ts";
 import {
   attachAudioSpectrogramThumbnails,
   buildRestoredAudioCapturedMedia,
   buildRestoredVideoCapturedMedia,
+  fetchShareEligibleScan,
 } from "./db.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   SelectedExplorePostMediaItem,
   ShareEligibleScanRow,
 } from "./db.ts";
+import type { OwnedScanRecoveryRow } from "../_shared/scanRecovery.ts";
 
 const scanId = "00000000-0000-0000-0000-000000000001";
 
@@ -294,4 +298,145 @@ Deno.test("attachAudioSpectrogramThumbnails snapshots and persists generated aud
     thumbnail_url:
       "https://media.merian.app/public_uploads/pro/user/spectrogram.png",
   }]);
+});
+
+Deno.test("fetchShareEligibleScan distinguishes a database failure from a missing scan", async () => {
+  const query = {
+    select() {
+      return this;
+    },
+    eq() {
+      return this;
+    },
+    maybeSingle() {
+      return Promise.resolve({
+        data: null,
+        error: { message: "permission denied for table scans" },
+      });
+    },
+  };
+  const supabase = {
+    from(table: string) {
+      assertEquals(table, "scans");
+      return query;
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      fetchShareEligibleScan(
+        scanId,
+        "00000000-0000-0000-0000-000000000002",
+        [],
+        [],
+        [],
+        supabase,
+      ),
+    Error,
+    "Failed to load scan for Explore sharing: permission denied for table scans",
+  );
+});
+
+Deno.test("fetchShareEligibleScan returns a 404 only for an absent scan", async () => {
+  const query = {
+    select() {
+      return this;
+    },
+    eq() {
+      return this;
+    },
+    maybeSingle() {
+      return Promise.resolve({ data: null, error: null });
+    },
+  };
+  const supabase = {
+    from() {
+      return query;
+    },
+  } as unknown as SupabaseClient;
+
+  const error = await assertRejects(() =>
+    fetchShareEligibleScan(
+      scanId,
+      "00000000-0000-0000-0000-000000000002",
+      [],
+      [],
+      [],
+      supabase,
+    )
+  );
+  assertEquals(error instanceof PublicHttpError, true);
+  assertEquals((error as PublicHttpError).status, 404);
+});
+
+Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing", async () => {
+  const userId = "00000000-0000-0000-0000-000000000002";
+  const recoveredRow: ShareEligibleScanRow = {
+    id: scanId,
+    user_id: userId,
+    geoprivacy: "private",
+    image_storage_urls: ["https://media.merian.app/recovered.webp"],
+    video_storage_urls: [],
+    audio_storage_urls: [],
+    captured_media: null,
+    is_tombstoned: false,
+    species_id: "00000000-0000-0000-0000-000000000003",
+    confirmed_species_id: null,
+  };
+  const reads = [
+    { data: null, error: null },
+    { data: recoveredRow, error: null },
+  ];
+  const upserts: unknown[] = [];
+  const supabase = {
+    from(table: string) {
+      if (table === "scan_ingestion_jobs") {
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          maybeSingle() {
+            return Promise.resolve({ data: null, error: null });
+          },
+        };
+      }
+      assertEquals(table, "scans");
+      return {
+        select() {
+          return {
+            eq() {
+              return this;
+            },
+            maybeSingle() {
+              return Promise.resolve(reads.shift());
+            },
+          };
+        },
+        upsert(value: unknown) {
+          upserts.push(value);
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const recoveryScan = {
+    id: scanId,
+    user_id: userId,
+  } as OwnedScanRecoveryRow;
+
+  const result = await fetchShareEligibleScan(
+    scanId,
+    userId,
+    [],
+    [],
+    [],
+    supabase,
+    recoveryScan,
+  );
+
+  assertEquals(result, recoveredRow);
+  assertEquals(upserts, [recoveryScan]);
 });

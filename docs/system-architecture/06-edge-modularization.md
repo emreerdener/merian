@@ -1,9 +1,9 @@
 # Domain-Driven Edge Architecture
 
 Naturebook's proxy backend executes exclusively via Deno Edge Functions managed
-locally by Supabase CLI. Because Deno isolates strict V8 256MB memory limits and
-10-second wall-clock API constraints, the functions must be built with
-aggressive scaling bounds.
+locally by Supabase CLI. Hosted isolates have fixed memory plus bounded
+wall-clock, CPU, and request-idle budgets, so functions must use explicit
+scaling bounds and deadlines.
 
 Historically, Edge Functions were single-file monoliths (`index.ts`). Merian has
 been structurally refactored into a **Domain-Driven Modular Architecture**.
@@ -26,9 +26,14 @@ exiting the process.
   `requireParams` pulled natively from `_shared/http.ts`.
 - **IDOR Protections:** Direct `user.id` bounding must be evaluated inside
   `index.ts` before allowing `db.ts` to proceed.
-- **Async Detachment:** Heavy I/O processing operations matching
-  `EdgeRuntime.waitUntil(...)` from `_shared/edgeHandler.ts` are initialized
-  here strictly after returning the native HTTP `200 OK` response.
+- **Explicit Success Boundary:** Await every operation required for the
+  endpoint's documented success contract. For scan creation, that includes
+  moderation, required media promotion, primary species resolution,
+  duplicate-safe scan creation, and owner-scoped read-back. Only optional,
+  idempotent follow-up work such as analytics, group tags, or candidate
+  enrichment may be registered with `EdgeRuntime.waitUntil(...)` before
+  returning the response. A background promise remains bounded by the worker
+  lifetime and is never a durability mechanism.
 - **Native Deno Serving:** Use `Deno.serve(...)` directly in Edge entrypoints.
   Do not import `serve` from `https://deno.land/std/.../http/server.ts`; every
   remote runtime import becomes a deploy-time graph fetch for every function.
@@ -648,10 +653,11 @@ persist operations. This follows the `Promise.allSettled` pattern mandated for
 background writes — a single rejected upsert (e.g., a transient Postgres
 timeout) no longer silently swallows the error.
 
-Rule: Any `db.ts` write that is not required to build the response payload
-**must** be deferred with `EdgeRuntime.waitUntil`. The
+Rule: A `db.ts` write may be deferred only when it is required by neither the
+response payload nor the endpoint's success contract. The
 `lookalikes_flash_attempted` flag update and the `updateSpeciesEnrichment` call
-are the canonical examples.
+are canonical optional examples. Moderation state, required media promotion,
+scan creation, and owner read-back for `/identify-multimodal` are not.
 
 **Strategic Thinking Budget Rule — `@google/genai@1.0.0`:** `thinkingConfig` is
 a first-class typed field in `@google/genai@1.0.0` (the SDK pinned in

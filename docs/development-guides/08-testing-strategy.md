@@ -1447,7 +1447,15 @@ Identification latency has focused contract coverage at each boundary:
 
 - `identify-multimodal/index.test.ts` source-locks the Free/Pro model mapping,
   generation configuration, one `generateContent` call, exact Gemini timer stop,
-  privacy-safe latency event, and background placement of cache-miss enrichment.
+  privacy-safe latency event, awaited durability boundary, customer-safe
+  `400 observation_rejected`, retryable `503 scan_persistence_failed`, and
+  optional-only `EdgeRuntime.waitUntil` placement.
+- `_shared/identify/db_test.ts` locks duplicate-safe insertion followed by
+  owner-scoped read-back. `_shared/scanRecovery_test.ts` locks the bounded
+  non-media payload, derived privacy fields, cross-owner/UUID rejection, direct
+  media-URL rejection, and the active/retryable/terminal policy decision
+  matrix. `share-scan-to-explore/db_test.ts` locks repair-and-reload before
+  media restoration and publication.
 - `_tests/auth.test.ts` covers valid anonymous claims plus expired,
   malformed-issuer/audience/subject, and public service-role rejection. Internal
   replay continues to use its separate service-role/replay-user tests; never
@@ -1460,12 +1468,20 @@ Identification latency has focused contract coverage at each boundary:
   checksums.
 - `MerianNetworkClientTests` verifies pinned-session `OPTIONS` prewarming,
   idempotent inline request-body completion, and owner-scoped
-  `/update-scan-context` construction.
+  `/update-scan-context` construction. It also verifies single-status recovery,
+  combined Explore recovery/media restoration, and the Ask/Field Chat repair
+  seams. `MerianConfigTests` locks customer-facing Explore error translation;
+  `InsightChatTests` locks retryable still-syncing feedback.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
 for slow WeatherKit, reverse geocoding, awards, Field trips, Wikipedia, and
-GBIF; none may delay first render. Exercise queue durability rejection, inline
-request failure, connectivity loss, app background during upload,
+GBIF. Primary cache-miss Wikipedia/GBIF resolution and scan persistence may
+extend the server `post_gemini`/end-to-end interval because they are now part of
+durable success; they must stay within the Edge/client timeout and be
+rebaselined separately from response-to-first-render. Analytics, group tags,
+candidate enrichment, awards, and Field trips must not delay the result.
+Exercise queue durability rejection, inline request failure, connectivity loss,
+app background during upload,
 termination/relaunch, duplicate live/background completion, and the two-second
 upload fail-safe. Verify specifically that releasing the body-upload hold does
 not release foreground inference ownership: staged recovery media must wait

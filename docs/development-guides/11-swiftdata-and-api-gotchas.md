@@ -933,3 +933,45 @@ Video remains stricter than still images: a new video scan is not complete until
 the playback `.mp4` is promoted and represented in both `video_storage_urls` and
 the `captured_media` timeline. The sampled video frames are inference inputs,
 not shareable replacement media.
+
+---
+
+## 26. An AI Response Is Not a Durable Scan Until the Owner Row Is Read Back
+
+`/identify-multimodal` used to construct its AI response and schedule
+moderation, media promotion, species resolution, and `insertScan` as background
+work. iOS then saved the local result on `200`, while Explore and Field Chat
+could immediately fail because `public.scans` was absent.
+
+### The anti-pattern
+
+```typescript
+runBackground(runBackgroundIngestion());
+return successResponse(aiResult);
+```
+
+`EdgeRuntime.waitUntil` is appropriate for bounded optional work; it cannot
+turn required persistence into an HTTP success guarantee.
+
+### The required pattern
+
+```typescript
+await runDurableIngestion();
+await readScanByIdAndOwner(scanId, authenticatedUserId);
+runBackground(runOptionalWrites());
+return successResponse(aiResult);
+```
+
+The durable step includes moderation, required media promotion, primary species
+resolution, duplicate-safe scan creation, and owner read-back. Operational
+failure returns retryable `503 scan_persistence_failed`; terminal policy
+rejection returns `400 observation_rejected`. iOS must retain its durable queue
+source or mark terminal attention according to those statuses instead of
+creating a successful local record.
+
+Recovery does not weaken this rule. A bounded non-media `recovery_scan` exists
+only for older/interrupted drift. Status/share routes independently validate
+identity and fields, defer to active/retryable richer ingestion, reject exact
+known policy failures, write without overwrite, and reload by owner. Media
+continues through owner staging. Never repair this class of bug with a direct
+iOS table upsert, an `authenticated` grant, or a server key in the app.

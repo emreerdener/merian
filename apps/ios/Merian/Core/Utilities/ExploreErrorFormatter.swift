@@ -7,6 +7,7 @@ enum ExploreErrorFormatter {
     private static let duplicateScanMessage = "This scan is already saved. Try sharing again."
     private static let mediaPreparationMessage = "We couldn’t prepare this media for sharing. Please try again."
     private static let exploreUnavailableMessage = "Explore is temporarily unavailable. Please try again in a few minutes."
+    private static let scanSyncMessage = "This observation is still syncing. Please wait a moment and try sharing again."
 
     private struct ErrorEnvelope: Decodable {
         let error: String?
@@ -108,6 +109,11 @@ enum ExploreErrorFormatter {
 
         if normalized.contains("service_role authorization required") {
             return exploreUnavailableMessage
+        }
+
+        if normalized.contains("scan not found")
+            || normalized.contains("scan_not_ready") {
+            return scanSyncMessage
         }
 
         if normalized.contains("scans_pkey")

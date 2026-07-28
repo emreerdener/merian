@@ -121,6 +121,47 @@ struct ScanStatusResponse: Decodable, Equatable, Sendable {
     }
 }
 
+enum MissingScanRecoveryAction: Equatable, Sendable {
+    case retryStatus
+    case recover
+    case deferRecovery
+}
+
+func missingScanRecoveryAction(
+    for jobStatus: ScanIngestionJobStatus?,
+    jobStage: String? = nil,
+    jobLastError: String? = nil
+) -> MissingScanRecoveryAction {
+    let normalizedStage = jobStage?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    let normalizedError = jobLastError?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    let isModerationRejection = normalizedStage == "moderation_rejected"
+        && (
+            normalizedError == "multimodal media rejected by moderation."
+                || normalizedError == "media rejected by moderation."
+        )
+    let isProviderPolicyRejection = normalizedStage == "ai_inference_non_stop_finish"
+        && (
+            normalizedError == "ai finish reason: safety"
+                || normalizedError == "ai finish reason: prohibited_content"
+        )
+    if isModerationRejection || isProviderPolicyRejection {
+        return .deferRecovery
+    }
+
+    switch jobStatus {
+    case .processing?, .finalizing?, .retrying?:
+        return .retryStatus
+    case .failedRetryable?:
+        return .deferRecovery
+    case .failed?, .complete?, nil:
+        return .recover
+    }
+}
+
 private struct BulkScanStatusResponse: Decodable {
     let results: [ScanStatusResponse]
 }
@@ -220,7 +261,13 @@ private struct ExploreRestoreMediaObjectKeys {
     }
 }
 
-private struct ExploreCloudScanInsertPayload: Encodable {
+private enum ScanPersistenceProbeResult {
+    case found
+    case recoverableMissing
+    case deferRecovery
+}
+
+struct OwnedScanRecoveryPayload: Encodable, Sendable {
     let id: String
     let userId: String
     let speciesId: String?
@@ -1576,11 +1623,22 @@ final class MerianNetworkClient {
 
     /// Asks the server whether `scanId` exists in `public.scans` for the current user.
     /// Returns the compatibility status plus optional scan-ingestion job state for recovery.
-    func checkScanStatusDetails(scanId: String, requiredVideoCount: Int? = nil) async throws -> ScanStatusResponse {
+    func checkScanStatusDetails(
+        scanId: String,
+        requiredVideoCount: Int? = nil,
+        recoveryScan: OwnedScanRecoveryPayload? = nil
+    ) async throws -> ScanStatusResponse {
         let functionUrl = try endpointURL("check-scan-status")
         var payload: [String: Any] = ["scan_id": scanId]
         if let requiredVideoCount, requiredVideoCount > 0 {
             payload["required_video_count"] = requiredVideoCount
+        }
+        if let recoveryScan {
+            let recoveryData = try JSONEncoder().encode(recoveryScan)
+            guard let recoveryObject = try JSONSerialization.jsonObject(with: recoveryData) as? [String: Any] else {
+                throw MerianError.invalidResponse
+            }
+            payload["recovery_scan"] = recoveryObject
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
@@ -2989,7 +3047,8 @@ final class MerianNetworkClient {
         hashtags: [String] = [],
         locationSharing: ExplorePostLocationSharing? = nil,
         mediaItems: [ExplorePostMediaSelection]? = nil,
-        idempotencyKey: String? = nil
+        idempotencyKey: String? = nil,
+        recoveryScan: OwnedScanRecoveryPayload? = nil
     ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         let resolvedIdempotencyKey = idempotencyKey ?? UUID().uuidString.lowercased()
@@ -3016,6 +3075,13 @@ final class MerianNetworkClient {
         }
         if let restoredAudioObjectKeys, !restoredAudioObjectKeys.isEmpty {
             payload["restored_audio_object_keys"] = restoredAudioObjectKeys
+        }
+        if let recoveryScan {
+            let recoveryData = try JSONEncoder().encode(recoveryScan)
+            guard let recoveryObject = try JSONSerialization.jsonObject(with: recoveryData) as? [String: Any] else {
+                throw MerianError.invalidResponse
+            }
+            payload["recovery_scan"] = recoveryObject
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(
@@ -3051,7 +3117,28 @@ final class MerianNetworkClient {
         } catch {
             if shouldAttemptExploreCloudScanRestore(after: error) {
                 MerianLog.network.debug("Explore share missing cloud scan; attempting local scan recovery for \(mediaSnapshot.scanId, privacy: .private).")
-                try await ensureExploreCloudScanExists(for: mediaSnapshot, locationSharing: locationSharing)
+                switch await waitForScanPersistence(scanId: mediaSnapshot.scanId) {
+                case .found:
+                    MerianLog.network.debug("Explore scan persistence completed; retrying share for \(mediaSnapshot.scanId, privacy: .private).")
+                    return try await shareScanToExplore(
+                        scanId: mediaSnapshot.scanId,
+                        speciesCommonName: speciesCommonName,
+                        fieldNotes: fieldNotes,
+                        hashtags: hashtags,
+                        locationSharing: locationSharing,
+                        mediaItems: mediaItems,
+                        idempotencyKey: idempotencyKey
+                    )
+                case .deferRecovery:
+                    throw error
+                case .recoverableMissing:
+                    break
+                }
+
+                let recoveryScan = try await makeOwnedScanRecoveryPayload(
+                    for: mediaSnapshot,
+                    locationSharing: locationSharing
+                )
                 let restoredObjectKeys = try await restoreExploreMediaObjectKeys(
                     for: mediaSnapshot,
                     includeAudio: true
@@ -3072,7 +3159,8 @@ final class MerianNetworkClient {
                     hashtags: hashtags,
                     locationSharing: locationSharing,
                     mediaItems: mediaItems,
-                    idempotencyKey: idempotencyKey
+                    idempotencyKey: idempotencyKey,
+                    recoveryScan: recoveryScan
                 )
             }
 
@@ -3158,7 +3246,28 @@ final class MerianNetworkClient {
         } catch {
             if shouldAttemptExploreCloudScanRestore(after: error) {
                 MerianLog.network.debug("Community request missing cloud scan; attempting local scan recovery for \(mediaSnapshot.scanId, privacy: .private).")
-                try await ensureExploreCloudScanExists(for: mediaSnapshot, locationSharing: locationSharing)
+                switch await waitForScanPersistence(scanId: mediaSnapshot.scanId) {
+                case .found:
+                    return try await requestCommunityIdentification(
+                        scanId: mediaSnapshot.scanId,
+                        speciesCommonName: speciesCommonName,
+                        note: note,
+                        locationSharing: locationSharing,
+                        idempotencyKey: idempotencyKey
+                    )
+                case .deferRecovery:
+                    throw error
+                case .recoverableMissing:
+                    break
+                }
+
+                let recovered = try await recoverMissingOwnedCloudScan(
+                    for: mediaSnapshot,
+                    locationSharing: locationSharing
+                )
+                guard recovered else {
+                    throw error
+                }
                 let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
                 guard !restoredObjectKeys.imageObjectKeys.isEmpty else {
                     MerianLog.network.debug("Community request cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private).")
@@ -3696,10 +3805,86 @@ final class MerianNetworkClient {
         return message.contains("Scan not found")
     }
 
-    private func ensureExploreCloudScanExists(
+    @MainActor
+    func ensureCloudScanAvailableForFieldChat(scan: LocalScanRecord) async throws -> Bool {
+        let snapshot = ExploreShareMediaSnapshot(scan: scan)
+        switch await waitForScanPersistence(scanId: snapshot.scanId) {
+        case .found:
+            return true
+        case .deferRecovery:
+            return false
+        case .recoverableMissing:
+            return try await recoverMissingOwnedCloudScan(
+                for: snapshot,
+                locationSharing: nil
+            )
+        }
+    }
+
+    private func waitForScanPersistence(scanId: String) async -> ScanPersistenceProbeResult {
+        let retryDelaysNanoseconds: [UInt64] = [
+            0,
+            250_000_000,
+            500_000_000,
+            1_000_000_000,
+            2_000_000_000
+        ]
+
+        for delay in retryDelaysNanoseconds {
+            if delay > 0 {
+                do {
+                    try await Task.sleep(nanoseconds: delay)
+                } catch {
+                    return .deferRecovery
+                }
+            }
+
+            guard let status = try? await checkScanStatusDetails(scanId: scanId) else {
+                return .deferRecovery
+            }
+            if status.isFound {
+                return .found
+            }
+
+            switch missingScanRecoveryAction(
+                for: status.jobStatus,
+                jobStage: status.jobStage,
+                jobLastError: status.lastError
+            ) {
+            case .retryStatus:
+                continue
+            case .deferRecovery:
+                return .deferRecovery
+            case .recover:
+                MerianLog.network.debug(
+                    "Scan persistence unavailable for \(scanId, privacy: .private); job status=\(status.jobStatus?.rawValue ?? "none", privacy: .public) stage=\(status.jobStage ?? "none", privacy: .public)."
+                )
+                return .recoverableMissing
+            }
+        }
+
+        return .deferRecovery
+    }
+
+    private func recoverMissingOwnedCloudScan(
         for scan: ExploreShareMediaSnapshot,
         locationSharing: ExplorePostLocationSharing?
-    ) async throws {
+    ) async throws -> Bool {
+        let payload = try await makeOwnedScanRecoveryPayload(
+            for: scan,
+            locationSharing: locationSharing
+        )
+        let status = try await checkScanStatusDetails(
+            scanId: scan.scanId,
+            recoveryScan: payload
+        )
+        return status.isFound
+    }
+
+    private func makeOwnedScanRecoveryPayload(
+        for scan: ExploreShareMediaSnapshot,
+        locationSharing: ExplorePostLocationSharing?
+    ) async throws -> OwnedScanRecoveryPayload {
         let authUserId = try await SupabaseManager.shared.client.auth.session.user.id.uuidString.lowercased()
         let defaultGeoprivacy = await MainActor.run {
             AppDIContainer.shared.profileViewModel.defaultGeoprivacy
@@ -3711,7 +3896,7 @@ final class MerianNetworkClient {
             : ExploreLocationPrivacy.displayLabel(from: scan.locationName)
         let exposesExactPublicCoordinates = geoprivacy == "open"
 
-        let payload = ExploreCloudScanInsertPayload(
+        return OwnedScanRecoveryPayload(
             id: scan.scanId,
             userId: authUserId,
             speciesId: serverSpeciesId,
@@ -3747,18 +3932,6 @@ final class MerianNetworkClient {
                 userIdentificationOverride: scan.userIdentificationOverride
             )
         )
-
-        do {
-            try await SupabaseManager.shared.client
-                .from("scans")
-                .upsert(payload, onConflict: "id", ignoreDuplicates: true)
-                .execute()
-        } catch {
-            if (try? await checkScanStatus(scanId: scan.scanId)) == "found" {
-                return
-            }
-            throw error
-        }
     }
 
     private func resolveExploreCloudSpeciesId(scientificName: String) async throws -> String? {

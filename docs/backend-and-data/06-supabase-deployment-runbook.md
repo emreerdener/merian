@@ -2719,8 +2719,10 @@ The image-analysis latency change is a staged operational rollout, not a reason
 to change Gemini configuration. Free remains `gemini-2.5-flash`; Pro remains
 `gemini-2.5-pro`. Prompts, schema, thinking budgets, image resolution,
 `maxOutputTokens`, and the single primary identification model call per scan are
-release invariants. Audio and video receive the additive timing instrumentation
-but no client behavioral change in this pass.
+release invariants. The original latency pass changed eligible live-camera
+still orchestration only; the later owner-row durability release below applies
+the server success boundary to still, gallery, audio, describe, mixed-media, and
+video observations.
 
 Release in three observable waves:
 
@@ -2737,19 +2739,23 @@ Release in three observable waves:
    fallback for propagation safety; repeated fallback logs after rollout are an
    incident, not a steady state.
 
-Advance Edge traffic through 10%, 50%, and 100% only when the observation window
-meets every gate:
+Advance Edge traffic through 10%, 50%, and 100% only when the observation
+window meets every segmented gate:
 
-- non-Gemini p95 is at most 1 second (target p50 at most 300 ms);
+- cache-hit non-Gemini p95 is at most 1 second (target p50 at most 300 ms);
+- primary cache-miss external resolution is measured separately, remains within
+  Edge/client timeouts, and does not cause a persistence-failure increase;
 - response-to-first-render p95 is at most 300 ms;
 - identification quality is unchanged;
 - failure rate increases by less than 0.5 percentage points;
 - missing remote scans and stuck ingestion jobs do not increase.
 
-When measured Gemini p95 is at most 5 seconds, the corresponding end-to-end p95
-goal is at most 6 seconds. If the final end-to-end p95 remains high and
-`Server-Timing` shows `gemini` dominates, record Gemini as the remaining floor;
-do not alter model economics under this rollout.
+When measured Gemini p95 is at most 5 seconds, the corresponding cache-hit
+end-to-end p95 goal is at most 6 seconds. If the final end-to-end p95 remains
+high, segment by dictionary cache state and use `Server-Timing` to distinguish
+Gemini from required post-Gemini persistence/external resolution. Record the
+remaining floor; do not alter model economics or move owner-row durability back
+behind the response.
 
 Keep automatic nearest-user Edge execution as the baseline. Compare it with a
 database-region invocation using equivalent traffic, tier/model/image-count/
@@ -2769,8 +2775,12 @@ Before increasing traffic, verify:
 - the latency event includes only approved aggregate tags;
 - a deferred-context call updates an existing owner scan or stages against a
   claimed ingestion job, and cannot update another user;
-- WeatherKit, geocoding, awards, Field trips, Wikipedia, and GBIF delays do not
-  move the first-render boundary;
+- WeatherKit, geocoding, awards, and Field trips do not move the result
+  boundary; analytics, group tags, and candidate enrichment remain optional
+  background work;
+- primary Wikipedia/GBIF cache-miss resolution may extend `post_gemini` and the
+  server response, but cannot extend response-to-first-render or outlive the
+  required owner-row success boundary;
 - request failure, connectivity loss, backgrounding, termination, the two-second
   fail-safe, and duplicate live/background completion leave no missing or stuck
   scan.
@@ -2796,6 +2806,126 @@ Do not describe the latency targets as production-validated until all three
 waves and the final observation window complete. After validation, update the
 changelog and latency/AI/API/logging/offline-queue docs with the measured
 p50/p95 and the chosen Edge-region policy.
+
+## Scan Owner-Row Durability and Recovery Rollout
+
+This release closes the false-success condition where iOS could persist an AI
+result while `public.scans` was still absent, leaving Explore sharing and Field
+Chat without their required owner row. Repository implementation is not
+production remediation. Keep the
+[July 2026 incident](../incidents/2026-07-scan-owner-row-durability-gap.md)
+open until the backend and iOS exit criteria below are complete.
+
+### Release unit and order
+
+Treat these components as one compatibility release:
+
+1. Apply the repository's current migration set. In particular, verify
+   `20260727010340_fix_service_role_authorization_guard.sql` and
+   `20260727013416_future_proof_server_key_boundaries.sql` before testing
+   Explore publication; recovery must not disguise a stale privileged-key
+   boundary.
+2. From one exact SHA, run the normal production backend workflow and promote
+   `identify-multimodal`, `check-scan-status`, and
+   `share-scan-to-explore`. Their `_shared/identify/db.ts` and
+   `_shared/scanRecovery.ts` dependencies bundle transitively. If an emergency
+   manual function deploy is unavoidable, deploy in that order so new false
+   successes stop before repair-capable clients arrive.
+3. Build and release iOS from the matching reviewed source. The iOS release
+   carries `recovery_scan`, staged image/video/audio restoration, Field Chat
+   preflight repair, and customer-facing toast translation. A backend workflow
+   success is not evidence that this app build shipped.
+
+Old clients remain compatible with the new backend. Release backend first;
+never require the new app to compensate for an old false-success function.
+
+Before promotion, retain results for:
+
+```bash
+make test-supabase-tooling
+make validate-supabase-migrations
+make validate-ios-project
+git diff --check
+```
+
+Run database integration/pgTAP gates against a disposable local or staging
+catalog when Docker/database access is available. A sandbox that cannot reach
+Docker is missing evidence, not a passing integration result.
+
+### Staging smoke matrix
+
+Use disposable staging identities and media:
+
+1. Submit a new known biological cache-hit still. After identify returns
+   `200`, immediately call `/check-scan-status`; it must return `found` without
+   polling delay. Open Field Chat, then share the same scan to Explore and
+   verify the public post snapshot.
+2. Repeat the immediate owner-row check for standalone audio and playback
+   video. Video is successful only with its required promoted `.mp4` and ready
+   playback representation.
+3. With controlled staging fault injection, make the scan insert or owner
+   read-back fail. Identify must return customer-safe
+   `503 scan_persistence_failed` with `Retry-After: 5`, and iOS must not save a
+   successful local observation.
+4. Exercise a controlled moderation rejection. Identify must return generic
+   `400 observation_rejected`, leave no scan row, and preserve the exact
+   terminal policy fence against recovery.
+5. Create an eligible legacy missing-row fixture. A single
+   `/check-scan-status` request with bounded non-media `recovery_scan` must
+   create and reload only the authenticated owner row. Bulk status remains
+   read-only.
+6. Verify processing, finalizing, retrying, and `failed_retryable` jobs defer
+   repair. Verify an exact moderation/provider-policy terminal signal blocks
+   repair, while a non-policy operational `failed_terminal` fixture remains
+   recoverable.
+7. Attempt recovery using another owner's row UUID and a mismatched
+   caller-supplied `user_id`. Neither may overwrite or reveal the other row.
+8. For an eligible missing Explore row, combine `recovery_scan` with
+   owner-staged image, video, and audio keys. Verify promotion and normal
+   publication checks run before the post is visible; direct URLs and
+   non-owner staging keys must fail.
+9. Verify Ask the Community repairs through `/check-scan-status` before image
+   restoration, and that a transient Field Chat still-syncing result leaves the
+   toolbar action available for retry.
+
+### Monitoring and incident triggers
+
+Monitor structured Edge event `multimodal/scan_persistence_failed`, PostHog
+event `scan_persistence_failed`, `multimodal/observation_rejected`, owner status
+`not_found` rates, share `Scan not found` rates, and
+`scan_ingestion_jobs` retry/terminal age. Segment persistence latency and
+failures by modality, tier, and dictionary cache state in aggregate dashboards.
+Restricted structured error logs contain owner and scan identifiers for
+incident correlation; keep them access-controlled and never copy identifiers,
+coordinates, media keys, request bodies, or raw error details into retained
+release artifacts.
+
+Any current identify `200` followed immediately by owner status `not_found` is
+a severity incident, even if recovery later succeeds. Repeated recovery on
+fresh scans is also a deployment/version-skew signal, not acceptable steady
+state.
+
+### Rollback and exit criteria
+
+The backend recovery contract is backward compatible, so an iOS rollback is
+safe but restores the old customer experience. Do not roll
+`identify-multimodal` back to a version that can return success before owner-row
+read-back; deploy a forward fix instead. A status/share rollback removes repair
+capability and should be used only to contain a defect while keeping durable
+identify success in place. Never grant direct `scans` writes or privileged RPCs
+to `authenticated`, and never ship a server key in iOS.
+
+Close the incident only after:
+
+- production deployment records tie all three Edge Function versions to the
+  reviewed exact SHA;
+- the matching iOS build is available to the intended cohort;
+- new-scan immediate status, Field Chat, Explore, and legacy recovery smoke
+  checks pass;
+- monitoring shows no identify-success/missing-owner-row pairs through the
+  agreed observation window; and
+- the incident report records deployment identifiers, timestamps, retained
+  evidence, and final measured latency/failure deltas.
 
 ## Public Web Explore Read Boundary
 
@@ -3718,6 +3848,16 @@ After deployment:
   complete `Server-Timing`, a first result before awards/Field trips, and no
   duplicate foreground/background upload contention. Confirm a delayed context
   update survives both the pre-insert staged path and the completed-scan path.
+- For the scan owner-row durability release, confirm production deployment
+  records tie the deployed versions of `identify-multimodal`,
+  `check-scan-status`, and `share-scan-to-explore` to the same reviewed SHA.
+  Submit a brand-new scan, require immediate owner status `found` after
+  identify `200`, then open Field Chat and publish it to Explore. Run the
+  eligible legacy-repair, active/retryable deferral, exact policy-rejection
+  block, cross-owner isolation, and staged-media restoration cases in
+  [Scan Owner-Row Durability and Recovery Rollout](#scan-owner-row-durability-and-recovery-rollout).
+  Do not call backend smoke complete until the matching iOS build independently
+  passes its customer-facing retry/toast checks.
 - For Field trips releases, confirm `field-trips` serves `catalog`,
   `template_detail`, `capture_context`, `start`, `community_publications`,
   `recent_publications`, `challenges_catalog`, `challenge_detail`,

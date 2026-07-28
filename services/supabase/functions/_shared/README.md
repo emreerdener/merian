@@ -166,6 +166,13 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   they still depend on the client queue. Server replay is capped at 10 claims
   per sanitized intent before the paired job is marked
   `failed_terminal / server_replay_limit_reached`.
+- **`scanRecovery.ts`**: Bounded compatibility repair for an authenticated
+  owner's missing `public.scans` row. It accepts no media URLs, validates UUIDs,
+  ranges, enums, text, and privacy, derives owner/public coordinates
+  server-side, and checks `scan_ingestion_jobs` before a duplicate-safe insert.
+  Active/retryable richer ingestion and exact known policy rejection are never
+  preempted. `check-scan-status` and `share-scan-to-explore` must reload by both
+  scan and owner after calling it.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
@@ -234,7 +241,8 @@ identical:
 - **`context.ts`**: Telemetry context normalization, month/time handling, and
   ecological field clamping.
 - **`db.ts`**: Scan insert/update helpers, species cache writes, and shared
-  database boundaries.
+  database boundaries. Duplicate-safe scan creation is followed by owner-scoped
+  read-back so a no-op or cross-owner collision cannot resolve as success.
 - **`latencyDb.ts`**: Thin service-role RPC client for atomic ingestion setup
   (`begin_scan_ingestion`, including its server-canonicalized session ids and
   checksums) and combined primary/candidate dictionary hydration

@@ -184,19 +184,56 @@ Deno.test("mergeSpeciesCommonNames ignores blank scan common names", () => {
   });
 });
 
-Deno.test("insertScan clears public location labels for private scans", async () => {
+function insertScanMock(options?: {
+  verificationData?: Record<string, unknown> | null;
+  verificationError?: { message: string } | null;
+  onUpsert?: (row: Record<string, unknown>) => void;
+}): SupabaseClient {
   let upsertedRow: Record<string, unknown> | null = null;
-  const mock = {
+  const filters = new Map<string, unknown>();
+
+  return {
     from(table: string) {
       assertEquals(table, "scans");
       return {
         upsert(row: Record<string, unknown>) {
           upsertedRow = row;
+          options?.onUpsert?.(row);
           return Promise.resolve({ error: null });
+        },
+        select(columns: string) {
+          assertEquals(columns, "id");
+          const query = {
+            eq(column: string, value: unknown) {
+              filters.set(column, value);
+              return query;
+            },
+            maybeSingle() {
+              assertEquals(filters.get("id"), upsertedRow?.id);
+              assertEquals(filters.get("user_id"), upsertedRow?.user_id);
+              const defaultData = upsertedRow ? { id: upsertedRow.id } : null;
+              return Promise.resolve({
+                data: options && "verificationData" in options
+                  ? options.verificationData
+                  : defaultData,
+                error: options?.verificationError ?? null,
+              });
+            },
+          };
+          return query;
         },
       };
     },
   } as unknown as SupabaseClient;
+}
+
+Deno.test("insertScan clears public location labels for private scans", async () => {
+  let upsertedRow: Record<string, unknown> | null = null;
+  const mock = insertScanMock({
+    onUpsert(row) {
+      upsertedRow = row;
+    },
+  });
 
   await insertScan(
     {
@@ -236,17 +273,11 @@ Deno.test("insertScan clears public location labels for private scans", async ()
 
 Deno.test("insertScan writes unknown ecology for non-biological scans without ecology_type", async () => {
   let upsertedRow: Record<string, unknown> | null = null;
-  const mock = {
-    from(table: string) {
-      assertEquals(table, "scans");
-      return {
-        upsert(row: Record<string, unknown>) {
-          upsertedRow = row;
-          return Promise.resolve({ error: null });
-        },
-      };
+  const mock = insertScanMock({
+    onUpsert(row) {
+      upsertedRow = row;
     },
-  } as unknown as SupabaseClient;
+  });
 
   await insertScan(
     {
@@ -276,17 +307,11 @@ Deno.test("insertScan writes unknown ecology for non-biological scans without ec
 
 Deno.test("insertScan preserves structured captured media manifest", async () => {
   let upsertedRow: Record<string, unknown> | null = null;
-  const mock = {
-    from(table: string) {
-      assertEquals(table, "scans");
-      return {
-        upsert(row: Record<string, unknown>) {
-          upsertedRow = row;
-          return Promise.resolve({ error: null });
-        },
-      };
+  const mock = insertScanMock({
+    onUpsert(row) {
+      upsertedRow = row;
     },
-  } as unknown as SupabaseClient;
+  });
   const capturedMedia = [
     {
       video: {
@@ -331,4 +356,52 @@ Deno.test("insertScan preserves structured captured media manifest", async () =>
   }
   const row = upsertedRow as Record<string, unknown>;
   assertEquals(row.captured_media, capturedMedia);
+});
+
+Deno.test("insertScan rejects a duplicate-suppressed write without an owner row", async () => {
+  await assertRejects(
+    () =>
+      insertScan(
+        {
+          id: "scan-collision",
+          user_id: "user-1",
+          species_id: null,
+          geoprivacy: "open",
+          is_biological_subject: true,
+          extracted_visual_traits: [],
+          colors: [],
+          image_storage_urls: [],
+          ecological_interactions: [],
+          inference_tier: "free",
+        },
+        insertScanMock({ verificationData: null }),
+      ),
+    Error,
+    "persisted scan row was not found for owner",
+  );
+});
+
+Deno.test("insertScan propagates owner-row verification failures", async () => {
+  await assertRejects(
+    () =>
+      insertScan(
+        {
+          id: "scan-verification-error",
+          user_id: "user-1",
+          species_id: null,
+          geoprivacy: "open",
+          is_biological_subject: true,
+          extracted_visual_traits: [],
+          colors: [],
+          image_storage_urls: [],
+          ecological_interactions: [],
+          inference_tier: "free",
+        },
+        insertScanMock({
+          verificationError: { message: "read unavailable" },
+        }),
+      ),
+    Error,
+    "insertScan verification: read unavailable",
+  );
 });

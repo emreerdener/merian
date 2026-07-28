@@ -1,9 +1,11 @@
 # Safety & Moderation Pipeline
 
 Naturebook runs all user-submitted media through a two-layer moderation system
-before persisting any scan to the database. The shared implementation lives in
-`_shared/identify/moderation.ts` and is used by both `/identify` and
-`/identify-multimodal`. It never blocks the HTTP response.
+before publishing scan media or persisting the final scan row. The shared
+implementation lives in `_shared/identify/moderation.ts` and is used by both
+`/identify` and `/identify-multimodal`. The active multimodal route awaits this
+decision before HTTP success; compatibility routes may still execute their
+post-response insertion path in the background.
 
 Public Explore audio uses a separate publication gate. Identification safety
 and public-audio safety are intentionally different decisions: a clip may be
@@ -158,8 +160,9 @@ moderated against the canonical original recording.
 
 ## Gemini Safety Ratings Evaluation
 
-Before any data is persisted, the Edge Function checks two Gemini safety
-signals:
+Before scan media is published or the final scan row is persisted, the Edge
+Function checks two Gemini safety signals. Quota, ingestion-ledger, and
+sanitized replay-intent records may already exist at this point:
 
 1. **`finishReason === "SAFETY"`** — Gemini refused to generate a full response
    due to content policy. Immediately flagged as unsafe.
@@ -170,15 +173,28 @@ signals:
 `"LOW"` and `"NEGLIGIBLE"` probability ratings are treated as safe and do not
 trigger moderation.
 
+A provider response that ends before structured output with exact finish reason
+`SAFETY` or `PROHIBITED_CONTENT` follows the earlier provider-policy terminal
+path. The ingestion ledger records `ai_inference_non_stop_finish` and the exact
+bounded reason. Owner-row recovery recognizes those exact sentinels and cannot
+convert the rejected request into a scan. This path may not have a usable
+`safetyRatings[]` object and therefore is distinct from the strike-recording
+pass below.
+
 ## Abuse Strike System
 
 Each unsafe media submission increments `users.abuse_strikes` in the Supabase
 `users` table:
 
-| Strike Count | Status Returned   | Behavior                                                          |
-| ------------ | ----------------- | ----------------------------------------------------------------- |
-| 1–2          | `DELETED_WARNING` | Staging image deleted, scan not persisted, no user-facing message |
-| 3+           | `SHADOWBANNED`    | Same as above, plus `users.is_shadowbanned = true`                |
+| Strike Count | Internal status | Behavior |
+| --- | --- | --- |
+| 1–2 | `DELETED_WARNING` | Staging media deleted and scan not persisted |
+| 3+ | `SHADOWBANNED` | Same as above, plus `users.is_shadowbanned = true` |
+
+For `/identify-multimodal`, either internal status becomes generic
+customer-facing HTTP `400 observation_rejected`; no successful local scan
+should be created. Compatibility routes may already have returned their AI
+response before the shared moderation/insertion task reaches this decision.
 
 The strike counter is read and written via the Supabase service role in
 `_shared/identify/moderation.ts`. The read uses
@@ -190,15 +206,15 @@ failed.
 ### Shadowban Behavior
 
 `is_shadowbanned` is a boolean column on the `users` table (default `false`).
-Shadowbanned users are not informed of their status. The expected downstream
-effect is that their scans are silently dropped (background ingestion halts at
-the moderation gate), so the app appears to function normally from their
-perspective while no data is persisted.
+Shadowbanned users are not informed of that account state. Public Explore,
+Community Identification, notification, and related projections exclude
+shadowbanned authors server-side.
 
-**Important**: The shadowban is applied at the scan ingestion level only. The
-iOS client still receives a successful `200 OK` response with AI identification
-data — the background task halts invisibly. No iOS-layer check for
-`is_shadowbanned` currently exists.
+The moderation helper sets this flag after the third unsafe submission, but it
+does not currently read the flag as a blanket veto for every later safe scan
+insert. The flagged request itself is rejected and not persisted. A later safe
+owner scan may still persist privately while its public/social projections
+remain suppressed. No iOS-layer check for `is_shadowbanned` currently exists.
 
 ## Media Promotion Pipeline
 

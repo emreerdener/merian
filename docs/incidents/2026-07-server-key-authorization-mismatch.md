@@ -15,6 +15,13 @@ only the legacy service-role JWT claim or a direct database session. Opaque keys
 carry authority through PostgREST's protected transaction `role` setting rather
 than a JWT `role` claim.
 
+Later evidence from a brand-new scan showed an independent failure: identify
+returned success while the owner's `public.scans` row was absent, disabling
+both Explore sharing and Insight Field Chat. That owner-row durability gap is
+tracked separately in
+[July 2026 Scan Owner-Row Durability Gap](./2026-07-scan-owner-row-durability-gap.md);
+deploying this key-boundary repair alone does not close it.
+
 The initial guard correction fixes sharing, but keeping that endpoint patch
 alone would leave the same key-generation mismatch at other boundaries.
 Repository remediation therefore covers key selection, HTTP transport, SDK

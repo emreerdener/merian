@@ -555,6 +555,83 @@ struct MerianNetworkClientTests {
         #expect(result.scanId == scanID)
     }
 
+    @Test func testExploreShareSendsMissingScanRecoveryPayload() async throws {
+        let scanID = "019f6ff1-9ef3-77b1-a331-a86678f53043"
+        let userID = "019f6ff1-c6c4-77b1-a331-a86678f53043"
+        let responseData = Data("""
+        {
+          "success": true,
+          "post_id": "019f6ff1-a393-7acc-9dbc-a9ec785f4152",
+          "scan_id": "\(scanID)",
+          "shared_at": "2026-07-23T18:00:00Z",
+          "location_sharing": "private",
+          "publication_status": "published"
+        }
+        """.utf8)
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let recoveryScan = OwnedScanRecoveryPayload(
+            id: scanID,
+            userId: userID,
+            speciesId: "019f6ff1-d6c4-77b1-a331-a86678f53043",
+            confirmedSpeciesId: nil,
+            imageStorageUrls: [],
+            timestamp: "2026-07-23T18:00:00Z",
+            gpsLatExact: 30.2672,
+            gpsLongExact: -97.7431,
+            gpsLatPublic: nil,
+            gpsLongPublic: nil,
+            gpsElevation: 150,
+            geoprivacy: "private",
+            weatherCondition: "Clear",
+            weatherTemperatureF: 86,
+            aiConfidenceScore: 0.94,
+            ecologyType: "wild",
+            isInvasive: false,
+            invasiveStatusRegion: nil,
+            invasiveRationale: nil,
+            invasiveConfidence: nil,
+            isLiveCapture: true,
+            isBiologicalSubject: true,
+            aiReasoning: "Long bill and dark crown.",
+            semanticLocation: "Austin, Texas",
+            publicLocationLabel: nil,
+            inferenceTier: "flash",
+            imageQualityScore: 82,
+            userIdentificationOverride: nil,
+            userConfirmedIdentification: false,
+            userReviewState: "unreviewed"
+        )
+
+        MockURLProtocol.mockEndpoints["/share-scan-to-explore"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            let recovery = try #require(payload["recovery_scan"] as? [String: Any])
+            #expect(recovery["id"] as? String == scanID)
+            #expect(recovery["user_id"] as? String == userID)
+            #expect(recovery["image_storage_urls"] as? [String] == [])
+            #expect(recovery["geoprivacy"] as? String == "private")
+            #expect(recovery["gps_lat_exact"] as? Double == 30.2672)
+            #expect(recovery["gps_lat_public"] == nil)
+            return (response, responseData)
+        }
+
+        let result = try await MerianNetworkClient.shared.shareScanToExplore(
+            scanId: scanID,
+            idempotencyKey: "019f6ff1-e6c4-77b1-a331-a86678f53043",
+            recoveryScan: recoveryScan
+        )
+
+        #expect(result.success)
+        #expect(result.scanId == scanID)
+    }
+
     @Test func testScanImageCloudInspectionSendsSourceAndParsesMissingStatus() async throws {
         let sourceUrl =
             "https://media.merian.app/public_uploads/free/user/old.webp"
@@ -2211,6 +2288,115 @@ struct MerianNetworkClientTests {
             requiredVideoCount: 1
         )
         #expect(legacyStatus == "not_found")
+    }
+
+    @Test func testCheckScanStatusDetailsSendsOwnedRecoveryPayload() async throws {
+        let scanID = "019f6ff1-9ef3-77b1-a331-a86678f53043"
+        let userID = "019f6ff1-c6c4-77b1-a331-a86678f53043"
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let recoveryScan = OwnedScanRecoveryPayload(
+            id: scanID,
+            userId: userID,
+            speciesId: "019f6ff1-d6c4-77b1-a331-a86678f53043",
+            confirmedSpeciesId: nil,
+            imageStorageUrls: [],
+            timestamp: "2026-07-23T18:00:00Z",
+            gpsLatExact: 30.2672,
+            gpsLongExact: -97.7431,
+            gpsLatPublic: nil,
+            gpsLongPublic: nil,
+            gpsElevation: 150,
+            geoprivacy: "private",
+            weatherCondition: "Clear",
+            weatherTemperatureF: 86,
+            aiConfidenceScore: 0.94,
+            ecologyType: "wild",
+            isInvasive: false,
+            invasiveStatusRegion: nil,
+            invasiveRationale: nil,
+            invasiveConfidence: nil,
+            isLiveCapture: true,
+            isBiologicalSubject: true,
+            aiReasoning: "Long bill and dark crown.",
+            semanticLocation: "Austin, Texas",
+            publicLocationLabel: nil,
+            inferenceTier: "flash",
+            imageQualityScore: 82,
+            userIdentificationOverride: nil,
+            userConfirmedIdentification: false,
+            userReviewState: "unreviewed"
+        )
+
+        MockURLProtocol.mockEndpoints["/check-scan-status"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            let recovery = try #require(payload["recovery_scan"] as? [String: Any])
+            #expect(payload["scan_id"] as? String == scanID)
+            #expect(recovery["id"] as? String == scanID)
+            #expect(recovery["user_id"] as? String == userID)
+            #expect(recovery["image_storage_urls"] as? [String] == [])
+            #expect(recovery["geoprivacy"] as? String == "private")
+            return (response, Data(#"{"status":"found"}"#.utf8))
+        }
+
+        let status = try await MerianNetworkClient.shared.checkScanStatusDetails(
+            scanId: scanID,
+            recoveryScan: recoveryScan
+        )
+
+        #expect(status.isFound)
+    }
+
+    @Test func testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion() {
+        #expect(missingScanRecoveryAction(for: .processing) == .retryStatus)
+        #expect(missingScanRecoveryAction(for: .finalizing) == .retryStatus)
+        #expect(missingScanRecoveryAction(for: .retrying) == .retryStatus)
+        #expect(missingScanRecoveryAction(for: .failedRetryable) == .deferRecovery)
+        #expect(missingScanRecoveryAction(for: .failed) == .recover)
+        #expect(missingScanRecoveryAction(for: .complete) == .recover)
+        #expect(missingScanRecoveryAction(for: nil) == .recover)
+        #expect(
+            missingScanRecoveryAction(
+                for: .failed,
+                jobStage: "moderation_rejected",
+                jobLastError: "Multimodal media rejected by moderation."
+            ) == .deferRecovery
+        )
+        #expect(
+            missingScanRecoveryAction(
+                for: .failed,
+                jobStage: "moderation_rejected",
+                jobLastError: "Media rejected by moderation."
+            ) == .deferRecovery
+        )
+        #expect(
+            missingScanRecoveryAction(
+                for: .failed,
+                jobStage: "ai_inference_non_stop_finish",
+                jobLastError: "AI finish reason: SAFETY"
+            ) == .deferRecovery
+        )
+        #expect(
+            missingScanRecoveryAction(
+                for: .failed,
+                jobStage: "ai_inference_non_stop_finish",
+                jobLastError: "AI finish reason: PROHIBITED_CONTENT"
+            ) == .deferRecovery
+        )
+        #expect(
+            missingScanRecoveryAction(
+                for: .failed,
+                jobStage: "moderation_rejected",
+                jobLastError: "Database trigger rejected insert."
+            ) == .recover
+        )
     }
 
     @Test func testDeleteScanEndpoint() async throws {

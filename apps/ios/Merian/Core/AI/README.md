@@ -28,15 +28,17 @@ measured separately. The engine rebuilds `ActiveScanMedia`, commits
 succeed.
 
 Scan milestones and Field trips start in follow-up work through
-`ScanMilestoneCoordinator`. It first polls the existing `/check-scan-status`
-ingestion ledger, so remote-persistence tools remain unavailable until the
-server confirms the final saved scan ID. After the progress attempt it gathers
-new achievement unlocks without presenting them early, evaluates the
-`New to Naturebook` eligibility flag, and batches standard outing progress,
-Seasonal Challenge progress, achievements, then the dictionary milestone. The
-background completion path uses the same coordinator; scan-ID deduplication
-prevents a live/background race from presenting the batch twice. Cache-miss
-Wikipedia/GBIF enrichment is also outside first render.
+`ScanMilestoneCoordinator`. Current multimodal `200` already guarantees the
+authenticated server scan row; the coordinator still polls
+`/check-scan-status` for compatibility and before reading the server progress
+receipt. After the progress attempt it gathers new achievement unlocks without
+presenting them early, evaluates the `New to Naturebook` eligibility flag, and
+batches standard outing progress, Seasonal Challenge progress, achievements,
+then the dictionary milestone. The background completion path uses the same
+coordinator; scan-ID deduplication prevents a live/background race from
+presenting the batch twice. Primary cache-miss Wikipedia/GBIF resolution may
+occur before the server response as part of durable success; follow-up reference
+hydration remains outside response-to-first-render.
 
 Every external reference URL applied by `InferenceEngine` is normalized through
 `ExternalReferenceImagePolicy` before it reaches `SpeciesData` or persisted scan

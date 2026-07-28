@@ -139,6 +139,15 @@ row. Only the eligible camera-still optimization defers the recovery upload;
 other paths may stage recovery media immediately, but staged inference still
 waits until the foreground generation succeeds or relinquishes ownership.
 
+Current `/identify-multimodal` HTTP success is also a server durability fence:
+moderation, required media promotion, primary species resolution, scan
+creation, and owner-scoped read-back complete before `200`. The live path may
+persist and clean up its queue row only after that response. A retryable
+`503 scan_persistence_failed` leaves the durable queue source available for
+normal replay; a terminal `400 observation_rejected` follows the permanent
+failure path and cannot be converted into a successful scan by owner-row
+recovery.
+
 After handoff, either path can finish first:
 
 - **Live wins**: `analyze()` first persists through a
@@ -785,14 +794,13 @@ the latch without waiting for a URLSession delegate callback.
   durable retry metadata is cleared. A scheduled server poll keeps its registry
   token until this awaited recovery finishes; replacement cancels the old task
   and all post-await mutations revalidate that exact token. When the row is not
-  found but the job is
-still `processing`, `finalizing`, or `retrying`, the local row stays
-`.inferencing` and another server poll is scheduled. `failed_retryable` honors
-the server `retry_after` before returning the row to `.staged`. A retry timestamp
-that is already stale schedules a one-second recheck rather than the maximum
-five-minute wait, so clock skew or an expired lease cannot stall recovery;
-terminal
-failure marks the queue row as needing attention. Unresolved `not_found`
+  found but the job is still `processing`, `finalizing`, or `retrying`, the
+  local row stays `.inferencing` and another server poll is scheduled.
+  `failed_retryable` honors the server `retry_after` before returning the row to
+  `.staged`. A retry timestamp that is already stale schedules a one-second
+  recheck rather than the maximum five-minute wait, so clock skew or an expired
+  lease cannot stall recovery; terminal failure marks the queue row as needing
+  attention. Unresolved `not_found`
   responses or status-probe failures fall back to the same persisted retry budget
   (`OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`) used by upload
   staging, rather than a separate process-local attempt counter.

@@ -274,6 +274,17 @@ dependency audit, tests, type-check, and production build; preserve the required
   and `/update-scan-context` use cached-JWKS `auth.getClaims(token)` plus
   explicit issuer, audience, time, role, and `sub` validation. Never substitute
   unverified JWT decoding or request-body user IDs.
+- **Identify success owns the scan row.** Do not move moderation, required
+  media promotion, primary species resolution, scan creation, or owner-scoped
+  read-back behind `EdgeRuntime.waitUntil`. A current multimodal `200` must make
+  its `scan_id` immediately usable. Only optional analytics, group tags, and
+  candidate enrichment belong in post-response work.
+- **Missing-row recovery stays server-owned.** iOS may send only the bounded
+  non-media `recovery_scan` to documented status/share routes and media only
+  through owner-scoped staging keys. The server must derive owner identity,
+  defer to active/retryable ingestion, block exact known policy rejection,
+  insert without overwrite, and reload by both scan and owner. Never add a
+  direct client scan upsert or weaken RLS/grants to make recovery work.
 - **New migrations use the CLI transaction.** Supabase CLI `2.109.1` batches
   each migration with its history insert. Do not add top-level transaction
   controls or any executable concurrent index DDL to a new migration.

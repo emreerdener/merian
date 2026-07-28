@@ -256,7 +256,20 @@ ImageIO work to `app.merian.image-decode` at explicit user-initiated QoS. The
 permit is released only after decoding and RAM-cache insertion complete.
 
 **Dynamic GBIF Hydration**
-When a species is scanned for the first time globally (Cache Miss), the Edge function returns immediately to maintain low latency, leaving `reference_image_url` empty. The iOS client (`InferenceEngine`) makes a direct follow-up call to the `api.gbif.org/v1/occurrence/search` API the moment it receives the `gbif_taxon_key` from the secondary `enrich-scan` endpoint. This hydrates the legacy comma-separated `fallbackUrl` with 3-4 high-quality field observations from networks like iNaturalist, and the shared dictionary upsert path also normalizes those URLs into `species_reference_images`. Public species dictionary and Explore detail readers prefer normalized rows and fall back to the legacy cache. On Cache Hits, these URLs are already stored in the DB and returned instantly.
+When a species is scanned for the first time globally (Cache Miss), primary
+Wikipedia/GBIF species resolution may run inside the required multimodal
+finalization boundary so the durable scan row can reference a server species
+row. That work does not mutate the already validated model response, so the
+initial result may still omit `reference_image_url`. The iOS client
+(`InferenceEngine`) follows with `/enrich-scan`; once it receives
+`gbif_taxon_key`, it may query `api.gbif.org/v1/occurrence/search` to hydrate
+the legacy comma-separated `fallbackUrl` with 3–4 high-quality field
+observations from networks such as iNaturalist. The shared dictionary upsert
+path also normalizes those URLs into `species_reference_images`. Public Species
+Dictionary and Explore detail readers prefer normalized rows and fall back to
+the legacy cache. On Cache Hits, stored URLs are returned immediately. Group
+tags and candidate-species enrichment remain optional background work and are
+not part of the owner-row durability guarantee.
 
 **Non-visual scan thumbnail repair**
 Audio-only, describe-only, and other non-image biological scans now use a dedicated thumbnail policy instead of falling straight into `ArchivedVisualsView`. `LocalScanRecord.scanThumbnailPresentation` classifies tiles into three buckets:

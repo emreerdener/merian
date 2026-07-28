@@ -181,10 +181,18 @@ environment key rather than the request value.
 The Gemini timer stops immediately after `generateContent` returns, before
 finish-reason processing, JSON parsing, dictionary work, or persistence. After
 parsing, `hydrate_identification_dictionary` returns cached primary-species data
-and candidate common names in one service-role-only RPC. Cache-miss
-Wikipedia/GBIF work, analytics, and optional ingestion updates run through
-`EdgeRuntime.waitUntil`; required playback-video promotion and insert remain
-synchronous because they are part of the established video durability contract.
+and candidate common names in one service-role-only RPC. Moderation, required
+media promotion, and the scan insert complete before the route returns success
+for every current multimodal observation. This durability boundary ensures the
+returned `scan_id` is immediately usable by Field Chat, Explore sharing, field
+trips, and owner sync. Analytics, group tags, and candidate enrichment remain
+optional `EdgeRuntime.waitUntil` work. The duplicate-protected scan insert is
+followed by an owner-scoped read-back; a no-op collision or moderation branch
+therefore cannot resolve into HTTP success without the owner row.
+Terminal media-policy rejection returns generic customer-facing code
+`observation_rejected` with HTTP 400, while operational failures in moderation,
+promotion, species resolution, or scan insertion return retryable
+`scan_persistence_failed` with HTTP 503.
 
 Successful responses add diagnostic headers without changing the JSON body:
 

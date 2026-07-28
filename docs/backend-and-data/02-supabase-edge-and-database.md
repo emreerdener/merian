@@ -496,36 +496,41 @@ The `/identify` Edge Function acts as the inference proxy:
    annotation (`sex`, `sex_confidence`, `sex_evidence`), population counts
    (`individual_count`), and cross-species relationships
    (`ecological_interactions`) synchronously within this zero-OOM primary pass.
-5. **Asynchronous Edge Decoupling**: Heavy background work (the moderation
-   pipeline, GBIF scrape, Wikipedia enrichment, and PostgreSQL UPSERTs) is
-   deferred off the response path via `runBackground(task)` from
-   `_shared/edgeHandler.ts`. The taxonomy payload is returned to the iOS client
-   immediately. **Accepted multimodal requests claim a scan-ingestion job**
-   after media validation and before AI inference. `identify-multimodal` updates
-   `public.scan_ingestion_jobs` through AI inference, moderation, media
-   promotion, scan insert, and complete/failure states. Compatibility
-   scan-producing endpoints claim the same ledger after inference and before
-   returning success, using multimodal-shaped sanitized intents so staged media
-   and text-only rows have the same recovery surface. Background ingestion
-   failures are still captured in the older dead-letter table as a fallback: if
-   `insertScan()` throws inside `runBackgroundIngestion()` (FK violation, DB
-   timeout, network partition), the catch block writes a row to
-   `public.failed_scan_ingestions` with the `scan_id`, `user_id`, and
-   `error_message`. The job ledger gives `/check-scan-status` live state,
-   including bulk status probes and video-completeness checks via
-   `required_video_count`; dead letters are now legacy ops evidence rather than
-   the primary recovery surface. Replay is safe because `insertScan` uses
-   `ignoreDuplicates: true`.
+5. **Durability Boundary and Optional Edge Decoupling**:
+   `/identify-multimodal` claims a scan-ingestion job after media validation and
+   before AI inference, then completes moderation, required media promotion,
+   primary species resolution, and `public.scans` insertion before returning
+   success. Field Chat, Explore, field trips, and owner sync can therefore use
+   the returned `scan_id` immediately. Analytics, group tags, and candidate
+   enrichment remain deferred via `runBackground(task)` from
+   `_shared/edgeHandler.ts`. Compatibility scan-producing endpoints claim the
+   same ledger after inference and before returning success, using
+   multimodal-shaped sanitized intents so staged media and text-only rows have
+   the same recovery surface. Active multimodal persistence failures are
+   captured in the older dead-letter table as a fallback and return retryable
+   `scan_persistence_failed` instead of delivering a local-only observation.
+   Compatibility post-response insert failures retain their ledger/dead-letter
+   recovery path. The job ledger gives `/check-scan-status` live state, including
+   bulk status probes, authenticated single-row repair, and video-completeness
+   checks via `required_video_count`; dead letters are legacy ops evidence
+   rather than the primary recovery surface. Replay is safe because
+   `insertScan` uses `ignoreDuplicates: true` and then proves the row exists for
+   the authenticated owner before success. Repair writes independently defer to
+   active/retryable ingestion and refuse known terminal moderation or provider
+   safety-policy rejection.
 6. **Moderation Pipeline (`_shared/identify/moderation.ts`)**: Evaluates Gemini
-   Safety Ratings before any write occurs. Unsafe media sets the user's status
-   to `SHADOWBANNED`, increments abuse strikes, and deletes the R2 object. Safe
-   biological media is promoted into durable scan storage under the current
-   `.userTier` prefix. The shared moderation module calls `getR2Config()` once
-   at the top and reuses the resulting `AwsClient`. **Moderation ERROR guard**:
-   When `modResult.status === "ERROR"` (e.g. abuse strike DB write failed or a
-   promotion batch fails), background ingestion halts immediately. The scan is
-   not inserted, and any already-promoted public objects from that failed batch
-   are rolled back before the function returns `ERROR`.
+   Safety Ratings before scan-media publication and final scan insertion.
+   Unsafe media increments abuse strikes, sets `is_shadowbanned` when the new
+   total reaches three, deletes staged R2 objects, and rejects the observation.
+   Safe biological media is promoted into durable scan storage under the
+   current `.userTier` prefix. The shared moderation module calls
+   `getR2Config()` once at the top and reuses the resulting `AwsClient`.
+   **Moderation ERROR guard**: When `modResult.status === "ERROR"` (for example,
+   an abuse-strike write or promotion batch fails), the active multimodal
+   durability boundary rolls back promoted objects and returns retryable
+   `503 scan_persistence_failed`; compatibility background insertion halts and
+   records its failure. Neither path inserts a scan from an unrecorded or
+   operationally uncertain moderation result.
 7. **R2 Promotion Rollback (Orphan Leak Prevention)**: After `moderation.ts`
    successfully copies the `1024px` downsampled binaries from `staging/` to
    `public_uploads/`, the final pipeline step runs the PostgreSQL `scans`
@@ -937,8 +942,8 @@ pipeline while the legacy endpoints remain deployed for compatibility.
 5. Candidate handling on `/identify-multimodal` now matches `/identify`:
    scientific names are sanitized before cache lookup/persistence, `candidates`
    are stripped at `confidence_score >= diagnosticTrigger`, cached English
-   common names are attached synchronously when available, and cache misses are
-   enriched in the background so the next scan is warm. A shared
+   common names are attached synchronously when available, and candidate cache
+   misses are enriched in the background so the next scan is warm. A shared
    processed-material guard runs before this gate: manufactured/processed
    objects are normalized to non-biological, have candidates and source-species
    scientific names cleared, skip dictionary novelty, and cannot upsert
@@ -947,7 +952,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    promoted playback clips land separately in `scans.video_storage_urls`. Staged
    audio, including extracted video audio, is an inference input, not a public
    media artifact; `identify-multimodal` deletes `audioR2ObjectKeys` from
-   staging after successful background ingestion. Staged video keys are a
+   staging after successful durable ingestion. Staged video keys are a
    durability gate: they are promoted only after the sampled frames pass
    moderation, and any promotion shortfall fails the video scan instead of
    inserting a frame-only row. Successful video inserts write both
@@ -983,10 +988,11 @@ merged into the stored payload. After Gemini,
 and candidate common-name lookup. Both functions revoke execution from `PUBLIC`,
 `anon`, and `authenticated`; only `service_role` may call them.
 
-Cache-miss Wikipedia/GBIF enrichment, analytics, and optional image ingestion
-updates run behind `EdgeRuntime.waitUntil` so they cannot delay the response.
-Video retains synchronous promotion and persistence because a response without
-its required playback media would violate the existing durability contract.
+Primary cache-miss Wikipedia/GBIF resolution, moderation, required media
+promotion, and scan insertion complete before success for every current
+multimodal observation. Analytics, group tags, and candidate enrichment run behind
+`EdgeRuntime.waitUntil` so they cannot delay the response after the durability
+boundary.
 
 Successful responses expose privacy-safe `Server-Timing` metrics for auth, body
 read, tier resolution, pre-Gemini database work, Gemini, dictionary hydration,

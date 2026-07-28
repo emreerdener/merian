@@ -16,6 +16,10 @@ import { moderationLatencyBucket } from "../_shared/exploreAudioTelemetry.ts";
 import { createAudioSpectrogramThumbnail } from "../_shared/audioSpectrogram.ts";
 import type { ExplorePostMediaSnapshotRow } from "../_shared/explorePostMedia.ts";
 import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
+import {
+  type OwnedScanRecoveryRow,
+  recoverMissingOwnedScan,
+} from "../_shared/scanRecovery.ts";
 
 type TrackEvent = typeof trackPostHogEvent;
 type ModerateAudio = typeof moderateExploreAudioUrl;
@@ -163,6 +167,30 @@ function makeHttpError(
   return publicHttpError(status, message);
 }
 
+const SHARE_ELIGIBLE_SCAN_SELECT =
+  "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id";
+
+async function loadShareEligibleScan(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<ShareEligibleScanRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from("scans")
+    .select(SHARE_ELIGIBLE_SCAN_SELECT)
+    .eq("id", scanId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to load scan for Explore sharing: ${error.message}`,
+    );
+  }
+
+  return (data as ShareEligibleScanRow | null) ?? null;
+}
+
 export async function fetchShareEligibleScan(
   scanId: string,
   userId: string,
@@ -170,6 +198,7 @@ export async function fetchShareEligibleScan(
   restoredVideoObjectKeys: string[],
   restoredAudioObjectKeys: string[],
   supabaseAdmin: SupabaseClient,
+  recoveryScan: OwnedScanRecoveryRow | null = null,
 ): Promise<ShareEligibleScanRow> {
   // A share can restore image, audio, and video assets in one request. Resolve
   // the durable entitlement once for this invocation without reviving a stale,
@@ -180,20 +209,15 @@ export async function fetchShareEligibleScan(
     return userTierPromise;
   };
 
-  const { data, error } = await supabaseAdmin
-    .from("scans")
-    .select(
-      "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
-    )
-    .eq("id", scanId)
-    .eq("user_id", userId)
-    .single();
-
-  if (error || !data) {
-    throw makeHttpError(404, "Scan not found.");
+  let row = await loadShareEligibleScan(scanId, userId, supabaseAdmin);
+  if (!row && recoveryScan) {
+    await recoverMissingOwnedScan(recoveryScan, supabaseAdmin);
+    row = await loadShareEligibleScan(scanId, userId, supabaseAdmin);
   }
 
-  let row = data as ShareEligibleScanRow;
+  if (!row) {
+    throw makeHttpError(404, "Scan not found.");
+  }
 
   if (row.is_tombstoned) {
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");

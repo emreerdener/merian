@@ -312,26 +312,162 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "full-member privacy revalidation now fences assembly, staging, email, and completion",
   );
   assertStringIncludes(
-    changelog,
+    compact(changelog),
     "Stale server retry timestamps now trigger a one-second client recheck",
   );
   assertStringIncludes(
-    changelog,
+    compact(changelog),
     "Closed the remaining exposed-table security gap",
   );
   assertStringIncludes(
-    offlinePipeline,
+    compact(offlinePipeline),
     "already stale schedules a one-second recheck",
   );
   assertStringIncludes(
-    testing,
+    compact(testing),
     "`scripts/documentation_contract_test.ts` locks the same header matrix",
   );
+});
+
+Deno.test("scan owner-row documentation preserves durable success and guarded recovery", async () => {
+  const [
+    rootSource,
+    documentationSource,
+    apiSource,
+    runbookSource,
+    agentSource,
+    errorSource,
+    featureSource,
+    incidentSource,
+    architectureRulesSource,
+    identifyReadmeSource,
+    statusReadmeSource,
+    shareReadmeSource,
+  ] = await Promise.all([
+    read("README.md"),
+    read("docs/README.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("docs/development-guides/07-ai-agent-guidelines.md"),
+    read("docs/development-guides/06-error-handling.md"),
+    read("docs/features-and-hardware/05-insight-sheet.md"),
+    read("docs/incidents/2026-07-scan-owner-row-durability-gap.md"),
+    read("docs/system-architecture/06-edge-modularization.md"),
+    read("services/supabase/functions/identify-multimodal/README.md"),
+    read("services/supabase/functions/check-scan-status/README.md"),
+    read("services/supabase/functions/share-scan-to-explore/README.md"),
+  ]);
+  const root = compact(rootSource);
+  const documentation = compact(documentationSource);
+  const api = compact(apiSource);
+  const runbook = compact(runbookSource);
+  const agent = compact(agentSource);
+  const errors = compact(errorSource);
+  const feature = compact(featureSource);
+  const incident = compact(incidentSource);
+  const architectureRules = compact(architectureRulesSource);
+  const identifyReadme = compact(identifyReadmeSource);
+  const statusReadme = compact(statusReadmeSource);
+  const shareReadme = compact(shareReadmeSource);
+
+  for (const source of [root, documentation]) {
+    assertStringIncludes(
+      source,
+      "moderation, required media promotion, primary species resolution, scan",
+    );
+  }
+  assertStringIncludes(
+    documentation,
+    "2026-07-scan-owner-row-durability-gap.md",
+  );
+  for (const source of [api, identifyReadme]) {
+    assertStringIncludes(source, "scan_persistence_failed");
+    assertStringIncludes(source, "observation_rejected");
+  }
+  assertStringIncludes(api, "Owner read-back");
+  assertStringIncludes(api, "authenticated `user_id`");
+  assertStringIncludes(identifyReadme, "owner-scoped read-back");
+  assertStringIncludes(
+    runbook,
+    "Any current identify `200` followed immediately by owner status `not_found` is",
+  );
+  assertStringIncludes(
+    runbook,
+    "Do not roll `identify-multimodal` back to a version that can return success before owner-row read-back",
+  );
+  assertStringIncludes(
+    runbook,
+    "`identify-multimodal`, `check-scan-status`, and `share-scan-to-explore`",
+  );
+  assertStringIncludes(
+    agent,
+    "Identify success owns the scan row.",
+  );
+  assertStringIncludes(
+    agent,
+    "Missing-row recovery stays server-owned.",
+  );
+  assertStringIncludes(
+    statusReadme,
+    "Recovery is deliberately unavailable in bulk probes.",
+  );
+  assertStringIncludes(
+    statusReadme,
+    'client-facing `job_status = "failed"`',
+  );
+  assertStringIncludes(
+    api,
+    "`failed` is the client-safe projection of a `failed_terminal` ledger row.",
+  );
+  assertStringIncludes(
+    shareReadme,
+    "Media is never accepted inside `recovery_scan`",
+  );
+  assertStringIncludes(
+    incident,
+    "Scan age was not the cause.",
+  );
+  assertStringIncludes(
+    architectureRules,
+    "Await every operation required for the endpoint's documented success contract.",
+  );
+  assertStringIncludes(
+    architectureRules,
+    "A background promise remains bounded by the worker lifetime and is never a durability mechanism.",
+  );
+
+  const expectedCustomerMessages = [
+    "Explore is temporarily unavailable. Please try again in a few minutes.",
+    "This observation is still syncing. Please wait a moment and try sharing again.",
+    "This observation is still syncing. Please try Field chat again in a moment.",
+  ];
+  for (const message of expectedCustomerMessages) {
+    assertStringIncludes(errors, message);
+    assertStringIncludes(feature, message);
+  }
+
+  for (
+    const obsoleteClaim of [
+      "inserting a minimal owned `scans` row",
+      "all future ingestion silently halts",
+      "It never blocks the HTTP response.",
+      "strictly after returning the native HTTP `200 OK` response",
+    ]
+  ) {
+    assert(
+      !api.includes(obsoleteClaim) &&
+        !feature.includes(obsoleteClaim) &&
+        !architectureRules.includes(obsoleteClaim),
+      `Obsolete scan durability guidance returned: ${obsoleteClaim}`,
+    );
+  }
 });
 
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {
   const maintainedFiles = [
     "README.md",
+    "apps/ios/Merian/Core/AI/README.md",
+    "apps/ios/Merian/Core/Network/README.md",
     "apps/web/README.md",
     "docs/CONTRIBUTING.md",
     "docs/README.md",
@@ -347,21 +483,34 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/codebase-map.md",
     "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
+    "docs/development-guides/06-error-handling.md",
     "docs/development-guides/07-ai-agent-guidelines.md",
     "docs/development-guides/08-testing-strategy.md",
+    "docs/development-guides/09-core-managers.md",
+    "docs/development-guides/10-safety-and-moderation.md",
+    "docs/development-guides/11-swiftdata-and-api-gotchas.md",
+    "docs/features-and-hardware/05-insight-sheet.md",
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
+    "docs/incidents/2026-07-scan-owner-row-durability-gap.md",
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
     "docs/product/01-master-product-document.md",
     "docs/system-architecture/01-system-architecture.md",
     "docs/system-architecture/02-zero-oom-and-concurrency.md",
+    "docs/system-architecture/03-image-pipeline.md",
+    "docs/system-architecture/04-ai-engineering.md",
     "docs/system-architecture/06-edge-modularization.md",
+    "docs/system-architecture/system-overview.md",
     "services/supabase/README.md",
     "services/supabase/functions/_shared/README.md",
+    "services/supabase/functions/check-scan-status/README.md",
     "services/supabase/functions/export-dwca/README.md",
+    "services/supabase/functions/identify-multimodal/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
+    "services/supabase/functions/request-community-identification/README.md",
     "services/supabase/functions/request-export-dwca/README.md",
+    "services/supabase/functions/share-scan-to-explore/README.md",
   ];
   const failures: string[] = [];
 

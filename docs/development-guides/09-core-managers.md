@@ -351,6 +351,12 @@ triggering excessive SwiftUI view rebuilds.
   dispatch. On network failure, the engine retires only its exact foreground
   generation so background recovery can resume; it publishes Graceful
   Degradation UI only if that full generation is still current.
+- **Server success fence**: Current `/identify-multimodal` `200` means
+  moderation, required media promotion, primary species resolution, scan
+  creation, and owner-scoped read-back have completed. Operational finalization
+  failure is retryable `503 scan_persistence_failed`; terminal policy rejection
+  is `400 observation_rejected`. Neither is a successful result to commit
+  locally.
 - **First-result critical path**: visual analysis receives the original
   Analyze-tap timestamp, commits persisted media and parsed `speciesData`
   immediately, and measures the response-to-state boundary. A one-shot UIKit
@@ -1084,6 +1090,13 @@ and `KeychainManager` migration logic. Do not inline
   `URLSession.upload(for:fromFile:)` with bounded concurrency, and MIME type
   detection prefers file extension plus a small header read instead of inflating
   full image or video files into RAM.
+- Single `checkScanStatusDetails` calls may attach
+  `OwnedScanRecoveryPayload` for eligible older/interrupted missing owner rows;
+  bulk probes never do. Record-based Explore sharing polls status, defers to
+  active/retryable ingestion, stages available local image/video/audio, and
+  retries one combined `recovery_scan` plus media-restoration request. Ask the
+  Community repairs through status before its image restore. The server
+  independently validates and gates every repair.
 - Live multimodal audio reads preflight total byte size before any
   `Data(contentsOf:)` or base64 allocation, then use `.mappedIfSafe`. Queued
   audio does not use inline base64: `MediaStagingContract` validates and uploads
