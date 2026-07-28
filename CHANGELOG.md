@@ -8,6 +8,12 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- Scan-table Data API privileges are now explicit rather than inherited from
+  project-era Supabase defaults. A forward migration clears table and
+  column-level grants, restores RLS-governed reads to API roles, restores
+  canonical CRUD only to `service_role`, and reinstalls the exact five-column
+  authenticated rolling-client bridge. It intentionally withholds
+  truncate/reference/trigger/maintain privileges.
 - The disposable-catalog scan ACL assertion now uses one exact five-column
   rolling-client compatibility allowlist. It independently rejects broad table
   mutation, every anonymous mutation/reference grant, and authenticated

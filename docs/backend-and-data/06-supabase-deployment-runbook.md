@@ -1722,8 +1722,32 @@ SELECT
         AS anon_can_delete,
     HAS_TABLE_PRIVILEGE('authenticated', 'public.scans', 'INSERT')
         AS authenticated_can_insert,
+    HAS_TABLE_PRIVILEGE('authenticated', 'public.scans', 'UPDATE')
+        AS authenticated_can_update,
     HAS_TABLE_PRIVILEGE('authenticated', 'public.scans', 'DELETE')
         AS authenticated_can_delete;
+
+SELECT
+    HAS_TABLE_PRIVILEGE('anon', 'public.scans', 'SELECT')
+        AS anon_can_read,
+    HAS_TABLE_PRIVILEGE('authenticated', 'public.scans', 'SELECT')
+        AS authenticated_can_read,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'SELECT')
+        AS service_role_can_read,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'INSERT')
+        AS service_role_can_insert,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'UPDATE')
+        AS service_role_can_update,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'DELETE')
+        AS service_role_can_delete,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'TRUNCATE')
+        AS service_role_can_truncate,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'REFERENCES')
+        AS service_role_has_references,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'TRIGGER')
+        AS service_role_has_trigger,
+    HAS_TABLE_PRIVILEGE('service_role', 'public.scans', 'MAINTAIN')
+        AS service_role_can_maintain;
 
 SELECT grantee, column_name
 FROM information_schema.column_privileges
@@ -1755,17 +1779,19 @@ FROM (
 ) AS checks(signature);
 ```
 
-All five table booleans must be false. `anon` must have no UPDATE column rows;
-`authenticated` must have exactly the five documented tag/review columns and no
-owner/media/privacy column. Each metadata RPC row must be `false`, `true`,
-`false`; the retention RPC row must be `false`, `false`, `true`. Remove the
-five-column bridge only after the minimum supported app version uses both
-metadata RPCs. In staging, copy another owner's otherwise-valid public media URL
-into a controlled legacy fixture, delete the fixture scan, and prove that only
-the exact canonical-owner URL was sent to R2. The foreign object must remain.
-Also prove that a no-ledger recovery request returns `deferred`, while an
-existing complete-but-missing or exact `replay_exhausted` fixture can recover
-once.
+All six client-mutation table booleans must be false. The three read and three
+canonical `service_role` mutation booleans must be true; the four extra
+`service_role` authority booleans must be false. `anon` must have no UPDATE
+column rows; `authenticated` must have exactly the five documented tag/review
+columns and no owner/media/privacy column. Any `PUBLIC` table or column ACL is a
+release blocker. Each metadata RPC row must be `false`, `true`, `false`; the
+retention RPC row must be `false`, `false`, `true`. Remove the five-column
+bridge only after the minimum supported app version uses both metadata RPCs. In
+staging, copy another owner's otherwise-valid public media URL into a controlled
+legacy fixture, delete the fixture scan, and prove that only the exact
+canonical-owner URL was sent to R2. The foreign object must remain. Also prove
+that a no-ledger recovery request returns `deferred`, while an existing
+complete-but-missing or exact `replay_exhausted` fixture can recover once.
 
 ```bash
 openssl rand -base64 32

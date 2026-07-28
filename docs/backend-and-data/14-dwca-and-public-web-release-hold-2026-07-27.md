@@ -340,6 +340,23 @@ requires every allowlisted update. No schema, policy, or production grant is
 widened. Run 1541 remains failed evidence; the corrected exact SHA must replay
 all catalog files successfully before promotion.
 
+### Explicit scan ACL evidence: run 1542 attempt 1
+
+GitHub run 1542 evaluated commit `d4e2c0cc2de60b30b32d7f488764d5114a5f687b`.
+Twenty of twenty-one catalog files passed. The corrected scan ACL assertion then
+proved the fresh catalog lacked canonical `service_role` scan mutation
+privileges. This is expected under Supabase's newer opt-in Data API exposure
+mode: bypassing RLS does not grant table access, and repository migrations must
+no longer depend on project-era automatic grants.
+
+Forward migration `20260728151927_declare_scan_data_api_privileges.sql` now
+clears table and historical column grants before declaring the exact boundary:
+RLS-governed reads for `anon`/`authenticated`, five authenticated compatibility
+updates, canonical CRUD for `service_role`, and no direct `PUBLIC` or
+truncate/reference/trigger/maintain authority. Run 1542 remains failed evidence;
+all twenty-one catalog files must pass from the corrected exact SHA before
+promotion.
+
 ### Production monitor catalog gap after failed deploys
 
 The independent DwC-A monitor subsequently received `PGRST202` for

@@ -609,6 +609,12 @@ identification review through owner-derived fixed-search-path RPCs. A temporary
 five-column UPDATE grant is retained solely for already-installed clients and
 must be removed after the minimum supported release uses those RPCs. Database
 checks bound the URL arrays, tags, and override text before service-role work.
+`20260728151927_declare_scan_data_api_privileges.sql` removes historical table
+and column ACL drift, grants RLS-governed scan reads to `anon` and
+`authenticated`, and grants only canonical `SELECT`/`INSERT`/`UPDATE`/`DELETE`
+to `service_role`. This explicit declaration is required even though
+`service_role` bypasses RLS; no launch path may depend on Supabase's changing
+automatic-exposure defaults.
 
 ### Incremental Species-Count Boundary
 

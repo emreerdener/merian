@@ -375,6 +375,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "disposable-catalog scan ACL assertion now uses one exact five-column",
   );
   assertStringIncludes(
+    compact(changelog),
+    "Scan-table Data API privileges are now explicit",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -391,6 +395,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "scan ACL check single-sources the exact five-column rolling-client update allowlist",
   );
   assertStringIncludes(
+    compact(testing),
+    "exact `service_role` CRUD",
+  );
+  assertStringIncludes(
     compact(logging),
     "`catalog_contract_missing/archive_cleanup` means production does not currently expose the required zero-argument cleanup-health RPC",
   );
@@ -403,6 +411,14 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "An unreadable aggregate never becomes a zero-count result.",
   );
   assertStringIncludes(
+    compact(backendReadme),
+    "no launch path may depend on Supabase's changing automatic-exposure defaults",
+  );
+  assertStringIncludes(
+    compact(runbook),
+    "All six client-mutation table booleans must be false.",
+  );
+  assertStringIncludes(
     compact(releaseHold),
     "DwC-A is not part of the active initial-launch product surface",
   );
@@ -413,6 +429,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(releaseHold),
     "Fresh-catalog scan ACL evidence: run 1541 attempt 1",
+  );
+  assertStringIncludes(
+    compact(releaseHold),
+    "Explicit scan ACL evidence: run 1542 attempt 1",
   );
   assertStringIncludes(
     compact(releaseHold),

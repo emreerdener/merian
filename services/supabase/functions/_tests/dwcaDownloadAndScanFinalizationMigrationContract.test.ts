@@ -16,6 +16,12 @@ const postgrestReloadMigration = await Deno.readTextFile(
     import.meta.url,
   ),
 );
+const scanDataApiPrivilegesMigration = await Deno.readTextFile(
+  new URL(
+    "../../migrations/20260728151927_declare_scan_data_api_privileges.sql",
+    import.meta.url,
+  ),
+);
 const downloadAndFinalizationCatalog = await Deno.readTextFile(
   new URL(
     "../../tests/dwca_download_and_scan_finalization_security.sql",
@@ -648,6 +654,23 @@ Deno.test("fresh-catalog scan ACL uses one exact compatibility allowlist", () =>
     downloadAndFinalizationCatalog,
     "'authenticated',\n        'public.scans',\n        'UPDATE'",
   );
+});
+
+Deno.test("scan Data API privileges are explicit and least-privilege", () => {
+  for (
+    const fragment of [
+      "REVOKE ALL PRIVILEGES\n    ON TABLE public.scans\n    FROM PUBLIC, anon, authenticated, service_role",
+      "Table-level REVOKE does not remove historical column-level grants",
+      "'SELECT',\n        'INSERT',\n        'UPDATE',\n        'REFERENCES'",
+      "GRANT SELECT\n    ON TABLE public.scans\n    TO anon, authenticated, service_role",
+      "GRANT UPDATE (\n    custom_tags,\n    user_identification_override,\n    user_confirmed_identification,\n    confirmed_species_id,\n    user_review_state\n) ON TABLE public.scans TO authenticated",
+      "GRANT INSERT, UPDATE, DELETE\n    ON TABLE public.scans\n    TO service_role",
+      "RESET lock_timeout",
+      "RESET statement_timeout",
+    ]
+  ) {
+    assertStringIncludes(scanDataApiPrivilegesMigration, fragment);
+  }
 });
 
 Deno.test("fresh-catalog fixtures follow current identifiers and generations", () => {

@@ -2120,7 +2120,10 @@ The surrounding export suite is intentionally split by boundary:
   check single-sources the exact five-column rolling-client update allowlist:
   table-level API mutation and every anonymous column mutation remain denied,
   authenticated insert/reference or non-allowlisted updates remain denied, and
-  every allowlisted update must exist.
+  every allowlisted update must exist. The matching forward migration contract
+  verifies table and historical column grants are cleared before RLS-governed
+  API reads, exact `service_role` CRUD, and the compatibility allowlist are
+  reinstalled.
 
 Public-web migration/DB/source-boundary coverage proves direct detail owns the
 canonical anonymous card predicate and page reads use one combined statement.

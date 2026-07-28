@@ -2106,6 +2106,11 @@ rolling-compatibility bridge for already-installed clients; remove it after the
 minimum supported iOS release uses the RPCs. Database cardinality and
 element-byte constraints bound every still/video/audio URL array, custom tags,
 and identification override before any service-role fetch or deletion path.
+Migration `20260728151927_declare_scan_data_api_privileges.sql` reconstructs
+this ACL explicitly for new and existing Supabase privilege modes: `anon` and
+`authenticated` receive RLS-governed reads, `service_role` receives canonical
+CRUD, `PUBLIC` receives nothing, and no API role receives
+truncate/reference/trigger/maintain authority.
 
 #### V8 Execution Abstractions
 

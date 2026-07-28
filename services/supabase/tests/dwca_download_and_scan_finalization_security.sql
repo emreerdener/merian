@@ -194,6 +194,10 @@ BEGIN
         'public.scans',
         'TRIGGER'
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.scans',
+        'MAINTAIN'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
         'public.scans',
         'INSERT'
@@ -217,8 +221,28 @@ BEGIN
         'authenticated',
         'public.scans',
         'TRIGGER'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.scans',
+        'MAINTAIN'
     ) THEN
         RAISE EXCEPTION 'an API role has a broad scan table mutation privilege';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.table_privileges AS privileges
+        WHERE privileges.table_schema = 'public'
+          AND privileges.table_name = 'scans'
+          AND privileges.grantee = 'PUBLIC'
+    ) OR EXISTS (
+        SELECT 1
+        FROM information_schema.column_privileges AS privileges
+        WHERE privileges.table_schema = 'public'
+          AND privileges.table_name = 'scans'
+          AND privileges.grantee = 'PUBLIC'
+    ) THEN
+        RAISE EXCEPTION 'PUBLIC retains a direct scan privilege';
     END IF;
 
     IF EXISTS (
@@ -288,6 +312,22 @@ BEGIN
     END IF;
 
     IF NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.scans',
+        'SELECT'
+    ) OR NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.scans',
+        'SELECT'
+    ) OR NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'SELECT'
+    ) THEN
+        RAISE EXCEPTION 'an API role cannot perform its required scan read';
+    END IF;
+
+    IF NOT pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
         'public.scans',
         'INSERT'
@@ -299,8 +339,24 @@ BEGIN
         'service_role',
         'public.scans',
         'DELETE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'TRUNCATE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'REFERENCES'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'TRIGGER'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'MAINTAIN'
     ) THEN
-        RAISE EXCEPTION 'service_role cannot perform canonical scan mutation';
+        RAISE EXCEPTION 'service_role scan privileges are not exact canonical CRUD';
     END IF;
 
     IF EXISTS (
