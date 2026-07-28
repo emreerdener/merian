@@ -249,12 +249,17 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
   generation via `/request-export-dwca`. Because PostgreSQL wakes a leased
   service worker asynchronously, the UI keeps the bounded queue request
   off-main and displays a queued alert after it succeeds. Job creation freezes
-  compact scan membership/revision metadata; the worker advances
-  cursor-persisted 100-row CSV phases over that shared membership under
-  canonical row/archive budgets, then streams their durable manifest into
-  multipart R2 and sends one idempotent Resend request containing the signed
-  download link. A "Sign in with Apple" prompt prevents anonymous users from
-  generating exports before creating an account.
+  bounded occurrence and multimedia DTOs from one MVCC snapshot, stopping
+  projection at per-row and cumulative source-byte limits. The worker advances
+  claim-fenced 100-row/256 KiB CSV pages over that immutable source under
+  canonical row/archive budgets, runs a full-member live privacy fence before
+  assembly and delivery, streams the durable manifest into multipart R2, and
+  sends one idempotent Resend request. Processing signed URLs remain private
+  until completion; a privacy mismatch terminates the job and deletes the
+  archive. A "Sign in with Apple" prompt prevents anonymous users from
+  generating exports before creating an account. Production promotion remains
+  governed by the
+  [release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### Danger Zone & Data Lifecycle
 - **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background `OfflineQueueManager` URLSession transfers mid-sync from being cleared during manual cache management.

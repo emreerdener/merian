@@ -2928,7 +2928,8 @@ snapshot.
 ### Public-web Explore database projection
 
 `https://naturebook.earth/explore/post/{postId}` and the anonymous discovery
-grid are server-rendered. `apps/web/lib/explore.ts` invokes only:
+grid are server-rendered. `apps/web/lib/explore.ts` invokes the card routine for
+the grid:
 
 ```json
 {
@@ -2940,11 +2941,11 @@ grid are server-rendered. `apps/web/lib/explore.ts` invokes only:
 }
 ```
 
-and, for detail metadata:
+and the atomic page routine for detail and metadata:
 
 ```json
 {
-  "rpc": "get_public_web_explore_post_detail",
+  "rpc": "get_public_web_explore_post_page",
   "args": {
     "p_target_post_id": "uuid"
   }
@@ -2952,14 +2953,23 @@ and, for detail metadata:
 ```
 
 The Next.js helper is `server-only` and uses the validated platform-managed
-server API key. Both SQL routines call `internal.require_service_role()`, fix
-the canonical viewer to `NULL`, and are revoked from `PUBLIC`, `anon`, and
-`authenticated`; callers cannot supply or configure a synthetic viewer. The card
-result exposes no viewer-dependent engagement state: `like_count` and
-`comment_count` are zero, while `viewer_has_liked` and `is_owned_by_viewer` are
-false. Visibility, moderation, tombstone, media-health, shadowban, block, and
-location redaction remain owned by the canonical Explore projections. The server
-must not reconstruct this DTO through direct privileged table reads.
+server API key. All public-web SQL routines call
+`internal.require_service_role()`, fix the canonical viewer to `NULL`, and are
+revoked from `PUBLIC`, `anon`, and `authenticated`; callers cannot supply or
+configure a synthetic viewer. The card result exposes no viewer-dependent
+engagement state: `like_count` and `comment_count` are zero, while
+`viewer_has_liked` and `is_owned_by_viewer` are false. Card visibility,
+moderation, tombstone, media health, shadowban, block, and location redaction
+remain owned by `explore_projected_post_cards(NULL)`.
+
+The detail routine independently inner-joins that canonical card projection.
+`get_public_web_explore_post_page(target_post_id)` returns `post_payload` and
+`detail_payload` from one statement/MVCC snapshot, and the page helper uses only
+that combined routine. A direct detail call and the combined call therefore
+return no row for content excluded by canonical anonymous visibility. The
+server must not reconstruct this DTO through direct privileged table reads.
+Exact-SHA verification is tracked in the
+[release assurance record](./14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### `GET /api/explore/audio?url={canonicalWavUrl}` (Public Web)
 
@@ -6270,6 +6280,11 @@ response off-main with a 15-second HTTP timeout.
   racing in before either commits) is caught and also returns
   `429 Too Many Requests`, consistent with the explicit rate-limit path and
   preventing a `500` error from surfacing to the client.
+- The insertion statement counts only UUIDs through the row lookahead, then
+  projects, measures, and inserts one DTO at a time through a parameterized
+  lateral cursor. It stops at the first per-row or cumulative source-byte
+  violation and removes partial rows, making the aggregate cap a DTO
+  memory/temporary-sort work cap as well as a persistence cap.
 - `anon` and `authenticated` have no direct `INSERT` privilege on `export_jobs`;
   callers cannot bypass this validation/rate-limit boundary through the Data
   API.
@@ -6329,15 +6344,18 @@ This empty-body contract is also bounded by the shared small JSON reader.
   personal DTOs omit exact GPS keys; an opted-in personal DTO retains them only
   when its snapshot taxonomy does not require protected-species redaction. A
   later scan or ordinary taxonomy/media edit is not part of and cannot alter the
-  job. Before a stored DTO is returned, a compact scope-aware eligibility hash
-  is revalidated against live state. Deletion, tombstoning, owner changes, or a
-  global geoprivacy change returns `source_revision_changed`; both scopes also
-  revalidate the protected-species coordinate-redaction requirement. A
-  revocation becomes terminal `source_snapshot_changed`. Validated row checks
-  separately cap media-array cardinality/URL size, interaction-array
-  cardinality/element size, and selected taxonomy text in UTF-8 bytes. The
-  worker rechecks those bounds before encoding. Terminal jobs purge their
-  immutable source DTOs.
+  job. Page reads retain a compact post-cursor eligibility check. A shared
+  full-member predicate verifies exact count, snapshot/invalidation state,
+  current eligibility, and every stored hash before assembly, staging, email,
+  and completion. Relevant scan and protected-species changes durably
+  invalidate affected nonterminal jobs. A revocation becomes terminal
+  `source_snapshot_changed`, sends no not-yet-started email, and removes an
+  uploaded/staged object. Validated row checks separately cap media-array
+  cardinality/URL size, interaction-array cardinality/element size, and selected
+  taxonomy text in UTF-8 bytes. Terminal jobs purge immutable source DTOs.
+- Signed delivery URLs remain in API-inaccessible work state while processing.
+  The final full-fence transaction publishes `file_url` and `completed` status
+  atomically.
 - Advance, manifest lookup, staging, completion, release, and heartbeat RPCs
   require the same unexpired UUID token; a delayed worker cannot mutate a
   replacement attempt. These definer routines use an empty `search_path`, call
@@ -6370,7 +6388,8 @@ This empty-body contract is also bounded by the shared small JSON reader.
   oldest-due ordered, so a successful advance rotates behind older work; failed
   or contended IDs are suppressed for the remainder of that invocation. Data
   phases use row-and-byte-aware `id > last_id` pages over one immutable DTO
-  snapshot with a narrow live privacy-revocation fence. A fixed-capacity encoder
+  snapshot with page and final full-member privacy-revocation fences. A
+  fixed-capacity encoder
   appends one header/row at a time and fails before exceeding 512 KiB; it does
   not retain a page-wide line array or expanded multimedia-row array. Each
   chunk's CRC-32 is calculated within that bounded preparation step and
@@ -6399,7 +6418,10 @@ This empty-body contract is also bounded by the shared small JSON reader.
 - **Idempotent delivery**: Calls Resend directly with
   `Idempotency-Key: dwca-export/{job_id}` and marks the job complete only after
   Resend accepts the request. Re-entry with a staged archive does not regenerate
-  it.
+  it. Because the provider call cannot share a database transaction, completion
+  repeats the full-member fence. If privacy changes while Resend is accepting
+  the request, the email may exist, but completion fails terminally and the
+  attempt-fenced archive is deleted rather than published.
 - **Stuck-job watchdog**: The watchdog fails pending rows with no phase progress
   for 30 minutes and processing rows with no live claim or durable progress for
   two hours. Public rows store stable failure codes/messages; provider responses

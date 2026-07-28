@@ -61,6 +61,13 @@ as their permanent engineering identity.
   embedding transaction controls; timeout guards use session settings with
   matching resets so they remain effective during fresh replay. See
   [`backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md).
+- **Current backend release verdict**: The DwC-A version-2/public-web Explore
+  design repairs are implemented: full-lifecycle privacy fencing, independently
+  canonical atomic detail reads, private staged links, and cumulatively bounded
+  snapshot projection. Production promotion remains **blocked on exact-SHA
+  evidence**, including fresh-catalog pgTAP and hosted maximum-shape
+  measurements. See
+  [`backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`](./backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 - **Development backend safety**: The tracked iOS defaults currently point to
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override
@@ -265,6 +272,9 @@ as their permanent engineering identity.
   — Canonical server-key/header matrix, environment resolution, internal worker
   auth, exposed-schema RLS/default ACLs, migration execution/replay safety,
   supervised index construction, orphan triage, and production exit gate.
+- **[`/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`](./backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md)**
+  — Implemented repairs, evidence limits, regression coverage, and exact-SHA
+  promotion criteria for DwC-A version 2 and the public-web Explore boundary.
 
 ### Features & Hardware
 

@@ -475,6 +475,38 @@ export async function fetchExportJobChunks(
   });
 }
 
+export async function checkExportSourceFence(
+  jobId: string,
+  claimToken: string,
+  expectedPhase: "assembling" | "delivering",
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "check_dwca_export_source_fence",
+    {
+      p_job_id: jobId,
+      p_claim_token: claimToken,
+      p_expected_phase: expectedPhase,
+    },
+  );
+  if (error) {
+    throw databaseFailure("Failed to check the export source fence.", error);
+  }
+  if (data === "source_snapshot_changed") {
+    throw new ExportWorkerError(
+      "source_snapshot_changed",
+      "The export source no longer satisfies its privacy boundary.",
+    );
+  }
+  if (data !== "current") {
+    throw new ExportWorkerError(
+      "database_unavailable",
+      "The export source fence lost its active claim.",
+      false,
+    );
+  }
+}
+
 export async function stagePreparedExportArchive(
   jobId: string,
   claimToken: string,
@@ -492,6 +524,12 @@ export async function stagePreparedExportArchive(
     },
   );
   if (error) {
+    if (error.code === "55001") {
+      throw new ExportWorkerError(
+        "source_snapshot_changed",
+        "The export source changed before archive staging.",
+      );
+    }
     throw databaseFailure("Failed to stage the prepared export.", error);
   }
   if (data !== true) {
@@ -513,6 +551,12 @@ export async function completePreparedExportJob(
     { p_job_id: jobId, p_claim_token: claimToken },
   );
   if (error) {
+    if (error.code === "55001") {
+      throw new ExportWorkerError(
+        "source_snapshot_changed",
+        "The export source changed before completion.",
+      );
+    }
     throw databaseFailure("Failed to complete the prepared export.", error);
   }
   if (data !== true) {

@@ -57,25 +57,24 @@ authenticated in-product report write.
 3. `apps/web/lib/explore.ts` imports `server-only` and creates the validated
    server client through `apps/web/lib/supabaseAdmin.ts`. The credential never
    crosses into a client component or rendered response.
-4. The page calls the dedicated `get_public_web_explore_posts` RPC with:
+4. The page calls the dedicated `get_public_web_explore_post_page` RPC with:
 
    ```ts
    {
-     p_target_post_id: postId,
-     p_max_limit: 1
+     p_target_post_id: postId
    }
    ```
 
    PostgreSQL fixes the underlying viewer to `NULL`; no request or environment
    value can impersonate another user. The routine is revoked from
    `PUBLIC`/`anon`/`authenticated` and calls `internal.require_service_role()`.
-5. The page calls `get_public_web_explore_post_detail` with the post id to
-   hydrate public field notes, hashtags, reference images, overview,
-   conservation status, taxonomy labels, and alternate names. It has the same
-   fixed-anonymous and service-only boundary.
-6. The server maps those RPC rows into the `ExplorePost` page model.
-   `get_public_web_explore_posts` includes the canonical ordered `media_items`
-   snapshot; the hero image remains the static poster and metadata fallback.
+5. That one statement returns `post_payload` plus independently
+   canonical-gated `detail_payload`, hydrating public field notes, hashtags,
+   references, overview, conservation status, taxonomy labels, and alternate
+   names without a check-then-fetch race.
+6. The server maps those payloads into the `ExplorePost` page model. The card
+   includes the canonical ordered `media_items` snapshot; the hero image
+   remains the static poster and metadata fallback.
    Engagement counts are always zero and viewer/ownership flags are always false
    on this anonymous surface.
 7. `explorePosterUrl(...)` prefers the canonical visual hero and otherwise uses
@@ -87,12 +86,13 @@ authenticated in-product report write.
 
 Visual media on the detail route is rendered in canonical `order_index` order.
 Confirmed-missing items are absent from that ordered snapshot. If every primary
-item is confirmed missing, both dedicated public-web projections return no row:
-the permalink and its social metadata resolve to the same non-indexable
-not-found response as other hidden posts. The retained post becomes visible at
-the same URL after verified repair; the web app never reconstructs it from
-direct table reads or substitutes species reference artwork for missing
-observation evidence.
+item is confirmed missing, canonical visibility excludes the post. The atomic
+page RPC and direct detail RPC both return no row, so the permalink and its
+social metadata resolve to the same non-indexable not-found response as other
+hidden posts.
+The retained post becomes visible at the same URL after verified repair; the web
+app never reconstructs it from direct table reads or substitutes species
+reference artwork for missing observation evidence.
 
 The active video slide autoplays muted and inline with native browser controls;
 it loops continuously while selected, and leaving the slide pauses and rewinds
@@ -105,7 +105,7 @@ remains poster-only so browsing it does not fetch or autoplay video. The detail
 carousel uses one responsive square frame for post-owned images, videos, audio
 spectrograms, posters, and eligible species reference images.
 
-The canonical detail projection excludes the backing scan's
+The detail data projection excludes the backing scan's
 `scans.image_storage_urls` from its ordered reference-image compatibility field
 before the web page maps carousel slides. The exclusion is exact to the current
 scan: another scan's Naturebook reference and Wikipedia/GBIF images retain their
@@ -262,11 +262,13 @@ The web page must not render:
 - moderation-only state
 - service-role credentials or Supabase tokens
 
-The server may use its service-role credential only to invoke the existing
-privacy-safe public projections. It must not bypass `moderated_at IS NULL` or
-reconstruct a hidden post from direct table reads. Restore makes a post eligible
-for public projection again; resolving or dismissing a review case by itself
-does not.
+The server may use its service-role credential only to invoke the dedicated
+public-web boundary. The card routine is the current source of canonical
+visibility. The detail routine must not be called directly until it owns that
+same gate. Server code must not bypass `moderated_at IS NULL`, publication, or
+media-health rules or reconstruct a hidden post from direct table reads. Restore
+makes a post eligible for public projection again; resolving or dismissing a
+review case by itself does not.
 
 Public audio playback emits privacy-safe PostHog events for start, completion,
 and failure when `NEXT_PUBLIC_POSTHOG_API_KEY` is configured. These events carry
@@ -300,10 +302,15 @@ route must not query scan GPS, scan `semantic_location`, or scan geoprivacy to
 reconstruct location. If Explore geoprivacy changes, the RPC/view contract must
 be updated before the web UI consumes the new fields.
 
-The canonical detail projection behind `get_public_web_explore_post_detail`
-should not hide an otherwise visible post only because
+The detail projection independently requires an otherwise canonical visible
+card. Within that visible set, it does not hide a post only because
 `location_sharing = 'private'`; that setting suppresses public location display,
-not the public species-detail content.
+not public species-detail content.
+
+`get_public_web_explore_post_page(...)` returns card and independently gated
+detail in the same statement. Production promotion remains held for exact-SHA
+fresh-catalog, complete CI, production smoke, and hosted-load evidence in the
+[release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ## Sharing Strategy
 
@@ -513,6 +520,8 @@ include the `theme` query parameter; public share URLs should not.
   HTML metadata before client-side hydration.
 - Treat `apps/web/lib/explore.ts` as a public projection mapper, not a place to
   expose raw database rows.
+- Keep direct detail independently canonical and page rendering on the atomic
+  card-plus-detail RPC; never regress to a sequential check-then-fetch flow.
 - Treat `apps/web/lib/species.ts` as a strict mapper for the versioned public
   Edge payload. Keep UUID validation, attribution filtering, 404 mapping, and
   transient failure behavior covered together.

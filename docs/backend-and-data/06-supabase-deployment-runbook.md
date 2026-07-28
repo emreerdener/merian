@@ -29,6 +29,14 @@ Explore post while preserving its saved post-level location-sharing choice.
 
 ## Production Path
 
+> **Active release evidence gate (2026-07-27):** The DwC-A
+> version-2/public-web Explore design repairs are implemented. Do not use this
+> path to promote that release unit until the exact-SHA fresh-catalog,
+> complete-CI, production-smoke, and hosted maximum-shape criteria in
+> [`14-dwca-and-public-web-release-hold-2026-07-27.md`](./14-dwca-and-public-web-release-hold-2026-07-27.md)
+> are complete. Unrelated releases must isolate that held unit rather than
+> treating the checks below as an exception.
+
 Pushes to `main` that touch Supabase backend or deployment-support paths, plus
 manual `workflow_dispatch` runs, execute `.github/workflows/deploy.yml`.
 Frontend-only and docs-only commits do not automatically deploy production
@@ -1615,7 +1623,10 @@ Migrations `20260724230849_harden_dwca_export_jobs.sql`,
 `20260726025103_snapshot_dwca_export_sources.sql`, followed by
 `20260726230837_scale_dwca_export_continuations.sql` and
 `20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`,
+then `20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql`,
 must land with `request-export-dwca` and the resumable `export-dwca` bundle.
+This describes migration/bundle compatibility, not production sign-off; the
+active evidence gate must still pass before promotion.
 Before the first deployment, generate a dedicated version-1 pseudonym key:
 
 ```bash
@@ -1642,13 +1653,22 @@ work, while failed/contended IDs are suppressed for the rest of that invocation.
 The database caps data pages at 100 scans and 256 KiB of serialized source under
 the active claim; validated row checks bound media, interactions, and selected
 taxonomy before the read. Job insertion examines at most the canonical row
-budget plus one lookahead and materializes both bounded phase DTOs in one
-statement. Total source JSON is limited to four times the archive budget with a
-64 MiB hard cap. Confirmed identity is authoritative. Exact GPS keys are
-persisted only for an opted-in, snapshot-unprotected personal export. A later
-scan or ordinary edit cannot change the job, while the compact live eligibility
-hash terminates on deletion or relevant privacy revocation. Terminal jobs purge
-those DTO rows. A fixed-capacity incremental encoder caps CSV output at 512 KiB.
+budget plus one lookahead as UUIDs, then a parameterized lateral cursor
+projects, measures, and inserts one DTO at a time. Total source JSON is limited
+to four times the archive budget with a 64 MiB hard cap; projection stops at
+the first violation and removes partial rows. Confirmed identity is
+authoritative. Exact GPS keys are persisted only for an opted-in,
+snapshot-unprotected personal export. A later scan or ordinary edit cannot
+change immutable DTO content.
+
+The compact page hash remains, and a separate full-member predicate verifies
+count, version, durable invalidation, current eligibility, and every stored hash
+before assembly, staging, email, and completion. Relevant scan and taxonomy
+changes durably invalidate affected jobs. A mismatch is terminal and removes
+the uploaded/staged object. Signed URLs stay in private work state while
+processing; the public URL and completed status appear in one final-fence
+transaction. Terminal jobs purge DTO rows and erase the private staged URL. A
+fixed-capacity incremental encoder caps CSV output at 512 KiB.
 CSV pages are stored as claim-token-fenced R2 chunks and committed to a durable
 cursor/manifest with cumulative budgets. These phase, deadline, and byte
 boundaries are the production memory/time contract.
@@ -1820,19 +1840,31 @@ execute the source-page RPC, a byte ceiling can stop a page before its row
 ceiling, and the returned completion flag remains false when more keyset work
 exists. Both phases must retain creation-time DTOs, confirmed identity must win
 over the original AI identity, ordinary source edits must leave the stored DTO
-unchanged, later privacy revocation must return no payload, terminal status must
-purge DTOs, and queue health must distinguish due, live-claim, and expired-claim
-work without widening its ACL.
+unchanged, privacy revocation in the current candidate page must return no
+payload, terminal status must purge DTOs, and queue health must distinguish due,
+live-claim, and expired-claim work without widening its ACL. Those existing
+assertions are insufficient for release.
+
+The exact-SHA database/worker suites must pass the implemented regression
+scenarios: revoke an early row after final paging, revoke after preparation and
+after staging, and prove full-member validation blocks assembly, email, and
+completion while removing/inactivating the object. Personal/global
+protected-species escalation and deletion/tombstoning must cover applicable
+windows. A stale claim must be unable to pass any final validation or side
+effect.
 
 Migration
 `20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
 fences and restarts all nonterminal export preparation because hash-only source
 membership cannot be upgraded into immutable DTOs. Expect prior attempt-scoped
-CSV objects to become lifecycle-cleaned orphans. The migration rebuilds every
-active source snapshot under a 64 MiB hard source cap before releasing the
-export-job lock. A lock or statement timeout is a deployment failure; inspect
-active export RPCs and roll forward rather than manually copying live rows into
-the private source table.
+CSV objects to become lifecycle-cleaned orphans. Repair migration
+`20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql` replaces
+the all-projection aggregate with UUID lookahead plus row-at-a-time lateral
+cursor enforcement. Do not use a successful small fixture as scale proof:
+capture hosted statement duration, temporary bytes, WAL, lock age, and memory
+pressure. A lock or statement timeout is a deployment failure; inspect active
+export RPCs and roll forward rather than manually copying live rows into the
+private source table.
 
 Migration `20260726235158_amortize_dwca_archive_crc.sql` intentionally fences
 and restarts nonterminal jobs in occurrence, multimedia, or assembly because
@@ -1860,13 +1892,13 @@ assuming the larger budget is safely available. Preserve the bounded phase
 shapes and recheck the canonical page and hosted behavior for every ceiling
 change.
 
-Post-deploy, queue one personal test export and deliberately redeliver the same
-job UUID while a phase owns the lease. Both wake-ups return `200`; no phase is
-owned by both workers, a contended attempt reports `not_claimed` without
-source/provider work, and each targeted response reports exactly one or zero
-attempted steps without discovering unrelated jobs. Confirm a separate
-empty-body minute-cron wake-up advances several fast pages in one invocation
-while reporting no more than 40 attempted steps.
+After the repair migration passes preflight, queue one personal test export and
+deliberately redeliver the same job UUID while a phase owns the lease. Both
+wake-ups return `200`; no phase is owned by both workers, a contended attempt
+reports `not_claimed` without source/provider work, and each targeted response
+reports exactly one or zero attempted steps without discovering unrelated jobs.
+Confirm a separate empty-body minute-cron wake-up advances several fast pages in
+one invocation while reporting no more than 40 attempted steps.
 
 Before production sign-off, run a reviewed internal export at the maximum
 intended row/archive shape in staging or an equivalent hosted project. Inspect
@@ -1876,6 +1908,11 @@ isolate retirement, and queue oldest-due age must recover after the job. Record
 the tested commit, job UUID, canonical budgets, observed CPU/memory range, and
 result in the deployment evidence. A local CRC microbenchmark validates the
 algorithmic regression only and cannot satisfy this hosted release gate.
+
+The hosted sign-off must also exercise final eligibility invalidation after
+preparation and after staging. No email or usable download may survive that
+invalidation. Record object cleanup/inaccessibility as evidence alongside Edge
+resource metrics.
 
 The storage test suite also proves that an S3-compatible HTTP-200 `<Error>`
 completion body is rejected and that R2/Resend response bodies stop at their
@@ -2765,10 +2802,17 @@ p50/p95 and the chosen Edge-region policy.
 Migration
 `20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql` and
 the Next.js Explore reader are one release unit. Push the migration first, then
-deploy `apps/web/`. The migrated database exposes only
+apply
+`20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql`, then
+deploy `apps/web/`. The database exposes only
 `get_public_web_explore_posts(...)` and
-`get_public_web_explore_post_detail(...)` to the web server credential. Direct
+`get_public_web_explore_post_detail(...)`, plus the combined
+`get_public_web_explore_post_page(...)`, to the web server credential. Direct
 `anon` and `authenticated` execution is intentionally denied.
+
+Detail independently requires `explore_projected_post_cards(NULL)` visibility.
+The Next.js detail page uses the combined routine so card and detail share one
+statement/MVCC snapshot; do not regress to sequential check-then-fetch calls.
 
 Before production:
 
@@ -2792,6 +2836,12 @@ legacy migration fallback. Neither value may use a `NEXT_PUBLIC_` prefix.
 `SUPABASE_PUBLIC_VIEWER_ID` is obsolete and must be removed: viewer identity is
 fixed to `NULL` inside PostgreSQL.
 
+The pre-production database suite directly calls detail for moderated,
+unshared, tombstoned, shadowbanned, media-less, quarantined, and unpublished
+community-resolved posts and receive no row. It must also cover a visibility
+change against the combined routine. Testing only the normal visible web path
+does not satisfy this gate.
+
 After deployment, the backend workflow exercises the posts RPC with every real
 anon/publishable project key and accepts only `401`, `403`, or `404`. It then
 uses the resolved server key as the positive control and checks that the result
@@ -2800,6 +2850,11 @@ flags. Treat a public-key `2xx`, an empty server-key result when production has
 known visible posts, a raw source-table grant, or viewer-specific state as a
 release blocker. Do not repair this path by granting native Explore RPCs or
 their source relations to browser roles.
+
+As a second positive/negative control, invoke the repaired card-plus-detail
+boundary with the server key for one known visible post and one known
+card-hidden post. The visible row must be internally consistent; the hidden post
+must return no card or detail payload.
 
 ## Public Waitlist Security Rollout
 
@@ -3604,6 +3659,10 @@ rollback procedures are in
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- For the DwC-A version-2/public-web Explore release unit, retain the evidence
+  hold unless every exit criterion in
+  `14-dwca-and-public-web-release-hold-2026-07-27.md` has exact-SHA evidence.
+  Green unit/static suites alone are not release sign-off.
 - For an Explore media-health release, complete the structural checks and
   staging smoke matrix in **Explore media-health and reversible-quarantine
   release gate**. Require public-surface agreement, preserved author/engagement

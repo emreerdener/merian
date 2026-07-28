@@ -1161,12 +1161,16 @@ The public Next.js app uses a separate server-only boundary for
 `https://naturebook.earth/explore/post/{postId}`:
 `get_public_web_explore_posts(...)` and
 `get_public_web_explore_post_detail(...)`. Both wrappers fix the viewer to
-`NULL`, reuse the canonical visibility/privacy projections, and expose only the
-web DTO. They are executable only by `service_role`; browser `anon` and
-`authenticated` roles are explicitly denied. The Next.js server invokes them
-through its validated server key and must not query private Explore, scan, user,
-taxonomy, or Auth tables directly. Engagement counts are zero and viewer state
-is false on this anonymous surface.
+`NULL`, expose only the web DTO, and are executable only by `service_role`;
+browser `anon` and `authenticated` roles are explicitly denied. Both
+independently require the canonical
+`explore_projected_post_cards(NULL)` visibility/privacy projection.
+`get_public_web_explore_post_page(...)` returns card and detail from one
+statement/MVCC snapshot, and Next.js uses that combined routine. The server
+must not query private Explore, scan, user, taxonomy, or Auth tables directly.
+Engagement counts are zero and viewer state is false. Exact-SHA promotion
+evidence is tracked in the
+[release assurance record](./14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 Explore post common names are post snapshots, not live dictionary labels. The
 share and edit functions may write `explore_posts.species_common_name` from the
@@ -1440,31 +1444,46 @@ from global rows and from personal rows that did not opt into precise
 coordinates; protected personal rows omit them even when precision was
 requested.
 
+The repaired materializer counts only bounded UUID membership first, then uses
+a parameterized lateral cursor to project, measure, and insert one DTO at a
+time. It stops at the first per-row or cumulative byte violation and removes
+partial rows, so the aggregate source ceiling also bounds JSON DTO memory and
+temporary-sort amplification during rejection.
+
 The page RPC reads those immutable DTOs rather than querying live scan/taxonomy
 state. A later scan or ordinary edit therefore cannot enter, alter, or
-needlessly fail the export. Before returning a page, it revalidates one compact
-scope-aware live eligibility hash: source deletion, tombstoning, owner change,
-or a relevant privacy/protection change terminates with
-`source_snapshot_changed`. Personal geoprivacy changes are irrelevant because
-that scope contains only the requesting owner's rows; both scopes still
-revalidate whether protected-species coordinate redaction is required. Terminal
-status purges the DTOs. Existing nonterminal jobs are fenced, discard prior
-manifests, and restart from occurrence against one version-2 snapshot.
+needlessly fail the export. Page reads retain their compact post-cursor hash
+check, while a full-member predicate verifies version, count, durable
+invalidation state, current eligibility, and every creation-time hash before
+assembly, staging, email, and completion. Relevant scan and taxonomy changes
+durably invalidate affected nonterminal jobs. Personal geoprivacy changes are
+irrelevant because that scope contains only the requesting owner's rows; both
+scopes revalidate protected-species coordinate redaction.
+
+A mismatch becomes terminal `source_snapshot_changed` and removes an
+uploaded/staged object. Processing jobs keep the signed URL in private work
+state; the owner-visible URL and completed status are published atomically
+after the final full fence. Terminal status purges the DTOs. Existing
+nonterminal jobs are fenced, discard prior manifests, and restart from
+occurrence against one version-2 snapshot.
 `get_dwca_export_scan_batch(...)` remains executable only by `service_role`,
 verifies the active claim token and exact durable cursor, and returns no more
-than 100 rows or 256 KiB of serialized source.
+than 100 rows or 256 KiB of serialized source. Exact-SHA verification is in the
+[release assurance record](./14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 Each claimed step remains independently bounded:
 
 1. `occurrence` or `multimedia` reads one monotonic row-and-byte-aware keyset
-   page from shared immutable DTO rows after the live privacy-revocation fence,
-   incrementally RFC-4180 encodes into a fixed buffer of at most 512 KiB, writes
-   one temporary R2 CSV chunk, and transactionally commits its object key,
-   cursor, cumulative budgets, byte count, and CRC-32.
+   page from shared immutable DTO rows after the page live-eligibility fence,
+   incrementally RFC-4180 encodes into a fixed buffer of at most 512 KiB,
+   writes one temporary R2 CSV chunk, and transactionally commits its object
+   key, cursor, cumulative budgets, byte count, and CRC-32.
 2. `assembling` reads the manifest in order and lazily streams the CSV chunks
-   through the ZIP32 writer into a bounded R2 multipart upload.
+   through the ZIP32 writer into a bounded R2 multipart upload after a
+   full-member fence. Staging repeats that fence transactionally.
 3. `delivering` resolves the canonical owner's Auth email, calls Resend with
-   `Idempotency-Key: dwca-export/{job_id}`, and completes the job.
+   `Idempotency-Key: dwca-export/{job_id}`, and completes the job. Full-member
+   checks run before and after email lookup; completion repeats the fence.
 
 Migration `20260726230837_scale_dwca_export_continuations.sql` changes only
 dispatcher throughput and observability, not step ownership. One synchronous

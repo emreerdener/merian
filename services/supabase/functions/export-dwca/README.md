@@ -37,25 +37,32 @@ archive assemblies inside one isolate.
 
 Migration
 `20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
-upgrades every nonterminal job to source snapshot version 2. When a job is
-inserted, one database statement materializes the bounded, privacy-projected
-occurrence and multimedia JSON DTOs for every eligible scan. Both phases
-therefore traverse the same immutable `(job_id, scan_id)` rows and can never mix
-taxonomy, media, or privacy revisions from separate live queries. The taxonomy
-join uses `confirmed_species_id` when present and otherwise falls back to the
-original AI `species_id`. Exact GPS fields are persisted only for a personal job
-that explicitly requested them and whose snapshot taxonomy did not require
-protected-species redaction.
+upgrades every nonterminal job to source snapshot version 2. Forward migration
+`20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql` streams
+bounded, privacy-projected occurrence and multimedia JSON DTOs during the
+creation statement. Both phases therefore traverse the same immutable
+`(job_id, scan_id)` rows and can never mix taxonomy, media, or privacy revisions
+from separate live queries. The taxonomy join uses `confirmed_species_id` when
+present and otherwise falls back to the original AI `species_id`. Exact GPS
+fields are persisted only for a personal job that explicitly requested them and
+whose snapshot taxonomy did not require protected-species redaction.
 
-Only the scope-aware eligibility hash is revalidated against live state before a
-page is returned. Ordinary edits after queueing do not change the archive.
-Deletion, tombstoning, owner changes, or a privacy/protection change that makes
-a row unsafe produces terminal `source_snapshot_changed`. Personal snapshots
-deliberately ignore geoprivacy because they export only the requesting owner's
-captures. Both scopes still revalidate whether protected-species coordinate
-redaction is required, so a conservation escalation cannot release coordinates
-under a stale unprotected projection. Immutable DTO rows are purged when the job
-becomes terminal.
+All creation-time members have their scope-aware eligibility hash revalidated
+before assembly, staging, email, and completion. Durable scan/taxonomy triggers
+also invalidate affected nonterminal jobs. Ordinary edits after queueing do not
+change immutable DTO content. Deletion, tombstoning, owner/live/ecology changes,
+global geoprivacy changes, taxonomy identity changes, or a privacy/protection
+boundary change produces terminal `source_snapshot_changed`; uploaded or staged
+objects are deleted. Personal snapshots deliberately ignore geoprivacy because
+they export only the requesting owner's captures, but both scopes revalidate
+protected-species coordinate redaction.
+
+Processing jobs keep the staged signed URL only in private
+`internal.export_job_work`; the final full-fence transaction publishes the URL
+and completed state atomically. Exact-SHA release evidence remains tracked in
+the
+[release assurance record](../../../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
+Immutable DTO rows are purged when a job becomes terminal.
 
 ## Bounded archive pipeline
 
@@ -66,11 +73,12 @@ becomes terminal.
   lengths. The first transaction enforces new writes and releases its
   `ALTER TABLE` lock; the second validates legacy rows before activating the
   source-page RPC.
-- Snapshot version 2 records the exact UTF-8 byte count of both JSON projections
-  before inserting any DTO. Each projection is limited to 256 KiB, total source
-  bytes are limited to four times the job archive budget with a 64 MiB hard cap,
-  and a row-budget-plus-one lookahead rejects an oversized job without exposing
-  its source rows to Edge.
+- Snapshot version 2 records the exact UTF-8 byte count as each JSON row is
+  projected. Each projection is limited to 256 KiB, total source bytes are
+  limited to four times the job archive budget with a 64 MiB hard cap, and a
+  UUID-only row-budget-plus-one lookahead rejects cardinality before JSON work.
+  A parameterized lateral cursor stops at the first aggregate violation and
+  removes partial rows, bounding DTO memory/temporary work before Edge reads.
 - `db.ts` calls `get_dwca_export_scan_batch(...)` under the active claim. The
   database validates the durable `id > last_id` cursor, reads from immutable job
   DTO rows, revalidates only live scope-aware eligibility, and stops at 100
@@ -188,9 +196,18 @@ A delayed assembly worker therefore cannot overwrite a newer attempt's final
 object, and claim-fenced work-chunk names provide the same property during CSV
 preparation. Once the winning assembly step stages its object key and signed URL
 transactionally, a later delivery step reuses them instead of regenerating the
-archive. Email delivery uses Resend's `Idempotency-Key: dwca-export/{job_id}`.
-The archive is marked complete only after Resend accepts that idempotent
-request.
+archive. The URL remains in API-inaccessible work state while processing.
+Delivery runs the full-member fence before recipient lookup and again before
+Resend's idempotent provider call. The final full-fence transaction publishes
+the URL and completed status together only after Resend accepts
+`Idempotency-Key: dwca-export/{job_id}`.
+
+The provider call and database completion cannot share one transaction. If a
+privacy change commits while Resend is accepting the request, completion returns
+terminal `source_snapshot_changed`; the worker deletes the archive and does not
+publish the URL. An email may have been accepted, but its attempt-fenced object
+is revoked. Retrying the same provider call is unnecessary because its
+idempotency key is job-scoped.
 
 Generation, storage, and permanent delivery failures become public-safe database
 failure codes and fixed messages when the worker still owns the fence, allowing
@@ -248,10 +265,20 @@ idempotency, canonical claims, staged retry reuse, stale-worker fencing, fair
 multi-wave draining, soft-deadline exit, and failure suppression. Static
 contracts lock the migrations and production-source boundaries. Executable
 database tests prove source constraints, aggregate page byte limits,
-creation-time immutable DTOs, authoritative confirmed identity, live privacy
-revocation, terminal purge, the finite rollout deadline, post-deadline claim
-requirement, queue-health ACL/index behavior, live/expired claim accounting, and
-phased state contract in `services/supabase/tests/export_dwca_security.sql` and
+creation-time immutable DTOs, authoritative confirmed identity, durable
+full-member privacy revocation after early paging, bounded aggregate snapshot
+rejection, terminal DTO and private-URL purge, the finite rollout deadline,
+post-deadline claim requirement, queue-health ACL/index behavior, live/expired
+claim accounting, and phased state contract in
+`services/supabase/tests/export_dwca_security.sql` and
 `services/supabase/tests/export_dwca_snapshot_security.sql`, plus
 `services/supabase/tests/dwca_export_queue_security.sql`; the repository-wide
 privileged-routine catalog validator checks the definer RPC.
+
+Focused Edge tests additionally cover revocation before assembly, during
+staging, before delivery, and after recipient lookup with no email side effect.
+They separately cover a revocation while provider delivery is in flight:
+completion remains terminal and the archive is removed even though the
+idempotent email request was accepted. Hosted maximum-shape database/Edge
+measurements and fresh-catalog pgTAP remain mandatory exact-SHA promotion
+evidence.

@@ -13,6 +13,7 @@ DECLARE
     second_scan_id UUID := '00000000-0000-4000-8000-00000000e204';
     later_scan_id UUID := '00000000-0000-4000-8000-00000000e205';
     test_job_id UUID := '00000000-0000-4000-8000-00000000e206';
+    oversize_job_id UUID := '00000000-0000-4000-8000-00000000e20a';
     claim_token UUID := '00000000-0000-4000-8000-00000000e207';
     claim_row RECORD;
     returned_rows INTEGER;
@@ -20,11 +21,41 @@ DECLARE
     revision_changed BOOLEAN;
     payload_returned BOOLEAN;
     boolean_result BOOLEAN;
+    fence_status TEXT;
 BEGIN
     IF EXISTS (
         SELECT 1
         FROM extensions.plpgsql_check_function_tb(
             'internal.materialize_dwca_export_source_snapshot(uuid)'
+                ::REGPROCEDURE
+        ) AS issue
+        WHERE issue.level IN ('error', 'fatal')
+
+        UNION ALL
+
+        SELECT 1
+        FROM extensions.plpgsql_check_function_tb(
+            'internal.invalidate_dwca_exports_for_scan()'
+                ::REGPROCEDURE,
+            'public.scans'::REGCLASS
+        ) AS issue
+        WHERE issue.level IN ('error', 'fatal')
+
+        UNION ALL
+
+        SELECT 1
+        FROM extensions.plpgsql_check_function_tb(
+            'internal.invalidate_dwca_exports_for_species()'
+                ::REGPROCEDURE,
+            'public.species_dictionary'::REGCLASS
+        ) AS issue
+        WHERE issue.level IN ('error', 'fatal')
+
+        UNION ALL
+
+        SELECT 1
+        FROM extensions.plpgsql_check_function_tb(
+            'public.check_dwca_export_source_fence(uuid,uuid,text)'
                 ::REGPROCEDURE
         ) AS issue
         WHERE issue.level IN ('error', 'fatal')
@@ -322,9 +353,57 @@ BEGIN
             'a protected-species coordinate rule change escaped the live fence';
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.export_job_source_state AS source_state
+        WHERE source_state.job_id = test_job_id
+          AND source_state.invalidated_at IS NOT NULL
+          AND source_state.invalidation_reason =
+              'species_protection_changed'
+    ) THEN
+        RAISE EXCEPTION
+            'a protected-species boundary change did not durably revoke the queued export';
+    END IF;
+
+    SELECT public.release_export_job_step(
+        test_job_id,
+        claim_token,
+        'source_snapshot_changed',
+        TRUE
+    )
+    INTO boolean_result;
+
+    IF NOT boolean_result THEN
+        RAISE EXCEPTION
+            'the protected-species-revoked snapshot could not become terminal';
+    END IF;
+
     UPDATE public.species_dictionary AS species
     SET iucn_red_list_status = NULL
     WHERE species.id = test_species_id;
+
+    DELETE FROM public.scans AS scans
+    WHERE scans.id = later_scan_id;
+
+    test_job_id := '00000000-0000-4000-8000-00000000e208';
+    claim_token := '00000000-0000-4000-8000-00000000e209';
+
+    INSERT INTO public.export_jobs (
+        id,
+        user_id,
+        export_scope,
+        include_precise_coordinates
+    )
+    VALUES (
+        test_job_id,
+        test_user_id,
+        'personal',
+        FALSE
+    );
+
+    SELECT *
+    INTO STRICT claim_row
+    FROM public.claim_export_job_step(test_job_id, claim_token);
 
     UPDATE internal.export_job_work AS work
     SET phase = 'multimedia'
@@ -397,6 +476,52 @@ BEGIN
     SET is_tombstoned = TRUE
     WHERE scans.id = first_scan_id;
 
+    UPDATE internal.export_job_work AS work
+    SET phase = 'assembling'
+    WHERE work.job_id = test_job_id;
+
+    SELECT public.check_dwca_export_source_fence(
+        test_job_id,
+        claim_token,
+        'assembling'
+    )
+    INTO fence_status;
+
+    IF fence_status <> 'source_snapshot_changed' THEN
+        RAISE EXCEPTION
+            'an earlier paged privacy change escaped the pre-assembly full-set fence';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.export_job_source_state AS source_state
+        WHERE source_state.job_id = test_job_id
+          AND source_state.invalidated_at IS NOT NULL
+          AND source_state.invalidation_reason =
+              'scan_eligibility_changed'
+    ) THEN
+        RAISE EXCEPTION
+            'a scan privacy change did not persist durable export invalidation';
+    END IF;
+
+    BEGIN
+        PERFORM public.stage_prepared_export_archive(
+            test_job_id,
+            claim_token,
+            'exports/' || test_user_id::TEXT || '/' || test_job_id::TEXT
+                || '/' || claim_token::TEXT || '.zip',
+            'https://r2.example.invalid/export.zip'
+        );
+        RAISE EXCEPTION
+            'archive staging accepted a privacy-invalid earlier source row';
+    EXCEPTION
+        WHEN SQLSTATE '55001' THEN NULL;
+    END;
+
+    UPDATE internal.export_job_work AS work
+    SET phase = 'multimedia'
+    WHERE work.job_id = test_job_id;
+
     SELECT
         pg_catalog.COUNT(*)::INTEGER,
         pg_catalog.BOOL_AND(source_page.source_revision_changed),
@@ -447,6 +572,68 @@ BEGIN
     IF returned_rows <> 0 OR NOT boolean_result THEN
         RAISE EXCEPTION
             'terminal completion retained immutable source DTOs';
+    END IF;
+
+    INSERT INTO public.scans (
+        id,
+        user_id,
+        species_id,
+        image_storage_urls,
+        ecological_interactions,
+        ai_confidence_score
+    )
+    SELECT
+        (
+            '00000000-0000-4000-8000-'
+            || pg_catalog.LPAD(
+                (900000 + generated.scan_number)::TEXT,
+                12,
+                '0'
+            )
+        )::UUID,
+        test_user_id,
+        test_species_id,
+        ARRAY(
+            SELECT
+                'https://media.example.invalid/'
+                || pg_catalog.REPEAT('x', 4000)
+                || '/' || media_number::TEXT
+            FROM pg_catalog.GENERATE_SERIES(1, 24) AS media_number
+        ),
+        ARRAY[]::TEXT[],
+        0.5
+    FROM pg_catalog.GENERATE_SERIES(1, 44)
+        AS generated(scan_number);
+
+    INSERT INTO public.export_jobs (
+        id,
+        user_id,
+        export_scope,
+        include_precise_coordinates,
+        max_archive_bytes
+    )
+    VALUES (
+        oversize_job_id,
+        test_user_id,
+        'personal',
+        FALSE,
+        1048576
+    );
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.export_job_source_state AS source_state
+        WHERE source_state.job_id = oversize_job_id
+          AND source_state.source_too_large
+          AND source_state.source_byte_count =
+              source_state.max_source_bytes + 1
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.export_job_source_rows AS source_rows
+        WHERE source_rows.job_id = oversize_job_id
+    ) THEN
+        RAISE EXCEPTION
+            'streaming snapshot projection did not stop and discard rows at its aggregate byte fence';
     END IF;
 
     ALTER TABLE public.export_jobs

@@ -1,4 +1,4 @@
-import { getR2Config, R2Config } from "../_shared/aws.ts";
+import { deleteR2Object, getR2Config, R2Config } from "../_shared/aws.ts";
 import { readByteStreamWithinLimit } from "../_shared/http.ts";
 import type { ExportProgressCallback } from "./archive.ts";
 import { MAXIMUM_WORK_CHUNK_BYTES } from "./limits.ts";
@@ -394,6 +394,38 @@ export async function putExportWorkChunk(
   } catch (error) {
     if (error instanceof ExportWorkerError) throw error;
     throw storageFailure("The R2 work chunk upload failed.", error);
+  }
+}
+
+export async function deleteDwcaArchiveObject(
+  objectKey: string,
+  config: R2Config = getR2Config(),
+): Promise<void> {
+  if (
+    objectKey.length < 1 ||
+    objectKey.length > 512 ||
+    !objectKey.startsWith("exports/") ||
+    objectKey.includes("..") ||
+    [...objectKey].some((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint <= 0x1f || codePoint === 0x7f;
+    })
+  ) {
+    throw new TypeError("The DwC-A archive object key is invalid.");
+  }
+
+  try {
+    const response = await deleteR2Object(objectKey, config);
+    if (!response.ok && response.status !== 404) {
+      await discardResponseBody(response);
+      throw storageFailure(
+        `R2 archive deletion failed with HTTP ${response.status}.`,
+      );
+    }
+    await discardResponseBody(response);
+  } catch (error) {
+    if (error instanceof ExportWorkerError) throw error;
+    throw storageFailure("The R2 archive could not be deleted.", error);
   }
 }
 

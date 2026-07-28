@@ -783,6 +783,26 @@ jobs:
                 exit 1
                 ;;
             esac
+
+            explore_page_denied_response="$RUNNER_TEMP/public-web-explore-page-rpc-denied-${index}.json"
+            explore_page_denied_status="$(
+              curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
+                -o "$explore_page_denied_response" \
+                -w "%{http_code}" \
+                -X POST "${supabase_url}/rest/v1/rpc/get_public_web_explore_post_page" \
+                "${public_headers[@]}" \
+                --data '{"p_target_post_id":"00000000-0000-0000-0000-000000000000"}'
+            )"
+            case "$explore_page_denied_status" in
+              401 | 403 | 404)
+                ;;
+              *)
+                echo "A public Supabase API credential unexpectedly executed the atomic public-web Explore page projection (HTTP ${explore_page_denied_status})."
+                exit 1
+                ;;
+            esac
           done
 
           status_response="$(
@@ -853,6 +873,27 @@ jobs:
               and .is_owned_by_viewer == false
             )
           '
+          public_web_post_id="$(
+            echo "$public_web_explore_response" | jq -r '.[0].post_id // empty'
+          )"
+          if [ -n "$public_web_post_id" ]; then
+            public_web_page_response="$(
+              post_server_json \
+                "/rest/v1/rpc/get_public_web_explore_post_page" \
+                "$(jq -cn --arg post_id "$public_web_post_id" \
+                  '{p_target_post_id:$post_id}')"
+            )"
+            echo "$public_web_page_response" | jq -e \
+              --arg post_id "$public_web_post_id" '
+              type == "array"
+              and length == 1
+              and .[0].post_payload.post_id == $post_id
+              and (
+                .[0].detail_payload == null
+                or .[0].detail_payload.post_id == $post_id
+              )
+            '
+          fi
 
           owned_incidents_response="$(
             post_server_json \

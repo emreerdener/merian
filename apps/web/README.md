@@ -377,13 +377,18 @@ preference.
 
 ## Privacy Notes
 
-The Explore page is server-rendered through the dedicated
-`get_public_web_explore_posts` and `get_public_web_explore_post_detail`
-projections. Those routines fix the viewer to anonymous, reuse the canonical
-visibility/privacy filters, and are executable only by the validated server
-credential. Browser `anon` and `authenticated` roles cannot invoke them
-directly. The card projection returns zero engagement counts and false
-viewer/ownership flags rather than leaking or inventing viewer state.
+The Explore page is server-rendered through the dedicated service-only
+projections. `get_public_web_explore_post_detail(...)` independently requires
+membership in canonical anonymous `explore_projected_post_cards(NULL)`, while
+`get_public_web_explore_post_page(...)` returns card and detail from one
+statement/MVCC snapshot. `fetchExplorePostPage(...)` uses only the combined
+routine. Browser `anon` and `authenticated` roles cannot invoke any of these
+server routines directly. Engagement counts are zero and viewer/ownership
+flags are false.
+
+Do not replace the combined routine with sequential calls or direct
+service-key table reads. Exact-SHA promotion evidence is tracked in the
+[release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 The page may consume the resulting public image, species labels, public author
 identity, shared timestamp, privacy-filtered location/telemetry, public field
@@ -402,9 +407,9 @@ lookalike payload does not carry the required license and attribution fields.
 
 The Explore share page intentionally uses default Mantine components and
 component props instead of route-specific CSS classes or custom page chrome.
-Post visibility comes exclusively from the public projection contract. In
-particular, do not bypass its `moderated_at IS NULL` rule with service-role
-table queries or cached page data.
+Post visibility must come exclusively from the canonical card projection
+contract. In particular, do not bypass its moderation/publication/media-health
+rules with the detail RPC, service-role table queries, or cached page data.
 
 See `../../docs/system-architecture/08-public-brand-compatibility.md` for the
 permanent brand and compatibility contract,

@@ -159,9 +159,14 @@ They must not redirect. Both responses use app ID
   `NEXT_PUBLIC_SUPPORT_EMAIL=support@naturebook.earth`.
 - Canonical, Open Graph, Twitter, structured-data, navigation, waitlist,
   support, legal, and native-open metadata use Naturebook.
-- Public Explore pages consume only privacy-safe public projections. Public
-  species pages consume only the existing versioned `species-dictionary` Edge
-  response and publish only attribution-approved reference images.
+- Public Explore pages consume only fixed-anonymous, independently
+  canonical-visibility-gated projections. Detail independently joins the
+  canonical card predicate and page rendering obtains card plus detail from one
+  statement. Exact-SHA promotion evidence remains governed by the
+  [release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
+  Public species pages consume only the existing versioned
+  `species-dictionary` Edge response and publish only attribution-approved
+  reference images.
 - Public media continues to use `media.merian.app`; do not rewrite durable
   media URLs as part of the product rebrand.
 - Alias redirects use HTTP 308 and preserve both path and query.

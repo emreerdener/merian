@@ -1434,18 +1434,32 @@ replaces that representation with source snapshot version 2:
 
 An insertion trigger materializes membership, both immutable DTOs, source
 statistics, and eligibility hashes in one MVCC statement before the webhook can
-run. There is intentionally no `scan_id` foreign key: deleting a scan must
-revoke delivery rather than silently remove it from a later phase. The page RPC
+run. The repaired routine first counts only UUIDs through the row-budget
+lookahead, then projects, measures, and inserts one row at a time through a
+parameterized lateral cursor. It stops at the first per-row or cumulative byte
+violation and removes partial rows. The aggregate ceiling therefore bounds JSON
+DTO memory and temporary-sort amplification during an oversized rejection.
+
+There is intentionally no `scan_id` foreign key: deleting a scan should revoke
+delivery rather than silently remove it from a later phase. The page RPC
 keyset-paginates the source-row primary key and returns the stored phase DTO
-after checking live scope-aware eligibility. Later scans and ordinary edits are
-never discovered. Deletion, tombstoning, owner change, or a relevant
-privacy/protection change yields `source_revision_changed`, which the worker
-records as terminal `source_snapshot_changed`. Personal snapshots ignore
-geoprivacy because only the requesting owner is exported, but both scopes
-revalidate the protected-species coordinate-redaction requirement. Pre-upgrade
-nonterminal jobs are fenced and restarted with prior chunk manifests discarded.
-Terminal transitions delete DTO rows and retain only the nonsensitive
-source-state metadata with `purged_at`.
+after checking post-cursor scope-aware eligibility. A shared full-member
+predicate separately checks snapshot version, exact count, durable invalidation,
+current eligibility, and every hash before assembly, staging, email, and
+completion. Scan/taxonomy triggers durably invalidate affected nonterminal jobs.
+Deletion, tombstoning, owner/live/ecology changes, global geoprivacy changes,
+taxonomy identity changes, or protected-species policy changes become terminal
+`source_snapshot_changed`.
+
+`internal.export_job_work.delivery_file_url` holds a nullable constrained HTTPS
+URL while processing. It is inaccessible to API roles. Completion copies it to
+`public.export_jobs.file_url` and changes status in one final-fence transaction,
+so no session can observe an owner-readable processing URL. Pre-upgrade
+nonterminal jobs are fenced and restarted with prior manifests discarded.
+Terminal transitions delete DTO rows and retain only nonsensitive source-state
+metadata with `purged_at`; they also erase the private staged URL. Exact-SHA
+verification is tracked in
+[`14-dwca-and-public-web-release-hold-2026-07-27.md`](./14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### `failed_scan_ingestions`
 
@@ -2319,9 +2333,15 @@ coordinates to the client contract.
   username/Pro state, and forces engagement counts to zero plus viewer/ownership
   flags to false. It is revoked from `PUBLIC`, `anon`, and `authenticated`.
 - `public.get_public_web_explore_post_detail(target_post_id UUID)`:
-  Service-only, fixed-anonymous wrapper over the canonical detail projection.
-  The two public-web routines are the only Explore database boundary used by the
-  Next.js server; they do not grant browser roles access to source relations.
+  Service-only, fixed-anonymous wrapper over
+  `get_explore_post_detail(NULL, target_post_id)` that independently inner-joins
+  `explore_projected_post_cards(NULL)`. It returns no detail unless canonical
+  anonymous moderation/publication/media-health visibility also exists.
+- `public.get_public_web_explore_post_page(target_post_id UUID)`: Service-only
+  atomic page projection returning canonical `post_payload` and independently
+  gated `detail_payload` from one statement/MVCC snapshot. It is the only
+  Explore database read used for a Next.js detail page; browser roles remain
+  denied and receive no source-relation grants.
 - `public.get_species_content_refresh_queue(max_rows INTEGER DEFAULT 100, as_of TIMESTAMPTZ DEFAULT NOW())`:
   Internal service-role queue query over `species_content_provenance`. It
   returns stale or low-confidence species content rows with `species_id`,

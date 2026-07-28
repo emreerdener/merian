@@ -323,18 +323,26 @@ The `Achievements` component sorts awards using a `smartSort` heuristic: recentl
 
 ---
 
-## ExportScans (DWC-A)
+## ExportScans (DwC-A)
 
 `ExportScans` (Settings) calls
 `MerianNetworkClient.shared.requestDwcAExport()`, which hits the
-`/request-export-dwca` Edge Function with a 15-second timeout. The public route
-queues a personal export only and fixes compact creation-time scan
-membership/revision metadata, capped by the canonical row budget plus one
-lookahead. Server-side work advances through cursor-persisted 100-row CSV phases
-over that shared membership, bounded assembly, and idempotent delivery under
-canonical row/archive budgets rather than blocking the client or one Edge
-invocation. The user receives an email when the export is ready. See
-`docs/backend-and-data/05-api-contracts.md` for the full endpoint contract.
+`/request-export-dwca` Edge Function with a 15-second timeout. The authenticated
+route queues personal exports only. Its insertion trigger first counts bounded
+eligible IDs, then materializes one bounded occurrence and multimedia DTO per
+member from the same creation-statement MVCC snapshot. Oversized sources stop at
+the first per-row or cumulative byte violation without retaining partial DTOs.
+
+Server-side work advances through claim-fenced, cursor-persisted 100-row/256 KiB
+pages over that immutable source, bounded streaming assembly, and idempotent
+delivery rather than blocking the client or one Edge invocation. A full-member
+privacy fence runs before assembly, staging, email, and completion. A later
+tombstone or privacy/protection change terminates the job and removes its
+archive; processing jobs keep signed URLs private until the completed
+transition. The user receives an email when the export is ready. See
+[API Contracts](../backend-and-data/05-api-contracts.md#deno-request-export-dwca-edge-node)
+and the
+[release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ## 2026-04 Hardening Updates
 

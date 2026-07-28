@@ -144,6 +144,12 @@ boundary, not an application work budget.
   is bounded and parsed for HTTP-200 embedded errors. Reintroducing
   `generateAsync()`, `arrayBuffer()`, `response.text()`, one complete CSV, or an
   archive-sized checksum loop violates that resource boundary.
+  Assembly may start only after the claim-fenced full-member privacy predicate
+  revalidates every immutable source row. Staging and completion repeat that
+  fence transactionally. Delivery keeps the signed URL in private work state,
+  checks again after recipient lookup and immediately before Resend, and deletes
+  the attempt-fenced archive when a concurrent privacy revocation prevents
+  staging or completion.
 - **`_shared/aws.ts`**: Shared Cloudflare R2 helpers. Pre-signed PUT generation
   accepts an explicit `Content-Type`; callers must sign image and audio uploads
   with the same header the client will send. The scan-media reconciliation

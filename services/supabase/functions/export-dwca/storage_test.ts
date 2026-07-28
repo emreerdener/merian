@@ -5,6 +5,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { R2Config } from "../_shared/aws.ts";
 import {
+  deleteDwcaArchiveObject,
   fetchExportWorkChunk,
   fixedSizeParts,
   MAXIMUM_WORK_CHUNK_BYTES,
@@ -212,6 +213,25 @@ Deno.test("prepared work chunks enforce their hard byte limit before PUT", async
 
   assertEquals(error.code, "export_too_large");
   assertEquals(requests, []);
+});
+
+Deno.test("privacy revocation deletes only a validated DwC-A archive key", async () => {
+  const requests: Array<{ method: string; url: string; bytes: number }> = [];
+  await deleteDwcaArchiveObject(
+    "exports/user/job/attempt.zip",
+    fakeR2Config({ requests }),
+  );
+  assertEquals(requests.map((request) => request.method), ["DELETE"]);
+
+  await assertRejects(
+    () =>
+      deleteDwcaArchiveObject(
+        "public_uploads/free/user/scan.webp",
+        fakeR2Config({ requests }),
+      ),
+    TypeError,
+  );
+  assertEquals(requests.map((request) => request.method), ["DELETE"]);
 });
 
 Deno.test("prepared work chunk downloads must exactly match the durable manifest", async () => {

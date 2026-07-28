@@ -58,6 +58,13 @@ const immutableRowsMigrationUrl = new URL(
 const immutableRowsMigration = await Deno.readTextFile(
   immutableRowsMigrationUrl,
 );
+const privacyRepairMigrationUrl = new URL(
+  "../../migrations/20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql",
+  import.meta.url,
+);
+const privacyRepairMigration = await Deno.readTextFile(
+  privacyRepairMigrationUrl,
+);
 
 Deno.test("DwC-A migration installs a private atomic claim lease", () => {
   for (
@@ -496,6 +503,79 @@ Deno.test("DwC-A source snapshots materialize bounded immutable authoritative DT
   assertEquals(immutableRowsMigration.includes("GRANT SELECT"), false);
   assertEquals(immutableRowsMigration.includes("pg_catalog.LEAST"), false);
   assertEquals(immutableRowsMigration.includes("pg_catalog.COALESCE"), false);
+});
+
+Deno.test("DwC-A snapshot projection and irreversible transitions are fully fenced", () => {
+  for (
+    const expected of [
+      "CREATE OR REPLACE FUNCTION internal.materialize_dwca_export_source_snapshot",
+      "source_cursor REFCURSOR",
+      "LIMIT job_row.max_export_rows + 1",
+      "OPEN source_cursor FOR",
+      "CROSS JOIN LATERAL",
+      "WHERE projected.scan_id = eligible.scan_id",
+      "FETCH source_cursor INTO source_row",
+      "occurrence_byte_count > 262144",
+      "multimedia_byte_count > 262144",
+      "+ multimedia_byte_count::BIGINT > max_source_bytes",
+      "source_byte_count := max_source_bytes + 1",
+      "EXIT;",
+      "CREATE OR REPLACE FUNCTION internal.dwca_export_source_is_current",
+      "source_state.invalidated_at IS NULL",
+      "source_state.source_scan_count = (",
+      "NOT EXISTS (",
+      "LEFT JOIN LATERAL (",
+      "WHERE projected.scan_id = source_rows.scan_id",
+      "source_rows.eligibility_sha256",
+      "CREATE TRIGGER invalidate_dwca_exports_for_scan",
+      "CREATE TRIGGER invalidate_dwca_exports_for_species",
+      "CREATE OR REPLACE FUNCTION public.check_dwca_export_source_fence",
+      "p_expected_phase NOT IN ('assembling', 'delivering')",
+      "ADD COLUMN delivery_file_url TEXT",
+      "export_job_work_delivery_url_check",
+      "CREATE OR REPLACE FUNCTION internal.purge_dwca_export_source_snapshot",
+      "SET delivery_file_url = NULL",
+      "COALESCE(job_row.file_url, work_row.delivery_file_url)",
+      "CREATE OR REPLACE FUNCTION public.stage_prepared_export_archive",
+      "file_url = NULL",
+      "delivery_file_url = p_file_url",
+      "CREATE OR REPLACE FUNCTION public.complete_prepared_export_job",
+      "SET file_url = work_row.delivery_file_url",
+      "delivery_file_url = NULL",
+      "IF NOT internal.dwca_export_source_is_current(p_job_id)",
+      "USING ERRCODE = '55001'",
+      "PERFORM internal.require_service_role()",
+      "SET search_path = ''",
+      "TO service_role",
+    ]
+  ) {
+    assertStringIncludes(privacyRepairMigration, expected);
+  }
+
+  const materializer = privacyRepairMigration.slice(
+    privacyRepairMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.materialize_dwca_export_source_snapshot",
+    ),
+    privacyRepairMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.dwca_export_source_is_current",
+    ),
+  );
+  assertEquals(materializer.includes("projected_rows AS MATERIALIZED"), false);
+  assertEquals(materializer.includes("snapshot_rows AS MATERIALIZED"), false);
+  assertEquals(materializer.includes("SUM("), false);
+  assertEquals(materializer.includes("ORDER BY source.scan_id"), false);
+  assertEquals(privacyRepairMigration.includes(" OFFSET "), false);
+  assertEquals(privacyRepairMigration.includes("GRANT SELECT"), false);
+
+  const staging = privacyRepairMigration.slice(
+    privacyRepairMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.stage_prepared_export_archive",
+    ),
+    privacyRepairMigration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.complete_prepared_export_job",
+    ),
+  );
+  assertEquals(staging.includes("\n        file_url = p_file_url"), false);
 });
 
 Deno.test("DwC-A continuation dispatch has fair backlog telemetry and timeout headroom", () => {

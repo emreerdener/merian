@@ -6,6 +6,20 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Release Assurance
+
+- Implemented the release-blocking DwC-A/public-web repairs: full-member
+  privacy revalidation now fences assembly, staging, email, and completion;
+  processing jobs keep staged signed URLs private and terminal transitions erase
+  that private capability; an in-flight privacy revocation prevents completion
+  and deletes the archive even if the email provider accepted its idempotent
+  request. Explore detail owns the canonical anonymous visibility predicate and
+  page reads are atomic, while snapshot projection stops at cumulative byte
+  limits instead of materializing every candidate DTO. Production promotion
+  remains held only until exact-release-SHA fresh-catalog, complete CI,
+  production smoke, and hosted maximum-shape evidence meets
+  `docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`.
+
 ### Explore
 
 - Fixed Scan Library observations being denied when sharing to Explore after
@@ -152,11 +166,13 @@ TestFlight, App Store, support, and QA.
   creation-time DTO snapshot, so later scans and edits cannot mix taxonomy,
   privacy, or media revisions. Confirmed identity is authoritative while the
   original AI identity remains history; exact GPS is omitted before persistence
-  unless an unprotected personal job explicitly requested it. A narrow live
-  eligibility fence still stops deletion or privacy revocation before delivery,
-  including a protected-species coordinate-policy change in either scope, and
-  chunk downloads accept missing `Content-Length` only while enforcing the exact
-  streamed manifest bytes.
+  unless an unprotected personal job explicitly requested it. Full-member
+  eligibility is now durably invalidated and revalidated before assembly,
+  staging, email, and completion; invalidated objects are deleted. Processing
+  jobs keep signed links private until final fenced completion. Snapshot
+  projection applies cumulative byte limits one DTO at a time. Chunk downloads
+  accept missing `Content-Length` only while enforcing exact streamed manifest
+  bytes.
 - Made account deletion durable and recoverable. Naturebook now records the
   deletion request before anonymizing account data, verifies that cleanup, and
   cursor-sweeps durable uploads, staging data, avatars, and exports. A delayed

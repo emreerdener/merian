@@ -153,6 +153,14 @@ BEGIN
         'authenticated',
         'public.get_public_web_explore_post_detail(uuid)',
         'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.get_public_web_explore_post_page(uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_public_web_explore_post_page(uuid)',
+        'EXECUTE'
     ) THEN
         RAISE EXCEPTION
             'a browser Data API role can directly execute the server projection';
@@ -165,6 +173,10 @@ BEGIN
     ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'service_role',
         'public.get_public_web_explore_post_detail(uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_public_web_explore_post_page(uuid)',
         'EXECUTE'
     ) THEN
         RAISE EXCEPTION
@@ -200,6 +212,17 @@ BEGIN
         );
         RAISE EXCEPTION
             'authenticated unexpectedly executed the public web server projection';
+    EXCEPTION
+        WHEN SQLSTATE '42501' THEN NULL;
+    END;
+
+    BEGIN
+        PERFORM 1
+        FROM public.get_public_web_explore_post_page(
+            '00000000-0000-4000-8000-00000000e831'
+        );
+        RAISE EXCEPTION
+            'authenticated unexpectedly executed the atomic public web page projection';
     EXCEPTION
         WHEN SQLSTATE '42501' THEN NULL;
     END;
@@ -252,13 +275,53 @@ BEGIN
         RAISE EXCEPTION
             'the public web detail projection did not preserve canonical visible metadata';
     END IF;
+
+    SELECT *
+    INTO STRICT returned_row
+    FROM public.get_public_web_explore_post_page(
+        '00000000-0000-4000-8000-00000000e831'
+    );
+
+    IF returned_row.post_payload ->> 'post_id' <>
+            '00000000-0000-4000-8000-00000000e831'
+       OR returned_row.detail_payload ->> 'post_id' <>
+            '00000000-0000-4000-8000-00000000e831' THEN
+        RAISE EXCEPTION
+            'the atomic public web page projection did not return matching card and detail';
+    END IF;
+
+    UPDATE public.explore_posts AS post
+    SET moderated_at = pg_catalog.NOW()
+    WHERE post.id = '00000000-0000-4000-8000-00000000e831';
+
+    SELECT pg_catalog.COUNT(*)::INTEGER
+    INTO returned_count
+    FROM public.get_public_web_explore_post_detail(
+        '00000000-0000-4000-8000-00000000e831'
+    );
+
+    IF returned_count <> 0 THEN
+        RAISE EXCEPTION
+            'independent public web detail exposed a concurrently moderated post';
+    END IF;
+
+    SELECT pg_catalog.COUNT(*)::INTEGER
+    INTO returned_count
+    FROM public.get_public_web_explore_post_page(
+        '00000000-0000-4000-8000-00000000e831'
+    );
+
+    IF returned_count <> 0 THEN
+        RAISE EXCEPTION
+            'atomic public web page exposed a concurrently moderated post';
+    END IF;
 END;
 $service$;
 
 RESET ROLE;
 
 SELECT extensions.pass(
-    'public web Explore is server-only, fixed-anonymous, privacy-filtered, and reachable by the server role'
+    'public web Explore is server-only, independently canonical, atomic for page reads, and reachable by the server role'
 );
 SELECT * FROM extensions.finish();
 ROLLBACK;

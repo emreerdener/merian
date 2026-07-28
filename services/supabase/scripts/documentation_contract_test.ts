@@ -302,7 +302,15 @@ Deno.test("documentation navigation and release notes expose the corrected contr
       source,
       "13-server-credentials-and-database-release-safety.md",
     );
+    assertStringIncludes(
+      source,
+      "14-dwca-and-public-web-release-hold-2026-07-27.md",
+    );
   }
+  assertStringIncludes(
+    compact(changelog),
+    "full-member privacy revalidation now fences assembly, staging, email, and completion",
+  );
   assertStringIncludes(
     changelog,
     "Stale server retry timestamps now trigger a one-second client recheck",
@@ -324,6 +332,7 @@ Deno.test("documentation navigation and release notes expose the corrected contr
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {
   const maintainedFiles = [
     "README.md",
+    "apps/web/README.md",
     "docs/CONTRIBUTING.md",
     "docs/README.md",
     "docs/backend-and-data/01-offline-sync-pipeline.md",
@@ -334,17 +343,25 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/07-community-taxonomy-import-checklist.md",
     "docs/backend-and-data/12-explore-media-health-and-quarantine.md",
     "docs/backend-and-data/13-server-credentials-and-database-release-safety.md",
+    "docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md",
     "docs/codebase-map.md",
+    "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
     "docs/development-guides/07-ai-agent-guidelines.md",
     "docs/development-guides/08-testing-strategy.md",
+    "docs/features-and-hardware/06-profile-and-gamification.md",
+    "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
+    "docs/product/01-master-product-document.md",
     "docs/system-architecture/01-system-architecture.md",
     "docs/system-architecture/02-zero-oom-and-concurrency.md",
+    "docs/system-architecture/06-edge-modularization.md",
     "services/supabase/README.md",
     "services/supabase/functions/_shared/README.md",
+    "services/supabase/functions/export-dwca/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
+    "services/supabase/functions/request-export-dwca/README.md",
   ];
   const failures: string[] = [];
 

@@ -585,8 +585,13 @@ The reviewed local Supabase configuration targets Postgres 17, caps ordinary API
 - Row Level Security and owner checks are the primary database boundary.
 - Service credentials remain server-side.
 - Admin operations use narrow RPCs or functions plus role and assurance checks.
-- Public web pages receive only publishable projections.
+- Public Explore pages receive card and independently visibility-gated detail
+  from one service-only database statement and MVCC snapshot.
 - Exact owner context is not selected merely because a public post exists.
+- Scientific export jobs freeze bounded occurrence and multimedia DTOs at
+  creation, revalidate every member's current privacy eligibility before
+  assembly and delivery, and expose a signed archive URL only with the
+  transactionally completed job.
 
 ## 15.3 Current Supabase posture
 
@@ -604,6 +609,12 @@ Versions are a snapshot, not a promise; upgrades require tests and security
 review.
 
 Rive and TelemetryDeck are not direct dependencies in the current implementation.
+
+The DwC-A version-2 and public-web Explore repairs are implemented but remain a
+single release-held unit until exact-SHA fresh-catalog, hosted maximum-shape,
+catalog, credential, and complete CI evidence passes. The authoritative
+promotion checklist is
+[DwC-A and Public Web Release Assurance](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 # 16. Telemetry, quality, and operations
 

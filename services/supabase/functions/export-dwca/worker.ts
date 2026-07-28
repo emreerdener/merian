@@ -6,6 +6,7 @@ import {
 } from "./archive.ts";
 import {
   advanceExportJobStep,
+  checkExportSourceFence,
   claimExportJob,
   completePreparedExportJob,
   fetchExportJobChunks,
@@ -18,6 +19,7 @@ import {
 import { sendExportEmail } from "./mail.ts";
 import { loadUserPseudonymizer, UserPseudonymizer } from "./pseudonym.ts";
 import {
+  deleteDwcaArchiveObject,
   exportObjectKey,
   ExportUploadResult,
   exportWorkChunkObjectKey,
@@ -85,6 +87,11 @@ export interface ExportWorkerServices {
     jobId: string,
     claimToken: string,
   ): Promise<ExportChunkManifestEntry[]>;
+  checkSource(
+    jobId: string,
+    claimToken: string,
+    phase: "assembling" | "delivering",
+  ): Promise<void>;
   createArchive(
     manifest: ExportChunkManifestEntry[],
     onProgress: () => Promise<void>,
@@ -95,6 +102,7 @@ export interface ExportWorkerServices {
     onProgress: () => Promise<void>,
     maximumBytes: number,
   ): Promise<ExportUploadResult>;
+  deleteArchive(objectKey: string): Promise<void>;
   stageArchive(
     jobId: string,
     claimToken: string,
@@ -157,6 +165,13 @@ function defaultServices(
       ),
     fetchManifest: (jobId, claimToken) =>
       fetchExportJobChunks(jobId, claimToken, supabaseAdmin),
+    checkSource: (jobId, claimToken, phase) =>
+      checkExportSourceFence(
+        jobId,
+        claimToken,
+        phase,
+        supabaseAdmin,
+      ),
     createArchive: createPreparedDwcaArchiveStream,
     uploadArchive: (
       archive,
@@ -171,6 +186,7 @@ function defaultServices(
         undefined,
         maximumBytes,
       ),
+    deleteArchive: deleteDwcaArchiveObject,
     stageArchive: (jobId, claimToken, objectKey, signedUrl) =>
       stagePreparedExportArchive(
         jobId,
@@ -255,6 +271,12 @@ async function retryCompletion(
       await operation();
       return;
     } catch (error) {
+      if (
+        error instanceof ExportWorkerError &&
+        error.code === "source_snapshot_changed"
+      ) {
+        throw error;
+      }
       lastError = error;
     }
   }
@@ -346,6 +368,7 @@ async function processAssemblyStep(
   claimToken: string,
   services: ExportWorkerServices,
 ): Promise<ExportWorkerResult> {
+  await services.checkSource(job.id, claimToken, "assembling");
   const manifest = await services.fetchManifest(job.id, claimToken);
   const manifestBytes = manifest.reduce(
     (total, chunk) => total + chunk.byteCount,
@@ -371,12 +394,29 @@ async function processAssemblyStep(
     heartbeat,
     job.maxArchiveBytes,
   );
-  await services.stageArchive(
-    job.id,
-    claimToken,
-    objectKey,
-    uploaded.signedUrl,
-  );
+  try {
+    await services.stageArchive(
+      job.id,
+      claimToken,
+      objectKey,
+      uploaded.signedUrl,
+    );
+  } catch (error) {
+    try {
+      await services.deleteArchive(objectKey);
+    } catch (deleteError) {
+      console.error(JSON.stringify({
+        event: "dwca_unstaged_archive_delete_failed",
+        job_id: job.id,
+        object_key: objectKey,
+        error: deleteError instanceof Error
+          ? deleteError.message
+          : String(deleteError),
+        ts: new Date().toISOString(),
+      }));
+    }
+    throw error;
+  }
   return {
     disposition: "advanced",
     phase: "delivering",
@@ -397,12 +437,38 @@ async function processDeliveryStep(
       false,
     );
   }
-  const email = await services.fetchEmail(job.userId);
+  let email: string;
+  try {
+    await services.checkSource(job.id, claimToken, "delivering");
+    email = await services.fetchEmail(job.userId);
+    // Email lookup is an external suspension point. Re-run the full membership
+    // fence immediately before the irreversible provider call rather than
+    // relying on the check that preceded the lookup.
+    await services.checkSource(job.id, claimToken, "delivering");
+  } catch (error) {
+    if (
+      error instanceof ExportWorkerError &&
+      error.code === "source_snapshot_changed"
+    ) {
+      await services.deleteArchive(job.archiveObjectKey);
+    }
+    throw error;
+  }
   await services.sendEmail(email, job.fileUrl, job.id);
-  await retryCompletion(
-    () => services.complete(job.id, claimToken),
-    services,
-  );
+  try {
+    await retryCompletion(
+      () => services.complete(job.id, claimToken),
+      services,
+    );
+  } catch (error) {
+    if (
+      error instanceof ExportWorkerError &&
+      error.code === "source_snapshot_changed"
+    ) {
+      await services.deleteArchive(job.archiveObjectKey);
+    }
+    throw error;
+  }
   return { disposition: "completed", phase: "completed" };
 }
 

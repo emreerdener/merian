@@ -1249,17 +1249,23 @@ requests five-job oldest-due waves, requeues successful progress behind older
 work, and suppresses failed/contended jobs to avoid hot-loop allocation or
 provider traffic. Validated row constraints bound media URL and interaction
 arrays plus selected taxonomy fields before the read. Job creation materializes
-the narrow occurrence and multimedia JSON separately, rejects any projection
-above 256 KiB, and limits total source JSON to four times the archive budget
-with a 64 MiB hard cap. Each claimed page stops at 100 rows or 256 KiB of
-serialized source. Occurrence DTOs contain no media arrays; multimedia DTOs
-contain no taxonomy/coordinates. Both keyset passes traverse the same immutable
-rows. Global and non-precise personal occurrence DTOs also omit exact GPS before
-persistence. Normal source edits cannot alter them, while a compact live
-eligibility hash rejects deletion or relevant privacy revocation. CSV encoding
-appends one row at a time into a fixed buffer capped at 512 KiB and commits it
-with its cursor and cumulative row/byte budgets. The durable queue, not one Edge
-isolate, owns the full database scan.
+the narrow occurrence and multimedia JSON separately through a parameterized
+lateral cursor. UUID membership is counted first; then each row is projected,
+measured, and inserted before the next row. Projection stops above the 256 KiB
+per-DTO limit or total source limit of four times the archive budget, with a 64
+MiB hard cap, and partial rows are removed. This bounds JSON DTO memory and
+temporary-sort amplification during rejection. Each claimed page stops at 100
+rows or 256 KiB of serialized source. Occurrence DTOs contain no media arrays;
+multimedia DTOs contain no taxonomy/coordinates. Both keyset passes traverse
+the same immutable rows. Global and non-precise personal occurrence DTOs omit
+exact GPS before persistence.
+
+Normal source edits cannot alter immutable DTOs. Page hashes and a full-member
+predicate reject deletion or relevant privacy revocation before assembly,
+staging, email, and completion; scan/taxonomy triggers persist invalidation.
+CSV encoding appends one row at a time into a fixed buffer capped at 512 KiB
+and commits it with its cursor and cumulative row/byte budgets. The durable
+queue, not one Edge isolate, owns the full database scan.
 
 Assembly lazily GETs the ordered chunk manifest into the ZIP stream and
 coalesces only one 8 MiB R2 multipart part at a time. Preparation persists the
@@ -1280,6 +1286,11 @@ retries reuse it and send Resend's job-scoped idempotency key. This bounds
 duplicate work after an Edge restart without pretending the runtime has
 unlimited duration. Public callers may queue personal exports only; global
 exports remain a reviewed internal workflow.
+
+Processing signed URLs remain in API-inaccessible work state and are published
+only with final fenced completion. Fresh-catalog and hosted maximum-shape
+measurements remain required promotion evidence in
+[`14-dwca-and-public-web-release-hold-2026-07-27.md`](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### Main Thread Search Thrashing (`ScansManager`)
 

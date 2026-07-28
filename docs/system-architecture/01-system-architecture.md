@@ -208,16 +208,20 @@ single-responsibility functions under `/services/supabase/functions/`.
     waves with a 40-step ceiling; lease fencing still permits safe overlap and
     fair rotation. Both CSV passes share bounded immutable creation-time DTOs,
     with confirmed species identity applied once; later scans and edits cannot
-    produce mixed output. A separate scope-aware live eligibility hash still
-    fails deletion or privacy revocation before delivery; personal geoprivacy is
-    irrelevant, but protected-species coordinate policy is revalidated for both
-    scopes. Cardinality/UTF-8 source constraints, aggregate source budgets, 256
-    KiB claimed database pages, a fixed 512 KiB incremental CSV encoder, durable
-    cursors, and claim-fenced byte-count/CRC manifests enforce canonical budgets
-    before streaming the Darwin Core ZIP to R2. Final checksum assembly composes
-    bounded chunk CRCs instead of scanning the full archive in JavaScript, then
-    dispatches an idempotent Resend request. Aggregate oldest-due/backlog
-    telemetry feeds a separate production monitor.
+    produce mixed output. Page hashes and a shared full-member predicate
+    revalidate privacy eligibility before assembly, staging, email, and
+    completion; scan/taxonomy triggers durably invalidate affected work.
+    Personal geoprivacy is irrelevant, while protected-species coordinate
+    policy is revalidated for both scopes. Cardinality/UTF-8 source constraints,
+    row-at-a-time aggregate source enforcement, 256 KiB claimed database pages,
+    a fixed 512 KiB incremental CSV encoder, durable cursors, and claim-fenced
+    byte-count/CRC manifests enforce canonical budgets before streaming the
+    Darwin Core ZIP to R2. Processing signed URLs stay in private work state
+    until final fenced completion. Checksum assembly composes bounded chunk CRCs
+    instead of scanning the full archive in JavaScript, then dispatches an
+    idempotent Resend request. Aggregate oldest-due/backlog telemetry feeds a
+    separate production monitor. Exact-SHA promotion evidence is tracked in
+    `docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md`.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for
     direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge
     proxy memory.

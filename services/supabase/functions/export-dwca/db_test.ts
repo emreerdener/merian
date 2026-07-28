@@ -5,10 +5,13 @@ import {
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   advanceExportJobStep,
+  checkExportSourceFence,
+  completePreparedExportJob,
   fetchDueExportJobIds,
   fetchExportJobChunks,
   fetchExportQueueHealth,
   fetchExportScanBatch,
+  stagePreparedExportArchive,
 } from "./db.ts";
 import {
   MAXIMUM_DWCA_IMAGE_URL_BYTES,
@@ -131,6 +134,75 @@ Deno.test("fetchExportJobChunks validates durable CRC and sequence metadata", as
     ExportWorkerError,
     "malformed",
   );
+});
+
+Deno.test("checkExportSourceFence validates the full-set fence status", async () => {
+  const calls: Array<{
+    name: string;
+    arguments: Record<string, unknown>;
+  }> = [];
+  await checkExportSourceFence(
+    job.id,
+    "00000000-0000-4000-8000-000000000401",
+    "assembling",
+    mockClient("current", calls),
+  );
+  assertEquals(calls, [{
+    name: "check_dwca_export_source_fence",
+    arguments: {
+      p_job_id: job.id,
+      p_claim_token: "00000000-0000-4000-8000-000000000401",
+      p_expected_phase: "assembling",
+    },
+  }]);
+
+  const error = await assertRejects(
+    () =>
+      checkExportSourceFence(
+        job.id,
+        "00000000-0000-4000-8000-000000000401",
+        "delivering",
+        mockClient("source_snapshot_changed"),
+      ),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
+});
+
+Deno.test("stage and completion map transactional privacy rejection to a terminal source change", async () => {
+  const rejectedClient = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "55001",
+          message: "dwca_export_source_snapshot_changed",
+        },
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  for (
+    const operation of [
+      () =>
+        stagePreparedExportArchive(
+          job.id,
+          "00000000-0000-4000-8000-000000000401",
+          `exports/${job.userId}/${job.id}/attempt.zip`,
+          "https://r2.example.invalid/export.zip",
+          rejectedClient,
+        ),
+      () =>
+        completePreparedExportJob(
+          job.id,
+          "00000000-0000-4000-8000-000000000401",
+          rejectedClient,
+        ),
+    ]
+  ) {
+    const error = await assertRejects(operation, ExportWorkerError);
+    assertEquals(error.code, "source_snapshot_changed");
+  }
 });
 
 function mockClient(

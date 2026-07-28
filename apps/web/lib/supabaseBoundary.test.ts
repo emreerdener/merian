@@ -55,9 +55,13 @@ test("anonymous Explore pages use only the scoped server projection", async () =
   assert.match(source, /^import "server-only";/);
   assert.match(source, /createAdminSupabaseClient/);
   assert.match(source, /get_public_web_explore_posts/);
-  assert.match(source, /get_public_web_explore_post_detail/);
+  assert.match(source, /get_public_web_explore_post_page/);
   assert.match(source, /p_target_post_id: null/);
   assert.match(source, /p_max_limit: Math\.min\(limit, 48\)/);
+  assert.doesNotMatch(
+    source,
+    /supabase\.rpc\(\s*"get_public_web_explore_post_detail"/,
+  );
   assert.doesNotMatch(source, /createPublicServerSupabaseClient/);
   assert.doesNotMatch(source, /SUPABASE_PUBLIC_VIEWER_ID/);
   assert.doesNotMatch(source, /\.from\("users"\)/);

@@ -43,7 +43,7 @@ deno check --frozen \
   "${tooling_sources[@]}"
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase,.github/workflows,.github/dependabot.yml,Makefile,README.md,CHANGELOG.md,docs,apps/web/.env.example \
+  --allow-read=services/supabase,.github/workflows,.github/dependabot.yml,Makefile,README.md,CHANGELOG.md,docs,apps/web,apps/ios \
   --allow-run=bash \
   "${tooling_tests[@]}"
 

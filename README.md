@@ -10,6 +10,13 @@ Production domain, AASA, email, backend, App Store, verification, and rollback
 steps are tracked in the
 [Naturebook rebrand rollout runbook](docs/development-guides/15-naturebook-rebrand-rollout.md).
 
+> **Production release evidence gate (2026-07-27):** The DwC-A
+> version-2/public-web Explore design repairs are implemented. Do not promote
+> the release unit until exact-SHA fresh-catalog pgTAP, complete CI, production
+> credential/catalog smoke tests, and hosted maximum-shape measurements pass.
+> See the
+> [canonical release-hold record](docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
+
 ---
 
 ## Features
@@ -286,10 +293,13 @@ is overdue, leases expire, or the erasure backlog breaches its SLA.
 - Global DwC-A exports replace user IDs with versioned, domain-separated
   HMAC-SHA256 pseudonyms under a dedicated export key, preserving longitudinal
   attribution without exposing or reusing Supabase credentials. Public callers
-  can queue personal exports only; the worker persists keyset cursors and
-  claim-fenced CSV byte-count/CRC manifests across bounded phases with canonical
-  row/archive budgets. Final ZIP checksum assembly composes bounded chunk CRCs
-  instead of rescanning the complete archive in JavaScript.
+  can queue personal exports only. Job creation incrementally freezes bounded
+  occurrence and multimedia DTOs from one MVCC snapshot; the worker persists
+  keyset cursors and claim-fenced CSV byte-count/CRC manifests across bounded
+  phases with canonical row/archive budgets. Every source member is
+  privacy-revalidated before assembly and delivery, and signed URLs remain
+  private until final fenced completion. Final ZIP checksum assembly composes
+  bounded chunk CRCs instead of rescanning the complete archive in JavaScript.
 - Account deletion preserves login access through relational anonymization and
   cursor-persisted R2 erasure. It waits for a delayed empty verification sweep
   before removing Auth, and a scheduled reaper resumes every phase after a

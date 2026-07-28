@@ -139,10 +139,11 @@ BEGIN
               'occurrence_payload',
               'occurrence_byte_count',
               'multimedia_payload',
-              'multimedia_byte_count'
+              'multimedia_byte_count',
+              'coordinate_protection_required'
           )
           AND column_row.is_nullable = 'NO'
-    ) <> 5 THEN
+    ) <> 6 THEN
         RAISE EXCEPTION
             'the private immutable export DTO store is not fully constrained';
     END IF;
@@ -181,6 +182,28 @@ BEGIN
             'the private export chunk manifest lacks a bounded CRC invariant';
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_attribute AS attribute_row
+        WHERE attribute_row.attrelid =
+              'internal.export_job_work'::REGCLASS
+          AND attribute_row.attname = 'delivery_file_url'
+          AND NOT attribute_row.attnotnull
+          AND NOT attribute_row.attisdropped
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid =
+              'internal.export_job_work'::REGCLASS
+          AND constraint_row.conname =
+              'export_job_work_delivery_url_check'
+          AND constraint_row.contype = 'c'
+          AND constraint_row.convalidated
+    ) THEN
+        RAISE EXCEPTION
+            'the private staged export delivery URL is not constrained';
+    END IF;
+
     FOREACH routine_signature IN ARRAY ARRAY[
         'public.claim_export_job(uuid,uuid)',
         'public.renew_export_job_claim(uuid,uuid)',
@@ -192,6 +215,7 @@ BEGIN
         'public.get_dwca_export_scan_batch(uuid,uuid,text,uuid,integer,integer)',
         'public.advance_export_job_step(uuid,uuid,text,uuid,integer,text,integer,bigint,boolean)',
         'public.get_export_job_chunks(uuid,uuid)',
+        'public.check_dwca_export_source_fence(uuid,uuid,text)',
         'public.stage_prepared_export_archive(uuid,uuid,text,text)',
         'public.complete_prepared_export_job(uuid,uuid)',
         'public.release_export_job_step(uuid,uuid,text,boolean)'
@@ -233,6 +257,7 @@ BEGIN
               'get_dwca_export_scan_batch',
               'advance_export_job_step',
               'get_export_job_chunks',
+              'check_dwca_export_source_fence',
               'stage_prepared_export_archive',
               'complete_prepared_export_job',
               'release_export_job_step'
@@ -286,8 +311,11 @@ BEGIN
 
     FOREACH routine_signature IN ARRAY ARRAY[
         'internal.materialize_dwca_export_source_snapshot(uuid)',
+        'internal.dwca_export_source_is_current(uuid)',
         'internal.initialize_dwca_export_source_snapshot()',
-        'internal.purge_dwca_export_source_snapshot()'
+        'internal.purge_dwca_export_source_snapshot()',
+        'internal.invalidate_dwca_exports_for_scan()',
+        'internal.invalidate_dwca_exports_for_species()'
     ]
     LOOP
         IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -308,6 +336,31 @@ BEGIN
                 routine_signature;
         END IF;
     END LOOP;
+
+    IF (
+        SELECT pg_catalog.COUNT(*)
+        FROM pg_catalog.pg_trigger AS trigger_row
+        WHERE (
+            (
+                trigger_row.tgrelid = 'public.scans'::REGCLASS
+                AND trigger_row.tgname IN (
+                    'invalidate_dwca_exports_for_scan',
+                    'invalidate_dwca_exports_for_scan_truncate'
+                )
+            ) OR (
+                trigger_row.tgrelid =
+                    'public.species_dictionary'::REGCLASS
+                AND trigger_row.tgname IN (
+                    'invalidate_dwca_exports_for_species',
+                    'invalidate_dwca_exports_for_species_truncate'
+                )
+            )
+        )
+          AND NOT trigger_row.tgisinternal
+    ) <> 4 THEN
+        RAISE EXCEPTION
+            'a durable DwC-A privacy invalidation trigger is missing';
+    END IF;
 
     IF NOT EXISTS (
         SELECT 1
@@ -881,6 +934,11 @@ BEGIN
     SET is_tombstoned = FALSE
     WHERE scans.id = first_scan_id;
 
+    UPDATE internal.export_job_work AS work
+    SET delivery_file_url =
+        'https://r2.example.invalid/revoked-export.zip?signed=private'
+    WHERE work.job_id = bounded_job_id;
+
     SELECT public.release_export_job_step(
         bounded_job_id,
         bounded_token,
@@ -899,14 +957,18 @@ BEGIN
     FROM internal.export_job_source_rows AS source_rows
     WHERE source_rows.job_id = bounded_job_id;
 
-    SELECT source_state.purged_at IS NOT NULL
+    SELECT
+        source_state.purged_at IS NOT NULL
+        AND work.delivery_file_url IS NULL
     INTO STRICT boolean_result
     FROM internal.export_job_source_state AS source_state
+    INNER JOIN internal.export_job_work AS work
+        ON work.job_id = source_state.job_id
     WHERE source_state.job_id = bounded_job_id;
 
     IF returned_rows <> 0 OR NOT boolean_result THEN
         RAISE EXCEPTION
-            'terminal export did not purge its immutable source DTOs';
+            'terminal export retained source DTOs or a staged signed URL';
     END IF;
 
     INSERT INTO public.export_jobs (

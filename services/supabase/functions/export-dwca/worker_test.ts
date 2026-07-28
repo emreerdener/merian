@@ -97,6 +97,10 @@ function successfulServices(
       events.push("manifest");
       return Promise.resolve([]);
     },
+    checkSource(_jobId, _claimToken, phase) {
+      events.push(`source_fence:${phase}`);
+      return Promise.resolve();
+    },
     createArchive() {
       events.push("archive");
       return emptyArchive();
@@ -109,6 +113,10 @@ function successfulServices(
         uploadedBytes: 3,
         uploadedParts: 1,
       });
+    },
+    deleteArchive(objectKey) {
+      events.push(`delete:${objectKey}`);
+      return Promise.resolve();
     },
     stageArchive() {
       events.push("stage");
@@ -205,11 +213,16 @@ Deno.test("assembly consumes only the durable bounded manifest", async () => {
     uploadedBytes: 3,
     uploadedParts: 1,
   });
-  assertEquals(events.slice(0, 3), ["claim", "manifest", "archive"]);
-  assert(events[3].startsWith(
+  assertEquals(events.slice(0, 4), [
+    "claim",
+    "source_fence:assembling",
+    "manifest",
+    "archive",
+  ]);
+  assert(events[4].startsWith(
     `upload:exports/${job.userId}/${job.id}/`,
   ));
-  assert(events[3].endsWith(`.zip:${job.maxArchiveBytes}`));
+  assert(events[4].endsWith(`.zip:${job.maxArchiveBytes}`));
   assertEquals(events.at(-1), "stage");
 });
 
@@ -243,6 +256,175 @@ Deno.test("delivery retries only the fenced idempotent completion write", async 
   });
   assertEquals(events.filter((event) => event === "send").length, 1);
   assertEquals(events.filter((event) => event === "complete").length, 3);
+  assertEquals(
+    events.filter((event) => event === "source_fence:delivering").length,
+    2,
+  );
+  assertEquals(events[1], "source_fence:delivering");
+});
+
+Deno.test("assembly rejects a changed earlier source before reading its manifest", async () => {
+  const events: string[] = [];
+  const assembling: ClaimedExportJob = {
+    ...job,
+    workPhase: "assembling",
+  };
+  const services = successfulServices(events, assembling);
+  services.checkSource = (_jobId, _claimToken, phase) => {
+    events.push(`source_fence:${phase}`);
+    return Promise.reject(
+      new ExportWorkerError(
+        "source_snapshot_changed",
+        "an earlier source row changed",
+      ),
+    );
+  };
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
+  assertEquals(events.includes("manifest"), false);
+  assertEquals(
+    events.some((event) => event.startsWith("upload:")),
+    false,
+  );
+  assertEquals(events.at(-1), "release:source_snapshot_changed:true");
+});
+
+Deno.test("a source change at archive staging deletes the unstaged object", async () => {
+  const events: string[] = [];
+  const assembling: ClaimedExportJob = {
+    ...job,
+    workPhase: "assembling",
+    occurrenceRows: 1,
+    csvBytes: 3,
+  };
+  const services = successfulServices(events, assembling);
+  services.fetchManifest = () =>
+    Promise.resolve([{
+      phase: "occurrence",
+      sequence: 0,
+      objectKey: "exports/test/work/occurrence/00000000.csv",
+      byteCount: 3,
+      crc32: calculateCrc32(new Uint8Array([1, 2, 3])),
+    }]);
+  services.stageArchive = () =>
+    Promise.reject(
+      new ExportWorkerError(
+        "source_snapshot_changed",
+        "source changed during upload",
+      ),
+    );
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
+  assertEquals(
+    events.some((event) => event.startsWith("delete:exports/")),
+    true,
+  );
+  assertEquals(events.at(-1), "release:source_snapshot_changed:true");
+});
+
+Deno.test("delivery deletes a staged archive and sends no email after revocation", async () => {
+  const events: string[] = [];
+  const archiveObjectKey = `exports/${job.userId}/${job.id}/staged.zip`;
+  const delivering: ClaimedExportJob = {
+    ...job,
+    workPhase: "delivering",
+    archiveObjectKey,
+    fileUrl: "https://r2.example.invalid/export.zip?signed=stable",
+    archiveReadyAt: "2026-07-25T23:00:00.000Z",
+  };
+  const services = successfulServices(events, delivering);
+  services.checkSource = (_jobId, _claimToken, phase) => {
+    events.push(`source_fence:${phase}`);
+    return Promise.reject(
+      new ExportWorkerError(
+        "source_snapshot_changed",
+        "source was tombstoned",
+      ),
+    );
+  };
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
+  assertEquals(events.includes(`delete:${archiveObjectKey}`), true);
+  assertEquals(events.includes("send"), false);
+  assertEquals(events.at(-1), "release:source_snapshot_changed:true");
+});
+
+Deno.test("delivery revalidates after email lookup before calling the provider", async () => {
+  const events: string[] = [];
+  const archiveObjectKey = `exports/${job.userId}/${job.id}/staged.zip`;
+  const delivering: ClaimedExportJob = {
+    ...job,
+    workPhase: "delivering",
+    archiveObjectKey,
+    fileUrl: "https://r2.example.invalid/export.zip?signed=private",
+    archiveReadyAt: "2026-07-25T23:00:00.000Z",
+  };
+  const services = successfulServices(events, delivering);
+  let fenceChecks = 0;
+  services.checkSource = (_jobId, _claimToken, phase) => {
+    events.push(`source_fence:${phase}`);
+    fenceChecks += 1;
+    return fenceChecks === 1 ? Promise.resolve() : Promise.reject(
+      new ExportWorkerError(
+        "source_snapshot_changed",
+        "source changed while resolving the recipient",
+      ),
+    );
+  };
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
+  assertEquals(events.includes("email_lookup"), true);
+  assertEquals(events.includes("send"), false);
+  assertEquals(events.includes(`delete:${archiveObjectKey}`), true);
+  assertEquals(events.at(-1), "release:source_snapshot_changed:true");
+});
+
+Deno.test("delivery deletes the archive when completion detects an in-flight privacy change", async () => {
+  const events: string[] = [];
+  const archiveObjectKey = `exports/${job.userId}/${job.id}/staged.zip`;
+  const delivering: ClaimedExportJob = {
+    ...job,
+    workPhase: "delivering",
+    archiveObjectKey,
+    fileUrl: "https://r2.example.invalid/export.zip?signed=private",
+    archiveReadyAt: "2026-07-25T23:00:00.000Z",
+  };
+  const services = successfulServices(events, delivering);
+  services.complete = () => {
+    events.push("complete");
+    return Promise.reject(
+      new ExportWorkerError(
+        "source_snapshot_changed",
+        "source changed while the provider accepted delivery",
+      ),
+    );
+  };
+
+  const error = await assertRejects(
+    () => processExportJobStep(job.id, unusedClient, services),
+    ExportWorkerError,
+  );
+  assertEquals(error.code, "source_snapshot_changed");
+  assertEquals(events.filter((event) => event === "send").length, 1);
+  assertEquals(events.filter((event) => event === "complete").length, 1);
+  assertEquals(events.includes(`delete:${archiveObjectKey}`), true);
+  assertEquals(events.at(-1), "release:source_snapshot_changed:true");
 });
 
 Deno.test("canonical budget failures become terminal under the active fence", async () => {

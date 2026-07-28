@@ -322,8 +322,10 @@ source payload.
 
 Migration
 `20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql`
-upgrades the creation-time source snapshot to version 2. One MVCC statement
-materializes bounded occurrence and multimedia JSON DTOs in private
+upgrades the creation-time source snapshot to version 2. Forward migration
+`20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql` keeps the
+same creation-statement MVCC boundary while streaming occurrence and multimedia
+JSON DTOs one at a time into private
 `internal.export_job_source_rows`, records their exact aggregate UTF-8 bytes in
 `internal.export_job_source_state`, and rejects a source that exceeds four times
 the job archive budget (hard-capped at 64 MiB). Both CSV phases traverse those
@@ -333,13 +335,26 @@ privacy revisions. Confirmed species identity is authoritative; the original AI
 opted-in, snapshot-unprotected personal job; global and non-precise personal
 DTOs omit them before persistence.
 
-A compact scope-aware eligibility hash remains live. Deletion, tombstoning,
-owner changes, or a global geoprivacy change returns a revocation sentinel; both
-scopes also revalidate the protected-species coordinate-redaction requirement. A
-revocation becomes terminal `source_snapshot_changed`, while ordinary edits do
-not alter or fail the queued export. Terminal jobs purge the immutable DTOs.
-Nonterminal jobs created before the upgrade are claim-fenced, have old manifests
-discarded, and restart against one newly established version-2 snapshot.
+Snapshot construction first counts only UUIDs to the row lookahead, then uses a
+parameterized lateral cursor to project, measure, and persist one DTO at a time.
+It stops at the first per-row or aggregate violation and removes partial rows,
+so the source ceiling also bounds JSON DTO memory and temporary-sort
+amplification during rejection.
+
+A full-member scope-aware eligibility fence covers deletion, tombstoning,
+owner/live/ecology changes, global geoprivacy changes, taxonomy identity
+changes, and protected-species coordinate-policy changes. Durable invalidation
+triggers mark affected nonterminal jobs. The worker checks every member before
+assembly, before and after recipient lookup, and before email; staging and
+completion repeat the check transactionally. A mismatch becomes terminal
+`source_snapshot_changed` and the uploaded/staged object is removed. Processing
+jobs retain signed URLs only in private work state; the owner-visible URL and
+completed status appear atomically after the final fence. Terminal jobs purge
+immutable DTOs and erase the private staged URL. If a revocation commits while
+Resend is already accepting the request, completion still fails and deletes the
+attempt-fenced object; the email can exist, but its archive is revoked rather
+than published. Exact-SHA deployment evidence is tracked in the
+[release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 `functions/export-dwca` executes one short durable phase at a time—occurrence
 page, multimedia page, assembly, or delivery—but a scheduled invocation now
@@ -406,18 +421,27 @@ adds two fixed-anonymous projections:
 - `get_public_web_explore_posts(target_post_id, max_limit)`
 - `get_public_web_explore_post_detail(target_post_id)`
 
-Both routines reuse the canonical Explore visibility/privacy projections, have
-empty search paths and service-role caller checks, and are revoked from
-`PUBLIC`, `anon`, and `authenticated`. Only the server-rendered web helper may
-invoke them with the validated current or legacy server key. The card result
-forces engagement counts to zero and all viewer/ownership flags to false. It
-does not widen grants on Explore, scan, user, or taxonomy source relations.
+Both routines have empty search paths and service-role caller checks and are
+revoked from `PUBLIC`, `anon`, and `authenticated`. Only the server-rendered web
+helper may invoke them with the validated current or legacy server key. The card
+routine reuses `explore_projected_post_cards(NULL)`, forces engagement counts to
+zero, and forces all viewer/ownership flags to false. Forward migration
+`20260728001723_repair_dwca_privacy_visibility_and_snapshot_work.sql` makes the
+detail routine independently inner-join that canonical card projection and
+adds `get_public_web_explore_post_page(target_post_id)`, which returns card plus
+detail from one statement/MVCC snapshot. The web helper uses the combined
+routine. No routine widens grants on Explore, scan, user, or taxonomy source
+relations.
 
 `functions/_tests/publicWebExploreMigrationContract.test.ts`,
 `functions/_tests/publicWebExploreCoverage.test.ts`,
 `tests/public_web_explore_security.sql`, the web source-boundary test, and the
-production deploy smoke prove that browser roles are denied while the server
-credential can obtain only the scoped projection.
+production deploy smoke prove that browser roles are denied and that the server
+credential can obtain the tested visible projection. Database coverage also
+proves direct detail and atomic page reads return no row after canonical
+moderation exclusion. The complete production negative-state matrix and
+exact-SHA evidence are tracked in the
+[release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### Public Web Waitlist Boundary
 

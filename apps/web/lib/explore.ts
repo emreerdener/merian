@@ -69,6 +69,11 @@ type ExplorePostDetailRow = {
   wikipedia_overview?: string | null;
 };
 
+type ExplorePostPageRow = {
+  post_payload?: unknown;
+  detail_payload?: unknown;
+};
+
 const stateCodeToName: Record<string, string> = {
   AL: "Alabama",
   AK: "Alaska",
@@ -579,37 +584,6 @@ function supabaseUrlHost() {
   }
 }
 
-async function fetchExplorePostDetail(
-  postId: string,
-): Promise<ExplorePostDetail | null> {
-  if (!isValidUuid(postId)) {
-    return null;
-  }
-
-  const supabase = createAdminSupabaseClient();
-
-  if (!supabase) {
-    return null;
-  }
-
-  const { data, error } = await supabase.rpc(
-    "get_public_web_explore_post_detail",
-    {
-      p_target_post_id: postId,
-    },
-  );
-
-  if (error) {
-    logExplorePostRpcError("explore_post_detail_rpc_failed", postId, error);
-    throw new Error(`Failed to fetch Explore post detail: ${error.message}`);
-  }
-
-  const rows = (data ?? []) as ExplorePostDetailRow[];
-  const detail = rows[0];
-
-  return detail ? mapExplorePostDetail(detail) : null;
-}
-
 function detailForPostSubject(
   detail: ExplorePostDetail | null,
   post: ExplorePost,
@@ -677,23 +651,56 @@ export async function fetchExplorePost(
 export async function fetchExplorePostPage(
   postId: string,
 ): Promise<ExplorePostPageData | null> {
-  const post = await fetchExplorePost(postId);
-
-  if (!post) {
+  if (!isValidUuid(postId)) {
     return null;
   }
 
-  let detail: ExplorePostDetail | null = null;
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) {
+    console.error("explore_post_page_supabase_config_missing", {
+      post_id: postId,
+    });
+    return null;
+  }
+
+  const { data, error } = await supabase.rpc(
+    "get_public_web_explore_post_page",
+    {
+      p_target_post_id: postId,
+    },
+  );
+
+  if (error) {
+    logExplorePostRpcError("explore_post_page_rpc_failed", postId, error);
+    throw new Error(`Failed to fetch Explore post page: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as ExplorePostPageRow[];
+  const row = rows[0];
+  if (
+    !row ||
+    !row.post_payload ||
+    typeof row.post_payload !== "object" ||
+    Array.isArray(row.post_payload)
+  ) {
+    return null;
+  }
+
   try {
-    detail = await fetchExplorePostDetail(postId);
+    const post = mapExplorePost(row.post_payload as ExplorePostRow);
+    const detail = row.detail_payload &&
+        typeof row.detail_payload === "object" &&
+        !Array.isArray(row.detail_payload)
+      ? mapExplorePostDetail(row.detail_payload as ExplorePostDetailRow)
+      : null;
+    return { post, detail: detailForPostSubject(detail, post) };
   } catch (error) {
-    console.warn("explore_post_detail_fetch_failed", {
+    console.error("explore_post_page_map_failed", {
       post_id: postId,
       error: error instanceof Error ? error.message : String(error),
     });
+    throw error;
   }
-
-  return { post, detail: detailForPostSubject(detail, post) };
 }
 
 export async function fetchExploreFeedPosts(

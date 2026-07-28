@@ -1178,8 +1178,9 @@ production checks:
 - `scripts/documentation_contract_test.ts` locks the same header matrix,
   hosted-plural versus singular environment shape, migration transaction/history
   ownership, replay-safe timeout guards, default-ACL/RLS behavior, supervised
-  user-FK indexes, orphan triage, and run-attempt-specific operational evidence
-  in the canonical docs.
+  user-FK indexes, orphan triage, run-attempt-specific operational evidence, the
+  active DwC-A/public-web release-hold navigation, and local links across the
+  maintained product, feature, architecture, operator, and service docs.
 - `tests/privileged_routine_security.sql` verifies the same effective ACL and
   transport policy against a fully migrated disposable catalog under real
   `anon`, `authenticated`, and `service_role` database roles. It scans current
@@ -1966,9 +1967,12 @@ The surrounding export suite is intentionally split by boundary:
   parsing, and transient versus terminal error classification.
 - `worker_test.ts` proves duplicate deliveries do no work, the database claim is
   canonical, exactly one durable phase executes per call, row/byte overflows are
-  terminal, source-snapshot changes are terminal before encoding, temporary
-  chunk and final archive keys include the claim token, staged archives are
-  reused, and only the winning lease can advance/finalize.
+  terminal, source-snapshot changes are terminal before encoding/assembly/email,
+  delivery revalidates after recipient lookup, an in-flight provider acceptance
+  cannot make a newly invalid export complete, invalidated objects are deleted,
+  temporary chunk and final archive keys include the claim token, staged
+  archives are reused privately, and only the winning lease can
+  advance/finalize.
 - `_tests/exportDwcaSecurityCoverage.test.ts` rejects webhook authority creep,
   public global-export access, OFFSET/full-buffer regressions, unbounded
   invocation work, JWT-secret reuse, and fallback salts.
@@ -1977,24 +1981,37 @@ The surrounding export suite is intentionally split by boundary:
   lock-safe install/validation ordering, validated source
   cardinality/element-byte constraints, claim-bound 100-row/256 KiB source
   pages, version-2 creation-time immutable occurrence/multimedia DTOs,
-  authoritative confirmed identity, aggregate source-byte budgets, the live
-  privacy-eligibility fence, terminal DTO purge, 512 KiB chunks, claim-token key
-  validation, minute resume cron, sorted canonical-job fencing before chunk DDL,
-  and the replacement CRC-bearing advance/manifest signatures and ACLs.
+  authoritative confirmed identity, row-at-a-time aggregate source-byte
+  enforcement, page and full-member privacy fences, durable invalidation,
+  private processing URLs, terminal DTO purge, 512 KiB chunks, claim-token key
+  validation, minute resume cron, sorted canonical-job fencing before chunk
+  DDL, and replacement CRC-bearing advance/manifest signatures and ACLs.
 - `tests/export_dwca_security.sql` executes the ACL, live-lease, stale-token,
   immutable-row/result, finite rollout cohort, old-worker overwrite rejection,
   legacy-error sanitization, post-deadline claim, validated source constraints,
   aggregate page-byte cutoff, immutable DTOs, confirmed-identity projection,
   exact-GPS omission for non-precise jobs, ordinary-edit stability, live privacy
-  revocation, phased cursor/manifest transition, budget overflow, and
+  revocation, private delivery URL constraints, phased cursor/manifest
+  transition, terminal private-URL cleanup, budget overflow, and
   idempotent-completion contract against local Postgres.
 - `tests/export_dwca_snapshot_security.sql` independently proves job insertion
   freezes both phase DTOs, later scans stay excluded, live taxonomy/media edits
   cannot change stored payloads, personal geoprivacy is scope-irrelevant, a
   protected-species coordinate-policy escalation or tombstone revocation returns
-  no payload, snapshot routines pass static PL/pgSQL validation, and a terminal
-  job purges the DTOs. `privileged_routine_security.sql` independently runs
-  static PL/pgSQL/search-path/grant validation over the new definer RPCs.
+  no payload, an early paged row fails the full pre-assembly fence, oversized
+  aggregate projection stops without retaining partial rows, snapshot routines
+  pass static PL/pgSQL validation, and a terminal job purges the DTOs.
+  `privileged_routine_security.sql` independently runs static
+  PL/pgSQL/search-path/grant validation over the new definer RPCs.
+
+Public-web migration/DB/source-boundary coverage proves direct detail owns the
+canonical anonymous card predicate and page reads use one combined statement.
+Focused tests cover revocation after preparation, during staging, before
+delivery, after recipient lookup, and while provider delivery is in flight.
+Fresh-catalog replay and hosted maximum-shape PostgreSQL/Edge measurements remain
+mandatory exact-SHA production evidence. The regression matrix and release
+verdict are maintained in
+[`14-dwca-and-public-web-release-hold-2026-07-27.md`](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 The CRC tests deliberately assert correctness and bounded algorithm shape rather
 than wall-clock timing, which is unstable on shared CI runners. The development
