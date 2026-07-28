@@ -60,6 +60,17 @@ already have occurred and transition to `failed` so a new metered retry can use
 the same logical key. An uncommitted reservation expires after ten minutes, and
 its per-attempt fencing token rejects delayed settlement after retry.
 
+At-least-once delivery is a success contract, not a conflict contract. Before
+staging-object resolution or quota reservation, the route reloads an exact
+owner-scoped completed response. A duplicate that reaches quota while the first
+invocation still owns provider/finalization work waits for that completion
+within a 70-second server bound and the client's 90-second request bound.
+Success returns HTTP `200` with
+`X-Merian-Idempotent-Replay: stored|reconstructed`; it never issues another
+primary provider call. `ai_request_already_completed`, `ai_request_in_progress`,
+and `scan_already_finalized` are internal coordination states and must not be
+the normal result of retrying a completed scan.
+
 ## Model And Generation Invariants
 
 Each accepted scan makes exactly one primary identification
@@ -99,6 +110,14 @@ Run `make generate-edge-dto-contract` and `make validate-edge-dto-contract` for
 intentional response changes. The root Swift fields are generated as optional
 for staggered rollout compatibility, but the server contract remains strict
 before delivery.
+
+The validated envelope is stored immutably through
+`complete_scan_ingestion_finalization_with_response(...)` in the same
+transaction as completion. Rows completed before canonical response persistence
+are reconstructed from the authenticated owner's scan and species rows and
+revalidated through this same executable contract. The response contains no raw
+media. Deletion intake, owner removal, and final scan deletion erase the stored
+envelope.
 
 ## Media Rules
 

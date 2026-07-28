@@ -59,6 +59,12 @@ the privileged-routine catalog audit and migration/security contract suites.
    canonical home in `scanIngestionJobs.ts`, all callers import it there, and
    strict response validation covers the current RPC shape, including stage and
    already-complete state. Malformed database envelopes fail closed.
+8. The July 23 quota boundary made duplicate provider work cost-safe but exposed
+   a completed or concurrent scan delivery as `409`. All four scan-producing
+   routes now perform exact owner-scoped completion lookup before media/quota
+   work, atomically persist the canonical success envelope at finalization,
+   reconstruct older complete rows, and boundedly coalesce concurrent delivery.
+   A lost-response retry returns marked `200` without a second model call.
 
 ## Boundary Review
 
@@ -107,25 +113,28 @@ reference a missing or unconfigured route.
 
 ## Validation Evidence
 
-- complete Edge Function suite: `1246 passed`, `0 failed`;
-- migration contracts: `145 passed`, `0 failed`;
-- discovery-based Supabase tooling: `102 passed`, `0 failed`, plus `16` DTO and
+- complete Edge Function unit/contract suite: `1263 passed`, `0 failed`;
+- migration contracts: `151 passed`, `0 failed`;
+- discovery-based Supabase tooling: `103 passed`, `0 failed`, plus `16` DTO and
   `10` Identify wire-contract tests;
 - workflow security and documentation contracts: `11 passed` and `8 passed`;
 - all `89` function-local deployment graphs checked in isolation;
-- Deno format across `660` files and lint across `505` files;
+- Deno format across `662` files and lint across `507` files;
 - all `56` public-web source tests passed; the complete frozen
   install/audit/type-check/build gate remains exact-SHA CI evidence because
   registry access is unavailable locally;
 - changed Swift sources parsed, and iOS project resource validation passed; and
 - `git diff --check`.
 
-Database-backed cases in the complete Edge task reported skips because this
-workspace cannot reach the disposable PostgreSQL service; production CI sets an
-explicit test URL so the same condition fails closed there. Full Xcode
-compilation also remains limited by the local SwiftPM/CoreSimulator environment.
-Neither limitation, nor hosted route/authenticated customer smokes, is counted
-as passing evidence.
+Database-backed cases were excluded from the green complete Edge task because
+the long-running local PostgreSQL catalog is behind the checked-in migration
+head. An exploratory DB-enabled run proved that distinction: `1261` tests
+passed, while two unrelated Explore-media integration cases failed because the
+stale catalog lacks `explore_post_media.health_status`. Production CI starts a
+disposable fresh catalog and sets an explicit test URL, so migration or
+integration drift fails closed there. Full Xcode compilation also remains
+limited by the local SwiftPM/CoreSimulator sandbox. Neither limitation, nor
+hosted route/authenticated customer smokes, is counted as passing evidence.
 
 ## Reviewed Entrypoints
 

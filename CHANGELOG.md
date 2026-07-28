@@ -123,6 +123,13 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Fixed scans that reached Naturebook but were shown as **Network timeout**
+  after foreground/background or transport retry delivery. Repeating the same
+  scan request now replays its completed result without another AI call, while
+  the app shows customer-facing **Restoring scan** feedback and lets the exact
+  queued/status recovery replace that message. This restores the shared
+  prerequisite for Explore sharing and Field Chat on both current and
+  reconstructable earlier scans.
 - Fixed Scan Library observations being denied when sharing to Explore after
   server-side routine authorization hardening.
 - Scan creation/status, Explore sharing/composer media, and Field Chat now retry

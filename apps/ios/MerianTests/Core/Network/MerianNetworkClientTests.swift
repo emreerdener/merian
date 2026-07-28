@@ -831,6 +831,42 @@ struct MerianNetworkClientTests {
         #expect(probe.count == 1)
     }
 
+    @Test func testRecoverableInferenceConflictRequiresKnown409Code() {
+        let recoverableCodes = [
+            "ai_request_already_completed",
+            "ai_request_in_progress",
+            "scan_already_complete",
+            "scan_already_finalized",
+        ]
+
+        for code in recoverableCodes {
+            let error = MerianError.httpError(
+                statusCode: 409,
+                message: #"{"error":"Observation recovery in progress.","code":"\#(code)"}"#
+            )
+            #expect(MerianNetworkClient.isRecoverableInferenceConflict(error))
+        }
+
+        #expect(!MerianNetworkClient.isRecoverableInferenceConflict(
+            MerianError.httpError(
+                statusCode: 409,
+                message: #"{"error":"Conflict.","code":"different_conflict"}"#
+            )
+        ))
+        #expect(!MerianNetworkClient.isRecoverableInferenceConflict(
+            MerianError.httpError(
+                statusCode: 503,
+                message: #"{"error":"Retry.","code":"ai_request_in_progress"}"#
+            )
+        ))
+        #expect(!MerianNetworkClient.isRecoverableInferenceConflict(
+            MerianError.httpError(
+                statusCode: 409,
+                message: #"{"error":"Conflict.","code":"INVALID CODE"}"#
+            )
+        ))
+    }
+
     @Test func testExploreShareSendsMissingScanRecoveryPayload() async throws {
         let scanID = "019f6ff1-9ef3-77b1-a331-a86678f53043"
         let userID = "019f6ff1-c6c4-77b1-a331-a86678f53043"

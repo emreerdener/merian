@@ -29,16 +29,16 @@ succeed.
 
 Scan milestones and Field trips start in follow-up work through
 `ScanMilestoneCoordinator`. Current multimodal `200` already guarantees the
-authenticated server scan row; the coordinator still polls
-`/check-scan-status` for compatibility and before reading the server progress
-receipt. After the progress attempt it gathers new achievement unlocks without
-presenting them early, evaluates the `New to Naturebook` eligibility flag, and
-batches standard outing progress, Seasonal Challenge progress, achievements,
-then the dictionary milestone. The background completion path uses the same
-coordinator; scan-ID deduplication prevents a live/background race from
-presenting the batch twice. Primary cache-miss Wikipedia/GBIF resolution may
-occur before the server response as part of durable success; follow-up reference
-hydration remains outside response-to-first-render.
+authenticated server scan row; the coordinator still polls `/check-scan-status`
+for compatibility and before reading the server progress receipt. After the
+progress attempt it gathers new achievement unlocks without presenting them
+early, evaluates the `New to Naturebook` eligibility flag, and batches standard
+outing progress, Seasonal Challenge progress, achievements, then the dictionary
+milestone. The background completion path uses the same coordinator; scan-ID
+deduplication prevents a live/background race from presenting the batch twice.
+Primary cache-miss Wikipedia/GBIF resolution may occur before the server
+response as part of durable success; follow-up reference hydration remains
+outside response-to-first-render.
 
 Every external reference URL applied by `InferenceEngine` is normalized through
 `ExternalReferenceImagePolicy` before it reaches `SpeciesData` or persisted scan
@@ -148,6 +148,16 @@ presentation UUID before cooperatively cancelling that task, fencing any delayed
 error or result commit as well as queue mutation. A SwiftData error while
 loading the durable owner also fails closed; it is not treated as proof that the
 job was deleted.
+
+If a foreground request loses its HTTP response after the server completed the
+scan, the engine retains the exact failed presentation scan ID independently of
+`activeScanId`. A normal background response or `/check-scan-status` recovery
+may hydrate only that retained ID, only when the provider/result or local record
+echoes the same scan ID, and only when no newer foreground scan owns the
+presentation. Known exact ingestion/quota replay conflicts use the temporary
+customer state **Restoring scan / Safely saved** instead of the misleading
+**Network timeout** placeholder; installed clients are protected primarily by
+the server's idempotent `200` response replay.
 
 Loading a persisted library record is also a presentation replacement.
 `load(from:)` invalidates the exact live UUID, releases its deferred-upload

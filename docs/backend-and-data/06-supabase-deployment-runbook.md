@@ -713,7 +713,8 @@ API responses for:
 - elevated `429 ai_user_rate_limit_exceeded` or `ai_ip_rate_limit_exceeded`
   (automation or ceilings too low);
 - unexpected `409 ai_request_already_completed` (client reused a key for a new
-  logical request);
+  logical request, or a scan-producing route failed to replay durable
+  completion);
 - provider traffic without a corresponding reservation (release blocker).
 
 Do not recover availability by granting the RPCs to `authenticated`, lowering
@@ -3190,22 +3191,29 @@ Treat these components as one compatibility release:
    `20260727010340_fix_service_role_authorization_guard.sql` and
    `20260727013416_future_proof_server_key_boundaries.sql` before testing
    Explore publication; recovery must not disguise a stale privileged-key
-   boundary.
-2. From one exact SHA, run the normal production backend workflow and promote
-   `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
-   `check-scan-status`, and `share-scan-to-explore`. Their
-   `_shared/identify/db.ts`, `_shared/scanIngestionJobs.ts`,
-   `_shared/scanIngestionCompatibility.ts`, and `_shared/scanRecovery.ts`
-   dependencies bundle transitively. If an emergency manual function deploy is
-   unavoidable, deploy in that order so new false successes stop before
-   repair-capable clients arrive.
+   boundary. Apply `20260728220000_persist_idempotent_scan_responses.sql` before
+   deploying the response-replay functions; the new bundles query
+   `response_envelope` before provider work.
+2. From one exact SHA, run the normal production backend workflow. The
+   graph-derived plan for this repair must select `identify-multimodal`,
+   `identify`, `identify-describe`, `audio-spec`, and `check-scan-status`. Their
+   `_shared/identify/db.ts`, `_shared/identify/completedResponse.ts`,
+   `_shared/scanIngestionJobs.ts`, `_shared/scanIngestionCompatibility.ts`, and
+   `_shared/scanRecovery.ts` dependencies bundle transitively. Separately verify
+   that the deployed `share-scan-to-explore` version already contains the
+   owner-row recovery and server-key compatibility fixes; include it in an
+   emergency manual promotion only when that version is absent or stale. Deploy
+   the five affected functions in the listed order so new false successes stop
+   before repair-capable clients arrive.
 3. Build and release iOS from the matching reviewed source. The iOS release
    carries `recovery_scan`, staged image/video/audio restoration, Field Chat
    preflight repair, and customer-facing toast translation. A backend workflow
    success is not evidence that this app build shipped.
 
 Old clients remain compatible with the new backend. Release backend first; never
-require the new app to compensate for an old false-success function.
+require the new app to compensate for an old false-success function. Same-UUID
+duplicates may coalesce for at most 70 seconds so the winner can finalize inside
+the iOS 90-second request bound.
 
 Before promotion, retain results for:
 
@@ -3277,6 +3285,17 @@ Use disposable staging identities and media:
     and recovery against the same scan UUID. Both routines must use the same
     advisory lock; every current route must use atomic `begin_scan_ingestion`,
     and neither routine may replace a completed recovery generation.
+13. Simulate an ambiguous/lost HTTP response after successful finalization, then
+    resend the byte-equivalent request with the same scan UUID through each of
+    the four scan-producing routes. Every retry must return `200`, the same
+    `data.scan_id`, and `X-Merian-Idempotent-Replay: stored|reconstructed`;
+    provider telemetry and quota evidence must prove one primary model dispatch.
+    Start a second request concurrently and prove it coalesces with the winner
+    rather than returning a customer-visible `409`.
+14. Insert a deletion tombstone for a completed disposable scan and verify
+    `response_envelope` is cleared immediately, before asynchronous R2 cleanup.
+    A later request with that UUID must remain fenced and must not replay
+    deleted content.
 
 ### Monitoring and incident triggers
 
@@ -3291,25 +3310,33 @@ bodies, or raw error details into retained release artifacts.
 
 Any current identify `200` followed immediately by owner status `not_found` is a
 severity incident, even if recovery later succeeds. Repeated recovery on fresh
-scans is also a deployment/version-skew signal, not acceptable steady state.
+scans is also a deployment/version-skew signal, not acceptable steady state. Any
+scan-route `409 ai_request_in_progress`, `ai_request_already_completed`,
+`scan_already_complete`, or `scan_already_finalized` reaching a current client
+indicates unresolved completion evidence or version skew and must be correlated
+by scan UUID.
 
 ### Rollback and exit criteria
 
 The backend recovery contract is backward compatible, so an iOS rollback is safe
 but restores the old customer experience. Do not roll `identify-multimodal` back
 to a version that can return success before owner-row read-back; deploy a
-forward fix instead. A status/share rollback removes repair capability and
-should be used only to contain a defect while keeping durable identify success
-in place. Never grant direct `scans` writes or privileged RPCs to
+forward fix instead. Do not roll back response persistence while replay-aware
+functions are deployed, and do not restore the old customer-visible `409`
+contract; fix replay forward. A status/share rollback removes repair capability
+and should be used only to contain a defect while keeping durable identify
+success in place. Never grant direct `scans` writes or privileged RPCs to
 `authenticated`, and never ship a server key in iOS.
 
 Close the incident only after:
 
-- production deployment records tie all three Edge Function versions to the
+- production deployment records tie all affected Edge Function versions to the
   reviewed exact SHA;
 - the matching iOS build is available to the intended cohort;
 - new-scan immediate status, Field Chat, Explore, and legacy recovery smoke
   checks pass;
+- lost-response and concurrent same-UUID replay returns marked `200` through all
+  four scan-producing routes with one provider dispatch;
 - monitoring shows no identify-success/missing-owner-row pairs through the
   agreed observation window; and
 - the incident report records deployment identifiers, timestamps, retained
@@ -4305,12 +4332,15 @@ After deployment:
   duplicate foreground/background upload contention. Confirm a delayed context
   update survives both the pre-insert staged path and the completed-scan path.
 - For the scan owner-row durability release, confirm production deployment
-  records tie the deployed versions of `identify-multimodal`,
-  `check-scan-status`, and `share-scan-to-explore` to the same reviewed SHA.
-  Submit a brand-new scan, require immediate owner status `found` after identify
-  `200`, then open Field Chat and publish it to Explore. Run the eligible
-  legacy-repair, active/retryable deferral, exact policy-rejection block,
-  cross-owner isolation, and staged-media restoration cases in
+  records tie the deployed versions of `identify-multimodal`, `identify`,
+  `identify-describe`, `audio-spec`, and `check-scan-status` to the same
+  reviewed SHA. Separately confirm `share-scan-to-explore` is already at the
+  reviewed owner-row/server-key-compatible version, or promote that version in
+  the same emergency release. Submit a brand-new scan, require immediate owner
+  status `found` after identify `200`, then open Field Chat and publish it to
+  Explore. Run the eligible legacy-repair, active/retryable deferral, exact
+  policy-rejection block, cross-owner isolation, and staged-media restoration
+  cases in
   [Scan Owner-Row Durability and Recovery Rollout](#scan-owner-row-durability-and-recovery-rollout).
   Do not call backend smoke complete until the matching iOS build independently
   passes its customer-facing retry/toast checks.

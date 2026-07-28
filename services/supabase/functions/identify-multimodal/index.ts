@@ -16,8 +16,10 @@ import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
 import {
+  AIQuotaError,
   deriveAIRequestId,
   reserveAIProviderCall,
+  resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
@@ -54,6 +56,11 @@ import {
   upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
 import { fetchIdentificationDictionaryHydration } from "../_shared/identify/latencyDb.ts";
+import {
+  type CompletedIdentifyResponse,
+  fetchCompletedIdentifyResponse,
+  waitForCompletedIdentifyResponse,
+} from "../_shared/identify/completedResponse.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 import { processWAV } from "./audio.ts";
 import {
@@ -575,6 +582,14 @@ function serverTimingValue(metrics: ServerTimingMetric[]): string {
     .join(", ");
 }
 
+function completedReplayResponse(
+  replay: CompletedIdentifyResponse,
+): Response {
+  return jsonResponse(replay.envelope, 200, {
+    "X-Merian-Idempotent-Replay": replay.source,
+  });
+}
+
 export async function handleIdentifyMultimodalRequest(
   req: Request,
   user: User,
@@ -648,10 +663,27 @@ export async function handleIdentifyMultimodalRequest(
   const estimatedSizeCm = payload.estimatedSizeCm ??
     payload.estimated_size_cm;
 
-  const generatedScanId =
-    typeof client_scan_id === "string" && client_scan_id.length > 0
-      ? client_scan_id
-      : crypto.randomUUID();
+  const generatedScanId = resolveAIRequestId(req, client_scan_id);
+
+  // This lookup must precede staging-object resolution and quota reservation.
+  // A successful first invocation may already have promoted its staging keys,
+  // and the quota ledger intentionally refuses a second provider call. Replaying
+  // the completed response here turns an ambiguous/lost HTTP response into the
+  // same successful Identify result for old and current iOS clients.
+  const existingCompletion = await fetchCompletedIdentifyResponse(
+    generatedScanId,
+    user.id,
+    supabaseAdmin,
+  );
+  if (existingCompletion) {
+    console.log(JSON.stringify({
+      event: "multimodal/idempotent_completion_replayed",
+      scan_id: generatedScanId,
+      source: existingCompletion.source,
+      ts: new Date().toISOString(),
+    }));
+    return completedReplayResponse(existingCompletion);
+  }
 
   const updateIngestionJobBestEffort = async (
     status: MutableScanIngestionJobStatus,
@@ -786,11 +818,39 @@ export async function handleIdentifyMultimodalRequest(
       generatedScanId,
       `scan-ingestion-replay:${internalReplayAttempt}`,
     );
-  const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
-    userId: user.id,
-    operation: "scan_identification",
-    requestId: quotaRequestId,
-  });
+  let quotaLease;
+  try {
+    quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+      userId: user.id,
+      operation: "scan_identification",
+      requestId: quotaRequestId,
+    });
+  } catch (error) {
+    if (
+      error instanceof AIQuotaError &&
+      (
+        error.code === "ai_request_already_completed" ||
+        error.code === "ai_request_in_progress"
+      )
+    ) {
+      const replay = await waitForCompletedIdentifyResponse(
+        generatedScanId,
+        user.id,
+        supabaseAdmin,
+      );
+      if (replay) {
+        console.log(JSON.stringify({
+          event: "multimodal/concurrent_completion_replayed",
+          scan_id: generatedScanId,
+          quota_code: error.code,
+          source: replay.source,
+          ts: new Date().toISOString(),
+        }));
+        return completedReplayResponse(replay);
+      }
+    }
+    throw error;
+  }
   const tierResolution = quotaLease.reservation.tier;
   const tierMs = performance.now() - tierStart;
   const userTier = tierResolution.effective_tier;
@@ -958,6 +1018,20 @@ export async function handleIdentifyMultimodalRequest(
     manifestChecksum = atomicIngestion.manifestChecksum ?? manifestChecksum;
     if (atomicIngestion.alreadyComplete) {
       await quotaLease.refund();
+      const replay = await fetchCompletedIdentifyResponse(
+        generatedScanId,
+        user.id,
+        supabaseAdmin,
+      );
+      if (replay) {
+        console.log(JSON.stringify({
+          event: "multimodal/recovery_completion_replayed",
+          scan_id: generatedScanId,
+          source: replay.source,
+          ts: new Date().toISOString(),
+        }));
+        return completedReplayResponse(replay);
+      }
       return publicErrorResponse(
         req,
         409,
@@ -1760,6 +1834,7 @@ export async function handleIdentifyMultimodalRequest(
             ),
           ]),
           deletedStorageKeys: companionAudioStorageKeys,
+          responseEnvelope,
         },
         supabaseAdmin,
       );

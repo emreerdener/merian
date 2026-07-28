@@ -605,11 +605,12 @@ Background inference classifies a Supabase platform route `404` before general
 HTTP handling. The response must omit `X-Merian-Handler: 1` and carry the stable
 platform code, official missing-function envelope, or gateway-without-execution
 evidence. That outcome preserves the local queue row and enters the normal
-durable retry path. Handler-owned `401`, `408`, `409`, `425`, and `429`
-responses do the same; `Retry-After` can raise the bounded persisted delay.
-Other handler-owned `4xx` responses retain the media in a user-actionable failed
-row. Only an exact stable `observation_rejected` response is a non-actionable
-terminal policy outcome.
+durable retry path. Handler-owned `401`, `408`, `425`, and `429` responses do
+the same; the four exact Identify replay conflicts remain retryable as a
+rolling-deployment safety net. `Retry-After` can raise the bounded persisted
+delay. Other handler-owned `4xx` responses retain the media in a user-actionable
+failed row. Only an exact stable `observation_rejected` response is a
+non-actionable terminal policy outcome.
 
 **Server idempotency**: The iOS client passes its local `scanId` as
 `client_scan_id` in the active `buildMultiModalRequest(...)` request body. The
@@ -630,11 +631,16 @@ same `client_scan_id`. `insertScan` still uses an upsert with
 an already-inserted scan is a silent no-op rather than a duplicate-key error.
 Completion is separate: the shared finalization RPC proves all claimed
 staging-key dispositions and ready canonical media rows before writing
-`complete` last. The job ledger plus intent therefore lets status polling,
-reconciliation, and server replay distinguish the same-media retry from a
-changed media shape for the same scan id. Account-deletion tombstones have no
-owner and are terminal for replay; a delayed ingestion job cannot dispatch
-another provider request for them.
+`complete` last. The response-aware finalizer atomically stores the validated
+success envelope at that same boundary. A repeated request checks exact
+owner/scan completion before media resolution and quota reservation, returns
+`200` with `X-Merian-Idempotent-Replay`, and never calls the provider again.
+Older completed rows without an envelope are reconstructed from their durable
+scan/species summaries through the executable wire contract. The job ledger plus
+intent therefore lets status polling, reconciliation, and server replay
+distinguish the same-media retry from a changed media shape for the same scan
+id. Account-deletion tombstones have no owner and are terminal for replay; a
+delayed ingestion job cannot dispatch another provider request for them.
 
 > **Critical**: The `taskDescription` for each new upload task is
 > `upload|{scanId}|{uploadIndex}|{syncGeneration}`, where `uploadIndex` is the

@@ -188,6 +188,16 @@ queue's maximum delay. Other handler-owned `4xx` responses preserve the local
 media as `queueNeedsAttention`; only the exact stable `observation_rejected`
 policy response is terminal.
 
+Foreground Identify handling does not translate every `409` into a network
+timeout. Only handler responses whose stable code is exactly
+`ai_request_in_progress`, `ai_request_already_completed`,
+`scan_already_complete`, or `scan_already_finalized` enter the **Restoring
+scan** state and remain eligible for exact-ID queue/status hydration. Generic
+conflicts, malformed envelopes, and `409` responses from other routes keep their
+normal error semantics. Current functions should normally absorb these four
+cases and replay `200`; the client branch is a rolling-deployment and
+unexpected-race safety net.
+
 Owner-row repair is not a fallback table upsert. The server derives owner
 identity, validates/gates recovery, inserts without overwrite, reloads by owner,
 and restores media only through validated staging keys. A processing/retryable

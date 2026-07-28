@@ -46,8 +46,8 @@ public enum MerianError: LocalizedError, Equatable {
    (written to disk synchronously in `submitActiveScan` before `analyze()` was
    called) and will complete via the background URLSession path.
    Authenticated/public transport, `5xx`, route-propagation, and guest-session
-   retry sleeps must propagate this cancellation before issuing another
-   request; never use `try?` around those sleeps.
+   retry sleeps must propagate this cancellation before issuing another request;
+   never use `try?` around those sleeps.
 2. **`MerianError.decodingFailed`** — Gemini returned a malformed or unreadable
    response. Do **not** refund the token — the scan is already in the offline
    queue and will be retried by the background upload path. Refunding here would
@@ -175,6 +175,15 @@ A platform route `404` preserves the queued scan for durable retry. Handler
 `401`, `408`, `409`, `425`, and `429` responses are also retryable and honor a
 bounded integer `Retry-After`. Other marked handler `4xx` responses retain local
 media as `queueNeedsAttention`; only exact `observation_rejected` is terminal.
+
+For a foreground scan, never label an arbitrary `409` as connectivity loss. Only
+exact stable Identify codes `ai_request_in_progress`,
+`ai_request_already_completed`, `scan_already_complete`, and
+`scan_already_finalized` use the temporary **Restoring scan / Safely saved**
+customer state and exact-ID background hydration. Current Edge functions should
+normally absorb those cases by returning the completed envelope as marked
+idempotent `200`; the client branch protects rolling deployments and unresolved
+races. Generic conflicts and malformed payloads retain normal error handling.
 
 The `store-rescue` archive in the startup rows above is a local SQLite support
 copy. It does not set cloud scan state or call R2. See the

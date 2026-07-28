@@ -257,6 +257,7 @@ extension SpeciesData {
             .lowercased()
         return normalizedCommonName == "network timeout"
             || normalizedCommonName == "analysis failed"
+            || normalizedCommonName == "restoring scan"
     }
 
     var isClassifiedNonBiological: Bool {

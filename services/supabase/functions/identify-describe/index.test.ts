@@ -2,7 +2,9 @@
 import {
   assert,
   assertEquals,
+  assertThrows,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { resolveAIRequestId } from "../_shared/aiQuota.ts";
 import {
   type TierResolution,
   tierTelemetryProperties,
@@ -311,41 +313,45 @@ Deno.test("description validation — object is invalid", () => {
 });
 
 // ---------------------------------------------------------------------------
-// client_scan_id passthrough — mirrors the generatedScanId derivation in index.ts.
+// client_scan_id passthrough — exercises the shared resolver used by index.ts.
 // When the client provides a valid client_scan_id it must be used as-is
-// (enables the iOS deduplication path). A missing or invalid value → new UUID.
+// (enables the iOS deduplication path). A missing value → new UUID; malformed
+// values are rejected so the quota and scan ledgers share one canonical key.
 // ---------------------------------------------------------------------------
 
-function resolveGeneratedScanId(client_scan_id: unknown): string {
-  return typeof client_scan_id === "string" && client_scan_id.length > 0
-    ? client_scan_id
-    : crypto.randomUUID();
-}
-
 Deno.test("scanId resolution — valid client_scan_id is passed through unchanged", () => {
-  const id = "abc-123-def-456";
-  assertEquals(resolveGeneratedScanId(id), id);
+  const id = "6ef79b9b-1262-4af6-90b4-d8efe0560ac6";
+  assertEquals(
+    resolveAIRequestId(new Request("https://example.invalid"), id),
+    id,
+  );
 });
 
-Deno.test("scanId resolution — empty client_scan_id falls back to a new UUID", () => {
-  const result = resolveGeneratedScanId("");
-  assert(result.length > 0, "Fallback UUID must be non-empty");
-  assert(result !== "", "Empty string must not be passed through");
+Deno.test("scanId resolution — empty client_scan_id is rejected", () => {
+  assertThrows(
+    () => resolveAIRequestId(new Request("https://example.invalid"), ""),
+    Error,
+    "AI request id must be a UUID",
+  );
 });
 
 Deno.test("scanId resolution — null client_scan_id falls back to a new UUID", () => {
-  const result = resolveGeneratedScanId(null);
+  const result = resolveAIRequestId(
+    new Request("https://example.invalid"),
+    null,
+  );
   assert(result.length > 0);
 });
 
 Deno.test("scanId resolution — undefined client_scan_id falls back to a new UUID", () => {
-  const result = resolveGeneratedScanId(undefined);
+  const result = resolveAIRequestId(new Request("https://example.invalid"));
   assert(result.length > 0);
 });
 
 Deno.test("scanId resolution — two null calls produce distinct UUIDs", () => {
-  const a = resolveGeneratedScanId(null);
-  const b = resolveGeneratedScanId(null);
+  const request = new Request("https://example.invalid");
+  const a = resolveAIRequestId(request, null);
+  const b = resolveAIRequestId(request, null);
   assert(a !== b, "Each fallback UUID must be unique");
 });
 

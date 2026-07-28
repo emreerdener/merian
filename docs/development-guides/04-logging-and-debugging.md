@@ -339,6 +339,16 @@ ID, species, coordinates, object keys, and media contents. The production
 dashboard should segment p50/p95 by tier, model, image count, payload bytes,
 Edge region, and constrained-network state.
 
+Idempotent completion uses three structured events:
+`multimodal/idempotent_completion_replayed` for a retry that finds completion
+immediately, `multimodal/concurrent_completion_replayed` after bounded
+coalescing with the winning invocation, and
+`multimodal/recovery_completion_replayed` when the ingestion claim reports
+already complete. They contain only restricted scan UUID plus replay source
+(`stored` or `reconstructed`); keep them in access-controlled Edge logs and use
+aggregate counts in dashboards. A current scan-route replay conflict reaching
+iOS without one of these events is a release/version-skew signal.
+
 ---
 
 ## CircuitBreakerManager Logging

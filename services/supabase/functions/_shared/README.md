@@ -263,6 +263,11 @@ identical:
 - **`db.ts`**: Scan insert/update helpers, species cache writes, and shared
   database boundaries. Duplicate-safe scan creation is followed by owner-scoped
   read-back so a no-op or cross-owner collision cannot resolve as success.
+- **`completedResponse.ts`**: Owner-scoped Identify response replay for all four
+  scan-producing routes. It validates immutable stored envelopes, reconstructs
+  older complete rows through the executable wire contract, and boundedly
+  coalesces concurrent AI-quota ownership so at-least-once delivery returns HTTP
+  success without a second provider call.
 - **`latencyDb.ts`**: Thin service-role RPC client for combined
   primary/candidate dictionary hydration (`hydrate_identification_dictionary`).
   Atomic ingestion setup belongs to `scanIngestionJobs.ts`, not this

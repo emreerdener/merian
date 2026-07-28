@@ -17,9 +17,13 @@ import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
-import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
+import {
+  AIQuotaError,
+  reserveAIProviderCall,
+  resolveAIRequestId,
+} from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { requireParams } from "../_shared/http.ts";
+import { PublicHttpError, requireParams } from "../_shared/http.ts";
 import {
   coalesceTaxonomyValue,
   normalizeTaxonomyValue,
@@ -43,6 +47,10 @@ import {
   parseIdentifySuccessEnvelope,
   parseMerianIdentification,
 } from "../_shared/identify/contract.ts";
+import {
+  fetchCompletedIdentifyResponse,
+  waitForCompletedIdentifyResponse,
+} from "../_shared/identify/completedResponse.ts";
 import {
   getMerianResponseSchema,
   getSystemInstruction,
@@ -233,6 +241,18 @@ Deno.serve((req: Request) =>
       );
     }
 
+    const generatedScanId = resolveAIRequestId(req, client_scan_id);
+    const existingCompletion = await fetchCompletedIdentifyResponse(
+      generatedScanId,
+      user.id,
+      supabaseAdmin,
+    );
+    if (existingCompletion) {
+      return jsonResponse(existingCompletion.envelope, 200, {
+        "X-Merian-Idempotent-Replay": existingCompletion.source,
+      });
+    }
+
     const keyValidationError = validateImageR2ObjectKeys(
       r2ObjectKeys,
       user.id,
@@ -257,57 +277,94 @@ Deno.serve((req: Request) =>
 
     console.log(`[⏱ BENCH] payload_resolved: ${Date.now() - fnStart}ms`);
 
-    const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
-      userId: user.id,
-      operation: "scan_identification",
-      requestId: client_scan_id,
-    });
+    let quotaLease;
+    try {
+      quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: user.id,
+        operation: "scan_identification",
+        requestId: generatedScanId,
+      });
+    } catch (error) {
+      if (
+        error instanceof AIQuotaError &&
+        (
+          error.code === "ai_request_already_completed" ||
+          error.code === "ai_request_in_progress"
+        )
+      ) {
+        const replay = await waitForCompletedIdentifyResponse(
+          generatedScanId,
+          user.id,
+          supabaseAdmin,
+        );
+        if (replay) {
+          return jsonResponse(replay.envelope, 200, {
+            "X-Merian-Idempotent-Replay": replay.source,
+          });
+        }
+      }
+      throw error;
+    }
     const tierResolution = quotaLease.reservation.tier;
     const userTier = tierResolution.effective_tier;
     const targetModel = quotaLease.reservation.model;
     const diagnosticTrigger = diagnosticTriggerForTier(
       userTier === "pro" ? "pro" : "flash",
     );
-    const generatedScanId: string =
-      typeof client_scan_id === "string" && client_scan_id.length > 0
-        ? client_scan_id
-        : quotaLease.reservation.requestId;
-    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "identify",
-        imageKeys: r2ObjectKeys ?? [],
-        inlineImageCount: imageBase64s?.length ?? 0,
-        description,
-        preferredGoal: preferred_goal,
-        mimeType,
-        telemetry: {
-          timestamp,
-          gpsLatitude: safeGpsLat,
-          gpsLongitude: safeGpsLon,
-          gpsElevation,
-          semanticLocation,
-          publicLocationLabel: publicExploreLocationLabel,
-          geoprivacy: body.geoprivacy,
-          weatherCondition,
-          weatherTemperatureF,
-          deviceLocale,
-          deviceTimeZone,
-          deviceRegion,
-          currentMonth: normalizedCurrentMonth,
-          timeOfDay,
-          depthScaleText,
-          zoomFactor,
-          estimatedSizeCm: estimated_size_cm,
+    let compatibilityLedger;
+    try {
+      compatibilityLedger = await createCompatibilityScanIngestionLedger(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "identify",
+          imageKeys: r2ObjectKeys ?? [],
+          inlineImageCount: imageBase64s?.length ?? 0,
+          description,
+          preferredGoal: preferred_goal,
+          mimeType,
+          telemetry: {
+            timestamp,
+            gpsLatitude: safeGpsLat,
+            gpsLongitude: safeGpsLon,
+            gpsElevation,
+            semanticLocation,
+            publicLocationLabel: publicExploreLocationLabel,
+            geoprivacy: body.geoprivacy,
+            weatherCondition,
+            weatherTemperatureF,
+            deviceLocale,
+            deviceTimeZone,
+            deviceRegion,
+            currentMonth: normalizedCurrentMonth,
+            timeOfDay,
+            depthScaleText,
+            zoomFactor,
+            estimatedSizeCm: estimated_size_cm,
+          },
+          logStructuredError,
         },
-        logStructuredError,
-      },
-      supabaseAdmin,
-    ).catch(async (error) => {
+        supabaseAdmin,
+      );
+    } catch (error) {
       await quotaLease.refund();
+      if (
+        error instanceof PublicHttpError &&
+        error.code === "scan_already_complete"
+      ) {
+        const replay = await fetchCompletedIdentifyResponse(
+          generatedScanId,
+          user.id,
+          supabaseAdmin,
+        );
+        if (replay) {
+          return jsonResponse(replay.envelope, 200, {
+            "X-Merian-Idempotent-Replay": replay.source,
+          });
+        }
+      }
       throw error;
-    });
+    }
 
     const modelCfg = targetModel === "gemini-2.5-pro"
       ? modelConfigs.pro
@@ -1063,6 +1120,7 @@ Deno.serve((req: Request) =>
         }
         await compatibilityLedger.markComplete({
           promotedUrlsByStorageKey,
+          responseEnvelope,
         });
 
         // Capture the candidate enrichment promise before the final bgWriteTasks await so

@@ -448,6 +448,31 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.resolvedHeaderTitle == "Network timeout")
     }
 
+    @Test func testRestoringScanPlaceholderKeepsRecoveryTitle() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        let species = SpeciesData(
+            scanId: nil,
+            commonName: "Restoring scan",
+            scientificName: "Safely saved",
+            insightData: InsightData(
+                aiReasoning: "Your scan reached Naturebook safely. We’re restoring its saved result now.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.0,
+            isBiological: false,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        engine.speciesData = species
+        viewModel.inferenceEngine = engine
+
+        #expect(species.isInferenceErrorPlaceholder)
+        #expect(!species.isClassifiedNonBiological)
+        #expect(viewModel.resolvedHeaderTitle == "Restoring scan")
+    }
+
     @Test func testNetworkTimeoutPlaceholderDoesNotShowNonBiologicalSuccessToast() throws {
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()

@@ -162,7 +162,10 @@ function compatibilityClient(options: {
   return {
     rpc(name: string, arguments_: Record<string, unknown>) {
       rpcCalls.push({ name, arguments_ });
-      if (name === "complete_scan_ingestion_finalization") {
+      if (
+        name === "complete_scan_ingestion_finalization" ||
+        name === "complete_scan_ingestion_finalization_with_response"
+      ) {
         return Promise.resolve({
           data: options.finalizationError ? null : "completed",
           error: options.finalizationError ?? null,
@@ -224,6 +227,35 @@ Deno.test("compatibility ledger atomically establishes ownership before provider
   });
   assertEquals(updates[0].status, "finalizing");
   assertEquals(updates[0].stage, "background_ingestion_queued");
+});
+
+Deno.test("compatibility completion forwards the canonical replay envelope", async () => {
+  const rpcCalls: Array<{
+    name: string;
+    arguments_: Record<string, unknown>;
+  }> = [];
+  const scanId = "00000000-0000-4000-8000-000000000221";
+  const responseEnvelope = {
+    success: true,
+    data: { scan_id: scanId },
+  };
+  const ledger = await createCompatibilityScanIngestionLedger(
+    {
+      scanId,
+      userId: "00000000-0000-4000-8000-000000000222",
+      endpoint: "identify-describe",
+      description: "A tall gray wading bird.",
+    },
+    compatibilityClient({ rpcCalls }),
+  );
+
+  await ledger.markComplete({ responseEnvelope });
+
+  assertEquals(
+    rpcCalls[1].name,
+    "complete_scan_ingestion_finalization_with_response",
+  );
+  assertEquals(rpcCalls[1].arguments_.p_response_envelope, responseEnvelope);
 });
 
 Deno.test("compatibility finalization failures become durable retryable work", async () => {

@@ -6,6 +6,13 @@ The active iOS Describe path now submits through `/identify-multimodal` via the
 shared non-visual request builder, but this route remains deployed for older
 clients, route-parity tests, and ops compatibility.
 
+The route resolves the canonical scan UUID and checks exact owner completion
+before quota/provider work. A repeated or lost-response delivery replays a
+stored or reconstructed successful envelope as `200` with
+`X-Merian-Idempotent-Replay`; concurrent same-UUID delivery coalesces with the
+winner and never makes a second Gemini call. Successful completion persists the
+validated response through the response-aware scan finalizer.
+
 ## Response Contract
 
 The compatibility route consumes the same executable model/final response

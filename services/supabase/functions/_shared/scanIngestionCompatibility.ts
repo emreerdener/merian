@@ -83,6 +83,7 @@ export interface CompatibilityScanIngestionLedgerInput
 export interface CompatibilityScanFinalization {
   promotedUrlsByStorageKey?: Map<string, string>;
   deletedStorageKeys?: string[];
+  responseEnvelope?: Record<string, unknown>;
 }
 
 export interface CompatibilityScanIngestionLedger {
@@ -447,6 +448,7 @@ export async function createCompatibilityScanIngestionLedger(
     markComplete: async ({
       promotedUrlsByStorageKey = new Map<string, string>(),
       deletedStorageKeys = [],
+      responseEnvelope,
     }: CompatibilityScanFinalization = {}) => {
       try {
         await completeScanIngestionFinalization(
@@ -455,6 +457,7 @@ export async function createCompatibilityScanIngestionLedger(
             userId: input.userId,
             promotedUrlsByStorageKey,
             deletedStorageKeys,
+            responseEnvelope,
           },
           supabaseAdmin,
         );

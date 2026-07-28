@@ -902,6 +902,25 @@ final class MerianNetworkClient {
         return rawCode
     }
 
+    static func stableEdgeErrorCode(from error: Error) -> String? {
+        guard case let MerianError.httpError(_, message) = error else {
+            return nil
+        }
+        return stableEdgeErrorCode(responseData: Data(message.utf8))
+    }
+
+    static func isRecoverableInferenceConflict(_ error: Error) -> Bool {
+        guard case let MerianError.httpError(statusCode, _) = error,
+              statusCode == 409,
+              let code = stableEdgeErrorCode(from: error) else {
+            return false
+        }
+        return code == "ai_request_already_completed"
+            || code == "ai_request_in_progress"
+            || code == "scan_already_complete"
+            || code == "scan_already_finalized"
+    }
+
     private static func canReplayAfterAmbiguousFailure(
         url: URL,
         method: String,

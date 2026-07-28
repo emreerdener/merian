@@ -9,9 +9,17 @@ import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
-import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
+import {
+  AIQuotaError,
+  reserveAIProviderCall,
+  resolveAIRequestId,
+} from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { parseJsonBody, requireParams } from "../_shared/http.ts";
+import {
+  parseJsonBody,
+  PublicHttpError,
+  requireParams,
+} from "../_shared/http.ts";
 import {
   buildObservationPrompt,
   normalizeCurrentMonth,
@@ -30,6 +38,10 @@ import {
   parseDescribeIdentification,
   parseIdentifySuccessEnvelope,
 } from "../_shared/identify/contract.ts";
+import {
+  fetchCompletedIdentifyResponse,
+  waitForCompletedIdentifyResponse,
+} from "../_shared/identify/completedResponse.ts";
 import {
   canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
@@ -163,58 +175,107 @@ Deno.serve((req: Request) =>
         ? gpsLongitude
         : null;
 
+    const generatedScanId = resolveAIRequestId(req, client_scan_id);
+    const existingCompletion = await fetchCompletedIdentifyResponse(
+      generatedScanId,
+      user.id,
+      supabaseAdmin,
+    );
+    if (existingCompletion) {
+      return jsonResponse(existingCompletion.envelope, 200, {
+        "X-Merian-Idempotent-Replay": existingCompletion.source,
+      });
+    }
+
     console.log(`[⏱ BENCH] payload_parsed: ${Date.now() - fnStart}ms`);
 
-    const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
-      userId: user.id,
-      operation: "scan_identification",
-      requestId: client_scan_id,
-    });
+    let quotaLease;
+    try {
+      quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: user.id,
+        operation: "scan_identification",
+        requestId: generatedScanId,
+      });
+    } catch (error) {
+      if (
+        error instanceof AIQuotaError &&
+        (
+          error.code === "ai_request_already_completed" ||
+          error.code === "ai_request_in_progress"
+        )
+      ) {
+        const replay = await waitForCompletedIdentifyResponse(
+          generatedScanId,
+          user.id,
+          supabaseAdmin,
+        );
+        if (replay) {
+          return jsonResponse(replay.envelope, 200, {
+            "X-Merian-Idempotent-Replay": replay.source,
+          });
+        }
+      }
+      throw error;
+    }
     const tierResolution = quotaLease.reservation.tier;
     const userTier = tierResolution.effective_tier;
     const targetModel = quotaLease.reservation.model;
     const diagnosticTrigger = diagnosticTriggerForTier(
       userTier === "pro" ? "pro" : "flash",
     );
-    const generatedScanId: string =
-      typeof client_scan_id === "string" && client_scan_id.length > 0
-        ? client_scan_id
-        : quotaLease.reservation.requestId;
-    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "identify-describe",
-        description,
-        preferredGoal: preferred_goal,
-        observationContexts: observation_context &&
-            typeof observation_context === "object" &&
-            !Array.isArray(observation_context)
-          ? [observation_context as Record<string, unknown>]
-          : [],
-        telemetry: {
-          timestamp,
-          gpsLatitude: safeGpsLat,
-          gpsLongitude: safeGpsLon,
-          gpsElevation,
-          semanticLocation,
-          publicLocationLabel: publicExploreLocationLabel,
-          geoprivacy,
-          weatherCondition,
-          weatherTemperatureF,
-          deviceLocale,
-          deviceTimeZone,
-          deviceRegion,
-          currentMonth: normalizedCurrentMonth,
-          timeOfDay,
+    let compatibilityLedger;
+    try {
+      compatibilityLedger = await createCompatibilityScanIngestionLedger(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "identify-describe",
+          description,
+          preferredGoal: preferred_goal,
+          observationContexts: observation_context &&
+              typeof observation_context === "object" &&
+              !Array.isArray(observation_context)
+            ? [observation_context as Record<string, unknown>]
+            : [],
+          telemetry: {
+            timestamp,
+            gpsLatitude: safeGpsLat,
+            gpsLongitude: safeGpsLon,
+            gpsElevation,
+            semanticLocation,
+            publicLocationLabel: publicExploreLocationLabel,
+            geoprivacy,
+            weatherCondition,
+            weatherTemperatureF,
+            deviceLocale,
+            deviceTimeZone,
+            deviceRegion,
+            currentMonth: normalizedCurrentMonth,
+            timeOfDay,
+          },
+          logStructuredError,
         },
-        logStructuredError,
-      },
-      supabaseAdmin,
-    ).catch(async (error) => {
+        supabaseAdmin,
+      );
+    } catch (error) {
       await quotaLease.refund();
+      if (
+        error instanceof PublicHttpError &&
+        error.code === "scan_already_complete"
+      ) {
+        const replay = await fetchCompletedIdentifyResponse(
+          generatedScanId,
+          user.id,
+          supabaseAdmin,
+        );
+        if (replay) {
+          return jsonResponse(replay.envelope, 200, {
+            "X-Merian-Idempotent-Replay": replay.source,
+          });
+        }
+      }
       throw error;
-    });
+    }
     const modelCfg = targetModel === "gemini-2.5-pro"
       ? modelConfigs.pro
       : modelConfigs.flash;
@@ -754,7 +815,7 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
-        await compatibilityLedger.markComplete();
+        await compatibilityLedger.markComplete({ responseEnvelope });
 
         const resolvedGroupTags = await groupTagsPromise;
         if (resolvedGroupTags?.group_tags?.length && isIdentifiedBio) {

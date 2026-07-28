@@ -133,6 +133,15 @@ fallback handling have no scan ID, preserve their sentence-case title such as
 `Network timeout`, and never show non-biological collection or retention
 messaging.
 
+The exact Identify replay conflicts `ai_request_in_progress`,
+`ai_request_already_completed`, `scan_already_complete`, and
+`scan_already_finalized` use the distinct **Restoring scan** placeholder. Its
+customer copy explains that the scan was safely saved and is being restored; it
+is not presented as connectivity loss. The engine retains the exact presentation
+scan ID so either a background Identify response or status-recovered
+`LocalScanRecord` can replace the placeholder, but a stale completion can never
+publish over a newer scan.
+
 ```swift
 var resolvedHeaderTitle: String {
     // Non-biological results → "Non-biological".

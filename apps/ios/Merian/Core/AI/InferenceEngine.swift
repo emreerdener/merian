@@ -96,6 +96,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// Durable generation written on the queued scan-ingestion job. `nil` only
     /// for direct queue-less API uses.
     @ObservationIgnored var activeForegroundInferenceGeneration: UUID?
+    /// Exact queued scan whose live presentation ended with an ambiguous
+    /// response. Retained after the active task's defer clears `activeScanId`
+    /// so a later URLSession or status-recovery winner can replace the local
+    /// error placeholder without overwriting a newer scan presentation.
+    @ObservationIgnored var recoverablePresentationScanId: String?
     @ObservationIgnored private var pendingFirstRenderMetric: (scanId: String, startedAt: CFAbsoluteTime)?
     var isProcessing: Bool = false
     var scanningPhaseText: String = "Analyzing subject..."
@@ -319,6 +324,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
         // Reset scan identity and processing flags.
         self.activeScanId = nil
+        self.recoverablePresentationScanId = nil
         self.pendingFirstRenderMetric = nil
         self.isProcessing = true
         self.scanningPhaseText = "Analyzing subject..."
@@ -539,10 +545,56 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         return true
     }
 
+    /// Publishes a queued/background response after the corresponding live
+    /// request already exited with an ambiguous transport or idempotency
+    /// result. The retained scan ID is the presentation fence once the live
+    /// task's local UUID has been cleared.
+    @discardableResult
+    func commitRecoveredQueuedResult(
+        for scanId: String,
+        speciesData: SpeciesData
+    ) -> Bool {
+        guard recoverablePresentationScanId == scanId,
+              speciesData.scanId?.caseInsensitiveCompare(scanId)
+                == .orderedSame,
+              activeScanId == nil || activeScanId == scanId else {
+            return false
+        }
+
+        activeScanId = nil
+        activeLiveInferenceAttemptGeneration = nil
+        activeForegroundInferenceGeneration = nil
+        recoverablePresentationScanId = nil
+        phaseRotationTask?.cancel()
+        publishSuccessfulResult(speciesData)
+        return true
+    }
+
+    /// Rehydrates a status-recovered owner row into the still-presented live
+    /// sheet. `load(from:)` supplies the complete persisted media and metadata
+    /// mapping, while the retained ID prevents a stale recovery from replacing
+    /// another scan.
+    @discardableResult
+    func commitRecoveredQueuedRecord(
+        _ record: LocalScanRecord,
+        for scanId: String
+    ) -> Bool {
+        guard recoverablePresentationScanId == scanId,
+              record.id == scanId,
+              activeScanId == nil || activeScanId == scanId else {
+            return false
+        }
+
+        recoverablePresentationScanId = nil
+        load(from: record)
+        return true
+    }
+
     private func publishSuccessfulResult(
         _ speciesData: SpeciesData,
         persistedMediaItems: [MediaItem]? = nil
     ) {
+        recoverablePresentationScanId = nil
         if let persistedMediaItems {
             activeMedia.items = persistedMediaItems
         }
@@ -1287,6 +1339,17 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                       stillOwnsAttempt else {
                     return
                 }
+                if ownedScanId != nil {
+                    self.recoverablePresentationScanId = resolvedClientScanId
+                }
+
+                if publishRecoverableInferenceConflictIfNeeded(
+                    error,
+                    scanId: resolvedClientScanId,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
 
                 if let apiError = error as? MerianError, apiError == .decodingFailed {
                     AppTelemetry.trackError("APIDecodingFailure")
@@ -1618,7 +1681,17 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                       stillOwnsAttempt else {
                     return
                 }
+                if ownedScanId != nil {
+                    self.recoverablePresentationScanId = resolvedClientScanId
+                }
 
+                if publishRecoverableInferenceConflictIfNeeded(
+                    error,
+                    scanId: resolvedClientScanId,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
                 AppTelemetry.trackError(filteredAudioFilePaths.isEmpty ? "DescribeInferenceFailure" : "InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
@@ -1640,6 +1713,32 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     private static let networkTimeoutRecoveryReason =
         "Naturebook saved this scan and will retry automatically when your connection is back. " +
         "You can leave this screen and check Scans later, or try again after reconnecting."
+
+    private static let savedScanRecoveryReason =
+        "Your scan reached Naturebook safely. We’re restoring its saved result now, " +
+        "and it will appear here or in Scans automatically."
+
+    @discardableResult
+    private func publishRecoverableInferenceConflictIfNeeded(
+        _ error: Error,
+        scanId: String,
+        telemetry: CaptureTelemetry
+    ) -> Bool {
+        guard MerianNetworkClient.isRecoverableInferenceConflict(error) else {
+            return false
+        }
+        AppTelemetry.trackError("InferenceCompletionRecovery")
+        MerianLog.general.debug(
+            "Inference response was ambiguous after server acceptance; restoring scanId=\(scanId, privacy: .public)"
+        )
+        speciesData = makeErrorSpeciesData(
+            title: "Restoring scan",
+            subtitle: "Safely saved",
+            reasoning: Self.savedScanRecoveryReason,
+            telemetry: telemetry
+        )
+        return true
+    }
 
     /// Builds an error-placeholder `SpeciesData` for the two failure paths in `analyze()`.
     /// Both branches share identical field layout — only the title, subtitle, and reasoning differ.
@@ -2458,6 +2557,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.speciesData = nil
+        self.recoverablePresentationScanId = nil
         self.pendingFirstRenderMetric = nil
         self.activeMedia = ActiveScanMedia()
         activeLatitude = nil
@@ -2522,6 +2622,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             reason: "persisted_scan_loaded"
         )
         inferenceTask?.cancel()
+        recoverablePresentationScanId = nil
         liveHydrationTask?.cancel()
         self.isProcessing = true
         historicHydrationTask?.cancel()

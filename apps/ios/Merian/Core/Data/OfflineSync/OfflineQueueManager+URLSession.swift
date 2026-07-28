@@ -1181,6 +1181,11 @@ extension OfflineQueueManager {
                         if didHydrate {
                             engine.inferenceTask?.cancel()
                         }
+                    } else if engine.commitRecoveredQueuedResult(
+                        for: scanId,
+                        speciesData: speciesData
+                    ) {
+                        engine.inferenceTask?.cancel()
                     }
                 }
             }
@@ -1757,8 +1762,8 @@ extension OfflineQueueManager {
             return false
         }
 
-        let didPromoteLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
-        guard didPromoteLocalRecord else {
+        let recoveredLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
+        guard let recoveredLocalRecord else {
             MerianLog.data.debug(
                 "recoverCompletedInferenceFromServer: server found scan but no local record after sync scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public)"
             )
@@ -1826,8 +1831,13 @@ extension OfflineQueueManager {
         markScanJobComplete(scanId: scanId)
         updateUnsyncedItemCount()
         ScanLibraryEvents.postLibraryDidUpdate()
+        let didHydratePresentedResult =
+            AppDIContainer.shared.inferenceEngine.commitRecoveredQueuedRecord(
+                recoveredLocalRecord,
+                for: scanId
+            )
         MerianLog.data.debug(
-            "recoverCompletedInferenceFromServer: recovered scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public) promotedLocal=\(didPromoteLocalRecord, privacy: .public) deletedQueue=\(didDeleteQueue, privacy: .public)"
+            "recoverCompletedInferenceFromServer: recovered scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public) promotedLocal=true deletedQueue=\(didDeleteQueue, privacy: .public) hydratedPresentation=\(didHydratePresentedResult, privacy: .public)"
         )
 
         return true
@@ -1875,8 +1885,10 @@ extension OfflineQueueManager {
         return retained
     }
 
-    private func promoteRecoveredLocalScan(scanId: String) -> Bool {
-        guard let context = modelContext else { return false }
+    private func promoteRecoveredLocalScan(
+        scanId: String
+    ) -> LocalScanRecord? {
+        guard let context = modelContext else { return nil }
         var descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -1888,10 +1900,10 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "promoteRecoveredLocalScan: fetch failed scanId=\(scanId, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
-            return false
+            return nil
         }
 
-        guard let record else { return false }
+        guard let record else { return nil }
         if record.captureDate == nil {
             record.captureDate = record.timestamp
         }
@@ -1899,13 +1911,13 @@ extension OfflineQueueManager {
         do {
             try context.save()
             MerianLog.data.debug("promoteRecoveredLocalScan: promoted scanId=\(scanId, privacy: .public)")
-            return true
+            return record
         } catch {
             context.rollback()
             MerianLog.data.error(
                 "promoteRecoveredLocalScan: save failed scanId=\(scanId, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
-            return false
+            return nil
         }
     }
 

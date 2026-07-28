@@ -567,6 +567,17 @@ weather/location fields without rerunning inference. See the function-local
 READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
 contract.
 
+Migration `20260728220000_persist_idempotent_scan_responses.sql` extends that
+same finalization transaction with the validated Identify success envelope.
+Every scan-producing route checks the exact owner/scan completion before
+resolving staged media or reserving quota. A retry after a lost HTTP response
+therefore returns `200` with `X-Merian-Idempotent-Replay: stored` and never
+dispatches Gemini again. Completed rows from before response persistence are
+reconstructed through the executable Identify response contract and return the
+same header with `reconstructed`. A duplicate that arrives while the original
+invocation is still finalizing coalesces for at most 70 seconds, within the iOS
+90-second request bound.
+
 For older/interrupted missing rows, `_shared/scanRecovery.ts` delegates to one
 atomic service-only non-media compatibility repair used only by single status
 and Explore share requests. It shares the claim's advisory lock, writes the scan

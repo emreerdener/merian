@@ -184,6 +184,38 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   assert(!exploreEdit.includes("requestId: crypto.randomUUID()"));
 });
 
+Deno.test("every scan-producing route coalesces quota replays into an owner-scoped success response", async () => {
+  for (
+    const path of [
+      "../identify/index.ts",
+      "../identify-describe/index.ts",
+      "../identify-multimodal/index.ts",
+      "../audio-spec/index.ts",
+    ]
+  ) {
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    const completedLookup = source.indexOf(
+      "await fetchCompletedIdentifyResponse(",
+    );
+    const quotaReservation = source.indexOf(
+      "await reserveAIProviderCall(",
+    );
+
+    assertStringIncludes(source, "resolveAIRequestId(req, client_scan_id)");
+    assert(completedLookup >= 0, `${path} has no completed-response lookup`);
+    assert(
+      completedLookup < quotaReservation,
+      `${path} can reserve or dispatch AI before replaying a completed scan`,
+    );
+    assertStringIncludes(source, "waitForCompletedIdentifyResponse(");
+    assertStringIncludes(source, '"ai_request_already_completed"');
+    assertStringIncludes(source, '"ai_request_in_progress"');
+    assertStringIncludes(source, '"X-Merian-Idempotent-Replay"');
+    assertStringIncludes(source, "parseIdentifySuccessEnvelope(");
+    assertStringIncludes(source, "responseEnvelope");
+  }
+});
+
 Deno.test("group-tag cache misses cannot dispatch an unmetered provider call", async () => {
   const publicIdentificationRoutes = [
     "../identify/index.ts",

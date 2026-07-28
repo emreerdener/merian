@@ -6,6 +6,12 @@ The active iOS audio path now routes through `/identify-multimodal`, which
 accepts foreground `audioBase64s` and queued `audioR2ObjectKeys`. This route
 remains deployed for older callers and focused audio budget tests.
 
+The route checks exact owner/scan completion before R2 audio resolution and
+quota reservation. It replays stored or reconstructed success as marked `200`
+and coalesces concurrent same-UUID delivery without a second Gemini call. The
+response-aware finalizer stores the validated payload only after required audio
+cleanup and scan completion.
+
 ## Authoritative AI Quota
 
 The authenticated caller's `client_scan_id` is the UUID idempotency key for the

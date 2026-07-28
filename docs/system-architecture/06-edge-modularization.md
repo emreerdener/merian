@@ -205,6 +205,12 @@ boundary, not an application work budget.
   keys, upload-session ids, and a normalized manifest checksum; status and
   reconciliation paths use that row as the server-side source of truth for
   in-flight, retryable, completed, and terminal media persistence.
+- **`_shared/identify/completedResponse.ts`**: Shared exact-owner completion
+  replay for `identify-multimodal`, `identify`, `identify-describe`, and
+  `audio-spec`. It validates stored canonical envelopes, reconstructs older
+  complete rows through the executable wire contract, and boundedly coalesces
+  concurrent quota ownership so at-least-once delivery returns marked `200`
+  without another provider call.
 - **`_shared/scanIngestionIntents.ts` /
   `_shared/scanIngestionCompatibility.ts`**: Shared sanitized replay-intent
   helpers. `identify-multimodal` writes `scan_ingestion_intents` with telemetry,

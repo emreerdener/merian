@@ -9,9 +9,13 @@ import {
 } from "../_shared/edgeHandler.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { tierTelemetryProperties } from "../_shared/entitlement.ts";
-import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
+import {
+  AIQuotaError,
+  reserveAIProviderCall,
+  resolveAIRequestId,
+} from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { requireParams } from "../_shared/http.ts";
+import { PublicHttpError, requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { deleteR2ObjectIfPresent } from "../_shared/aws.ts";
@@ -29,6 +33,11 @@ import {
   sanitizeSex,
 } from "../_shared/identify/context.ts";
 import { isNewToMerianDictionary } from "../_shared/identify/clientPayload.ts";
+import {
+  fetchCompletedIdentifyResponse,
+  waitForCompletedIdentifyResponse,
+} from "../_shared/identify/completedResponse.ts";
+import { parseIdentifySuccessEnvelope } from "../_shared/identify/contract.ts";
 import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
@@ -170,6 +179,17 @@ Deno.serve((req: Request) =>
       time_of_day,
     } = body;
     const normalizedCurrentMonth = normalizeCurrentMonth(current_month);
+    const generatedScanId = resolveAIRequestId(req, client_scan_id);
+    const existingCompletion = await fetchCompletedIdentifyResponse(
+      generatedScanId,
+      user.id,
+      supabaseAdmin,
+    );
+    if (existingCompletion) {
+      return jsonResponse(existingCompletion.envelope, 200, {
+        "X-Merian-Idempotent-Replay": existingCompletion.source,
+      });
+    }
 
     // GPS range validation — out-of-bounds values are sanitised to null (same policy as identify).
     const safeGpsLat: number | null =
@@ -228,49 +248,86 @@ Deno.serve((req: Request) =>
     }
 
     // 4. Atomically resolve entitlement and reserve quota before provider work.
-    const quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
-      userId: user.id,
-      operation: "scan_audio_identification",
-      requestId: client_scan_id,
-    });
+    let quotaLease;
+    try {
+      quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+        userId: user.id,
+        operation: "scan_audio_identification",
+        requestId: generatedScanId,
+      });
+    } catch (error) {
+      if (
+        error instanceof AIQuotaError &&
+        (
+          error.code === "ai_request_already_completed" ||
+          error.code === "ai_request_in_progress"
+        )
+      ) {
+        const replay = await waitForCompletedIdentifyResponse(
+          generatedScanId,
+          user.id,
+          supabaseAdmin,
+        );
+        if (replay) {
+          return jsonResponse(replay.envelope, 200, {
+            "X-Merian-Idempotent-Replay": replay.source,
+          });
+        }
+      }
+      throw error;
+    }
     const tierResolution = quotaLease.reservation.tier;
     const userTier = tierResolution.effective_tier;
-    const generatedScanId =
-      typeof client_scan_id === "string" && client_scan_id.length > 0
-        ? client_scan_id
-        : quotaLease.reservation.requestId;
-    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "audio-spec",
-        audioKeys: audio_base64 ? [] : [audio_r2_key!],
-        inlineAudioCount: audio_base64 ? 1 : 0,
-        audioMediaItems: [{ kind: "audio", sourceIndex: 0, clipIndex: 0 }],
-        preferredGoal: preferred_goal,
-        telemetry: {
-          timestamp,
-          gpsLatitude: safeGpsLat,
-          gpsLongitude: safeGpsLon,
-          gpsElevation: gps_elevation,
-          semanticLocation: semantic_location,
-          publicLocationLabel: public_location_label,
-          geoprivacy,
-          weatherCondition: weather_condition,
-          weatherTemperatureF: weather_temperature_f,
-          deviceLocale: device_locale,
-          deviceTimeZone: device_time_zone,
-          deviceRegion: device_region,
-          currentMonth: normalizedCurrentMonth,
-          timeOfDay: time_of_day,
+    let compatibilityLedger;
+    try {
+      compatibilityLedger = await createCompatibilityScanIngestionLedger(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "audio-spec",
+          audioKeys: audio_base64 ? [] : [audio_r2_key!],
+          inlineAudioCount: audio_base64 ? 1 : 0,
+          audioMediaItems: [{ kind: "audio", sourceIndex: 0, clipIndex: 0 }],
+          preferredGoal: preferred_goal,
+          telemetry: {
+            timestamp,
+            gpsLatitude: safeGpsLat,
+            gpsLongitude: safeGpsLon,
+            gpsElevation: gps_elevation,
+            semanticLocation: semantic_location,
+            publicLocationLabel: public_location_label,
+            geoprivacy,
+            weatherCondition: weather_condition,
+            weatherTemperatureF: weather_temperature_f,
+            deviceLocale: device_locale,
+            deviceTimeZone: device_time_zone,
+            deviceRegion: device_region,
+            currentMonth: normalizedCurrentMonth,
+            timeOfDay: time_of_day,
+          },
+          logStructuredError,
         },
-        logStructuredError,
-      },
-      supabaseAdmin,
-    ).catch(async (error) => {
+        supabaseAdmin,
+      );
+    } catch (error) {
       await quotaLease.refund();
+      if (
+        error instanceof PublicHttpError &&
+        error.code === "scan_already_complete"
+      ) {
+        const replay = await fetchCompletedIdentifyResponse(
+          generatedScanId,
+          user.id,
+          supabaseAdmin,
+        );
+        if (replay) {
+          return jsonResponse(replay.envelope, 200, {
+            "X-Merian-Idempotent-Replay": replay.source,
+          });
+        }
+      }
       throw error;
-    });
+    }
 
     // 5. Call Gemini with audio inline data
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
@@ -494,7 +551,7 @@ Deno.serve((req: Request) =>
         : null;
 
     // 7. Build initial payload (enriched further in the background task on cache hit)
-    const payloadReadyForClient: AudioClientPayload = {
+    let payloadReadyForClient: AudioClientPayload = {
       scan_id: generatedScanId,
       is_biological_subject: parsedData.is_biological_subject,
       is_live_capture: true,
@@ -516,6 +573,20 @@ Deno.serve((req: Request) =>
         cachedSpecies,
       ),
       candidates: forwardCandidates,
+      blur_score: 0,
+      colors: [],
+      estimated_size_cm: null,
+      pet_identification: null,
+      image_quality: {
+        sharpness: 0,
+        framing: 0,
+        diagnostic_utility: 0,
+        overall_score: 0,
+      },
+      ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
+      extracted_visual_traits: [
+        "bioacoustic evidence from the submitted audio",
+      ],
     };
 
     if (isIdentifiedBio) {
@@ -523,6 +594,37 @@ Deno.serve((req: Request) =>
         ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
         hazard_type: "none",
       };
+    }
+
+    let responseEnvelope;
+    try {
+      responseEnvelope = parseIdentifySuccessEnvelope({
+        success: true,
+        data: payloadReadyForClient,
+      });
+      // Keep background enrichment mutable without changing the exact body
+      // returned and persisted for idempotent replay.
+      payloadReadyForClient = structuredClone(
+        responseEnvelope.data,
+      ) as AudioClientPayload;
+    } catch (error) {
+      await quotaLease.fail();
+      await compatibilityLedger.markRetryableFailure(
+        "wire_contract_failed",
+        error,
+      );
+      logStructuredError("audio_spec/wire_contract_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonResponse(
+        {
+          error: "AI response validation failed. Please retry.",
+          code: "identify_response_invalid",
+        },
+        502,
+      );
     }
 
     await compatibilityLedger.mark(
@@ -725,6 +827,7 @@ Deno.serve((req: Request) =>
         }
         await compatibilityLedger.markComplete({
           deletedStorageKeys: audio_r2_key ? [audio_r2_key] : [],
+          responseEnvelope,
         });
 
         const groupTagsResult = await groupTagsPromise;
@@ -788,6 +891,6 @@ Deno.serve((req: Request) =>
     runBackground(runBackgroundIngestion());
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
-    return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
+    return jsonResponse(responseEnvelope, 200);
   })
 );

@@ -178,3 +178,45 @@ Deno.test("completeScanIngestionFinalization canonicalizes lifecycle inputs for 
     p_deleted_storage_keys: ["staging/companion.wav"],
   });
 });
+
+Deno.test("completeScanIngestionFinalization persists a supplied response in the completion RPC", async () => {
+  let rpcName = "";
+  let rpcArguments: Record<string, unknown> = {};
+  const client = {
+    rpc(name: string, arguments_: Record<string, unknown>) {
+      rpcName = name;
+      rpcArguments = arguments_;
+      return Promise.resolve({ data: "already_complete", error: null });
+    },
+  } as unknown as SupabaseClient;
+  const responseEnvelope = {
+    success: true,
+    data: {
+      scan_id: "00000000-0000-4000-8000-000000000091",
+    },
+  };
+
+  const result = await completeScanIngestionFinalization(
+    {
+      scanId: "00000000-0000-4000-8000-000000000091",
+      userId: "00000000-0000-4000-8000-000000000092",
+      promotedUrlsByStorageKey: new Map(),
+      deletedStorageKeys: [],
+      responseEnvelope,
+    },
+    client,
+  );
+
+  assertEquals(result, "already_complete");
+  assertEquals(
+    rpcName,
+    "complete_scan_ingestion_finalization_with_response",
+  );
+  assertEquals(rpcArguments, {
+    p_scan_id: "00000000-0000-4000-8000-000000000091",
+    p_user_id: "00000000-0000-4000-8000-000000000092",
+    p_promoted_urls_by_storage_key: {},
+    p_deleted_storage_keys: [],
+    p_response_envelope: responseEnvelope,
+  });
+});

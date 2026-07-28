@@ -522,6 +522,7 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     errorSource,
     featureSource,
     incidentSource,
+    idempotencyIncidentSource,
     architectureRulesSource,
     identifyReadmeSource,
     statusReadmeSource,
@@ -536,6 +537,7 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     read("docs/development-guides/06-error-handling.md"),
     read("docs/features-and-hardware/05-insight-sheet.md"),
     read("docs/incidents/2026-07-scan-owner-row-durability-gap.md"),
+    read("docs/incidents/2026-07-identify-idempotency-conflict.md"),
     read("docs/system-architecture/06-edge-modularization.md"),
     read("services/supabase/functions/identify-multimodal/README.md"),
     read("services/supabase/functions/check-scan-status/README.md"),
@@ -550,6 +552,7 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   const errors = compact(errorSource);
   const feature = compact(featureSource);
   const incident = compact(incidentSource);
+  const idempotencyIncident = compact(idempotencyIncidentSource);
   const architectureRules = compact(architectureRulesSource);
   const identifyReadme = compact(identifyReadmeSource);
   const statusReadme = compact(statusReadmeSource);
@@ -583,7 +586,11 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   );
   assertStringIncludes(
     runbook,
-    "`identify-multimodal`, `check-scan-status`, and `share-scan-to-explore`",
+    "`identify-multimodal`, `identify`, `identify-describe`, `audio-spec`, and `check-scan-status`",
+  );
+  assertStringIncludes(
+    runbook,
+    "`share-scan-to-explore` is already at the reviewed owner-row/server-key-compatible version",
   );
   assertStringIncludes(
     agent,
@@ -613,6 +620,20 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     incident,
     "Scan age was not the cause.",
   );
+  for (const source of [api, runbook, idempotencyIncident]) {
+    assertStringIncludes(source, "X-Merian-Idempotent-Replay");
+    assertStringIncludes(
+      source,
+      "20260728220000_persist_idempotent_scan_responses.sql",
+    );
+    assertStringIncludes(source, "70 seconds");
+  }
+  assertStringIncludes(
+    idempotencyIncident,
+    "This was not caused by scan age and does not require rescanning older observations.",
+  );
+  assertStringIncludes(feature, "Restoring scan");
+  assertStringIncludes(errors, "Safely saved");
   assertStringIncludes(
     architectureRules,
     "Await every operation required for the endpoint's documented success contract.",
@@ -780,6 +801,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
+    "docs/incidents/2026-07-identify-idempotency-conflict.md",
     "docs/incidents/2026-07-scan-owner-row-durability-gap.md",
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
     "docs/incidents/2026-07-supabase-edge-route-not-found.md",

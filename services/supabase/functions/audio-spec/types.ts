@@ -76,6 +76,8 @@ export interface AudioClientPayload {
   scientific_name?: string;
   common_name?: string;
   confidence_score: number;
+  blur_score: number;
+  colors: string[];
   ecology_type?: string;
   is_invasive?: boolean;
   invasive_status_region?: string | null;
@@ -86,6 +88,16 @@ export interface AudioClientPayload {
   sex_confidence?: number;
   sex_evidence?: string;
   inference_tier: string;
+  estimated_size_cm: number | null;
+  pet_identification: null;
+  image_quality: {
+    sharpness: number;
+    framing: number;
+    diagnostic_utility: number;
+    overall_score: number;
+  };
+  ai_reasoning: string;
+  extracted_visual_traits: string[];
   taxonomy?: Record<string, string>;
   iucn_red_list_status?: string;
   reference_image_url?: string | null;
@@ -102,5 +114,5 @@ export interface AudioClientPayload {
   species_insights?: {
     habitat_description: string;
   };
-  candidates?: AudioCandidate[] | null;
+  candidates: AudioCandidate[] | null;
 }

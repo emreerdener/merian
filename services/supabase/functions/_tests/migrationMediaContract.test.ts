@@ -593,6 +593,56 @@ Deno.test("scan_ingestion_jobs manifest migration extends claim contract", async
   }
 });
 
+Deno.test("Identify response replay is atomic, immutable, and erased with owner deletion", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260728220000_persist_idempotent_scan_responses.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "ADD COLUMN IF NOT EXISTS response_envelope JSONB",
+      "ADD CONSTRAINT scan_ingestion_jobs_response_envelope_check CHECK",
+      "JSONB_TYPEOF(response_envelope -> 'success') = 'boolean'",
+      "response_envelope -> 'success' = 'true'::JSONB",
+      "JSONB_TYPEOF( response_envelope #> '{data,scan_id}' ) = 'string'",
+      "response_envelope #>> '{data,scan_id}' = scan_id",
+      "OCTET_LENGTH(response_envelope::TEXT) <= 262144",
+      ") IS TRUE",
+      "CREATE OR REPLACE FUNCTION public.complete_scan_ingestion_finalization_with_response",
+      "PERFORM internal.require_service_role()",
+      ") IS NOT TRUE THEN",
+      "finalization_result := public.complete_scan_ingestion_finalization(",
+      "SET response_envelope = COALESCE( jobs.response_envelope, p_response_envelope )",
+      "RAISE EXCEPTION 'scan_response_persistence_failed'",
+      "REVOKE ALL ON FUNCTION public.complete_scan_ingestion_finalization_with_response",
+      "GRANT EXECUTE ON FUNCTION public.complete_scan_ingestion_finalization_with_response",
+      "TO service_role",
+      "CREATE TRIGGER clear_scan_ingestion_response_on_owner_removal",
+      "AFTER UPDATE OF user_id OR DELETE ON public.scans",
+      "CREATE TRIGGER clear_scan_ingestion_response_on_deletion_request",
+      "AFTER INSERT ON internal.scan_deletion_tombstones",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assertBefore(
+    sql,
+    "finalization_result := public.complete_scan_ingestion_finalization(",
+    "SET response_envelope = COALESCE(",
+    "The canonical envelope may be stored only after scan/media finalization.",
+  );
+  assertBefore(
+    sql,
+    "CREATE TRIGGER clear_scan_ingestion_response_on_deletion_request",
+    "NOTIFY pgrst, 'reload schema'",
+    "Deletion privacy triggers must exist before PostgREST reload.",
+  );
+});
+
 Deno.test("scan_ingestion_intents migration declares the replay intent contract", async () => {
   const sql = normalized(
     await migrationSql("20260705140000_add_scan_ingestion_intents.sql"),

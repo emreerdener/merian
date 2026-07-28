@@ -1326,8 +1326,11 @@ struct InferenceEngineTests {
     @Test func testPrepareForNewScanClearsActiveScanId() {
         let engine = InferenceEngine()
         engine.activeScanId = "stale-scan-id-from-previous-scan"
+        engine.recoverablePresentationScanId =
+            "stale-recovery-id-from-previous-scan"
         engine.prepareForNewScan()
         #expect(engine.activeScanId == nil, "prepareForNewScan must clear activeScanId before the next scan claims the engine")
+        #expect(engine.recoverablePresentationScanId == nil)
         // isProcessing == true after prepareForNewScan is intentional: it signals a scan
         // is *about to* be submitted (it will be set by the analyze() call that follows).
         #expect(engine.isProcessing == true)
@@ -1862,6 +1865,91 @@ struct InferenceEngineTests {
         #expect(completedScanIds.isEmpty)
     }
 
+    @Test func recoveredQueuedResultCanReplaceExactRetainedPresentation() {
+        let engine = InferenceEngine()
+        let scanId =
+            "queued-recovery-presentation-\(UUID().uuidString.lowercased())"
+        engine.activeScanId = nil
+        engine.activeLiveInferenceAttemptGeneration = nil
+        engine.activeForegroundInferenceGeneration = nil
+        engine.recoverablePresentationScanId = scanId
+        engine.isProcessing = false
+        engine.speciesData = SpeciesData(
+            commonName: "Restoring scan",
+            scientificName: "",
+            insightData: InsightData(
+                aiReasoning: "Safely saved.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0,
+            isBiological: false,
+            isLiveCapture: false,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+
+        let recoveredSpecies = SpeciesData(
+            scanId: scanId,
+            commonName: "Recovered Queued Result",
+            scientificName: "Resultus queued",
+            insightData: InsightData(
+                aiReasoning: "Queued recovery completed.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.93,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let didCommit = engine.commitRecoveredQueuedResult(
+            for: scanId,
+            speciesData: recoveredSpecies
+        )
+
+        #expect(didCommit)
+        #expect(engine.recoverablePresentationScanId == nil)
+        #expect(engine.speciesData?.scanId == scanId)
+        #expect(engine.speciesData?.commonName == "Recovered Queued Result")
+        #expect(!engine.isProcessing)
+    }
+
+    @Test func recoveredQueuedResultRejectsStaleOrMismatchedScan() {
+        let engine = InferenceEngine()
+        let expectedScanId =
+            "expected-queued-recovery-\(UUID().uuidString.lowercased())"
+        let staleScanId =
+            "stale-queued-recovery-\(UUID().uuidString.lowercased())"
+        engine.recoverablePresentationScanId = expectedScanId
+
+        let staleSpecies = SpeciesData(
+            scanId: staleScanId,
+            commonName: "Stale Result",
+            scientificName: "Resultus stale",
+            insightData: InsightData(
+                aiReasoning: "Must not replace the current presentation.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.9,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        #expect(!engine.commitRecoveredQueuedResult(
+            for: staleScanId,
+            speciesData: staleSpecies
+        ))
+        #expect(!engine.commitRecoveredQueuedResult(
+            for: expectedScanId,
+            speciesData: staleSpecies
+        ))
+        #expect(engine.recoverablePresentationScanId == expectedScanId)
+        #expect(engine.speciesData == nil)
+    }
+
     /// Tests the generation-fenced defer block used by both live pipelines.
     /// When the inference task exits — for any reason (success, error, or cancellation) —
     /// it may clear state only while its UUID still owns the presentation slot.
@@ -1896,6 +1984,8 @@ struct InferenceEngineTests {
         let engine = InferenceEngine()
         engine.activeScanId = "background-scan-in-flight"
         engine.activeLiveInferenceAttemptGeneration = UUID()
+        engine.recoverablePresentationScanId =
+            "background-scan-in-flight"
         engine.isProcessing = true
 
         engine.cancelActiveRequest()
@@ -1906,6 +1996,7 @@ struct InferenceEngineTests {
             "An invalidated presentation UUID must not leave an unowned activeScanId"
         )
         #expect(engine.activeLiveInferenceAttemptGeneration == nil)
+        #expect(engine.recoverablePresentationScanId == nil)
     }
 
     // MARK: - Identification Candidates: full four-field decoding

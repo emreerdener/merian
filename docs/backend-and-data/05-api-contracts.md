@@ -1215,15 +1215,17 @@ Compatibility scan-producing endpoints (`/identify`, `/identify-describe`, and
 `/audio-spec`) call `begin_scan_ingestion` before provider dispatch and write
 `scan_ingestion_jobs` plus sanitized `scan_ingestion_intents` atomically. A
 setup error returns `503 scan_ingestion_unavailable` and refunds unused quota;
-an owner-recovery winner returns `409 scan_already_complete`; neither path calls
-the provider. Those intents set `endpoint: "identify-multimodal"` inside the
-replay payload and preserve the legacy route name as `compatibilityEndpoint`, so
-staged legacy image/audio and text-only rows recover through the same replay
-worker. Inline base64 media is represented only by redacted counts and is marked
+an owner-recovery winner reloads the exact owner-scoped completed result and
+returns idempotent `200`; neither path calls the provider. A compatibility
+fallback conflict is possible only when completion evidence cannot be safely
+loaded. Those intents set `endpoint: "identify-multimodal"` inside the replay
+payload and preserve the legacy route name as `compatibilityEndpoint`, so staged
+legacy image/audio and text-only rows recover through the same replay worker.
+Inline base64 media is represented only by redacted counts and is marked
 non-resumable. Compatibility setup uses the same per-scan advisory lock as
-current claim and recovery. Compatibility completion also invokes
-`complete_scan_ingestion_finalization`; staged inference-only audio must receive
-R2 2xx or idempotent 404 deletion confirmation before completion.
+current claim and recovery. Compatibility completion invokes the response-aware
+finalization wrapper; staged inference-only audio must receive R2 2xx or
+idempotent 404 deletion confirmation before completion.
 
 If the scan row already exists, the worker invokes
 `complete_scan_ingestion_finalization` without replaying AI. That transaction
@@ -1610,7 +1612,33 @@ are automatically refunded, and every retry receives a new fencing token so a
 late settlement from an earlier attempt is rejected. A provider error changes
 `committed` to `failed`: the original counters remain charged, but the same key
 may begin a newly metered attempt. This reservation protects cost idempotency;
-it does not promise to replay a prior HTTP response body.
+by itself it does not promise to replay a prior HTTP response body. The
+scan-specific durable replay contract below absorbs these quota conflicts when
+safe completion evidence exists.
+
+### Scan response replay
+
+`/identify-multimodal`, `/identify`, `/identify-describe`, and `/audio-spec` use
+the canonical scan UUID as both the response identity and paid-provider request
+identity. Before resolving staged media or reserving quota, each route loads
+`scan_ingestion_jobs` by both `scan_id` and authenticated `user_id`. A
+`complete` job with its owner scan returns `200` and
+`X-Merian-Idempotent-Replay: stored|reconstructed`.
+
+Migration `20260728220000_persist_idempotent_scan_responses.sql` makes current
+completions persist the executable-contract-validated success envelope inside
+the same transaction that proves scan/media completion. Persistence is immutable
+for that generation and excludes raw media bytes. Older complete jobs without an
+envelope reconstruct a conservative valid response from the exact owner scan and
+species summary. Deletion-request and owner-removal triggers clear the stored
+response.
+
+If quota reports the same scan UUID as in progress or already completed, the
+route waits up to 70 seconds for the original invocation to reach that boundary
+and then replays success. It never makes a second provider call. Only an
+unresolved or malformed completion may fall back to the stable `409`; current
+iOS retains the queued scan and shows **Restoring scan** rather than a network
+timeout for the four exact replay codes.
 
 Shared authorization errors are:
 
@@ -4679,8 +4707,14 @@ ordered compositions of images, audio, and descriptive context.
   scan is processing, retryable, complete, or terminal. Claim and compatibility
   owner-row recovery share one transaction-scoped advisory lock for that scan. A
   recovery-first winner writes a completed recovery ledger, causing claim to
-  return `already_complete` before any provider call; a claim-first winner makes
-  recovery defer.
+  return `already_complete` before any provider call and the route replays the
+  completed owner response as `200`; a claim-first winner makes recovery defer.
+- Before that claim, staged-media resolution, or quota reservation, the endpoint
+  checks exact owner/scan completion. A lost-response retry returns the stored
+  canonical envelope, or reconstructs older completed rows through the
+  executable response contract. Concurrent quota conflicts coalesce for at most
+  70 seconds. Successful replay carries
+  `X-Merian-Idempotent-Replay: stored|reconstructed` and cannot dispatch Gemini.
 - The endpoint also records a `scan_ingestion_intents` row for server recovery.
   That row stores a sanitized replay payload with telemetry, observation
   context, media descriptors, staged keys, upload-session ids, and a
@@ -4695,8 +4729,11 @@ ordered compositions of images, audio, and descriptive context.
   promoted/deleted key against the claimed media manifest, permits deletion only
   for claimed audio companions, locks the owner scan, rebuilds canonical media,
   verifies every promoted capture URL has a matching ready image/video/audio
-  row, and writes `media_finalization_complete` last. Replay and media
-  reconciliation use this routine rather than updating the ledger directly.
+  row, writes `media_finalization_complete` last, and immutably stores the
+  validated success envelope through the response-aware wrapper. Replay and
+  media reconciliation use this routine rather than updating the ledger
+  directly. Scan deletion clears the envelope at tombstone insertion before
+  asynchronous media erasure starts.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first

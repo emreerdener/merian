@@ -633,15 +633,20 @@ unavailable. It separately verifies that `identify-multimodal`,
 without user Authorization; a transient Supabase gateway `404` remains a failed
 or in-progress rollout. Static caller coverage rejects a route literal from any
 application target, workflow, worker, script, or active migration when it has no
-configured entrypoint. Current opaque Supabase server keys use only the standard
-`apikey` header; legacy service-role JWTs temporarily use both `apikey` and
-Bearer. Credential sources are classified independently so a stale migration
-slot cannot veto an exact valid key, and production rollout requires the
-synchronized Edge secret's stored digest to match the selected key. Exposed
-tables require RLS and reviewed grants, and new migrations leave transaction and
-history ownership to the pinned CLI. Top-level timeout guards use session
-settings with matching resets so fresh replay cannot silently ignore them. See
-the
+configured entrypoint. Scan-producing routes treat at-least-once delivery as
+idempotent success: the same owner/scan UUID replays its validated response as
+HTTP `200` without a second AI provider call instead of surfacing an internal
+quota or completion `409`. Existing completed rows can be reconstructed through
+the same wire contract. See the
+[July 2026 Identify idempotency incident](docs/incidents/2026-07-identify-idempotency-conflict.md).
+Current opaque Supabase server keys use only the standard `apikey` header;
+legacy service-role JWTs temporarily use both `apikey` and Bearer. Credential
+sources are classified independently so a stale migration slot cannot veto an
+exact valid key, and production rollout requires the synchronized Edge secret's
+stored digest to match the selected key. Exposed tables require RLS and reviewed
+grants, and new migrations leave transaction and history ownership to the pinned
+CLI. Top-level timeout guards use session settings with matching resets so fresh
+replay cannot silently ignore them. See the
 [server credential and database safety
 contract](docs/backend-and-data/13-server-credentials-and-database-release-safety.md)
 and

@@ -51,7 +51,16 @@ Deno.test("Identify contract changes deploy every and only Identify consumer", (
     planAffectedFunctions([
       "services/supabase/functions/_shared/identify/contract.ts",
     ], graphs),
-    ["identify", "identify-describe", "identify-multimodal"],
+    ["audio-spec", "identify", "identify-describe", "identify-multimodal"],
+  );
+});
+
+Deno.test("completed-response changes deploy every scan-producing route", () => {
+  assertEquals(
+    planAffectedFunctions([
+      "services/supabase/functions/_shared/identify/completedResponse.ts",
+    ], graphs),
+    ["audio-spec", "identify", "identify-describe", "identify-multimodal"],
   );
 });
 

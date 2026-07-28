@@ -86,6 +86,7 @@ export interface CompleteScanIngestionFinalizationInput {
   userId: string;
   promotedUrlsByStorageKey: Map<string, string>;
   deletedStorageKeys: string[];
+  responseEnvelope?: Record<string, unknown>;
 }
 
 export interface BeginScanIngestionInput {
@@ -346,15 +347,19 @@ export async function completeScanIngestionFinalization(
       input.deletedStorageKeys.map((value) => value.trim()).filter(Boolean),
     ),
   ].sort();
-  const { data, error } = await supabaseAdmin.rpc(
-    "complete_scan_ingestion_finalization",
-    {
-      p_scan_id: input.scanId,
-      p_user_id: input.userId,
-      p_promoted_urls_by_storage_key: promotedUrls,
-      p_deleted_storage_keys: deletedStorageKeys,
-    },
-  );
+  const rpcName = input.responseEnvelope
+    ? "complete_scan_ingestion_finalization_with_response"
+    : "complete_scan_ingestion_finalization";
+  const rpcArguments: Record<string, unknown> = {
+    p_scan_id: input.scanId,
+    p_user_id: input.userId,
+    p_promoted_urls_by_storage_key: promotedUrls,
+    p_deleted_storage_keys: deletedStorageKeys,
+  };
+  if (input.responseEnvelope) {
+    rpcArguments.p_response_envelope = input.responseEnvelope;
+  }
+  const { data, error } = await supabaseAdmin.rpc(rpcName, rpcArguments);
   if (error) {
     throw new Error(`completeScanIngestionFinalization: ${error.message}`);
   }

@@ -1637,6 +1637,13 @@ in migration `20260705120000_add_scan_ingestion_jobs.sql`.
   reconciliation abandonment, and owner deletion. Compatibility recovery fails
   closed unless this is exactly `replay_exhausted`; `user_deleted` is
   permanently nonrecoverable.
+- `response_envelope` (JSONB, added by
+  `20260728220000_persist_idempotent_scan_responses.sql`): At most 256 KiB of
+  validated canonical Identify success data for this exact `scan_id`. It stores
+  no raw media bytes and lets an ambiguous/concurrent retry return success
+  without a second AI provider call. Completed rows created before this value
+  was populated are reconstructed from the exact owner scan and species rows
+  through the executable Identify wire contract.
 
 `identify-multimodal` claims the row after request/media validation and updates
 it through AI inference, moderation, media promotion, scan insert, and failure
@@ -1667,12 +1674,22 @@ refunds unused quota. The function validates and casts the text scan id to UUID
 before querying UUID-backed media rows. Execute is revoked from `PUBLIC`,
 `anon`, and `authenticated`; only `service_role` may call it.
 
-The same migration adds `recover_missing_owned_scan(...)`, which validates the
-bounded non-media DTO and writes the owner scan plus a
-`client_recovery_complete` ledger in one locked transaction. Existing active,
-retryable, policy, unknown, and legacy terminal states return `deferred`; only
-explicit `replay_exhausted` is recoverable. A recovery-first winner makes the
-next ingestion claim return `already_complete` before a provider call.
+Migration `20260728220000_persist_idempotent_scan_responses.sql` adds
+`complete_scan_ingestion_finalization_with_response(...)`. The service-only
+wrapper calls the existing scan/media finalizer and immutably stores the
+validated envelope in the same transaction only after the owner row and complete
+ledger boundary exist. The old finalizer remains available for rolling Edge
+deployment compatibility. Owner deletion intake clears the response immediately
+through a trigger on `internal.scan_deletion_tombstones`; owner change or final
+row deletion clears it defensively through a separate `public.scans` trigger.
+
+Migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql` also
+adds `recover_missing_owned_scan(...)`, which validates the bounded non-media
+DTO and writes the owner scan plus a `client_recovery_complete` ledger in one
+locked transaction. Existing active, retryable, policy, unknown, and legacy
+terminal states return `deferred`; only explicit `replay_exhausted` is
+recoverable. A recovery-first winner makes the next ingestion claim return
+`already_complete` before a provider call.
 
 `internal.scan_deletion_tombstones` closes the opposite lifecycle boundary.
 `request_scan_deletion(...)` writes this private, content-free owner/UUID fence

@@ -109,8 +109,8 @@ schema, thresholds, DB helpers, media validation, and moderation logic:
 
 - **`identify-multimodal/index.ts`**: The main active orchestrator. Executes the
   critical path (media resolution, Gemini invocation, durable moderation and
-  promotion, primary species resolution, scan creation, and owner read-back)
-  and spins off only optional analytics, group-tag, and candidate enrichment.
+  promotion, primary species resolution, scan creation, and owner read-back) and
+  spins off only optional analytics, group-tag, and candidate enrichment.
 - **`_shared/identify/contract.ts`**: The dependency-free executable model and
   complete final wire contract. It generates provider schemas, infers deployed
   TypeScript payload types, runtime-validates provider and server-enriched
@@ -145,6 +145,12 @@ generated Swift boundary is checked exactly across the full iOS source graph by
   `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`,
   `upsertGhostUserIfMissing`, and the dictionary common-name merge rule that
   preserves existing `common_names.en` values over scan-level names.
+- **`_shared/identify/completedResponse.ts`**: Loads exact owner-scoped
+  completion before media/quota work, validates stored success envelopes,
+  reconstructs pre-migration completed rows through the executable wire
+  contract, and boundedly coalesces concurrent same-UUID delivery. All four
+  scan-producing routes use it to replay marked `200` without another provider
+  call.
 - **`_shared/identify/subjectClassification.ts`**: Post-parse classification
   guard shared by visual and describe routes. It demotes manufactured or
   processed objects made from biological material to non-biological results
@@ -856,26 +862,29 @@ provider dispatch:
   reconciliation worker. The current multimodal route awaits moderation,
   required media promotion, primary species resolution, scan insertion,
   owner-scoped read-back, and a final transaction that proves every claimed key
-  disposition plus every ready canonical media row. That transaction writes
-  ledger completion last. Only analytics, group tags, and candidate enrichment
-  remain behind `EdgeRuntime.waitUntil`. The same request records
+  disposition plus every ready canonical media row. The response-aware wrapper
+  writes ledger completion and the validated success envelope atomically.
+  Repeated delivery checks exact owner completion first and returns marked
+  `200`; older complete rows are reconstructed and concurrent delivery coalesces
+  without another model call. Only analytics, group tags, and candidate
+  enrichment remain behind `EdgeRuntime.waitUntil`. The same request records
   `scan_ingestion_intents`, a service-role-only sanitized replay payload with a
   `payload_checksum`; raw inline media bytes are redacted and mark the intent
   non-resumable. The scheduled `replay-scan-ingestion` worker claims due
   resumable intents and dispatches them back through `identify-multimodal` with
   the same `client_scan_id`; inline-media rows remain client retry only. Server
   replay is capped at 10 claims per sanitized intent, after which the job
-  becomes `failed_terminal / server_replay_limit_reached`.
-  Compatibility scan-producing endpoints (`identify`, `identify-describe`, and
-  `audio-spec`) now use `_shared/scanIngestionCompatibility.ts` to write the
-  same ledger before returning success. Their staged media and text-only intents
-  are shaped as multimodal replay requests, while inline media is recorded only
-  as redacted counts, and their post-response insertion path retains the
-  dead-letter fallback. Operational multimodal finalization failures emit a
-  structured event and return customer-safe `503 scan_persistence_failed`;
-  terminal policy rejection returns `400 observation_rejected`. Detailed
-  failures remain observable in Supabase Edge Function logs without exposing
-  internals to the client.
+  becomes `failed_terminal / server_replay_limit_reached`. Compatibility
+  scan-producing endpoints (`identify`, `identify-describe`, and `audio-spec`)
+  now use `_shared/scanIngestionCompatibility.ts` to write the same ledger
+  before returning success. Their staged media and text-only intents are shaped
+  as multimodal replay requests, while inline media is recorded only as redacted
+  counts, and their post-response insertion path retains the dead-letter
+  fallback. Operational multimodal finalization failures emit a structured event
+  and return customer-safe `503 scan_persistence_failed`; terminal policy
+  rejection returns `400 observation_rejected`. Detailed failures remain
+  observable in Supabase Edge Function logs without exposing internals to the
+  client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
   (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
   in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and
@@ -1053,9 +1062,9 @@ insight sheet display.
 - **At most one dictionary hydration RPC**: after Gemini returns, eligible
   biological results fetch cached primary-species data and candidate common
   names together. Moderation, required media promotion, primary cache-miss
-  species resolution, and the scan insert form one durability boundary for
-  every current multimodal observation: the route cannot return success until
-  the owner row exists. Analytics, group tags, and candidate enrichment remain
+  species resolution, and the scan insert form one durability boundary for every
+  current multimodal observation: the route cannot return success until the
+  owner row exists. Analytics, group tags, and candidate enrichment remain
   optional `EdgeRuntime.waitUntil` work.
 - **Atomic critical-path entitlement reservation**: One service-role RPC reads
   tier, creation time, timed expiry, and `entitlement_version`; derives

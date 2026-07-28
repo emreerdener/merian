@@ -6,6 +6,15 @@ post-deployment customer attempt was interrupted by a separate Supabase route
 incident. Atomic recovery hardening, the matching iOS build, and authenticated
 end-to-end runtime verification still require normal release promotion.
 
+**Later addendum:** A July 28 request reached `/identify-multimodal` but
+returned zero-latency `409` after the server-side quota release converted a
+repeated scan delivery into a conflict instead of replaying its completed
+result. That distinct regression and its response-persistence repair are tracked
+in
+[July 2026 Identify Idempotency Conflict](./2026-07-identify-idempotency-conflict.md).
+It can produce the same downstream Share/Field Chat symptom without recreating
+the original missing-owner-row defect.
+
 ## Summary
 
 iOS could receive `200 OK` from `/identify-multimodal`, save the returned

@@ -20,7 +20,10 @@ to modify the pipeline, modify the exact module below rather than cluttering
   the Vision Model, checking the cache, returning the payload, and spinning up
   the heavy Database Background Task. Ledger setup occurs before provider
   dispatch; failure is retryable, fails closed, and refunds unused provider
-  quota.
+  quota. Exact owner completion is checked before media/quota work; a lost
+  response retry returns marked idempotent `200` without another provider call.
+  Completion stores the validated response through the shared response-aware
+  finalizer.
 - **`../_shared/identify/contract.ts`** The executable structural contract. It
   owns provider and final response fields, requiredness, nullability, strings,
   arrays, enums, numeric bounds, inferred TypeScript types, and Swift generation

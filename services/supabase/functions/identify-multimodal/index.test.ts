@@ -1,9 +1,11 @@
 import {
   assert,
   assertEquals,
+  assertThrows,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
 import { sanitizeScientificName } from "../identify/sanitize.ts";
+import { resolveAIRequestId } from "../_shared/aiQuota.ts";
 import {
   MEDIA_BUDGETS,
   validateAudioClipCount,
@@ -104,12 +106,6 @@ function safeGpsLon(v: unknown): number | null {
       v >= -180 && v <= 180
     ? v
     : null;
-}
-
-function resolveGeneratedScanId(client_scan_id: unknown): string {
-  return typeof client_scan_id === "string" && client_scan_id.length > 0
-    ? client_scan_id
-    : crypto.randomUUID();
 }
 
 function normalizeCurrentMonth(value: unknown): number | null {
@@ -848,12 +844,70 @@ Deno.test("GPS - non-finite values sanitize to null", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("scanId - valid client_scan_id is preserved", () => {
-  assertEquals(resolveGeneratedScanId("client-scan-abc"), "client-scan-abc");
+  const scanId = "7c939bb8-d8c9-4ff8-949c-d7f42e4e4ac7";
+  assertEquals(
+    resolveAIRequestId(new Request("https://example.invalid"), scanId),
+    scanId,
+  );
 });
 
-Deno.test("scanId - empty string falls back to a UUID", () => {
-  const result = resolveGeneratedScanId("");
-  assert(result.length > 0);
+Deno.test("scanId - empty client_scan_id is rejected", () => {
+  assertThrows(
+    () => resolveAIRequestId(new Request("https://example.invalid"), ""),
+    Error,
+    "AI request id must be a UUID",
+  );
+});
+
+Deno.test("completed scan retries replay before staging or AI provider work", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const generatedScanId = source.indexOf("const generatedScanId =");
+  const earlyReplay = source.indexOf(
+    "const existingCompletion = await fetchCompletedIdentifyResponse(",
+    generatedScanId,
+  );
+  const imageResolution = source.indexOf(
+    "const { base64Payloads, errorResponse } = await resolveImagePayloads(",
+    generatedScanId,
+  );
+  const quotaReservation = source.indexOf(
+    "quotaLease = await reserveAIProviderCall(",
+    generatedScanId,
+  );
+
+  assert(generatedScanId >= 0);
+  assert(earlyReplay > generatedScanId);
+  assert(imageResolution > earlyReplay);
+  assert(quotaReservation > imageResolution);
+  assert(source.includes('"X-Merian-Idempotent-Replay": replay.source'));
+});
+
+Deno.test("concurrent AI retries wait for the exact owner completion instead of returning 409", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const quotaReservation = source.indexOf(
+    "quotaLease = await reserveAIProviderCall(",
+  );
+  const completionWait = source.indexOf(
+    "const replay = await waitForCompletedIdentifyResponse(",
+    quotaReservation,
+  );
+  const ingestionClaim = source.indexOf(
+    "const atomicIngestion = await beginScanIngestion(",
+  );
+
+  assert(quotaReservation >= 0);
+  assert(completionWait > quotaReservation);
+  assert(ingestionClaim > completionWait);
+  assert(source.includes('error.code === "ai_request_already_completed"'));
+  assert(source.includes('error.code === "ai_request_in_progress"'));
+  const replaySource = await Deno.readTextFile(
+    new URL("../_shared/identify/completedResponse.ts", import.meta.url),
+  );
+  assert(replaySource.includes("COMPLETED_RESPONSE_POLL_TIMEOUT_MS = 70_000"));
 });
 
 // ---------------------------------------------------------------------------
