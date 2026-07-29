@@ -3,7 +3,10 @@
 **Date:** 2026-07-28\
 **Severity:** Release-blocking\
 **Affected flow:** Capture → Identify → Insight → Field Chat / Explore sharing /
-Field trips / owner sync
+Field trips / owner sync\
+**Repository status:** Remediated\
+**Production status:** Open until ordered deployment and retained customer-flow
+evidence satisfy the closure gates below
 
 ## User Impact
 
@@ -207,14 +210,17 @@ downstream Field Chat or Explore handler caused all four symptoms.
   Active work, deletion, ambiguity, and any existing scan win over recovery.
 - All four scan-producing routes now await owner-row insertion and run
   complete-last finalization in the required task rather than registering scan
-  insertion as background work. Current multimodal delivery requires that
-  finalizer. A compatibility route whose exact owner row was already committed
-  may deliver from that canonical row while leaving failed finalization
-  retryable for reconstruction/reconciliation; it can no longer succeed with no
-  scan. Describe, audio, and compatibility image paths move only analytics,
-  group tags, and candidate enrichment to optional background work.
-  Post-provider cache misses or transient cache reads degrade to uncached
-  enrichment rather than escaping the durability state machine.
+  insertion as background work. Fresh provider-owning multimodal delivery
+  requires that finalizer; a later same-UUID request can return a marked
+  reconstructed replay from the exact owner row while finalization remains
+  retryable, with no second provider call. A compatibility route whose exact
+  owner row was already committed may also deliver immediately from that
+  canonical row while leaving failed finalization retryable for
+  reconstruction/reconciliation; it can no longer succeed with no scan.
+  Describe, audio, and compatibility image paths move only analytics, group
+  tags, and candidate enrichment to optional background work. Post-provider
+  cache misses or transient cache reads degrade to uncached enrichment rather
+  than escaping the durability state machine.
 - Legacy audio treats inline bytes as the authoritative source when both
   `audio_base64` and a destination-key hint are present. The ignored hint is
   never fetched, ledgered, finalized, or deleted. Real staged or inline audio is
@@ -308,3 +314,90 @@ downstream Field Chat or Explore handler caused all four symptoms.
   cleanup classification. Explore tests cover direct and reread-confirmed
   commits, definite rejection, ambiguous update, and rollback refusal unless
   absence is proven.
+
+## Deployment Follow-up: Workflow Run 1549
+
+Attempt 1 of `Deploy Merian to Supabase` for commit
+`fab31d92a5985c7c02669c33cadfcc2b1091e3a8` stopped while the disposable local
+database applied `20260728230000_recover_inline_scan_ingestion_completions.sql`.
+PostgreSQL returned `SQLSTATE 42601`, `syntax error at end of input`, at
+statement 0; the reported caret was inside the recovery routine's monolithic
+ledger predicate. The committed and checked-out migration blobs were both
+complete and had the same SHA-256, ruling out a partial checkout.
+
+The failed object was one 43 KiB PL/pgSQL definition. The remediation preserves
+the fail-closed checks but separates them into three bounded private
+`SECURITY INVOKER` validators for ledger shape, durable scan media, and staged
+assets. Their execution privileges are revoked from every API role, including
+`service_role`; only the unchanged service-only public wrapper can call them
+while holding its owner, ledger, and transaction locks. Expected media counts
+are computed before endpoint predicates, removing the nested `CASE` expression
+at the reported parser seam. Source contracts keep all four routine definitions
+below a conservative 16 KiB repository review budget, and pgTAP adds explicit
+helper-bypass denials. That budget is a regression guard, not a claimed
+PostgreSQL function-size limit. The structural contract is itself exercised
+against adversarial unmatched-parenthesis, orphaned/unterminated control-flow,
+invalid `ELSIF` / repeated-`ELSE`, and unterminated-literal fixtures so the
+scanner cannot silently accept the malformed shapes it is intended to prevent.
+
+Because the failure occurred in the disposable `db start` gate, that attempt did
+not run production `db push`, deploy an Edge Function, synchronize a secret, or
+execute production smoke tests. The repository remediation is not deployment
+evidence: the exact reviewed SHA must pass fresh-catalog replay and the
+remaining closure gates before this incident can be marked deployed.
+
+## Release Follow-up: iOS Workflow Run 73
+
+Attempt 1 of `iOS Build and Test` for the same commit compiled and completed its
+unsigned Release archive, but correctly failed production readiness because the
+complete unit target reported 1 failure after 1,167 passes. The sole failed test
+was
+`OfflineQueueManagerTests.testMediaStagingContractBuildsSanitizedMixedMediaKeys()`.
+
+The commit added a security check requiring every server-issued
+`staging/{owner}/{file}` owner to be a canonical lowercase UUID. The mixed-media
+fixture still constructed its supposedly valid manifest with synthetic owner
+`USER/ABC`, which key construction sanitized to `user_abc`; the validator
+correctly rejected it. The remediation changes the fixture to an uppercase Auth
+UUID and asserts its lowercase canonical key. Existing tests continue to reject
+non-UUID, cross-owner, traversal, mixed-origin, insecure, duplicate, and
+filename-mismatched manifests. Production validation was not weakened to make
+the gate green.
+
+The original job summary obscured this result by grepping every raw log line
+containing `error:`. That selected a deliberately injected
+`ExploreReplyLoadingStateTests` failure and metadata reads against intentionally
+unreadable temporary Core Data stores from passing negative-path tests. Neither
+was causal. Failure reporting now reads Xcode's structured result-summary
+failures first, then failed test-tree nodes, and consults the build log only as a
+fallback. The release archive success remains valid evidence for that SHA, but
+it cannot substitute for a passing full unit target; both jobs must pass again
+on one exact remediated SHA.
+
+## Production Closure Gates
+
+Repository remediation, merge to `main`, backend deployment, iOS release, and
+production verification are separate states. Close this incident only after
+retaining all of the following:
+
+1. the exact reviewed repository SHA, four migration versions, nine deployed
+   Edge Function versions, and matching iOS version/build;
+2. successful disposable-catalog migration and pgTAP evidence for inline
+   completion repair, profile prerequisite security, and identity-merge
+   recovery;
+3. staging smoke evidence for current foreground image, queued image, audio,
+   video, and Describe scans, including ambiguous response and partial-upload
+   fault injection;
+4. immediate exact-owner `found` status after every producer `200`;
+5. Field Chat opening and Explore publication with eligible saved public media
+   for the same newly completed scan;
+6. guarded recovery of eligible historical drift without provider redispatch,
+   quota decrement, direct client scan writes, or destructive ambiguous-state
+   cleanup; and
+7. a clean production observation window with no new false-success, phantom
+   manifest, owner-profile prerequisite, or post-commit cleanup failures.
+
+The canonical joined contract is
+[Scan Ingestion Reliability and Recovery](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+Execute and retain the exact release procedure in
+[Scan Owner-Row Durability and Recovery Rollout](../backend-and-data/06-supabase-deployment-runbook.md#scan-owner-row-durability-and-recovery-rollout).

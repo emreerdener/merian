@@ -8,108 +8,38 @@
 -- hints, preserve every independently verified staged source, and pass the
 -- existing scan through the canonical transactional finalizer.
 
-CREATE OR REPLACE FUNCTION public.recover_inline_scan_ingestion_completion(
+-- Keep each validated stage in a bounded private routine. Besides making the
+-- recovery contract reviewable, this removes the unusually large (43 KiB)
+-- single-statement and complex-predicate parser surface that blocked fresh
+-- migration replay. These helpers are invoker-security routines, have no
+-- grants, and can therefore be reached only by their owner while the public
+-- service-only wrapper runs.
+CREATE OR REPLACE FUNCTION internal.inline_scan_recovery_ledger_matches(
+    job_row public.scan_ingestion_jobs,
+    intent_row public.scan_ingestion_intents,
     p_scan_id UUID,
-    p_user_id UUID
+    scan_image_storage_urls TEXT[],
+    scan_video_storage_urls TEXT[]
 )
-RETURNS TEXT
+RETURNS BOOLEAN
 LANGUAGE PLPGSQL
-SECURITY DEFINER
+IMMUTABLE
+SECURITY INVOKER
 SET search_path = ''
-SET statement_timeout = '15s'
 AS $$
 DECLARE
-    job_row public.scan_ingestion_jobs%ROWTYPE;
-    intent_row public.scan_ingestion_intents%ROWTYPE;
-    scan_owner UUID;
-    scan_image_storage_urls TEXT[];
-    scan_video_storage_urls TEXT[];
-    scan_audio_storage_urls TEXT[];
     inline_image_count INTEGER;
     inline_audio_count INTEGER;
     image_key_count INTEGER;
     audio_key_count INTEGER;
     video_key_count INTEGER;
-    standalone_audio_count INTEGER;
-    preserved_storage_keys TEXT[];
-    resolved_upload_session_ids UUID[];
-    normalized_media_object_keys JSONB;
-    normalized_request_payload JSONB;
-    recovered_promotions JSONB;
-    recovered_deletions TEXT[];
-    finalization_result TEXT;
+    expected_job_image_count INTEGER;
+    expected_scan_image_count INTEGER;
     has_inline_media BOOLEAN;
     uses_inline_images BOOLEAN;
 BEGIN
-    PERFORM internal.require_service_role();
-
-    IF p_scan_id IS NULL OR p_user_id IS NULL THEN
-        RAISE EXCEPTION 'invalid_inline_scan_recovery_identity'
-            USING ERRCODE = '22023';
-    END IF;
-
-    PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-        pg_catalog.HASHTEXTEXTENDED(
-            'merian-scan-ingestion:' || p_scan_id::TEXT,
-            0::BIGINT
-        )
-    );
-
-    IF EXISTS (
-        SELECT 1
-        FROM internal.scan_deletion_tombstones AS tombstones
-        WHERE tombstones.scan_id = p_scan_id
-    ) THEN
-        RETURN 'deleted';
-    END IF;
-
-    SELECT jobs.*
-    INTO job_row
-    FROM public.scan_ingestion_jobs AS jobs
-    WHERE jobs.scan_id = p_scan_id::TEXT
-      AND jobs.user_id = p_user_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RETURN 'job_not_found';
-    END IF;
-    IF job_row.status = 'complete' THEN
-        RETURN 'already_complete';
-    END IF;
-
-    SELECT intents.*
-    INTO intent_row
-    FROM public.scan_ingestion_intents AS intents
-    WHERE intents.scan_id = p_scan_id::TEXT
-      AND intents.user_id = p_user_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RETURN 'not_applicable';
-    END IF;
-
-    SELECT
-        scans.user_id,
-        scans.image_storage_urls,
-        scans.video_storage_urls,
-        scans.audio_storage_urls
-    INTO
-        scan_owner,
-        scan_image_storage_urls,
-        scan_video_storage_urls,
-        scan_audio_storage_urls
-    FROM public.scans AS scans
-    WHERE scans.id = p_scan_id
-    FOR UPDATE;
-
-    IF NOT FOUND OR scan_owner IS DISTINCT FROM p_user_id THEN
-        RETURN 'not_applicable';
-    END IF;
-
-    -- Fail closed unless every independent signal matches an already-durable
-    -- generation stranded at media finalization. Keep type checks separate
-    -- from array and numeric operations: PostgreSQL does not promise
-    -- boolean-expression short-circuit order.
+    -- Keep type checks separate from array and numeric operations: PostgreSQL
+    -- does not promise boolean-expression short-circuit order.
     IF job_row.status <> 'failed_retryable'
        OR job_row.stage NOT IN (
             'background_ingestion_failed',
@@ -204,7 +134,7 @@ BEGIN
        OR pg_catalog.JSONB_TYPEOF(
             job_row.media_counts -> 'video_inference_frame_count'
        ) IS DISTINCT FROM 'number' THEN
-        RETURN 'not_applicable';
+        RETURN FALSE;
     END IF;
 
     image_key_count := pg_catalog.JSONB_ARRAY_LENGTH(
@@ -252,7 +182,7 @@ BEGIN
                 ->> 'video_inference_frame_count',
             ''
        ) !~ '^(0|[1-9]|1[0-6])$' THEN
-        RETURN 'not_applicable';
+        RETURN FALSE;
     END IF;
 
     inline_image_count := (
@@ -266,57 +196,67 @@ BEGIN
     uses_inline_images := inline_image_count > 0;
     has_inline_media := uses_inline_images OR inline_audio_count > 0;
 
-    -- identify used a compatibility ledger that counted the ignored image
-    -- hint in addition to inline images. identify-multimodal counted sampled
-    -- video frames separately. Mirror both historical shapes exactly.
-    IF (
-            uses_inline_images
-            AND image_key_count > inline_image_count
-       )
-       OR intent_row.inline_media_redacted
+    IF uses_inline_images THEN
+        expected_scan_image_count := inline_image_count;
+    ELSE
+        expected_scan_image_count := image_key_count;
+    END IF;
+
+    IF uses_inline_images
+       AND image_key_count > inline_image_count THEN
+        RETURN FALSE;
+    END IF;
+
+    IF intent_row.inline_media_redacted
             IS DISTINCT FROM has_inline_media
        OR intent_row.resumable
-            IS DISTINCT FROM (NOT has_inline_media)
-       OR (
-            job_row.endpoint = 'identify'
-            AND (
-                audio_key_count <> 0
-                OR video_key_count <> 0
-                OR inline_audio_count <> 0
-                OR (
-                    job_row.media_counts ->> 'image_count'
-                )::INTEGER <> CASE
-                    WHEN uses_inline_images
-                        THEN inline_image_count + image_key_count
-                    ELSE image_key_count
-                END
-                OR (
+            IS DISTINCT FROM (NOT has_inline_media) THEN
+        RETURN FALSE;
+    END IF;
+
+    -- identify used a compatibility ledger that counted the ignored image hint
+    -- in addition to inline images. identify-multimodal counted sampled video
+    -- frames separately. Mirror both historical shapes exactly, but keep the
+    -- endpoint predicates independent so the migration never depends on one
+    -- giant nested CASE expression.
+    IF job_row.endpoint = 'identify' THEN
+        expected_job_image_count := image_key_count;
+        IF uses_inline_images THEN
+            expected_job_image_count :=
+                expected_job_image_count + inline_image_count;
+        END IF;
+
+        IF audio_key_count <> 0
+           OR video_key_count <> 0
+           OR inline_audio_count <> 0
+           OR (
+                job_row.media_counts ->> 'image_count'
+           )::INTEGER <> expected_job_image_count
+           OR (
+                job_row.media_counts
+                    ->> 'video_inference_frame_count'
+           )::INTEGER <> 0 THEN
+            RETURN FALSE;
+        END IF;
+    ELSIF job_row.endpoint = 'identify-multimodal' THEN
+        IF (
+                job_row.media_counts ->> 'image_count'
+           )::INTEGER
+                + (
                     job_row.media_counts
                         ->> 'video_inference_frame_count'
-                )::INTEGER <> 0
-            )
-       )
-       OR (
-            job_row.endpoint = 'identify-multimodal'
-            AND (
-                (
-                    job_row.media_counts ->> 'image_count'
-                )::INTEGER
-                    + (
-                        job_row.media_counts
-                            ->> 'video_inference_frame_count'
-                    )::INTEGER <> CASE
-                        WHEN uses_inline_images
-                            THEN inline_image_count
-                        ELSE image_key_count
-                    END
-                OR (
-                    inline_audio_count > 0
-                    AND audio_key_count > 0
-                )
-            )
-       )
-       OR job_row.media_counts -> 'audio_count'
+                )::INTEGER <> expected_scan_image_count
+           OR (
+                inline_audio_count > 0
+                AND audio_key_count > 0
+           ) THEN
+            RETURN FALSE;
+        END IF;
+    ELSE
+        RETURN FALSE;
+    END IF;
+
+    IF job_row.media_counts -> 'audio_count'
             IS DISTINCT FROM pg_catalog.TO_JSONB(
                 inline_audio_count + audio_key_count
             )
@@ -326,19 +266,48 @@ BEGIN
             IS DISTINCT FROM pg_catalog.TO_JSONB(video_key_count)
        OR pg_catalog.CARDINALITY(
             COALESCE(scan_image_storage_urls, '{}'::TEXT[])
-       ) <> CASE
-            WHEN uses_inline_images THEN inline_image_count
-            ELSE image_key_count
-       END
+       ) <> expected_scan_image_count
        OR pg_catalog.CARDINALITY(
             COALESCE(scan_video_storage_urls, '{}'::TEXT[])
        ) <> video_key_count
        OR pg_catalog.JSONB_ARRAY_LENGTH(
             intent_row.request_payload #> '{media,audioMediaItems}'
        ) <> inline_audio_count + audio_key_count THEN
-        RETURN 'not_applicable';
+        RETURN FALSE;
     END IF;
 
+    RETURN TRUE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION internal.inline_scan_recovery_ledger_matches(
+    public.scan_ingestion_jobs,
+    public.scan_ingestion_intents,
+    UUID,
+    TEXT[],
+    TEXT[]
+) FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION internal.inline_scan_recovery_scan_media_match(
+    job_row public.scan_ingestion_jobs,
+    intent_row public.scan_ingestion_intents,
+    p_scan_id UUID,
+    p_user_id UUID,
+    scan_image_storage_urls TEXT[],
+    scan_video_storage_urls TEXT[],
+    scan_audio_storage_urls TEXT[],
+    uses_inline_images BOOLEAN,
+    image_key_count INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE PLPGSQL
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+    standalone_audio_count INTEGER;
+BEGIN
     IF EXISTS (
         SELECT 1
         FROM pg_catalog.JSONB_ARRAY_ELEMENTS(
@@ -350,7 +319,7 @@ BEGIN
            OR audio_items.item ->> 'kind'
                 NOT IN ('audio', 'video_audio')
     ) THEN
-        RETURN 'not_applicable';
+        RETURN FALSE;
     END IF;
 
     SELECT pg_catalog.COUNT(*)::INTEGER
@@ -427,7 +396,7 @@ BEGIN
        ) <> pg_catalog.CARDINALITY(
             COALESCE(scan_audio_storage_urls, '{}'::TEXT[])
        ) THEN
-        RETURN 'not_applicable';
+        RETURN FALSE;
     END IF;
 
     -- Image keys are overloaded by historical clients. With inline bytes they
@@ -450,7 +419,7 @@ BEGIN
                 job_row.media_object_keys -> 'image'
             ) AS image_keys(storage_key)
        ) <> image_key_count THEN
-        RETURN 'not_applicable';
+        RETURN FALSE;
     END IF;
 
     IF uses_inline_images THEN
@@ -495,7 +464,7 @@ BEGIN
                   ) AS image_keys(storage_key)
               )
         ) THEN
-            RETURN 'not_applicable';
+            RETURN FALSE;
         END IF;
     ELSE
         IF EXISTS (
@@ -597,8 +566,51 @@ BEGIN
                       )
                )
         ) THEN
-            RETURN 'not_applicable';
+            RETURN FALSE;
         END IF;
+    END IF;
+
+    RETURN TRUE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION internal.inline_scan_recovery_scan_media_match(
+    public.scan_ingestion_jobs,
+    public.scan_ingestion_intents,
+    UUID,
+    UUID,
+    TEXT[],
+    TEXT[],
+    TEXT[],
+    BOOLEAN,
+    INTEGER
+) FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION internal.inline_scan_recovery_staged_assets_match(
+    job_row public.scan_ingestion_jobs,
+    intent_row public.scan_ingestion_intents,
+    p_scan_id UUID,
+    p_user_id UUID,
+    scan_video_storage_urls TEXT[],
+    scan_audio_storage_urls TEXT[],
+    uses_inline_images BOOLEAN,
+    image_key_count INTEGER,
+    audio_key_count INTEGER,
+    video_key_count INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE PLPGSQL
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+    expected_staged_key_count INTEGER;
+BEGIN
+    expected_staged_key_count := audio_key_count + video_key_count;
+    IF NOT uses_inline_images THEN
+        expected_staged_key_count :=
+            expected_staged_key_count + image_key_count;
     END IF;
 
     -- Every non-inline manifest key remains a real staged source. Reject
@@ -632,113 +644,116 @@ BEGIN
                     || p_user_id::TEXT
                     || '/[A-Za-z0-9._-]+$'
                 )
-       )
-       OR (
-            WITH expected(storage_key) AS (
-                SELECT image_keys.storage_key
-                FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
-                    job_row.media_object_keys -> 'image'
-                ) AS image_keys(storage_key)
-                WHERE NOT uses_inline_images
-                UNION ALL
-                SELECT audio_keys.storage_key
-                FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
-                    job_row.media_object_keys -> 'audio'
-                ) AS audio_keys(storage_key)
-                UNION ALL
-                SELECT video_keys.storage_key
-                FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
-                    job_row.media_object_keys -> 'video'
-                ) AS video_keys(storage_key)
-            )
-            SELECT pg_catalog.COUNT(DISTINCT expected.storage_key)
-            FROM expected
-       ) <> CASE
-            WHEN uses_inline_images THEN 0
-            ELSE image_key_count
-       END + audio_key_count + video_key_count
-       OR EXISTS (
-            WITH expected(kind, storage_key) AS (
-                SELECT 'image'::TEXT, image_keys.storage_key
-                FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
-                    job_row.media_object_keys -> 'image'
-                ) AS image_keys(storage_key)
-                WHERE NOT uses_inline_images
-                UNION ALL
-                SELECT 'audio'::TEXT, audio_keys.storage_key
-                FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
-                    job_row.media_object_keys -> 'audio'
-                ) AS audio_keys(storage_key)
-                UNION ALL
-                SELECT 'video'::TEXT, video_keys.storage_key
-                FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
-                    job_row.media_object_keys -> 'video'
-                ) AS video_keys(storage_key)
-            )
-            SELECT 1
-            FROM expected
-            WHERE (
-                SELECT pg_catalog.COUNT(*)
+    ) THEN
+        RETURN FALSE;
+    END IF;
+
+    IF (
+        WITH expected(storage_key) AS (
+            SELECT image_keys.storage_key
+            FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                job_row.media_object_keys -> 'image'
+            ) AS image_keys(storage_key)
+            WHERE NOT uses_inline_images
+            UNION ALL
+            SELECT audio_keys.storage_key
+            FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                job_row.media_object_keys -> 'audio'
+            ) AS audio_keys(storage_key)
+            UNION ALL
+            SELECT video_keys.storage_key
+            FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                job_row.media_object_keys -> 'video'
+            ) AS video_keys(storage_key)
+        )
+        SELECT pg_catalog.COUNT(DISTINCT expected.storage_key)
+        FROM expected
+    ) <> expected_staged_key_count THEN
+        RETURN FALSE;
+    END IF;
+
+    IF EXISTS (
+        WITH expected(kind, storage_key) AS (
+            SELECT 'image'::TEXT, image_keys.storage_key
+            FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                job_row.media_object_keys -> 'image'
+            ) AS image_keys(storage_key)
+            WHERE NOT uses_inline_images
+            UNION ALL
+            SELECT 'audio'::TEXT, audio_keys.storage_key
+            FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                job_row.media_object_keys -> 'audio'
+            ) AS audio_keys(storage_key)
+            UNION ALL
+            SELECT 'video'::TEXT, video_keys.storage_key
+            FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                job_row.media_object_keys -> 'video'
+            ) AS video_keys(storage_key)
+        )
+        SELECT 1
+        FROM expected
+        WHERE (
+            SELECT pg_catalog.COUNT(*)
+            FROM public.scan_media_assets AS assets
+            WHERE assets.user_id = p_user_id
+              AND assets.client_scan_id = p_scan_id
+              AND assets.source = 'capture_upload'
+              AND assets.storage_key = expected.storage_key
+              AND assets.kind = expected.kind
+              AND assets.upload_session_id IS NOT NULL
+              AND (
+                  (
+                      expected.kind IN ('image', 'video')
+                      AND assets.status IN ('staged', 'promoted')
+                  )
+                  OR (
+                      expected.kind = 'audio'
+                      AND assets.status IN (
+                          'staged',
+                          'promoted',
+                          'deleted'
+                      )
+                  )
+              )
+        ) <> 1
+           OR EXISTS (
+                SELECT 1
                 FROM public.scan_media_assets AS assets
                 WHERE assets.user_id = p_user_id
                   AND assets.client_scan_id = p_scan_id
                   AND assets.source = 'capture_upload'
                   AND assets.storage_key = expected.storage_key
-                  AND assets.kind = expected.kind
-                  AND assets.upload_session_id IS NOT NULL
-                  AND (
+                  AND NOT (
                       (
-                          expected.kind IN ('image', 'video')
-                          AND assets.status IN ('staged', 'promoted')
-                      )
-                      OR (
-                          expected.kind = 'audio'
-                          AND assets.status IN (
-                              'staged',
-                              'promoted',
-                              'deleted'
-                          )
-                      )
-                  )
-            ) <> 1
-               OR EXISTS (
-                    SELECT 1
-                    FROM public.scan_media_assets AS assets
-                    WHERE assets.user_id = p_user_id
-                      AND assets.client_scan_id = p_scan_id
-                      AND assets.source = 'capture_upload'
-                      AND assets.storage_key = expected.storage_key
-                      AND NOT (
-                          (
-                              assets.kind = expected.kind
-                              AND assets.upload_session_id IS NOT NULL
-                              AND (
-                                  (
-                                      expected.kind IN ('image', 'video')
-                                      AND assets.status IN (
-                                          'staged',
-                                          'promoted'
-                                      )
+                          assets.kind = expected.kind
+                          AND assets.upload_session_id IS NOT NULL
+                          AND (
+                              (
+                                  expected.kind IN ('image', 'video')
+                                  AND assets.status IN (
+                                      'staged',
+                                      'promoted'
                                   )
-                                  OR (
-                                      expected.kind = 'audio'
-                                      AND assets.status IN (
-                                          'staged',
-                                          'promoted',
-                                          'deleted'
-                                      )
+                              )
+                              OR (
+                                  expected.kind = 'audio'
+                                  AND assets.status IN (
+                                      'staged',
+                                      'promoted',
+                                      'deleted'
                                   )
                               )
                           )
-                          OR (
-                              assets.status = 'failed'
-                              AND assets.failure_reason =
-                                  'superseded_staging_registration'
-                          )
                       )
-               )
-       ) THEN
-        RETURN 'not_applicable';
+                      OR (
+                          assets.status = 'failed'
+                          AND assets.failure_reason =
+                              'superseded_staging_registration'
+                      )
+                  )
+           )
+    ) THEN
+        RETURN FALSE;
     END IF;
 
     -- A real video key always maps one-to-one to its canonical scan URL.
@@ -804,7 +819,7 @@ BEGIN
                   )
            )
     ) THEN
-        RETURN 'not_applicable';
+        RETURN FALSE;
     END IF;
 
     -- Audio descriptors are the durable classification used by the original
@@ -937,6 +952,174 @@ BEGIN
                     )
                 )
            )
+    ) THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN TRUE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION internal.inline_scan_recovery_staged_assets_match(
+    public.scan_ingestion_jobs,
+    public.scan_ingestion_intents,
+    UUID,
+    UUID,
+    TEXT[],
+    TEXT[],
+    BOOLEAN,
+    INTEGER,
+    INTEGER,
+    INTEGER
+) FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.recover_inline_scan_ingestion_completion(
+    p_scan_id UUID,
+    p_user_id UUID
+)
+RETURNS TEXT
+LANGUAGE PLPGSQL
+SECURITY DEFINER
+SET search_path = ''
+SET statement_timeout = '15s'
+AS $$
+DECLARE
+    job_row public.scan_ingestion_jobs%ROWTYPE;
+    intent_row public.scan_ingestion_intents%ROWTYPE;
+    scan_owner UUID;
+    scan_image_storage_urls TEXT[];
+    scan_video_storage_urls TEXT[];
+    scan_audio_storage_urls TEXT[];
+    inline_image_count INTEGER;
+    image_key_count INTEGER;
+    audio_key_count INTEGER;
+    video_key_count INTEGER;
+    preserved_storage_keys TEXT[];
+    resolved_upload_session_ids UUID[];
+    normalized_media_object_keys JSONB;
+    normalized_request_payload JSONB;
+    recovered_promotions JSONB;
+    recovered_deletions TEXT[];
+    finalization_result TEXT;
+    uses_inline_images BOOLEAN;
+BEGIN
+    PERFORM internal.require_service_role();
+
+    IF p_scan_id IS NULL OR p_user_id IS NULL THEN
+        RAISE EXCEPTION 'invalid_inline_scan_recovery_identity'
+            USING ERRCODE = '22023';
+    END IF;
+
+    PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
+        pg_catalog.HASHTEXTEXTENDED(
+            'merian-scan-ingestion:' || p_scan_id::TEXT,
+            0::BIGINT
+        )
+    );
+
+    IF EXISTS (
+        SELECT 1
+        FROM internal.scan_deletion_tombstones AS tombstones
+        WHERE tombstones.scan_id = p_scan_id
+    ) THEN
+        RETURN 'deleted';
+    END IF;
+
+    SELECT jobs.*
+    INTO job_row
+    FROM public.scan_ingestion_jobs AS jobs
+    WHERE jobs.scan_id = p_scan_id::TEXT
+      AND jobs.user_id = p_user_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN 'job_not_found';
+    END IF;
+    IF job_row.status = 'complete' THEN
+        RETURN 'already_complete';
+    END IF;
+
+    SELECT intents.*
+    INTO intent_row
+    FROM public.scan_ingestion_intents AS intents
+    WHERE intents.scan_id = p_scan_id::TEXT
+      AND intents.user_id = p_user_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN 'not_applicable';
+    END IF;
+
+    SELECT
+        scans.user_id,
+        scans.image_storage_urls,
+        scans.video_storage_urls,
+        scans.audio_storage_urls
+    INTO
+        scan_owner,
+        scan_image_storage_urls,
+        scan_video_storage_urls,
+        scan_audio_storage_urls
+    FROM public.scans AS scans
+    WHERE scans.id = p_scan_id
+    FOR UPDATE;
+
+    IF NOT FOUND OR scan_owner IS DISTINCT FROM p_user_id THEN
+        RETURN 'not_applicable';
+    END IF;
+
+    IF NOT internal.inline_scan_recovery_ledger_matches(
+        job_row,
+        intent_row,
+        p_scan_id,
+        scan_image_storage_urls,
+        scan_video_storage_urls
+    ) THEN
+        RETURN 'not_applicable';
+    END IF;
+
+    -- The helper above proves these operations safe while this transaction
+    -- retains both ledger row locks.
+    image_key_count := pg_catalog.JSONB_ARRAY_LENGTH(
+        job_row.media_object_keys -> 'image'
+    );
+    audio_key_count := pg_catalog.JSONB_ARRAY_LENGTH(
+        job_row.media_object_keys -> 'audio'
+    );
+    video_key_count := pg_catalog.JSONB_ARRAY_LENGTH(
+        job_row.media_object_keys -> 'video'
+    );
+    inline_image_count := (
+        intent_row.redacted_media_counts
+            ->> 'image_base64_count'
+    )::INTEGER;
+    uses_inline_images := inline_image_count > 0;
+
+    IF NOT internal.inline_scan_recovery_scan_media_match(
+        job_row,
+        intent_row,
+        p_scan_id,
+        p_user_id,
+        scan_image_storage_urls,
+        scan_video_storage_urls,
+        scan_audio_storage_urls,
+        uses_inline_images,
+        image_key_count
+    ) THEN
+        RETURN 'not_applicable';
+    END IF;
+
+    IF NOT internal.inline_scan_recovery_staged_assets_match(
+        job_row,
+        intent_row,
+        p_scan_id,
+        p_user_id,
+        scan_video_storage_urls,
+        scan_audio_storage_urls,
+        uses_inline_images,
+        image_key_count,
+        audio_key_count,
+        video_key_count
     ) THEN
         RETURN 'not_applicable';
     END IF;

@@ -93,11 +93,16 @@ steps are tracked in the
   afterward.
 - `/identify-multimodal` is the shared live and replay endpoint for visual,
   audio, Describe, mixed-media, and video submissions; queued media uploads
-  through R2 staging before inference. HTTP `200` is a durability guarantee:
-  moderation, required media promotion, primary species resolution, scan
-  creation, authenticated-owner read-back, every claimed staging-key
-  disposition, and ready canonical image/video/audio verification have completed
-  before the ingestion ledger is marked complete last.
+  through R2 staging before inference. For a fresh provider-owning invocation,
+  HTTP `200` means moderation, required media promotion, primary species
+  resolution, scan creation, authenticated-owner read-back, every claimed
+  staging-key disposition, and ready canonical image/video/audio verification
+  have completed before the ingestion ledger is marked complete last. A later
+  same-UUID response marked `X-Merian-Idempotent-Replay: reconstructed` may
+  instead be rebuilt from that exact durable owner row while canonical
+  reconciliation remains retryable; it never invokes the provider again. Every
+  success still guarantees that the returned owner scan exists and is
+  immediately addressable.
 - Live-camera still-image analysis becomes eligible to start as soon as the
   durable local queue accepts the scan. WeatherKit/reverse geocoding receive a
   150 ms grace period, late context is patched without re-identifying, and the
@@ -123,7 +128,9 @@ steps are tracked in the
   Storage deletion accepts only flat free/Pro object keys containing that
   canonical owner UUID, so a poisoned row cannot nominate another user's object.
   A leased server reaper independently completes interrupted media erasure and
-  scheduled monitoring alerts on deletion backlog/SLA health.
+  scheduled monitoring alerts on deletion backlog/SLA health. The full joined
+  success, retry, recovery, Field Chat, and Explore contract is documented in
+  [`16-scan-ingestion-reliability-and-recovery.md`](docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 ### Scans Library
 

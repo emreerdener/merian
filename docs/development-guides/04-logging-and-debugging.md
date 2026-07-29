@@ -249,6 +249,108 @@ does not prove an APNs, signing, or production configuration issue is fixed.
 
 ---
 
+## Scan Submission, Field Chat, and Explore Triage
+
+Treat Capture → Identify → Insight → Field Chat / Explore as one joined
+durability path. A provider success line does not prove scan success; the shared
+HTTP-success boundary begins only after exact-owner scan read-back. A fresh,
+provider-owning multimodal success additionally requires complete-last canonical
+media finalization. A later same-UUID success marked
+`X-Merian-Idempotent-Replay: reconstructed` may be served from that exact owner
+row while canonical repair remains retryable, without another provider call.
+Compatibility routes attempt the same finalizer synchronously; their additional
+immediate fallback leaves a retryable ledger after the exact owner row has
+already committed.
+
+Start with one server-generated `X-Request-ID` and keep raw correlation in the
+restricted incident view. Never paste Auth/user/scan UUIDs, IP addresses, object
+keys, media URLs, filenames, coordinates, request bodies, provider payloads, or
+raw database errors into tickets, release artifacts, chat, or aggregate
+dashboards.
+
+### Triage sequence
+
+1. **Handler execution:** verify fixed `X-Merian-Handler: 1`. A platform
+   `404 NOT_FOUND` without the marker means the function did not execute and is
+   not evidence of a missing scan.
+2. **Stable generation:** verify the client retained one scan UUID and one
+   analysis idempotency key across foreground/background retries.
+3. **Media transport:** for inline stills, confirm the durable staged-image key
+   set is empty. For queued media, confirm signing returned one exact
+   owner-prefixed key and asset/session identity for every requested item.
+4. **Profile prerequisite:** inspect `*/scan_user_profile_unavailable`.
+   `public_author_name`/username constraint failures after provider work mean
+   the Auth-backed profile prerequisite migration or function bundle is stale;
+   do not restore the partial users-table upsert.
+5. **Provider boundary:** establish whether quota was committed and Gemini was
+   dispatched. Never refund committed usage after dispatch.
+6. **Ledger stage:** inspect the exact owner `scan_ingestion_jobs` status,
+   stage, terminal reason, lease, manifest checksum, and paired sanitized
+   intent.
+7. **Owner row:** prove the exact `(scan_id, user_id)` row exists or is absent.
+   A thrown PostgREST response alone is neither proof.
+8. **Canonical media:** verify every genuine claimed source has one compatible
+   capture lifecycle row and every promoted retained URL has a ready canonical
+   image/video/audio representation.
+9. **Persistence class:** classify committed, definitely rejected, or unknown
+   before quota/media cleanup.
+10. **Downstream check:** only after owner durability is proven, reproduce Field
+    Chat preflight and Explore publication on that same scan.
+
+### Structured events
+
+| Event                                                                                                                                                                                 | Meaning                                                          | Action                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `generate_upload_urls_asset_persistence_failed`                                                                                                                                       | URLs were generated but compatible lifecycle registration failed | Start no PUT; inspect owner/scan/key rows, uniqueness, and six-source cap              |
+| `*/scan_ingestion_setup_failed`                                                                                                                                                       | Atomic job+intent setup failed before provider                   | Keep local media; verify migration/schema/grant parity                                 |
+| `*/scan_user_profile_unavailable`                                                                                                                                                     | Exact Auth-backed profile prerequisite failed                    | Check Auth identity, retirement/deletion fences, migration, and privileged routine ACL |
+| `*/gemini_failed`                                                                                                                                                                     | Provider attempt failed after quota commit                       | Keep retryable ledger; do not refund dispatched usage                                  |
+| `identify/parse_failed`, `identify-describe/parse_failed`, or `audio_spec/parse_failed`                                                                                               | Provider JSON was malformed                                      | Expect retryable HTTP 503 and retained offline job                                     |
+| `*/wire_contract_failed`                                                                                                                                                              | Final server-enriched response violated the executable contract  | Expect HTTP 502 `identify_response_invalid` and retained retryable ledger              |
+| `multimodal/background_ingestion_failed`, `identify-describe/background_ingestion_failed`, `audio_spec/background_ingestion_failed`, or legacy Identify `background_ingestion_failed` | Required persistence/finalization failed                         | Prove owner row and media topology; do not infer rollback from exception               |
+| `multimodal/scan_persistence_failed`                                                                                                                                                  | Current durable success boundary did not complete                | Expect 503; poll same UUID and preserve unknown-state resources                        |
+| `multimodal/observation_rejected`                                                                                                                                                     | Terminal media/policy rejection                                  | Confirm no scan and terminal fence; never owner-recover it                             |
+| `explore/restored_media_persistence_unconfirmed`                                                                                                                                      | Restored owner-media update may have committed                   | Preserve promoted media; retry exact owner share                                       |
+| `explore/restored_media_rollback_partial_failure`                                                                                                                                     | A proven rollback could not remove all known objects             | Immediate storage reconciliation; never blanket-delete prefixes                        |
+| `scan_image_repair_persistence_unconfirmed`                                                                                                                                           | Atomic URL repair may have committed                             | Preserve replacement and retry inspect                                                 |
+| `scan_image_repair_rollback_failed`                                                                                                                                                   | Definite-rejection cleanup failed                                | Reconcile the exact known replacement only                                             |
+
+Producer namespaces are `multimodal`, `identify`, `identify-describe`, and
+`audio_spec`. The compatibility Identify route retains the older unprefixed
+`background_ingestion_failed` event, and multimodal emits `wire_contract_failed`
+without a separate `parse_failed` event.
+
+### Healthy joined signals
+
+- An inline foreground still has bytes but no staged image source keys.
+- A queued generation becomes staged only after callbacks record the exact full
+  expected server-key set; task-list disappearance is not counted.
+- Identify `200` is followed immediately by `/check-scan-status` `found`.
+- A fresh unmarked multimodal success has owner ledger
+  `complete / media_finalization_complete`.
+- A marked reconstructed replay has the exact durable owner row and no second
+  provider dispatch; its canonical ledger may still be retryable and must drain
+  through reconciliation.
+- Compatibility success normally has that same completion. A post-row
+  `failed_retryable` fallback is recoverable rather than healthy and must drain
+  through same-UUID canonical reconciliation without provider redispatch.
+- Repeating an ambiguously delivered UUID returns marked idempotent replay
+  without another provider dispatch.
+- Field Chat preflight finds the same owner scan before `/insight-chat`.
+- Explore share returns a published post with at least one saved eligible
+  `explore_post_media` row.
+
+Any current Identify `200` followed by owner `not_found`, Field Chat
+`scan_not_ready`, or Explore `Scan not found` is a severity incident even if
+guarded recovery later succeeds.
+
+See the
+[normative joined reliability contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+and
+[production rollout/incident triggers](../backend-and-data/06-supabase-deployment-runbook.md#scan-owner-row-durability-and-recovery-rollout).
+
+---
+
 ## Explore Video Playback Triage
 
 Explore feed/detail video playback logs use `MerianLog.exploreVideo`. In
@@ -367,42 +469,24 @@ attempts are made.
 
 ---
 
-## Comment Replies Diagnostic Tracing (`[RepliesDebug]` & `[UIRepliesDebug]`)
+## Comment Reply Diagnostics
 
-To troubleshoot thread hierarchies, race conditions, and network errors in the
-public comment replies ecosystem, we have integrated a structured double-layered
-tracing system that distinguishes between view model execution and SwiftUI view
-lifecycle triggers.
+Comment reply loading intentionally does not log every SwiftUI `.task` start,
+guard exit, identifier, reply count, success, or cancellation. Those lifecycle
+events are high-volume, cancellation is expected during view replacement, and
+raw `print()` tracing can expose public-comment identifiers while polluting test
+and release logs.
 
-### 1. View Model Tracing (`[RepliesDebug]`)
+An unexpected preview or full-thread fetch failure emits one
+`MerianLog.network.error` entry. Only the localized failure description is
+included and it is marked private; comment IDs, reply payloads, draft text, and
+counts are omitted. The view model still records its retry state and presents
+the customer-safe `ExploreErrorFormatter` message. Cancellation remains silent
+and must not set failure state.
 
-These trace messages are emitted from the comments extension of
-`ExploreFeedViewModel` (`ExploreFeedViewModel+Comments.swift`) to capture
-network fetches, abort states, errors, and task cancellations.
-
-- **Start**: `[RepliesDebug] loadReplies started for comment <ID>`
-- **Abort Guard**:
-  `[RepliesDebug] loadReplies aborted: already loading / loaded...`
-- **Success**:
-  `[RepliesDebug] loadReplies fetch successful: fetched <Count> replies`
-- **Failure**: `[RepliesDebug] loadReplies failed with error: <Error>`
-- **Task Cancellation**:
-  `[RepliesDebug] loadReplies URLSession cancelled / task cancelled`
-
-### 2. UI-Level Lifecycle Tracing (`[UIRepliesDebug]`)
-
-These trace messages are emitted from the `.task` modifiers inside
-[ExplorePostDetailCommentsSection.swift](../../apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostDetailCommentsSection.swift)
-and
-[ExploreCommentsSheet.swift](../../apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift).
-
-- **Task Start**:
-  `[UIRepliesDebug] replyCountLabel task started for comment <ID>`
-- **Task End (via `defer` block)**:
-  `[UIRepliesDebug] replyCountLabel task ended for comment <ID> - isCancelled: <true/false>`
-
-When debugging comments in Xcode's Console or the unified system Console.app,
-filter by `[RepliesDebug]` or `[UIRepliesDebug]` to observe real-time
-interaction logs. If any task prints `isCancelled: true` in an endless loop, it
-indicates that parent identity changes are forcing SwiftUI to tear down the view
-tree destructively.
+Use `ExploreReplyLoadingStateTests`, the reply-thread render-state tests, and a
+debugger breakpoint around `loadReplyPreviewIfNeeded` / `loadReplies` when
+investigating lifecycle races. Do not reintroduce `[RepliesDebug]`,
+`[UIRepliesDebug]`, or identifier-bearing `print()` calls. Hosted iOS CI obtains
+failed names and assertion text from the structured `.xcresult`; raw unified
+logs are only a fallback for build failures.

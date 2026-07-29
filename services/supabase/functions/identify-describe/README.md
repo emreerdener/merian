@@ -6,10 +6,11 @@ The active iOS Describe path now submits through `/identify-multimodal` via the
 shared non-visual request builder, but this route remains deployed for older
 clients, route-parity tests, and ops compatibility.
 
-The route resolves the canonical scan UUID and checks exact owner completion
-before quota/provider work. A repeated or lost-response delivery replays a
-stored or reconstructed successful envelope as `200` with
-`X-Merian-Idempotent-Replay`; concurrent same-UUID delivery coalesces with the
+The route resolves the canonical scan UUID and checks for a stored completion or
+exact reconstructible owner row before quota/provider work. A repeated or
+lost-response delivery replays a stored or reconstructed successful envelope as
+`200` with `X-Merian-Idempotent-Replay`; reconstruction may coexist with a
+retryable canonical ledger. Concurrent same-UUID delivery coalesces with the
 winner and never makes a second Gemini call. Successful completion persists the
 validated response through the response-aware scan finalizer.
 
@@ -88,3 +89,6 @@ English name for a normalized biological subject.
 deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts services/supabase/functions/_shared/identify/subjectClassification.ts
 deno test --config services/supabase/functions/deno.json services/supabase/functions/identify-describe/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/contract_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```
+
+The normative joined success, replay, recovery, and rollout contract is
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

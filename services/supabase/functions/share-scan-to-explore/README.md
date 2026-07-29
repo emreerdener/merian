@@ -94,7 +94,7 @@ a missing scan.
 The database reads the owner-scoped ingestion job under the claim's generation
 lock. Processing, finalizing, retrying, retryable, policy, media-abandonment,
 legacy-unknown, and arbitrary terminal reasons defer to the richer original
-attempt. Only a missing ledger entry, a complete-but-missing row, or exact
+attempt. A missing ledger also defers. Only a complete-but-missing row or exact
 `terminal_reason_code = replay_exhausted` may be repaired. Media is never
 accepted inside `recovery_scan`; owner-scoped `restored_object_keys`,
 `restored_video_object_keys`, and `restored_audio_object_keys` remain the only
@@ -292,9 +292,16 @@ coordinates with `coordinate_visibility = "obscured"`.
 make validate-supabase-migrations
 make test-supabase-privileged-routines
 deno check --config services/supabase/functions/deno.json services/supabase/functions/share-scan-to-explore/index.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/scanRecovery_test.ts services/supabase/functions/share-scan-to-explore/db_test.ts
+deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/scanRecovery_test.ts \
+  services/supabase/functions/share-scan-to-explore/restoredMediaValidation_test.ts \
+  services/supabase/functions/share-scan-to-explore/db_test.ts
 ```
 
 DB integration tests require a running local Supabase Postgres instance at the
 configured test URL. The privileged-routine catalog fixture must run only
 against the disposable local database; never substitute `--linked`.
+
+The joined durability, media restoration, Field Chat/Explore recovery, and
+deployment guarantees are in
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#explore-publication).

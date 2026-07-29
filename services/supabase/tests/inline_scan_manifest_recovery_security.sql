@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(14);
+SELECT extensions.plan(23);
 
 INSERT INTO auth.users (
     instance_id,
@@ -71,6 +71,78 @@ SELECT extensions.ok(
         'EXECUTE'
     ),
     'service-role callers can execute inline completion recovery'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'internal.inline_scan_recovery_ledger_matches(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,text[],text[])',
+        'EXECUTE'
+    ),
+    'anonymous callers cannot execute the private ledger validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'internal.inline_scan_recovery_ledger_matches(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,text[],text[])',
+        'EXECUTE'
+    ),
+    'authenticated callers cannot execute the private ledger validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.inline_scan_recovery_ledger_matches(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,text[],text[])',
+        'EXECUTE'
+    ),
+    'service-role callers cannot bypass the recovery wrapper through the ledger validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'internal.inline_scan_recovery_scan_media_match(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,uuid,text[],text[],text[],boolean,integer)',
+        'EXECUTE'
+    ),
+    'anonymous callers cannot execute the private canonical-media validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'internal.inline_scan_recovery_scan_media_match(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,uuid,text[],text[],text[],boolean,integer)',
+        'EXECUTE'
+    ),
+    'authenticated callers cannot execute the private canonical-media validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.inline_scan_recovery_scan_media_match(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,uuid,text[],text[],text[],boolean,integer)',
+        'EXECUTE'
+    ),
+    'service-role callers cannot bypass the recovery wrapper through the canonical-media validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'internal.inline_scan_recovery_staged_assets_match(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,uuid,text[],text[],boolean,integer,integer,integer)',
+        'EXECUTE'
+    ),
+    'anonymous callers cannot execute the private staged-asset validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'internal.inline_scan_recovery_staged_assets_match(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,uuid,text[],text[],boolean,integer,integer,integer)',
+        'EXECUTE'
+    ),
+    'authenticated callers cannot execute the private staged-asset validator'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.inline_scan_recovery_staged_assets_match(public.scan_ingestion_jobs,public.scan_ingestion_intents,uuid,uuid,text[],text[],boolean,integer,integer,integer)',
+        'EXECUTE'
+    ),
+    'service-role callers cannot bypass the recovery wrapper through the staged-asset validator'
 );
 
 INSERT INTO public.scans (

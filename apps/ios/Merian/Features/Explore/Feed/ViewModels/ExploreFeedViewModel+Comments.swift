@@ -213,35 +213,17 @@ extension ExploreFeedViewModel {
     }
 
     func loadReplyPreviewIfNeeded(for comment: ExploreComment) async {
-        print("[RepliesDebug] loadReplyPreviewIfNeeded started for comment \(comment.id). replyCount: \(comment.replyCount ?? 0)")
-        guard (comment.replyCount ?? 0) > 0 else {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded aborted: replyCount is 0 or nil")
-            return
-        }
-        guard !hasLoadedReplyPreviewByCommentId.contains(comment.id) else {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded aborted: already loaded preview")
-            return
-        }
-        guard !hasLoadedRepliesByCommentId.contains(comment.id) else {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded aborted: already loaded full replies")
-            return
-        }
-        guard !loadingReplyPreviewCommentIds.contains(comment.id) else {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded aborted: already loading preview")
-            return
-        }
-        guard repliesByCommentId[comment.id]?.isEmpty ?? true else {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded aborted: replies list is not empty")
-            return
-        }
+        guard (comment.replyCount ?? 0) > 0 else { return }
+        guard !hasLoadedReplyPreviewByCommentId.contains(comment.id) else { return }
+        guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
+        guard !loadingReplyPreviewCommentIds.contains(comment.id) else { return }
+        guard repliesByCommentId[comment.id]?.isEmpty ?? true else { return }
 
-        print("[RepliesDebug] loadReplyPreviewIfNeeded proceeding to fetch for comment \(comment.id)")
         loadingReplyPreviewCommentIds.insert(comment.id)
         markReplyStateChanged()
         defer {
             loadingReplyPreviewCommentIds.remove(comment.id)
             markReplyStateChanged()
-            print("[RepliesDebug] loadReplyPreviewIfNeeded defer finished for comment \(comment.id)")
         }
 
         do {
@@ -249,39 +231,31 @@ extension ExploreFeedViewModel {
                 parentCommentId: comment.id,
                 limit: 1
             )
-            print("[RepliesDebug] loadReplyPreviewIfNeeded fetch successful: fetched \(replies.count) replies for comment \(comment.id)")
-            guard !hasLoadedRepliesByCommentId.contains(comment.id) else {
-                print("[RepliesDebug] loadReplyPreviewIfNeeded aborted post-fetch: full replies loaded in parallel")
-                return
-            }
+            guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
             repliesByCommentId[comment.id] = replies
             hasLoadedReplyPreviewByCommentId.insert(comment.id)
             updateReplyCursor(parentCommentId: comment.id, using: replies)
             markReplyStateChanged()
         } catch is CancellationError {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded task cancelled for comment \(comment.id)")
+            return
         } catch let error as URLError where error.code == .cancelled {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded URLSession cancelled for comment \(comment.id)")
+            return
         } catch {
-            print("[RepliesDebug] loadReplyPreviewIfNeeded failed with error: \(error) for comment \(comment.id)")
+            MerianLog.network.error(
+                "Explore reply preview load failed: \(error.localizedDescription, privacy: .private)"
+            )
             commentErrorMessage = ExploreErrorFormatter.message(for: error)
         }
     }
 
     func loadReplies(for comment: ExploreComment) async {
-        print("[RepliesDebug] loadReplies started for comment \(comment.id)")
-        guard !hasLoadedRepliesByCommentId.contains(comment.id) else {
-            print("[RepliesDebug] loadReplies aborted: already loaded full replies")
-            return
-        }
+        guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
 
         if let existingTask = activeReplyTasks[comment.id] {
-            print("[RepliesDebug] loadReplies: awaiting existing task for comment \(comment.id)")
             _ = await existingTask.value
             return
         }
 
-        print("[RepliesDebug] loadReplies proceeding to fetch for comment \(comment.id)")
         loadingReplyCommentIds.insert(comment.id)
         failedReplyCommentIds.remove(comment.id)
         markReplyStateChanged()
@@ -292,15 +266,13 @@ extension ExploreFeedViewModel {
                 loadingReplyCommentIds.remove(comment.id)
                 activeReplyTasks.removeValue(forKey: comment.id)
                 markReplyStateChanged()
-                print("[RepliesDebug] loadReplies task defer finished for comment \(comment.id)")
             }
-            
+
             do {
                 let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
                     parentCommentId: comment.id,
                     limit: repliesPageSize
                 )
-                print("[RepliesDebug] loadReplies task fetch successful: fetched \(replies.count) replies for comment \(comment.id)")
                 repliesByCommentId[comment.id] = replies
                 hasLoadedReplyPreviewByCommentId.insert(comment.id)
                 hasLoadedRepliesByCommentId.insert(comment.id)
@@ -312,17 +284,19 @@ extension ExploreFeedViewModel {
                 updateReplyCursor(parentCommentId: comment.id, using: replies)
                 markReplyStateChanged()
             } catch is CancellationError {
-                print("[RepliesDebug] loadReplies task cancelled for comment \(comment.id)")
+                return
             } catch let error as URLError where error.code == .cancelled {
-                print("[RepliesDebug] loadReplies task URLSession cancelled for comment \(comment.id)")
+                return
             } catch {
-                print("[RepliesDebug] loadReplies task failed with error: \(error) for comment \(comment.id)")
+                MerianLog.network.error(
+                    "Explore reply load failed: \(error.localizedDescription, privacy: .private)"
+                )
                 commentErrorMessage = ExploreErrorFormatter.message(for: error)
                 failedReplyCommentIds.insert(comment.id)
                 HapticManager.shared.triggerErrorThump()
             }
         }
-        
+
         activeReplyTasks[comment.id] = task
         _ = await task.value
     }

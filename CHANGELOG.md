@@ -84,6 +84,24 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- Fixed the only failing test in iOS workflow run 73 without weakening staging
+  security. The mixed-media upload fixture now uses the same canonical
+  lowercase Auth UUID namespace required of server-issued object keys. Failed
+  iOS jobs now report structured `.xcresult` test names and assertions before
+  consulting raw logs, so deliberately injected reply failures and corrupt-store
+  recovery fixtures cannot mask the actual release blocker.
+- Fixed the critical historical scan recovery migration that blocked fresh
+  Supabase catalog replay. Its former 43 KiB routine and nested ledger predicate
+  are decomposed into bounded, no-grant private validators behind the unchanged
+  service-only wrapper; explicit ACL and source contracts prevent bypass or
+  accidental recombination. Adversarial parser-seam fixtures now prove the
+  structural contract rejects unmatched predicates, orphaned or unterminated
+  control blocks, invalid `ELSIF` / `ELSE` ordering, and unterminated literals.
+- Production function deployment now extracts every selected critical scan
+  function from the graph plan and deploys the nine-function compatibility unit
+  in its required order before unrelated parallel batches. Duplicate plan
+  entries fail closed, and failure of one ordered member stops every later
+  deployment instead of creating a knowingly incompatible partial rollout.
 - The idempotent Identify response-finalization RPC now registers its
   intentional `service_role` execution grant in the migration-owned
   privileged-routine catalog. `PUBLIC`, `anon`, and `authenticated` remain

@@ -61,10 +61,12 @@ the privileged-routine catalog audit and migration/security contract suites.
    already-complete state. Malformed database envelopes fail closed.
 8. The July 23 quota boundary made duplicate provider work cost-safe but exposed
    a completed or concurrent scan delivery as `409`. All four scan-producing
-   routes now perform exact owner-scoped completion lookup before media/quota
-   work, atomically persist the canonical success envelope at finalization,
-   reconstruct older complete rows, and boundedly coalesce concurrent delivery.
-   A lost-response retry returns marked `200` without a second model call.
+   routes now look for stored completion or an exact reconstructible owner row
+   before media/quota work, atomically persist the canonical success envelope at
+   finalization, and boundedly coalesce concurrent delivery. Reconstruction can
+   serve either an older complete row or an exact owner row whose canonical
+   ledger remains retryable. A lost-response retry returns marked `200` without
+   a second model call.
 
 ## Boundary Review
 

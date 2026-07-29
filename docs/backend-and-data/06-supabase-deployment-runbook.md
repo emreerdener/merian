@@ -459,6 +459,32 @@ from the audit.
 
 ### Disposable Catalog-Gate Failure Triage
 
+A failure while `supabase db start` is applying the disposable catalog occurs
+before the workflow prepares a production connection, runs `db push`,
+synchronizes secrets, deploys Functions, or smoke-tests production. Treat the
+line immediately preceding the first PostgreSQL exception—normally
+`Applying migration <version>...`—as the failing release object. A failure at
+this gate means no production mutation occurred in that workflow attempt.
+
+For `SQLSTATE 42601` with `At statement: 0` or `syntax error at end of input`,
+first verify that the checked-out migration blob is complete:
+
+```bash
+git show "$GITHUB_SHA:services/supabase/migrations/<migration>.sql" \
+  | shasum -a 256
+shasum -a 256 services/supabase/migrations/<migration>.sql
+```
+
+Matching hashes rule out checkout truncation; they do not prove PostgreSQL can
+parse the statement. Inspect the reported caret and its containing PL/pgSQL
+predicate, dollar delimiters, control blocks, and embedded SQL. Keep large
+service-only recovery logic in bounded private `SECURITY INVOKER` helpers,
+revoke those helpers from `PUBLIC`, `anon`, `authenticated`, and `service_role`,
+and expose only the guarded wrapper. Compute expected values before complex
+predicates instead of rebuilding a deeply nested `CASE`/Boolean expression.
+Static source and ACL contracts preserve that shape, but only a fresh disposable
+PostgreSQL replay proves server parsing; CLI dry-run is not a substitute.
+
 A successful `supabase db push --local` proves that the migration DDL replayed;
 it does not prove that every SQL statement embedded in a PL/pgSQL routine can be
 planned. The next workflow step deliberately runs `plpgsql_check` over every
@@ -3186,6 +3212,9 @@ production remediation. Keep the
 [July 2026 incident](../incidents/2026-07-scan-owner-row-durability-gap.md) open
 until the backend and iOS exit criteria below are complete.
 
+The joined behavioral contract and exact success boundary are in
+[Scan Ingestion Reliability and Recovery](./16-scan-ingestion-reliability-and-recovery.md).
+
 ### Release unit and order
 
 Treat these components as one compatibility release:
@@ -3233,7 +3262,12 @@ Treat these components as one compatibility release:
    publication recovery consume the new states. Do not promote only the current
    multimodal endpoint; older app builds still call every compatibility route.
    `_shared/scanPersistence.ts` is also a transitive dependency of all four
-   producers and must resolve from that exact SHA.
+   producers and must resolve from that exact SHA. The normal production helper
+   enforces this order for whichever of the nine functions the graph selects,
+   deploys them before unrelated parallel batches, rejects duplicate plan
+   entries, and aborts before every later function when an ordered deployment
+   exhausts its retries. Do not bypass that helper with a direct concurrent
+   multi-function deployment.
 3. Build and release iOS from the matching reviewed source. The iOS release
    carries `recovery_scan`, staged image/video/audio restoration, Field Chat
    preflight repair, and customer-facing toast translation. A backend workflow
@@ -3289,7 +3323,9 @@ Use disposable staging identities and media:
    terminal policy fence against recovery.
 5. Create an eligible legacy missing-row fixture. A single `/check-scan-status`
    request with bounded non-media `recovery_scan` must create and reload only
-   the authenticated owner row. Bulk status remains read-only.
+   the authenticated owner row. Bulk status never accepts `recovery_scan` or
+   writes `public.scans`; a missing probe may still run the narrow service-only
+   stranded-attempt reconciliation for already-existing job/quota/staging state.
 6. Force claim and recovery concurrently for one UUID. Exactly one generation
    may win: recovery-first makes claim return `already_complete` without a
    provider call; claim-first makes recovery return `deferred`. Verify
@@ -3309,11 +3345,16 @@ Use disposable staging identities and media:
 9. Verify Ask the Community repairs through `/check-scan-status` before image
    restoration, and that a transient Field Chat still-syncing result leaves the
    toolbar action available for retry.
-10. Fault one required promotion or canonical audio refresh after scan insert.
-    Identify must return retryable `503`, retain a noncomplete ledger, and let
-    replay/reconciliation finish only through
-    `complete_scan_ingestion_finalization`. No alternate worker may directly
-    update the ledger to `complete`.
+10. Fault one canonical refresh or finalizer operation after scan insert. The
+    fresh provider-owning multimodal request must return retryable `503`. A
+    same-UUID retry may then return the exact response with
+    `X-Merian-Idempotent-Replay: reconstructed`, must not call the provider
+    again, and may leave the canonical ledger retryable until repair finishes. A
+    compatibility producer may return an immediate unmarked `200` only when the
+    exact owner row has already committed; its ledger must remain
+    `failed_retryable`. In every case, reconciliation may finish only through
+    `complete_scan_ingestion_finalization`, without another provider call. No
+    alternate worker may directly update the ledger to `complete`.
 11. Return a controlled 5xx from R2 staging deletion in current multimodal and
     compatibility audio paths. Neither path may mark the ledger complete. A 404
     is idempotent success; 5xx, timeout, and every other non-success retain

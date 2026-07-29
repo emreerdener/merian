@@ -281,14 +281,13 @@ immediately render `View post` on same-device relaunch.
 `InsightSheetView.task(id: scanId)` then calls `/get-scan-explore-share-state`
 in the background and reconciles that authoritative server answer back into the
 same cache. The server response only reports a live Explore post when the post
-has saved public `explore_post_media`; media-less rows left by failed snapshot
-writes clear the local post cache instead of opening a phantom post. It also
-carries the saved post-level `location_sharing` for live posts, or the scan's
-current geoprivacy as the default for new shares, so the share/edit composer can
-hydrate Open, Obscured, or Private without mutating the underlying scan. This
-keeps the toolbar fast on-device while also correcting stale cache after
-reinstall, cross-device share/unshare, failed media publish, or remote
-visibility changes.
+has saved public `explore_post_media`; any historical or invalid media-less row
+clears the local post cache instead of opening a phantom post. It also carries
+the saved post-level `location_sharing` for live posts, or the scan's current
+geoprivacy as the default for new shares, so the share/edit composer can hydrate
+Open, Obscured, or Private without mutating the underlying scan. This keeps the
+toolbar fast on-device while also correcting stale cache after reinstall,
+cross-device share/unshare, failed media publish, or remote visibility changes.
 
 The Share sheet routes low-confidence biological scans through Identify by
 default. A Strong AI result uses the configured inference-tier threshold (Flash
@@ -332,17 +331,18 @@ marking Field Chat unavailable. The Ask affordance is gated on actual user image
 media, not a padded display count, so image-less historical/text scans cannot
 enter a request that the server cannot publish.
 
-Customer feedback stays at the feature boundary. Explore translates a missing
-row to
-`This observation is still syncing. Please wait a moment and try sharing
-again.`
-and an internal service-key failure to
-`Explore is temporarily
-unavailable. Please try again in a few minutes.` Field
-Chat uses
-`This
-observation is still syncing. Please try Field chat again in a moment.`
-Raw database authorization text is never customer-facing.
+Customer feedback stays at the feature boundary:
+
+- Explore missing row: “This observation is still syncing. Please wait a moment
+  and try sharing again.”
+- Explore internal boundary: “Explore is temporarily unavailable. Please try
+  again in a few minutes.”
+- Field Chat: “This observation is still syncing. Please try Field chat again in
+  a moment.”
+
+Raw database authorization text is never customer-facing. The complete joined
+behavior is maintained in
+[Scan Ingestion Reliability and Recovery](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 The request sheet title is `Ask the community` in sentence case. The shared
 `CommunityIdentificationRequestSheet` is used for both new requests and existing

@@ -6,13 +6,15 @@ The active iOS audio path now routes through `/identify-multimodal`, which
 accepts foreground `audioBase64s` and queued `audioR2ObjectKeys`. This route
 remains deployed for older callers and focused audio budget tests.
 
-The route checks exact owner/scan completion before R2 audio resolution and
-quota reservation. It replays stored or reconstructed success as marked `200`
-and coalesces concurrent same-UUID delivery without a second Gemini call. The
-response-aware finalizer stores the validated payload only after required audio
-promotion and scan completion. It also establishes the service-only, Auth-backed
-profile prerequisite before paid work and repeats that check before the owner
-insert so account retirement or merge cannot be crossed silently.
+The route checks for a stored completion or exact reconstructible owner row
+before R2 audio resolution and quota reservation. It replays that stored or
+reconstructed success as marked `200` and coalesces concurrent same-UUID
+delivery without a second Gemini call. A reconstructed replay may retain a
+retryable canonical ledger. The response-aware finalizer stores the validated
+payload only after required audio promotion and scan completion. The route also
+establishes the service-only, Auth-backed profile prerequisite before paid work
+and repeats that check before the owner insert so account retirement or merge
+cannot be crossed silently.
 
 ## Authoritative AI Quota
 
@@ -71,3 +73,6 @@ but it cannot rename an existing species row.
 deno check --config services/supabase/functions/deno.json services/supabase/functions/audio-spec/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts
 deno test --config services/supabase/functions/deno.json services/supabase/functions/audio-spec/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```
+
+The normative joined success, replay, recovery, and rollout contract is
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

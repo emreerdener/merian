@@ -4,6 +4,10 @@ Naturebook uses Supabase as its backend platform. API keys are kept in
 `.xcconfig` files and never bundled into the client binary. All LLM and database
 operations execute server-side in Deno Edge Functions.
 
+The normative joined success, retry, media, recovery, and deployment boundary
+for all scan producers is
+[Scan Ingestion Reliability and Recovery](./16-scan-ingestion-reliability-and-recovery.md).
+
 ## Core Schema Structure
 
 `00001_initial_schema.sql` defines the base backend schema.
@@ -514,29 +518,33 @@ The `/identify` Edge Function acts as the inference proxy:
    atomically, while claim-first makes recovery defer before provider work.
    After inference, one service-only finalization transaction checks every
    claimed staging-key disposition, rebuilds ready canonical image/video/audio
-   rows, and marks the ledger complete last. Only then can the route return
-   success. Field Chat, Explore, field trips, and owner sync can therefore use
-   the returned `scan_id` immediately. Analytics, group tags, and candidate
-   enrichment remain deferred via `runBackground(task)` from
-   `_shared/edgeHandler.ts`. Compatibility scan-producing endpoints establish
-   the same job/intent ledger atomically before inference, using
-   multimodal-shaped sanitized intents so staged media and text-only rows have
-   the same recovery surface. Setup is fail-closed and takes the same per-scan
-   lock; they can complete only through the shared finalization RPC. Active
-   multimodal persistence failures are captured in the older dead-letter table
-   as a fallback and return retryable `scan_persistence_failed` instead of
-   delivering a local-only observation. Compatibility insert or finalization
-   failures are awaited, return retryable 503, and become ledger/dead-letter
-   work instead of surfacing HTTP success. The job ledger gives
-   `/check-scan-status` live state, including bulk status probes, atomic
-   authenticated single-row repair, and video-completeness checks via
-   `required_video_count`; dead letters are legacy ops evidence rather than the
-   primary recovery surface. Replay is safe because `insertScan` uses
-   `ignoreDuplicates: true` and then proves the row exists for the authenticated
-   owner before success. Repair writes independently defer to active/retryable
-   ingestion and fail closed on every terminal reason except explicit
-   `replay_exhausted`. Server replay and media reconciliation use the same
-   finalization RPC instead of directly writing `complete`; compatibility
+   rows, and marks the ledger complete last. Only then can that fresh
+   provider-owning invocation return success. A later same-UUID invocation may
+   return a marked reconstructed replay from the exact owner row while canonical
+   repair remains retryable, without redispatching the provider. Field Chat,
+   Explore, field trips, and owner sync can therefore use the returned `scan_id`
+   immediately. Analytics, group tags, and candidate enrichment remain deferred
+   via `runBackground(task)` from `_shared/edgeHandler.ts`. Compatibility
+   scan-producing endpoints establish the same job/intent ledger atomically
+   before inference, using multimodal-shaped sanitized intents so staged media
+   and text-only rows have the same recovery surface. Setup is fail-closed and
+   takes the same per-scan lock; they can complete only through the shared
+   finalization RPC. Active multimodal persistence failures are captured in the
+   older dead-letter table as a fallback and return retryable
+   `scan_persistence_failed` instead of delivering a local-only observation.
+   Compatibility insertion and finalization are also awaited. A failure before
+   the exact owner row returns retryable 503. A finalizer failure after that row
+   was inserted may return the already validated compatibility response, but
+   leaves the ledger `failed_retryable` for no-provider-call canonical
+   reconciliation. The job ledger gives `/check-scan-status` live state,
+   including bulk status probes, atomic authenticated single-row repair, and
+   video-completeness checks via `required_video_count`; dead letters are legacy
+   ops evidence rather than the primary recovery surface. Replay is safe because
+   `insertScan` uses `ignoreDuplicates: true` and then proves the row exists for
+   the authenticated owner before success. Repair writes independently defer to
+   active/retryable ingestion and fail closed on every terminal reason except
+   explicit `replay_exhausted`. Server replay and media reconciliation use the
+   same finalization RPC instead of directly writing `complete`; compatibility
    identify/audio/describe routes have no direct complete path either. A catalog
    trigger independently rejects completion unless that transaction publishes
    the exact owner-and-scan finalization fence. Completed status and scan

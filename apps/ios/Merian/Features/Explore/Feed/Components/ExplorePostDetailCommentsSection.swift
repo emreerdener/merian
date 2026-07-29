@@ -204,10 +204,6 @@ struct ExplorePostDetailCommentsSection: View {
         .buttonStyle(.plain)
         .padding(.leading, 48)
         .task {
-            print("[UIRepliesDebug] replyCountLabel task started for comment \(comment.id)")
-            defer {
-                print("[UIRepliesDebug] replyCountLabel task ended for comment \(comment.id) - isCancelled: \(Task.isCancelled)")
-            }
             await viewModel.loadReplyPreviewIfNeeded(for: comment)
         }
     }

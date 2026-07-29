@@ -18,11 +18,12 @@ to modify the pipeline, modify the exact module below rather than cluttering
 - **`index.ts`** The main orchestrator. It handles the critical path: routing
   payloads, atomically establishing the compatibility ingestion ledger, calling
   the Vision Model, checking the cache, promoting required media, inserting and
-  rereading the exact owner row, and completing response-aware finalization
-  before returning the payload. Ledger setup occurs before provider dispatch;
-  failure is retryable, fails closed, and refunds unused provider quota. Exact
-  owner completion is checked before media/quota work; a lost response retry
-  returns marked idempotent `200` without another provider call.
+  rereading the exact owner row, and synchronously attempting response-aware
+  finalization before returning the payload. Ledger setup occurs before provider
+  dispatch; failure is retryable, fails closed, and refunds unused provider
+  quota. Stored completion or an exact reconstructible owner row is checked
+  before media/quota work; a lost-response retry returns marked idempotent `200`
+  without another provider call and may retain a retryable canonical ledger.
 - **`../_shared/identify/contract.ts`** The executable structural contract. It
   owns provider and final response fields, requiredness, nullability, strings,
   arrays, enums, numeric bounds, inferred TypeScript types, and Swift generation
@@ -62,8 +63,9 @@ to modify the pipeline, modify the exact module below rather than cluttering
 Insight, Field Chat, Explore, field trips, and owner sync.
 
 - _Rule:_ Keep provider inference, required moderation/media promotion, profile
-  prerequisites, exact-owner insertion, and complete-last finalization here. Do
-  not trade away these required boundaries for response latency.
+  prerequisites, exact-owner insertion, and the synchronous complete-last
+  finalization attempt here. A finalizer failure may degrade to the narrow
+  owner-row fallback only after exact-owner insertion was proved durable.
 
 **2. The Background Engine** The `runBackground(...)` block handles everything
 nonessential after the user receives a durable ID.
@@ -109,10 +111,13 @@ transaction through `_shared/scanIngestionCompatibility.ts`.
 - Inline image bytes are never stored in the intent. They are counted in
   `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
-- The awaited insert delegates to the shared completion-last finalization RPC;
-  insert/finalization failures retain retryable state, while moderation
-  rejection marks the job `failed_terminal`. Staged-image promotion supplies the
-  exact storage-key-to-public-URL disposition to finalization.
+- The awaited insert delegates to the shared completion-last finalization RPC. A
+  failure before exact-owner insertion returns retryable 503. If only
+  finalization or bookkeeping fails after that row committed, this compatibility
+  route may return its already validated response while leaving the ledger
+  retryable for same-UUID canonical reconciliation. Moderation rejection marks
+  the job `failed_terminal`. Staged-image promotion supplies the exact
+  storage-key-to-public-URL disposition to finalization.
 - Every insert settles through `_shared/scanPersistence.ts`. A returned database
   rejection plus a definitive missing-owner read permits quota/media cleanup; a
   lost response or unavailable exact-owner verification preserves committed
@@ -180,3 +185,6 @@ they do not live here. Merian uses shared micro-agents available globally:
 deno check --config services/supabase/functions/deno.json services/supabase/functions/identify/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts services/supabase/functions/_shared/identify/subjectClassification.ts
 deno test --config services/supabase/functions/deno.json services/supabase/functions/identify/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/subjectClassification_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```
+
+The normative joined success, replay, recovery, and rollout contract is
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

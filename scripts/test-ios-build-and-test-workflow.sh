@@ -7,6 +7,7 @@ startup_workflow="$repo_root/.github/workflows/ios-startup-safety.yml"
 source_membership_check="$repo_root/scripts/check-ios-project-source-membership.sh"
 source_membership_test="$repo_root/scripts/test-ios-project-source-membership.sh"
 critical_results_check="$repo_root/scripts/validate-ios-critical-test-results.sh"
+failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagnostics.sh"
 
 fail() {
   echo "error: $*" >&2
@@ -137,6 +138,8 @@ assert_no_runner_context_in_job_env() {
   || fail "Missing generated-project source membership test: $source_membership_test"
 [[ -f "$critical_results_check" ]] \
   || fail "Missing critical iOS test-result validator: $critical_results_check"
+[[ -f "$failure_diagnostics_extractor" ]] \
+  || fail "Missing iOS failure-diagnostics extractor: $failure_diagnostics_extractor"
 
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
@@ -174,6 +177,7 @@ assert_contains 'echo "XCODE_ARCHIVE=$RUNNER_TEMP/Merian.xcarchive"'
 assert_contains "CODE_SIGNING_ALLOWED=NO"
 assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
+assert_contains "bash scripts/extract-ios-test-failure-diagnostics.sh"
 assert_contains "dwarfdump --uuid"
 assert_contains 'main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"'
 assert_contains 'if [ ! -s "$app_uuids" ] || [ ! -s "$dsym_uuids" ]'
@@ -229,6 +233,7 @@ assert_no_runner_context_in_job_env "$workflow"
 bash -n "$source_membership_check"
 bash -n "$source_membership_test"
 bash -n "$critical_results_check"
+bash -n "$failure_diagnostics_extractor"
 assert_file_contains "$critical_results_check" '.result == "Passed"'
 assert_file_contains "$critical_results_check" "CameraManagerTests"
 assert_file_contains "$critical_results_check" "InferenceEngineTests"

@@ -466,6 +466,8 @@ struct OfflineQueueManagerTests {
 
     @Test func testMediaStagingContractBuildsSanitizedMixedMediaKeys() throws {
         let scanId = "00000000-0000-0000-0000-000000000042"
+        let ownerId = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"
+        let canonicalOwnerId = ownerId.lowercased()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true
@@ -487,7 +489,7 @@ struct OfflineQueueManagerTests {
 
         let items = MediaStagingContract.uploadItems(
             for: payload,
-            userId: "USER/ABC",
+            userId: ownerId,
             documentsDirectory: directory
         )
         #expect(items.count == 3)
@@ -495,17 +497,17 @@ struct OfflineQueueManagerTests {
         #expect(items[0].mediaKind == StagedMediaKind.image)
         #expect(items[0].fileName == "\(scanId)_image_one.webp")
         #expect(items[0].contentType == "image/webp")
-        #expect(items[0].objectKey == "staging/user_abc/\(scanId)_image_one.webp")
+        #expect(items[0].objectKey == "staging/\(canonicalOwnerId)/\(scanId)_image_one.webp")
 
         #expect(items[1].mediaKind == StagedMediaKind.audio)
         #expect(items[1].fileName == "\(scanId)_field_audio_one.wav")
         #expect(items[1].contentType == "audio/wav")
-        #expect(items[1].objectKey == "staging/user_abc/\(scanId)_field_audio_one.wav")
+        #expect(items[1].objectKey == "staging/\(canonicalOwnerId)/\(scanId)_field_audio_one.wav")
 
         #expect(items[2].mediaKind == StagedMediaKind.video)
         #expect(items[2].fileName == "\(scanId)_fallback_video.mp4")
         #expect(items[2].contentType == "video/mp4")
-        #expect(items[2].objectKey == "staging/user_abc/\(scanId)_fallback_video.mp4")
+        #expect(items[2].objectKey == "staging/\(canonicalOwnerId)/\(scanId)_fallback_video.mp4")
 
         let presignedURLs = items.map { item in
             PreSignedURL(

@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-28-critical-scan-reliability",
+      "date": "2026-07-28",
+      "title": "Reliable scans from capture to sharing",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Completed scan analyses now finish saving before they appear, so the same observation is ready for your library, Field chat, and Explore sharing.",
+            "Offline image, audio, video, and description scans now keep their media and resume safely after an app relaunch, authentication change, partial upload, or temporary service failure.",
+            "Eligible older observations can recover a missing cloud record when you open Field chat, and can restore surviving local media when you deliberately share to Explore."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-23-authoritative-ai-quotas",
       "date": "2026-07-23",
       "title": "Reliable AI usage safeguards",

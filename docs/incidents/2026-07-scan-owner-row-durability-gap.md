@@ -181,8 +181,10 @@ decision.
 
 The feature paths are deliberately different:
 
-- single `/check-scan-status` can repair non-media owner state; bulk status is
-  read-only;
+- single `/check-scan-status` can repair non-media owner state; bulk status
+  never accepts `recovery_scan` or writes `public.scans`, although a missing
+  probe may run narrow service-only reconciliation over an already-existing
+  scanless job/quota/staging topology;
 - `/share-scan-to-explore` can combine owner-row recovery with validated
   owner-staged image, video, and audio restoration;
 - Ask the Community repairs through status first, then uses its existing

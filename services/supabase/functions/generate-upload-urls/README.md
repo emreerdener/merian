@@ -1,21 +1,20 @@
 # Generate Upload URLs
 
-The primary ingestion gateway for high-resolution iOS imagery. Instead of
-tunneling 12 MP images through the Supabase Deno proxy (which would instantly
-hit the 50 MB execution memory limits constraint and trigger an `OOM` failure),
-the iOS application requests Short-Lived S3 Pre-signed URLs for each photo. The
-client then uploads the multi-megabyte `Data` payloads natively to the
-Cloudflare R2 bucket (`media.merian.app`) using a direct `PUT` background
-session.
+The authenticated staging signer for scan images, playback video, standalone
+audio, and profile avatars. Instead of tunneling large media through a Supabase
+Edge isolate, iOS requests short-lived S3 presigned URLs and uploads each
+validated item directly to Cloudflare R2 using `PUT`. Scan media additionally
+receives durable lifecycle registration before any URL is returned.
 
 ## Architecture
 
-- **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse
-  anomalies, accepts the structured `files` manifest (`fileName`, `mediaKind`,
-  `contentType`, `sizeBytes`, optional `clientScanId`, optional `mediaRole`),
-  keeps legacy `fileNames` compatibility, blocks requests that exceed the shared
-  six-file staging cap, and creates staged `scan_media_assets` rows for scan
-  media before returning signed URLs.
+- **`index.ts`**: The HTTP orchestrator. It reads a bounded JSON object through
+  the shared `parseJsonBody(...)` ingress contract, accepts the structured
+  `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`,
+  optional `clientScanId`, optional `mediaRole`), keeps legacy `fileNames`
+  compatibility, blocks requests that exceed the shared six-file staging cap,
+  and creates staged `scan_media_assets` rows for scan media before returning
+  signed URLs.
 - **`storage.ts`**: Validates media kind/content type/byte budgets and role/kind
   combinations before signing, enforces the `Promise.all` key generation
   mapping, injects the verified `userId` to strictly namespace objects
@@ -27,6 +26,105 @@ session.
   The sixth staging slot exists for the Pro video shape: five sampled
   `image/webp` inference frames plus one playback `.mp4`; image, audio, and
   video sub-limits still prevent broader over-batching.
+- **`assetRegistration.ts`**: Converts the validated signing response into
+  owner-scoped `capture_upload` lifecycle rows. It proposes one upload session
+  per client scan for newly registered items and assigns order indexes within
+  that scan, independent of unrelated scans or legacy uploads in the same batch.
+  Exact rows reused after an ambiguous response retain their original committed
+  session and order identity.
+
+## Structured Scan Request
+
+```json
+{
+  "files": [
+    {
+      "fileName": "11111111-1111-4111-8111-111111111111_0.webp",
+      "mediaKind": "image",
+      "contentType": "image/webp",
+      "sizeBytes": 482310,
+      "clientScanId": "11111111-1111-4111-8111-111111111111",
+      "mediaRole": "display"
+    }
+  ]
+}
+```
+
+`clientScanId` accepts `client_scan_id`, and `mediaRole` accepts `media_role`
+for compatibility. Every structured entry requires a non-negative integer
+`sizeBytes`. The filename must already be sanitized, flat, and unique within the
+request. Role/kind combinations are strict:
+
+- image: `display`, `thumbnail`, or `inference_frame`;
+- video: `playback`; and
+- audio: `audio`.
+
+The authenticated JWT—not a body owner field—selects the owner. The returned key
+is always directly under `staging/{authenticatedUserId}/`.
+
+Response:
+
+```json
+{
+  "success": true,
+  "urls": [
+    {
+      "fileName": "11111111-1111-4111-8111-111111111111_0.webp",
+      "signedUrl": "https://signed-r2-upload.example/...",
+      "objectKey": "staging/22222222-2222-4222-8222-222222222222/11111111-1111-4111-8111-111111111111_0.webp",
+      "mediaAssetId": "33333333-3333-4333-8333-333333333333",
+      "mediaSessionId": "44444444-4444-4444-8444-444444444444"
+    }
+  ]
+}
+```
+
+iOS must validate the complete response before starting any PUT and persist the
+exact returned `objectKey` in the background task description. It must not
+reconstruct the owner segment from delayed in-memory Auth state. A partial,
+extra, malformed, cross-owner, or media-incompatible response starts no upload.
+
+The legacy `{ "fileNames": [...] }` shape remains for avatars and older callers.
+It cannot express byte budgets or scan lifecycle metadata and therefore does not
+return scan asset/session IDs.
+
+## Idempotent Scan Registration
+
+Signed URL generation and lifecycle registration are separate operations. A
+request is successful only after every structured scan item has a compatible
+staged lifecycle row; signing URLs and then failing registration returns `503`
+rather than handing the client an untracked upload.
+
+`createStagedScanMediaAssets` treats authenticated owner, client scan UUID, and
+deterministic object key as the registration identity:
+
+- a lost HTTP response followed by the same request reuses the staged row and
+  original upload session;
+- a compatible retryable failed row may be reactivated;
+- terminal, completed, promoted, deleted, or incompatible lifecycle state fails
+  closed;
+- requested subsets compose with existing unrequested rows for the same scan;
+  and
+- the union of non-superseded capture sources remains capped at six.
+
+This subset rule is intentional. A live inline still has no staged source but
+may later be recovered by the queue, and video/recovery components may be signed
+in separate requests for the same stable scan UUID. Existing rows do not define
+an immutable full manifest for later signing calls.
+
+Migration `20260728231000_make_staged_scan_media_registration_idempotent.sql`
+must be applied before this function version. It:
+
+- marks historical extra registrations as failed
+  `superseded_staging_registration` audit rows;
+- installs partial unique index
+  `idx_scan_media_assets_active_staging_key_unique`; and
+- installs `enforce_staged_scan_media_budget`, whose owner-scoped transaction
+  lock prevents concurrent disjoint-key requests from exceeding six staged
+  sources for one scan.
+
+Do not delete superseded rows or weaken the database trigger to clear a signing
+failure. Inspect the exact owner/scan/key lifecycle and repair forward.
 
 ## Avatar Uploads
 
@@ -47,3 +145,32 @@ manifest checksum used by retry, status, and reconciliation paths. The same
 session ids are copied into `scan_ingestion_intents`, whose sanitized request
 payload is the server-side replay source for staged scan requests consumed by
 `replay-scan-ingestion`.
+
+## Failure Semantics
+
+- `400`: malformed manifest, duplicate/unsafe filename, invalid UUID, media
+  count, kind, content type, or role.
+- `409 account_deletion_in_progress`: destructive account lifecycle owns the
+  identity; the client must not upload or recreate profile state.
+- `413`: one item or the combined image set exceeds its byte budget.
+- `503`: signing lifecycle rows could not be registered compatibly. No returned
+  URLs are usable.
+
+Public responses do not expose database errors, prior lifecycle metadata, object
+listings, credentials, or internal R2 diagnostics.
+
+## Verification
+
+```bash
+deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/generate-upload-urls/storage_test.ts \
+  services/supabase/functions/generate-upload-urls/assetRegistration_test.ts \
+  services/supabase/functions/_shared/scanMediaAssets_test.ts
+
+deno check --frozen \
+  --config services/supabase/functions/generate-upload-urls/deno.json \
+  services/supabase/functions/generate-upload-urls/index.ts
+```
+
+The joined client/server contract and rollout order are in
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

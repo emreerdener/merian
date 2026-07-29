@@ -68,22 +68,25 @@ All four scan-producing functions—`identify-multimodal`, `identify`,
 `identify-describe`, and `audio-spec`—now:
 
 1. validate one canonical UUID from `client_scan_id`/`Idempotency-Key`;
-2. look for an owner-scoped completed ingestion response before resolving
-   staging media or reserving AI;
+2. look for an owner-scoped stored completion or exact reconstructible durable
+   owner row before resolving staging media or reserving AI;
 3. wait up to 70 seconds for the invocation that owns an in-progress or
-   committed quota reservation to complete inside the client's 90-second request
-   bound;
+   committed quota reservation to create that durable response surface inside
+   the client's 90-second request bound;
 4. return the validated Identify envelope with HTTP `200` and
    `X-Merian-Idempotent-Replay: stored|reconstructed`; and
-5. never dispatch a second provider request for a completed/concurrent replay.
+5. never dispatch a second provider request for a durable/concurrent replay.
 
 Migration `20260728220000_persist_idempotent_scan_responses.sql` adds the
 bounded canonical `response_envelope` to `scan_ingestion_jobs` and stores it
 through the service-only
 `complete_scan_ingestion_finalization_with_response(...)` transaction. Existing
 completed ingestion jobs are supported by contract-validated reconstruction from
-the exact owner scan and species rows, so response replay is not limited to
-scans created after deployment.
+the exact owner scan and species rows. The same reconstruction is safe for an
+exact post-insert owner row whose canonical ledger is still processing,
+finalizing, retrying, or `failed_retryable`; the marked replay is immediately
+usable while reconciliation finishes through the canonical finalizer, without
+another provider call.
 
 The stored response is immutable for a completed generation, contains no raw
 media bytes, and is cleared immediately when owner deletion is requested, when
@@ -152,15 +155,20 @@ Do not close this incident until one exact production SHA proves:
 3. a synthetic lost-response retry with the same UUID returns `200`, carries the
    replay header, returns the same `scan_id`, and creates only one AI provider
    reservation and one scan row;
-4. a concurrent duplicate waits for the winner rather than returning 409;
-5. cross-owner UUID probes reveal no response or row;
-6. deletion request immediately clears the persisted response; and
-7. the matching iOS build restores the exact still-presented queued scan without
+4. a faulted post-row finalizer returns `503` to the fresh multimodal request,
+   then a same-UUID retry reconstructs the marked response without provider
+   redispatch while canonical repair remains eligible;
+5. a concurrent duplicate waits for the winner rather than returning 409;
+6. cross-owner UUID probes reveal no response or row;
+7. deletion request immediately clears the persisted response;
+8. the matching iOS build restores the exact still-presented queued scan without
    overwriting a newer presentation; and
-8. a persisted future queued retry visibly counts down, transitions through an
+9. a persisted future queued retry visibly counts down, transitions through an
    atomic claim at eligibility, and is reconstructed after force-quit,
    foreground, and offline/reconnect without duplicate inference.
 
 Follow
 [Scan Owner-Row Durability and Recovery Rollout](../backend-and-data/06-supabase-deployment-runbook.md#scan-owner-row-durability-and-recovery-rollout)
-for the complete release unit and rollback constraints.
+for the complete release unit and rollback constraints. The normative joined
+behavior is
+[Scan Ingestion Reliability and Recovery](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

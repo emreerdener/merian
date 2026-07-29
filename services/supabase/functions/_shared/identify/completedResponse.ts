@@ -325,10 +325,12 @@ function optionalRecord(
 }
 
 /**
- * Reconstructs the Identify wire envelope for completed rows created before
- * canonical response persistence existed. Every required wire field receives
- * a deterministic value; fields that cannot be recovered exactly are omitted
- * or conservatively derived from their persisted summary.
+ * Reconstructs the Identify wire envelope from an exact durable owner row.
+ * This supports both completed rows created before canonical response
+ * persistence and post-insert rows whose canonical finalization is still
+ * pending or retryable. Every required wire field receives a deterministic
+ * value; fields that cannot be recovered exactly are omitted or conservatively
+ * derived from their persisted summary.
  */
 export function buildCompletedIdentifyEnvelope(
   scan: CompletedScanResponseRow,
@@ -636,8 +638,10 @@ export async function fetchCompletedIdentifyResponse(
 
 /**
  * Coalesces a duplicate request with the invocation that still owns provider
- * or durable-finalization work. The 70-second bound fits within the 90-second
- * iOS inference request while covering normal provider and persistence time.
+ * or owner-row durability work. It may return once the exact moderated owner
+ * row exists even if canonical finalization remains retryable. The 70-second
+ * bound fits within the 90-second iOS inference request while covering normal
+ * provider and persistence time.
  */
 export async function waitForCompletedIdentifyResponse(
   scanId: string,

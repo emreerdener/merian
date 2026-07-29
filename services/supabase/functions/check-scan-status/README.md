@@ -54,6 +54,25 @@ server independently enforces the same guard and refuses recovery after known
 terminal moderation or provider safety-policy rejection, so correctness does not
 depend on client behavior.
 
+When the exact owner scan is still absent after optional bounded row recovery,
+the route also invokes service-only stranded-attempt reconciliation before it
+reads the client-safe job state. This does not create a guessed row:
+
+- an existing scan or deletion tombstone wins;
+- a live lease and active/retryable richer ingestion win;
+- an ordinary scanless committed provider attempt may be moved only to the exact
+  quota-retry state proven by its matching reservation/job topology;
+- a generation fenced as `identity_merge_interrupted` may resolve only to the
+  target owner proven by the completed merge handoff;
+- retired source staging is never accepted and may be converted only to a stable
+  fresh-restage requirement; and
+- endpoint, quota operation, owner, handoff, lease, or media ambiguity returns
+  not applicable and leaves the generation closed.
+
+The reconciliation outcome is intentionally not returned as a new public field.
+The response exposes only the resulting owner-safe job state; iOS then uses its
+normal status/backoff/fresh-upload policy.
+
 Bulk probes use the same fields per scan and are capped at 50 entries:
 
 ```json
@@ -143,11 +162,45 @@ Bulk responses include the probed scan id on each result:
   `upload_session_ids`, `manifest_checksum`, `request_payload`, or
   `payload_checksum`; those remain server/operator diagnostics for tying retries
   and reconciliation back to the staged media set.
-- Without `recovery_scan`, the endpoint is read-only.
+- Without `recovery_scan`, the endpoint never inserts or updates `public.scans`.
+  A missing scan may still invoke the narrow service-only stranded-attempt
+  reconciliation described above.
+- The service-only stranded-attempt reconciliation may update only the exact
+  scanless job/quota/staging state needed to make its existing retry path
+  coherent. It never inserts a caller-supplied scan, refunds committed provider
+  usage, reparents arbitrary rows, or returns the authorized source identity.
+
+## Caller Behavior
+
+- **Offline queue:** poll before replaying an ambiguous inference response. Keep
+  `processing`, `finalizing`, and retry-eligible server generations under server
+  ownership. A proven scanless durability/promotion retry clears consumed local
+  staged keys and returns to signing; provider-only retry may reuse a
+  still-valid staged manifest.
+- **Field Chat:** preflight the exact owner scan before presenting
+  `/insight-chat`. Eligible historical drift may use one bounded
+  `recovery_scan`; transient not-ready state remains retryable and must not be
+  cached as permanently unavailable.
+- **Ask the Community:** repair the owner row here before separately staging
+  eligible local image media.
+- **Explore sharing:** ordinary publication probes status first, while
+  `/share-scan-to-explore` can combine bounded non-media recovery with validated
+  owner-staged image/audio/video restoration in one guarded request.
+
+A current scan-producer `200` followed immediately by `not_found` is a severity
+incident even if this endpoint can later repair the row.
 
 ## Local Verification
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/check-scan-status/index.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/scanRecovery_test.ts services/supabase/functions/check-scan-status/status_test.ts
+deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/scanRecovery_test.ts \
+  services/supabase/functions/_shared/scanIngestionJobs_test.ts \
+  services/supabase/functions/check-scan-status/status_test.ts \
+  services/supabase/functions/_tests/identityMergeScanRecoveryMigrationContract.test.ts
 ```
+
+The joined queue, persistence, Field Chat, Explore, rollout, and security
+contract is in
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

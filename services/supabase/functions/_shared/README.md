@@ -9,6 +9,9 @@ multiple functions need the same behavior and the ownership boundary is clear.
 Credential/header changes must also satisfy the canonical
 [server credential and database release safety
 contract](../../../../docs/backend-and-data/13-server-credentials-and-database-release-safety.md).
+Scan submission or media-lifecycle changes must satisfy the joined
+[scan ingestion reliability and recovery
+contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 ## Infrastructure Map
 
@@ -158,7 +161,16 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   only from captured-media audio references; legacy video arrays default false
   because they cannot prove an audio companion survived. `scan-media-health`
   reads the same lifecycle state for deploy smoke checks and operational drift
-  alerts, but does not mutate media rows.
+  alerts, but does not mutate media rows. Structured signing registration is
+  idempotent for one authenticated owner/client-scan/deterministic key, composes
+  compatible subsets, reuses the original upload session after an ambiguous
+  response, and enforces the six-source union before signing.
+- **`scanPersistence.ts`**: Shared scan-row write settler used by all four scan
+  producers. It polls the exact `(scan_id, user_id)` topology after success,
+  rejection, or a lost response and classifies the result as committed,
+  definitely rejected, or unknown. Only positive exact-owner absence evidence
+  authorizes pre-insert cleanup; unreadable or contradictory state preserves
+  quota, lifecycle rows, and promoted media.
 - **`scanIngestionJobs.ts`**: Canonical durable scan-ingestion boundary. Every
   current scan-producing route uses its strict `begin_scan_ingestion` client to
   establish the job and sanitized intent atomically before provider dispatch,
@@ -172,6 +184,15 @@ contract](../../../../docs/backend-and-data/13-server-credentials-and-database-r
   promoted/deleted dispositions to one per-scan-locked database routine, which
   validates the complete claimed-key manifest, rebuilds ready canonical media,
   and marks the ledger complete last.
+- **Compatibility success nuance**: `identify`, `identify-describe`, and
+  `audio-spec` invoke that finalizer synchronously. Only a failure after the
+  exact owner scan row has committed may degrade to a validated compatibility
+  response with a `failed_retryable` ledger. A fresh provider-owning
+  `identify-multimodal` invocation instead returns retryable 503 when
+  finalization fails. Its later same-UUID retry may return a marked
+  `reconstructed` replay from the exact owner row while canonical repair remains
+  retryable, without another provider call. No producer may return success
+  without exact-owner insertion.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
   descriptors (including validated still-image focus regions), staged object
@@ -263,9 +284,14 @@ identical:
 - **`db.ts`**: Scan insert/update helpers, species cache writes, and shared
   database boundaries. Duplicate-safe scan creation is followed by owner-scoped
   read-back so a no-op or cross-owner collision cannot resolve as success.
+  Before provider work, all producers also call the service-only
+  `ensure_scan_user_profile` prerequisite through this module; it derives a
+  valid profile from the exact Auth identity and refuses merge, deletion, and
+  cleanup races.
 - **`completedResponse.ts`**: Owner-scoped Identify response replay for all four
   scan-producing routes. It validates immutable stored envelopes, reconstructs
-  older complete rows through the executable wire contract, and boundedly
+  exact durable owner rows through the executable wire contract—including rows
+  whose canonical ledger is still finalizing or retryable—and boundedly
   coalesces concurrent AI-quota ownership so at-least-once delivery returns HTTP
   success without a second provider call.
 - **`latencyDb.ts`**: Thin service-role RPC client for combined
@@ -273,7 +299,10 @@ identical:
   Atomic ingestion setup belongs to `scanIngestionJobs.ts`, not this
   identify-specific subdomain.
 - **`media.ts`**: Image/audio media resolution from inline payloads and R2
-  staging keys.
+  staging keys. Inline bytes are authoritative: a legacy destination hint
+  accompanying inline image or audio bytes is validated for traversal but
+  excluded from the staged source manifest, ownership checks, promotion,
+  deletion, and strict finalization.
 - **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media
   promotion. Copy/upload responses and subsequent staging deletion are checked
   explicitly; a non-2xx/non-404 deletion fails promotion and triggers strict

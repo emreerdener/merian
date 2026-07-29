@@ -214,10 +214,12 @@ The active `/identify-multimodal` route does not return `200 OK` until
 moderation, required media promotion, primary species resolution, the
 duplicate-safe scan write, and an owner-scoped read-back all succeed. A
 constraint failure, database timeout, network partition, or other operational
-finalization failure returns retryable `503 scan_persistence_failed`; a known
-terminal media-policy rejection returns customer-safe
-`400 observation_rejected`. The client must not persist either response as a
-successful local observation.
+finalization failure returns retryable `503 scan_persistence_failed` to that
+fresh invocation; a later same-UUID marked replay may reconstruct from the exact
+owner row while canonical repair continues, without another provider call. A
+known terminal media-policy rejection returns customer-safe
+`400 observation_rejected`. The client must not persist either error response as
+a successful local observation.
 
 The route claims `scan_ingestion_jobs` before AI inference and updates it
 through `processing`, `finalizing`, `failed_retryable`, `failed_terminal`, and
@@ -245,8 +247,12 @@ job/intent rows before provider dispatch, then record final parsed output before
 returning success; staged image/audio and text-only compatibility intents are
 shaped for `/identify-multimodal` replay, while inline media is redacted and
 remains client-retry only. Their required insertion/finalization task is
-awaited: a failure returns retryable `503 scan_persistence_failed`, never a
-provider-only HTTP success. That path:
+awaited. Failure before an exact owner row returns retryable
+`503 scan_persistence_failed`, never provider-only HTTP success. If only
+finalization or bookkeeping fails after exact owner-row commit, a compatibility
+invocation may return its validated response while leaving the ledger
+`failed_retryable` for same-UUID repair. A later marked replay may use that same
+row without provider redispatch. The required failure path:
 
 1. Logs a structured error via
    `logStructuredError("background_ingestion_failed", { scan_id, user_id, error })`.
@@ -289,12 +295,15 @@ is not part of a normal current multimodal success.
 | Owner row exists                                                         | Return `found`; do not write                                        |
 | Job is processing, finalizing, retrying, or `failed_retryable`           | Defer to the richer ingestion attempt                               |
 | Job is a known moderation or provider safety-policy rejection            | Refuse repair                                                       |
-| No job or `complete` without a row                                       | Allow duplicate-safe minimal owner-row repair, then reload by owner |
+| No job / missing ledger                                                  | Defer; arbitrary local state is not recovery authority              |
+| `complete` without a row                                                 | Allow duplicate-safe minimal owner-row repair, then reload by owner |
 | `failed_terminal` with exact `terminal_reason_code = 'replay_exhausted'` | Allow duplicate-safe minimal owner-row repair, then reload by owner |
 | Any other terminal or unknown reason                                     | Refuse repair; do not infer policy from error text                  |
 
 Single `/check-scan-status` requests may include a bounded, non-media
-`recovery_scan`; bulk status probes remain read-only. Explore sharing may
+`recovery_scan`; bulk status probes never insert or update `public.scans`, but a
+missing probe may still invoke narrow service-only stranded-attempt
+reconciliation for already-existing job/quota/staging state. Explore sharing may
 combine the same object with staged image, video, or audio restoration and then
 continues through normal eligibility and publication checks. Ask the Community
 first repairs through `/check-scan-status`, then restores owner image media
@@ -302,6 +311,9 @@ through its existing endpoint. Field Chat also preflights the single status
 contract before presentation. Direct media URLs, caller-selected ownership, and
 client-side table upserts are not recovery paths. A transient still-syncing
 result remains retryable and must not permanently hide Field Chat.
+
+The complete error and recovery ordering contract is
+[Scan Ingestion Reliability and Recovery](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#error-semantics).
 
 ## Startup and Auth Failures Are Recoverable
 

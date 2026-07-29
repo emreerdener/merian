@@ -5,7 +5,10 @@ before publishing scan media or persisting the final scan row. The shared
 implementation lives in `_shared/identify/moderation.ts` and is used by both
 `/identify` and `/identify-multimodal`. The active multimodal route awaits this
 decision before HTTP success; compatibility image and audio routes await the
-same required moderation, promotion, scan insertion, and finalization boundary.
+same required moderation, promotion, and scan insertion plus a synchronous
+finalization attempt. Only an exact post-row finalization failure can use their
+narrow compatibility fallback; marked retries may reconstruct from that durable
+owner row without repeating moderation or provider work.
 
 Public Explore audio uses a separate publication gate. Identification safety and
 public-audio safety are intentionally different decisions: a clip may be valid

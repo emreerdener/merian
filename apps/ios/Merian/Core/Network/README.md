@@ -151,8 +151,12 @@ limited to the audited read-route inventory and exact endpoint contracts that
 receive a server-supported idempotency key. New routes default to no ambiguous
 replay. Insert-only comments/feedback/flags, toggle actions, and multi-action
 Field trip requests never gain replay merely because they use `POST`. Signed
-upload-session and upload-URL preparation is also excluded because a lost
-response may already have committed a new staging generation.
+upload-session and upload-URL preparation remains excluded from the generic
+foreground request replay inventory because avatar and legacy signing requests
+do not have a stable scan registration identity. Structured scan signing with
+`clientScanId` is database-idempotent on owner/scan/object key, but its durable
+retry is owned explicitly by `OfflineQueueManager`; do not turn that guarantee
+into blanket replay for every signer caller.
 
 Every retry delay is cancellation-propagating. A task canceled while waiting for
 transport, server, route-propagation, or guest-session retry exits with
@@ -202,6 +206,13 @@ Owner-row repair is not a fallback table upsert. The server derives owner
 identity, validates/gates recovery, inserts without overwrite, reloads by owner,
 and restores media only through validated staging keys. A processing/retryable
 or exact policy-rejected job remains unrepaired.
+
+Before Field Chat presentation, `ensureCloudScanAvailableForFieldChat(scan:)`
+polls the exact owner status and uses bounded non-media recovery only for
+eligible historical drift. Explore sharing can combine the same bounded owner
+recovery with newly signed local user media. Both retain the stable scan UUID
+and keep transient/unknown state retryable. The joined contract is
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 ## Sign-out transition
 

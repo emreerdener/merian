@@ -219,6 +219,22 @@ matching transactional `auth.users` fixture, then supply a valid unique
 do not weaken their Auth foreign key, `NOT NULL`, validation, or uniqueness
 constraints for fixture convenience.
 
+Migration `20260728232000_ensure_scan_user_profile.sql` adds service-only
+`public.ensure_scan_user_profile(user_id)` as the scan-ingestion prerequisite
+for a real Auth identity whose public profile is absent. It takes the canonical
+ghost-merge advisory lock, requires and key-share-locks the exact `auth.users`
+row, refuses active account deletion, merged-source retirement, and claimed
+ghost cleanup, and derives every mandatory identity/avatar field through the
+same canonical helpers as signup. An existing profile is an idempotent no-op;
+the only retry is a bounded proven `public_username` uniqueness race.
+
+This routine replaces the obsolete partial direct upsert of only the `id` and
+`subscription_tier` columns, which cannot satisfy the current mandatory public
+identity schema. It is an empty-search-path `SECURITY DEFINER` with its own
+`internal.require_service_role()` check. Execution is revoked from `PUBLIC`,
+`anon`, and `authenticated`, explicitly granted only to `service_role`, and
+registered by exact signature in `internal.privileged_routine_grants`.
+
 Migration `20260725041308_ownerless_account_deletion_tombstones.sql` normalizes
 the profile primary key as a validated `ON DELETE RESTRICT` foreign key to
 `auth.users(id)`. Every public profile therefore represents a real Auth
@@ -1683,6 +1699,39 @@ deployment compatibility. Owner deletion intake clears the response immediately
 through a trigger on `internal.scan_deletion_tombstones`; owner change or final
 row deletion clears it defensively through a separate `public.scans` trigger.
 
+Migration `20260728230000_recover_inline_scan_ingestion_completions.sql` adds
+service-only `recover_inline_scan_ingestion_completion(scan_id, user_id)`. It
+repairs only an already-owned post-insert generation stranded by a historical
+inline filename hint. Under the canonical scan-generation lock, it proves the
+exact owner/job/intent/redaction/asset/upload-session/canonical-URL topology.
+Redacted inline counts distinguish an unused hint from a genuine queued source:
+an inline hint must have no capture row, while every real staged
+image/audio/video key must have exactly one compatible owner row and
+filename-matched canonical URL. Only rows already marked
+`superseded_staging_registration` may be ignored. The routine recomputes both
+checksummed ledgers and invokes the unchanged canonical finalizer atomically; it
+does not dispatch a provider, alter committed quota, or weaken media
+completeness.
+
+Migration `20260728233000_recover_identity_merge_interrupted_scans.sql` installs
+a pre-reparent scan fence in the current catalog definition of
+`internal.perform_ghost_profile_merge(...)`. Private
+`prepare_scan_ingestions_for_identity_merge(source, target)` visits unfinished
+source generations deterministically, retires ambiguous source staging, refunds
+only an unused reservation, preserves committed provider usage as failed, and
+records `identity_merge_interrupted` before generic ownership reparenting can
+delete the source profile. The migration aborts if it cannot install that call
+at the exact expected catalog marker.
+
+The same migration adds service-only
+`recover_stranded_scan_ingestion_attempt(scan_id, user_id)`. It can make a
+scanless retry coherent only when the exact target owner, completed merge
+handoff, endpoint/quota operation, reservation, job, lease, tombstone, existing
+scan, and staged-media topology agree. Its bounded outcomes are used internally
+to distinguish already durable state, fresh media restaging, quota retry, and
+not-applicable/deleted state; it never returns source identity through the
+status API or reopens committed provider usage.
+
 Migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql` also
 adds `recover_missing_owned_scan(...)`, which validates the bounded non-media
 DTO and writes the owner scan plus a `client_recovery_complete` ledger in one
@@ -1719,7 +1768,13 @@ routes cannot directly mark a nonterminal ledger complete. Storage deletion
 dispositions are submitted only after R2 confirms 2xx or idempotent 404; every
 other response preserves noncomplete state. Compatibility finalization failures
 are explicitly moved to `failed_retryable / media_finalization_failed` and
-propagated to the background task.
+propagated through the required task. A fresh provider-owning multimodal
+invocation returns retryable 503 when this boundary fails. Its later same-UUID
+retry may return a marked reconstructed response from the exact owner scan while
+the ledger remains noncomplete; canonical reconciliation still finishes through
+this finalizer without another provider call. A compatibility orchestrator may
+also return its validated result immediately after a finalizer failure, but only
+when the exact owner scan row has already committed.
 
 Catalog trigger `enforce_scan_ingestion_completion_fence` makes completion-last
 a database invariant rather than an Edge convention. The recovery and
@@ -1968,6 +2023,21 @@ restores the intended partial unique indexes: generated rows are unique by
 staged upload rows are unique by `(upload_session_id, order_index)` when the
 session exists.
 
+Migration `20260728231000_make_staged_scan_media_registration_idempotent.sql`
+repairs signing-response retry duplicates without deleting their audit evidence.
+For each owner/client-scan/storage-key lifecycle identity it keeps one canonical
+row and marks extras failed with
+`failure_reason = superseded_staging_registration` plus bounded prior-state
+metadata. Partial unique index `idx_scan_media_assets_active_staging_key_unique`
+then permits at most one active staged `capture_upload` row for that identity.
+
+Identical-key uniqueness alone cannot constrain two concurrent signing requests
+that add different keys to the same scan. BEFORE INSERT/UPDATE trigger
+`enforce_staged_scan_media_budget` therefore takes an owner-scoped transaction
+advisory lock and rejects a seventh active staged source with SQLSTATE `54000`.
+Requested signing subsets remain composable with existing unrequested rows, but
+their combined non-superseded capture-key union cannot exceed six.
+
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until
   finalization.
@@ -2061,6 +2131,14 @@ It calls `internal.require_service_role()`, has an empty search path, and grants
 execution only through the central service-role routine allowlist. The
 owner-authenticated `/repair-scan-image` function is the only app-facing caller;
 clients cannot invoke this RPC directly.
+
+The Edge persistence adapter treats the RPC response as remote evidence, not
+transaction truth. If the response is lost or malformed it rereads exact active
+owner references for source and replacement. Source-absent plus
+replacement-present proves commit. Deletion of the promoted replacement is
+authorized only by a returned rejection plus source-present and
+replacement-absent evidence. An unreadable or contradictory topology preserves
+the object and returns retryable `scan_image_repair_persistence_unknown`.
 
 Operational note: `20260705110000_schedule_scan_media_asset_reconciliation.sql`
 also repairs early deployed `scan_media_assets` tables that were created before

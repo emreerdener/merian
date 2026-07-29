@@ -147,12 +147,16 @@ orphaned object does not reconstruct its relational context.
   post-inference cache hydration in `hydrate_identification_dictionary`.
   Ingestion claim and compatibility recovery share a database generation lock.
   Moderation, required media promotion, primary cache-miss species resolution,
-  scan insertion, owner-scoped read-back, and claimed-key/canonical-media
-  finalization complete before HTTP success for every modality; ledger
-  completion is the last required write. Analytics, group tags, and candidate
-  enrichment remain optional background tasks. Privacy-safe `Server-Timing`
-  separates auth, request body, database, Gemini, dictionary, and response work;
-  the Gemini timer stops as soon as the single `generateContent` call returns.
+  scan insertion, and owner-scoped read-back complete before every HTTP success.
+  A fresh provider-owning multimodal success also requires claimed-key and
+  canonical-media finalization, with ledger completion last. A marked same-UUID
+  replay may reconstruct from the exact durable owner row while canonical repair
+  remains retryable, without another provider call; compatibility routes also
+  permit a narrow immediate post-row fallback. Analytics, group tags, and
+  candidate enrichment remain optional background tasks. Privacy-safe
+  `Server-Timing` separates auth, request body, database, Gemini, dictionary,
+  and response work; the Gemini timer stops as soon as the single
+  `generateContent` call returns.
 - Free remains `gemini-2.5-flash` and Pro remains `gemini-2.5-pro`. Thinking,
   prompt/schema, media resolution, output limits, and one-call semantics are not
   latency tuning levers in this work.

@@ -276,9 +276,9 @@ make test-ios-ci-tooling
 That portable target tests the fail-closed scope detector, immutable action
 pins, exact-SHA checkout, workflow invocation of generated-project source
 membership, full-target unit-test selectors, merge-queue trigger, Release
-archive, embedded-product/dSYM checks, critical-result validation, and the
-unconditional final decision. It does not replace the macOS compile or simulator
-execution.
+archive, embedded-product/dSYM checks, critical-result validation, structured
+failure-diagnostic extraction, and the unconditional final decision. It does not
+replace the macOS compile or simulator execution.
 
 The membership implementation and its adversarial missing, unexpected, and
 orphan-source fixtures run in the macOS unit job. They can also be run locally
@@ -304,6 +304,13 @@ failure:
 | Unit result is empty or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.        |
 | Release archive, embedding, or dSYM             | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`. |
 | Intended release SHA was out of scope           | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                              |
+
+For an executed test failure, the summary prints `testFailures` from Xcode's
+structured result summary. If that is unavailable, it prints failed test cases
+and descendant failure messages from the result tree; only then does it inspect
+the raw build log. Do not infer the failed test from arbitrary application
+messages containing `error:`. Negative-path tests intentionally exercise reply
+failures, unreadable stores, cancellation, and network errors while passing.
 
 The hosted run is authoritative for simulator and archive behavior. A local
 source-contract pass cannot substitute for its exact-SHA test and archive
@@ -1045,6 +1052,68 @@ reconciliation, scanless staged-row repair, video-audio metadata backfill,
 ingestion-job, manifest-checksum, intent-outbox, replay-worker migrations, and
 the APNs device-token constraint repair. Run the migration contract test with
 `--allow-read=services/supabase/migrations` because it reads SQL files directly.
+
+The July 28 joined scan-reliability repair adds focused coverage at every seam
+that previously passed in isolation:
+
+- `_shared/identify/media_test.ts` proves inline image/audio bytes exclude old
+  destination hints while genuine staged source keys remain in the manifest.
+- `_shared/scanPersistence_test.ts` classifies returned rejection, lost write
+  response, delayed owner visibility, unreadable verification, and exact-owner
+  scoping. Cleanup is permitted only for proven rejection plus absence.
+- `_shared/scanMediaAssets_test.ts` covers lost signing-response reuse,
+  retryable reactivation, terminal refusal, compatible signing-subset
+  composition, and the six-key union cap.
+- `generate-upload-urls/assetRegistration_test.ts` proves mixed multi-scan
+  batches cannot leak a flat index or upload session across scans and assigns
+  each requested scan's indexes independently.
+- `share-scan-to-explore/restoredMediaValidation_test.ts` and `db_test.ts` cover
+  traversal/cross-owner refusal, exact durable filename matching,
+  reread-confirmed commit, definite rejection, ambiguous update preservation,
+  and rollback refusal without positive absence evidence.
+- `repair-scan-image/db_test.ts` and `worker_test.ts` prove a replacement is
+  deleted only after exact definite rejection and is preserved for lost,
+  unreadable, concurrent, or contradictory persistence outcomes.
+- Route tests for `identify-multimodal`, `identify`, `identify-describe`, and
+  `audio-spec` prove owner-row durability is awaited, malformed provider JSON is
+  retryable HTTP 503, and unknown persistence does not refund committed usage or
+  delete promoted media. The fresh multimodal request test requires successful
+  finalization before its initial 200. Completed-response tests separately prove
+  that a same-UUID marked replay can reconstruct from the exact owner row while
+  finalization is still retryable, without provider redispatch. Compatibility
+  tests permit their narrow immediate fallback only after exact-owner insertion
+  while retaining a retryable ledger.
+- `_tests/inlineScanManifestRecoveryMigrationContract.test.ts`,
+  `_tests/stagedScanRegistrationMigrationContract.test.ts`,
+  `_tests/scanUserProfileMigrationContract.test.ts`, and
+  `_tests/identityMergeScanRecoveryMigrationContract.test.ts` pin migration
+  ordering, function signatures, ACLs, exact owner/identity fences, canonical
+  finalization, uniqueness, owner advisory locking, and target-only merge
+  recovery.
+- `tests/inline_scan_manifest_recovery_security.sql`,
+  `tests/scan_user_profile_security.sql`, and
+  `tests/identity_merge_scan_recovery_security.sql` execute the corresponding
+  authorization and topology contracts against a fully migrated disposable
+  PostgreSQL catalog.
+
+iOS regression coverage is intentionally joined as well:
+
+- `OfflineQueueManagerTests` validates exact server-key task handoff, complete
+  signing-response validation, persisted-session owner preference, whole-batch
+  sibling failure fencing, exact all-member success accumulation, relaunch
+  orphan recovery, and fresh staging after consumed-key failure.
+- `OfflineSyncTests` validates queue state/backoff decisions against the
+  owner-safe server ledger.
+- `BackgroundDatabaseActorTests` validates immediate non-visual durability and
+  late optional context merge.
+
+Do not replace the executable SQL fixtures with source inspection. Static
+migration contracts are useful when Docker is unavailable, but only a disposable
+migrated database proves live function ACLs, triggers, locking, and transaction
+behavior. Never run these transactional fixtures with `--linked`.
+
+The normative expected behavior and source inventory are in
+[`16-scan-ingestion-reliability-and-recovery.md`](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#verification-gates).
 
 `_shared/outbound_test.ts` covers combined caller cancellation and hard
 deadlines plus streamed text/JSON response ceilings.

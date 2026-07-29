@@ -102,16 +102,19 @@ as their permanent engineering identity.
   without a second provider call instead of exposing quota/ingestion `409`.
 - **Scan owner-row durability and repair**: A successful current multimodal
   response guarantees that its `scan_id` is immediately usable by Field Chat,
-  Explore sharing, and owner sync. Operational finalization failures return
-  retryable `503 scan_persistence_failed`; terminal media-policy rejection
-  returns customer-safe `400 observation_rejected`. For older or interrupted
-  local/cloud drift, single `/check-scan-status` requests and
-  `/share-scan-to-explore` accept a bounded non-media `recovery_scan`. The
-  server defers to active/retryable ingestion, permits only the exact structured
+  Explore sharing, and owner sync. A fresh request whose finalization fails
+  returns retryable `503 scan_persistence_failed`; a later same-UUID marked
+  replay may reconstruct from the exact owner row while repair continues,
+  without another provider call. Terminal media-policy rejection returns
+  customer-safe `400 observation_rejected`. For older or interrupted local/cloud
+  drift, single `/check-scan-status` requests and `/share-scan-to-explore`
+  accept a bounded non-media `recovery_scan`. The server defers to
+  active/retryable ingestion, permits only the exact structured
   `replay_exhausted` terminal reason, never overwrites an existing or
   cross-owner row, and restores media only through owner-scoped staging keys.
   The repository fix is not a production fix until all affected Edge Functions
   and the matching iOS build are promoted. See the
+  [joined reliability contract](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md),
   [owner-row incident report](./incidents/2026-07-scan-owner-row-durability-gap.md),
   [inline staging-manifest incident](./incidents/2026-07-inline-scan-staging-manifest-regression.md),
   and
@@ -320,6 +323,11 @@ as their permanent engineering identity.
 - **[`/backend-and-data/15-edge-function-fleet-review-2026-07-28.md`](./backend-and-data/15-edge-function-fleet-review-2026-07-28.md)**
   — Complete 89-function inventory, corrected cross-cutting findings, boundary
   classification, and required production evidence for the fleet-wide review.
+- **[`/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md)**
+  — Normative joined contract for durable scan success, inline and staged media
+  manifests, profile and identity fences, foreground/offline retry behavior,
+  persistence ambiguity, guarded recovery, Field Chat readiness, Explore
+  publication, security, deployment order, monitoring, and regression gates.
 
 ### Features & Hardware
 

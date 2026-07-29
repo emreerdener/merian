@@ -22,6 +22,26 @@ suggestions with allowlisted telemetry categories. Prompt generation is
 best-effort and independent from `load` / `send`; iOS falls back to local
 deterministic chips if this action fails.
 
+## Durable Scan Prerequisite
+
+Every action reloads the scan by both `scan_id` and authenticated owner. The row
+must be a completed supported biological observation; a local iOS record, an
+ingestion job without its scan, another owner's UUID, or a media-only staging
+generation is not chat context.
+
+Current scan-producer `200` guarantees this row already exists. Before opening
+an older local Insight, iOS preflights `/check-scan-status`. Eligible historical
+drift may use that route's bounded non-media owner recovery, while
+processing/retryable ingestion, policy rejection, deletion, and ambiguous state
+remain closed. `/insight-chat` itself does not create a scan, restore media, or
+accept `recovery_scan`.
+
+A handler-owned missing/not-ready scan returns `404 scan_not_ready`. The client
+shows a retryable still-syncing message and keeps the Field Chat affordance
+available. A Supabase platform `404 NOT_FOUND` without `X-Merian-Handler: 1`
+means this route did not execute and must remain a temporary
+service-availability failure; it is not evidence that the scan is missing.
+
 ## Privacy
 
 Chat context is assembled server-side from stored text evidence only: species
@@ -72,3 +92,7 @@ deno test --config services/supabase/functions/deno.json \
 deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/insight-chat/index.ts
 ```
+
+The upstream owner-row, retry, recovery, and deployment guarantees are
+documented in
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#field-chat-readiness).

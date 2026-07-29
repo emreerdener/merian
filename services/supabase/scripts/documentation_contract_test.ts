@@ -391,6 +391,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "execute their mutating completion calls in dedicated statements before reading post-state",
   );
   assertStringIncludes(
+    compact(changelog),
+    "only failing test in iOS workflow run 73",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -415,8 +419,20 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "every trigger routine to declare the relation OID that supplies its trigger context",
   );
   assertStringIncludes(
+    compact(testing),
+    "structured result summary",
+  );
+  assertStringIncludes(
     compact(logging),
     "`catalog_contract_missing/archive_cleanup` means production does not currently expose the required zero-argument cleanup-health RPC",
+  );
+  assertStringIncludes(
+    compact(logging),
+    "Do not reintroduce `[RepliesDebug]`, `[UIRepliesDebug]`, or identifier-bearing `print()` calls.",
+  );
+  assert(
+    !logging.includes("## Comment Replies Diagnostic Tracing"),
+    "Obsolete identifier-bearing reply tracing guidance returned.",
   );
   assertStringIncludes(
     compact(backendReadme),
@@ -577,6 +593,10 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   assertStringIncludes(api, "authenticated `user_id`");
   assertStringIncludes(identifyReadme, "owner-scoped read-back");
   assertStringIncludes(
+    identifyReadme,
+    "An ordinary owner generation may become quota-retry-ready only when",
+  );
+  assertStringIncludes(
     runbook,
     "Any current identify `200` followed immediately by owner status `not_found` is",
   );
@@ -616,6 +636,7 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     shareReadme,
     "Media is never accepted inside `recovery_scan`",
   );
+  assertStringIncludes(shareReadme, "A missing ledger also defers.");
   assertStringIncludes(
     incident,
     "Scan age was not the cause.",
@@ -639,8 +660,16 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     idempotencyIncident,
     "This was not caused by scan age and does not require rescanning older observations.",
   );
+  assertStringIncludes(
+    idempotencyIncident,
+    "a faulted post-row finalizer returns `503` to the fresh multimodal request, then a same-UUID retry reconstructs the marked response without provider redispatch",
+  );
   assertStringIncludes(feature, "Restoring scan");
   assertStringIncludes(errors, "Safely saved");
+  assertStringIncludes(
+    errors,
+    "No job / missing ledger | Defer; arbitrary local state is not recovery authority",
+  );
   assertStringIncludes(
     architectureRules,
     "Await every operation required for the endpoint's documented success contract.",
@@ -684,15 +713,215 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
       "all future ingestion silently halts",
       "It never blocks the HTTP response.",
       "strictly after returning the native HTTP `200 OK` response",
+      "Only a missing ledger entry",
+      "Promotion or persistence failure publishes nothing and rolls back promoted objects.",
+      "handles only a generation fenced by identity merge",
+      "No job or `complete` without a row",
+      "bulk status probes remain read-only",
+      "Bulk status remains read-only",
     ]
   ) {
     assert(
       !api.includes(obsoleteClaim) &&
+        !errors.includes(obsoleteClaim) &&
         !feature.includes(obsoleteClaim) &&
-        !architectureRules.includes(obsoleteClaim),
+        !identifyReadme.includes(obsoleteClaim) &&
+        !architectureRules.includes(obsoleteClaim) &&
+        !shareReadme.includes(obsoleteClaim),
       `Obsolete scan durability guidance returned: ${obsoleteClaim}`,
     );
   }
+  for (
+    const obsoleteBulkClaim of [
+      "bulk status is read-only",
+      "bulk status probes remain read-only",
+      "Bulk status remains read-only",
+      "Bulk probes remain read-only",
+    ]
+  ) {
+    assert(
+      !api.includes(obsoleteBulkClaim) &&
+        !errors.includes(obsoleteBulkClaim) &&
+        !incident.includes(obsoleteBulkClaim) &&
+        !statusReadme.includes(obsoleteBulkClaim) &&
+        !shareReadme.includes(obsoleteBulkClaim),
+      `Obsolete bulk-status mutation guidance returned: ${obsoleteBulkClaim}`,
+    );
+  }
+});
+
+Deno.test("joined scan reliability documentation preserves critical contracts", async () => {
+  const [
+    joinedSource,
+    rootSource,
+    documentationSource,
+    generateUploadSource,
+    multimodalSource,
+    identifyCompatibilitySource,
+    describeCompatibilitySource,
+    audioCompatibilitySource,
+    repairImageSource,
+    insightChatSource,
+    chatClientSource,
+    sharingClientSource,
+    exploreFeedSource,
+    incidentSource,
+    inAppChangelogSource,
+  ] = await Promise.all([
+    read(
+      "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
+    ),
+    read("README.md"),
+    read("docs/README.md"),
+    read("services/supabase/functions/generate-upload-urls/README.md"),
+    read("services/supabase/functions/identify-multimodal/README.md"),
+    read("services/supabase/functions/identify/README.md"),
+    read("services/supabase/functions/identify-describe/README.md"),
+    read("services/supabase/functions/audio-spec/README.md"),
+    read("services/supabase/functions/repair-scan-image/README.md"),
+    read("services/supabase/functions/insight-chat/README.md"),
+    read("apps/ios/Merian/Features/Insights/Chat/README.md"),
+    read("apps/ios/Merian/Features/Insights/Sharing/README.md"),
+    read("apps/ios/Merian/Features/Explore/Feed/README.md"),
+    read(
+      "docs/incidents/2026-07-inline-scan-staging-manifest-regression.md",
+    ),
+    read("apps/ios/Merian/Resources/Changelog/changelog.json"),
+  ]);
+  const joined = compact(joinedSource);
+
+  for (
+    const fragment of [
+      "Every producer HTTP `200` guarantees the shared boundary below:",
+      "A fresh, provider-owning `/identify-multimodal` invocation has the stricter initial-delivery boundary:",
+      "`complete_scan_ingestion_finalization` wrote `media_finalization_complete` last",
+      "A later same-UUID marked idempotent replay is different.",
+      "`X-Merian-Idempotent-Replay: reconstructed`, performs no second provider call",
+      "Compatibility producers (`identify`, `identify-describe`, and `audio-spec`) invoke and await the same finalizer synchronously.",
+      "The ledger remains `failed_retryable` for same-UUID canonical reconciliation without another provider call.",
+      "A transport retry never creates a replacement UUID for the same user action.",
+      "Inline image bytes are authoritative. A current foreground still sends `imageBase64s` and `r2ObjectKeys: []`.",
+      "A malformed or partial signing response starts no upload.",
+      "the combined non-superseded capture-key union cannot exceed six",
+      "`ensure_scan_user_profile(uuid)`",
+      "Bulk status never accepts `recovery_scan` and never inserts or updates `public.scans`.",
+      "Destructive media cleanup requires positive exact-owner absence evidence.",
+      "Field Chat receives text-only context; Explore receives only the explicitly selected and privacy-projected public snapshot.",
+      "`20260728230000_recover_inline_scan_ingestion_completions.sql`",
+      "`20260728233000_recover_identity_merge_interrupted_scans.sql`",
+      "deploys them sequentially in the listed order before unrelated parallel batches",
+      "stops immediately when an ordered member exhausts its bounded retries",
+      "Local working-tree evidence is not immutable release evidence.",
+      "Full Deno function suite: 1,345 passed, 0 failed",
+      "including all nine required scan functions",
+      "shuffled-plan and fail-stop fixtures passed",
+      "Pending disposable-catalog `db push` and the three focused pgTAP suites",
+      "Run 1549 made no production mutation",
+      "`sandbox_apply: Operation not permitted`",
+    ]
+  ) {
+    assertStringIncludes(joined, fragment);
+  }
+  assert(
+    !joined.includes("Bulk status is always read-only."),
+    "Obsolete bulk status mutation guidance returned.",
+  );
+  assert(
+    !joined.includes(
+      "An HTTP `200` from any scan-producing route means all required work below has completed:",
+    ),
+    "Obsolete universal finalization-before-success guidance returned.",
+  );
+  assert(
+    !joined.includes(
+      "The current `/identify-multimodal` route has the stricter completion boundary:",
+    ),
+    "Obsolete universal multimodal-finalization guidance returned.",
+  );
+
+  for (const source of [rootSource, documentationSource]) {
+    assertStringIncludes(
+      source,
+      "16-scan-ingestion-reliability-and-recovery.md",
+    );
+  }
+  assertStringIncludes(
+    compact(generateUploadSource),
+    "A partial, extra, malformed, cross-owner, or media-incompatible response starts no upload.",
+  );
+  assertStringIncludes(
+    compact(multimodalSource),
+    "The latter may still have a `processing`, `finalizing`, `retrying`, or `failed_retryable` ledger.",
+  );
+  assertStringIncludes(
+    compact(multimodalSource),
+    "A later same-UUID invocation may independently return a marked reconstructed replay from that exact owner row while canonical finalization remains retryable.",
+  );
+  assertStringIncludes(
+    compact(identifyCompatibilitySource),
+    "If only finalization or bookkeeping fails after that row committed, this compatibility route may return its already validated response while leaving the ledger retryable for same-UUID canonical reconciliation.",
+  );
+  for (
+    const source of [
+      describeCompatibilitySource,
+      audioCompatibilitySource,
+    ]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "if only its post-insert bookkeeping fails, the owner row remains the canonical response surface and the ledger remains retryable for reconstruction/reconciliation.",
+    );
+  }
+  assertStringIncludes(
+    compact(repairImageSource),
+    "Every unknown topology returns retryable `503 scan_image_repair_persistence_unknown`.",
+  );
+  assertStringIncludes(
+    compact(insightChatSource),
+    "`/insight-chat` itself does not create a scan, restore media, or accept `recovery_scan`.",
+  );
+  assertStringIncludes(
+    compact(chatClientSource),
+    "Do not cache this result as permanent unavailability.",
+  );
+  assertStringIncludes(
+    compact(sharingClientSource),
+    "A lost database response can occur after restored media was promoted and the owner scan update committed.",
+  );
+  assertStringIncludes(
+    compact(exploreFeedSource),
+    "A post is feed-visible only when the canonical public projection sees at least one eligible saved media row.",
+  );
+  assertStringIncludes(
+    compact(incidentSource),
+    "Repository remediation, merge to `main`, backend deployment, iOS release, and production verification are separate states.",
+  );
+  assertStringIncludes(
+    compact(incidentSource),
+    "`OfflineQueueManagerTests.testMediaStagingContractBuildsSanitizedMixedMediaKeys()`",
+  );
+  assertStringIncludes(
+    compact(incidentSource),
+    "Failure reporting now reads Xcode's structured result-summary failures first",
+  );
+
+  const inAppChangelog = JSON.parse(inAppChangelogSource) as {
+    entries: Array<{
+      id: string;
+      sections: Array<{ items: string[] }>;
+    }>;
+  };
+  const reliabilityEntry = inAppChangelog.entries.find((entry) =>
+    entry.id === "2026-07-28-critical-scan-reliability"
+  );
+  assert(
+    reliabilityEntry,
+    "Critical scan reliability release note is missing.",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "Offline image, audio, video, and description scans",
+  );
 });
 
 Deno.test("Edge route availability docs preserve the gateway-handler boundary", async () => {
@@ -782,6 +1011,9 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "README.md",
     "apps/ios/Merian/Core/AI/README.md",
     "apps/ios/Merian/Core/Network/README.md",
+    "apps/ios/Merian/Features/Explore/Feed/README.md",
+    "apps/ios/Merian/Features/Insights/Chat/README.md",
+    "apps/ios/Merian/Features/Insights/Sharing/README.md",
     "apps/web/README.md",
     "docs/CONTRIBUTING.md",
     "docs/README.md",
@@ -795,6 +1027,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/13-server-credentials-and-database-release-safety.md",
     "docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md",
     "docs/backend-and-data/15-edge-function-fleet-review-2026-07-28.md",
+    "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
     "docs/codebase-map.md",
     "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
@@ -809,6 +1042,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
     "docs/incidents/2026-07-identify-idempotency-conflict.md",
+    "docs/incidents/2026-07-inline-scan-staging-manifest-regression.md",
     "docs/incidents/2026-07-scan-owner-row-durability-gap.md",
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
     "docs/incidents/2026-07-supabase-edge-route-not-found.md",
@@ -824,9 +1058,15 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/check-scan-status/README.md",
     "services/supabase/functions/download-dwca/README.md",
     "services/supabase/functions/export-dwca/README.md",
+    "services/supabase/functions/audio-spec/README.md",
+    "services/supabase/functions/generate-upload-urls/README.md",
+    "services/supabase/functions/identify/README.md",
+    "services/supabase/functions/identify-describe/README.md",
     "services/supabase/functions/identify-multimodal/README.md",
+    "services/supabase/functions/insight-chat/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
     "services/supabase/functions/reconcile-dwca-archive-cleanup/README.md",
+    "services/supabase/functions/repair-scan-image/README.md",
     "services/supabase/functions/request-community-identification/README.md",
     "services/supabase/functions/request-export-dwca/README.md",
     "services/supabase/functions/share-scan-to-explore/README.md",

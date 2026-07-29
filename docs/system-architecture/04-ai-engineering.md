@@ -865,30 +865,35 @@ provider dispatch:
   owner-scoped read-back, and a final transaction that proves every claimed key
   disposition plus every ready canonical media row. The response-aware wrapper
   writes ledger completion and the validated success envelope atomically.
-  Repeated delivery checks exact owner completion first and returns marked
-  `200`; older complete rows are reconstructed and concurrent delivery coalesces
-  without another model call. Only analytics, group tags, and candidate
-  enrichment remain behind `EdgeRuntime.waitUntil`. The same request records
-  `scan_ingestion_intents`, a service-role-only sanitized replay payload with a
-  `payload_checksum`; raw inline media bytes are redacted and mark the intent
-  non-resumable. The scheduled `replay-scan-ingestion` worker claims due
-  resumable intents and dispatches them back through `identify-multimodal` with
-  the same `client_scan_id`; inline-media rows remain client retry only. Server
-  replay is capped at 10 claims per sanitized intent, after which the job
-  becomes `failed_terminal / server_replay_limit_reached`. Compatibility
-  scan-producing endpoints (`identify`, `identify-describe`, and `audio-spec`)
-  now use `_shared/scanIngestionCompatibility.ts` to write the same ledger
-  before provider dispatch and await their exact owner scan plus complete-last
-  finalization before returning success. Their staged media and text-only
-  intents are shaped as multimodal replay requests, while inline media is
-  recorded only as redacted counts; failed required insertion retains the
-  ledger/dead-letter fallback. All producer adapters settle through the shared
-  exact-owner persistence boundary, so an ambiguous database response preserves
-  quota and media instead of deleting a possibly committed reference.
-  Operational finalization failures emit a structured event and return
-  customer-safe `503 scan_persistence_failed`; terminal policy rejection returns
-  `400 observation_rejected`. Detailed failures remain observable in Supabase
-  Edge Function logs without exposing internals to the client.
+  Repeated delivery checks for stored completion or an exact reconstructible
+  owner row first and returns marked `200`; reconstruction may coexist with a
+  retryable canonical ledger, and concurrent delivery coalesces without another
+  model call. Only analytics, group tags, and candidate enrichment remain behind
+  `EdgeRuntime.waitUntil`. The same request records `scan_ingestion_intents`, a
+  service-role-only sanitized replay payload with a `payload_checksum`; raw
+  inline media bytes are redacted and mark the intent non-resumable. The
+  scheduled `replay-scan-ingestion` worker claims due resumable intents and
+  dispatches them back through `identify-multimodal` with the same
+  `client_scan_id`; inline-media rows remain client retry only. Server replay is
+  capped at 10 claims per sanitized intent, after which the job becomes
+  `failed_terminal / server_replay_limit_reached`. Compatibility scan-producing
+  endpoints (`identify`, `identify-describe`, and `audio-spec`) now use
+  `_shared/scanIngestionCompatibility.ts` to write the same ledger before
+  provider dispatch and await their exact owner scan plus a complete-last
+  finalization attempt before returning. A post-row finalization failure may use
+  only the narrow validated compatibility fallback, with a retryable ledger.
+  Their staged media and text-only intents are shaped as multimodal replay
+  requests, while inline media is recorded only as redacted counts; failed
+  required insertion retains the ledger/dead-letter fallback. All producer
+  adapters settle through the shared exact-owner persistence boundary, so an
+  ambiguous database response preserves quota and media instead of deleting a
+  possibly committed reference. Operational finalization failures emit a
+  structured event. They return customer-safe `503 scan_persistence_failed`
+  before owner-row commit and to a fresh multimodal invocation; only the
+  documented exact-owner compatibility/replay paths may deliver the validated
+  response. Terminal policy rejection returns `400 observation_rejected`.
+  Detailed failures remain observable in Supabase Edge Function logs without
+  exposing internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
   (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
   in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and

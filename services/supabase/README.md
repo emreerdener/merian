@@ -231,8 +231,15 @@ copy:
 - one service-only transaction replaces the exact URL in scan arrays, recursive
   captured-media JSON, normalized media assets, and matching owner-post Explore
   snapshots; and
-- persistence failure triggers best-effort deletion of the newly promoted
-  object.
+- a lost atomic-write response is reconciled from exact owner source and
+  replacement references before cleanup.
+
+The promoted replacement is deleted only after the database returned a rejection
+and owner evidence proves the source still referenced and the replacement
+unreferenced. Any lost response, unreadable owner state, concurrent repair, or
+contradictory topology preserves the object and returns retryable
+`scan_image_repair_persistence_unknown`; deleting it could break a repair that
+committed.
 
 The endpoint returns `healthy`, `missing`, or `not_referenced` for inspection
 and `healthy` or `repaired` for a repair request. It is not a general media
@@ -538,6 +545,78 @@ ACL, constraint, uniqueness, and rate-limit coverage lives in
 `tests/waitlist_security.sql`. Deploy the migration before enabling the secured
 web form and follow the production rollout in the Supabase deployment runbook.
 
+### Critical Scan Ingestion Reliability Boundary
+
+All current scan-producing routes—`identify-multimodal`, `identify`,
+`identify-describe`, and `audio-spec`—share one durable contract. They:
+
+1. validate the authenticated owner and establish a valid Auth-backed public
+   profile through service-only `ensure_scan_user_profile(uuid)`;
+2. atomically establish `scan_ingestion_jobs` plus a sanitized
+   `scan_ingestion_intents` row before provider dispatch;
+3. commit the database quota reservation immediately before the provider call;
+4. await moderation, required media promotion, primary species state,
+   duplicate-safe scan insertion, and exact-owner read-back; and
+5. synchronously invoke and await the database finalizer that proves every
+   claimed key disposition and canonical ready media representation before it
+   writes completion last.
+
+Only analytics and optional enrichment may continue in Edge background work.
+Provider success without an owned durable scan is a retryable failure, never an
+HTTP success.
+
+A fresh, provider-owning `identify-multimodal` invocation requires successful
+completion-last finalization before its initial HTTP 200. If that finalizer
+fails after owner-row commit, the invocation returns retryable 503. A later
+same-UUID request may return `X-Merian-Idempotent-Replay: reconstructed` from
+the exact owner row while the ledger remains retryable; that replay performs no
+second provider call and canonical reconciliation still uses the completion-last
+finalizer.
+
+A compatibility producer has an additional narrower immediate fallback only
+after its exact owner scan row was inserted and reread: if finalization or
+bookkeeping then fails, it may return the already validated response while
+leaving the ledger `failed_retryable` for same-UUID canonical reconciliation. No
+producer returns success without the owner row, and required insertion never
+continues in `EdgeRuntime.waitUntil`.
+
+Foreground inline images carry no staged source keys. A historical filename hint
+sent beside inline bytes is not an uploaded object and is excluded from
+job/intent manifests, owner checks, promotion, capture-asset updates, and
+finalization. Real offline image/audio/video sources must retain their exact
+server-issued staging keys and upload sessions.
+
+Historical inline completion recovery keeps its public service-only wrapper. Its
+ledger, durable-media, and staged-asset checks live in three bounded `internal`
+`SECURITY INVOKER` helpers with an empty search path and execution revoked from
+all API roles, including `service_role`. They are not callable recovery APIs and
+must not receive grants; the wrapper alone holds the required locks, rewrites
+the exact ledgers, and invokes canonical finalization.
+
+`functions/_shared/scanPersistence.ts` classifies every scan write using bounded
+exact-owner read-back. A returned rejection plus proven owner-row absence may
+authorize pre-insert rollback. A lost response, unreadable owner row,
+success-without-visible-row anomaly, or contradictory topology is outcome
+unknown: quota, lifecycle rows, and promoted objects are preserved for same-UUID
+replay and reconciliation.
+
+Scan signing registration is idempotent per authenticated owner, client scan
+UUID, and deterministic object key. Requested media subsets compose with
+existing unrequested rows for the same scan; their non-superseded union remains
+capped at six. A partial unique index serializes identical active keys, while an
+owner-advisory-locked trigger enforces the cap across concurrent disjoint-key
+requests. Do not remove failed `superseded_staging_registration` rows: they are
+historical audit evidence used by the narrow recovery contract.
+
+The four July 28 incident migrations and the nine affected Edge Functions are
+one ordered release unit. Do not selectively deploy only the multimodal route,
+because older app builds still use compatibility producers. The production
+batch helper extracts selected members of that unit from the graph plan,
+deploys them in compatibility order before unrelated parallel batches, and
+stops on the first exhausted ordered deployment. The normative joined state,
+recovery, security, deployment, monitoring, and test contract is
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
 ### Identification Latency Contract
 
 `identify-multimodal` remains the single production inference request for a
@@ -559,24 +638,28 @@ uses the same atomic setup before provider dispatch. The rolling-deployment
 claim routine and owner-row recovery serialize on that same per-scan transaction
 lock. Setup errors or malformed RPC output fail closed and refund unused quota;
 there is no split-write fallback. Compatibility routes also use the shared
-finalization routine, and a failed finalization becomes durable retryable work.
-Inference-only storage deletion must receive R2 2xx or idempotent 404 before
-completion. Analytics, group tags, and candidate enrichment remain optional Edge
-background tasks. `/update-scan-context` applies or stages late owner
-weather/location fields without rerunning inference. See the function-local
-READMEs and `docs/system-architecture/04-ai-engineering.md` for the full
-contract.
+finalization routine. A failed finalization becomes durable retryable work; only
+a compatibility invocation whose exact owner row already committed may still
+return its validated owner-row response. The strict multimodal route returns
+retryable 503 to that fresh invocation; a later same-UUID request may return a
+marked reconstructed replay from the exact owner row while repair remains
+retryable, with no second provider dispatch. Inference-only storage deletion
+must receive R2 2xx or idempotent 404 before completion. Analytics, group tags,
+and candidate enrichment remain optional Edge background tasks.
+`/update-scan-context` applies or stages late owner weather/location fields
+without rerunning inference. See the function-local READMEs and
+`docs/system-architecture/04-ai-engineering.md` for the full contract.
 
 Migration `20260728220000_persist_idempotent_scan_responses.sql` extends that
 same finalization transaction with the validated Identify success envelope.
-Every scan-producing route checks the exact owner/scan completion before
-resolving staged media or reserving quota. A retry after a lost HTTP response
-therefore returns `200` with `X-Merian-Idempotent-Replay: stored` and never
-dispatches Gemini again. Completed rows from before response persistence are
-reconstructed through the executable Identify response contract and return the
-same header with `reconstructed`. A duplicate that arrives while the original
-invocation is still finalizing coalesces for at most 70 seconds, within the iOS
-90-second request bound.
+Every scan-producing route checks for a stored completion or an exact
+reconstructible owner row before resolving staged media or reserving quota. A
+retry after a lost HTTP response therefore returns `200` with
+`X-Merian-Idempotent-Replay: stored|reconstructed` and never dispatches Gemini
+again. Reconstruction covers both older completed rows from before response
+persistence and exact durable owner rows whose canonical ledger is still
+retryable. A duplicate that arrives before the original invocation creates that
+row coalesces for at most 70 seconds, within the iOS 90-second request bound.
 
 The response-aware finalization RPC is `SECURITY DEFINER` but deny-by-default:
 the migration revokes every API role, grants only `service_role`, requires

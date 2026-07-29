@@ -3,6 +3,10 @@
 Naturebook's core differentiator is treating off-grid nature encounters as a
 first-class citizen using native Apple offline architecture.
 
+This scheduler and transport detail is governed by the joined
+[Scan Ingestion Reliability and Recovery
+Contract](./16-scan-ingestion-reliability-and-recovery.md).
+
 ## How the Queue Works
 
 ### 1. Realtime Inference Mapper (`saveLiveScanRecord`)
@@ -703,12 +707,13 @@ an already-inserted scan is a silent no-op rather than a duplicate-key error.
 Completion is separate: the shared finalization RPC proves all claimed
 staging-key dispositions and ready canonical media rows before writing
 `complete` last. The response-aware finalizer atomically stores the validated
-success envelope at that same boundary. A repeated request checks exact
-owner/scan completion before media resolution and quota reservation, returns
-`200` with `X-Merian-Idempotent-Replay`, and never calls the provider again.
-Older completed rows without an envelope are reconstructed from their durable
-scan/species summaries through the executable wire contract. The job ledger plus
-intent therefore lets status polling, reconciliation, and server replay
+success envelope at that same boundary. A repeated request checks for a stored
+completion or an exact reconstructible owner row before media resolution and
+quota reservation, returns `200` with `X-Merian-Idempotent-Replay`, and never
+calls the provider again. A reconstructed replay may coexist with a retryable
+canonical ledger; older completed rows without an envelope use the same durable
+scan/species reconstruction through the executable wire contract. The job ledger
+plus intent therefore lets status polling, reconciliation, and server replay
 distinguish the same-media retry from a changed media shape for the same scan
 id. Account-deletion tombstones have no owner and are terminal for replay; a
 delayed ingestion job cannot dispatch another provider request for them. When an

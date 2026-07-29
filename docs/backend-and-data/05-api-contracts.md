@@ -4,6 +4,12 @@ Naturebook operates through a decoupled backend. The iOS application exclusively
 hits Supabase Edge Functions, abstracting its networking away from 3rd-party
 providers like Google Gemini.
 
+The normative end-to-end success, retry, recovery, security, and rollout
+contract for Capture → Identify → Insight → Field Chat / Explore is
+[Scan Ingestion Reliability and Recovery](./16-scan-ingestion-reliability-and-recovery.md).
+The sections below remain authoritative for individual request and response
+shapes.
+
 ## Fleet-Wide JSON Ingress and Error Contract
 
 Every production Deno endpoint reads JSON through bounded primitives in
@@ -2139,10 +2145,18 @@ identity constraints instead of retrying the obsolete partial
 The compatibility `/identify` Edge Function resolves the canonical `scan_id`
 from the client idempotency UUID and does not return `data` when Gemini alone
 finishes. Profile repair, required media promotion, exact-owner scan insertion,
-and complete-last response finalization are awaited before HTTP 200. Only
+and complete-last response finalization are attempted and awaited in the
+required task. A pre-insert failure returns retryable 503. If only finalization
+or bookkeeping fails after exact-owner insertion, the compatibility route may
+return its already validated response from that durable owner-row surface while
+the ledger remains retryable for no-provider-call reconciliation. Only
 analytics, group tags, candidate enrichment, and other nonessential work may run
 behind `EdgeRuntime.waitUntil`. Current app traffic uses `/identify-multimodal`;
-both routes now make the same owner-row durability promise.
+a fresh provider-owning invocation additionally requires completed canonical
+finalization before its initial HTTP success. A later request may return
+`X-Merian-Idempotent-Replay: reconstructed` from the exact owner row while the
+canonical ledger remains retryable, without another provider call. Both routes
+make the same non-negotiable owner-row durability promise.
 
 ### Gemini Parsing and Error Mitigation
 
@@ -3776,8 +3790,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   but no durable cloud audio. Successful repair promotes the objects, writes
   `audio_storage_urls`, replaces standalone local references in
   `captured_media`, refreshes normalized assets, and then enters the normal
-  moderation gate. Promotion or persistence failure publishes nothing and rolls
-  back promoted objects.
+  moderation gate. Promotion failure, or a returned persistence rejection plus
+  exact-owner proof that the URLs are absent, publishes nothing and rolls back
+  promoted objects. A lost/unreadable update response returns retryable
+  `scan_media_restore_unavailable` and preserves them until same-owner retry
+  settles the outcome.
 - If any selected item is standalone audio or an audio-bearing video, every
   audible item must have a matching content-addressed attestation or pass the
   database-selected structured audio classifier (currently `gemini-2.5-flash`)
@@ -4765,10 +4782,11 @@ ordered compositions of images, audio, and descriptive context.
   exact shapes recompute both ledgers and call the canonical finalizer in one
   transaction.
 - Before that claim, staged-media resolution, or quota reservation, the endpoint
-  checks exact owner/scan completion. A lost-response retry returns the stored
-  canonical envelope, or reconstructs older completed rows through the
-  executable response contract. Concurrent quota conflicts coalesce for at most
-  70 seconds. Successful replay carries
+  checks for a stored completion or an exact reconstructible owner row. A
+  lost-response retry returns the stored canonical envelope, or reconstructs the
+  exact durable owner row through the executable response contract even while
+  its canonical ledger remains retryable. Concurrent quota conflicts coalesce
+  for at most 70 seconds. Successful replay carries
   `X-Merian-Idempotent-Replay: stored|reconstructed` and cannot dispatch Gemini.
 - The endpoint also records a `scan_ingestion_intents` row for server recovery.
   That row stores a sanitized replay payload with telemetry, observation
@@ -5648,6 +5666,14 @@ terminal state are never preempted. A missing ledger row also fails closed. Only
 an existing `complete` ledger whose owner row is unexpectedly absent or an
 explicit `terminal_reason_code = replay_exhausted` state is recoverable.
 
+If the exact owner row is still absent, the route also invokes service-only
+`recover_stranded_scan_ingestion_attempt` before projecting client-safe job
+state. This narrow reconciliation applies to single and bulk probes and may
+adjust only an already-existing scanless job/quota/staging topology whose
+endpoint, operation, lease, owner, and optional merge handoff agree. It never
+guesses or inserts a scan row, refunds dispatched usage, reparents arbitrary
+state, or exposes the authorized source identity.
+
 ### Response Payload
 
 ```json
@@ -5691,10 +5717,12 @@ scan content is transmitted.
 ### Architecture
 
 Follows the domain-driven module pattern: `index.ts` orchestrates auth,
-parameter validation, optional owner-row recovery, and video-count gating;
-`db.ts` owns status reads, while `_shared/scanRecovery.ts` owns DTO validation
-and the atomic repair RPC boundary. Read or repair errors are caught by
-`index.ts` and mapped to a structured `logStructuredError` + 500 response.
+parameter validation, optional owner-row recovery, narrow stranded-attempt
+reconciliation, and video-count gating; `db.ts` owns status reads,
+`_shared/scanRecovery.ts` owns DTO validation and atomic row repair, and
+`_shared/scanIngestionJobs.ts` owns stranded-attempt response validation. Read
+or repair errors are caught by `index.ts` and mapped to a structured
+`logStructuredError` + 500 response.
 
 ---
 
@@ -6032,7 +6060,7 @@ Inspection:
 
 ```json
 {
-  "source_url": "https://media.merian.app/public_uploads/free/{userId}/old.webp"
+  "source_url": "https://media.merian.app/public_uploads/free/11111111-1111-4111-8111-111111111111/old.webp"
 }
 ```
 
@@ -6041,16 +6069,18 @@ file:
 
 ```json
 {
-  "source_url": "https://media.merian.app/public_uploads/free/{userId}/old.webp",
-  "restored_object_key": "staging/{userId}/repair_uuid.webp"
+  "source_url": "https://media.merian.app/public_uploads/free/11111111-1111-4111-8111-111111111111/old.webp",
+  "restored_object_key": "staging/11111111-1111-4111-8111-111111111111/repair_uuid.webp"
 }
 ```
 
-`source_url` must be an HTTPS `media.merian.app` URL under one durable
-`public_uploads/free|pro/{owner}/` image key, with no query or fragment.
-`restored_object_key` is optional; when present it must be one image directly
-under the authenticated user's exact staging prefix. The JWT identity—not a body
-field—selects the owner.
+`source_url` must have the HTTPS protocol, exact `media.merian.app` hostname, no
+query or fragment, and a flat
+`public_uploads/free|pro/{single-segment}/{single-segment}` path. Its exact
+string must also be present in an active owned scan's `image_storage_urls`; path
+shape alone is not ownership evidence. `restored_object_key` is optional; when
+present it must be one image directly under the authenticated user's exact
+staging prefix. The JWT identity—not a body field—selects the owner.
 
 `config.toml` uses `verify_jwt = false` for this app-facing route, so the
 function must retain `withEdgeHandler` as its custom live-user authentication
@@ -6081,7 +6111,7 @@ Inspection does not upload, promote, rewrite, or delete media.
 {
   "data": {
     "status": "repaired",
-    "replacement_url": "https://media.merian.app/public_uploads/pro/{userId}/repair_uuid.webp",
+    "replacement_url": "https://media.merian.app/public_uploads/pro/11111111-1111-4111-8111-111111111111/repair_uuid.webp",
     "updated_scan_count": 1,
     "updated_post_media_count": 1
   }
@@ -6093,8 +6123,8 @@ The repair boundary:
 1. rejects the request while account deletion is active;
 2. confirms an active owned scan references the exact source URL;
 3. `HEAD`s the source and restored staging objects;
-4. deletes the redundant staging upload and returns `healthy` without metadata
-   changes if the source has recovered;
+4. attempts status-checked removal of the redundant staging upload and returns
+   `healthy` without metadata changes if the source has recovered;
 5. otherwise promotes the staging image into the caller's current durable
    free/Pro prefix;
 6. validates the promoted owner prefix; and
@@ -6104,14 +6134,14 @@ The repair boundary:
    media health is reset to `healthy` in that transaction, allowing projection
    and owner incident state to restore automatically.
 
-If the atomic metadata RPC returns a rejection, the function rereads exact owner
-references for both URLs. It deletes the newly promoted object only when the
-source remains referenced and the replacement is provably unreferenced. A
-lost/malformed RPC response, unavailable owner read, concurrent repair, or any
-replacement reference is outcome-unknown and preserves the object. If the RPC
-committed despite a lost response, source-absent plus replacement-present
-evidence reconstructs success. The old missing URL is not changed until the
-atomic metadata transaction succeeds.
+After any unsuccessful or malformed atomic metadata response, the function
+rereads exact owner references for both URLs. Source-absent plus
+replacement-present evidence proves commit and reconstructs success. It deletes
+the newly promoted object only after a returned database rejection when the
+source remains referenced and the replacement is provably unreferenced. A lost
+response, unavailable owner read, concurrent repair, or any other topology is
+outcome-unknown and preserves the object. The old missing URL is not changed
+until the atomic metadata transaction succeeds.
 
 ### Error Contract
 
@@ -6120,7 +6150,7 @@ atomic metadata transaction succeeds.
 - `404`: repair requested for a source not referenced by an active owned scan.
 - `409 account_deletion_in_progress`: destructive account cleanup is active.
 - `409`: the restored staging object does not exist.
-- `503`: R2 source status could not be verified.
+- `503`: R2 source or restored-object status could not be verified.
 - `503 scan_image_repair_persistence_unknown`: the atomic repair may have
   committed but exact owner references could not confirm it; the promoted
   replacement is preserved and the caller may retry.

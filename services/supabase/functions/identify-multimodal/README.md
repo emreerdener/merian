@@ -66,11 +66,13 @@ the same logical key. An uncommitted reservation expires after ten minutes, and
 its per-attempt fencing token rejects delayed settlement after retry.
 
 At-least-once delivery is a success contract, not a conflict contract. Before
-staging-object resolution or quota reservation, the route reloads an exact
-owner-scoped completed response. A duplicate that reaches quota while the first
-invocation still owns provider/finalization work waits for that completion
-within a 70-second server bound and the client's 90-second request bound.
-Success returns HTTP `200` with
+staging-object resolution or quota reservation, the route reloads either an
+exact owner-scoped stored completion or a response reconstructed from an exact
+durable owner row. The latter may still have a `processing`, `finalizing`,
+`retrying`, or `failed_retryable` ledger. A duplicate that reaches quota while
+the first invocation still owns provider/finalization work and has not yet
+created that row waits for completion within a 70-second server bound and the
+client's 90-second request bound. Replay success returns HTTP `200` with
 `X-Merian-Idempotent-Replay: stored|reconstructed`; it never issues another
 primary provider call. `ai_request_already_completed`, `ai_request_in_progress`,
 and `scan_already_finalized` are internal coordination states and must not be
@@ -194,7 +196,13 @@ replay and preserve the legacy route name as `compatibilityEndpoint`; inline
 base64 media remains redacted and non-resumable. They also finish only through
 `complete_scan_ingestion_finalization`; no compatibility helper can write
 `status = complete` directly. A finalization failure is durably marked retryable
-and propagated to the background task.
+and propagated through the required task. A compatibility orchestrator may
+return its validated response after that failure only when the exact owner scan
+row already committed; a fresh multimodal invocation has no such immediate
+HTTP-success fallback and returns retryable 503. A later same-UUID invocation
+may independently return a marked reconstructed replay from that exact owner row
+while canonical finalization remains retryable. That replay is not a second
+provider-owning success path.
 
 Required promotion and deletion are completion prerequisites, not best-effort
 cleanup. Staging images and inference-only audio companions must receive an R2
@@ -303,10 +311,14 @@ same `scan_id`; it never changes this request or creates another model call.
   preserves genuine keys and upload sessions, normalizes both checksummed
   ledgers, reconstructs exact retained-media dispositions from canonical URLs
   and sanitized descriptors, and runs the canonical finalizer atomically.
-- `recover_stranded_scan_ingestion_attempt` handles only a generation fenced by
-  identity merge. It resolves to the canonical target owner from the merge
-  handoff, rejects active/deleted/ambiguous/existing-scan states, and gives
-  retired-source staged media a stable restage outcome.
+- `recover_stranded_scan_ingestion_attempt` handles an exact scanless
+  failed/expired provider attempt. An ordinary owner generation may become
+  quota-retry-ready only when endpoint, quota operation, reservation, lease,
+  tombstone, and media topology agree. A generation fenced by identity merge may
+  resolve only to the canonical target owner from the completed handoff;
+  retired-source staged media receives a stable restage outcome. Active,
+  deleted, ambiguous, and existing-scan states always win, and committed
+  provider usage is never refunded.
 - `/replay-scan-ingestion` claims due resumable staged or text-only intents and
   dispatches them back through this endpoint with the same `client_scan_id`. Its
   service-authenticated durable claim count derives a separate deterministic
@@ -349,3 +361,7 @@ deno test --config services/supabase/functions/deno.json --allow-env --allow-net
 ```
 
 Database integration tests require a running local Supabase Postgres instance.
+
+The normative joined client/server contract, recovery order, and deployment unit
+are in
+[`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

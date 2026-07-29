@@ -289,16 +289,10 @@ jobs:
         if: failure()
         run: |
           diagnostics="${RUNNER_TEMP}/ios-unit-test-diagnostics.txt"
-          if [ -f "$XCODE_BUILD_LOG" ]; then
-            grep -E \
-              "error:|fatal error:|xcodebuild: error|Test Case .* failed|The following build commands failed|\\([0-9]+ failures\\)" \
-              "$XCODE_BUILD_LOG" > "$diagnostics" || true
-            if [ ! -s "$diagnostics" ]; then
-              tail -n 160 "$XCODE_BUILD_LOG" > "$diagnostics"
-            fi
-          else
-            echo "No xcodebuild log was produced." > "$diagnostics"
-          fi
+          bash scripts/extract-ios-test-failure-diagnostics.sh \
+            "$XCODE_TEST_SUMMARY" \
+            "$XCODE_TEST_TREE" \
+            "$XCODE_BUILD_LOG" > "$diagnostics"
           {
             echo ""
             echo "#### Unit-test diagnostics"
