@@ -486,11 +486,12 @@ Upload retry accounting is scan-generation scoped, not file scoped. Each
 successful callback contributes its exact key to the generation accumulator but
 does not clear `queueAttemptCount` or the last durable error. Those fields reset
 only after the accumulator proves the complete expected manifest succeeded and
-the reset itself saves successfully. If the queue row is absent or persistence
-fails, staging fails closed. If one sibling succeeds and another repeatedly
-fails, each new generation therefore advances normal backoff and eventually
-reaches the bounded needs-attention state instead of restarting forever at
-attempt one.
+the same actor save persists the exact keys plus `.staged`. If the queue/job
+read is unavailable, an already-staged manifest differs, or persistence fails,
+the callback cannot dispatch inference; replay uses only the durable row. If one
+sibling succeeds and another repeatedly fails, each new generation therefore
+advances normal backoff and eventually reaches the bounded needs-attention state
+instead of restarting forever at attempt one.
 
 Server completion is also not a retry-reset boundary by itself. Status `found`
 starts exact-owner local hydration and promotion but does not clear attempt
@@ -527,6 +528,17 @@ case that occurred when keys were reconstructed from the current session UUID at
 inference time — a session that may have expired hours later.
 `replayInferenceForUploadedScans()` queries for `.staged` scans and re-enters
 them via `dispatchInferenceDownloadTask` using the persisted keys.
+
+The transition returns a durable `ScanStagingTransitionOutcome`; HTTP success is
+not itself permission to start inference. Only `.staged` or
+`.alreadyAdvanced` may continue to the generation-aware inference claim.
+`.retryRequired` keeps the current completion evidence fenced until the
+delegate envelope releases its callback token, then the timestamp-fenced orphan
+pass resets a row that is still `.uploading` to `.pending` and restarts signing.
+`.discarded` clears the in-memory manifest without resurrecting a missing,
+failed, or external-import row. Likewise `updateQueuedScanForRetry` returns an
+attempt only after its queue and job changes save; callers distinguish a failed
+durable schedule from the bounded in-process retry wake.
 
 **Audio, video, and non-visual scans**:
 `OfflineQueueManager.enqueueNonVisualCapture` enters audio-bearing records at

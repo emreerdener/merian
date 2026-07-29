@@ -369,7 +369,7 @@ extension OfflineQueueManager {
             )
             return
         }
-        guard resetUploadRetryAccountingIfManifestComplete(
+        guard hasConfirmedSuccessfulUploadManifest(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
             expectedObjectKeys: r2Keys
@@ -384,8 +384,9 @@ extension OfflineQueueManager {
             return
         }
         // Retry accounting belongs to the logical scan manifest, not an
-        // individual file. The helper above verifies and resets this boundary
-        // without yielding, so a partial sibling set cannot clear it.
+        // individual file. The exact-key check above does not mutate durable
+        // state; markScanAsStaged resets upload retry metadata in the same save
+        // that commits the inference-ready transition.
         guard isUploadCompletionCurrent(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
@@ -402,11 +403,36 @@ extension OfflineQueueManager {
         // This closes the race where processUploadCompletion and replayInferenceForUploadedScans
         // could both see the scan in .staged and both dispatch concurrent inference tasks.
         let queueActor = resolvedQueueDbActor(container: extracted.container)
-        await queueActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
-        clearUploadCompletionState(
+        let stagingOutcome = await queueActor.markScanAsStaged(
             scanId: scanId,
-            generation: uploadIdentity.syncGeneration
+            r2Keys: r2Keys
         )
+        switch stagingOutcome {
+        case .staged, .alreadyAdvanced:
+            clearUploadCompletionState(
+                scanId: scanId,
+                generation: uploadIdentity.syncGeneration
+            )
+        case .retryRequired:
+            // Keep the exact successful-member set until the completion token
+            // is released. The delegate envelope immediately replays from the
+            // authoritative durable row: timestamp-fenced orphan recovery
+            // resets a still-uploading row to pending and restarts signing,
+            // while an already-staged row replays only its persisted keys.
+            MerianLog.data.error(
+                "processUploadCompletion: durable staging transition needs retry scanId=\(scanId, privacy: .private)"
+            )
+            return
+        case .discarded:
+            clearUploadCompletionState(
+                scanId: scanId,
+                generation: uploadIdentity.syncGeneration
+            )
+            MerianLog.data.debug(
+                "processUploadCompletion: discarded non-runnable staging completion scanId=\(scanId, privacy: .private)"
+            )
+            return
+        }
         guard isUploadCompletionCurrent(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
@@ -570,7 +596,7 @@ extension OfflineQueueManager {
             )
             return false
         case .retry(let delay, let code, let message):
-            let attempt = updateQueuedScanForRetry(
+            let persistedAttempt = updateQueuedScanForRetry(
                 scanId: scanId,
                 code: code,
                 message: message,
@@ -578,9 +604,15 @@ extension OfflineQueueManager {
                 delay: delay,
                 resetTo: .pending
             )
-            MerianLog.data.debug(
-                "handleUploadFallback: scheduled upload retry scanId=\(scanId, privacy: .public) attempt=\(attempt, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s code=\(code, privacy: .public)"
-            )
+            if let persistedAttempt {
+                MerianLog.data.debug(
+                    "handleUploadFallback: scheduled upload retry scanId=\(scanId, privacy: .private) attempt=\(persistedAttempt, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s code=\(code, privacy: .public)"
+                )
+            } else {
+                MerianLog.data.error(
+                    "handleUploadFallback: retry persistence failed scanId=\(scanId, privacy: .private) delay=\(String(format: "%.1f", delay), privacy: .public)s code=\(code, privacy: .public)"
+                )
+            }
             return true
         case .needsAttention(let code, let message):
             _ = softDeleteQueuedScan(

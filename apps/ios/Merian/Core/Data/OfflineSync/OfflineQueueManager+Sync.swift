@@ -772,13 +772,22 @@ extension OfflineQueueManager {
             }
 
             let delay = OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1)
-            updateQueuedScanForRetry(
+            let persistedAttempt = updateQueuedScanForRetry(
                 scanId: scanId,
                 code: "upload_url_generation_failed",
                 message: error.localizedDescription,
                 delay: delay,
                 resetTo: .pending
             )
+            if persistedAttempt == nil {
+                // Keep a process-local fallback even when the durable retry
+                // metadata could not be saved. The preceding orphan reconcile
+                // leaves successfully persisted rows pending; foreground and
+                // connectivity recovery remain additional wake opportunities.
+                MerianLog.data.error(
+                    "syncPendingScans: retry persistence failed scanId=\(scanId, privacy: .private)"
+                )
+            }
             retryDelays.append(delay)
         }
 

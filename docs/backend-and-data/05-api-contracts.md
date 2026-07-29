@@ -1415,6 +1415,15 @@ identification rows as audit history. A post-level recheck at the actual
 `shared_at` update also rejects an explicit share that lost a concurrent race
 with new `needs_id` state.
 
+The final RPC and the companion direct-share RPC are `SECURITY INVOKER`.
+Forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` grants only their
+required table operation classes to `service_role`. Their existing `EXECUTE`
+allowlists still exclude `PUBLIC`, `anon`, and `authenticated`, and the forward
+migration grants those browser roles no new writes. A service-role table
+permission failure is a deployment/catalog defect, not a reason to weaken the
+routine to definer authority.
+
 The endpoint intentionally returns `404 { "error": "Scan not found." }` when
 `public.scans` has no row for the authenticated user. The iOS Insight client
 handles that specific error by resolving the server `species_dictionary.id` by
@@ -3847,6 +3856,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   publication state in one transaction. A transaction-time `needs_id` request
   returns conflict. A failure in any relational step restores the prior complete
   snapshot and returns no published response.
+- Forward migration
+  `20260729044500_grant_atomic_explore_service_privileges.sql` provides the
+  service role's narrow table-operation allowlist for both atomic invoker RPCs.
+  Browser roles retain no direct publication write and neither RPC uses definer
+  authority.
 - Clients send one UUID `Idempotency-Key` for the share and preserve it through
   transport/auth/media-restoration retries. Each audible checksum and policy
   version receives a deterministic child reservation ID, allowing multiple clips

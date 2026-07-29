@@ -138,11 +138,11 @@ migration is not edited.
   the migration source. The migration itself fails closed if the deployed
   routine differs.
 
-Local repository evidence after remediation is 171 passing migration assertions
-across all 26 discovered migration contract files. The next exact-SHA hosted
-catalog run also passed all 30 assertions in the live inline/video fixture on a
-disposable PostgreSQL catalog. That is fresh-catalog evidence for this
-regression, not staging joined-flow or production evidence.
+Local repository evidence after the joined remediation is 178 passing migration
+assertions across all 28 discovered migration contract files. The next
+exact-SHA hosted catalog run also passed all 30 assertions in the live
+inline/video fixture on a disposable PostgreSQL catalog. That is fresh-catalog
+evidence for this regression, not staging joined-flow or production evidence.
 
 The other Run 1552 failure,
 `identity_merge_scan_recovery_security.sql`, is independent: its single
@@ -151,9 +151,12 @@ own exception, emits phase/SQLSTATE/message/detail/hint as a deterministic
 warning, and returns one failed TAP assertion. The next run identified a
 fixture-only `42702` at `ingestion-intent setup`: its synthetic `scan_id`
 variable was ambiguous beside the ledger column. That variable is now
-`fixture_scan_id`, and a source contract prevents the old declaration. Do not
-claim the identity-merge path verified until another hosted rerun reaches and
-passes the production merge/recovery operations.
+`fixture_scan_id`, and a source contract prevents the old declaration. The
+latest hosted 26-file replay reached and passed identity merge/recovery as well
+as this complete inline/video fixture. It completed 24 files; only the two new
+atomic Explore and Community fixtures then stopped on their independent
+service-role invoker privilege gap. The run stopped before production
+preparation or mutation.
 
 ## Deployment and Closure
 

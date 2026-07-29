@@ -465,14 +465,23 @@ extension OfflineQueueManager {
         serverRetryAfter: Date? = nil,
         delay: TimeInterval,
         resetTo state: ScanQueueState?
-    ) -> Int {
-        guard let context = modelContext else { return 0 }
+    ) -> Int? {
+        guard let context = modelContext else { return nil }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
 
-        guard let scan = (try? context.fetch(descriptor))?.first else { return 0 }
+        let scan: OfflineQueuedScan?
+        do {
+            scan = try context.fetch(descriptor).first
+        } catch {
+            MerianLog.data.error(
+                "updateQueuedScanForRetry: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return nil
+        }
+        guard let scan else { return nil }
         let attempt = scan.queueAttemptCount + 1
         let now = Date()
         scan.queueAttemptCount = attempt
@@ -506,7 +515,7 @@ extension OfflineQueueManager {
         } catch {
             context.rollback()
             MerianLog.data.error("updateQueuedScanForRetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-            return attempt
+            return nil
         }
         recordQueueEvent(
             scanId: scanId,
@@ -518,46 +527,6 @@ extension OfflineQueueManager {
         )
         OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         return attempt
-    }
-
-    @discardableResult
-    func clearQueueRetry(scanId: String) -> Bool {
-        guard let context = modelContext else { return false }
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.id == scanId }
-        )
-        descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else {
-            return false
-        }
-        scan.queueAttemptCount = 0
-        scan.queueLastAttemptAt = nil
-        scan.queueNextRetryAt = nil
-        scan.queueLastErrorCode = nil
-        scan.queueLastErrorMessage = nil
-        scan.queueLastHTTPStatus = nil
-        scan.queueLastServerStatus = nil
-        scan.queueLastServerStage = nil
-        scan.queueLastServerRetryAfter = nil
-        scan.queueNeedsAttention = false
-        scan.queueUpdatedAt = Date()
-        if let job = fetchScanJob(scanId: scanId, in: context) {
-            job.status = .running
-            job.updatedAt = Date()
-            job.nextRunAt = nil
-            job.lastErrorCode = nil
-            job.lastErrorMessage = nil
-            job.lastHTTPStatus = nil
-        }
-        do {
-            try context.save()
-            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
-            return true
-        } catch {
-            context.rollback()
-            MerianLog.data.error("clearQueueRetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-            return false
-        }
     }
 
     func queueAttemptCount(for scanId: String) -> Int {

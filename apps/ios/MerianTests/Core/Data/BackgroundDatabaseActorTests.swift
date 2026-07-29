@@ -1759,11 +1759,15 @@ struct BackgroundDatabaseActorTests {
 
         let r2Keys = ["staging/user123/\(scanId)_img.webp"]
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+        let outcome = await actor.markScanAsStaged(
+            scanId: scanId,
+            r2Keys: r2Keys
+        )
 
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         let fetched = try context.fetch(descriptor).first
+        #expect(outcome == .staged)
         #expect(fetched?.scanStateRaw == ScanQueueState.staged.rawValue,
                 "markScanAsStaged must transition .uploading → .staged")
         #expect(fetched?.stagedR2Keys == r2Keys,
@@ -1782,11 +1786,15 @@ struct BackgroundDatabaseActorTests {
         let scanId = scan.id
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.markScanAsStaged(scanId: scanId, r2Keys: ["staging/user/\(scanId)_dead.webp"])
+        let outcome = await actor.markScanAsStaged(
+            scanId: scanId,
+            r2Keys: ["staging/user/\(scanId)_dead.webp"]
+        )
 
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         let fetched = try context.fetch(descriptor).first
+        #expect(outcome == .discarded)
         #expect(fetched?.scanStateRaw == ScanQueueState.failed.rawValue,
                 "markScanAsStaged must not resurrect .failed tombstones")
         #expect(fetched?.stagedR2Keys == nil,
@@ -1803,14 +1811,75 @@ struct BackgroundDatabaseActorTests {
         let scanId = scan.id
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.markScanAsStaged(scanId: scanId, r2Keys: ["staging/user/\(scanId)_pending.webp"])
+        let outcome = await actor.markScanAsStaged(
+            scanId: scanId,
+            r2Keys: ["staging/user/\(scanId)_pending.webp"]
+        )
 
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         let fetched = try context.fetch(descriptor).first
+        #expect(outcome == .retryRequired)
         #expect(fetched?.scanStateRaw == ScanQueueState.pending.rawValue,
                 "markScanAsStaged must be a no-op for non-.uploading scans — prevents skipping the upload state")
         #expect(fetched?.stagedR2Keys == nil)
+    }
+
+    @Test func testMarkScanAsStagedReportsSerializedAdvance() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("advanced.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged
+        )
+        let r2Keys = ["staging/user/\(scan.id)_advanced.webp"]
+        scan.stagedR2Keys = r2Keys
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let outcome = await actor.markScanAsStaged(
+            scanId: scan.id,
+            r2Keys: r2Keys
+        )
+
+        #expect(outcome == .alreadyAdvanced)
+    }
+
+    @Test func testMarkScanAsStagedRejectsMismatchedAdvancedManifest() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("persisted.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged
+        )
+        let persistedKeys = ["staging/user/\(scan.id)_persisted.webp"]
+        scan.stagedR2Keys = persistedKeys
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let outcome = await actor.markScanAsStaged(
+            scanId: scan.id,
+            r2Keys: ["staging/user/\(scan.id)_stale-callback.webp"]
+        )
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scan.id }
+        )
+        descriptor.fetchLimit = 1
+        #expect(outcome == .retryRequired)
+        #expect(try context.fetch(descriptor).first?.stagedR2Keys == persistedKeys)
     }
 
     // MARK: - markScansAsUploading: source-state guard (V33)

@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(21);
+SELECT extensions.plan(22);
 
 INSERT INTO auth.users (
     instance_id,
@@ -140,6 +140,89 @@ SELECT extensions.ok(
         )
     ),
     'atomic Explore publication retains invoker privileges'
+);
+SELECT extensions.ok(
+    pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'UPDATE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_community_requests',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_community_requests',
+        'UPDATE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.species_dictionary',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_posts',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_posts',
+        'INSERT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_posts',
+        'UPDATE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_media',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_media',
+        'INSERT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_media',
+        'DELETE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_hashtags',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_hashtags',
+        'INSERT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_hashtags',
+        'DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.explore_community_requests',
+        'UPDATE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.explore_community_requests',
+        'UPDATE'
+    ),
+    'atomic Explore invoker has its request lock privilege without browser writes'
 );
 
 SET LOCAL ROLE service_role;

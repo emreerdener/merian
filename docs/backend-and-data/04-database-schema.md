@@ -2047,6 +2047,16 @@ projection, or request state cannot leave a normal post visible. A
 `BEFORE UPDATE OF shared_at` trigger rechecks committed `needs_id` state at the
 actual post write and closes the absent-request concurrency race.
 
+Because these two RPCs are `SECURITY INVOKER`, their execution allowlist alone
+is not enough under the hardened public-schema defaults. Migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` grants
+`service_role` only the operation classes actually used on `scans`,
+`taxon_nodes`, `species_dictionary`, `explore_posts`,
+`explore_community_requests`, `explore_post_media`, `explore_post_hashtags`,
+`explore_identifications`, and `community_consensus_jobs`. It grants no
+browser-role writes and no `ALL`,
+`TRUNCATE`, `REFERENCES`, `TRIGGER`, or `MAINTAIN` capability.
+
 ### `scan_media_assets`
 
 Normalized scan media lifecycle assets. Added in migration
@@ -2704,6 +2714,10 @@ coordinates to the client contract.
   snapshot and `needs_id` request, and returns the authoritative request row.
   Reopening withdrawn state clears stale publication/consensus/worker state and
   withdraws old active votes without deleting their audit rows.
+  Forward migration
+  `20260729044500_grant_atomic_explore_service_privileges.sql` supplies the
+  narrow relational privileges needed by this routine and the companion
+  publication routine without changing either to definer rights.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`. It
   selects currently visible Explore posts, unnests all non-empty

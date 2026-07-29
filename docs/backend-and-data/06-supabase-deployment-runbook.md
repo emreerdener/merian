@@ -3262,7 +3262,7 @@ Treat these components as one compatibility release:
    `public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`
    for `service_role` in `internal.privileged_routine_grants`; a grant without
    that reviewed row must fail the disposable catalog before `db push`. Also
-   apply the seven incident migrations in timestamp order before any
+   apply the eight incident migrations in timestamp order before any
    scan-producing bundle:
 
    - `20260728230000_recover_inline_scan_ingestion_completions.sql` installs the
@@ -3300,6 +3300,10 @@ Treat these components as one compatibility release:
      `request-community-identification`. It commits the post/media snapshot and
      hidden `needs_id` request together, resets stale consensus state on reopen,
      and adds the post-write `needs_id` race recheck.
+   - `20260729044500_grant_atomic_explore_service_privileges.sql` supplies the
+     explicit operation-level table allowlist required by both invoker
+     transactions after the public-schema default-privilege lockdown. It grants
+     only `service_role`; anon and authenticated receive no new write.
 
    Do not reorder or selectively apply these migrations. The fourth migration
    verifies the current merge routine and fails closed if it cannot install its
@@ -3309,7 +3313,11 @@ Treat these components as one compatibility release:
    call. The sixth must precede the updated Explore function because that bundle
    removes every separate post/media/hashtag mutation path and invokes only the
    atomic RPC. The seventh must precede the updated Community function because
-   its Edge module removes every direct post/media/request mutation path.
+   its Edge module removes every direct post/media/request mutation path. The
+   eighth must follow both RPC definitions and land before either updated Edge
+   route: `EXECUTE` alone is insufficient for `SECURITY INVOKER`, and restoring
+   a removed direct-mutation fallback or changing the RPCs to definer rights is
+   not an acceptable authorization repair.
 2. From one exact SHA, run the normal production backend workflow. The
    graph-derived plan for this repair must select `generate-upload-urls`,
    `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
@@ -3407,6 +3415,37 @@ Community route must ship with
 atomic request boundary after taxonomy/moderation preparation, and pass all 89
 deploy-time entrypoint configs on the final exact SHA before catalog replay or
 deployment can proceed.
+
+### Atomic invoker privilege-failure interpretation
+
+The next attached hosted replay discovered all 26 current catalog files and
+passed 24, including the complete inline/video and corrected identity-merge
+fixtures. The two failures were
+`atomic_explore_scan_publication_security.sql` and
+`atomic_community_identification_request_security.sql`. Both reached their
+service-role-only `SECURITY INVOKER` RPC and failed on the first
+`explore_community_requests ... FOR UPDATE` with SQLSTATE `42501` / permission
+denied. The former 21- and 24-assertion plans stopped after four and five
+assertions respectively; those bad plans were consequences of the PostgreSQL
+exception, not independent TAP count defects.
+
+The root cause is the deny-by-default public-table privilege policy introduced
+before these RPC migrations. The functions had exact `EXECUTE` grants, but an
+invoker routine also needs its caller’s privileges for every table operation.
+Apply forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql`; do not rewrite
+migration history, grant browser roles, grant `ALL`, convert the functions to
+`SECURITY DEFINER`, or restore split Edge mutations. The migration allowlists
+only the service operations used by scan/request locks, post/media/hashtag
+replacement, location projection, taxon validation, request creation, and
+withdrawn-generation cleanup. The revised rollback catalogs have 22 and 25
+matching assertions and verify both positive service access and negative
+anon/auth writes.
+
+This workflow stopped in disposable-catalog testing before production
+connection preparation, `db push`, secret synchronization, Edge deployment, or
+smoke tests. It made no production mutation. Require another reviewed exact SHA
+to pass all 26 files before allowing the normal deployment to continue.
 
 After `db push`, use an owner connection for this bounded catalog check:
 

@@ -81,6 +81,22 @@ actor ScanInferencePersistenceCoordinator {
     }
 }
 
+/// Durable outcome of promoting a completed upload manifest into inference-ready state.
+///
+/// The URLSession callback must not infer success from an in-memory HTTP completion set:
+/// inference is eligible only after the queue transition commits, or when another serialized
+/// owner already advanced the same durable row.
+enum ScanStagingTransitionOutcome: Sendable, Equatable {
+    /// This call committed `.uploading → .staged` with the exact R2 keys.
+    case staged
+    /// A serialized owner saved the same staged manifest or already began inference.
+    case alreadyAdvanced
+    /// The row remains retryable, but this call could not commit the transition.
+    case retryRequired
+    /// The row is missing or non-runnable and must not be resurrected.
+    case discarded
+}
+
 /// Swift 6-safe actor that performs all SwiftData reads and writes off the main thread.
 ///
 /// Conforms to `@ModelActor`, which provides an isolated `modelContext` bound to this actor.
@@ -761,7 +777,7 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    /// Persists the confirmed R2 object keys on the scan record and transitions it to `.staged`.
+    /// Persists confirmed R2 keys, resets upload retry metadata, and transitions to `.staged`.
     ///
     /// Called once the last image upload for a scan is confirmed (HTTP 200).
     /// Storing keys here eliminates auth-dependent key reconstruction at inference time.
@@ -770,26 +786,95 @@ actor BackgroundDatabaseActor {
     /// a subset of its images were still in transit — e.g., one source file was missing —
     /// this prevents the completed uploads from resurrecting the scan into the inference pipeline
     /// with partial image data.
-    func markScanAsStaged(scanId: String, r2Keys: [String]) {
+    @discardableResult
+    func markScanAsStaged(
+        scanId: String,
+        r2Keys: [String]
+    ) -> ScanStagingTransitionOutcome {
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        guard let scan = (try? modelContext.fetch(descriptor))?.first else {
+        let scan: OfflineQueuedScan?
+        do {
+            scan = try modelContext.fetch(descriptor).first
+        } catch {
+            MerianLog.data.error(
+                "markScanAsStaged: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return .retryRequired
+        }
+        guard let scan else {
             MerianLog.data.debug("markScanAsStaged: scan missing scanId=\(scanId, privacy: .public)")
-            return
+            return .discarded
         }
         // Only advance from .uploading — do not resurrect tombstoned (.failed) scans.
         guard scan.scanStateRaw == ScanQueueState.uploading.rawValue else {
             MerianLog.data.debug(
                 "markScanAsStaged: state mismatch scanId=\(scanId, privacy: .public) state=\(scan.scanStateRaw, privacy: .public)"
             )
-            return
+            switch scan.queueState {
+            case .staged:
+                guard scan.stagedR2Keys == r2Keys else {
+                    MerianLog.data.error(
+                        "markScanAsStaged: durable staged manifest mismatch scanId=\(scanId, privacy: .private)"
+                    )
+                    return .retryRequired
+                }
+                return .alreadyAdvanced
+            case .inferencing:
+                return .alreadyAdvanced
+            case .pending:
+                return .retryRequired
+            case .externalImport, .failed:
+                return .discarded
+            case .uploading:
+                // The raw-value guard above makes this branch unreachable.
+                return .retryRequired
+            }
         }
-        scan.stagedR2Keys  = r2Keys
-        scan.scanStateRaw  = ScanQueueState.staged.rawValue
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let job: OfflineJobRecord?
+        do {
+            job = try modelContext.fetch(jobDescriptor).first
+        } catch {
+            MerianLog.data.error(
+                "markScanAsStaged: job fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return .retryRequired
+        }
+
+        let now = Date()
+        scan.stagedR2Keys = r2Keys
+        scan.scanStateRaw = ScanQueueState.staged.rawValue
+        scan.queueAttemptCount = 0
+        scan.queueLastAttemptAt = nil
         scan.queueNextRetryAt = nil
-        scan.queueUpdatedAt = Date()
+        scan.queueLastErrorCode = nil
+        scan.queueLastErrorMessage = nil
+        scan.queueLastHTTPStatus = nil
+        scan.queueLastServerStatus = nil
+        scan.queueLastServerStage = nil
+        scan.queueLastServerRetryAfter = nil
+        scan.queueNeedsAttention = false
+        scan.queueUpdatedAt = now
+        if let job {
+            job.status = .running
+            job.updatedAt = now
+            job.lastAttemptAt = nil
+            job.nextRunAt = nil
+            job.attemptCount = 0
+            job.lastErrorCode = nil
+            job.lastErrorMessage = nil
+            job.lastHTTPStatus = nil
+            job.serverStatus = nil
+            job.serverStage = nil
+            job.serverRetryAfter = nil
+        }
         modelContext.insert(OfflineQueueEvent(
-            jobId: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            jobId: jobId,
             scanId: scanId,
             kind: .staged,
             message: "Queued scan media staged for inference."
@@ -799,9 +884,11 @@ actor BackgroundDatabaseActor {
             MerianLog.data.debug(
                 "markScanAsStaged: staged scanId=\(scanId, privacy: .public) keys=\(r2Keys.count, privacy: .public)"
             )
+            return .staged
         } catch {
             modelContext.rollback()
             MerianLog.data.error("markScanAsStaged: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return .retryRequired
         }
     }
 

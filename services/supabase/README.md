@@ -55,6 +55,19 @@ synthetic identities and qualify real columns. The source contract rejects the
 ambiguous declaration. Do not change production merge/recovery logic when the
 phase proves it was never invoked.
 
+The following 26-file catalog replay proved that rename: identity-merge recovery
+passed, as did 23 other files. The two new atomic Explore/Community fixtures
+then stopped at their first real service-role request lock because the
+`SECURITY INVOKER` routines had `EXECUTE` but the hardened public-schema
+defaults supplied no corresponding table privilege. Do not convert these
+routines to `SECURITY DEFINER` or restore separate Data API mutations.
+Migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` grants only the
+service-role operations used by the two transactions. The fixtures assert that
+anon and authenticated retain no Community-table writes. Repeat all 26
+rollback-only catalog files before any linked `db push`; source-contract success
+alone is not relational authorization evidence.
+
 ## Edge Functions
 
 Edge Functions are written in TypeScript and run on Deno. They handle logic like
@@ -541,6 +554,15 @@ post/media snapshot and hidden `needs_id` request together. Reopening withdrawn
 state clears stale publication and consensus generations while retaining
 withdrawn vote history. A post trigger rechecks `needs_id` at the actual
 `shared_at` update, closing the concurrent explicit-share race.
+
+Forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` supplies the
+explicit table allowlist required by both `SECURITY INVOKER` RPCs under the
+deny-by-default public-schema ACLs. It grants `service_role` only the operation
+classes exercised by owner locking, snapshot replacement, request creation,
+location projection, taxonomy validation, and withdrawn-request consensus
+cleanup. It grants no browser-facing write, broad `ALL`, destructive schema
+capability, or sequence access.
 
 The export route's resource contract follows the current
 [hosted Edge Function limits](https://supabase.com/docs/guides/functions/limits)

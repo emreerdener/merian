@@ -12,6 +12,22 @@ entity. Foreground/background completion read the same hint, and every queued-
 scan deletion or orphan repair removes it. Persistent Insight contribution
 cards are server-backed and are intentionally not cached in SwiftData.
 
+## Offline Scan Durability Boundary
+
+A completed background PUT is evidence for one upload member, not permission to
+start analysis. The generation accumulator must contain the exact expected key
+set. `BackgroundDatabaseActor.markScanAsStaged` then persists those keys,
+resets upload retry state, updates the queue job, and transitions
+`.uploading → .staged` in one save. Only `.staged` after that commit—or a
+serialized owner with the same staged manifest—may proceed toward an inference
+claim.
+
+Fetch, job-read, manifest-mismatch, or save failure returns a retry-required
+outcome before inference. Once the callback token releases, timestamp-fenced
+orphan reconciliation restarts signing for a still-uploading row; a staged row
+replays only its persisted keys. A missing, failed, or external-import row is
+discarded and never resurrected.
+
 ## External Image Import Inbox
 
 `Images/ExternalImageImportStore.swift` owns the app-sandbox copy of an image

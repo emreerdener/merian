@@ -131,6 +131,16 @@ TestFlight, App Store, support, and QA.
   Production merge/recovery code had not run, so it was not weakened for this
   fixture-only SQLSTATE `42702`. The run stopped before production preparation
   and made no production mutation.
+- The latest 26-file catalog replay proved the identity correction and passed
+  24 files. Its only two failures reached the new atomic Explore and Community
+  invoker RPCs, then PostgreSQL denied their `service_role` request-table lock
+  before any fixture publication. A forward ACL migration now grants the exact
+  table operations needed by those two invoker transactions—including Community
+  reopen cleanup—without granting browser-facing writes, `ALL`, `TRUNCATE`,
+  `REFERENCES`, `TRIGGER`, or `MAINTAIN`. The rollback fixtures now assert both
+  the positive service allowlist and negative anon/auth write boundary. The
+  workflow stopped before production preparation and made no production
+  mutation.
 - Production deploy contracts now pin cumulative Edge Function planning from the
   most recent successful production workflow SHA rather than only the triggering
   commit. A safe ancestor check is mandatory; unavailable or unsafe baselines
@@ -155,10 +165,18 @@ TestFlight, App Store, support, and QA.
   unavailability. Explore feedback’s `message_not_found` and unmarked platform
   404s remain retryable; the retry path uses one canonical still-syncing message.
 - Multi-file offline uploads now clear durable retry accounting only after the
-  exact complete manifest succeeds and the reset saves. One successful file, an
-  absent queue row, or a failed persistence write can no longer advance staging
-  or reset the generation count before a failing sibling, preventing partial
-  uploads from looping forever at attempt one.
+  exact complete manifest succeeds and its keys, retry reset, and staged state
+  save together. One successful file, an absent queue/job read, a mismatched
+  already-staged manifest, or a failed persistence write can no longer advance
+  inference or reset the generation count before a failing sibling, preventing
+  partial uploads from looping forever at attempt one.
+- Completed background uploads now expose the durable staging-transition
+  outcome to their caller. A fetch or save failure no longer falls through into
+  an inference claim or gets logged as a persisted retry after rollback; the
+  exact completion generation stays fenced while orphan reconciliation returns
+  the still-uploading row to signing. Retry helpers now return an attempt number
+  only when the queue/backoff write actually committed, with a bounded
+  process-local wake retained when durable scheduling itself fails.
 - A server-complete queued scan no longer clears retry metadata before
   exact-owner local hydration, promotion, and queue deletion succeed. Repeated
   local sync failures now persist the definitive owner-row observation before

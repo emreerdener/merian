@@ -27,17 +27,19 @@ steps are tracked in the
 > moves to the separate DwC-A feature-enable gate. See the
 > [canonical release-hold record](docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
-> **Critical scan release gate (2026-07-28):** the attached exact-SHA follow-up
-> passed all 30 disposable-catalog inline/video assertions after forward
-> migration `20260729012153_fix_video_scan_canonical_finalization.sql`. Its
-> remaining identity test stopped during fixture setup with SQLSTATE `42702`: a
-> synthetic `scan_id` variable was ambiguous beside `jobs.scan_id`, before
-> production merge/recovery ran. The committed fixture now uses
-> `fixture_scan_id`, while the current remediation also makes final Explore
-> publication and Ask the Community creation owner-checked transactions and
-> preserves offline retry history until local recovery succeeds. These
-> corrections have not been deployed. The release remains held until one
-> reviewed exact SHA passes all 26
+> **Critical scan release gate (2026-07-28):** the latest attached
+> disposable-catalog run passed 24 of 26 files, including the complete
+> inline/video and formerly ambiguous identity-merge fixtures. The only two
+> failures reached the new atomic Explore/Community RPCs and proved their
+> `SECURITY INVOKER` caller lacked explicit relational privileges on
+> `explore_community_requests`; the run stopped before production mutation.
+> Forward migration
+> `20260729044500_grant_atomic_explore_service_privileges.sql` now grants only
+> the required service-role table operations while browser-facing roles retain
+> no writes, and both fixtures assert that boundary. The remediation also
+> preserves offline retry history and requires the durable completed-upload
+> transition to commit before inference starts. These corrections have not been
+> deployed. The release remains held until one reviewed exact SHA passes all 26
 > current catalog files, completes the ordered backend deployment, passes the
 > matching hosted iOS gate, and clears joined video, Field Chat, offline, and
 > Explore/Ask the Community staging smokes. See the

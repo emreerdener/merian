@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(24);
+SELECT extensions.plan(25);
 
 INSERT INTO auth.users (
     instance_id,
@@ -162,6 +162,59 @@ SELECT extensions.ok(
         )
     ),
     'atomic Community creation retains invoker privileges'
+);
+SELECT extensions.ok(
+    pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_community_requests',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_community_requests',
+        'INSERT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_community_requests',
+        'UPDATE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.taxon_nodes',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_identifications',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_identifications',
+        'UPDATE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.community_consensus_jobs',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.community_consensus_jobs',
+        'DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.explore_community_requests',
+        'INSERT'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.explore_community_requests',
+        'INSERT'
+    ),
+    'Community invoker has its exact relational privileges without browser writes'
 );
 
 SET LOCAL ROLE service_role;

@@ -1279,6 +1279,15 @@ trigger rechecks `needs_id` at `shared_at`, preventing a concurrent explicit
 share from returning success after the Community request wins the scan-lock
 race.
 
+Both transaction boundaries intentionally remain `SECURITY INVOKER`.
+Migration `20260729044500_grant_atomic_explore_service_privileges.sql` supplies
+the exact table operation classes their `service_role` caller needs for scan and
+request locks, snapshot replacement, taxon validation, identification
+withdrawal, consensus-job cleanup, and the existing invoker-rights location
+projection trigger. `EXECUTE` remains revoked from `PUBLIC`, `anon`, and
+`authenticated`; those roles receive no new table writes. Do not work around an
+invoker `permission denied` by converting either routine to `SECURITY DEFINER`.
+
 The scan finalizer uses that same distinction. Compatibility
 `image_storage_urls` may retain sampled frames used for inference and video
 posters, so those URLs are not individually required as ready standalone image

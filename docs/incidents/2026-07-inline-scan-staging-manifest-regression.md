@@ -546,6 +546,35 @@ critical rollout. Local isolated validation now checks all 89 entrypoints with
 their function-specific deploy configs, but only a final exact-SHA hosted run
 can replace the failed workflow evidence.
 
+## Deployment Follow-up: Atomic Invoker Privileges
+
+The latest hosted fresh-catalog replay discovered all 26 current pgTAP files.
+Identity merge/recovery passed, proving the `fixture_scan_id` correction reached
+and exercised the production merge and recovery path. Inline/video recovery
+also passed. In total, 24 files completed.
+
+Only the new atomic Explore and Ask the Community files aborted. Both reached
+their first real `service_role` routine call and raised SQLSTATE `42501`,
+`permission denied for table explore_community_requests`, during a `SELECT ...
+FOR UPDATE`. Their `SECURITY INVOKER` routines had explicit service-only
+`EXECUTE`, but hardened public-schema defaults did not provide the relational
+privileges used by the routine bodies. The later TAP reports—21 planned/4 run
+and 24 planned/5 run—were consequences of those two statement errors, not 36
+additional business-logic failures.
+
+Forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` grants
+`service_role` only the operation classes required on the nine participating
+tables. It grants no browser-role write, no broad or destructive privilege, and
+does not convert either routine to definer authority. The two catalogs now plan
+22 and 25 assertions and include live least-privilege checks. Local source
+contracts pass, but only a new fresh-database replay can prove the corrected
+grants against PostgreSQL.
+
+The failed workflow stopped at the disposable catalog gate before production
+connection preparation, `db push`, secret synchronization, Edge deployment, or
+smoke testing. It made no production mutation.
+
 ## Release Follow-up: iOS Workflow Run 73
 
 Attempt 1 of `iOS Build and Test` for the same commit compiled and completed its
@@ -580,8 +609,8 @@ Repository remediation, merge to `main`, backend deployment, iOS release, and
 production verification are separate states. Close this incident only after
 retaining all of the following:
 
-1. the exact reviewed repository SHA, four migration versions, nine deployed
-   Edge Function versions, and matching iOS version/build;
+1. the exact reviewed repository SHA, eight incident migration versions, ten
+   deployed Edge Function versions, and matching iOS version/build;
 2. successful disposable-catalog migration and pgTAP evidence for inline
    completion repair, profile prerequisite security, and identity-merge
    recovery;

@@ -11,7 +11,7 @@
           "items": [
             "Completed scan analyses now finish saving before they appear, so the same observation is ready for your library, Field chat, and Explore sharing.",
             "Video scans now complete with one playable clip and poster instead of being rejected or exposing sampled analysis frames as separate photos.",
-            "Offline image, audio, video, and description scans now keep their media and retry history until recovery really finishes, count partial-upload retries correctly, and resume safely without analyzing an already-completed observation twice.",
+            "Offline image, audio, video, and description scans now keep their media and retry history until recovery really finishes, count partial-upload retries correctly, require the completed upload state to save before analysis starts, and resume safely without analyzing an already-completed observation twice.",
             "Eligible older observations can recover a missing cloud record when you open Field chat, and can restore surviving local media when you deliberately share to Explore.",
             "Field chat now stays available to retry while an observation is still syncing instead of disappearing after a temporary not-ready response.",
             "A failed Explore share now keeps your post draft open so you can retry without re-entering your notes, hashtags, location choice, or media selection, and an interrupted save cannot replace an existing complete post with a partial one.",

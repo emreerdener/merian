@@ -38,6 +38,13 @@ write. This closes the race where an explicit Explore share observed no request,
 waited on the scan lock, and otherwise could have returned success after a
 Community request committed.
 
+Both final transaction RPCs remain `SECURITY INVOKER`. Forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` grants their
+`service_role` caller only the table operation classes needed for locks,
+snapshot replacement, taxonomy validation, request creation, and clean reopen.
+It grants no browser-role write and does not convert either boundary to definer
+authority.
+
 ## Request
 
 ```json

@@ -657,10 +657,11 @@ MerianTests/
     scheduling automatic work once `maximumAutomaticRetryAttempts` is exhausted.
   - **Multi-file generation retry accounting**: A successful upload member must
     not clear `queueAttemptCount` or the last durable error while sibling
-    outcomes remain unresolved. Retry metadata resets only after exact
-    all-member manifest success and a successful persistence write, so one good
-    file plus one persistently failing file cannot loop forever at attempt one
-    and a missing queue row cannot advance staging.
+    outcomes remain unresolved. Retry metadata resets only in the same actor
+    save that persists the exact all-member manifest and staged transition, so
+    one good file plus one persistently failing file cannot loop forever at
+    attempt one and a missing queue/job read, save rollback, or mismatched
+    already-staged manifest cannot advance inference.
   - **Cloud-complete local recovery**: If status is `found` but exact-owner
     hydration, local promotion, or queue deletion fails, assert the queue first
     persists its completed-result recovery marker, remains `.inferencing`,
@@ -1138,11 +1139,14 @@ iOS regression coverage is intentionally joined as well:
 - `OfflineQueueManagerTests` validates exact server-key task handoff, complete
   signing-response validation, persisted-session owner preference, whole-batch
   sibling failure fencing, exact all-member success accumulation, relaunch
-  orphan recovery, and fresh staging after consumed-key failure.
+  orphan recovery, fresh staging after consumed-key failure, and that retry
+  updates report an attempt only after persistence commits.
 - `OfflineSyncTests` validates queue state/backoff decisions against the
   owner-safe server ledger.
 - `BackgroundDatabaseActorTests` validates immediate non-visual durability and
-  late optional context merge.
+  late optional context merge. Its staging-transition cases assert committed,
+  already-advanced, retry-required, and discarded outcomes so an HTTP callback
+  cannot treat a rolled-back local write as inference readiness.
 
 Do not replace the executable SQL fixtures with source inspection. Static
 migration contracts are useful when Docker is unavailable, but only a disposable
@@ -1201,6 +1205,19 @@ and must qualify every table column. The source contract pins that declaration
 and rejects the ambiguous variable name. A hosted warning is evidence of the
 remaining root failure, not a passing fixture; correct the layer identified by
 the phase and rerun until the assertion passes.
+
+The latest hosted replay then discovered all 26 files and proved the identity
+fixture correction: identity merge/recovery and inline/video recovery passed,
+and 24 files completed. Only the two new atomic fixtures aborted. Each reached
+its first real `service_role` body call and raised SQLSTATE `42501`,
+`permission denied for table explore_community_requests`; their later bad-plan
+reports were secondary to that statement failure. Forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` now provides an
+operation-scoped service allowlist while preserving invoker rights and no
+browser-role writes. The revised Explore and Community catalogs plan 22 and 25
+assertions and include live privilege checks. Static migration contracts can
+pin that correction, but all 26 catalogs must still pass on a fresh exact-SHA
+database before deployment.
 
 Field Chat regression tests separately enforce that transient owned-scan
 readiness does not become permanent UI state. HTTP `404 scan_not_ready`, missing

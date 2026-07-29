@@ -970,7 +970,7 @@ struct OfflineQueueManagerTests {
         )
     }
 
-    @Test func testOnlyCompleteUploadManifestResetsGenerationRetryAccounting() throws {
+    @Test func testCompleteUploadManifestResetsRetryOnlyWithDurableStagingCommit() async throws {
         let context = try createIsolatedContext()
         let manager = OfflineQueueManager.shared
         let scanId = UUID().uuidString
@@ -985,7 +985,19 @@ struct OfflineQueueManagerTests {
         )
         scan.queueAttemptCount = 3
         scan.queueLastErrorCode = "upload_transport"
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .waiting,
+            lastAttemptAt: Date(),
+            nextRunAt: Date().addingTimeInterval(30),
+            attemptCount: 3,
+            lastErrorCode: "upload_transport",
+            lastErrorMessage: "Retry upload"
+        )
         context.insert(scan)
+        context.insert(job)
         try context.save()
 
         manager.uploadPreparationGenerations[scanId] = nil
@@ -1002,7 +1014,7 @@ struct OfflineQueueManagerTests {
             objectKey: firstKey
         )
         #expect(
-            !manager.resetUploadRetryAccountingIfManifestComplete(
+            !manager.hasConfirmedSuccessfulUploadManifest(
                 scanId: scanId,
                 generation: generation,
                 expectedObjectKeys: [firstKey, secondKey]
@@ -1017,43 +1029,43 @@ struct OfflineQueueManagerTests {
             objectKey: secondKey
         )
         #expect(
-            manager.resetUploadRetryAccountingIfManifestComplete(
+            manager.hasConfirmedSuccessfulUploadManifest(
                 scanId: scanId,
                 generation: generation,
                 expectedObjectKeys: [firstKey, secondKey]
             )
         )
-        #expect(scan.queueAttemptCount == 0)
-        #expect(scan.queueLastErrorCode == nil)
-    }
-
-    @Test func testCompleteUploadManifestRequiresDurableRetryReset() throws {
-        _ = try createIsolatedContext()
-        let manager = OfflineQueueManager.shared
-        let scanId = UUID().uuidString
-        let generation = UUID()
-        let objectKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/only.webp"
-
-        manager.latestUploadGenerations[scanId] = generation
-        defer {
-            manager.latestUploadGenerations[scanId] = nil
-            manager.uploadCompletionStates[scanId] = nil
-            manager.modelContext = nil
-        }
-
-        manager.recordSuccessfulUploadMember(
-            scanId: scanId,
-            generation: generation,
-            objectKey: objectKey
-        )
-
         #expect(
-            !manager.resetUploadRetryAccountingIfManifestComplete(
-                scanId: scanId,
-                generation: generation,
-                expectedObjectKeys: [objectKey]
-            )
+            scan.queueAttemptCount == 3,
+            "In-memory manifest completion must not clear durable retry state"
         )
+
+        let actor = BackgroundDatabaseActor(modelContainer: context.container)
+        let outcome = await actor.markScanAsStaged(
+            scanId: scanId,
+            r2Keys: [firstKey, secondKey]
+        )
+        let verificationContext = ModelContext(context.container)
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let persistedScan = try verificationContext.fetch(scanDescriptor).first
+        let persistedJob = try verificationContext.fetch(jobDescriptor).first
+
+        #expect(outcome == .staged)
+        #expect(persistedScan?.queueState == .staged)
+        #expect(persistedScan?.stagedR2Keys == [firstKey, secondKey])
+        #expect(persistedScan?.queueAttemptCount == 0)
+        #expect(persistedScan?.queueLastErrorCode == nil)
+        #expect(persistedJob?.status == .running)
+        #expect(persistedJob?.attemptCount == 0)
+        #expect(persistedJob?.lastErrorCode == nil)
     }
 
     @Test func testUploadCompletionClearsOnlyTheOwningCallbackToken() {
@@ -1711,6 +1723,44 @@ struct OfflineQueueManagerTests {
         let wakeDate = try #require(scheduler.scheduledWakeDate)
         #expect(abs(wakeDate.timeIntervalSince(retryAt)) < 0.1)
         #expect(QueuedScanContext(from: scheduled).canRetryNow)
+    }
+
+    @Test func retryUpdateReportsOnlyCommittedPersistence() throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        defer { manager.modelContext = originalContext }
+
+        manager.modelContext = nil
+        #expect(
+            manager.updateQueuedScanForRetry(
+                scanId: UUID().uuidString.lowercased(),
+                code: "test_retry",
+                message: "Test retry",
+                delay: 5,
+                resetTo: .pending
+            ) == nil
+        )
+
+        let context = try createIsolatedContext()
+        let scan = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            timestamp: Date(),
+            scanState: .uploading
+        )
+        context.insert(scan)
+        try context.save()
+
+        let attempt = manager.updateQueuedScanForRetry(
+            scanId: scan.id,
+            code: "test_retry",
+            message: "Test retry",
+            delay: 5,
+            resetTo: .pending
+        )
+        #expect(attempt == 1)
+        #expect(scan.queueAttemptCount == 1)
+        #expect(scan.queueState == .pending)
+        #expect(scan.queueNextRetryAt != nil)
     }
 
     @Test func stalePersistedRetrySchedulesImmediateBoundedWake() throws {

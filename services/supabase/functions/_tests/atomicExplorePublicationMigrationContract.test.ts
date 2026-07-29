@@ -16,13 +16,20 @@ const routeSourceUrl = new URL(
   "../share-scan-to-explore/index.ts",
   import.meta.url,
 );
+const catalogUrl = new URL(
+  "../../tests/atomic_explore_scan_publication_security.sql",
+  import.meta.url,
+);
 
 function compact(source: string): string {
   return source.replaceAll(/\s+/g, " ").trim();
 }
 
 Deno.test("atomic Explore publication is invoker-scoped and service-only", async () => {
-  const sql = compact(await Deno.readTextFile(migrationUrl));
+  const [sql, catalog] = await Promise.all([
+    Deno.readTextFile(migrationUrl).then(compact),
+    Deno.readTextFile(catalogUrl),
+  ]);
 
   for (
     const fragment of [
@@ -44,6 +51,12 @@ Deno.test("atomic Explore publication is invoker-scoped and service-only", async
   assert(
     !sql.includes("SECURITY DEFINER"),
     "The final publication RPC must retain service-role invoker privileges.",
+  );
+  assertStringIncludes(catalog, "SELECT extensions.plan(22)");
+  assertEquals(
+    catalog.match(/^SELECT extensions\.(?:ok|is|throws_ok)\(/gm)?.length,
+    22,
+    "Atomic Explore pgTAP plan must match its executable assertions.",
   );
 });
 

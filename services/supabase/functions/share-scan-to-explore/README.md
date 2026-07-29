@@ -24,6 +24,12 @@ precedes the scan lock to match the existing community publisher and prevent a
 lock-order cycle. The RPC is revoked from `PUBLIC`, `anon`, and `authenticated`;
 no privileged definer is introduced for ordinary publication.
 
+Because the RPC is `SECURITY INVOKER`, forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` also installs the
+operation-scoped table privileges needed by its `service_role` caller and the
+existing location-projection trigger. It grants no browser-role write and does
+not restore any split post/media/hashtag mutation fallback.
+
 `refresh_public_author_identity(uuid)` and the other privileged database RPCs
 remain granted only to `service_role`, and each service-exposed definer calls
 `internal.require_service_role()`. Migration

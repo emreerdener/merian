@@ -106,7 +106,7 @@ Deno.test("Explore snapshot and needs-ID request commit in one routine transacti
   ) {
     assertStringIncludes(sql, reset);
   }
-  assertStringIncludes(catalog, "SELECT extensions.plan(24)");
+  assertStringIncludes(catalog, "SELECT extensions.plan(25)");
   assertStringIncludes(
     catalog,
     "late request failure aborts the complete Community transaction",
@@ -117,7 +117,7 @@ Deno.test("Explore snapshot and needs-ID request commit in one routine transacti
   );
   assert(
     catalog.match(/^SELECT extensions\.(?:ok|is|throws_ok)\(/gm)?.length ===
-      24,
+      25,
     "Atomic Community pgTAP plan must match its executable assertions.",
   );
 });
