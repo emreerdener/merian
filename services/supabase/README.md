@@ -63,7 +63,7 @@ defaults supplied no corresponding table privilege. Do not convert these
 routines to `SECURITY DEFINER` or restore separate Data API mutations. Migration
 `20260729044500_grant_atomic_explore_service_privileges.sql` grants only the
 service-role operations used by the two transactions. The fixtures assert that
-anon and authenticated retain no Community-table writes. Repeat all 26
+anon and authenticated retain no Community-table writes. Repeat all 27
 rollback-only catalog files before any linked `db push`; source-contract success
 alone is not relational authorization evidence.
 
@@ -317,7 +317,9 @@ visibility aligned:
 - confirmed-missing items are omitted, while an all-missing post becomes system
   `quarantined` without changing author or moderation state;
 - `get-explore-media-incidents` returns only the verified owner's active
-  recovery queue;
+  recovery queue in the canonical `{"data":[...]}` envelope; corrected iOS
+  clients also accept the exact legacy direct array during rollout and reject
+  all other successful-response shapes;
 - optional `ingest-r2-media-events` batches make rows due under
   `R2_EVENT_WEBHOOK_SECRET` but never confirm state;
 - owner repair atomically resets item health and restores ordinary projection;
@@ -716,16 +718,22 @@ signing. Only an exact `scan_share_restore` request with deterministic
 scan/category identity may register repair media for a completed job. A fresh
 unrestricted scan lookup must confirm an active authenticated-owner row or prove
 the row absent for the later guarded reconstruction; any tombstoned or foreign
-row fails closed. Do not remove failed `superseded_staging_registration` rows:
-they are historical audit evidence used by the narrow recovery contract.
+row fails closed. A failed-terminal job additionally requires exact
+`replay_exhausted`, or exact `media_reconciliation_abandoned` with its matching
+owner/scan service-written post-result dead letter. Policy and unproven
+abandonment remain closed. Do not remove failed
+`superseded_staging_registration` rows: they are historical audit evidence used
+by the narrow recovery contract.
 
-The seven joined incident migrations and the ten affected Edge Functions are one
-ordered release unit. Do not selectively deploy only the multimodal route,
-because older app builds still use compatibility producers. The production batch
-helper extracts selected members of that unit from the graph plan, deploys them
-in compatibility order before unrelated parallel batches, and stops on the first
-exhausted ordered deployment. The normative joined state, recovery, security,
-deployment, monitoring, and test contract is
+The eleven joined incident migrations and the ten affected Edge Functions are
+one ordered release unit. The last migration is
+`20260729173000_recover_media_abandoned_owned_scans.sql`; it must land before
+the signer/status/share bundles. Do not selectively deploy only the multimodal
+route, because older app builds still use compatibility producers. The
+production batch helper extracts selected members of that unit from the graph
+plan, deploys them in compatibility order before unrelated parallel batches,
+and stops on the first exhausted ordered deployment. The normative joined
+state, recovery, security, deployment, monitoring, and test contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 ### Identification Latency Contract
@@ -782,8 +790,10 @@ For older/interrupted missing rows, `_shared/scanRecovery.ts` delegates to one
 atomic service-only non-media compatibility repair used only by single status
 and Explore share requests. It shares the claim's advisory lock, writes the scan
 and completed recovery ledger in one transaction, defers every active or unknown
-state, and permits recovery from only explicit `replay_exhausted`. Media remains
-accepted only through separate owner-scoped staging keys.
+state, and permits recovery from explicit `replay_exhausted`, or exact
+`media_reconciliation_abandoned` with the matching service-written post-result
+`failed_scan_ingestions` row. Unproven abandonment remains deferred. Media
+remains accepted only through separate owner-scoped staging keys.
 
 Owner deletion takes the same generation lock first. `/delete-scan` commits an
 `internal.scan_deletion_tombstones` row before touching R2, terminal-marks
@@ -1010,6 +1020,25 @@ a reviewed forward migration, increment the policy version, and keep every
 operation in `AIQuotaOperation`, `aiQuotaMigrationContract.test.ts`,
 `aiQuotaCoverage.test.ts`, and `tests/ai_quota_security.sql` aligned.
 
+#### Atomic Field Chat Admission
+
+Migration `20260729163616_reserve_field_chat_sends_atomically.sql` must apply
+before the matching `insight-chat` and `explore-post-chat` functions. Its
+service-only `reserve_field_chat_send(...)` RPC takes the per-user advisory lock
+before the per-conversation lock, validates the exact subject and owner, and
+atomically performs same-key replay/conflict handling, cross-table UTC-day
+accounting, two-row conversation-cap admission, unanswered-request fencing, and
+the user-row insert. Direct `anon` and `authenticated` chat-table privileges are
+revoked, so clients cannot bypass this transaction with Data API writes.
+
+If a worker terminates after quota commit but before assistant persistence,
+`recover_stale_field_chat_quota(...)` fails closed for ten minutes. It can then
+transition only the exact committed Field Chat reservation after proving its
+subject-bound user row exists and UUID-bound assistant is absent. The route
+re-reads the pair and makes any retry newly metered. Validate runtime behavior
+with `tests/field_chat_reservation_security.sql`; source-contract success alone
+does not prove PostgreSQL execution.
+
 Executable security fixtures insert test profiles directly instead of running
 the Auth signup trigger. Any such owner-only fixture must first insert the
 matching transactional `auth.users` row, then insert `public.users` with a
@@ -1173,9 +1202,13 @@ in-handler auth boundary or provide a replacement short-lived user smoke
 identity. Final Function failures report only HTTP status plus handler-marker
 presence; Data API failures instead identify the PostgREST/RPC diagnostic path
 without expecting a Function header. The production gate additionally calls
-`identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
-`get-explore-composer-media`, and `insight-chat` without Authorization until
-each returns fail-closed `401` with the fixed handler marker. A platform `404`
+all ten customer-critical scan, signing, share-state, Explore, Field Chat,
+Community, and deletion routes without Authorization until each returns
+fail-closed `401` with the fixed handler marker:
+`generate-upload-urls`, `identify-multimodal`, `check-scan-status`,
+`share-scan-to-explore`, `get-scan-explore-share-state`,
+`get-explore-composer-media`, `insight-chat`, `explore-post-chat`,
+`request-community-identification`, and `delete-scan`. A platform `404`
 therefore cannot be mistaken for an application-level missing scan or a
 successful rollout. The RevenueCat reconciliation-health monitor uses that
 resolver and transport too. Do not replace the resolver with the CLI API-key
@@ -1663,13 +1696,14 @@ explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
 imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for the six
-customer-critical scan, Explore, and Ask the Community routes. It then reaches
-the exact no-write SQLSTATE `22023` boundary in `ensure_scan_user_profile` and
-`publish_scan_to_explore_atomically` and
-`request_community_identification_atomically` with server authority, while
-proving every real anon/publishable project credential remains denied from all
-three routines.
+followed by stricter fail-closed authorization probes for ten customer-critical
+scan, signing, share-state, Explore, Field Chat, Community, and deletion routes.
+It then reaches the exact no-write SQLSTATE `22023` boundary in
+`ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
+`request_community_identification_atomically`, `recover_missing_owned_scan`,
+`reserve_field_chat_send`, and `recover_stale_field_chat_quota` with server
+authority, while proving every real anon/publishable project credential remains
+denied from all six routines.
 
 This verifies PostgREST schema-cache readiness and production grants without
 creating a fixture or logging a response body. Database migrations still run
@@ -1682,6 +1716,15 @@ For identification-latency releases, apply migrations before deploying function
 code that calls the new RPCs, then stage the client and Edge rollout using the
 gates in `docs/backend-and-data/06-supabase-deployment-runbook.md`. Do not force
 an Edge region without the documented A/B evidence.
+
+For Field Chat reliability releases, apply
+`20260729163616_reserve_field_chat_sends_atomically.sql` before either chat
+function. Deploy `insight-chat` and `explore-post-chat` from the same exact SHA,
+then stage same-key replay/conflict, different-key concurrency in one
+conversation, 28/29/30-row boundaries, a 19-to-20 send transition split across
+both chat families, and the ten-minute stale-quota path before releasing iOS. An
+RPC timeout, malformed admission row, or missing migration must remain a
+retryable `503` without provider dispatch.
 
 For the Field trip Scan indicator, apply the contextual-guide, active-field trip
 capture-context, and standard-field trip preservation migrations before

@@ -417,6 +417,41 @@ Deno.test("reconcileScanMediaAssets marks abandoned ingestion jobs terminal", as
   }]);
 });
 
+Deno.test("reconcileScanMediaAssets never rewrites an existing terminal decision", async () => {
+  const failedJobs: unknown[] = [];
+
+  const result = await reconcileScanMediaAssets({} as never, {
+    now: NOW,
+    repairAfterMinutes: 15,
+    abandonAfterHours: 36,
+  }, {
+    r2Config: R2_CONFIG,
+    fetchAssets: () =>
+      Promise.resolve([
+        stagedAsset({ created_at: "2026-07-03T23:00:00.000Z" }),
+      ]),
+    fetchScans: () => Promise.resolve([]),
+    fetchJobs: () =>
+      Promise.resolve([
+        jobRow({
+          status: "failed_terminal",
+          stage: "moderation_rejected",
+        }),
+      ]),
+    headObject: () => Promise.resolve(new Response(null, { status: 404 })),
+    markFailed: () => Promise.resolve(),
+    markJobFailed: (scanId, userId, failureReason) => {
+      failedJobs.push({ scanId, userId, failureReason });
+      return Promise.resolve();
+    },
+    recordRun: noopRecordRun,
+  });
+
+  assertEquals(result.failedAssets, 1);
+  assertEquals(result.missingObjects, 1);
+  assertEquals(failedJobs, []);
+});
+
 Deno.test("reconcileScanMediaAssets marks repaired complete jobs complete", async () => {
   const completedJobs: unknown[] = [];
 

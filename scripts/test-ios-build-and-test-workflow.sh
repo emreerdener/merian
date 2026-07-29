@@ -241,6 +241,22 @@ assert_file_contains "$critical_results_check" "InferenceEngineTests"
 assert_file_contains "$critical_results_check" "OfflineQueueManagerTests"
 assert_file_contains "$critical_results_check" "SyncStateManagerTests"
 
+for exact_scan_regression in \
+  "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \
+  "scheduledServerFailureMarkerIsReadFromDurableStore" \
+  "testMarkScanAsStagedPreservesScheduledServerFailureRetry" \
+  "testManualRetryResetsBudgetForDescriptionOnlyScan" \
+  "cloudDeletionRequiresExplicitNetworkConfirmation" \
+  "cloudDeletionRetriesNeverEnterAnUnrecoverableState" \
+  "cloudDeletionDrainIsProcessSingleFlight" \
+  "testExploreShareSendsMissingScanRecoveryPayload" \
+  "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion" \
+  "testExploreMediaIncidentsAndLifecycleNotificationsDecode" \
+  "testExploreMediaIncidentsRejectsUnknownSuccessShape" \
+  "testDeleteScanRejectsUnconfirmedSuccessResponse"; do
+  assert_file_contains "$critical_results_check" "$exact_scan_regression"
+done
+
 for startup_requirement in \
   "runs-on: macos-26" \
   "/Applications/Xcode_26.6.app/Contents/Developer" \

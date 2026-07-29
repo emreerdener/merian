@@ -281,8 +281,14 @@ only for audio companions, rebuilds canonical image/video/audio rows, verifies
 that promoted URLs are represented by ready canonical rows, and writes
 `media_finalization_complete` last. Server replay and media reconciliation call
 this routine rather than updating the ledger directly. Terminal outcomes carry
-stable `terminal_reason_code` values; compatibility recovery is allowlisted only
-for `replay_exhausted` and fails closed on legacy or unknown reasons.
+stable `terminal_reason_code` values. Compatibility recovery permits exact
+`replay_exhausted`; exact `media_reconciliation_abandoned` also requires its
+matching owner/scan service-written post-result `failed_scan_ingestions` row.
+Policy, unproven abandonment, legacy, and unknown reasons fail closed. The
+producer checks both thrown transport failures and the returned Supabase
+database error when writing that proof; either failure emits
+`multimodal/dead_letter_write_failed` instead of silently losing recovery
+provenance.
 
 Canonical completeness follows `captured_media` when it has a valid visual
 timeline. For a legacy video row, it mirrors the refresher: only the standalone

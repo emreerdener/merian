@@ -33,18 +33,33 @@ steps are tracked in the
 > failures reached the new atomic Explore/Community RPCs and proved their
 > `SECURITY INVOKER` caller lacked explicit relational privileges on
 > `explore_community_requests`; the run stopped before production mutation.
-> Forward migration
-> `20260729044500_grant_atomic_explore_service_privileges.sql` now grants only
-> the required service-role table operations while browser-facing roles retain
-> no writes, and both fixtures assert that boundary. The remediation also
-> preserves offline retry history and requires the durable completed-upload
-> transition to commit before inference starts. No successful exact-SHA
-> deployment evidence for these corrections has been retained yet. The release
-> remains held until one reviewed exact SHA passes all 26
-> current catalog files, completes the ordered backend deployment, passes the
-> matching hosted iOS gate, and clears joined video, Field Chat, offline, and
-> Explore/Ask the Community staging smokes. See the
+> Forward migration `20260729044500_grant_atomic_explore_service_privileges.sql`
+> now grants only the required service-role table operations while
+> browser-facing roles retain no writes, and both fixtures assert that boundary.
+> The remediation also preserves offline retry history and requires the durable
+> completed-upload transition to commit before inference starts. No successful
+> exact-SHA deployment evidence for these corrections has been retained yet. The
+> release remains held until one reviewed exact SHA passes all 27 current
+> catalog files, completes the ordered backend deployment, passes the matching
+> hosted iOS gate, and clears joined video, Field Chat, offline, and Explore/Ask
+> the Community staging smokes. See the
 > [video finalization incident](docs/incidents/2026-07-video-scan-canonical-finalization-regression.md).
+
+> **TestFlight addendum (2026-07-29):** build 1.0.2 (235) exposed a client
+> state-machine deadlock after `failed_retryable / background_ingestion_failed`.
+> Media uploaded successfully, but every status preflight skipped the Identify
+> request required to reclaim the failed generation; upload success also erased
+> its retry count. A separate same-session smoke proved new Identify and Explore
+> publication healthy while an eligible older
+> `media_reconciliation_abandoned` record was rejected by the terminal repair
+> signer. The tree now preserves one exact retry latch through re-stage, permits
+> its generation-fenced Identify dispatch, bounds automatic churn, and allows
+> only authenticated tombstone-free `replay_exhausted` repair, or
+> `media_reconciliation_abandoned` repair backed by the exact service-written
+> post-result dead letter. See the
+> [retry deadlock incident](docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md)
+> and
+> [legacy share incident](docs/incidents/2026-07-media-abandoned-explore-share-recovery.md).
 
 ---
 
@@ -140,10 +155,19 @@ steps are tracked in the
   scan-producing route atomically establishes its job/intent before provider
   dispatch; rolling-deployment claim and recovery share that per-scan database
   generation lock. Recovery writes its scan and completed ledger atomically and
-  requires an existing complete or exact replay-exhausted ledger; unknown and
-  no-ledger state fails closed. Owner deletion takes the same lock and writes a
-  private UUID tombstone before storage erasure, permanently fencing delayed
-  inference, replay, and cross-device recovery for the deleted generation.
+  requires an existing complete ledger, exact `replay_exhausted`, or exact
+  `media_reconciliation_abandoned` plus the matching service-written post-result
+  dead letter; policy, unproven abandonment, unknown, and no-ledger state fails
+  closed. A retryable scanless generation writes one
+  durable client retry latch. That exact latch survives any required fresh
+  upload and lets the delayed preflight send Identify instead of repeatedly
+  classifying its own retry as server-owned. Explicit retry starts a fresh
+  bounded automatic budget under the same scan UUID, including for
+  description-only work with no upload-reset boundary; a known cloud-complete
+  result instead remains owner-recovery-only. Owner deletion takes the same
+  lock and writes a private UUID tombstone before storage erasure, permanently
+  fencing delayed inference, replay, and cross-device recovery for the deleted
+  generation.
   Storage deletion accepts only flat free/Pro object keys containing that
   canonical owner UUID, so a poisoned row cannot nominate another user's object.
   A leased server reaper independently completes interrupted media erasure and
@@ -662,13 +686,13 @@ without user Authorization, along with Ask the Community creation. Exact
 non-mutating SQLSTATE probes also verify the three required scan/publication
 RPCs are live for server authority and denied to real public project
 credentials; a transient Supabase gateway `404` remains a failed or in-progress
-rollout. Static caller coverage rejects a route literal from any
-application target, workflow, worker, script, or active migration when it has no
-configured entrypoint. Scan-producing routes treat at-least-once delivery as
-idempotent success: the same owner/scan UUID replays its validated response as
-HTTP `200` without a second AI provider call instead of surfacing an internal
-quota or completion `409`. Existing completed rows can be reconstructed through
-the same wire contract. See the
+rollout. Static caller coverage rejects a route literal from any application
+target, workflow, worker, script, or active migration when it has no configured
+entrypoint. Scan-producing routes treat at-least-once delivery as idempotent
+success: the same owner/scan UUID replays its validated response as HTTP `200`
+without a second AI provider call instead of surfacing an internal quota or
+completion `409`. Existing completed rows can be reconstructed through the same
+wire contract. See the
 [July 2026 Identify idempotency incident](docs/incidents/2026-07-identify-idempotency-conflict.md).
 Current opaque Supabase server keys use only the standard `apikey` header;
 legacy service-role JWTs temporarily use both `apikey` and Bearer. Credential

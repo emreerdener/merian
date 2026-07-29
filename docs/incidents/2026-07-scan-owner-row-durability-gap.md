@@ -15,6 +15,14 @@ in
 It can produce the same downstream Share/Field Chat symptom without recreating
 the original missing-owner-row defect.
 
+**2026-07-29 addendum:** A later TestFlight trace proved a new scan could
+analyze and publish while an older missing owner row was terminal as
+`media_reconciliation_abandoned`. That distinct compatibility failure is
+tracked in
+[July 2026 Media-Abandoned Explore Share Recovery](./2026-07-media-abandoned-explore-share-recovery.md).
+Its narrow repair requires the exact owner/scan service-written post-result dead
+letter; the terminal reason alone is not recovery authority.
+
 ## Summary
 
 iOS could receive `200 OK` from `/identify-multimodal`, save the returned
@@ -146,7 +154,10 @@ match.
 Recovery is allowed only for:
 
 - a `complete` job whose scan row is unexpectedly absent; or
-- an exact structured `replay_exhausted` operational terminal outcome.
+- an exact structured `replay_exhausted` operational terminal outcome; or
+- exact `media_reconciliation_abandoned` paired with the matching owner/scan
+  `failed_scan_ingestions` row written by the service after a valid provider
+  result entered post-result finalization.
 
 An absent ledger fails closed as `deferred`; accepting an arbitrary no-ledger
 UUID would let a modified client fabricate canonical history. Recovery is never
@@ -173,11 +184,13 @@ older URL list.
 
 Recovery is refused while ingestion is processing, finalizing, retrying, or
 `failed_retryable`. It is also refused for moderation, provider-policy,
-media-abandonment, legacy-unknown, arbitrary, or missing terminal reason codes.
-The migration backfills known historical reasons before recovery begins using
-them. Exact reason codes are used so an unrelated operational message containing
-words such as “rejected” cannot accidentally become an irreversible policy
-decision.
+unproven media-abandonment, legacy-unknown, arbitrary, or missing terminal
+reason codes. The media reconciler cannot overwrite an already-terminal job,
+and its database update independently excludes terminal and complete rows. The
+migration backfills known historical reasons before recovery begins using them.
+Exact reason codes and exact server provenance are used so an unrelated
+operational message containing words such as “rejected” cannot accidentally
+become an irreversible policy decision.
 
 The feature paths are deliberately different:
 
@@ -253,7 +266,7 @@ remain required before production promotion.
 | 2026-07-27 | Durable identify success, guarded server recovery, staged-media repair, retryable Field Chat behavior, customer-facing toasts, tests, and documentation were corrected in the repository.                                                                                          |
 | 2026-07-28 | Production listed updated scan functions as active. The next reported Share attempt coincided with a separate zero-latency platform route failure affecting Share and composer media.                                                                                              |
 | 2026-07-28 | Final adversarial review moved non-biological retention onto the same generation-tombstone/reaper lifecycle, closing its remaining finalizer-versus-inline-purge race.                                                                                                             |
-| 2026-07-28 | Production route probes subsequently reached marked handlers. Atomic database recovery, typed client route failure, and a fleet-wide route gate with six stricter authorization probes were added for lasting resilience; authenticated end-to-end verification remains required. |
+| 2026-07-28 | Production route probes subsequently reached marked handlers. Atomic database recovery, typed client route failure, and a fleet-wide route gate—later expanded to ten stricter authorization probes across the complete customer-critical workflow—were added for lasting resilience; authenticated end-to-end verification remains required. |
 
 ## Required Production Verification
 

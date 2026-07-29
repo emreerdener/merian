@@ -66,15 +66,17 @@ _Upload state machine (V33):_
   an empty set so the caller does not sign or dispatch unclaimed files.
 - `markScanAsStaged(scanId:r2Keys:)` — called once the last media upload for a
   scan confirms HTTP 200. Persists the confirmed image/audio R2 object keys into
-  `stagedR2Keys`, resets upload retry metadata, updates the queue job, and
-  transitions `.uploading → .staged` in one save. Source-state guard: only
+  `stagedR2Keys`, normally resets upload retry metadata, updates the queue job,
+  and transitions `.uploading → .staged` in one save. Source-state guard: only
   advances from `.uploading`; prevents a concurrent tombstone from being
   resurrected. It returns `.staged` only after save, `.alreadyAdvanced` for a
   serialized matching staged manifest or inferencing owner, `.retryRequired`
   for retryable fetch/state/manifest/save failure, and `.discarded` for missing
   or non-runnable rows. Save failure rolls back every part of the transaction,
   and the upload callback cannot continue to an inference claim from
-  uncommitted or mismatched keys.
+  uncommitted or mismatched keys. An exact scheduled
+  `server_retryable_failure` reclaim preserves its marker, count, last attempt,
+  and matching job metadata through a required re-stage.
 - `tryClaimForInference(scanId:generation:)` — atomic local-persistence lock for
   inference. It transitions `.staged → .inferencing` and saves the generation in
   the same transaction; returns `false` if the scan is already `.inferencing`,

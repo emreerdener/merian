@@ -644,6 +644,10 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   assertStringIncludes(identifyReadme, "owner-scoped read-back");
   assertStringIncludes(
     identifyReadme,
+    "`multimodal/dead_letter_write_failed`",
+  );
+  assertStringIncludes(
+    identifyReadme,
     "An ordinary owner generation may become quota-retry-ready only when",
   );
   assertStringIncludes(
@@ -800,6 +804,306 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
   }
 });
 
+Deno.test("TestFlight scan recovery documentation preserves retry and legacy-share boundaries", async () => {
+  const [
+    rootSource,
+    documentationSource,
+    changelogSource,
+    offlineSource,
+    reliabilitySource,
+    loggingSource,
+    coreDataSource,
+    networkSource,
+    insightSharingSource,
+    networkClientImplementationSource,
+    signerReadmeSource,
+    statusReadmeSource,
+    shareReadmeSource,
+    reconciliationReadmeSource,
+    retryIncidentSource,
+    shareIncidentSource,
+    migrationSource,
+    signerSource,
+    reconciliationWorkerSource,
+    reconciliationDbSource,
+    apiContractSource,
+    backendArchitectureSource,
+    mediaHealthSource,
+    featureModulesSource,
+    imagePipelineSource,
+    supabaseReadmeSource,
+    testingStrategySource,
+  ] = await Promise.all([
+    read("README.md"),
+    read("docs/README.md"),
+    read("CHANGELOG.md"),
+    read("docs/backend-and-data/01-offline-sync-pipeline.md"),
+    read(
+      "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
+    ),
+    read("docs/development-guides/04-logging-and-debugging.md"),
+    read("apps/ios/Merian/Core/Data/README.md"),
+    read("apps/ios/Merian/Core/Network/README.md"),
+    read("apps/ios/Merian/Features/Insights/Sharing/README.md"),
+    read("apps/ios/Merian/Core/Network/MerianNetworkClient.swift"),
+    read("services/supabase/functions/generate-upload-urls/README.md"),
+    read("services/supabase/functions/check-scan-status/README.md"),
+    read("services/supabase/functions/share-scan-to-explore/README.md"),
+    read(
+      "services/supabase/functions/reconcile-scan-media-assets/README.md",
+    ),
+    read(
+      "docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md",
+    ),
+    read(
+      "docs/incidents/2026-07-media-abandoned-explore-share-recovery.md",
+    ),
+    read(
+      "services/supabase/migrations/20260729173000_recover_media_abandoned_owned_scans.sql",
+    ),
+    read("services/supabase/functions/_shared/scanMediaAssets.ts"),
+    read(
+      "services/supabase/functions/reconcile-scan-media-assets/worker.ts",
+    ),
+    read("services/supabase/functions/reconcile-scan-media-assets/db.ts"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/02-supabase-edge-and-database.md"),
+    read(
+      "docs/backend-and-data/12-explore-media-health-and-quarantine.md",
+    ),
+    read("docs/features-and-hardware/07-feature-modules-and-ui.md"),
+    read("docs/system-architecture/03-image-pipeline.md"),
+    read("services/supabase/README.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+  ]);
+
+  for (const source of [rootSource, documentationSource]) {
+    assertStringIncludes(
+      source,
+      "2026-07-failed-retryable-scan-status-upload-deadlock.md",
+    );
+    assertStringIncludes(
+      source,
+      "2026-07-media-abandoned-explore-share-recovery.md",
+    );
+  }
+
+  for (
+    const source of [
+      offlineSource,
+      reliabilitySource,
+      coreDataSource,
+      networkSource,
+      retryIncidentSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "`server_retryable_failure`");
+  }
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "`/check-scan-status` requests | 64",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "`/identify`, `/identify-multimodal`, `/identify-describe`, or `audio-spec` | 0",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "`/get-explore-media-incidents` returned a two-byte empty `[]`",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "latest 100 first-parent commits",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "zero merge commits in that window",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "`fab31d92a5985c7c02669c33cadfcc2b1091e3a8`",
+  );
+  assertStringIncludes(
+    compact(rootSource),
+    "preserves one exact retry latch through re-stage",
+  );
+  assertStringIncludes(
+    compact(changelogSource),
+    "instead of endlessly alternating status checks and successful uploads",
+  );
+  for (
+    const source of [
+      rootSource,
+      changelogSource,
+      offlineSource,
+      reliabilitySource,
+      coreDataSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "description-only");
+    assertStringIncludes(compact(source), "same scan UUID");
+  }
+  for (
+    const source of [
+      changelogSource,
+      offlineSource,
+      reliabilitySource,
+      coreDataSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "process-local single-flight");
+  }
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`testManualRetryResetsBudgetForDescriptionOnlyScan`",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`cloudDeletionDrainIsProcessSingleFlight`",
+  );
+  assertStringIncludes(
+    compact(loggingSource),
+    "unchanged queue/record snapshots and throttled duplicate pipeline kicks emit no refresh diagnostics",
+  );
+  assertStringIncludes(
+    compact(loggingSource),
+    "`/get-explore-media-incidents` reports `bytes=2`",
+  );
+  assertStringIncludes(
+    compact(networkSource),
+    "current `{data:[...]}` envelope and the exact older direct-array response",
+  );
+  assertStringIncludes(
+    compact(changelogSource),
+    "A deployed empty `[]` no longer produces a false decode error",
+  );
+  for (
+    const source of [
+      apiContractSource,
+      backendArchitectureSource,
+      mediaHealthSource,
+      featureModulesSource,
+      imagePipelineSource,
+      supabaseReadmeSource,
+    ]
+  ) {
+    const canonicalSource = compact(source);
+    assertStringIncludes(canonicalSource, '`{"data":[...]}`');
+    assert(
+      canonicalSource.includes("direct array") ||
+        canonicalSource.includes("direct-array"),
+      "Media-incident rollout documentation must preserve the exact legacy direct-array compatibility boundary.",
+    );
+  }
+  assertStringIncludes(
+    compact(apiContractSource),
+    "Rapid queue-driven refresh triggers are coalesced within five seconds",
+  );
+  assertStringIncludes(
+    compact(apiContractSource),
+    "A trigger received during an in-flight call receives one trailing refresh rather than being dropped",
+  );
+  assertStringIncludes(
+    compact(networkSource),
+    "revalidates the authenticated owner before projecting the private incident queue",
+  );
+  assertStringIncludes(
+    compact(featureModulesSource),
+    "malformed `2xx` bodies fail as `invalidResponse`",
+  );
+
+  const localShareStart = networkClientImplementationSource.indexOf(
+    "func shareScanToExplore(\n        scan: LocalScanRecord",
+  );
+  const localShareEnd = networkClientImplementationSource.indexOf(
+    "func requestCommunityIdentification(",
+    localShareStart,
+  );
+  assert(
+    localShareStart >= 0 && localShareEnd > localShareStart,
+    "Local Explore-share implementation could not be isolated.",
+  );
+  const localShare = compact(
+    networkClientImplementationSource.slice(localShareStart, localShareEnd),
+  );
+  const recoveryPayloadIndex = localShare.indexOf(
+    "let recoveryScan = try await makeOwnedScanRecoveryPayload(",
+  );
+  const ownerRecoveryIndex = localShare.indexOf(
+    "let recovered = try await recoverMissingOwnedCloudScan(",
+  );
+  const restoreSigningIndex = localShare.indexOf(
+    "let restoredObjectKeys = try await restoreExploreMediaObjectKeys(",
+  );
+  assert(
+    recoveryPayloadIndex >= 0 &&
+      ownerRecoveryIndex > recoveryPayloadIndex &&
+      restoreSigningIndex > ownerRecoveryIndex,
+    "Current iOS must build recovery evidence and repair the missing owner row before requesting restore upload URLs.",
+  );
+  assertStringIncludes(localShare, "recoveryScan: recoveryScan");
+
+  for (
+    const source of [
+      reliabilitySource,
+      signerReadmeSource,
+      statusReadmeSource,
+      shareReadmeSource,
+      reconciliationReadmeSource,
+      shareIncidentSource,
+      insightSharingSource,
+    ]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "service-written post-result",
+    );
+    assertStringIncludes(
+      compact(source),
+      "media_reconciliation_abandoned",
+    );
+  }
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "asks single-scan status recovery to commit the guarded owner row and requires an authoritative `found` response",
+  );
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "currently released/TestFlight client uses the older order",
+  );
+  assertStringIncludes(
+    compact(shareIncidentSource),
+    "`multimodal/dead_letter_write_failed`",
+  );
+
+  const migration = compact(migrationSource);
+  assertStringIncludes(
+    migration,
+    "FROM public.failed_scan_ingestions AS failures",
+  );
+  assertStringIncludes(
+    migration,
+    "failures.scan_id = p_scan_id::TEXT",
+  );
+  assertStringIncludes(migration, "failures.user_id = p_user_id");
+  assertStringIncludes(
+    compact(signerSource),
+    '.from("failed_scan_ingestions")',
+  );
+  assertStringIncludes(
+    compact(reconciliationWorkerSource),
+    'job.status !== "complete" && job.status !== "failed_terminal"',
+  );
+  assertStringIncludes(
+    compact(reconciliationDbSource),
+    '.not("status", "in", "(complete,failed_terminal)")',
+  );
+  assertStringIncludes(
+    compact(reconciliationReadmeSource),
+    "It never overwrites an existing `complete` or `failed_terminal` decision",
+  );
+});
+
 Deno.test("joined scan reliability documentation preserves critical contracts", async () => {
   const [
     joinedSource,
@@ -821,6 +1125,9 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     exploreFeedSource,
     incidentSource,
     videoIncidentSource,
+    offlinePipelineSource,
+    errorHandlingSource,
+    networkClientSource,
     inAppChangelogSource,
   ] = await Promise.all([
     read(
@@ -852,6 +1159,9 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     read(
       "docs/incidents/2026-07-video-scan-canonical-finalization-regression.md",
     ),
+    read("docs/backend-and-data/01-offline-sync-pipeline.md"),
+    read("docs/development-guides/06-error-handling.md"),
+    read("apps/ios/Merian/Core/Network/README.md"),
     read("apps/ios/Merian/Resources/Changelog/changelog.json"),
   ]);
   const joined = compact(joinedSource);
@@ -874,9 +1184,12 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "the combined active staged/processing capture-key set cannot exceed six",
       "the accumulator equals the duplicate-free exact complete expected key set",
       "Sanitized filename/object-key collisions are rejected locally before signing or upload.",
-      "`markScanAsStaged` must atomically save the keys, reset upload retry accounting",
+      "`markScanAsStaged` must atomically save the keys, normally reset upload retry accounting",
+      "An exact scheduled server-failure retry instead preserves its reclaim marker/count",
       "A retryable fetch/state/manifest/save outcome returns before inference dispatch",
-      "Durable retry accounting resets only in the same save that promotes that exact complete manifest to staged.",
+      "Durable upload retry accounting normally resets only in the same save that promotes that exact complete manifest to staged.",
+      "A transient signer or PUT failure during re-stage also retains the machine marker",
+      "increments from the maximum committed count rather than a cached main-context value",
       "mismatched already-staged manifest, or persistence failure cannot advance the callback to inference",
       "server status `found` starts local result recovery but does not zero the attempt count",
       "the queue stays server-owned and `.inferencing`",
@@ -887,6 +1200,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "the committed queue-deletion path is the sole local file-cleanup authority",
       "one main-context save marks the job complete, clears transient job errors, inserts the completed event, and deletes the queue row",
       "Explicit deletion remains the only path that records cancellation.",
+      "Pending cloud erasure uses the same positive-proof rule.",
+      "No local error category is treated as proof that owner data has been erased.",
+      "privacy erasure never exhausts an automatic retry budget",
+      "repairs legacy paused or contradictory terminal job status",
       "The owner-row observation is marked durably before hydration",
       "a failed, unavailable, or temporarily inconsistent status probe therefore continues completed-result recovery",
       "`server_result_local_recovery_pending`",
@@ -912,7 +1229,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "The backend canonicalizes UUID case, rejects reuse with different normalized text, reserves both rows under the 30-row cap",
       "gives every assistant a deterministic UUIDv8 row identity",
       "reconciles an ambiguous insert by reading the pair back",
-      "The backend coalesces duplicate and quota-layer retries into that exact pair",
+      "After atomic admission, the backend coalesces duplicate and quota-layer retries into that exact pair",
       "Duplicate-insert and waited-replay boundaries revalidate UUID/text binding",
       "the exact acknowledged user text",
       "restores that row as the failed pending bubble under the same canonical UUID",
@@ -920,7 +1237,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "an incomplete retry requires one remaining assistant slot",
       "Prompt filtering targets unsafe user action intent rather than isolated words at generation and send time",
       "This response-identity change is an expand-first rollout.",
-      "force one same-UUID ambiguous send retry",
+      "force same-UUID ambiguous replay",
       "Older clients ignore the additive fields; the corrected client intentionally rejects an older function response without its subject or current send-pair proof.",
       "The community request is locked before its scan",
       "Ask the Community uses the same eligible canonical image, playback-video, and standalone-audio projection.",
@@ -948,31 +1265,32 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "authoritative known location-sharing value",
       "Local working-tree evidence is not immutable release evidence.",
       "`scripts/require_supabase_cli_version.sh`",
-      "Current deterministic non-PostgreSQL Deno discovery run: 1,313 passed, 0 failed",
+      "Current deterministic non-PostgreSQL Deno discovery run: 1,331 passed, 0 failed",
+      "The configured broad task also reported 1,414 passed",
       "A prior unrestricted run connected to a stale local Docker schema",
       "1,386 passed and the two affected author-profile integration cases failed",
-      "Localhost skips and stale-listener failures are retained as environment evidence",
-      "180 assertions passed across 28 migration contract files",
+      "Localhost early returns and stale-listener failures are retained as environment evidence",
+      "189 assertions passed across 30 migration contract files",
+      "`migrations/20260729173000_recover_media_abandoned_owned_scans.sql`",
       "The hosted 21-assertion revision completed its first four preflight assertions",
       "The revised fixture plans 22 assertions",
       "atomic_community_identification_request_security.sql",
       "The hosted 24-assertion revision completed its first five preflight assertions",
       "The revised rollback-only fixture plans 25 assertions",
-      "The current eleven-file runtime delta resolves exactly three graph-affected functions",
-      "`explore-post-chat`, `insight-chat`, and `species-observation-stats`",
-      "All 89 isolated function graphs validated across 291 runtime files.",
-      "The retained undeployed-baseline/control-path simulation resolved all 89 functions",
+      "contains 94 changed paths",
+      "is an explicit deployment control path, so the fail-closed planner resolves all 89 configured functions",
+      "All 89 isolated function graphs validated across 292 runtime files",
+      "Full-fallback, shuffled-plan, compatibility-order, and fail-stop fixtures passed.",
       "An unsafe or missing baseline falls back to all 89 functions.",
-      "including all ten required scan functions",
-      "shuffled-plan and fail-stop fixtures passed",
+      "Selected critical members deploy sequentially in compatibility order",
       "The latest hosted run discovered 26 files and completed 24.",
       "Identity merge/recovery and all 30 inline/video assertions passed.",
       "Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501`",
-      "both revised 22- and 25-assertion atomic files and all 26 files must pass",
+      "the 16-assertion Field Chat file, and all 27 files must pass",
       "The latest supplied hosted run compiled and executed 879 tests in 67 suites",
       "`completedInferenceAndQueueDeletionCommitTogether()` rejected `repeatedDelete`",
       "malformed Explore share and share-state responses leaked `DecodingError`",
-      "The committed `daa18da00` production changes address all three",
+      "The committed `0dae738e9` production changes address all three",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",
@@ -1003,6 +1321,41 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     ),
     "Obsolete universal multimodal-finalization guidance returned.",
   );
+  for (
+    const [source, fragment] of [
+      [
+        offlinePipelineSource,
+        "`invalidResponse` is not not-found proof",
+      ],
+      [
+        errorHandlingSource,
+        "Never infer a remote mutation from this error.",
+      ],
+      [
+        networkClientSource,
+        "never evidence that remote data is absent",
+      ],
+    ] as const
+  ) {
+    assertStringIncludes(compact(source), fragment);
+  }
+  for (
+    const source of [
+      offlinePipelineSource,
+      errorHandlingSource,
+      networkClientSource,
+    ]
+  ) {
+    assert(
+      !compact(source).includes(
+        "invalidResponse → tombstone (resource already gone",
+      ) &&
+        !compact(source).includes(
+          "invalidResponse` (resource already gone) is treated as terminal",
+        ),
+      "Obsolete invalidResponse-as-erasure guidance returned.",
+    );
+  }
 
   for (const source of [rootSource, documentationSource]) {
     assertStringIncludes(
@@ -1163,7 +1516,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     compact(incidentSource),
-    "The latest hosted fresh-catalog replay discovered all 26 current pgTAP files.",
+    "The latest hosted fresh-catalog replay discovered all 26 pgTAP files present on that SHA.",
   );
   assertStringIncludes(
     compact(incidentSource),
@@ -1238,6 +1591,18 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "remains safely queued and keeps retrying until cloud erasure is explicitly confirmed",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "safely coordinates simultaneous sends across devices",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "recovers a long-interrupted unanswered request without duplicating the saved question",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
     "restores an unanswered question to Retry and Edit after relaunch",
   );
   assertStringIncludes(
@@ -1260,6 +1625,104 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
     "an unconfirmed response no longer shows a false success",
   );
+});
+
+Deno.test("Field Chat documentation preserves atomic admission and stale recovery", async () => {
+  const [
+    schemaSource,
+    apiSource,
+    reliabilitySource,
+    backendSource,
+    sharedSource,
+    insightSource,
+    exploreSource,
+    testingSource,
+    errorSource,
+    aiSource,
+    codebaseSource,
+    networkSource,
+    clientSource,
+    runbookSource,
+  ] = await Promise.all([
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read(
+      "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
+    ),
+    read("services/supabase/README.md"),
+    read("services/supabase/functions/_shared/README.md"),
+    read("services/supabase/functions/insight-chat/README.md"),
+    read("services/supabase/functions/explore-post-chat/README.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/development-guides/06-error-handling.md"),
+    read("docs/system-architecture/04-ai-engineering.md"),
+    read("docs/codebase-map.md"),
+    read("apps/ios/Merian/Core/Network/README.md"),
+    read("apps/ios/Merian/Features/Insights/Chat/README.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+  ]);
+
+  for (
+    const source of [
+      schemaSource,
+      apiSource,
+      reliabilitySource,
+      backendSource,
+      insightSource,
+      exploreSource,
+      testingSource,
+      codebaseSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "`20260729163616_reserve_field_chat_sends_atomically.sql`",
+    );
+  }
+
+  for (
+    const fragment of [
+      "`reserve_field_chat_send(...)`",
+      "`recover_stale_field_chat_quota(...)`",
+      "cross-table",
+      "newly metered",
+    ]
+  ) {
+    assertStringIncludes(compact(reliabilitySource), fragment);
+    assertStringIncludes(compact(backendSource), fragment);
+  }
+
+  assertStringIncludes(
+    compact(sharedSource),
+    "The database transaction—not an Edge count-then-insert read—owns",
+  );
+  assertStringIncludes(
+    compact(testingSource),
+    "`tests/field_chat_reservation_security.sql`",
+  );
+  assertStringIncludes(
+    compact(errorSource),
+    "`503 field_chat_admission_unavailable`",
+  );
+  assertStringIncludes(
+    compact(errorSource),
+    "`503 field_chat_recovery_unavailable`",
+  );
+  assertStringIncludes(
+    compact(aiSource),
+    "`_shared/fieldChatReservation.ts`",
+  );
+  for (const source of [networkSource, clientSource]) {
+    assertStringIncludes(
+      compact(source),
+      "`field_chat_admission_unavailable`",
+    );
+    assertStringIncludes(
+      compact(source),
+      "`field_chat_recovery_unavailable`",
+    );
+  }
 });
 
 Deno.test("Edge route availability docs preserve the gateway-handler boundary", async () => {
@@ -1312,17 +1775,42 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   for (
     const functionName of [
+      "`generate-upload-urls`",
       "`identify-multimodal`",
       "`check-scan-status`",
       "`share-scan-to-explore`",
+      "`get-scan-explore-share-state`",
       "`get-explore-composer-media`",
       "`insight-chat`",
+      "`explore-post-chat`",
       "`request-community-identification`",
+      "`delete-scan`",
     ]
   ) {
     assertStringIncludes(runbook, functionName);
     assertStringIncludes(backend, functionName);
   }
+  for (
+    const routineName of [
+      "`ensure_scan_user_profile`",
+      "`publish_scan_to_explore_atomically`",
+      "`request_community_identification_atomically`",
+      "`recover_missing_owned_scan`",
+      "`reserve_field_chat_send`",
+      "`recover_stale_field_chat_quota`",
+    ]
+  ) {
+    assertStringIncludes(runbook, routineName);
+    assertStringIncludes(backend, routineName);
+  }
+  assertStringIncludes(
+    runbook,
+    "All inputs are syntactically valid JSON but raise their exact SQLSTATE `22023` message before any advisory lock, row lock, or write.",
+  );
+  assertStringIncludes(
+    backend,
+    "proving every real anon/publishable project credential remains denied from all six routines.",
+  );
   assertStringIncludes(
     runbook,
     "Each critical route must return `401` with the marker",
@@ -1380,8 +1868,10 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
+    "docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md",
     "docs/incidents/2026-07-identify-idempotency-conflict.md",
     "docs/incidents/2026-07-inline-scan-staging-manifest-regression.md",
+    "docs/incidents/2026-07-media-abandoned-explore-share-recovery.md",
     "docs/incidents/2026-07-scan-owner-row-durability-gap.md",
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
     "docs/incidents/2026-07-supabase-edge-route-not-found.md",
@@ -1406,6 +1896,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/insight-chat/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
     "services/supabase/functions/reconcile-dwca-archive-cleanup/README.md",
+    "services/supabase/functions/reconcile-scan-media-assets/README.md",
     "services/supabase/functions/repair-scan-image/README.md",
     "services/supabase/functions/request-community-identification/README.md",
     "services/supabase/functions/request-export-dwca/README.md",

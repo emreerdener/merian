@@ -166,6 +166,10 @@ private struct BulkScanStatusResponse: Decodable {
     let results: [ScanStatusResponse]
 }
 
+private struct DeleteScanResponse: Decodable {
+    let success: Bool
+}
+
 private struct UploadURLRequestBody: Encodable {
     let files: [StagingUploadFile]
     let userId: String
@@ -2278,7 +2282,20 @@ final class MerianNetworkClient {
     func deleteScan(scanId: String) async throws {
         let functionUrl = try endpointURL("delete-scan")
         let bodyData = try JSONSerialization.data(withJSONObject: ["scanId": scanId])
-        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData
+        )
+        let response: DeleteScanResponse
+        do {
+            response = try JSONDecoder().decode(DeleteScanResponse.self, from: data)
+        } catch {
+            throw MerianError.invalidResponse
+        }
+        guard response.success else {
+            throw MerianError.invalidResponse
+        }
         MerianLog.network.debug("Scan deleted: \(scanId, privacy: .private)")
     }
 
@@ -3606,7 +3623,14 @@ final class MerianNetworkClient {
             method: "POST",
             body: Data("{}".utf8)
         )
-        return try makeExploreDecoder().decode(ExploreMediaIncidentsResponse.self, from: data).data
+        do {
+            return try makeExploreDecoder().decode(
+                ExploreMediaIncidentsResponse.self,
+                from: data
+            ).data
+        } catch {
+            throw MerianError.invalidResponse
+        }
     }
 
     func getUnreadExploreNotificationCount() async throws -> Int {
@@ -3806,6 +3830,14 @@ final class MerianNetworkClient {
                     for: mediaSnapshot,
                     locationSharing: locationSharing
                 )
+                let recovered = try await recoverMissingOwnedCloudScan(
+                    for: mediaSnapshot,
+                    locationSharing: locationSharing,
+                    recoveryScan: recoveryScan
+                )
+                guard recovered else {
+                    throw error
+                }
                 let restoredObjectKeys = try await restoreExploreMediaObjectKeys(
                     for: mediaSnapshot,
                     includeAudio: true
@@ -4610,12 +4642,18 @@ final class MerianNetworkClient {
 
     private func recoverMissingOwnedCloudScan(
         for scan: ExploreShareMediaSnapshot,
-        locationSharing: ExplorePostLocationSharing?
+        locationSharing: ExplorePostLocationSharing?,
+        recoveryScan: OwnedScanRecoveryPayload? = nil
     ) async throws -> Bool {
-        let payload = try await makeOwnedScanRecoveryPayload(
-            for: scan,
-            locationSharing: locationSharing
-        )
+        let payload: OwnedScanRecoveryPayload
+        if let recoveryScan {
+            payload = recoveryScan
+        } else {
+            payload = try await makeOwnedScanRecoveryPayload(
+                for: scan,
+                locationSharing: locationSharing
+            )
+        }
         let status = try await checkScanStatusDetails(
             scanId: scan.scanId,
             recoveryScan: payload

@@ -57,12 +57,14 @@ public post metadata, or Darwin Core export payloads to the prompt.
 
 ## Rollout and Limits
 
-- Deploy the additive `subject_id` response expansion and assistant request-pair
-  projection to both `insight-chat` and `explore-post-chat` before shipping the
-  hardened iOS validator. Existing clients ignore the extra fields; the
-  corrected client intentionally rejects an old response without its subject or
-  current send pair. Verify an empty `load`, each supported action, and one
-  same-UUID ambiguous send replay before lifting the iOS release hold.
+- Apply `20260729163616_reserve_field_chat_sends_atomically.sql` before
+  deploying either chat function. The additive `subject_id` response expansion
+  and assistant request-pair projection must then ship to both `insight-chat`
+  and `explore-post-chat` before the hardened iOS validator. Existing clients
+  ignore the extra response fields; corrected clients reject an old response
+  without its subject or current send pair. Verify empty `load`, every action,
+  same-UUID ambiguous replay, same-conversation different-key concurrency, cap
+  boundaries, and stale recovery before lifting the iOS release hold.
 - Requires durable effective Pro entitlement. Model replies, prompt suggestions,
   and field-note summaries reserve separate database quota operations before
   provider dispatch; active trials use the `pro_trial` policy.
@@ -72,16 +74,23 @@ public post metadata, or Darwin Core export payloads to the prompt.
   messages. Reusing a UUID with different normalized message text returns
   `409 field_chat_idempotency_conflict`; this binding is rechecked when a
   duplicate insert races the initial read and again before a waited replay is
-  returned. A duplicate, quota-layer replay, automatic transport retry, or user
-  retry first coalesces into that exact saved pair. Assistant rows use a
-  deterministic UUIDv8 derived from conversation and request identity, so
-  concurrent local refusals and ambiguous inserts cannot persist a second
-  answer. An in-flight replay waits for the original answer within a bounded
-  window and otherwise returns retryable `503 field_chat_send_in_progress`; a
-  failed provider or assistant-persistence attempt can resume under the same
-  UUID without inserting a second user question. Suggestions and summaries
-  accept the `Idempotency-Key` header. Local safety refusals do not invoke the
-  provider and therefore do not consume AI quota.
+  returned. New user rows go through the atomic reservation RPC, which locks the
+  user before the conversation and owns exact replay/conflict, the combined
+  Insight/Explore daily count, unanswered-request fencing, capacity, and insert
+  in one transaction. A duplicate, quota-layer replay, automatic transport
+  retry, or user retry first coalesces into that exact saved pair. Assistant
+  rows use a deterministic UUIDv8 derived from conversation and request
+  identity, so concurrent local refusals and ambiguous inserts cannot persist a
+  second answer. An in-flight replay waits for the original answer within a
+  bounded window and otherwise returns retryable
+  `503 field_chat_send_in_progress`; a failed provider or assistant-persistence
+  attempt can resume under the same UUID without inserting a second user
+  question. If quota is committed but the assistant remains absent for ten
+  minutes, narrow exact-row-bound recovery can fail only that reservation before
+  a newly metered retry. Suggestions and summaries accept the `Idempotency-Key`
+  header. Local safety refusals do not invoke the provider and therefore do not
+  consume AI quota, but a newly admitted refusal still counts toward the Field
+  Chat send limit.
 - Uses `gemini-2.5-flash`, `maxOutputTokens: 700`, no streaming, no Google
   Search grounding, and thinking disabled. Every persisted assistant answer is
   nonempty and capped at 4,000 Unicode code points before it reaches either chat
@@ -90,7 +99,7 @@ public post metadata, or Darwin Core export payloads to the prompt.
   new send reserves room for its user and assistant rows together; a retry that
   already owns the user row adds only the missing assistant and must still have
   that one slot available. All Insight chat sends share the 20 sends per Pro
-  user per day limit.
+  user per day limit across Insight and Explore.
 - Quick prompt suggestions are generated asynchronously from saved text context
   and recent chat history, then regenerated after successful chat turns. Prompt
   generation does not consume the user send limit and falls back to local iOS
@@ -134,10 +143,15 @@ scan—or an incomplete replay—from becoming a false local success.
 
 ```bash
 deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/fieldChatReservation_test.ts \
   services/supabase/functions/_shared/fieldChatResponse_test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
   services/supabase/functions/insight-chat/promptSuggestions_test.ts
+
+deno test --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/migrations \
+  services/supabase/functions/_tests/fieldChatReservationMigrationContract.test.ts
 
 deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/insight-chat/index.ts

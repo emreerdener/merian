@@ -57,6 +57,12 @@ import SwiftData
     var isSyncing: Bool = false
     /// True while a collection sync batch is actively in-flight.
     var isCollectionSyncing: Bool = false
+    /// Process-local single-flight guard for the durable cloud-erasure queue.
+    ///
+    /// The persisted `.running` state remains restartable after termination,
+    /// while this latch prevents two foreground wake sources from deleting the
+    /// same SwiftData task concurrently in one process.
+    @ObservationIgnored var isCloudDeletionSyncing: Bool = false
     /// SwiftData context injected at app startup via `ScanRepository.configure(with:)`.
     var modelContext: ModelContext?
     /// Hardware constraints injected for tests/previews; production uses the shared orchestrator.

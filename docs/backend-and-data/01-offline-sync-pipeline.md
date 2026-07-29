@@ -255,12 +255,21 @@ cannot enter the `Share` / `Download` / `Delete` pipeline. `QueuedScanSnapshot`
 and `QueuedScanContext` carry copied retry metadata (`queueNextRetryAt`,
 friendly last error, media kinds, retry availability, and approximate queued
 bytes) so the sheet can render after SwiftData rows are updated or deleted.
-While the sheet is visible, it reads the row through a fresh `ModelContext` once
-per second. Future deadlines render as a live relative countdown, an elapsed
-deadline renders `Automatic retry is starting`, and offline rows render
-`Retry when connection returns`. A pending or staged row with scheduled backoff
-also exposes `Retry now`; this clears the deadline and enters the same atomic
-upload/inference claim path rather than creating a parallel pipeline.
+While the sheet is visible and at least one queued tile exists, it reads rows
+through a fresh `ModelContext` every 1.5 seconds. This is a presentation-only
+fallback for dropped presented-sheet SwiftData notifications, not a retry wake
+or pipeline authority. It updates the snapshot and emits diagnostics only when
+the visible queue value actually changes; unchanged local record lists and
+throttled duplicate kicks remain silent. Future deadlines render as a live
+relative countdown, an elapsed deadline renders `Automatic retry is starting`,
+and offline rows render `Retry when connection returns`. A pending or staged row
+with scheduled backoff also exposes `Retry now`; this clears the deadline and
+resets the bounded automatic attempt counter under the same scan UUID, then
+enters the same atomic upload/inference claim path rather than creating a
+parallel pipeline. Description-only staged work receives the same fresh budget
+even though it has no upload-success transition. A known cloud-complete result
+instead preserves its owner-result recovery marker and never re-enables
+provider dispatch.
 
 **Value-Type Snapshot Pattern** — `ScansGrid` never holds a live
 `OfflineQueuedScan @Model` reference. When `ScansSheetView.refreshQueuedScans()`
@@ -416,21 +425,28 @@ IDs instead of creating another active staging generation. A retryable failed
 row reactivates with its original session; terminal, completed, or
 media-incompatible rows fail closed for normal queue uploads. Completed scans
 have one separate, fail-closed exception for a deterministic
-`scan_share_restore` request. A fresh unrestricted scan lookup must confirm the
-active authenticated-owner row or prove it absent for guarded reconstruction;
-tombstoned and foreign rows reject signing. The offline queue never sets that
-purpose. The database enforces one active staged row for that identity, and the
-parser rejects duplicate filenames (including legacy names that sanitize to one
-key) before signing. New ledger rows use a per-scan media slot, so retrying one
-scan alone does not change its recorded order. Signing calls are composable
-subsets: a foreground inline generation may have no staged sources while its
-queued recovery later adds them, and live video may sign separately from queue
-frames/audio/video for the same scan. Existing unrequested rows do not define an
-immutable full manifest. Edge code bounds the combined active staged/processing
-capture-key set at six and ignores historical promoted rows when a completed
-scan needs a later restore. A database trigger takes an owner-scoped transaction
-advisory lock before enforcing the same active staged-row cap, so concurrent
-disjoint subsets cannot evade it.
+`scan_share_restore` request. The same exception applies to an exact
+authenticated-owner `failed_terminal` job only when its server-written
+`terminal_reason_code` is `replay_exhausted`, or when exact
+`media_reconciliation_abandoned` is also backed by the matching
+service-written post-result `failed_scan_ingestions` row. Policy,
+pre-result/unproven abandonment, legacy-unknown, arbitrary terminal,
+moderation-rejected, and ordinary queue signing remains closed. A fresh
+unrestricted scan lookup must confirm the active authenticated-owner row or
+prove it absent for guarded reconstruction; tombstoned and foreign rows reject
+signing. The offline queue never sets that purpose. The database enforces one
+active staged row for that identity, and the parser rejects duplicate filenames
+(including legacy names that sanitize to one key) before signing. New ledger
+rows use a per-scan media slot, so retrying one scan alone does not change its
+recorded order. Signing calls are composable subsets: a foreground inline
+generation may have no staged sources while its queued recovery later adds them,
+and live video may sign separately from queue frames/audio/video for the same
+scan. Existing unrequested rows do not define an immutable full manifest. Edge
+code bounds the combined active staged/processing capture-key set at six and
+ignores historical promoted rows when a completed scan needs a later restore. A
+database trigger takes an owner-scoped transaction advisory lock before
+enforcing the same active staged-row cap, so concurrent disjoint subsets cannot
+evade it.
 
 After that preflight, `BackgroundDatabaseActor.markScansAsUploading(scanIds:)`
 atomically transitions only the valid selected scans from `.pending` to
@@ -956,12 +972,25 @@ the latch without waiting for a URLSession delegate callback.
   finishes; replacement cancels the old task and all post-await mutations
   revalidate that exact token. When the row is not found but the job is still
   `processing`, `finalizing`, or `retrying`, the local row stays `.inferencing`
-  and another server poll is scheduled. `failed_retryable` honors the server
-  `retry_after`. Provider/inference failures return the row to `.staged`; a
-  not-found durability/promotion failure clears consumed `stagedR2Keys`, returns
-  the row to `.pending`, and wakes upload rather than inference. A retry
-  timestamp that is already stale schedules a one-second recheck rather than the
-  maximum five-minute wait, so clock skew or an expired lease cannot stall
+  and another server poll is scheduled. The first `failed_retryable` observation
+  honors `retry_after` and atomically writes the exact
+  `server_retryable_failure` latch plus incremented attempt count. A not-found
+  durability/promotion generation that consumed staging clears
+  `stagedR2Keys`, returns to `.pending`, and uploads retained local media again;
+  its latch and attempt survive successful `.uploading → .staged`. Transient
+  signer or PUT retries also retain the latch, append their precise failure
+  event, and increment from the maximum committed count rather than a cached
+  snapshot. After the persisted delay, only that exact durable marker lets the
+  next generation-fenced status preflight dispatch Identify and reclaim the
+  backend attempt.
+  Marker-free, unrelated, manual, processing/finalizing, completed-result, and
+  terminal states still reject duplicate inference. Both marker and attempt
+  reads use a fresh context so cached main-context faults cannot hide
+  background-actor commits. Retry exhaustion cancels server polling and retains
+  the scan in needs-attention state rather than creating a status/upload loop.
+  Other provider/inference failures return the row to `.staged`. A retry
+  timestamp that is already stale schedules a one-second recheck rather than
+  the maximum five-minute wait, so clock skew or an expired lease cannot stall
   recovery. HTTP `401`, `408`, `409`, `425`, and `429` are retryable; a safe
   integer `Retry-After` raises the persisted delay up to the queue maximum.
   Other handler-owned `4xx` responses preserve local media in
@@ -1120,7 +1149,8 @@ operations commit first, file deletion runs after**.
    asynchronously, skipping remote R2 URLs (those are cloud-owned). Runs only
    after the DB commit succeeds.
 4. `offlineQueue.syncPendingDeletions()` async — attempt the cloud deletion
-   immediately; retry on next connectivity cycle.
+   immediately; retry from durable eligibility dates on the current or a later
+   connectivity cycle until the server explicitly confirms erasure.
 
 ### 2. Cloud Deletion Tasking (`PendingCloudDeletionTask`)
 
@@ -1167,14 +1197,27 @@ Capping at 10 concurrent Edge calls prevents connection-pool exhaustion; for a
 user with 10 offline deletions the wall time still drops from ~4 s (serial) to
 ~600 ms (concurrent).
 
-`NetworkError.invalidResponse` (resource already gone) is treated as terminal
-and the task is removed. All other errors retain the task for the next cycle
-until `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts` is exhausted; the
-paired `OfflineJobRecord` then moves to `needsAttention` and is no longer
-runnable. The result-processing loop builds a
-`[String: PendingCloudDeletionTask]` dictionary once before iterating results,
-making each lookup O(1) instead of the previous O(n) linear scan (was O(n²)
-overall for large batches).
+The task is removed only when `MerianNetworkClient.deleteScan` receives a 2xx
+body and decodes explicit `success: true`. `invalidResponse` is not not-found
+proof: it can represent a missing/non-HTTP response, an unresolved auth/session
+failure, or a malformed/contradictory 2xx body. That error and every transport,
+HTTP, or decoding failure retain the task for the next cycle until the server
+explicitly confirms success. Cloud erasure does not inherit the generic
+ten-attempt pause: its exponential delay caps at 15 minutes, but the privacy
+request never expires. A pending task is authoritative, so the next drain also
+repairs legacy `needsAttention` jobs and contradictory local `complete` or
+`cancelled` job states before retrying. The owner-bound endpoint rejects a
+different active account rather than confirming someone else's deletion; the
+task remains queued until its owner session can resume it. Server-declared
+already-absent scans use the same validated `success: true` envelope, so
+idempotency never requires guessing from a client error category. The
+result-processing loop builds a `[String: PendingCloudDeletionTask]` dictionary
+once before iterating results, making each lookup O(1) instead of the previous
+O(n) linear scan (was O(n²) overall for large batches).
+One process-local single-flight latch serializes the whole drain across
+scheduler, repository, and UI wake sources. It resets in `defer`; after process
+termination, the persisted `.running` status remains runnable and the
+owner-fenced endpoint makes replay idempotent.
 
 ## The Collections Pipeline
 

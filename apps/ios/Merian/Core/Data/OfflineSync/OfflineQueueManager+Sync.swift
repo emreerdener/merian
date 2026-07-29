@@ -9,11 +9,14 @@ extension OfflineQueueManager {
 
     /// Drains the `PendingCloudDeletionTask` queue, calling the delete Edge function for each record.
     ///
-    /// On `MerianError.invalidResponse` the task is tombstoned immediately — the remote resource
-    /// is already gone, so retrying would be pointless. All other errors retain the task for the
-    /// next connectivity cycle.
+    /// A task is removed only after an explicitly validated success response.
+    /// Authentication, malformed-response, transport, and server errors all
+    /// retain the task for the next connectivity cycle.
     func syncPendingDeletions() async {
         guard isOnline, let context = modelContext else { return }
+        guard !isCloudDeletionSyncing else { return }
+        isCloudDeletionSyncing = true
+        defer { isCloudDeletionSyncing = false }
 
         let pendingTasks: [PendingCloudDeletionTask]
         do {
@@ -28,13 +31,24 @@ extension OfflineQueueManager {
         guard !pendingTasks.isEmpty else { return }
 
         let now = Date()
-        var didBackfillJob = false
+        var didPrepareJob = false
         let runnableTasks = pendingTasks.filter { task in
             let job = ensureCloudDeletionJob(scanId: task.scanId, context: context)
             if job?.created == true {
-                didBackfillJob = true
+                didPrepareJob = true
             }
             guard let record = job?.record else { return true }
+            if Self.cloudDeletionStatusRequiresRecovery(record.status) {
+                // PendingCloudDeletionTask is the durable source of truth.
+                // Older builds could pause an erasure permanently after the
+                // generic retry budget, while complete/cancelled here would
+                // contradict the still-present task. Heal every such state
+                // before applying its retry eligibility date.
+                record.status = .pending
+                record.updatedAt = now
+                record.nextRunAt = nil
+                didPrepareJob = true
+            }
             guard isRunnableCloudDeletionStatus(record.statusRaw) else { return false }
             if let nextRunAt = record.nextRunAt, nextRunAt > now {
                 return false
@@ -42,12 +56,12 @@ extension OfflineQueueManager {
             return true
         }
 
-        if didBackfillJob {
+        if didPrepareJob {
             do {
                 try context.save()
             } catch {
                 context.rollback()
-                MerianLog.data.error("syncPendingDeletions: failed to backfill deletion jobs: \(error, privacy: .private)")
+                MerianLog.data.error("syncPendingDeletions: failed to prepare deletion jobs: \(error, privacy: .private)")
                 return
             }
         }
@@ -88,22 +102,14 @@ extension OfflineQueueManager {
         var didMutate = false
         for (scanId, error) in allResults {
             guard let task = taskById[scanId] else { continue }
-            if let error {
-                MerianLog.data.error("syncPendingDeletions: failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-                if case MerianError.invalidResponse = error {
-                    // Remote resource already gone — tombstone locally.
-                    context.delete(task)
-                    markCloudDeletionJob(scanId: scanId, success: true, error: nil, context: context)
-                    didMutate = true
-                } else {
-                    markCloudDeletionJob(scanId: scanId, success: false, error: error, context: context)
-                    didMutate = true
-                }
-                // All other errors: retain in queue for the next connectivity cycle.
-            } else {
+            if Self.cloudDeletionWasConfirmed(error: error) {
                 MerianLog.data.debug("✅ Deleted \(scanId, privacy: .private) from Edge")
                 context.delete(task)
                 markCloudDeletionJob(scanId: scanId, success: true, error: nil, context: context)
+                didMutate = true
+            } else if let error {
+                MerianLog.data.error("syncPendingDeletions: failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+                markCloudDeletionJob(scanId: scanId, success: false, error: error, context: context)
                 didMutate = true
             }
         }
@@ -117,6 +123,37 @@ extension OfflineQueueManager {
                 MerianLog.data.error("syncPendingDeletions: save failed: \(error, privacy: .private)")
             }
         }
+    }
+
+    /// No local error category proves remote erasure. In particular,
+    /// `invalidResponse` can represent an auth/session failure or a malformed
+    /// HTTP success body. Only a nil dispatch error means `deleteScan` decoded
+    /// the Edge route's explicit `success: true` confirmation.
+    static func cloudDeletionWasConfirmed(error: Error?) -> Bool {
+        error == nil
+    }
+
+    /// A pending erasure cannot be cancelled or declared complete locally.
+    /// These statuses came from an older exhausted retry budget or contradict
+    /// the still-present durable task, so the next drain repairs them.
+    static func cloudDeletionStatusRequiresRecovery(
+        _ status: OfflineJobStatus
+    ) -> Bool {
+        switch status {
+        case .needsAttention, .complete, .cancelled:
+            true
+        case .pending, .running, .waiting:
+            false
+        }
+    }
+
+    /// Cloud erasure retries never exhaust. The diagnostic attempt number is
+    /// capped only so exponential delay remains bounded and corrupt persisted
+    /// values cannot overflow.
+    static func nextCloudDeletionRetryAttempt(after currentAttempt: Int) -> Int {
+        let maximumAttempt = OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts
+        let boundedAttempt = min(max(0, currentAttempt), maximumAttempt)
+        return min(boundedAttempt + 1, maximumAttempt)
     }
 
     /// Fans out deletions in batches to prevent unbounded concurrent network requests.
@@ -164,6 +201,9 @@ extension OfflineQueueManager {
         if success {
             job.status = .complete
             job.nextRunAt = nil
+            job.lastErrorCode = nil
+            job.lastErrorMessage = nil
+            job.lastHTTPStatus = nil
             context.insert(OfflineQueueEvent(
                 jobId: job.id,
                 scanId: scanId,
@@ -173,22 +213,10 @@ extension OfflineQueueManager {
         } else {
             job.lastAttemptAt = Date()
             job.lastErrorMessage = error?.localizedDescription
-            guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: job.attemptCount) else {
-                job.status = .needsAttention
-                job.nextRunAt = nil
-                job.lastErrorCode = "cloud_deletion_retry_limit_reached"
-                context.insert(OfflineQueueEvent(
-                    jobId: job.id,
-                    scanId: scanId,
-                    kind: .needsAttention,
-                    message: "Cloud deletion paused after repeated failures.",
-                    errorCode: "cloud_deletion_retry_limit_reached"
-                ))
-                return
-            }
-
             job.status = .waiting
-            job.attemptCount += 1
+            job.attemptCount = Self.nextCloudDeletionRetryAttempt(
+                after: job.attemptCount
+            )
             job.nextRunAt = Date().addingTimeInterval(
                 OfflineQueueRetryPolicy.jitteredDelay(forAttempt: job.attemptCount)
             )

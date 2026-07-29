@@ -2141,13 +2141,21 @@ export async function handleIdentifyMultimodalRequest(
       // moderation decision must never become an operational replay signal.
       if (!scanInserted && !terminalFailure) {
         try {
-          await supabaseAdmin
+          const { error: deadLetterError } = await supabaseAdmin
             .from("failed_scan_ingestions")
             .insert({
               scan_id: generatedScanId,
               user_id: user.id,
               error_message: errorMsg,
             });
+          // supabase-js reports PostgREST/database failures in the result
+          // object; awaiting the query alone does not throw.
+          if (deadLetterError) {
+            logStructuredError("multimodal/dead_letter_write_failed", {
+              scan_id: generatedScanId,
+              error: deadLetterError.message,
+            });
+          }
         } catch (dlErr) {
           logStructuredError("multimodal/dead_letter_write_failed", {
             scan_id: generatedScanId,

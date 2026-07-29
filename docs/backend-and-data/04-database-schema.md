@@ -1215,7 +1215,10 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
   attached to. `scan_id` and `user_id` are unique together so each user has one
   saved Field chat per scan.
 - `user_id` (UUID FK -> `users.id`, cascade delete): Owner. RLS allows users to
-  read, insert, update, and delete only rows where `auth.uid() = user_id`.
+  access only rows where `auth.uid() = user_id` if a future reviewed grant
+  exposes the table. Direct `anon` and `authenticated` table privileges are
+  revoked; current app access is exclusively through the authenticated Edge
+  Function.
 - `created_at`, `updated_at`: Conversation timestamps; `updated_at` is
   maintained by the shared timestamp trigger.
 - `insight_chat_messages.id` (UUID): Primary key.
@@ -1283,6 +1286,27 @@ including their own, added in `20260721141655_add_explore_post_chat.sql`.
 
 These rows are private conversation data, not Explore comments, notifications,
 public profile content, web post data, or Species Dictionary contributions.
+
+Migration `20260729163616_reserve_field_chat_sends_atomically.sql` joins
+admission for both chat families in service-only
+`reserve_field_chat_send(uuid,uuid,text,uuid,text,uuid)`. Every new user row is
+created in the same short transaction that takes the cross-table per-user lock,
+then the per-conversation lock, verifies exact subject ownership, rejects a
+different unanswered request, reserves two of the 30 conversation rows, and
+enforces the 20-send UTC-day cap across Insight and Explore. Exact same-key/text
+replays return the original user row without consuming either cap; contradictory
+same-key text is rejected. The migration explicitly reconstructs least-privilege
+service-role table ACLs and removes direct browser-role access, so app clients
+cannot bypass the serialized boundary.
+
+The same migration adds service-only
+`recover_stale_field_chat_quota(uuid,text,uuid,uuid,uuid)`. It may transition
+only a ten-minute-stale committed `insight_chat_reply` or
+`explore_post_chat_reply` reservation to `failed`, and only after proving the
+exact subject-bound user row exists and its UUID-bound assistant does not. This
+closes the otherwise permanent crash window after quota commit while preserving
+the generic quota ledger's fail-closed semantics and charging any subsequent
+provider attempt as a new metered attempt.
 
 ### `flagged_reviews`
 
@@ -1652,8 +1676,10 @@ in migration `20260705120000_add_scan_ingestion_jobs.sql`.
 - `terminal_reason_code` (TEXT): Stable bounded machine outcome for terminal
   jobs. Current values include policy rejection, replay exhaustion, media
   reconciliation abandonment, and owner deletion. Compatibility recovery fails
-  closed unless this is exactly `replay_exhausted`; `user_deleted` is
-  permanently nonrecoverable.
+  closed unless this is exactly `replay_exhausted`, or exact
+  `media_reconciliation_abandoned` is paired with the matching service-written
+  post-result `failed_scan_ingestions` row. `user_deleted` is permanently
+  nonrecoverable.
 - `response_envelope` (JSONB, added by
   `20260728220000_persist_idempotent_scan_responses.sql`): At most 256 KiB of
   validated canonical Identify success data for this exact `scan_id`. It stores
@@ -1779,8 +1805,15 @@ Migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql` also
 adds `recover_missing_owned_scan(...)`, which validates the bounded non-media
 DTO and writes the owner scan plus a `client_recovery_complete` ledger in one
 locked transaction. Existing active, retryable, policy, unknown, and legacy
-terminal states return `deferred`; only explicit `replay_exhausted` is
-recoverable. A recovery-first winner makes the next ingestion claim return
+terminal states return `deferred`; explicit `replay_exhausted` is recoverable.
+Forward migration
+`20260729173000_recover_media_abandoned_owned_scans.sql` also admits exact
+`media_reconciliation_abandoned` only when an owner/scan-matching
+`failed_scan_ingestions` row proves the service reached post-result
+finalization. The same migration adds
+`failed_scan_ingestions_user_scan_idx (user_id, scan_id)` so this exact proof
+lookup remains bounded as dead-letter history grows. Unproven abandonment
+remains deferred. A recovery-first winner makes the next ingestion claim return
 `already_complete` before a provider call.
 
 `internal.scan_deletion_tombstones` closes the opposite lifecycle boundary.
@@ -3948,10 +3981,12 @@ values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
 - `priority`: Int
 - `createdAt`, `updatedAt`: Date
 - `lastAttemptAt`, `nextRunAt`: Date?
-- `attemptCount`: Int Tracks bounded automatic retry attempts for durable
-  offline jobs. Scan ingestion, cloud deletion, and collection sync pause at
-  `needsAttention` after `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`
-  automatic failures.
+- `attemptCount`: Int Tracks bounded automatic retry attempts for ordinary
+  durable jobs. Scan ingestion and collection sync pause at `needsAttention`
+  after `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts` automatic
+  failures. Cloud deletion uses the same capped value only as a bounded backoff
+  exponent; a still-present `PendingCloudDeletionTask` retries without
+  expiration and repairs an older paused or contradictory terminal job state.
 - `lastErrorCode`, `lastErrorMessage`: String?
 - `lastHTTPStatus`: Int?
 - `serverStatus`, `serverStage`, `serverRetryAfter`: server ingestion status

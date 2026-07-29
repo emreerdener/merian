@@ -385,8 +385,9 @@ extension OfflineQueueManager {
         }
         // Retry accounting belongs to the logical scan manifest, not an
         // individual file. The exact-key check above does not mutate durable
-        // state; markScanAsStaged resets upload retry metadata in the same save
-        // that commits the inference-ready transition.
+        // state; markScanAsStaged normally resets upload retry metadata in the
+        // same save that commits the inference-ready transition. An exact
+        // scheduled server-failure reclaim deliberately survives that save.
         guard isUploadCompletionCurrent(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
@@ -831,10 +832,14 @@ extension OfflineQueueManager {
         // cannot normally issue a second primary Gemini call. If the status
         // endpoint itself is unavailable, preserve zero-data-loss behavior by
         // allowing the queued recovery request to proceed.
+        let hasScheduledServerFailureRetry =
+            hasDurableScheduledServerFailureRetry(scanId: scanId)
         let serverRecovery = await recoverCompletedInferenceFromServer(
             scanId: scanId,
             reason: "pre-background-inference dispatch",
-            expectedGeneration: preparationGeneration
+            expectedGeneration: preparationGeneration,
+            reuseScheduledServerFailureRetry:
+                hasScheduledServerFailureRetry
         )
         guard isOnline,
               isInferencePreparationCurrent(
@@ -844,7 +849,11 @@ extension OfflineQueueManager {
               activeInferenceGenerations[scanId] == preparationGeneration else {
             return
         }
-        guard serverRecovery == .unresolved else {
+        guard Self.scanStatusActionPermitsInferenceDispatch(
+            serverRecovery,
+            hasScheduledServerFailureRetry:
+                hasScheduledServerFailureRetry
+        ) else {
             MerianLog.data.debug(
                 "dispatchInferenceDownloadTask: server owns or completed scanId=\(scanId, privacy: .public); skipping duplicate inference"
             )
@@ -1464,6 +1473,26 @@ extension OfflineQueueManager {
         }
     }
 
+    /// A retryable server failure first writes a generation-fenced local retry.
+    /// Once that durable marker survives its delay (and any required media
+    /// restaging), the next exact-generation preflight must be allowed to send
+    /// the identify request that can reclaim the backend attempt. Treating that
+    /// same status as server-owned again creates a status/upload loop with no
+    /// provider request.
+    static func scanStatusActionPermitsInferenceDispatch(
+        _ action: ScanStatusRecoveryAction,
+        hasScheduledServerFailureRetry: Bool
+    ) -> Bool {
+        switch action {
+        case .unresolved:
+            true
+        case .retryAfter:
+            hasScheduledServerFailureRetry
+        case .recovered, .waitForServer, .terminalFailure:
+            false
+        }
+    }
+
     private func scheduleInferenceStatusProbe(
         scanId: String,
         generation: UUID
@@ -1686,11 +1715,26 @@ extension OfflineQueueManager {
         resetMediaUploads: Bool
     ) async {
         guard let container = modelContext?.container else { return }
+        let currentAttempt = queueAttemptCount(for: scanId)
+        guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(
+            currentAttempt: currentAttempt
+        ) else {
+            markQueuedScanNeedsAttention(
+                scanId: scanId,
+                code: "automatic_retry_limit_reached",
+                message: OfflineQueueRetryPolicy.automaticRetryLimitMessage()
+            )
+            serverIngestionPollTasks.cancel(scanId)
+            MerianLog.data.debug(
+                "scheduleRetryableServerFailure: retry limit reached scanId=\(scanId, privacy: .public) attempts=\(currentAttempt, privacy: .public)"
+            )
+            return
+        }
         let retryActor = resolvedQueueDbActor(container: container)
         guard let retries = await retryActor.scheduleInferenceRetry(
             id: scanId,
             expectedGeneration: expectedGeneration,
-            code: "server_retryable_failure",
+            code: Self.serverRetryableFailureCode,
             message: reason,
             delay: delay,
             resetMediaUploads: resetMediaUploads
@@ -1797,7 +1841,8 @@ extension OfflineQueueManager {
         scanId: String,
         reason: String,
         expectedGeneration: UUID?,
-        serverPollToken: UUID? = nil
+        serverPollToken: UUID? = nil,
+        reuseScheduledServerFailureRetry: Bool = false
     ) async -> ScanStatusRecoveryAction {
         let hadDurableCompletedServerResult =
             hasDurableCompletedServerResult(scanId: scanId)
@@ -1896,14 +1941,20 @@ extension OfflineQueueManager {
             )
             return action
         case .retryAfter(let delay):
-            await scheduleRetryableServerFailure(
-                scanId: scanId,
-                delay: delay,
-                reason: reason,
-                expectedGeneration: expectedGeneration,
-                resetMediaUploads:
-                    Self.requiresMediaRestagingAfterServerFailure(response)
-            )
+            if !reuseScheduledServerFailureRetry {
+                await scheduleRetryableServerFailure(
+                    scanId: scanId,
+                    delay: delay,
+                    reason: reason,
+                    expectedGeneration: expectedGeneration,
+                    resetMediaUploads:
+                        Self.requiresMediaRestagingAfterServerFailure(response)
+                )
+            } else {
+                MerianLog.data.debug(
+                    "recoverCompletedInferenceFromServer: exact scheduled retry is ready to reclaim failed server attempt scanId=\(scanId, privacy: .public)"
+                )
+            }
             return action
         case .terminalFailure(let message):
             MerianLog.data.debug(

@@ -76,10 +76,13 @@ When the ingestion job is complete, registration performs a fresh unrestricted
 authenticated user; a genuinely absent row may only stage the exact media before
 guarded owner-row reconstruction. A missing or nonterminal job may stage for the
 same guarded flow. Signing grants no scan-write or publication authority, and
-the later recovery route must validate the authenticated owner and payload. The
-signer never permits a `failed_terminal` ingestion job, cross-scan filename,
-arbitrary repair key, mixed ordinary/repair registration for one scan, or a
-completed non-owner scan.
+the later recovery route must validate the authenticated owner and payload. A
+failed-terminal job may sign only for exact `replay_exhausted`, or exact
+`media_reconciliation_abandoned` with the matching owner/scan service-written
+post-result `failed_scan_ingestions` row. The signer never permits policy,
+unproven abandonment, another terminal reason, a cross-scan filename, arbitrary
+repair key, mixed ordinary/repair registration for one scan, or a completed
+non-owner scan.
 
 For example, an image repair entry is:
 

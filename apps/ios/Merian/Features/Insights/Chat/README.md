@@ -106,7 +106,13 @@ The backend coalesces an in-flight quota replay into the exact saved pair or
 returns retryable `field_chat_send_in_progress`. It reserves both persisted rows
 within the 30-row conversation cap and gives the assistant a deterministic row
 identity, preventing concurrent or ambiguous persistence from duplicating an
-answer.
+answer. Database admission is authoritative across devices and both chat
+families: it serializes the shared 20/day count, conversation capacity, and the
+user-row insert. `field_chat_admission_unavailable` and
+`field_chat_recovery_unavailable` are retryable failures, never permission to
+clear the pending bubble or create a replacement UUID. A quota-committed
+unanswered request can be reopened only by exact server proof after ten minutes;
+iOS does not calculate or assume that state.
 
 On load, `reconcileThread` distinguishes a completed historical user/assistant
 turn from the latest unanswered UUID-bound user row whose answer never

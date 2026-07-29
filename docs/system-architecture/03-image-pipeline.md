@@ -720,11 +720,16 @@ unpublish and moderation. The post, likes, comments, reports, and health
 evidence remain. Reference artwork is never substituted for missing observation
 evidence.
 
-The Scan Library owner banner consumes `/get-explore-media-incidents`. Reviewing
-a linked local scan can activate the strongly matched device repair above. A
-repair updates the exact scan and Explore references and resets health in one
-transaction. Repeated origin checks alone cannot recreate bytes if no
-recoverable copy exists.
+The Scan Library owner banner consumes `/get-explore-media-incidents`.
+The canonical response is `{"data":[...]}`; corrected clients also accept only
+the exact legacy direct array during deployment convergence. Rapid queue-event
+refreshes are coalesced within five seconds with one trailing refresh for a
+trigger received in flight. The expected authenticated owner is revalidated
+before projection, malformed successes fail closed, and refresh failure
+preserves the last in-memory alert state. Reviewing a linked local scan can
+activate the strongly matched device repair above. A repair updates the exact
+scan and Explore references and resets health in one transaction. Repeated
+origin checks alone cannot recreate bytes if no recoverable copy exists.
 
 See
 [Explore Media Health and Quarantine](../backend-and-data/12-explore-media-health-and-quarantine.md)

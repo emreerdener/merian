@@ -194,14 +194,17 @@ chat → publication experience.
   finalizer.
 - Upload signing now reuses an exactly compatible staged row and its original
   upload session. Retryable failed rows are reactivated rather than duplicated;
-  failed-terminal, promoted, deleted, and media-incompatible rows fail closed.
-  Completed ingestion also fails closed for ordinary capture signing. The sole
-  completed-job exception is an exact `scan_share_restore` request whose
-  deterministic scan/category filename, canonical role, authenticated owner, and
-  completed job agree. A fresh unrestricted scan read must confirm an existing
-  active owner row or prove the row absent for guarded reconstruction;
-  tombstoned and foreign rows fail. This permits post-analysis Explore and
-  Community repair without reopening ingestion. A partial unique index
+  promoted, deleted, media-incompatible, and ordinary failed-terminal rows fail
+  closed. Completed ingestion also fails closed for ordinary capture signing.
+  The sole repair-purpose exception is an exact `scan_share_restore` request
+  whose deterministic scan/category filename, canonical role, and authenticated
+  owner agree with a complete job, exact `replay_exhausted`, or exact
+  `media_reconciliation_abandoned` plus its matching service-written
+  post-result dead letter. A fresh unrestricted scan read must confirm an
+  existing active owner row or prove the row absent for guarded reconstruction;
+  tombstoned, foreign, policy, and unproven-abandonment rows fail. This permits
+  post-analysis Explore and Community repair without reopening ingestion. A
+  partial unique index
   serializes concurrent active registration, duplicate filenames are rejected
   before signing, and historical extras remain as explicit
   `superseded_staging_registration` audit rows. New rows use a stable per-scan
@@ -481,8 +484,9 @@ failures.
 Run 1551 stopped before production connection preparation, `db push`, secret
 synchronization, Edge deployment, or smoke testing, so it made no production
 mutation. A new exact-SHA run must repeat fresh-catalog replay, execute all 26
-current fixtures—including the subsequently added atomic Explore and Community
-rollback fixtures—and continue through deployment and production smokes.
+fixtures present at that point—including the subsequently added atomic Explore
+and Community rollback fixtures—and continue through deployment and production
+smokes.
 
 ## Deployment Follow-up: Workflow Run 1552
 
@@ -547,7 +551,7 @@ This was a fixture defect; the run never invoked
 catalog files complete, before production connection preparation, `db push`,
 secret synchronization, Edge deployment, or smoke testing, and made no
 production mutation. A further exact-SHA run must execute the now-reachable
-identity merge and recovery assertions and pass all 26 current files.
+identity merge and recovery assertions and pass all 26 files then present.
 
 ## Deployment Follow-up: Atomic Explore Graph Regression
 
@@ -570,10 +574,14 @@ can replace the failed workflow evidence.
 
 ## Deployment Follow-up: Atomic Invoker Privileges
 
-The latest hosted fresh-catalog replay discovered all 26 current pgTAP files.
-Identity merge/recovery passed, proving the `fixture_scan_id` correction reached
-and exercised the production merge and recovery path. Inline/video recovery also
-passed. In total, 24 files completed.
+The latest hosted fresh-catalog replay discovered all 26 pgTAP files present on
+that SHA. Identity merge/recovery passed, proving the `fixture_scan_id`
+correction reached and exercised the production merge and recovery path.
+Inline/video recovery also passed. In total, 24 files completed.
+
+The current repository adds atomic Field Chat admission/recovery as a 27th
+catalog. That does not change the historical 24-of-26 result; all 27 must pass
+on the final exact SHA.
 
 Only the new atomic Explore and Ask the Community files aborted. Both reached
 their first real `service_role` routine call and raised SQLSTATE `42501`,

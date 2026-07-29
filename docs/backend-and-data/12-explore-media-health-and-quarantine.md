@@ -200,6 +200,9 @@ reconciliation must never issue object or relational deletes.
 ## Security and storage controls
 
 - Authenticated users can list only their own active media incidents.
+- The owner API's canonical response is `{"data":[...]}`. Corrected iOS clients
+  accept only that wrapper or the older deployed direct array during rollout;
+  malformed success bodies fail closed and never manufacture health evidence.
 - Claim, result, event-expedite, and audit-write paths are service-only.
 - The origin verifier rejects non-durable, nested, traversal, and cross-owner
   keys before issuing R2 requests.

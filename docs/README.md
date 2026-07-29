@@ -109,12 +109,22 @@ as their permanent engineering identity.
   customer-safe `400 observation_rejected`. For older or interrupted local/cloud
   drift, single `/check-scan-status` requests and `/share-scan-to-explore`
   accept a bounded non-media `recovery_scan`. The server defers to
-  active/retryable ingestion, permits only the exact structured
-  `replay_exhausted` terminal reason, never overwrites an existing or
-  cross-owner row, and restores media only through owner-scoped staging keys.
+  active/retryable ingestion, permits exact structured `replay_exhausted`, and
+  admits `media_reconciliation_abandoned` only with the matching
+  service-written post-result dead letter. It never overwrites an existing or
+  cross-owner row and restores media only through owner-scoped staging keys.
+  Policy, unproven abandonment, deletion, and unknown terminal state remains
+  closed.
+  A first `failed_retryable` status observation writes one durable local retry
+  latch; after its delay and any required media re-stage, that exact latch lets
+  the next generation-fenced preflight send Identify instead of blocking itself
+  in a status/upload loop. Retry counts survive re-upload, use committed
+  fresh-context reads, and stop at retained needs-attention state.
   The repository fix is not a production fix until all affected Edge Functions
   and the matching iOS build are promoted. See the
   [joined reliability contract](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md),
+  [failed-retryable deadlock incident](./incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md),
+  [media-abandoned share incident](./incidents/2026-07-media-abandoned-explore-share-recovery.md),
   [owner-row incident report](./incidents/2026-07-scan-owner-row-durability-gap.md),
   [inline staging-manifest incident](./incidents/2026-07-inline-scan-staging-manifest-regression.md),
   [video finalization incident](./incidents/2026-07-video-scan-canonical-finalization-regression.md),
@@ -203,6 +213,14 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md`](./incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md)**
+  — TestFlight evidence, state-machine root cause, durable retry latch, bounded
+  retry behavior, and release closure gates for the status/re-upload loop that
+  sent no Identify request.
+- **[`/incidents/2026-07-media-abandoned-explore-share-recovery.md`](./incidents/2026-07-media-abandoned-explore-share-recovery.md)**
+  — New-versus-existing scan evidence and the narrow service-only terminal
+  allowlist that reconnects surviving local media to guarded owner-row repair
+  and atomic Explore publication.
 - **[`/incidents/2026-07-inline-scan-staging-manifest-regression.md`](./incidents/2026-07-inline-scan-staging-manifest-regression.md)**
   — Joined iOS/Edge/catalog root cause and fail-closed remediation for inline
   scans rejected by a phantom staged-upload manifest, including offline, Field

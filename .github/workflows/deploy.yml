@@ -965,12 +965,16 @@ jobs:
           probe_all_function_routes
 
           critical_user_functions=(
+            generate-upload-urls
             identify-multimodal
             check-scan-status
             share-scan-to-explore
+            get-scan-explore-share-state
             get-explore-composer-media
             insight-chat
+            explore-post-chat
             request-community-identification
+            delete-scan
           )
           for function_name in "${critical_user_functions[@]}"; do
             probe_user_function_route "$function_name"
@@ -988,16 +992,34 @@ jobs:
             "request_community_identification_atomically" \
             '{"p_scan_id":null,"p_user_id":null,"p_note":null,"p_location_sharing":null,"p_species_common_name":null,"p_media_rows":[],"p_initial_taxon_node_id":null,"p_taxonomy_version_id":null}' \
             "Community request identifiers are required"
+          probe_server_rpc_validation_boundary \
+            "recover_missing_owned_scan" \
+            '{"p_scan_id":null,"p_user_id":null,"p_recovery_scan":null}' \
+            "invalid_scan_recovery"
+          probe_server_rpc_validation_boundary \
+            "reserve_field_chat_send" \
+            '{"p_user_id":null,"p_conversation_id":null,"p_subject_type":null,"p_subject_id":null,"p_message_text":null,"p_client_message_id":null}' \
+            "field_chat_invalid_request"
+          probe_server_rpc_validation_boundary \
+            "recover_stale_field_chat_quota" \
+            '{"p_user_id":null,"p_operation":null,"p_request_id":null,"p_conversation_id":null,"p_subject_id":null}' \
+            "field_chat_invalid_recovery_request"
 
           critical_service_rpc_names=(
             ensure_scan_user_profile
             publish_scan_to_explore_atomically
             request_community_identification_atomically
+            recover_missing_owned_scan
+            reserve_field_chat_send
+            recover_stale_field_chat_quota
           )
           critical_service_rpc_payloads=(
             '{"p_user_id":"00000000-0000-0000-0000-000000000000"}'
             '{"p_scan_id":"00000000-0000-0000-0000-000000000000","p_user_id":"00000000-0000-0000-0000-000000000000","p_species_common_name":null,"p_field_notes":null,"p_location_sharing":null,"p_media_rows":[],"p_hashtags":[]}'
             '{"p_scan_id":null,"p_user_id":null,"p_note":null,"p_location_sharing":null,"p_species_common_name":null,"p_media_rows":[],"p_initial_taxon_node_id":null,"p_taxonomy_version_id":null}'
+            '{"p_scan_id":null,"p_user_id":null,"p_recovery_scan":null}'
+            '{"p_user_id":null,"p_conversation_id":null,"p_subject_type":null,"p_subject_id":null,"p_message_text":null,"p_client_message_id":null}'
+            '{"p_user_id":null,"p_operation":null,"p_request_id":null,"p_conversation_id":null,"p_subject_id":null}'
           )
           public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"
           for ((index = 0; index < public_key_count; index++)); do

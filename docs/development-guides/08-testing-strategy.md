@@ -240,13 +240,25 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
-     durable offline enqueue, and atomic queue/job completion;
+     exact retryable-status dispatch, durable retry-latch visibility, retry
+     preservation through media re-staging, durable offline enqueue, atomic
+     queue/job completion, and indefinite privacy-erasure retry under positive
+     server confirmation;
    - foreground request construction, Explore idempotency and contradictory
-     response rejection, pre-upload restored-media budget validation, Community
+     response rejection, existing-scan recovery-payload encoding, rejection of
+     recovery races with active/retryable ingestion, validated deletion
+     confirmation, pre-upload restored-media budget validation, Community
      all-media recovery and response validation, and exact Explore
-     reconciliation validation; and
+     reconciliation validation, plus current/legacy media-health incident
+     envelope compatibility and unknown-success-shape rejection; and
    - Explore-post identifier routing plus retryable and single-flight Field Chat
      preparation.
+
+   `OfflineQueueManagerTests` is explicitly serialized because its cases
+   temporarily reconfigure the process-wide queue singleton, injected
+   `ModelContext`, background-session state, and retained media. Main-actor
+   isolation alone does not prevent async test cases from interleaving at
+   suspension points.
 
    These checks live in `scripts/validate-ios-critical-test-results.sh`; their
    positive, missing-case, and skipped-case fixtures live in
@@ -694,6 +706,13 @@ MerianTests/
   - **Durable retry backoff math**: Asserts `OfflineQueueRetryPolicy` floors
     short retries, clamps long retries to `maximumRetryDelay`, and stops
     scheduling automatic work once `maximumAutomaticRetryAttempts` is exhausted.
+  - **Description-only manual retry
+    (`testManualRetryResetsBudgetForDescriptionOnlyScan`)**: Starting from a
+    needs-attention staged observation and scan job at the automatic limit,
+    assert explicit retry preserves the scan UUID, resets both bounded
+    counters, clears transient errors, and returns both records to runnable
+    state without relying on an upload-success transition. Hosted result
+    validation requires this exact regression to execute and pass.
   - **Multi-file generation retry accounting**: A successful upload member must
     not clear `queueAttemptCount` or the last durable error while sibling
     outcomes remain unresolved. Retry metadata resets only in the same actor
@@ -1107,6 +1126,15 @@ success echoes its exact subject, while prompt-suggestion tests prove
 action-intent filtering does not reject harmless species names or educational
 ecology questions. Explore fixtures also cap deterministic common-name labels so
 all generated chips remain within 120 characters.
+`_shared/fieldChatReservation_test.ts` verifies the fail-closed RPC adapter,
+exact persisted-row binding, replay projection, and stable database-error
+mapping. `_tests/fieldChatReservationMigrationContract.test.ts` pins per-user
+then per-conversation lock ordering, atomic cross-table limits, direct-client
+revocations, and exact stale-quota recovery in
+`20260729163616_reserve_field_chat_sends_atomically.sql`. The executable
+`tests/field_chat_reservation_security.sql` is the PostgreSQL authority for
+runtime transaction, ACL, replay/conflict, capacity, daily-limit, and stale
+recovery behavior.
 
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
@@ -1232,9 +1260,10 @@ requires owner-matched ready rows for that projection.
 `_tests/inlineScanManifestRecoveryMigrationContract.test.ts` statically pins the
 projection and guarded rewrite; the existing recovery case and direct six-object
 production-shape pgTAP case are the authoritative live regressions. Source
-inspection is not PostgreSQL evidence. The current suite discovers 26 fixtures
-after adding atomic Explore and Community rollback coverage; run all 26 on the
-exact remediated SHA.
+inspection is not PostgreSQL evidence. That revision discovered 26 fixtures
+after adding atomic Explore and Community rollback coverage. The present suite
+discovers 27 after adding `field_chat_reservation_security.sql`; run all 27 on
+the exact remediated SHA.
 
 The same run showed that an outer multi-phase `DO` can still hide the useful
 PostgreSQL error: the identity-merge fixture reported `planned 1, ran 0`.
@@ -1254,18 +1283,18 @@ and rejects the ambiguous variable name. A hosted warning is evidence of the
 remaining root failure, not a passing fixture; correct the layer identified by
 the phase and rerun until the assertion passes.
 
-The latest hosted replay then discovered all 26 files and proved the identity
-fixture correction: identity merge/recovery and inline/video recovery passed,
-and 24 files completed. Only the two new atomic fixtures aborted. Each reached
-its first real `service_role` body call and raised SQLSTATE `42501`,
-`permission denied for table explore_community_requests`; their later bad-plan
-reports were secondary to that statement failure. Forward migration
-`20260729044500_grant_atomic_explore_service_privileges.sql` now provides an
-operation-scoped service allowlist while preserving invoker rights and no
-browser-role writes. The revised Explore and Community catalogs plan 22 and 25
-assertions and include live privilege checks. Static migration contracts can pin
-that correction, but all 26 catalogs must still pass on a fresh exact-SHA
-database before deployment.
+The latest hosted replay then discovered all 26 files present on that SHA and
+proved the identity fixture correction: identity merge/recovery and inline/video
+recovery passed, and 24 files completed. Only the two new atomic fixtures
+aborted. Each reached its first real `service_role` body call and raised
+SQLSTATE `42501`, `permission denied for table explore_community_requests`;
+their later bad-plan reports were secondary to that statement failure. Forward
+migration `20260729044500_grant_atomic_explore_service_privileges.sql` now
+provides an operation-scoped service allowlist while preserving invoker rights
+and no browser-role writes. The revised Explore and Community catalogs plan 22
+and 25 assertions and include live privilege checks. Static migration contracts
+can pin that correction, but all 27 current catalogs must still pass on a fresh
+exact-SHA database before deployment.
 
 Field Chat regression tests separately enforce that transient owned-scan
 readiness does not become permanent UI state. HTTP `404 scan_not_ready`, missing
@@ -1286,6 +1315,13 @@ reconciliation, start a new send at 28 persisted rows, reject one at 29, and
 allow an incomplete retry at 29 while rejecting one at 30. Race two
 deterministic local refusals. Assistant persistence must read-after-write
 reconcile an ambiguous insert and expose one deterministic UUIDv8 answer row.
+Race different request UUIDs from two devices and require one unanswered request
+to win. Repeat at 19 total UTC-day sends split across Insight and Explore, and
+at 28 conversation rows, to prove the database admission—not an earlier Edge
+count—owns both limits. Terminate after quota commit, require in-progress
+behavior before ten minutes, age only the exact reservation, then require stale
+recovery to prove the bound user row and missing assistant before a newly
+metered retry. Completed, mismatched, and live reservations must remain closed.
 Reload a UUID-bound user row without its assistant—even with a filtered orphan
 assistant after it—and require the same UUID/text to return as the failed
 pending bubble rather than a delivered message; orphan and duplicate bound
@@ -1489,9 +1525,10 @@ production checks:
   bounded propagation window. It uses only a validated legacy anon JWT to cross
   any intentional gateway `verify_jwt = true` boundary and fails closed if that
   execution credential is unavailable; a publishable key is never sent in Bearer
-  authorization. The six customer-critical scan, Explore, and Community routes
-  additionally return marked fail-closed `401` responses without user
-  Authorization. Final Function failures classify only whether the fixed
+  authorization. Ten customer-critical scan, signing, share-state, Explore,
+  Field Chat, Community, and deletion routes additionally return marked
+  fail-closed `401` responses without user Authorization. Final Function
+  failures classify only whether the fixed
   `X-Merian-Handler: 1` marker was present; Data API failures use separate
   PostgREST/RPC guidance and never expect a Function marker. Both paths keep the
   body and request-ID value private and never print a variable header value. Do
@@ -1759,7 +1796,8 @@ Identification latency has focused contract coverage at each boundary:
   media-URL rejection, and delegation to the atomic recovery RPC.
   `dwcaDownloadAndScanFinalizationMigrationContract.test.ts` locks the shared
   current/rolling-compatibility claim and recovery generation lock, exact
-  `replay_exhausted` allowlist, completion-last media finalization, strict
+  `replay_exhausted` allowlist, post-result dead-letter proof for
+  `media_reconciliation_abandoned`, completion-last media finalization, strict
   compatibility audio deletion ordering, worker compare-before-complete
   behavior, strict atomic-setup RPC decoding, the parent-first DwC-A generation
   lock, and the revocable grant/cleanup protocol.
@@ -2365,6 +2403,19 @@ The surrounding export suite is intentionally split by boundary:
   deadline exit, malformed-row rejection, and aggregate health thresholds.
 - `delete-scan/db_test.ts` distinguishes true absence from database failure and
   locks the request-before-storage/completion-after-storage RPC boundary.
+- `MerianNetworkClientTests.testDeleteScanRejectsUnconfirmedSuccessResponse`
+  rejects empty, false, missing-key, and non-object 2xx bodies.
+  `OfflineQueueManagerTests.cloudDeletionRequiresExplicitNetworkConfirmation`
+  proves `invalidResponse`, HTTP, and transport errors all retain durable cloud
+  erasure work; only a validated nil dispatch error may remove the pending task.
+  `cloudDeletionRetriesNeverEnterAnUnrecoverableState` proves exhausted legacy
+  and contradictory terminal job statuses are repairable, while retry delay
+  progression remains numerically capped without expiring the erasure request.
+  `cloudDeletionDrainIsProcessSingleFlight` proves a competing foreground wake
+  cannot claim, dispatch, or mutate the same pending erasure task while one
+  process-local drain owns it. The persisted `.running` state intentionally
+  remains runnable after process loss, so the in-memory latch cannot strand
+  privacy work across relaunch.
 - `auto-purge-nonbio/db_test.ts` proves the retention intake accepts only
   bounded integer RPC results and fails closed on database errors, malformed
   values, and local/remote limit violations.

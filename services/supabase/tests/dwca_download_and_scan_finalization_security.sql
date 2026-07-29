@@ -82,6 +82,14 @@ DECLARE
     recovered_scan_id UUID := '00000000-0000-4000-8000-00000000d111';
     active_scan_id UUID := '00000000-0000-4000-8000-00000000d112';
     deletion_scan_id UUID := '00000000-0000-4000-8000-00000000d113';
+    media_abandoned_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d118';
+    unproven_media_abandoned_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d130';
+    policy_rejected_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d119';
+    unknown_terminal_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d120';
     retention_due_scan_id UUID :=
         '00000000-0000-4000-8000-00000000d114';
     retention_recent_scan_id UUID :=
@@ -117,6 +125,7 @@ DECLARE
     deletion_claim RECORD;
     scan_deletion_completed BOOLEAN;
     current_archive_cleanup_completed BOOLEAN;
+    blocked_recovery_scan_id UUID;
     attempt INTEGER;
     retention_requested_count INTEGER;
     allowed_authenticated_scan_update_columns CONSTANT TEXT[] := ARRAY[
@@ -745,6 +754,122 @@ BEGIN
     IF (result_json ->> 'already_complete')::BOOLEAN IS DISTINCT FROM TRUE THEN
         RAISE EXCEPTION 'a recovered scan allowed a later provider claim';
     END IF;
+
+    INSERT INTO public.scan_ingestion_jobs (
+        scan_id,
+        user_id,
+        endpoint,
+        status,
+        stage,
+        terminal_reason_code,
+        completed_at
+    )
+    VALUES
+        (
+            media_abandoned_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            policy_rejected_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'moderation_rejected',
+            'content_policy_rejected',
+            pg_catalog.NOW()
+        ),
+        (
+            unknown_terminal_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'legacy_terminal_failure',
+            'legacy_terminal_unknown',
+            pg_catalog.NOW()
+        ),
+        (
+            unproven_media_abandoned_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        );
+
+    INSERT INTO public.failed_scan_ingestions (
+        scan_id,
+        user_id,
+        error_message
+    )
+    VALUES (
+        media_abandoned_scan_id::TEXT,
+        test_user_id,
+        'post-result scan finalization failed before owner row commit'
+    );
+
+    SELECT public.recover_missing_owned_scan(
+        media_abandoned_scan_id,
+        test_user_id,
+        pg_catalog.JSONB_SET(
+            recovery_payload,
+            '{id}',
+            pg_catalog.TO_JSONB(media_abandoned_scan_id)
+        )
+    )
+    INTO STRICT result_text;
+    IF result_text <> 'recovered'
+       OR NOT EXISTS (
+            SELECT 1
+            FROM public.scans AS scans
+            WHERE scans.id = media_abandoned_scan_id
+              AND scans.user_id = test_user_id
+       )
+       OR NOT EXISTS (
+            SELECT 1
+            FROM public.scan_ingestion_jobs AS jobs
+            WHERE jobs.scan_id = media_abandoned_scan_id::TEXT
+              AND jobs.user_id = test_user_id
+              AND jobs.status = 'complete'
+              AND jobs.stage = 'client_recovery_complete'
+              AND jobs.terminal_reason_code IS NULL
+       ) THEN
+        RAISE EXCEPTION
+            'explicit media-abandonment owner recovery did not complete atomically';
+    END IF;
+
+    FOREACH blocked_recovery_scan_id IN ARRAY ARRAY[
+        policy_rejected_scan_id,
+        unknown_terminal_scan_id,
+        unproven_media_abandoned_scan_id
+    ]::UUID[]
+    LOOP
+        SELECT public.recover_missing_owned_scan(
+            blocked_recovery_scan_id,
+            test_user_id,
+            pg_catalog.JSONB_SET(
+                recovery_payload,
+                '{id}',
+                pg_catalog.TO_JSONB(blocked_recovery_scan_id)
+            )
+        )
+        INTO STRICT result_text;
+        IF result_text <> 'deferred'
+           OR EXISTS (
+                SELECT 1
+                FROM public.scans AS scans
+                WHERE scans.id = blocked_recovery_scan_id
+           ) THEN
+            RAISE EXCEPTION
+                'unallowlisted or unproven terminal reason recovered scan %',
+                blocked_recovery_scan_id;
+        END IF;
+    END LOOP;
 
     PERFORM pg_catalog.SET_CONFIG(
         'request.jwt.claims',

@@ -8,6 +8,35 @@ TestFlight, App Store, support, and QA.
 
 ### Critical Scan Reliability
 
+- Fixed a TestFlight-confirmed queued-scan deadlock after a retryable cloud
+  ingestion failure. The app now preserves one exact retry through any required
+  media re-upload and lets that delayed generation send its Identify request
+  instead of endlessly alternating status checks and successful uploads.
+  Automatic retries retain their real count, pause for manual attention at the
+  safety limit, and an explicit retry starts a fresh automatic budget under the
+  same scan UUID so description-only work cannot immediately pause again.
+  Opening the library logs only actual queue/library changes. Hosted iOS result
+  validation now requires the exact retry-dispatch, durable-latch,
+  re-stage-survival, and description-only manual-retry regressions to execute
+  and pass.
+- Restored Explore sharing for eligible older observations whose cloud media
+  reconciler had abandoned a missing owner row even though the device retained
+  the completed result and original media. Repair is limited to the
+  authenticated owner’s exact `replay_exhausted` ledger, or exact
+  `media_reconciliation_abandoned` plus the matching service-written
+  post-result dead letter. It remains fenced by deletion tombstones and
+  per-scan locks and still blocks policy, unproven abandonment, unknown,
+  foreign, and ordinary terminal state. Media cleanup can no longer overwrite
+  an existing terminal policy decision. Rejected post-result proof writes now
+  produce an explicit backend diagnostic instead of disappearing silently. New
+  iOS builds commit owner repair before uploading; the guarded Edge path also
+  supports the current released-client sequence.
+- The Scan Library now accepts both the current wrapped and exact legacy
+  direct-array Explore media-health response. A deployed empty `[]` no longer
+  produces a false decode error merely from opening the library, rapid queue
+  updates coalesce the independent read-only alert refresh without dropping a
+  trailing repair/foreground request, account identity is revalidated after an
+  in-flight call, and unknown success shapes still fail closed.
 - Fixed the release-blocking scan failure that let Gemini finish but rejected
   the observation while saving it. Inline camera bytes no longer advertise a
   synthetic staging object, and the strict media finalizer now receives only
@@ -106,10 +135,13 @@ TestFlight, App Store, support, and QA.
   canonical roles, and a fresh scan read that either confirms the active
   JWT-owned row or proves it genuinely absent for guarded reconstruction.
   Pre-scan signing grants no scan-write or publication authority.
-  Failed-terminal, tombstoned, cross-scan, ordinary post-completion, and
-  moderation-rejected uploads stay closed. Historical promoted capture rows no
-  longer consume the separate active repair budget, and ambiguous signing
-  retries reuse the committed restore row and session.
+  Failed-terminal uploads stay closed except for exact authenticated-owner
+  `replay_exhausted` repair, or `media_reconciliation_abandoned` repair with
+  matching service-written post-result proof; tombstoned, policy-rejected,
+  unproven-abandonment, unknown, cross-scan, and ordinary post-completion
+  uploads remain closed. Historical promoted capture rows no longer consume
+  the separate active repair budget, and ambiguous signing retries reuse the
+  committed restore row and session.
 - Malformed paid-provider output now returns retryable HTTP 503 consistently
   across image, multimodal, Describe, and audio producers instead of stranding
   offline jobs behind terminal HTTP 422 handling.
@@ -124,6 +156,16 @@ TestFlight, App Store, support, and QA.
   rather than persisting cancellation first or leaving foreground work
   cancelled. Crash replay after that save is idempotent and does not duplicate
   the completion audit event.
+- Pending scan erasure now completes locally only after `/delete-scan` returns
+  an explicit, decodable `success: true`. Authentication ambiguity, malformed or
+  contradictory HTTP success, transport failure, and server failure retain the
+  durable deletion task for capped-backoff retry instead of silently abandoning
+  cloud cleanup. Privacy erasure retries no longer expire at the generic queue
+  limit, and a remaining task repairs legacy paused or contradictory terminal
+  job state on the next drain. A process-local single-flight guard prevents
+  competing foreground wake sources from mutating the same SwiftData erasure
+  task concurrently. Hosted iOS evidence must include all four exact
+  confirmation, retry-state, single-flight, and malformed-response regressions.
 - Field Chat now validates every successful thread response against the exact
   requested Insight scan or Explore post and one conversation before replacing
   visible messages. Even an empty thread must echo its subject. Malformed or
@@ -137,6 +179,13 @@ TestFlight, App Store, support, and QA.
   persistence. Duplicate-insert and waited-replay checks now reject
   contradictory same-key payloads even when they race the initial read, and iOS
   requires the acknowledged user text to match the sent question exactly.
+  Cross-device admission now runs in one database transaction: shared
+  Insight/Explore daily accounting is serialized before conversation capacity,
+  the exact user row is inserted only after both limits pass, and a second
+  unanswered UUID in that conversation is rejected. Direct browser-role table
+  writes cannot bypass this boundary. A quota-committed request whose assistant
+  remains absent for ten minutes can use exact-row-bound recovery before one
+  newly metered retry; live, mismatched, and completed requests remain closed.
   In-flight retries wait boundedly, failed provider or persistence attempts can
   resume, message text is capped before persistence, and oversized/incomplete
   response bodies fail closed. The latest interrupted user row now returns to
@@ -232,12 +281,15 @@ TestFlight, App Store, support, and QA.
   permission needed to list successful runs in a private repository. This
   guarantees a fixture-only follow-up after failed catalog runs still deploys
   every pending scan and Explore runtime change before production smoke tests.
-- Production smoke now proves the scan-owner prerequisite, atomic Explore
-  publication, and atomic Community-request RPCs are present in the live
-  PostgREST schema cache. Exact SQLSTATE `22023` no-write sentinels validate
-  server execution before any lock or mutation, while every real
-  anon/publishable credential must remain denied; arbitrary `400` responses and
-  logged response bodies cannot satisfy the gate.
+- Production smoke now proves ten critical scan, signing, share-state, Explore,
+  Field Chat, Community, and deletion handlers are deployed and reject
+  unauthenticated calls from inside the marked Merian handler. It also proves
+  the scan-owner prerequisite, atomic Explore publication, atomic
+  Community-request, legacy owner recovery, and both Field Chat quota RPCs are
+  present in the live PostgREST schema cache. Exact SQLSTATE `22023` no-write
+  sentinels validate server execution before any lock or mutation, while every
+  real anon/publishable credential must remain denied; arbitrary `400`
+  responses and logged response bodies cannot satisfy the gate.
 - Release guidance now requires a manual `iOS Build and Test` dispatch on the
   final exact SHA when backend-only follow-up commits cause ordinary iOS scope
   detection to skip macOS work. Scope-only success cannot replace the full unit

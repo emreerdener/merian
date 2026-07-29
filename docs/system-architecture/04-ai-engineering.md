@@ -673,6 +673,11 @@ provider dispatch:
   `client_message_id`, allowing duplicate, transport, and quota replays to
   coalesce into one saved user/assistant pair. A new send reserves its two rows
   within the 30-row cap; UUID reuse with different text fails explicitly.
+  `_shared/fieldChatReservation.ts` calls the service-only atomic admission RPC,
+  which locks per user before conversation, inserts the user row in the same
+  transaction as cross-table 20/day accounting and 30-row capacity checks, and
+  blocks a second unanswered UUID in the same conversation. Browser roles have
+  no direct chat-table privileges, so they cannot bypass admission.
   Deterministic assistant UUIDv8 rows and read-after-write reconciliation make
   answer persistence idempotent, including concurrent local refusals. In-flight
   replay polling is bounded, failed provider or persistence attempts resume
@@ -685,9 +690,12 @@ provider dispatch:
   human-identification requests without rejecting harmless species names or
   educational ecology language. Insight note summaries scrub canonical UUIDs
   including UUIDv7 and fall back to bounded non-sensitive text if scrubbing
-  empties the draft. Deploy the additive subject echo to both functions before
-  shipping the fail-closed iOS validator, then smoke a same-UUID ambiguous send
-  replay as well as empty/action subject echoes.
+  empties the draft. An exact-row-bound service routine may reopen a committed
+  request only after a ten-minute crash-safety window and proof that its
+  assistant is absent; the retry is newly metered. Apply the atomic reservation
+  migration before both functions, then smoke same-UUID replay, different-key
+  concurrency, both limits, stale recovery, and empty/action subject echoes
+  before shipping the fail-closed iOS validator.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:

@@ -400,11 +400,14 @@ confirmed-missing item and hide an all-missing post as system
 the post and engagement.
 
 `get-explore-media-incidents` exposes only the authenticated owner's active
-recovery queue. `ingest-r2-media-events` accepts optional trusted event batches
-under a dedicated secret and merely advances due time. Scheduled origin checks
-are the source of truth. A successful `/repair-scan-image` metadata transaction
-resets matching item health and public projection restores automatically if
-ordinary publication rules still pass.
+recovery queue in the canonical `{"data":[...]}` envelope. Corrected iOS builds
+temporarily accept the older deployed direct-array envelope as an exact
+compatibility shape, while rejecting every other malformed success body.
+`ingest-r2-media-events` accepts optional trusted event batches under a
+dedicated secret and merely advances due time. Scheduled origin checks are the
+source of truth. A successful `/repair-scan-image` metadata transaction resets
+matching item health and public projection restores automatically if ordinary
+publication rules still pass.
 
 The backing mixed user/server incident RPC dispatches on bound user identity
 first and requires exact `auth.uid() = self_id` for a user caller. Only its
@@ -552,9 +555,12 @@ The `/identify` Edge Function acts as the inference proxy:
    ops evidence rather than the primary recovery surface. Replay is safe because
    `insertScan` uses `ignoreDuplicates: true` and then proves the row exists for
    the authenticated owner before success. Repair writes independently defer to
-   active/retryable ingestion and fail closed on every terminal reason except
-   explicit `replay_exhausted`. Server replay and media reconciliation use the
-   same finalization RPC instead of directly writing `complete`; compatibility
+   active/retryable ingestion. Terminal recovery permits explicit
+   `replay_exhausted`, or exact `media_reconciliation_abandoned` only with the
+   matching owner/scan service-written post-result dead letter. Policy,
+   unproven-abandonment, and arbitrary terminal state remains closed. Server
+   replay and media reconciliation use the same finalization RPC instead of
+   directly writing `complete`; compatibility
    identify/audio/describe routes have no direct complete path either. A catalog
    trigger independently rejects completion unless that transaction publishes
    the exact owner-and-scan finalization fence. Completed status and scan
@@ -1086,6 +1092,15 @@ retain RLS ownership policies and revoke direct `anon` and `authenticated` Data
 API access. Chat context comes only from the same public post/detail projections
 used by Explore plus Species Dictionary fields; unpublishing the post deletes
 all attached viewer conversations.
+
+Insight and Explore sends share the service-only `reserve_field_chat_send(...)`
+database boundary. It serializes per-user cross-table daily accounting before
+per-conversation admission, validates the exact subject, and inserts the user
+row in the same transaction as idempotency, unanswered-request, 30-row, and
+20/day checks. Edge count reads are presentation only and cannot authorize a
+send. An exact committed request whose assistant is still absent after ten
+minutes may use the narrow `recover_stale_field_chat_quota(...)` proof before a
+newly metered retry.
 
 The in-app notifications feed is backed by server tables, not by local client
 state. Explore post activity lives in `public.explore_post_notifications`. Field

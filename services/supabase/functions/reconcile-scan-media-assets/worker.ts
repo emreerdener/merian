@@ -665,7 +665,13 @@ export async function reconcileScanMediaAssets(
           deleteObject,
           markFailed,
         });
-        if (!dryRun && job && asset.client_scan_id) {
+        if (
+          !dryRun &&
+          job &&
+          asset.client_scan_id &&
+          job.status !== "complete" &&
+          job.status !== "failed_terminal"
+        ) {
           await markJobFailed(
             asset.client_scan_id,
             asset.user_id,

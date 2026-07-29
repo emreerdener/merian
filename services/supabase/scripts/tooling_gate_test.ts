@@ -408,6 +408,12 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
       '"Explore media count is outside the supported range"',
       '"request_community_identification_atomically"',
       '"Community request identifiers are required"',
+      '"recover_missing_owned_scan"',
+      '"invalid_scan_recovery"',
+      '"reserve_field_chat_send"',
+      '"field_chat_invalid_request"',
+      '"recover_stale_field_chat_quota"',
+      '"field_chat_invalid_recovery_request"',
       "critical_service_rpc_names=(",
       "critical_service_rpc_payloads=(",
       "A public Supabase API credential unexpectedly reached the service-only",
@@ -418,6 +424,26 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
     assert(
       workflow.includes(requiredFragment),
       `Critical production RPC smoke contract is missing: ${requiredFragment}`,
+    );
+  }
+
+  for (
+    const criticalRoute of [
+      "generate-upload-urls",
+      "identify-multimodal",
+      "check-scan-status",
+      "share-scan-to-explore",
+      "get-scan-explore-share-state",
+      "get-explore-composer-media",
+      "insight-chat",
+      "explore-post-chat",
+      "request-community-identification",
+      "delete-scan",
+    ]
+  ) {
+    assert(
+      workflow.includes(`            ${criticalRoute}\n`),
+      `Explicit critical-route smoke is missing: ${criticalRoute}`,
     );
   }
 

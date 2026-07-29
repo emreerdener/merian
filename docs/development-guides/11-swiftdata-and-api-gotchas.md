@@ -1377,8 +1377,10 @@ local record.
 
 Recovery does not weaken this rule. A bounded non-media `recovery_scan` exists
 only for older/interrupted drift. Status/share routes independently validate
-identity and fields, defer to active/retryable richer ingestion, allow only the
-exact structured `replay_exhausted` terminal reason, write without overwrite,
-and reload by owner. Media continues through owner staging. Never repair this
-class of bug with a direct iOS table upsert, an `authenticated` grant, or a
-server key in the app.
+identity and fields, defer to active/retryable richer ingestion, allow exact
+structured `replay_exhausted`, and require the owner/scan-matching
+service-written post-result dead letter for exact
+`media_reconciliation_abandoned`. They write without overwrite and reload by
+owner. Media continues through owner staging. Never trust an abandoned terminal
+label alone or repair this class of bug with a direct iOS table upsert, an
+`authenticated` grant, or a server key in the app.

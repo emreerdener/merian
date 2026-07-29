@@ -110,10 +110,12 @@ row is never overwritten, and a cross-owner UUID remains indistinguishable from
 a missing scan.
 
 The database reads the owner-scoped ingestion job under the claim's generation
-lock. Processing, finalizing, retrying, retryable, policy, media-abandonment,
-legacy-unknown, and arbitrary terminal reasons defer to the richer original
-attempt. A missing ledger also defers. Only a complete-but-missing row or exact
-`terminal_reason_code = replay_exhausted` may be repaired. Media is never
+lock. Processing, finalizing, retrying, retryable, policy, unproven
+media-abandonment, legacy-unknown, and arbitrary terminal reasons defer to the
+richer original attempt. A missing ledger also defers. A complete-but-missing
+row or exact `terminal_reason_code = replay_exhausted` may be repaired. Exact
+`media_reconciliation_abandoned` additionally requires the matching owner/scan
+service-written post-result `failed_scan_ingestions` row. Media is never
 accepted inside `recovery_scan`; owner-scoped `restored_object_keys`,
 `restored_video_object_keys`, and `restored_audio_object_keys` remain the only
 repair inputs and still pass the endpoint's normal promotion, eligibility, and

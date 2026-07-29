@@ -146,15 +146,55 @@ assert_suite_has_passed_test_case \
   "Offline Queue Manager Tests" \
   "backgroundInferencePreservesRecoverableHTTPFailures"
 assert_suite_has_passed_test_case \
+  "Retryable status/upload deadlock dispatch" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "scheduledServerFailureRetryBreaksStatusUploadDeadlock"
+assert_suite_has_passed_test_case \
+  "Durable server-failure retry latch" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "scheduledServerFailureMarkerIsReadFromDurableStore"
+assert_suite_has_passed_test_case \
+  "Scheduled retry survival through media restaging" \
+  "BackgroundDatabaseActorTests" \
+  "Background Database Actor Tests" \
+  "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
+assert_suite_has_passed_test_case \
   "Offline capture durability" \
   "OfflineQueueManagerTests" \
   "Offline Queue Manager Tests" \
   "testEnqueueCapture_WithValidData_PersistsQueuedScan"
 assert_suite_has_passed_test_case \
+  "Description-only manual retry budget reset" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "testManualRetryResetsBudgetForDescriptionOnlyScan"
+assert_suite_has_passed_test_case \
   "Atomic offline completion" \
   "OfflineQueuedScanDeletionTests" \
   "Offline Queued Scan Deletion Tests" \
   "completedInferenceAndQueueDeletionCommitTogether"
+assert_suite_has_passed_test_case \
+  "Cloud deletion positive confirmation" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "cloudDeletionRequiresExplicitNetworkConfirmation"
+assert_suite_has_passed_test_case \
+  "Cloud deletion indefinite retry recovery" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
+assert_suite_has_passed_test_case \
+  "Cloud deletion process single-flight" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "cloudDeletionDrainIsProcessSingleFlight"
+assert_suite_has_passed_test_case \
+  "Cloud deletion response integrity" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testDeleteScanRejectsUnconfirmedSuccessResponse"
 assert_suite_has_passed_test_case \
   "Foreground scan submission" \
   "MerianNetworkClientTests" \
@@ -170,6 +210,26 @@ assert_suite_has_passed_test_case \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
   "testExploreShareRejectsContradictorySuccessResponses"
+assert_suite_has_passed_test_case \
+  "Existing Explore scan recovery payload" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testExploreShareSendsMissingScanRecoveryPayload"
+assert_suite_has_passed_test_case \
+  "Existing Explore scan recovery safety" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion"
+assert_suite_has_passed_test_case \
+  "Explore media-health rollout compatibility" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testExploreMediaIncidentsAndLifecycleNotificationsDecode"
+assert_suite_has_passed_test_case \
+  "Explore media-health response integrity" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testExploreMediaIncidentsRejectsUnknownSuccessShape"
 assert_suite_has_passed_test_case \
   "Explore repair preflight budget" \
   "MerianNetworkClientTests" \

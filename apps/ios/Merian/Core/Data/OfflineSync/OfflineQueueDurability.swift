@@ -248,6 +248,16 @@ extension ModelContext {
 
 @MainActor
 extension OfflineQueueManager {
+    nonisolated static var serverRetryableFailureCode: String {
+        "server_retryable_failure"
+    }
+
+    nonisolated static func isServerRetryableFailureCode(
+        _ code: String?
+    ) -> Bool {
+        code == serverRetryableFailureCode
+    }
+
     static var completedServerResultRecoveryCode: String {
         "server_result_local_recovery_pending"
     }
@@ -272,6 +282,22 @@ extension OfflineQueueManager {
         return Self.isCompletedServerResultRecoveryCode(
             scan.queueLastErrorCode
         )
+    }
+
+    func hasDurableScheduledServerFailureRetry(scanId: String) -> Bool {
+        guard let context = modelContext else { return false }
+        // Retry state is written by BackgroundDatabaseActor. Read through a
+        // fresh context so a cached main-context fault cannot hide the marker
+        // that is specifically meant to survive media restaging.
+        let readContext = ModelContext(context.container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = (try? readContext.fetch(descriptor))?.first else {
+            return false
+        }
+        return Self.isServerRetryableFailureCode(scan.queueLastErrorCode)
     }
 
     nonisolated static func scanIngestionJobId(scanId: String) -> String {
@@ -467,6 +493,13 @@ extension OfflineQueueManager {
         resetTo state: ScanQueueState?
     ) -> Int? {
         guard let context = modelContext else { return nil }
+        let durableAttempt = queueAttemptCount(for: scanId)
+        let preservesServerFailureRetry =
+            state == .pending &&
+            hasDurableScheduledServerFailureRetry(scanId: scanId)
+        let persistedCode = preservesServerFailureRetry
+            ? Self.serverRetryableFailureCode
+            : code
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -482,12 +515,15 @@ extension OfflineQueueManager {
             return nil
         }
         guard let scan else { return nil }
-        let attempt = scan.queueAttemptCount + 1
+        let attempt = max(scan.queueAttemptCount, durableAttempt) + 1
         let now = Date()
         scan.queueAttemptCount = attempt
         scan.queueLastAttemptAt = now
         scan.queueNextRetryAt = now.addingTimeInterval(max(1, delay))
-        scan.queueLastErrorCode = code
+        // A required media re-stage is one phase of the already-authorized
+        // server retry. Keep its machine latch through transient signer/PUT
+        // failures; the event below still records the precise upload error.
+        scan.queueLastErrorCode = persistedCode
         scan.queueLastErrorMessage = message
         scan.queueLastHTTPStatus = httpStatus
         scan.queueLastServerStatus = serverStatus
@@ -502,7 +538,7 @@ extension OfflineQueueManager {
             scanId: scanId,
             attempt: attempt,
             nextRunAt: scan.queueNextRetryAt,
-            code: code,
+            code: persistedCode,
             message: message,
             httpStatus: httpStatus,
             serverStatus: serverStatus,
@@ -531,11 +567,16 @@ extension OfflineQueueManager {
 
     func queueAttemptCount(for scanId: String) -> Int {
         guard let context = modelContext else { return 0 }
+        // Retry writers run through BackgroundDatabaseActor. Always read the
+        // committed value through a new context so retry budgets cannot be
+        // reset accidentally by a stale main-context model snapshot.
+        let readContext = ModelContext(context.container)
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        return ((try? context.fetch(descriptor).first)?.queueAttemptCount) ?? 0
+        return ((try? readContext.fetch(descriptor).first)?
+            .queueAttemptCount) ?? 0
     }
 
     @discardableResult
@@ -552,6 +593,13 @@ extension OfflineQueueManager {
             Self.isCompletedServerResultRecoveryCode(
                 scan.queueLastErrorCode
             )
+        if !shouldRecoverCompletedServerResult {
+            // The bounded counter governs automatic work. An explicit user
+            // retry starts a new automatic budget under the same scan UUID;
+            // otherwise a text-only staged scan paused at the limit would be
+            // sent straight back to needs-attention before one retry could run.
+            scan.queueAttemptCount = 0
+        }
         let hasUploadableMedia = !(scan.inferenceImagePaths ?? snapshot.thumbnailImagePaths).isEmpty
             || !snapshot.audioPaths.isEmpty
             || !snapshot.videoPaths.isEmpty
@@ -582,6 +630,7 @@ extension OfflineQueueManager {
                 job.lastErrorMessage =
                     Self.completedServerResultRecoveryMessage
             } else {
+                job.attemptCount = 0
                 job.lastErrorCode = nil
                 job.lastErrorMessage = nil
             }

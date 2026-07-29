@@ -185,12 +185,16 @@ routes no longer update `complete` independently. Required staging and
 inference-only companion deletions must receive an R2 2xx or 404 result before
 finalization; provider 5xx and other non-success responses retain a noncomplete
 ledger. Compatibility finalization failure becomes explicit retryable work
-rather than a swallowed background error. Compatibility recovery is allowlisted
-only for structured `terminal_reason_code = replay_exhausted` and fails closed
-on unknown reasons. The catalog trigger rejects unfenced completion, reopening,
-and scan-identity changes even from service-key table writes. Completed owner
-reparenting is allowed only when all exact source/target/enabled markers from
-the atomic ghost-profile merge transaction match.
+rather than a swallowed background error. Compatibility recovery permits
+structured `terminal_reason_code = replay_exhausted`. Forward migration
+`20260729173000_recover_media_abandoned_owned_scans.sql` also permits exact
+`media_reconciliation_abandoned` only with the matching owner/scan
+service-written post-result dead letter; unproven abandonment and unknown
+reasons fail closed. The catalog trigger rejects unfenced completion,
+reopening, and scan-identity changes even from service-key table writes.
+Completed owner reparenting is allowed only when all exact
+source/target/enabled markers from the atomic ghost-profile merge transaction
+match.
 
 Individual scan erasure now takes the same generation lock and commits a private
 owner/UUID deletion tombstone before R2 work. The tombstone terminal-marks

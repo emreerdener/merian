@@ -3,8 +3,218 @@ import Foundation
 import SwiftData
 import Testing
 
+@Suite(.serialized)
 @MainActor
 struct OfflineQueueManagerTests {
+    @Test func cloudDeletionRequiresExplicitNetworkConfirmation() {
+        #expect(
+            OfflineQueueManager.cloudDeletionWasConfirmed(error: nil)
+        )
+        #expect(
+            !OfflineQueueManager.cloudDeletionWasConfirmed(
+                error: MerianError.invalidResponse
+            )
+        )
+        #expect(
+            !OfflineQueueManager.cloudDeletionWasConfirmed(
+                error: MerianError.httpError(
+                    statusCode: 503,
+                    message: "Temporary failure"
+                )
+            )
+        )
+        #expect(
+            !OfflineQueueManager.cloudDeletionWasConfirmed(
+                error: URLError(.notConnectedToInternet)
+            )
+        )
+    }
+
+    @Test func cloudDeletionRetriesNeverEnterAnUnrecoverableState() {
+        for status in [
+            OfflineJobStatus.needsAttention,
+            .complete,
+            .cancelled
+        ] {
+            #expect(
+                OfflineQueueManager.cloudDeletionStatusRequiresRecovery(status)
+            )
+        }
+        for status in [
+            OfflineJobStatus.pending,
+            .running,
+            .waiting
+        ] {
+            #expect(
+                !OfflineQueueManager.cloudDeletionStatusRequiresRecovery(status)
+            )
+        }
+
+        #expect(
+            OfflineQueueManager.nextCloudDeletionRetryAttempt(after: -1) == 1
+        )
+        #expect(
+            OfflineQueueManager.nextCloudDeletionRetryAttempt(after: 0) == 1
+        )
+        #expect(
+            OfflineQueueManager.nextCloudDeletionRetryAttempt(
+                after: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts
+            ) == OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts
+        )
+        #expect(
+            OfflineQueueManager.nextCloudDeletionRetryAttempt(after: .max)
+                == OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts
+        )
+    }
+
+    @Test func cloudDeletionDrainIsProcessSingleFlight() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let originalIsSyncing = manager.isCloudDeletionSyncing
+        defer {
+            manager.isCloudDeletionSyncing = originalIsSyncing
+            manager.isOnline = originalIsOnline
+            manager.modelContext = originalContext
+        }
+
+        let context = try createIsolatedContext()
+        let scanId = UUID().uuidString.lowercased()
+        context.insert(PendingCloudDeletionTask(scanId: scanId))
+        try context.save()
+        manager.isOnline = true
+        // Simulate a first foreground wake source already owning the drain.
+        manager.isCloudDeletionSyncing = true
+
+        await manager.syncPendingDeletions()
+
+        let pending = try context.fetch(
+            FetchDescriptor<PendingCloudDeletionTask>()
+        )
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>())
+        #expect(pending.map(\.scanId) == [scanId])
+        #expect(jobs.isEmpty)
+        #expect(manager.isCloudDeletionSyncing)
+    }
+
+    @Test func scheduledServerFailureRetryBreaksStatusUploadDeadlock() {
+        #expect(
+            OfflineQueueManager.isServerRetryableFailureCode(
+                OfflineQueueManager.serverRetryableFailureCode
+            )
+        )
+        #expect(
+            !OfflineQueueManager.isServerRetryableFailureCode(nil)
+        )
+        #expect(
+            !OfflineQueueManager.isServerRetryableFailureCode(
+                "inference_retry"
+            )
+        )
+
+        #expect(
+            !OfflineQueueManager.scanStatusActionPermitsInferenceDispatch(
+                .retryAfter(1),
+                hasScheduledServerFailureRetry: false
+            )
+        )
+        #expect(
+            OfflineQueueManager.scanStatusActionPermitsInferenceDispatch(
+                .retryAfter(1),
+                hasScheduledServerFailureRetry: true
+            )
+        )
+        #expect(
+            OfflineQueueManager.scanStatusActionPermitsInferenceDispatch(
+                .unresolved,
+                hasScheduledServerFailureRetry: false
+            )
+        )
+        for action in [
+            ScanStatusRecoveryAction.recovered,
+            .waitForServer(1),
+            .terminalFailure("No retry")
+        ] {
+            #expect(
+                !OfflineQueueManager.scanStatusActionPermitsInferenceDispatch(
+                    action,
+                    hasScheduledServerFailureRetry: true
+                )
+            )
+        }
+    }
+
+    @Test func scheduledServerFailureMarkerIsReadFromDurableStore() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let context = try createIsolatedContext()
+        defer {
+            OfflineJobScheduler.shared.cancelScheduledWake(using: manager)
+            manager.modelContext = originalContext
+        }
+
+        let scan = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            scanState: .inferencing
+        )
+        context.insert(scan)
+        try context.save()
+        // Keep the marker-free model resident in the manager's context. The
+        // background actor then commits the marker through a separate context.
+        let scanId = scan.id
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        _ = try #require(context.fetch(descriptor).first)
+
+        let actor = BackgroundDatabaseActor(
+            modelContainer: context.container
+        )
+        #expect(
+            await actor.scheduleInferenceRetry(
+                id: scanId,
+                expectedGeneration: nil,
+                code: OfflineQueueManager.serverRetryableFailureCode,
+                message: "Retry the exact backend generation.",
+                delay: 1,
+                resetMediaUploads: false
+            ) == 1
+        )
+
+        #expect(
+            manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
+        )
+        #expect(manager.queueAttemptCount(for: scanId) == 1)
+
+        // A transient signer/PUT failure is part of the required re-stage, not
+        // a new inference decision. Its event keeps the precise upload error,
+        // while the durable machine latch and committed count must survive.
+        #expect(
+            manager.updateQueuedScanForRetry(
+                scanId: scanId,
+                code: "upload_transport_error",
+                message: "The re-stage connection was interrupted.",
+                delay: 1,
+                resetTo: .pending
+            ) == 2
+        )
+        #expect(
+            manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
+        )
+        #expect(manager.queueAttemptCount(for: scanId) == 2)
+
+        let verificationContext = ModelContext(context.container)
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(
+            persisted.queueLastErrorCode
+                == OfflineQueueManager.serverRetryableFailureCode
+        )
+        #expect(persisted.queueAttemptCount == 2)
+    }
+
     private func enableUnlimitedFreeScansForTest() {
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
@@ -1687,7 +1897,72 @@ struct OfflineQueueManagerTests {
         #expect(fetched.queueNextRetryAt == nil)
         #expect(fetched.queueLastErrorCode == nil)
         #expect(fetched.queueLastErrorMessage == nil)
+        #expect(fetched.queueAttemptCount == 0)
         #expect(!fetched.queueNeedsAttention)
+    }
+
+    @Test func testManualRetryResetsBudgetForDescriptionOnlyScan() async throws {
+        let ctx = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let originalIsOnline = manager.isOnline
+        defer { manager.isOnline = originalIsOnline }
+        manager.isOnline = false
+
+        let scanId = UUID().uuidString.lowercased()
+        let capturedMediaJSON = try #require(
+            CapturedMediaSnapshot(items: [
+                .description(
+                    ObservationContext(freeText: "Perched beside the trail")
+                )
+            ]).jsonString
+        )
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            capturedMediaJSON: capturedMediaJSON,
+            scanState: .failed,
+            queueAttemptCount:
+                OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts,
+            queueLastErrorCode: "automatic_retry_limit_reached",
+            queueNeedsAttention: true
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .needsAttention,
+            attemptCount:
+                OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts,
+            lastErrorCode: "automatic_retry_limit_reached"
+        )
+        ctx.insert(scan)
+        ctx.insert(job)
+        try ctx.save()
+
+        let didRetry = manager.retryQueuedScanNow(scanId: scanId)
+
+        let fetchedScan = try #require(
+            ctx.fetch(
+                FetchDescriptor<OfflineQueuedScan>(
+                    predicate: #Predicate { $0.id == scanId }
+                )
+            ).first
+        )
+        let jobId = job.id
+        let fetchedJob = try #require(
+            ctx.fetch(
+                FetchDescriptor<OfflineJobRecord>(
+                    predicate: #Predicate { $0.id == jobId }
+                )
+            ).first
+        )
+        #expect(didRetry)
+        #expect(fetchedScan.queueState == .staged)
+        #expect(fetchedScan.queueAttemptCount == 0)
+        #expect(fetchedScan.queueLastErrorCode == nil)
+        #expect(!fetchedScan.queueNeedsAttention)
+        #expect(fetchedJob.status == .pending)
+        #expect(fetchedJob.attemptCount == 0)
+        #expect(fetchedJob.lastErrorCode == nil)
     }
 
     @Test func testManualRetryResumesCompletedServerResultRecovery() async throws {

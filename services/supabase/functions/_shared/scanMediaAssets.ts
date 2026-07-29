@@ -72,6 +72,13 @@ type ReusableStagedScanMediaAssetRow = StagedScanMediaAssetRow & {
   failure_reason: string | null;
 };
 
+type ScanIngestionRegistrationJobRow = {
+  scan_id: string;
+  status: string;
+  stage: string;
+  terminal_reason_code: string | null;
+};
+
 type NormalizedScanMediaAssetRow = ScanMediaAssetRow & {
   role: ScanMediaAssetRole;
   status: ScanMediaAssetStatus;
@@ -83,6 +90,32 @@ function isScanShareRestoreInput(
   input: StagedScanMediaAssetInput,
 ): boolean {
   return input.uploadPurpose === "scan_share_restore";
+}
+
+const RECOVERABLE_SCAN_SHARE_RESTORE_TERMINAL_REASONS = new Set([
+  "replay_exhausted",
+  "media_reconciliation_abandoned",
+]);
+
+function terminalJobAllowsScanShareRestore(
+  job: ScanIngestionRegistrationJobRow | undefined,
+  scanId: string,
+  restoreScanIds: Set<string>,
+  provenMediaAbandonmentScanIds: Set<string>,
+): boolean {
+  if (!job || !restoreScanIds.has(scanId)) return false;
+  if (job.status === "complete") return true;
+  if (
+    job.status !== "failed_terminal" ||
+    job.terminal_reason_code == null ||
+    !RECOVERABLE_SCAN_SHARE_RESTORE_TERMINAL_REASONS.has(
+      job.terminal_reason_code,
+    )
+  ) {
+    return false;
+  }
+  return job.terminal_reason_code !== "media_reconciliation_abandoned" ||
+    provenMediaAbandonmentScanIds.has(scanId);
 }
 
 function isValidScanShareRestoreInput(
@@ -413,7 +446,7 @@ export async function createStagedScanMediaAssets(
     ];
     const { data: jobData, error: jobError } = await supabaseAdmin
       .from("scan_ingestion_jobs")
-      .select("scan_id,status,stage")
+      .select("scan_id,status,stage,terminal_reason_code")
       .eq("user_id", userId)
       .in("scan_id", requestedClientScanIds);
     if (jobError) {
@@ -421,22 +454,65 @@ export async function createStagedScanMediaAssets(
         `createStagedScanMediaAssets: ${jobError.message}`,
       );
     }
-    const jobStatusByScanId = new Map(
-      ((jobData ?? []) as Array<{
-        scan_id: string;
-        status: string;
-        stage: string;
-      }>).map(
-        (row) => [row.scan_id, { status: row.status, stage: row.stage }],
+    const jobByScanId = new Map(
+      ((jobData ?? []) as ScanIngestionRegistrationJobRow[]).map(
+        (row) => [row.scan_id, row],
       ),
     );
-    const completedRestoreScanIds: string[] = [];
+    const mediaAbandonmentRestoreScanIds = requestedClientScanIds.filter(
+      (scanId) => {
+        const job = jobByScanId.get(scanId);
+        return restoreScanIds.has(scanId) &&
+          job?.status === "failed_terminal" &&
+          job.terminal_reason_code === "media_reconciliation_abandoned";
+      },
+    );
+    const provenMediaAbandonmentScanIds = new Set<string>();
+    if (mediaAbandonmentRestoreScanIds.length > 0) {
+      // Older released producers wrote this service-only dead letter only
+      // after a provider result had passed the wire contract but its scan row
+      // could not be finalized. The media worker can also abandon pre-result
+      // staging generations, so the terminal reason alone is not sufficient
+      // authority to reopen one.
+      const { data: failedIngestionData, error: failedIngestionError } =
+        await supabaseAdmin
+          .from("failed_scan_ingestions")
+          .select("scan_id,user_id")
+          .eq("user_id", userId)
+          .in("scan_id", mediaAbandonmentRestoreScanIds);
+      if (failedIngestionError) {
+        throw new Error(
+          `createStagedScanMediaAssets: ${failedIngestionError.message}`,
+        );
+      }
+      for (
+        const row of (failedIngestionData ?? []) as Array<{
+          scan_id: string;
+          user_id: string;
+        }>
+      ) {
+        if (row.user_id.toLowerCase() === userId.toLowerCase()) {
+          provenMediaAbandonmentScanIds.add(row.scan_id);
+        }
+      }
+    }
+    const terminalRestoreScanIds: string[] = [];
     const hasDisallowedTerminalJob = requestedClientScanIds.some((scanId) => {
-      const status = jobStatusByScanId.get(scanId)?.status;
-      if (status === "failed_terminal") return true;
-      if (status !== "complete") return false;
-      if (!restoreScanIds.has(scanId)) return true;
-      completedRestoreScanIds.push(scanId);
+      const job = jobByScanId.get(scanId);
+      if (job?.status !== "complete" && job?.status !== "failed_terminal") {
+        return false;
+      }
+      if (
+        !terminalJobAllowsScanShareRestore(
+          job,
+          scanId,
+          restoreScanIds,
+          provenMediaAbandonmentScanIds,
+        )
+      ) {
+        return true;
+      }
+      terminalRestoreScanIds.push(scanId);
       return false;
     });
     if (hasDisallowedTerminalJob) {
@@ -444,11 +520,11 @@ export async function createStagedScanMediaAssets(
         "createStagedScanMediaAssets: terminal staging registration cannot be retried",
       );
     }
-    if (completedRestoreScanIds.length > 0) {
+    if (terminalRestoreScanIds.length > 0) {
       const { data: scanData, error: scanError } = await supabaseAdmin
         .from("scans")
         .select("id,user_id,is_tombstoned")
-        .in("id", completedRestoreScanIds);
+        .in("id", terminalRestoreScanIds);
       if (scanError) {
         throw new Error(
           `createStagedScanMediaAssets: ${scanError.message}`,
@@ -462,7 +538,7 @@ export async function createStagedScanMediaAssets(
         }>).map((row) => [row.id.toLowerCase(), row]),
       );
       if (
-        completedRestoreScanIds.some((scanId) => {
+        terminalRestoreScanIds.some((scanId) => {
           const scan = scanById.get(scanId.toLowerCase());
           // An absent row is allowed to stage only; the later guarded
           // recovery route remains responsible for reconstructing and
@@ -492,17 +568,22 @@ export async function createStagedScanMediaAssets(
     }
     if (
       failedRows.some(([rowIdentity, row]) => {
-        const jobStatus = jobStatusByScanId.get(row.client_scan_id)?.status;
+        const job = jobByScanId.get(row.client_scan_id);
         const requestedInput = inputByIdentity.get(rowIdentity);
-        const isCompletedRestore = jobStatus === "complete" &&
-          requestedInput != null &&
+        const isAuthorizedRestore = requestedInput != null &&
+          terminalJobAllowsScanShareRestore(
+            job,
+            row.client_scan_id,
+            restoreScanIds,
+            provenMediaAbandonmentScanIds,
+          ) &&
           isValidScanShareRestoreInput(requestedInput);
         return row.failure_reason === "moderation_rejected" ||
           (
-            jobStatus != null &&
-            jobStatus !== "failed_retryable" &&
-            jobStatus !== "retrying" &&
-            !isCompletedRestore
+            job?.status != null &&
+            job.status !== "failed_retryable" &&
+            job.status !== "retrying" &&
+            !isAuthorizedRestore
           );
       })
     ) {

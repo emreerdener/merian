@@ -1082,7 +1082,10 @@ missing or nonterminal job can stage for the same guarded flow, but signing
 grants no scan-write or publication authority; the recovery route still
 validates the owner and payload. Repair and ordinary files cannot mix for one
 scan. Ordinary uploads cannot use completed ingestion as a new staging
-namespace, and `failed_terminal` ingestion remains closed. This exception is
+namespace. Failed-terminal repair is limited to exact `replay_exhausted`, or
+exact `media_reconciliation_abandoned` plus the matching owner/scan
+service-written post-result `failed_scan_ingestions` row. Policy, unproven
+abandonment, and every other terminal reason remain closed. This exception is
 what lets Explore and Ask the Community restore surviving local image,
 playback-video, or standalone-audio media after analysis has durably completed.
 When camelCase and snake_case compatibility aliases are both supplied for scan
@@ -1452,13 +1455,14 @@ The endpoint intentionally returns `404 { "error": "Scan not found." }` when
 handles that specific error by resolving the server `species_dictionary.id` by
 scientific name and sending a bounded non-media `recovery_scan` through the
 single `/check-scan-status` contract. The server defers to active/retryable
-richer ingestion, permits only exact structured `replay_exhausted` among
-terminal states, creates only an absent authenticated-owner row, and reloads it
-by owner. After status returns `found`, iOS uploads surviving eligible local
+richer ingestion, permits exact structured `replay_exhausted`, and admits exact
+`media_reconciliation_abandoned` only with matching service-written post-result
+dead-letter proof. It creates only an absent authenticated-owner row and reloads
+it by owner. After status returns `found`, iOS uploads surviving eligible local
 images, playback video, and standalone audio to staging and retries this
 endpoint with the three category-specific restored-key arrays. This endpoint
-itself does not accept `recovery_scan`; the sequence is compatibility repair for
-older/interrupted drift, not the expected current multimodal success path.
+itself does not accept `recovery_scan`; the sequence is compatibility repair
+for older/interrupted drift, not the expected current multimodal success path.
 
 Before inspecting or returning an existing active request, the endpoint repairs
 any Community request on that `scan_id` whose `requested_by` no longer matches
@@ -5429,9 +5433,10 @@ does not consume the daily send limit, and is best-effort so load/send chat
 behavior remains independent if prompt generation fails. The server caps v1 at
 600 characters per user message, 30 total persisted message rows per
 conversation, and 20 sends per Pro user per day across all of that user's
-Insight chats. A new request reserves room for its user and assistant rows
-together; an incomplete retry already owns its user row but must still have one
-slot for the assistant. Effective Pro includes active trial users.
+Insight and Explore chats. A new request reserves room for its user and
+assistant rows together; an incomplete retry already owns its user row but must
+still have one slot for the assistant. Effective Pro includes active trial
+users.
 
 `send` uses `client_message_id` as the UUID provider idempotency key. The iOS
 client sends a UUID `Idempotency-Key` header for `suggest_prompts` and
@@ -5441,18 +5446,31 @@ server canonicalizes it to lowercase, binds it to the user row and assistant
 safety metadata, then projects it as `client_message_id` on both messages.
 Reusing the UUID with different normalized text returns
 `409 field_chat_idempotency_conflict`. The server rechecks that binding after a
-duplicate insert and before returning a waited replay, so contradictory
-same-UUID requests that race the initial read cannot receive the other request's
-success. The assistant row has a deterministic UUIDv8 derived from conversation
-and request identity. A duplicate or quota replay either returns that exact
-pair, waits a bounded interval for the original in-flight answer, or returns
-retryable `503 field_chat_send_in_progress`. A failed provider or
-assistant-persistence attempt may resume under the same UUID without inserting
-another user question. An ambiguous assistant insert is read-after-write
-reconciled before failure; deterministic identity prevents a concurrent local
-refusal from saving two answers. iOS manual retry preserves the failed UUID.
+duplicate/waited replay, while the service-only `reserve_field_chat_send(...)`
+RPC performs the authoritative check and user-row insert atomically. It
+serializes every user's cross-table UTC-day admission before conversation
+admission, rejects a second different UUID while an answer is missing, and
+checks both conversation slots and the daily send before the row is visible.
+Thus contradictory same-UUID requests and different-key capacity races cannot
+both pass an earlier Edge read. The assistant row has a deterministic UUIDv8
+derived from conversation and request identity. A duplicate or quota replay
+either returns that exact pair, waits a bounded interval for the original
+in-flight answer, or returns retryable `503 field_chat_send_in_progress`. A
+failed provider or assistant-persistence attempt may resume under the same UUID
+without inserting another user question. An ambiguous assistant insert is
+read-after-write reconciled before failure; deterministic identity prevents a
+concurrent local refusal from saving two answers. iOS manual retry preserves the
+failed UUID.
+
+If an invocation terminates after quota commit but before assistant persistence,
+same-UUID retries remain in progress during a ten-minute safety window. After
+that window, `recover_stale_field_chat_quota(...)` may mark only the exact
+subject/user/request reservation failed after proving the user row exists and
+its bound assistant is absent. The route re-reads the pair before reserving a
+newly metered provider attempt. A live or completed pair cannot be reopened.
 `load`, delete, feedback, and local safety refusals do not invoke Gemini and do
-not consume AI quota.
+not consume AI quota, although a newly admitted local refusal still counts as
+one of the user's 20 Field Chat sends.
 
 ### Prompt and Privacy Boundary
 
@@ -5617,11 +5635,15 @@ unsafe-action/exact-location/human-subject intent filter as client defense in
 depth. Any mismatch is `MerianError.invalidResponse`; prompt generation falls
 back locally, while feedback and summary surfaces remain unsuccessful.
 
-Roll this contract out backend-first. Deploy the additive `subject_id` field and
-assistant request-pair projection to both `/insight-chat` and
-`/explore-post-chat`, verify empty-thread/action responses plus an ambiguous
+Roll this contract out backend-first. Apply
+`20260729163616_reserve_field_chat_sends_atomically.sql` before deploying either
+new chat function; deploying a function that calls the RPC against an older
+catalog fails closed with `field_chat_admission_unavailable`. Then deploy the
+additive `subject_id` field and assistant request-pair projection to both
+`/insight-chat` and `/explore-post-chat`, verify empty-thread/action responses,
+different-key concurrency, cap boundaries, stale recovery, and an ambiguous
 same-UUID send replay in staging, and only then ship the hardened iOS validator.
-Existing iOS versions ignore the additive fields; the corrected version
+Existing iOS versions ignore the additive response fields; the corrected version
 deliberately fails closed against an older anonymous-success envelope or a send
 that cannot prove its persisted pair.
 
@@ -5643,7 +5665,9 @@ identification requests.
 | `429`  | `{ "code": "ai_quota_daily_exceeded", ... }`     | Database AI safety ceiling reached                 |
 | `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached                 |
 | `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }`   | Shared network minute ceiling reached              |
-| `503`  | `{ "code": "field_chat_send_in_progress", ... }` | Same-UUID send has not completed its pair yet      |
+| `503`  | `{ "code": "field_chat_send_in_progress", ... }` | Same or different in-flight send has no answer yet |
+| `503`  | `{ "code": "field_chat_admission_unavailable" }` | Atomic admission could not be verified             |
+| `503`  | `{ "code": "field_chat_recovery_unavailable" }`  | Stale-request recovery could not be verified       |
 | `503`  | `{ "code": "ai_entitlement_unavailable", ... }`  | Entitlement/quota lookup failed closed             |
 
 The iOS client treats `404 scan_not_ready`, action-level `message_not_found` /
@@ -5710,16 +5734,19 @@ Explore post ID on every thread, feedback, and prompt-suggestion response,
 including an empty thread. Conversations allow 600 characters per user message,
 30 total persisted rows, and share the 20-send UTC daily allowance with the
 viewer's Insight chats. New sends reserve room for user and assistant rows
-together. Request UUIDs are canonical lowercase values; UUID reuse with
-different normalized text returns `409 field_chat_idempotency_conflict`, and
-deterministic assistant UUIDv8 rows make answer persistence idempotent.
-Assistant text is capped at 4,000 Unicode code points before persistence. Prompt
-suggestions and feedback do not consume a send. The same iOS candidate-success
-validation binds the envelope and every returned message to the requested post
-ID and one conversation; a send also requires its exact two-message
-`client_message_id` pair, exact acknowledged user text, and bounded response
-body before the private thread can be displayed, a pending send can be cleared,
-or an action can show success.
+together through the same atomic cross-table RPC, which also rejects a different
+request while one bound user row remains unanswered. Request UUIDs are canonical
+lowercase values; UUID reuse with different normalized text returns
+`409 field_chat_idempotency_conflict`, and deterministic assistant UUIDv8 rows
+make answer persistence idempotent. A charged request missing its assistant
+follows the same exact-row-bound ten-minute stale recovery contract as Insight
+Field Chat. Assistant text is capped at 4,000 Unicode code points before
+persistence. Prompt suggestions and feedback do not consume a send. The same iOS
+candidate-success validation binds the envelope and every returned message to
+the requested post ID and one conversation; a send also requires its exact
+two-message `client_message_id` pair, exact acknowledged user text, and bounded
+response body before the private thread can be displayed, a pending send can be
+cleared, or an action can show success.
 
 The model context is built from the privacy-filtered `get_explore_post` and
 `get_explore_post_detail` projections plus public Species Dictionary fields. It
@@ -5864,7 +5891,10 @@ URLs are rejected, and recovery is not supported in bulk probes. Processing,
 finalizing, retrying, retryable, policy, legacy-unknown, and every other
 terminal state are never preempted. A missing ledger row also fails closed. Only
 an existing `complete` ledger whose owner row is unexpectedly absent or an
-explicit `terminal_reason_code = replay_exhausted` state is recoverable.
+explicit `terminal_reason_code = replay_exhausted` state is recoverable without
+additional provenance. Exact `media_reconciliation_abandoned` additionally
+requires the owner/scan-matching service-written `failed_scan_ingestions` row
+proving that a valid provider result reached post-result finalization.
 
 If the exact owner row is still absent, the route also invokes service-only
 `recover_stranded_scan_ingestion_attempt` before projecting client-safe job
@@ -6398,6 +6428,14 @@ Response:
 }
 ```
 
+The canonical handler response is always the wrapped `{"data":[...]}` object
+above. During rollout, corrected iOS builds also accept the exact legacy direct
+array response (`[...]`) emitted by an older deployed handler; no other
+successful-response topology is accepted. Incident entries remain strictly
+decoded in either envelope, and a malformed `2xx` response maps to
+`invalidResponse` rather than being interpreted as an incident or triggering
+scan recovery.
+
 `media_health_status` is `degraded` or `quarantined`. Unpublished, moderated,
 tombstoned, and healthy records are excluded. The backing definer RPC verifies
 `auth.uid() = self_id` for authenticated direct use, while the Edge boundary
@@ -6409,8 +6447,12 @@ contract after the later quarantine migration accidentally reintroduced
 role-first dispatch.
 
 The iOS Scan Library refreshes this response on entry, foreground, connection
-changes, and library repair events. A failed refresh retains the last in-memory
-incident state instead of falsely claiming recovery.
+changes, and library repair events. Rapid queue-driven refresh triggers are
+coalesced within five seconds because this is an independent read-only alert
+surface. A trigger received during an in-flight call receives one trailing
+refresh rather than being dropped, and the expected authenticated owner is
+revalidated before private incidents enter view state. A failed refresh retains
+the last in-memory incident state instead of falsely claiming recovery.
 
 ---
 

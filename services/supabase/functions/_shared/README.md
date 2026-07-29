@@ -159,6 +159,14 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   this boundary shared so an empty thread, feedback, note summary, prompt
   response, concurrent local refusal, or ambiguous send retry cannot silently
   lose subject/request identity in one route.
+- **`fieldChatReservation.ts`**: Fail-closed adapter to the service-only atomic
+  Field Chat admission and stale-quota recovery RPCs. It validates the exact
+  subject/conversation/user/request-bound persisted user row returned by
+  admission, exposes authoritative cross-table daily counts, maps only stable
+  database tokens to public errors, and treats timeout or malformed RPC output
+  as retryable unavailability. The database transaction—not an Edge
+  count-then-insert read—owns same-key replay/conflict, one unanswered request
+  per conversation, two-row capacity, and the shared Insight/Explore daily cap.
 - **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Upload
   signing creates staged scan-media asset rows with `scan_id` null until the
   final scan exists, identify finalization marks them promoted/deleted/failed,
@@ -224,9 +232,12 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   server-side, and calls one atomic service-only RPC. That routine shares the
   ingestion claim's transaction-scoped advisory lock and writes the scan plus a
   completed recovery ledger in one transaction. Active/retryable richer
-  ingestion and every terminal reason except explicit `replay_exhausted` are
-  never preempted. `check-scan-status` and `share-scan-to-explore` must reload
-  by both scan and owner after calling it.
+  ingestion is never preempted. Terminal recovery is limited to explicit
+  `replay_exhausted`, or exact `media_reconciliation_abandoned` plus the
+  matching service-written post-result `failed_scan_ingestions` row. Policy,
+  unproven abandonment, and every other terminal reason remain closed.
+  `check-scan-status` and `share-scan-to-explore` must reload by both scan and
+  owner after calling it.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,

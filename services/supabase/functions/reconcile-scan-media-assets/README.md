@@ -22,8 +22,9 @@ Service-role worker for staged scan-media upload-session reconciliation.
 - Checks `scan_ingestion_jobs` before abandoning orphaned staged media: active
   leases and future `retry_after` windows keep media pending, repaired scans can
   mark their job complete only through the shared claimed-key/canonical-media
-  finalization transaction, and TTL-abandoned media marks the job
-  `failed_terminal`.
+  finalization transaction, and TTL-abandoned media marks a still-nonterminal
+  job `failed_terminal`. It never overwrites an existing `complete` or
+  `failed_terminal` decision, including moderation and provider-policy failures.
 - Writes summary rows to `scan_media_reconciliation_runs` and logs structured
   completion counts.
 
@@ -55,6 +56,24 @@ cleans abandoned staging artifacts. Sanitized `scan_ingestion_intents` rows give
 request shape; this worker does not consume those intents. Inline/redacted scans
 still depend on the iOS offline queue, while resumable staged media/audio/video
 and text-only scans are retried by `replay-scan-ingestion`.
+
+## Legacy owner-row recovery boundary
+
+An older released client can hold a valid local AI result even when the matching
+owner `scans` row was never committed. Restore-purpose upload signing and
+`recover_missing_owned_scan` can repair that row only when the terminal ledger
+state proves one of these exact post-result cases:
+
+- `replay_exhausted`; or
+- `media_reconciliation_abandoned` together with the same owner/scan
+  service-written post-result `failed_scan_ingestions` row.
+
+The second proof is mandatory because this worker can also mark pre-result
+orphaned media abandoned. A terminal reason by itself is therefore not authority
+to publish a local result. Policy failures, unknown legacy failures, tombstones,
+foreign-owner collisions, non-empty server media, and conflicting rows remain
+blocked. Migration `20260729173000_recover_media_abandoned_owned_scans.sql`
+carries the database side of the same boundary.
 
 ## Uniqueness invariant
 

@@ -507,14 +507,131 @@ Deno.test("createStagedScanMediaAssets rejects mixed restore and ordinary inputs
   fake.assertExhausted();
 });
 
-Deno.test("createStagedScanMediaAssets rejects failed-terminal restore media", async () => {
+Deno.test("createStagedScanMediaAssets rejects unallowlisted failed-terminal restore media", async () => {
   const assetInput = restoreInput();
   const { fake, supabase } = client([
     { mode: "select", response: { data: [], error: null } },
     {
       mode: "select",
       response: {
-        data: [{ scan_id: clientScanId, status: "failed_terminal" }],
+        data: [{
+          scan_id: clientScanId,
+          status: "failed_terminal",
+          stage: "moderation_rejected",
+          terminal_reason_code: "content_policy_rejected",
+        }],
+        error: null,
+      },
+    },
+  ]);
+
+  await assertRejects(
+    () => createStagedScanMediaAssets([assetInput], supabase),
+    Error,
+    "terminal staging registration cannot be retried",
+  );
+  assertEquals(fake.insertedRows, []);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets permits exact restore media for recoverable failed-terminal jobs", async () => {
+  for (
+    const terminalReasonCode of [
+      "replay_exhausted",
+      "media_reconciliation_abandoned",
+    ]
+  ) {
+    const assetInput = restoreInput();
+    const inserted = candidate(assetInput);
+    const expectedQueries: ExpectedQuery[] = [
+      { mode: "select", response: { data: [], error: null } },
+      {
+        mode: "select",
+        response: {
+          data: [{
+            scan_id: clientScanId,
+            status: "failed_terminal",
+            stage: terminalReasonCode === "replay_exhausted"
+              ? "server_replay_limit_reached"
+              : "media_reconciliation_abandoned",
+            terminal_reason_code: terminalReasonCode,
+          }],
+          error: null,
+        },
+      },
+    ];
+    if (terminalReasonCode === "media_reconciliation_abandoned") {
+      expectedQueries.push({
+        mode: "select",
+        response: {
+          data: [{ scan_id: clientScanId, user_id: userId }],
+          error: null,
+        },
+      });
+    }
+    expectedQueries.push(
+      // An absent row may stage only; guarded recovery still decides whether
+      // an owner row can be reconstructed before publication.
+      { mode: "select", response: { data: [], error: null } },
+      {
+        mode: "insert",
+        response: { data: [inserted], error: null },
+      },
+    );
+    const { fake, supabase } = client(expectedQueries);
+
+    const rows = await createStagedScanMediaAssets(
+      [assetInput],
+      supabase,
+    );
+
+    assertEquals(rows[0].storage_key, assetInput.storageKey);
+    assertEquals(fake.insertedRows.length, 1);
+    fake.assertExhausted();
+  }
+});
+
+Deno.test("createStagedScanMediaAssets rejects media-abandoned restore without post-result proof", async () => {
+  const assetInput = restoreInput();
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          scan_id: clientScanId,
+          status: "failed_terminal",
+          stage: "media_reconciliation_abandoned",
+          terminal_reason_code: "media_reconciliation_abandoned",
+        }],
+        error: null,
+      },
+    },
+    { mode: "select", response: { data: [], error: null } },
+  ]);
+
+  await assertRejects(
+    () => createStagedScanMediaAssets([assetInput], supabase),
+    Error,
+    "terminal staging registration cannot be retried",
+  );
+  assertEquals(fake.insertedRows, []);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets does not let ordinary staging use a recoverable terminal reason", async () => {
+  const assetInput = input("ordinary-terminal", 0);
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          scan_id: clientScanId,
+          status: "failed_terminal",
+          stage: "media_reconciliation_abandoned",
+          terminal_reason_code: "media_reconciliation_abandoned",
+        }],
         error: null,
       },
     },

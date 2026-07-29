@@ -138,9 +138,11 @@ Bulk responses include the probed scan id on each result:
   matching UUIDs, validates all fields, derives public coordinates from
   geoprivacy, and calls one per-scan-locked database routine so the row plus
   completed recovery ledger are atomic and cannot overwrite an existing row. The
-  shared repair write requires an existing ledger and allows only
-  completed-but-missing or structured `replay_exhausted` state. No-ledger,
-  active, retryable, policy, media-abandonment, legacy-unknown, and arbitrary
+  shared repair write requires an existing ledger and allows
+  completed-but-missing or structured `replay_exhausted` state. Exact
+  `media_reconciliation_abandoned` additionally requires the matching owner/scan
+  service-written post-result `failed_scan_ingestions` row. No-ledger, active,
+  retryable, policy, unproven abandonment, legacy-unknown, and arbitrary
   terminal reasons remain untouched.
 - When `required_video_count > 0`, the endpoint returns `found` only if the scan
   row has at least that many non-empty `video_storage_urls` and at least that

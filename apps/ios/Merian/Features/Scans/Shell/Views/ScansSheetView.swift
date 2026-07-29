@@ -36,6 +36,9 @@ struct ScansSheetView: View {
     @State private var queuedScans: [QueuedScanSnapshot] = []
     @State private var lastQueuedPipelineKickAt = Date.distantPast
     @State private var exploreMediaIncidents: [ExploreMediaIncident] = []
+    @State private var lastExploreMediaIncidentRefreshAt = Date.distantPast
+    @State private var isExploreMediaIncidentRefreshRunning = false
+    @State private var needsTrailingExploreMediaIncidentRefresh = false
 
     @Environment(\.modelContext) private var modelContext
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
@@ -377,9 +380,6 @@ struct ScansSheetView: View {
     private func kickQueuedScanPipeline(reason: String) {
         let now = Date()
         guard now.timeIntervalSince(lastQueuedPipelineKickAt) >= 2 else {
-            MerianLog.data.debug(
-                "ScansSheetView.kickQueuedScanPipeline: throttled reason=\(reason, privacy: .public)"
-            )
             return
         }
 
@@ -405,16 +405,86 @@ struct ScansSheetView: View {
         guard offlineQueueManager.isOnline,
               SupabaseManager.shared.isAuthenticated else {
             exploreMediaIncidents = []
+            lastExploreMediaIncidentRefreshAt = .distantPast
+            needsTrailingExploreMediaIncidentRefresh = false
             return
         }
 
-        do {
-            exploreMediaIncidents = try await MerianNetworkClient.shared.getExploreMediaIncidents()
-        } catch {
-            MerianLog.network.error(
-                "ScansSheetView: failed to refresh Explore media incidents: \(error.localizedDescription, privacy: .private)"
-            )
+        if isExploreMediaIncidentRefreshRunning {
+            // Do not drop a repair/foreground trigger while a request is in
+            // flight. The driver below performs one trailing refresh after
+            // the coalescing window.
+            needsTrailingExploreMediaIncidentRefresh = true
+            return
         }
+        isExploreMediaIncidentRefreshRunning = true
+        defer {
+            isExploreMediaIncidentRefreshRunning = false
+            // A replacement SwiftUI `.task(id:)` can begin before a cancelled
+            // predecessor reaches this defer. If it registered a trailing
+            // request, hand that request to a fresh driver instead of losing
+            // the auth/connectivity transition.
+            if needsTrailingExploreMediaIncidentRefresh,
+               offlineQueueManager.isOnline,
+               SupabaseManager.shared.isAuthenticated {
+                Task { @MainActor in
+                    await refreshExploreMediaIncidents()
+                }
+            }
+        }
+
+        repeat {
+            needsTrailingExploreMediaIncidentRefresh = false
+
+            // Queue persistence emits several library updates during one
+            // upload / inference handoff. Media-health incidents are an
+            // independent, read-only surface, so coalesce those events
+            // instead of issuing one identical request per queue transition.
+            let elapsed = Date().timeIntervalSince(
+                lastExploreMediaIncidentRefreshAt
+            )
+            let coalescingDelay = max(0, 5 - elapsed)
+            if coalescingDelay > 0 {
+                do {
+                    try await Task.sleep(for: .seconds(coalescingDelay))
+                } catch {
+                    return
+                }
+            }
+            // Triggers received while waiting are served by the request that
+            // is about to start; only triggers received during that request
+            // require a trailing refresh.
+            needsTrailingExploreMediaIncidentRefresh = false
+
+            guard offlineQueueManager.isOnline,
+                  SupabaseManager.shared.isAuthenticated,
+                  let expectedOwnerId = SupabaseManager.shared.currentUser?.id else {
+                exploreMediaIncidents = []
+                lastExploreMediaIncidentRefreshAt = .distantPast
+                return
+            }
+            lastExploreMediaIncidentRefreshAt = Date()
+
+            do {
+                let incidents = try await MerianNetworkClient.shared
+                    .getExploreMediaIncidents()
+                // Never project one account's private recovery queue into a
+                // newly signed-in account after an in-flight auth transition.
+                guard offlineQueueManager.isOnline,
+                      SupabaseManager.shared.isAuthenticated,
+                      SupabaseManager.shared.currentUser?.id == expectedOwnerId else {
+                    exploreMediaIncidents = []
+                    lastExploreMediaIncidentRefreshAt = .distantPast
+                    return
+                }
+                exploreMediaIncidents = incidents
+            } catch {
+                guard !Task.isCancelled else { return }
+                MerianLog.network.error(
+                    "ScansSheetView: failed to refresh Explore media incidents: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+        } while needsTrailingExploreMediaIncidentRefresh && !Task.isCancelled
     }
 
     /// Fetches the current `OfflineQueuedScan` list directly from the model context and
@@ -451,14 +521,6 @@ struct ScansSheetView: View {
             completedIds = Set(((try? readContext.fetch(recordDescriptor)) ?? []).map(\.id))
         }
         let visibleQueued = fetched.filter { !completedIds.contains($0.id) }
-        let stateSummary = Dictionary(grouping: fetched, by: \.scanStateRaw)
-            .map { "\($0.key):\($0.value.count)" }
-            .sorted()
-            .joined(separator: ",")
-        let visibleSummary = visibleQueued.map(\.id).joined(separator: ",")
-        MerianLog.data.debug(
-            "ScansSheetView.refreshQueuedScans: freshContext queued=\(fetched.count, privacy: .public) visible=\(visibleQueued.count, privacy: .public) completedMatches=\(completedIds.count, privacy: .public) states=\(stateSummary, privacy: .public) visibleIds=\(visibleSummary, privacy: .private)"
-        )
         let snapshots = visibleQueued.map {
             QueuedScanSnapshot(
                 id: $0.id,
@@ -476,6 +538,14 @@ struct ScansSheetView: View {
             )
         }
         if queuedScans != snapshots {
+            let stateSummary = Dictionary(grouping: fetched, by: \.scanStateRaw)
+                .map { "\($0.key):\($0.value.count)" }
+                .sorted()
+                .joined(separator: ",")
+            let visibleSummary = visibleQueued.map(\.id).joined(separator: ",")
+            MerianLog.data.debug(
+                "ScansSheetView.refreshQueuedScans: changed queued=\(fetched.count, privacy: .public) visible=\(visibleQueued.count, privacy: .public) completedMatches=\(completedIds.count, privacy: .public) states=\(stateSummary, privacy: .public) visibleIds=\(visibleSummary, privacy: .private)"
+            )
             queuedScans = snapshots
         }
     }
@@ -491,11 +561,11 @@ struct ScansSheetView: View {
             sortBy: [SortDescriptor(\LocalScanRecord.timestamp, order: .reverse)]
         )
         let records = (try? modelContext.fetch(descriptor)) ?? []
-        MerianLog.data.debug(
-            "ScansSheetView.syncStateFromStore: records=\(records.count, privacy: .public)"
-        )
         guard scanListSignature(records) != scanListSignature(searchManager.allScans) else { return }
 
+        MerianLog.data.debug(
+            "ScansSheetView.syncStateFromStore: changed records=\(records.count, privacy: .public)"
+        )
         searchManager.allScans = records
         searchManager.performSearch(query: searchManager.searchQuery)
     }

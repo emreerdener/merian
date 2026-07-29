@@ -85,11 +85,13 @@ network client:
 3. refuses policy rejection, deletion, and ambiguous/unknown state;
 4. resolves a server species UUID from the local scientific name;
 5. builds bounded non-media `OwnedScanRecoveryPayload` using the authenticated
-   persisted Auth owner; and
-6. uploads only surviving local user media through the normal
+   persisted Auth owner;
+6. asks single-scan status recovery to commit the guarded owner row and requires
+   an authoritative `found` response; and
+7. uploads only surviving local user media through the normal
    owner-authoritative staging signer.
 
-The repair-capable share may then combine `recovery_scan` with:
+The retried repair-capable share may idempotently combine `recovery_scan` with:
 
 - `restored_object_keys` for images;
 - `restored_video_object_keys` for one playable `.mp4`; and
@@ -98,6 +100,12 @@ The repair-capable share may then combine `recovery_scan` with:
 Ask the Community cannot accept `recovery_scan` directly. It first completes the
 same guarded `/check-scan-status` owner-row recovery and then uses all three
 restored-key fields on its own route.
+
+The currently released/TestFlight client uses the older order: it stages exact
+restore media first, then attaches `recovery_scan` to Share. Backend
+compatibility keeps that cohort repairable, but only under the same guarded
+owner/ledger proof described below. Signing alone grants no owner-row write or
+publication authority.
 
 The server validates traversal, owner prefix, count, type, promotion, canonical
 media refresh, selection, privacy, and audible-media moderation before
@@ -108,20 +116,26 @@ preflights that same complete mixed-media count plus every image/video/audio
 byte budget so an invalid legacy snapshot cannot upload a partial repair set. It
 never sends a direct durable URL as recovery input and never upserts
 `public.scans`. Every current restore manifest sets
-`uploadPurpose = scan_share_restore`; the signer accepts that completed-scan
-exception only for an exact deterministic scan/category filename, canonical
-role, and fresh unrestricted scan read. An existing row must be active and
-JWT-owned; a genuinely absent row may only stage for guarded reconstruction.
-Failed-terminal ingestion, a tombstoned or foreign scan, and an ordinary
-post-completion upload remain rejected. That signing step grants no scan-write
-or publication authority. Historical promoted capture rows do not consume this
-repair's active six-item staging budget. Every current key must also match an
-authoritative capture-upload ledger row for the exact authenticated owner, scan
-ID, media kind, and role before the server promotes any object. This prevents an
-owner key from another scan or a signed audio/video key relabeled as an image
-from crossing into publication. Compatibility with released clients that signed
-before ledger registration is limited to their exact deterministic scan/category
-filename and legacy extension-derived kind.
+`uploadPurpose = scan_share_restore`; the signer accepts that completed-scan or
+guarded-terminal exception only for an exact deterministic scan/category
+filename, canonical role, and fresh unrestricted scan read. A guarded terminal
+restore is limited to exact `replay_exhausted`, or exact
+`media_reconciliation_abandoned` together with the matching owner/scan
+service-written post-result `failed_scan_ingestions` row. An existing row must
+be active and JWT-owned; a genuinely absent row may only stage for the later
+guarded reconstruction. Policy, unproven media abandonment, unknown/arbitrary
+terminal state, a tombstoned or foreign scan, and an ordinary post-completion
+upload remain rejected. The service-only recovery transaction independently
+requires the same proof, shares the ingestion generation lock, honors deletion
+tombstones and ID collisions, never overwrites an existing row, and commits the
+owner row plus completed ledger together. Historical promoted capture rows do
+not consume this repair's active six-item staging budget. Every current key must
+also match an authoritative capture-upload ledger row for the exact
+authenticated owner, scan ID, media kind, and role before the server promotes
+any object. This prevents an owner key from another scan or a signed audio/video
+key relabeled as an image from crossing into publication. Compatibility with
+released clients that signed before ledger registration is limited to their
+exact deterministic scan/category filename and legacy extension-derived kind.
 
 If no eligible local user media survives, publication remains unavailable; a
 reference image is not observation evidence and cannot replace it.

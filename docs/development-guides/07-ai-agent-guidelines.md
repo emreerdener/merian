@@ -285,9 +285,11 @@ dependency audit, tests, type-check, and production build; preserve the required
   non-media `recovery_scan` to documented status/share routes and media only
   through owner-scoped staging keys. The server must derive owner identity,
   serialize against ingestion claim creation, defer to active/retryable
-  ingestion, permit only exact structured `replay_exhausted` among terminal
-  states, insert without overwrite, and reload by both scan and owner. Never add
-  a direct client scan upsert or weaken RLS/grants to make recovery work.
+  ingestion, permit exact structured `replay_exhausted`, and require matching
+  service-written post-result dead-letter provenance for exact
+  `media_reconciliation_abandoned`. It must insert without overwrite and reload
+  by both scan and owner. Never trust the terminal label alone, add a direct
+  client scan upsert, or weaken RLS/grants to make recovery work.
 - **New migrations use the CLI transaction.** Supabase CLI `2.109.1` batches
   each migration with its history insert. Do not add top-level transaction
   controls or any executable concurrent index DDL to a new migration.

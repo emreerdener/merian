@@ -39,15 +39,43 @@ session from creating an anonymous production user.
   creation, and owner-scoped read-back have completed.
 - Builds `OwnedScanRecoveryPayload` only from an owned local record. Single
   `/check-scan-status` can repair eligible non-media state; record-based Explore
-  sharing can combine it with owner-staged local image/video/audio. Ask the
-  Community repairs status first. Restore signing uses the explicit
+  sharing, Ask the Community, and Field Chat repair status first. Explore can
+  then combine the repaired row with owner-staged local image/video/audio;
+  guarded inline repair remains compatible with an older released client that
+  stages before Share. Recovery admits only a completed-but-missing job or exact
+  authenticated-owner `replay_exhausted` reason, or
+  `media_reconciliation_abandoned` with the matching service-written post-result
+  dead letter. Active, retryable, policy, unproven abandonment, deletion,
+  foreign, no-ledger, and unknown state fails closed. Restore signing uses the explicit
   `scan_share_restore` purpose and deterministic scan/category filenames, so a
   completed ingestion can stage surviving local media only after an unrestricted
   scan read confirms the active JWT-owned row or proves it absent for guarded
   reconstruction; tombstoned and foreign rows fail closed. Bulk status never
   mutates server state.
+- Treats `failed_retryable` status as a two-step durable transition rather than
+  permanent server ownership. The first observation schedules one
+  generation-fenced retry. Its exact `server_retryable_failure` marker and attempt count
+  survive required re-upload; after the persisted delay, only that marker lets
+  the next preflight send Identify. Retry-budget and marker reads use a fresh
+  context so background-actor commits cannot be hidden by cached SwiftData
+  state.
 - Translates known technical Explore failures at the UI boundary so database
   authorization and missing-row implementation detail are not customer-facing.
+- Decodes Explore media-health incidents from the current `{data:[...]}`
+  envelope and the exact older direct-array response. A deployed empty `[]` is
+  therefore a valid no-incidents result instead of a Scan Library decode error;
+  any other malformed success shape becomes `MerianError.invalidResponse`.
+  Scan Library coalesces rapid queue-event refreshes of this independent
+  read-only endpoint, preserves one trailing refresh requested during an
+  in-flight call, and revalidates the authenticated owner before projecting the
+  private incident queue.
+- Requires `/delete-scan` to return a decodable `success: true` envelope before
+  confirming cloud erasure. A missing, false, malformed, or contradictory 2xx
+  response is `MerianError.invalidResponse`; the durable
+  `PendingCloudDeletionTask` remains queued because auth or response failure is
+  never evidence that remote data is absent. Its capped-backoff retries do not
+  expire; the next drain repairs legacy paused job state while the backend
+  independently resumes any owner-bound tombstone it already accepted.
 
 ## Field trip completion evidence
 
@@ -264,6 +292,13 @@ the same canonical lowercase idempotency UUID rather than clearing the pending
 question or creating a duplicate on manual retry. A backend
 `field_chat_idempotency_conflict` means that UUID was reused for edited text and
 is never treated as confirmation of either send.
+
+Atomic admission and stale-request recovery remain backend authority.
+`field_chat_send_in_progress`, `field_chat_admission_unavailable`, and
+`field_chat_recovery_unavailable` are temporary failures; network/UI callers
+must preserve the exact pending UUID and text. The client never infers database
+capacity, daily eligibility, or the ten-minute stale-recovery condition from a
+local count or timeout.
 
 Feedback, feature-feedback, field-note-summary, and prompt-suggestion responses
 also require the exact subject echo plus confirmed action-specific evidence.

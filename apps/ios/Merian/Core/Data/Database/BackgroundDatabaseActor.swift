@@ -799,10 +799,12 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    /// Persists confirmed R2 keys, resets upload retry metadata, and transitions to `.staged`.
+    /// Persists confirmed R2 keys, normally resets upload retry metadata, and transitions to `.staged`.
     ///
     /// Called once the last image upload for a scan is confirmed (HTTP 200).
     /// Storing keys here eliminates auth-dependent key reconstruction at inference time.
+    /// An exact scheduled server-failure reclaim preserves its retry latch and
+    /// accounting through a required fresh upload.
     ///
     /// Guards: only transitions from `.uploading`. If the scan was tombstoned (`.failed`) while
     /// a subset of its images were still in transit — e.g., one source file was missing —
@@ -869,13 +871,19 @@ actor BackgroundDatabaseActor {
         }
 
         let now = Date()
+        let preservesInferenceRetry =
+            OfflineQueueManager.isServerRetryableFailureCode(
+                scan.queueLastErrorCode
+            )
         scan.stagedR2Keys = r2Keys
         scan.scanStateRaw = ScanQueueState.staged.rawValue
-        scan.queueAttemptCount = 0
-        scan.queueLastAttemptAt = nil
+        if !preservesInferenceRetry {
+            scan.queueAttemptCount = 0
+            scan.queueLastAttemptAt = nil
+            scan.queueLastErrorCode = nil
+            scan.queueLastErrorMessage = nil
+        }
         scan.queueNextRetryAt = nil
-        scan.queueLastErrorCode = nil
-        scan.queueLastErrorMessage = nil
         scan.queueLastHTTPStatus = nil
         scan.queueLastServerStatus = nil
         scan.queueLastServerStage = nil
@@ -885,11 +893,13 @@ actor BackgroundDatabaseActor {
         if let job {
             job.status = .running
             job.updatedAt = now
-            job.lastAttemptAt = nil
             job.nextRunAt = nil
-            job.attemptCount = 0
-            job.lastErrorCode = nil
-            job.lastErrorMessage = nil
+            if !preservesInferenceRetry {
+                job.lastAttemptAt = nil
+                job.attemptCount = 0
+                job.lastErrorCode = nil
+                job.lastErrorMessage = nil
+            }
             job.lastHTTPStatus = nil
             job.serverStatus = nil
             job.serverStage = nil

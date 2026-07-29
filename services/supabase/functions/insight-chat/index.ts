@@ -729,8 +729,9 @@ Deno.serve((req: Request) =>
               { retryAfterSeconds: 2 },
             );
           }
+        } else {
+          throw error;
         }
-        throw error;
       }
     }
     if (isExistingRequest) {

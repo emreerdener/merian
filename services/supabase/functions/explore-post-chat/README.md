@@ -34,30 +34,42 @@ pair before reporting success; failed attempts recover under the same UUID
 without inserting a second question. Assistant rows use deterministic UUIDv8
 identities, preventing a concurrent local refusal or ambiguous insert from
 saving a second answer. New sends reserve two of the 30 persisted-message slots
-together; an incomplete retry must still fit its missing assistant inside that
-cap. A bounded in-flight wait that cannot yet find the answer returns retryable
-`503 field_chat_send_in_progress`. Assistant text is capped at 4,000 Unicode
-code points before persistence. The hardened iOS client requires the exact
-two-message pair, bounded message text, and a response body no larger than 1 MiB
-before clearing its pending send; manual retry reuses the original UUID.
+together through the atomic database reservation RPC. Per-user admission is
+serialized before conversation admission, so simultaneous Insight/Explore
+requests cannot race the shared 20/day count and different UUIDs in this
+conversation cannot both become unanswered. An incomplete retry must still fit
+its missing assistant inside that cap. A bounded in-flight wait that cannot yet
+find the answer returns retryable `503 field_chat_send_in_progress`. Assistant
+text is capped at 4,000 Unicode code points before persistence. The hardened iOS
+client requires the exact two-message pair, bounded message text, and a response
+body no larger than 1 MiB before clearing its pending send; manual retry reuses
+the original UUID. A quota-committed request missing its assistant stays in
+progress for ten minutes; afterward, exact-row-bound service recovery may fail
+only that reservation and the next provider attempt is newly metered.
 
 Deterministic prompt labels normalize the public common name and use
 `this species` when it is empty or longer than 64 characters. This keeps all
 three server prompts within the client's 120-character chip contract without
 truncating a species name into a misleading label.
 
-Deploy this additive response expansion and request-pair projection together
-with `insight-chat` before shipping the hardened iOS validator. Old clients
-safely ignore `subject_id` and the additive assistant request projection; the
-corrected client intentionally fails closed when an old function response omits
-the subject or cannot confirm its current send pair.
+Apply `20260729163616_reserve_field_chat_sends_atomically.sql`, then deploy this
+additive response expansion and request-pair projection together with
+`insight-chat` before shipping the hardened iOS validator. Old clients safely
+ignore `subject_id` and the additive assistant request projection; the corrected
+client intentionally fails closed when an old function response omits the
+subject or cannot confirm its current send pair.
 
 ## Verification
 
 ```bash
 deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/fieldChatReservation_test.ts \
   services/supabase/functions/_shared/fieldChatResponse_test.ts \
   services/supabase/functions/explore-post-chat/promptSuggestions_test.ts
+
+deno test --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/migrations \
+  services/supabase/functions/_tests/fieldChatReservationMigrationContract.test.ts
 
 deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/explore-post-chat/index.ts

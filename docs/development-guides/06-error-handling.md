@@ -24,15 +24,15 @@ public enum MerianError: LocalizedError, Equatable {
 }
 ```
 
-| Case                            | Meaning                                                  | Caller contract                                                                                                 |
-| ------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `invalidURL`                    | URL construction failed (programming error)              | Log and abort. Do not retry.                                                                                    |
-| `uploadFailed`                  | R2 `PUT` returned non-200.                               | Retain in queue for recoverable codes (429, 5xx). Tombstone for auth failures (401, 403).                       |
-| `invalidResponse`               | HTTP error or auth failure from Edge.                    | For sync deletions: treat as terminal. For other callers: log and surface a UI error or route to offline queue. |
-| `decodingFailed`                | `JSONDecoder` failed on a network response.              | Surface "Analysis Failed" graceful degradation result in `InsightSheet`; queued retry keeps the consumed scan.  |
-| `networkTimeout`                | The network request timed out aggressively.              | Surface a "Network timeout" retry placeholder + scan queued silently                                            |
-| `proRequiredForOfflineTracking` | Free user failed inference with no network               | Refund scan token, post `TriggerPaywall` notification. Never enqueue offline.                                   |
-| `hardwareUnavailable`           | LiDAR or other required physical drivers failed to boot. | Show UI alert explaining hardware constraints.                                                                  |
+| Case                            | Meaning                                                           | Caller contract                                                                                                   |
+| ------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `invalidURL`                    | URL construction failed (programming error)                       | Log and abort. Do not retry.                                                                                      |
+| `uploadFailed`                  | R2 `PUT` returned non-200.                                        | Retain in queue for recoverable codes (429, 5xx). Tombstone for auth failures (401, 403).                         |
+| `invalidResponse`               | Missing/non-HTTP, malformed-success, or unresolved auth response. | Never infer a remote mutation from this error. Preserve durable retry state and surface the appropriate UI error. |
+| `decodingFailed`                | `JSONDecoder` failed on a network response.                       | Surface "Analysis Failed" graceful degradation result in `InsightSheet`; queued retry keeps the consumed scan.    |
+| `networkTimeout`                | The network request timed out aggressively.                       | Surface a "Network timeout" retry placeholder + scan queued silently                                              |
+| `proRequiredForOfflineTracking` | Free user failed inference with no network                        | Refund scan token, post `TriggerPaywall` notification. Never enqueue offline.                                     |
+| `hardwareUnavailable`           | LiDAR or other required physical drivers failed to boot.          | Show UI alert explaining hardware constraints.                                                                    |
 
 ---
 
@@ -99,8 +99,8 @@ Inference (background URLSession download task)
     └── HTTP 5xx → handleInferenceRetry: persist retry and reset to .staged until retry budget ends
 
 Cloud deletion (PendingCloudDeletionTask)
-    ├── MerianError.invalidResponse → tombstone (resource already gone, no point retrying)
-    └── All other errors → retain as OfflineJobRecord waiting for nextRunAt until retry budget ends
+    ├── Decoded success: true → remove the local task and complete its OfflineJobRecord
+    └── Any error, including invalidResponse/auth/malformed 200 → retain the task and schedule capped-backoff retry without expiration
 
 Collection sync (OfflineJobRecord id "collection-sync")
     ├── HTTP 200 → mark complete and clear pending bridge bit
@@ -152,6 +152,7 @@ write.
 | Network timeout (Free user)                                                                                                     | Paywall sheet presented via `TriggerPaywall` notification                                                                                                                                                                                                                                                                 |
 | R2 upload failure (missing source file)                                                                                         | Queued scan remains visible with needs-attention copy plus retry/cancel actions                                                                                                                                                                                                                                           |
 | R2 upload transient failure                                                                                                     | Queued scan remains saved locally with persisted next retry time                                                                                                                                                                                                                                                          |
+| Automatic scan retry budget is exhausted                                                                                        | Pause in needs-attention. An explicit user retry resets the automatic count under the same scan UUID before the atomic claim path, including for description-only staged work; it never allocates a replacement observation UUID.                                                                                         |
 | Known cloud-complete scan cannot hydrate locally                                                                                | Persist `server_result_local_recovery_pending`, keep the row `.inferencing`, and retry only exact-owner result recovery. A later status outage or relaunch cannot reset it to `.staged`; exhaustion pauses with a manual retry action.                                                                                    |
 | Durable scan-image URL returns R2/CDN 404 with no local match                                                                   | Scan/post metadata remains; the image surface shows a retryable unavailable fallback. Do not label the record archived, hide it from owner history, or delete the relational row as a display fix.                                                                                                                        |
 | Durable scan-image URL has a strongly matched local file                                                                        | Render the local file immediately and enqueue owner-authenticated cloud inspection/repair while online; local visibility is not cloud-restoration confirmation.                                                                                                                                                           |
@@ -169,10 +170,13 @@ write.
 | Ask the Community returns a malformed or contradictory `200`                                                                    | Reject it as `MerianError.invalidResponse`; do not show a created request or cache publication state. Preserve the current observation and recovery media for retry.                                                                                                                                                      |
 | Insight Field Chat owner row is still syncing, or an action target is missing                                                   | For sync state show `This observation is still syncing. Please try Field chat again in a moment.`; leave `unavailableScanId` unset and keep the action available. Only terminal ownership/unsupported-scan state hides it.                                                                                                |
 | Field Chat returns a malformed, oversized, cross-subject, cross-conversation, incomplete send-pair, or unconfirmed action `200` | Reject it as `MerianError.invalidResponse`. Do not replace the loaded private thread, clear the pending send, record feedback, show a note summary, or use generated prompts; retry/edit recovery retains the original send UUID and does not become permanent chat unavailability.                                       |
-| Field Chat returns `503 field_chat_send_in_progress`                                                                            | The same UUID request is still completing after bounded server coalescing. Keep the failed question visible and retryable; automatic/manual replay must preserve its UUID rather than inserting a new question.                                                                                                           |
+| Field Chat returns `503 field_chat_send_in_progress`                                                                            | The same UUID is still completing after bounded coalescing, or another UUID in that conversation is unanswered. Keep the failed question visible and retryable; replay must preserve its UUID rather than inserting a duplicate.                                                                                          |
+| Field Chat returns `503 field_chat_admission_unavailable`                                                                       | The atomic database admission could not be verified. Fail closed without dispatching the provider or inserting a user row; keep the question retryable under its UUID.                                                                                                                                                    |
+| Field Chat returns `503 field_chat_recovery_unavailable`                                                                        | Narrow stale-quota recovery could not be verified. Do not reopen or redispatch the charged request; keep the same UUID retryable.                                                                                                                                                                                         |
 | Field Chat returns `409 field_chat_idempotency_conflict`                                                                        | The UUID was reused with different normalized text. Do not accept the old pair as confirmation of the edited question; keep recovery visible and allocate a new UUID only when the user chooses Edit and submits a new send.                                                                                              |
 | Field Chat load ends with a UUID-bound user row and no assistant                                                                | Reconcile it into the failed pending bubble with the same UUID, text, and Retry/Edit actions. Do not show it as delivered or discard it on relaunch; retain the server's unfiltered row count for conversation-capacity checks.                                                                                           |
 | SwiftData save failure during deletion                                                                                          | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted)                                                                                                                                                                                                    |
+| Multiple wake sources request cloud-deletion drain                                                                              | A process-local single-flight latch admits one drain. Persisted `.running` state remains restartable after process loss; the owner-fenced endpoint makes repeated remote deletion idempotent.                                                                                                                            |
 | SwiftData store corruption at startup                                                                                           | Store artifacts are quarantined, a support manifest is written, store-aware persistent open is retried once, and the user sees "Library Repaired" if recovery succeeds                                                                                                                                                    |
 | SwiftData schema migration failure at startup                                                                                   | Legacy store artifacts are archived under `store-rescue/`, a fresh persistent current-schema store opens, and the user sees "Library Rebuilt" with `legacy_store_rescued` telemetry; safe mode is only used if rescue fails                                                                                               |
 | Non-corruption `ModelContainer` startup failure                                                                                 | Local store files are not moved; app boots in in-memory safe mode with a startup notice                                                                                                                                                                                                                                   |
@@ -180,6 +184,13 @@ write.
 | Photos import blocked by quota                                                                                                  | Existing paywall opens; the durable inbox receipt remains pending for an entitlement retry                                                                                                                                                                                                                                |
 | Photos import blocked by capture capacity                                                                                       | Capture shows "Finish your current capture to import the shared photo." and retains the receipt until staged media clears                                                                                                                                                                                                 |
 | Photos import unsupported, missing, or unreadable                                                                               | Error haptic plus "Naturebook couldn’t import that photo."; any durable receipt is removed as terminal                                                                                                                                                                                                                    |
+
+An unanswered Field Chat request remains in progress for ten minutes after quota
+commit. After that safety window, only the service-only database recovery
+routine may prove the exact subject/user/request user row exists, prove its
+assistant is absent, and fail that committed quota reservation. The route must
+re-read completion before starting a newly metered retry; client code never
+guesses staleness or refunds committed usage.
 
 Photos document-import failures use `ExternalImageImportError` and capture
 feedback rather than broadening `MerianError`, because they occur before a scan
@@ -305,9 +316,12 @@ correct owner row. The compatibility `ERROR` status guard prevents inserting
 scans where moderation itself failed, so only genuine insertion failures reach
 the dead-letter table. Staged media that still belongs to an active lease or
 future retry remains pending in `reconcile-scan-media-assets`; after TTL
-abandonment the worker marks the job `failed_terminal` with the
-`media_reconciliation_abandoned` stage so support can separate missing-media
-terminal failures from retryable server failures.
+abandonment the worker may mark a nonterminal job `failed_terminal` with the
+`media_reconciliation_abandoned` reason so support can separate missing-media
+terminal failures from retryable server failures. It never rewrites an existing
+terminal decision. The reason is recovery-eligible only when the exact
+owner/scan also has the service-written `failed_scan_ingestions` row proving a
+valid provider result reached post-result finalization.
 
 ### Owner-row recovery decision
 
@@ -322,6 +336,8 @@ is not part of a normal current multimodal success.
 | No job / missing ledger                                                  | Defer; arbitrary local state is not recovery authority              |
 | `complete` without a row                                                 | Allow duplicate-safe minimal owner-row repair, then reload by owner |
 | `failed_terminal` with exact `terminal_reason_code = 'replay_exhausted'` | Allow duplicate-safe minimal owner-row repair, then reload by owner |
+| `failed_terminal / media_reconciliation_abandoned` plus exact post-result dead letter | Allow duplicate-safe minimal owner-row repair, then reload by owner |
+| `failed_terminal / media_reconciliation_abandoned` without that proof    | Refuse repair; terminal label alone is insufficient authority       |
 | Any other terminal or unknown reason                                     | Refuse repair; do not infer policy from error text                  |
 
 Single `/check-scan-status` requests may include a bounded, non-media

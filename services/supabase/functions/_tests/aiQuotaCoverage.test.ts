@@ -250,6 +250,28 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   assert(!exploreEdit.includes("requestId: crypto.randomUUID()"));
 });
 
+Deno.test("Field Chat stale quota recovery cannot fall through to the original quota error", async () => {
+  for (
+    const path of [
+      "../insight-chat/index.ts",
+      "../explore-post-chat/index.ts",
+    ]
+  ) {
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    assertStringIncludes(source, "await recoverStaleFieldChatQuota(");
+    assert(
+      /if \(quotaLease === null\) \{[\s\S]{0,800}return publicErrorResponse\([\s\S]{0,800}\);\s*\}\s*\} else \{\s*throw error;\s*\}/
+        .test(source),
+      `${path} must throw only non-coalescible quota errors after stale recovery`,
+    );
+    assert(
+      !/if \(quotaLease === null\) \{[\s\S]{0,800}return publicErrorResponse\([\s\S]{0,800}\);\s*\}\s*\}\s*throw error;/
+        .test(source),
+      `${path} rethrows the original quota error after obtaining a recovery lease`,
+    );
+  }
+});
+
 Deno.test("every scan-producing route coalesces quota replays into an owner-scoped success response", async () => {
   for (
     const path of [

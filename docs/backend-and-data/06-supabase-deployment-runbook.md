@@ -571,11 +571,15 @@ Before a fixture expects `recover_missing_owned_scan(...)` to return
 `recovered`, seed eligible ingestion evidence for that exact scan UUID and
 owner. A job completed through the canonical finalization path is eligible; for
 direct fixture setup, seed `failed_terminal` with terminal reason
-`replay_exhausted` before the recovery call. Never direct-write `complete`,
-which must remain protected by the completion fence. No-ledger, active,
-unknown-terminal, and different-generation evidence must remain nonrecoverable.
-Do not insert a scan directly or relax the production recovery predicate to
-repair the fixture.
+`replay_exhausted` before the recovery call. A
+`media_reconciliation_abandoned` fixture must also seed the exact owner/scan
+`failed_scan_ingestions` row that the service writes only after a valid provider
+result enters post-result finalization. The same terminal reason without that
+proof must remain deferred. Never direct-write `complete`, which must remain
+protected by the completion fence. No-ledger, active, unknown-terminal,
+unproven-abandonment, and different-generation evidence must remain
+nonrecoverable. Do not insert a scan directly or relax the production recovery
+predicate to repair the fixture.
 
 Never embed a mutating routine call in an `AND` or `OR` assertion that also
 reads the state it changes. PostgreSQL does not define subexpression evaluation
@@ -1901,7 +1905,9 @@ staging, copy another owner's otherwise-valid public media URL into a controlled
 legacy fixture, delete the fixture scan, and prove that only the exact
 canonical-owner URL was sent to R2. The foreign object must remain. Also prove
 that a no-ledger recovery request returns `deferred`, while an existing
-complete-but-missing or exact `replay_exhausted` fixture can recover once.
+complete-but-missing, exact `replay_exhausted`, or exact post-result-proven
+`media_reconciliation_abandoned` fixture can recover once. The same abandonment
+reason without its owner/scan dead letter must remain deferred.
 
 ```bash
 openssl rand -base64 32
@@ -3286,7 +3292,7 @@ Treat these components as one compatibility release:
    `public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`
    for `service_role` in `internal.privileged_routine_grants`; a grant without
    that reviewed row must fail the disposable catalog before `db push`. Also
-   apply the eight incident migrations in timestamp order before any
+   apply the eleven joined incident migrations in timestamp order before any
    scan-producing bundle:
 
    - `20260728230000_recover_inline_scan_ingestion_completions.sql` installs the
@@ -3327,20 +3333,27 @@ Treat these components as one compatibility release:
      explicit operation-level table allowlist required by both invoker
      transactions after the public-schema default-privilege lockdown. It grants
      only `service_role`; anon and authenticated receive no new write.
+   - `20260729120000_align_explore_share_state_media_health.sql` makes owner
+     share-state visibility use the same canonical media-health predicate as
+     public feed projection.
+   - `20260729163616_reserve_field_chat_sends_atomically.sql` installs atomic
+     cross-device Field Chat admission, deterministic message identity, and
+     stale reservation recovery.
+   - `20260729173000_recover_media_abandoned_owned_scans.sql` admits an exact
+     abandoned-media owner-row repair only when the matching service-written
+     post-result dead letter proves valid analysis reached finalization.
 
-   Do not reorder or selectively apply these migrations. The fourth migration
-   verifies the current merge routine and fails closed if it cannot install its
-   fence at the exact pre-reparent boundary. The fifth obtains the current scan
-   finalizer definition twice and aborts unless it can replace each of two known
-   blocks exactly once and install exactly one projection and frame-classifier
-   call. The sixth must precede the updated Explore function because that bundle
-   removes every separate post/media/hashtag mutation path and invokes only the
-   atomic RPC. The seventh must precede the updated Community function because
-   its Edge module removes every direct post/media/request mutation path. The
-   eighth must follow both RPC definitions and land before either updated Edge
-   route: `EXECUTE` alone is insufficient for `SECURITY INVOKER`, and restoring
-   a removed direct-mutation fallback or changing the RPCs to definer rights is
-   not an acceptable authorization repair.
+   Do not reorder or selectively apply these migrations. Identity-merge fencing
+   must be installed at the exact pre-reparent boundary. The video migration
+   must replace both known finalizer blocks exactly once. Each atomic Explore
+   and Community definition must precede its Edge consumer, and the explicit
+   invoker table grants must follow both definitions but precede either route.
+   Share-state parity must precede owner/public visibility verification. Atomic
+   Field Chat admission must precede either chat route. The media-abandonment
+   recovery predicate must precede deployment of the signer, status, and share
+   bundles that consume it. Restoring direct-mutation fallbacks, changing the
+   RPCs to broader definer rights, or trusting a terminal label without its
+   post-result proof is not an acceptable compatibility repair.
 2. From one exact SHA, run the normal production backend workflow. The
    graph-derived plan for this repair must select `generate-upload-urls`,
    `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
@@ -3417,9 +3430,10 @@ not modify or weaken either production routine for this test-only error.
 
 That run stopped after 23 of 24 catalog files, before production connection
 preparation, `db push`, secret synchronization, function deployment, or smoke
-tests. It made no production mutation. The current suite discovers 26 files
-after adding the atomic Explore and Community rollback fixtures. Require another
-exact-SHA run to pass all 26 and then continue through the normal ordered
+tests. It made no production mutation. That revision discovered 26 files after
+adding the atomic Explore and Community rollback fixtures. The present tree
+discovers 27 after adding atomic Field Chat admission/recovery. Require another
+exact-SHA run to pass all 27 and then continue through the normal ordered
 deployment.
 
 ### Atomic rollout graph-failure interpretation
@@ -3438,10 +3452,11 @@ deployment can proceed.
 
 ### Atomic invoker privilege-failure interpretation
 
-The next attached hosted replay discovered all 26 current catalog files and
-passed 24, including the complete inline/video and corrected identity-merge
-fixtures. The two failures were `atomic_explore_scan_publication_security.sql`
-and `atomic_community_identification_request_security.sql`. Both reached their
+The next attached hosted replay discovered all 26 catalog files present on that
+SHA and passed 24, including the complete inline/video and corrected
+identity-merge fixtures. The two failures were
+`atomic_explore_scan_publication_security.sql` and
+`atomic_community_identification_request_security.sql`. Both reached their
 service-role-only `SECURITY INVOKER` RPC and failed on the first
 `explore_community_requests ... FOR UPDATE` with SQLSTATE `42501` / permission
 denied. The former 21- and 24-assertion plans stopped after four and five
@@ -3464,7 +3479,9 @@ anon/auth writes.
 This workflow stopped in disposable-catalog testing before production connection
 preparation, `db push`, secret synchronization, Edge deployment, or smoke tests.
 It made no production mutation. Require another reviewed exact SHA to pass all
-26 files before allowing the normal deployment to continue.
+27 current files before allowing the normal deployment to continue. The 27th,
+`field_chat_reservation_security.sql`, was added after that hosted result and
+must execute with the other 26.
 
 After `db push`, use an owner connection for this bounded catalog check:
 
@@ -3551,30 +3568,44 @@ Use disposable staging identities and media:
    reads: the same 503 must preserve quota, staged lifecycle rows, and every
    promoted object. Restore reads and resend the same UUID; owner-row recovery
    must return the one committed analysis without another provider dispatch.
+   For a scanless `failed_retryable / background_ingestion_failed` response,
+   verify the first status observation writes one durable
+   `server_retryable_failure` latch and count. Re-stage media, verify upload
+   completion preserves both, wait the persisted delay, and require the next
+   status preflight to dispatch Identify exactly once. It must not repeat
+   one-second signing, PUT, and status cycles.
 4. Exercise a controlled moderation rejection. Identify must return generic
    `400 observation_rejected`, leave no scan row, and preserve the exact
    terminal policy fence against recovery.
-5. Create an eligible legacy missing-row fixture. A single `/check-scan-status`
-   request with bounded non-media `recovery_scan` must create and reload only
-   the authenticated owner row. Bulk status never accepts `recovery_scan` or
+5. Create eligible legacy missing-row fixtures for exact `replay_exhausted` and
+   exact `media_reconciliation_abandoned` with the matching owner/scan
+   `failed_scan_ingestions` proof. A single `/check-scan-status` request with
+   bounded non-media `recovery_scan` must create and reload only the
+   authenticated owner row. The same abandonment terminal reason without that
+   proof must remain deferred. Bulk status never accepts `recovery_scan` or
    writes `public.scans`; a missing probe may still run the narrow service-only
    stranded-attempt reconciliation for already-existing job/quota/staging state.
 6. Force claim and recovery concurrently for one UUID. Exactly one generation
    may win: recovery-first makes claim return `already_complete` without a
    provider call; claim-first makes recovery return `deferred`. Verify
    processing, finalizing, retrying, and `failed_retryable` jobs defer repair.
-   Verify policy, media-abandonment, legacy-unknown, and arbitrary terminal
-   reason codes block repair; only exact `replay_exhausted` remains recoverable.
-   Repeat through each compatibility route. Its atomic setup must complete
+   Verify policy, unproven media-abandonment, legacy-unknown, and arbitrary
+   terminal reason codes block repair; exact `replay_exhausted` and
+   post-result-proven media abandonment remain recoverable. Verify media
+   reconciliation never rewrites an already-terminal policy job. Repeat through
+   each compatibility route. Its atomic setup must complete
    before the mocked provider is called; setup error must return
    `scan_ingestion_unavailable`, refund unused quota, and perform no provider
    request.
 7. Attempt recovery using another owner's row UUID and a mismatched
    caller-supplied `user_id`. Neither may overwrite or reveal the other row.
 8. For an eligible missing Explore row, combine `recovery_scan` with
-   owner-staged image, video, and audio keys. Verify promotion and normal
-   publication checks run before the post is visible; direct URLs and non-owner
-   staging keys must fail.
+   owner-staged image, video, and audio keys. Verify both rolling-compatible
+   sequences: an older released build stages exact `scan_share_restore` media
+   before inline Share recovery, while the corrected build repairs status
+   before signing. Verify promotion and normal publication checks run before
+   the post is visible; direct URLs, non-owner staging keys, and
+   media-abandoned jobs without post-result proof must fail.
 9. Verify Ask the Community repairs through `/check-scan-status` before image
    restoration, and that a transient Field Chat still-syncing result leaves the
    toolbar action available for retry.
@@ -4136,28 +4167,33 @@ such a route but the legacy JWT is unavailable, the workflow fails closed before
 route probing. Before deactivating the legacy anon key, migrate every remaining
 gateway-verified route to the reviewed in-handler auth boundary or provision a
 replacement short-lived user smoke identity; do not weaken this probe to accept
-an unmarked gateway response. The workflow then separately probes
+an unmarked gateway response. The workflow then separately probes ten
+customer-critical routes without Authorization: `generate-upload-urls`,
 `identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
-`get-explore-composer-media`, and `insight-chat` without Authorization. Each
-critical route must return `401` with the marker, additionally proving
+`get-scan-explore-share-state`, `get-explore-composer-media`, `insight-chat`,
+`explore-post-chat`, `request-community-identification`, and `delete-scan`.
+Each critical route must return `401` with the marker, additionally proving
 user-scoped access fails closed. A gateway `404` with no handler marker never
 counts as a missing scan and never permits the production workflow to report
 success. Do not run the matching iOS smoke while either gate is still retrying.
 
-The workflow next proves the three critical database boundaries are present in
-the production PostgREST schema cache and executable only with server authority.
-It calls `ensure_scan_user_profile` with the zero UUID and
-`publish_scan_to_explore_atomically` with an empty media array, plus
-`request_community_identification_atomically` with null required identifiers.
-All inputs are syntactically valid JSON but raise their exact SQLSTATE `22023`
-message before any advisory lock, row lock, or write. A successful readiness
-probe therefore requires HTTP `400`, code `22023`, and the pinned message; an
-arbitrary `400` does not pass. Missing-schema and transient statuses receive the
-same bounded propagation treatment as route probes. Every retrieved
-anon/publishable credential must separately receive `401`, `403`, or
-hidden-routine `404` from all three RPCs. HTTP `400` on that public path means
-the role reached a service-only routine body and fails the deployment security
-gate. Probe response bodies and request identifiers are never printed.
+The workflow next proves six critical database boundaries are present in the
+production PostgREST schema cache and executable only with server authority. It
+calls `ensure_scan_user_profile` with the zero UUID,
+`publish_scan_to_explore_atomically` with an empty media array,
+`request_community_identification_atomically` with null required identifiers,
+`recover_missing_owned_scan` with a null recovery tuple,
+`reserve_field_chat_send` with a null admission tuple, and
+`recover_stale_field_chat_quota` with a null recovery tuple. All inputs are
+syntactically valid JSON but raise their exact SQLSTATE `22023` message before
+any advisory lock, row lock, or write. A successful readiness probe therefore
+requires HTTP `400`, code `22023`, and the pinned message; an arbitrary `400`
+does not pass. Missing-schema and transient statuses receive the same bounded
+propagation treatment as route probes. Every retrieved anon/publishable
+credential must separately receive `401`, `403`, or hidden-routine `404` from
+all six RPCs. HTTP `400` on that public path means the role reached a
+service-only routine body and fails the deployment security gate. Probe
+response bodies and request identifiers are never printed.
 
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only
@@ -4379,8 +4415,10 @@ service-role endpoint. Start triage from the issue code:
   staged `scan_media_assets`, `reconcile-scan-media-assets` will keep those rows
   pending while the lease or retry window is active, invoke the shared
   claimed-key/canonical-media finalization transaction after a successful
-  repair, or mark it `failed_terminal` after the abandonment TTL. No worker may
-  directly set `complete`.
+  repair, or mark a still-nonterminal job `failed_terminal` after the
+  abandonment TTL. The worker and its database update both exclude an existing
+  `failed_terminal` decision, so policy provenance cannot be overwritten. No
+  worker may directly set `complete`.
 - `ingestion_jobs_missing_intent` / `ingestion_intents_not_resumable`: inspect
   `scan_ingestion_jobs` plus `scan_ingestion_intents`. Missing intents mean the
   accepted job predates the durable outbox or the intent write failed; non-
@@ -4728,16 +4766,18 @@ After deployment:
 - For the scan owner-row durability release, confirm production deployment
   records tie the deployed versions of `generate-upload-urls`,
   `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
-  `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and
-  `share-scan-to-explore` to the same reviewed SHA. Verify the six incident
-  migrations through `20260729024157_atomic_explore_scan_publication.sql` are
-  present first. Submit a brand-new scan, require immediate owner status `found`
-  after identify `200`, then open Field Chat and publish it to Explore. Force
-  one late Explore relational failure and prove the previous complete post
-  survives before retrying to an explicit `published` response. Run the eligible
-  legacy repair, active/retryable deferral, exact policy-rejection block,
-  cross-owner isolation, staged-media restoration, interrupted identity merge,
-  dual-source legacy audio, and multi-file generation-fence cases in
+  `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`,
+  `share-scan-to-explore`, and `request-community-identification` to the same
+  reviewed SHA. Verify all eleven joined incident migrations through
+  `20260729173000_recover_media_abandoned_owned_scans.sql` are present first.
+  Submit a brand-new scan, require immediate owner status `found` after identify
+  `200`, then open Field Chat and publish it to Explore. Force one late Explore
+  relational failure and prove the previous complete post survives before
+  retrying to an explicit `published` response. Run the eligible legacy repair,
+  proven media-abandonment recovery, unproven-abandonment and policy rejection
+  blocks, active/retryable deferral, cross-owner isolation, staged-media
+  restoration, interrupted identity merge, dual-source legacy audio, and
+  multi-file generation-fence cases in
   [Scan Owner-Row Durability and Recovery Rollout](#scan-owner-row-durability-and-recovery-rollout).
   Do not call backend smoke complete until the matching iOS build independently
   passes its customer-facing retry/toast checks.
@@ -4850,11 +4890,13 @@ After deployment:
   A `200` with an empty data set is an authorization failure, not a harmless RLS
   result.
 - Confirm the exact no-write SQLSTATE `22023` probes reached
-  `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`, and
-  `request_community_identification_atomically` with server authority. Confirm
-  every retrieved anon/publishable credential instead received `401`, `403`, or
-  hidden-routine `404` from all three. Never accept a generic `400`, log a
-  response body, or replace these checks with a production fixture write.
+  `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
+  `request_community_identification_atomically`, `recover_missing_owned_scan`,
+  `reserve_field_chat_send`, and `recover_stale_field_chat_quota` with server
+  authority. Confirm every retrieved anon/publishable credential instead
+  received `401`, `403`, or hidden-routine `404` from all six. Never accept a
+  generic `400`, log a response body, or replace these checks with a production
+  fixture write.
 - Confirm the deploy's hash-only gate matched the stored SHA-256 digest for
   `MERIAN_SUPABASE_SERVER_API_KEY` to the exact selected production key before
   Function rollout. Never print the key or either digest. A final positive `401`
@@ -4903,6 +4945,14 @@ After deployment:
 - Smoke-test `/insight-chat` with `action: "load"` and
   `action:
   "suggest_prompts"` against an owned completed biological scan.
+- For a Field Chat admission release, first prove
+  `20260729163616_reserve_field_chat_sends_atomically.sql` is present. In
+  staging, replay one exact UUID/text pair, reject contradictory text under that
+  UUID, race different UUIDs in one conversation, cross 28/29/30 rows, and cross
+  19/20 daily sends split between Insight and Explore. Terminate after quota
+  commit, require in-progress before ten minutes, then prove exact stale-row
+  recovery starts one newly metered retry. Admission/recovery timeout must
+  return retryable `503` without provider dispatch.
 - For an admin release, complete the authentication/role, security-header,
   grouped-review, hidden-content projection, feedback/user audit, and AI-ledger
   smoke matrices in `11-internal-admin-operations.md`. Confirm the deployment

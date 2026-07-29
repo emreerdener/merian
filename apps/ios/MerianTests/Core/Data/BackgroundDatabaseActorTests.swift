@@ -1924,6 +1924,82 @@ struct BackgroundDatabaseActorTests {
                 "markScanAsStaged must persist R2 keys so inference can use them without auth reconstruction")
     }
 
+    @Test func testMarkScanAsStagedPreservesScheduledServerFailureRetry() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("server-retry.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged,
+            stagedR2Keys: ["staging/user/server-retry-consumed.webp"]
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let firstGeneration = UUID()
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: firstGeneration
+            )
+        )
+        #expect(
+            await actor.scheduleInferenceRetry(
+                id: scan.id,
+                expectedGeneration: firstGeneration,
+                code: OfflineQueueManager.serverRetryableFailureCode,
+                message: "Exact server retry is ready.",
+                delay: 1,
+                resetMediaUploads: true
+            ) == 1
+        )
+        #expect(
+            await actor.markScansAsUploading(scanIds: [scan.id]) ==
+                Set([scan.id])
+        )
+        let outcome = await actor.markScanAsStaged(
+            scanId: scan.id,
+            r2Keys: ["staging/user/\(scan.id)_server-retry.webp"]
+        )
+
+        let verificationContext = ModelContext(container)
+        let scanId = scan.id
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        let persistedScan = try #require(
+            verificationContext.fetch(scanDescriptor).first
+        )
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let persistedJob = try #require(
+            verificationContext.fetch(jobDescriptor).first
+        )
+
+        #expect(outcome == .staged)
+        #expect(persistedScan.queueState == .staged)
+        #expect(persistedScan.queueAttemptCount == 1)
+        #expect(
+            persistedScan.queueLastErrorCode
+                == OfflineQueueManager.serverRetryableFailureCode
+        )
+        #expect(persistedScan.queueNextRetryAt == nil)
+        #expect(persistedJob.attemptCount == 1)
+        #expect(
+            persistedJob.lastErrorCode
+                == OfflineQueueManager.serverRetryableFailureCode
+        )
+    }
+
     @Test func testMarkScanAsStagedDoesNotResurrectTombstone() async throws {
         // Prevents a late-arriving HTTP 200 for a partially-uploaded scan from
         // resurrecting it into the inference pipeline after it was tombstoned.

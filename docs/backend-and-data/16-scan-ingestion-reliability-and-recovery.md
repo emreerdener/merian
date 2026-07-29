@@ -124,9 +124,11 @@ Background PUT completion is also not inference readiness by itself. The exact
 duplicate-free all-member manifest must first be confirmed by set equality;
 missing, extra, or duplicate expected members cannot advance. Sanitized
 filename/object-key collisions are rejected locally before signing or upload.
-Then `markScanAsStaged` must atomically save the keys, reset upload retry
-accounting, and return `.staged`, or return `.alreadyAdvanced` for the same
-durable staged manifest or an owner already in inference. A retryable
+Then `markScanAsStaged` must atomically save the keys, normally reset upload
+retry accounting, and return `.staged`, or return `.alreadyAdvanced` for the
+same durable staged manifest or an owner already in inference. An exact
+scheduled server-failure retry instead preserves its reclaim marker/count
+through that commit. A retryable
 fetch/state/manifest/save outcome returns before inference dispatch; after the
 callback token is released, replay uses only the authoritative durable row.
 Timestamp-fenced orphan reconciliation resets a row that is still `.uploading`
@@ -158,6 +160,25 @@ records cancellation. Foreground success and background/server recovery
 therefore have the same crash-consistent terminal job state. Replaying that
 proven generation after the queue row is already absent treats a complete job as
 idempotent success and does not append another completed event.
+
+Pending cloud erasure uses the same positive-proof rule. The local
+`PendingCloudDeletionTask` is removed only after `/delete-scan` returns a 2xx
+body with explicit `success: true`; the server uses that envelope for both a
+newly completed deletion and an already-absent idempotent replay.
+`invalidResponse`, including auth/session ambiguity or a malformed 2xx body,
+retains the task and its offline job for retry. No local error category is
+treated as proof that owner data has been erased. Unlike ordinary queued work,
+privacy erasure never exhausts an automatic retry budget: delay is bounded, not
+completion attempts. A still-present task repairs legacy paused or contradictory
+terminal job status on the next drain. A process-local single-flight latch
+serializes competing foreground drains, while persisted `.running` work remains
+runnable after termination.
+
+For ordinary scan work, automatic exhaustion pauses rather than loops. An
+explicit user retry resets the bounded automatic count under the same scan UUID
+before the atomic claim path, including for description-only staged scans that
+have no upload-success reset boundary. Known cloud-complete owner-result
+recovery preserves its exact marker instead and cannot dispatch the provider.
 
 ## Stable Identity and Idempotency
 
@@ -270,8 +291,11 @@ sibling callback can advance an incomplete manifest. Process-relaunch callback
 loss is recovered by resetting a proven upload orphan to pending and immediately
 starting a fresh complete signing generation.
 
-Durable retry accounting resets only in the same save that promotes that exact
-complete manifest to staged. An individual HTTP-successful member contributes
+Durable upload retry accounting normally resets only in the same save that
+promotes that exact complete manifest to staged. The exact
+`server_retryable_failure` reclaim latch is the deliberate exception: its count
+and code persist through required re-stage promotion until Identify is allowed
+to reclaim the server attempt. An individual HTTP-successful member contributes
 evidence but cannot clear the scan generation’s attempt count or prior error
 before every required sibling has also succeeded. An absent queue/job read,
 mismatched already-staged manifest, or persistence failure cannot advance the
@@ -353,16 +377,32 @@ The durable server ledger is authoritative after provider dispatch.
 | Server state                                    | Client meaning                             | Automatic action                                            |
 | ----------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------- |
 | `processing` / `finalizing`                     | Server still owns the generation           | Poll; do not resubmit                                       |
-| `retrying` / `failed_retryable`                 | Retry is eligible under server timing      | Retain local row and honor `retry_after`                    |
+| `retrying` / `failed_retryable`                 | Retry is eligible under server timing      | Persist one retry latch; honor `retry_after`                |
 | `complete`                                      | Owner scan and canonical media are durable | Hydrate exact result and remove adopted queue media         |
 | `failed_terminal` + policy reason               | Observation cannot become a scan           | Show terminal rejection; never recover                      |
 | `failed_terminal` + `replay_exhausted`          | Automatic server replay ended              | Needs attention; bounded owner-row recovery may be eligible |
+| `failed_terminal` + proven media abandonment    | Valid result outlived failed row/media work | Bounded owner-row/media restoration may be eligible         |
+| `failed_terminal` + unproven media abandonment  | No durable post-result provenance           | Fail closed; never trust the terminal label alone           |
 | `failed_retryable / identity_merge_interrupted` | Source identity retired during work        | Target-only recovery; source never retries                  |
 | unreadable or contradictory state               | Commit status unknown                      | Preserve everything and retry status later                  |
 
 The iOS status projection may expose terminal state as `job_status: "failed"`
 for compatibility. It also accepts the legacy `failed_terminal` spelling.
 Neither spelling authorizes a direct scan insert.
+
+The first `failed_retryable` observation atomically increments durable retry
+accounting and writes the exact `server_retryable_failure` marker. If media must
+be staged again, upload completion preserves that marker and count. A transient
+signer or PUT failure during re-stage also retains the machine marker, records
+its precise failure in the append-only event stream, and increments from the
+maximum committed count rather than a cached main-context value. Once the
+persisted delay has elapsed, only that exact marker allows the next
+generation-fenced status preflight to dispatch Identify. Marker and attempt
+reads use a fresh SwiftData context so a background-actor commit cannot be
+hidden by a cached main-context model. Retry-budget exhaustion cancels polling
+and retains needs-attention state. This prevents build 1.0.2 (235)'s
+status/upload loop, in which every successful upload erased its own retry
+authority and every following status preflight skipped Identify.
 
 ## Recovery Order
 
@@ -371,10 +411,13 @@ Recovery must preserve richer work and deletion intent:
 1. A scan-deletion tombstone wins permanently.
 2. An existing exact owner scan wins.
 3. Active leases and processing/finalizing/retrying/retryable ingestion win.
-4. Known moderation, provider-safety, media-abandonment, unknown, or arbitrary
-   terminal reasons fail closed.
+4. Known moderation, provider-safety, unproven media-abandonment, unknown, or
+   arbitrary terminal reasons fail closed.
 5. Exact completed-but-missing or structured `replay_exhausted` state may use
-   bounded non-media owner recovery.
+   bounded non-media owner recovery. Exact `media_reconciliation_abandoned`
+   additionally requires the matching owner/scan row in
+   `failed_scan_ingestions`, written by the service only after a valid provider
+   result reached post-result finalization.
 6. Historical post-insert inline-manifest failure may use the service-only
    finalization repair when every job, intent, redaction count, asset, canonical
    filename, upload session, and owner URL agrees.
@@ -480,21 +523,31 @@ conversation. A send UUID is required and becomes the durable request identity
 for both its user and assistant messages. The backend canonicalizes UUID case,
 rejects reuse with different normalized text, reserves both rows under the
 30-row cap, and gives every assistant a deterministic UUIDv8 row identity. The
-backend coalesces duplicate and quota-layer retries into that exact pair,
-reconciles an ambiguous insert by reading the pair back, waits boundedly when
-the original is still in flight, and lets a failed provider or persistence
-attempt resume without inserting a second question. Duplicate-insert and
-waited-replay boundaries revalidate UUID/text binding, closing the race where
-contradictory same-UUID requests arrive before either initial read sees the
-saved row. iOS requires exactly that pair, the exact acknowledged user text,
-bounded nonempty message text, and a body no larger than 1 MiB before clearing
-its pending send; automatic and manual retry preserve the same UUID.
-Note-summary privacy scrubbing covers canonical UUIDv7 and older UUIDs and
-returns a bounded non-sensitive fallback if scrubbing removes the entire model
-draft. Prompt filtering targets unsafe user action intent rather than isolated
-words at generation and send time, so direct harvesting/handling requests remain
-blocked without rejecting or automatically refusing educational questions about
-poison ivy, tea plants, animal foraging, or bee stings.
+service-only `reserve_field_chat_send(...)` routine performs subject validation,
+cross-table daily accounting, capacity admission, and the user-row insert in one
+short transaction. It always takes the per-user advisory lock before the
+per-conversation lock. This serializes simultaneous Insight and Explore sends
+from different devices, closes the count-then-insert race at 19 daily sends or
+28 conversation rows, and permits only one unanswered request within that
+conversation at a time. Exact same-key/text replay returns the original row
+without consuming either cap; a different unanswered UUID returns retryable
+`field_chat_send_in_progress`.
+
+After atomic admission, the backend coalesces duplicate and quota-layer retries
+into that exact pair, reconciles an ambiguous insert by reading the pair back,
+waits boundedly when the original is still in flight, and lets a failed provider
+or persistence attempt resume without inserting a second question.
+Duplicate-insert and waited-replay boundaries revalidate UUID/text binding,
+closing the race where contradictory same-UUID requests arrive before either
+initial read sees the saved row. iOS requires exactly that pair, the exact
+acknowledged user text, bounded nonempty message text, and a body no larger than
+1 MiB before clearing its pending send; automatic and manual retry preserve the
+same UUID. Note-summary privacy scrubbing covers canonical UUIDv7 and older
+UUIDs and returns a bounded non-sensitive fallback if scrubbing removes the
+entire model draft. Prompt filtering targets unsafe user action intent rather
+than isolated words at generation and send time, so direct harvesting/handling
+requests remain blocked without rejecting or automatically refusing educational
+questions about poison ivy, tea plants, animal foraging, or bee stings.
 
 If a process/provider interruption leaves a UUID-bound user row without an
 answer, the next iOS load does not present the latest unanswered row as
@@ -505,12 +558,22 @@ hidden. Composer capacity uses the unfiltered persisted row count. A new send
 requires two available slots locally and on the server; an incomplete retry
 requires one remaining assistant slot.
 
-This response-identity change is an expand-first rollout. Deploy `insight-chat`
-and `explore-post-chat`, smoke an empty thread and every supported action for
-the exact subject echo, then force one same-UUID ambiguous send retry and
-require the exact persisted pair before releasing the hardened iOS client. Older
-clients ignore the additive fields; the corrected client intentionally rejects
-an older function response without its subject or current send-pair proof.
+A process termination after AI-quota commit but before assistant persistence
+must not strand that UUID forever. During a ten-minute safety window, retries
+remain in progress. Afterward, service-only
+`recover_stale_field_chat_quota(...)` may fail only the exact committed
+reservation after proving the subject-bound user row exists and its bound
+assistant does not. The route re-reads the pair, then reserves a newly metered
+provider retry. A live or completed pair cannot be reopened.
+
+This response-identity change is an expand-first rollout. Apply
+`20260729163616_reserve_field_chat_sends_atomically.sql` before deploying
+`insight-chat` and `explore-post-chat`. Smoke an empty thread and every
+supported action for the exact subject echo, then force same-UUID ambiguous
+replay, different-key concurrency, both cap boundaries, and stale-reservation
+recovery before releasing the hardened iOS client. Older clients ignore the
+additive fields; the corrected client intentionally rejects an older function
+response without its subject or current send-pair proof.
 
 ## Explore Publication
 
@@ -540,12 +603,16 @@ all completed ingestion jobs: sharing recovery necessarily runs after analysis
 has completed. The narrow exception requires a fresh active, non-tombstoned
 JWT-owner scan read when the row exists. A genuinely absent row may only stage
 for the subsequent guarded owner reconstruction; tombstoned and foreign rows
-fail closed. The exception never applies to `failed_terminal` jobs, ordinary
-post-completion uploads, cross-scan filenames, or moderation-rejected rows. Only
-active staged/processing rows consume the six-item repair budget; historical
-promoted capture rows remain identity/audit evidence without blocking a later
-repair. A lost signing response reuses the exact committed restore row and
-upload session.
+fail closed. A `failed_terminal` job is eligible only for exact
+`replay_exhausted`, or exact `media_reconciliation_abandoned` plus its matching
+service-written post-result dead letter. Pre-result/unproven abandonment,
+ordinary post-completion uploads, cross-scan filenames, and
+moderation-rejected rows remain closed. The media reconciler never overwrites
+an already-terminal job, and its database update independently excludes both
+`complete` and `failed_terminal`. Only active staged/processing rows consume
+the six-item repair budget; historical promoted capture rows remain
+identity/audit evidence without blocking a later repair. A lost signing
+response reuses the exact committed restore row and upload session.
 
 The final relational publication is one
 `publish_scan_to_explore_atomically(...)` transaction. Its service-role-only
@@ -722,6 +789,16 @@ Then confirm these seven incident migrations applied in order:
 6. `20260729024157_atomic_explore_scan_publication.sql`
 7. `20260729033000_atomic_community_identification_requests.sql`
 
+After those incident migrations, the same release must also contain forward
+service privileges `20260729044500_grant_atomic_explore_service_privileges.sql`,
+canonical share-state parity
+`20260729120000_align_explore_share_state_media_health.sql`, and atomic Field
+Chat admission `20260729163616_reserve_field_chat_sends_atomically.sql`, then
+proven media-abandonment owner repair
+`20260729173000_recover_media_abandoned_owned_scans.sql`. The Field Chat
+migration must precede either chat-function deployment. The final recovery
+migration must precede signer, status, and share bundle deployment.
+
 The first migration must install four bounded routine definitions: three
 no-grant private validators and the service-only public wrapper. Workflow run
 1549 for commit `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` failed before any
@@ -748,9 +825,9 @@ plain `public.users` inserts after the Auth signup trigger had already created
 those profiles. Both fixtures now use policy-valid identities and trigger-aware
 profile upserts, and their source contracts pin that setup. The run stopped
 before production connection preparation and made no production mutation.
-Require the exact corrected SHA to repeat all 26 current fixtures, including
-atomic Explore and Community rollback, and continue through deployment and smoke
-testing.
+Require the exact corrected SHA to repeat all 26 then-current fixtures,
+including atomic Explore and Community rollback, and continue through deployment
+and smoke testing.
 
 Workflow run 1552 for commit `7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated
 the full migration replay and again completed 22 of 24 catalog files. The inline
@@ -772,10 +849,11 @@ fixture emitted SQLSTATE `42702` at `ingestion-intent setup`: its synthetic
 production identity-merge routine had run. The fixture identity is now named
 `fixture_scan_id`, and its source contract rejects the ambiguous declaration.
 That run completed 23 of 24 catalog files and stopped before production
-preparation, making no production mutation. The current suite discovers 26 files
-after adding the atomic Explore and Community rollback fixtures. Require one
-further exact-SHA replay to execute and pass the production merge and recovery
-path plus every other current catalog file.
+preparation, making no production mutation. That revision discovered 26 files
+after adding the atomic Explore and Community rollback fixtures. The present
+tree discovers 27 after adding atomic Field Chat admission and stale-recovery
+coverage. Require one further exact-SHA replay to execute and pass the
+production merge and recovery path plus every current catalog file.
 
 The backend workflow for `1a75179dd88f20163cb5c01bffd60478b9545009` then stopped
 during isolated Edge graph validation, before disposable database startup or any
@@ -788,10 +866,10 @@ taxonomy and moderation preparation. All 89 isolated entrypoints type-check
 locally with their deploy-time configs, but the complete backend workflow must
 repeat on the final committed exact SHA.
 
-The latest hosted fresh-catalog run discovered all 26 current files and
-completed 24. Identity merge/recovery and inline/video recovery both passed. The
-two new atomic fixtures then reached their first real `service_role` calls and
-both stopped with SQLSTATE `42501`,
+The latest hosted fresh-catalog run discovered all 26 files present on that SHA
+and completed 24. Identity merge/recovery and inline/video recovery both passed.
+The two new atomic fixtures then reached their first real `service_role` calls
+and both stopped with SQLSTATE `42501`,
 `permission denied for table
 explore_community_requests`. The routines
 deliberately remain `SECURITY
@@ -806,7 +884,7 @@ ACL checks. The reported bad plans—21 planned/4 run and 24 planned/5 run—wer
 consequences of those two statement-level privilege errors, not 36 independent
 assertion failures. The workflow stopped at the disposable catalog gate before
 production preparation and made no production mutation. Require a fresh replay
-of all 26 files on the final exact SHA.
+of all 27 files on the final exact SHA.
 
 Then deploy these Edge Functions from one exact reviewed SHA, in order:
 
@@ -841,10 +919,12 @@ both full-fleet fallbacks.
 
 Production smoke must prove database readiness as well as Edge route liveness.
 With server authority, the workflow sends no-write sentinel inputs to
-`ensure_scan_user_profile`, `publish_scan_to_explore_atomically`, and
-`request_community_identification_atomically(...)` and requires each routine's
-exact SQLSTATE `22023` message. Those inputs are rejected before any lock or
-data mutation, while `404`, throttling, and platform failures receive bounded
+`ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
+`request_community_identification_atomically(...)`,
+`recover_missing_owned_scan(...)`, `reserve_field_chat_send(...)`, and
+`recover_stale_field_chat_quota(...)` and requires each routine's exact SQLSTATE
+`22023` message. Those inputs are rejected before any lock or data mutation,
+while `404`, throttling, and platform failures receive bounded
 schema-propagation retries. The same call through every real anon/publishable
 credential must remain `401`, `403`, or hidden-routine `404`; a public `400`
 would prove the service-only body was reached and fails closed. Responses and
@@ -931,6 +1011,7 @@ supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/atomic_community_identification_request_security.sql \
   services/supabase/tests/atomic_explore_scan_publication_security.sql \
+  services/supabase/tests/field_chat_reservation_security.sql \
   services/supabase/tests/inline_scan_manifest_recovery_security.sql \
   services/supabase/tests/scan_user_profile_security.sql \
   services/supabase/tests/identity_merge_scan_recovery_security.sql
@@ -942,14 +1023,18 @@ The focused regression inventory includes:
 
 - `_shared/scanPersistence_test.ts`;
 - `_shared/scanMediaAssets_test.ts`;
+- `_shared/fieldChatReservation_test.ts`;
 - `generate-upload-urls/assetRegistration_test.ts`;
 - `_tests/atomicExplorePublicationMigrationContract.test.ts`;
 - `_tests/atomicCommunityIdentificationRequestMigrationContract.test.ts`;
+- `_tests/fieldChatReservationMigrationContract.test.ts`;
+- `_tests/ownedScanMediaAbandonmentRecoveryMigrationContract.test.ts`;
+- `_tests/aiQuotaCoverage.test.ts`;
 - `request-community-identification/db_test.ts`;
 - `share-scan-to-explore/db_test.ts`;
 - `share-scan-to-explore/restoredMediaValidation_test.ts`;
 - the four producer route tests;
-- the six new migration source-contract tests;
+- the scan-reliability migration source-contract tests;
 - `repair-scan-image/db_test.ts` and worker tests;
 - `reconcile-scan-media-assets/worker_test.ts`;
 - `OfflineQueueManagerTests`;
@@ -959,41 +1044,40 @@ The focused regression inventory includes:
 
 ## Verification Evidence at Review
 
-This snapshot records the strongest evidence available for the dirty local
-working tree based on `daa18da004c8d5bd95cc081b04cf02bf38c45609`. That committed
-base contains the full scan/queue/recovery/atomic-share remediation and the
+This snapshot records the strongest evidence available for the documentation
+working tree based on committed `0dae738e9d5b21e97f55560d0f163748de39430d`. That
+commit contains the full scan/queue/recovery/atomic-share remediation and the
 production corrections for the three unique failures in the latest supplied
 hosted iOS run: repeated deletion after an exact committed offline completion,
-malformed Explore-share decoding, and malformed Explore-share-state decoding.
-The 2026-07-29 working-tree follow-up adds direct negative generation proof,
-normalizes malformed Ask-the-Community success responses, binds every
-Insight/Explore Field Chat thread and action response to its requested subject,
-coalesces ambiguous Field Chat sends under one durable request UUID,
-canonicalizes UUID case, rejects conflicting replay payloads, fences two-row
-capacity, makes assistant inserts deterministic and read-after-write
-recoverable, restores incomplete sends after relaunch, prevents UUIDv7
-identifier leakage from note summaries, and aligns the species-stats HTTP UUID
-boundary with the versions 1...8 security contract. Local working-tree evidence
-is not immutable release evidence. Repeat every applicable gate on one committed
-SHA before deployment or release.
+malformed Explore-share decoding, and malformed Explore-share-state decoding. It
+also adds direct negative generation proof, normalizes malformed
+Ask-the-Community success responses, binds every Insight/Explore Field Chat
+response to its requested subject, coalesces retries under one durable UUID,
+makes assistant persistence deterministic, restores incomplete sends after
+relaunch, and moves cross-device Field Chat admission and stale-quota rescue
+into exact database transactions. It prevents UUIDv7 identifier leakage from
+note summaries and aligns the species-stats HTTP UUID boundary with the versions
+1...8 security contract. Local working-tree evidence is not immutable release
+evidence. Repeat every applicable gate on one committed SHA before deployment or
+release.
 
-| Layer                                      | Retained result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Status and meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Edge and shared scan logic                 | Current deterministic non-PostgreSQL Deno discovery run: 1,313 passed, 0 failed in 17 seconds. It explicitly excluded all 22 test files that import the PostgreSQL driver, honoring the known blocked localhost runtime instead of counting connection skips as acceptance. An earlier broad run reported 1,387 passed but its legacy database cases self-skipped after localhost returned `Operation not permitted`. A prior unrestricted run connected to a stale local Docker schema missing `explore_post_media.health_status`: 1,386 passed and the two affected author-profile integration cases failed. | Complete source and mocked assertions passed, including transaction-time community readiness, atomic Community-request structure, restored-media ledger binding, invoker privilege allowlisting, canonical UUID response identity, exact publication-response validation, subject-bound Field Chat threads/actions, case-normalized same-UUID completion coalescing, conflicting-payload race rejection, retry-slot capacity fencing, deterministic assistant-row idempotency, action-intent prompt/send safety with educational near misses, nonempty summary privacy, UUIDv7 request compatibility, fail-closed taxonomy synchronization, concurrent retry, and authoritative privacy output. Localhost skips and stale-listener failures are retained as environment evidence, not counted as current-schema PostgreSQL acceptance; a fresh exact-SHA replay remains mandatory. |
-| Edge static quality                        | The deployment-configured `functions` and `scripts` scope passed `deno fmt --check` across 685 files and `deno lint` across 529 files                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Verified locally; a repo-root Deno check is not a configured gate and separately exposes unrelated existing web/admin/asset debt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Migration source contracts                 | 180 assertions passed across 28 migration contract files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Verified locally, including video canonical projection, identity fixture diagnostics, atomic Explore and Community publication, complete Community recovery-media handoff, request-before-scan lock ordering, canonical media-health share visibility, and the service-only invoker privilege allowlist; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Atomic Explore PostgreSQL fixture          | The hosted 21-assertion revision completed its first four preflight assertions, then its first service-role publication call stopped at a missing request-table privilege. The revised fixture plans 22 assertions and adds the live least-privilege check; the local exact-version guard rejected stale CLI 2.101.0 before replay and this sandbox denied the Supabase child process Docker access.                                                                                                                                                                                                           | Current source contracts verify ACL, owner/media rejection, complete-snapshot rollback, transaction-time `needs_id` rejection, locked-geoprivacy structure, and exact service grants; exact current-source PostgreSQL acceptance remains part of the all-26-catalog hosted replay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Atomic Community PostgreSQL fixture        | The hosted 24-assertion revision completed its first five preflight assertions, then its first service-role creation call stopped at the same missing request-table privilege. The revised rollback-only fixture plans 25 assertions and adds the live least-privilege check; the same exact-version and nested-Docker boundaries prevented a local fresh replay.                                                                                                                                                                                                                                              | Source and exact grants are present and automatically discovered, but the corrected fixture is not counted as passed locally; exact-current-source disposable PostgreSQL execution plus staging concurrency tests remain mandatory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Supabase release tooling and documentation | 106 tooling assertions and 9 documentation contracts passed; the catalog/Make/workflow pin contract rejects any CLI other than reviewed 2.109.1 before a database or deployment call                                                                                                                                                                                                                                                                                                                                                                                                                           | Verified locally                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Production function selection and order    | The current eleven-file runtime delta resolves exactly three graph-affected functions: `explore-post-chat`, `insight-chat`, and `species-observation-stats`. All 89 isolated function graphs validated across 291 runtime files. The retained undeployed-baseline/control-path simulation resolved all 89 functions, including all ten required scan functions; shuffled-plan and fail-stop fixtures passed.                                                                                                                                                                                                   | Verified locally for the current dirty delta only; production must derive its cumulative plan from the most recent successful production SHA to the exact final SHA, not from this local subset. An unsafe or missing baseline falls back to all 89 functions. Selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| iOS portable release tooling               | Scope, workflow, structured failure extraction, and critical-result contracts passed; the result validator now rejects absent or skipped exact regressions across analysis, offline completion, Community/Explore sharing, reconciliation, and Field Chat rather than accepting any one passing case in each broad suite                                                                                                                                                                                                                                                                                       | Verified locally without invoking a simulator; this validates the fail-closed evidence parser, not execution of the protected tests on Xcode                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| iOS project/source integrity               | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Verified locally                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Changed Swift source quality               | Strict no-cache SwiftLint reported 0 violations across the three changed production Field Chat/network files; the Swift compiler frontend parsed those files plus the three changed test files                                                                                                                                                                                                                                                                                                                                                                                                                 | Verified locally for syntax and lint; parser success does not replace project-level macro/type checking or the hosted Xcode gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Public web projection                      | Web unit suite: 56 passed, 0 failed, 0 skipped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Verified locally; no web source changed in this remediation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Hosted iOS compile, unit, and archive gate | The latest supplied hosted run compiled and executed 879 tests in 67 suites, then failed with three unique regressions: `completedInferenceAndQueueDeletionCommitTogether()` rejected `repeatedDelete`; malformed Explore share and share-state responses leaked `DecodingError` instead of `MerianError.invalidResponse`. The committed `daa18da00` production changes address all three, and the dirty tree adds direct negative invariants and broader malformed-response coverage.                                                                                                                         | The supplied run remains failed evidence. Only a full build, complete unit target, and current-SHA Release archive from the final committed remediation can close this gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Fresh PostgreSQL catalog replay and pgTAP  | The latest hosted run discovered 26 files and completed 24. Identity merge/recovery and all 30 inline/video assertions passed. Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501` on `explore_community_requests`; their later bad plans were secondary.                                                                                                                                                                                                                                                                                                            | Pending one exact-SHA replay after the forward service-privilege migration; both revised 22- and 25-assertion atomic files and all 26 files must pass                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Staging joined-flow smoke matrix           | No retained post-remediation smoke evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Pending image, queued image, audio, video, Describe, Field Chat same-UUID/case/conflict/capacity/concurrency/ambiguous-insert/relaunch replay, atomic Explore rollback, atomic Community rollback/reopen/share-race, malformed publication-response, ambiguous-response, and partial-upload tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Production deployment and observation      | Runs 1549–1552, the identity follow-up, `1a75179dd`, and the latest 26-file catalog run all stopped before production mutation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Pending exact-SHA catalog acceptance, ordered migration/function deployment, matching iOS release, and a clean observation window                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Layer                                      | Retained result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Status and meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edge and shared scan logic                 | Current deterministic non-PostgreSQL Deno discovery run: 1,331 passed, 0 failed in 17 seconds across 182 selected files. It explicitly excluded all 22 test files that import the PostgreSQL driver, honoring the known blocked localhost runtime instead of counting connection skips as acceptance. The configured broad task also reported 1,414 passed, but its database cases can return early after an unavailable default localhost connection, so that larger number is retained only as discovery/type-check evidence. A prior unrestricted run connected to a stale local Docker schema missing `explore_post_media.health_status`: 1,386 passed and the two affected author-profile integration cases failed. | Complete source and mocked assertions passed, including transaction-time community readiness, atomic Community-request structure, restored-media ledger binding, invoker privilege allowlisting, canonical UUID response identity, exact publication-response validation, subject-bound Field Chat threads/actions, case-normalized same-UUID completion coalescing, atomic cross-device admission projection, stable reservation-error mapping, stale-quota rescue contracts, stale-recovery fallthrough rejection, conflicting-payload race rejection, retry-slot capacity fencing, deterministic assistant-row idempotency, action-intent prompt/send safety with educational near misses, nonempty summary privacy, UUIDv7 request compatibility, fail-closed taxonomy synchronization, concurrent retry, authoritative privacy output, proven legacy media-abandonment repair, returned-error proof-write diagnostics, and terminal-policy preservation. Localhost early returns and stale-listener failures are retained as environment evidence, not counted as current-schema PostgreSQL acceptance; a fresh exact-SHA replay remains mandatory. |
+| Edge static quality                        | The deployment-configured `functions` and `scripts` scope passed `deno fmt --check` across 689 files and `deno lint` across 533 files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Verified locally; a repo-root Deno check is not a configured gate and separately exposes unrelated existing web/admin/asset debt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Migration source contracts                 | 189 assertions passed across 30 migration contract files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Verified locally, including video canonical projection, identity fixture diagnostics, atomic Explore and Community publication, atomic Field Chat admission/stale recovery, complete Community recovery-media handoff, request-before-scan lock ordering, canonical media-health share visibility, the service-only invoker privilege allowlist, proven media-abandonment owner repair, and returned-error proof-write diagnostics; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Atomic Explore PostgreSQL fixture          | The hosted 21-assertion revision completed its first four preflight assertions, then its first service-role publication call stopped at a missing request-table privilege. The revised fixture plans 22 assertions and adds the live least-privilege check; the local exact-version guard rejected stale CLI 2.101.0 before replay and this sandbox denied the Supabase child process Docker access.                                                                                                                                                                                                                                     | Current source contracts verify ACL, owner/media rejection, complete-snapshot rollback, transaction-time `needs_id` rejection, locked-geoprivacy structure, and exact service grants; exact current-source PostgreSQL acceptance remains part of the all-27-catalog hosted replay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Atomic Community PostgreSQL fixture        | The hosted 24-assertion revision completed its first five preflight assertions, then its first service-role creation call stopped at the same missing request-table privilege. The revised rollback-only fixture plans 25 assertions and adds the live least-privilege check; the same exact-version and nested-Docker boundaries prevented a local fresh replay.                                                                                                                                                                                                                                                                        | Source and exact grants are present and automatically discovered, but the corrected fixture is not counted as passed locally; exact-current-source disposable PostgreSQL execution plus staging concurrency tests remain mandatory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Supabase release tooling and documentation | 108 tooling assertions and 11 documentation contracts passed; the catalog/Make/workflow pin contract rejects any CLI other than reviewed 2.109.1 before a database or deployment call                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Verified locally                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Production function selection and order    | The reviewed union from `daa18da00` through committed `0dae738e9` plus all current working-tree paths contains 94 changed paths. `.github/workflows/deploy.yml` is an explicit deployment control path, so the fail-closed planner resolves all 89 configured functions rather than using only the 11-route runtime graph subset. An unsafe or missing baseline falls back to all 89 functions. All 89 isolated function graphs validated across 292 runtime files, and all 89 entrypoints passed their function-specific frozen `deno check`; the subsequently changed `identify-multimodal` entrypoint passed another exact frozen check. Full-fallback, shuffled-plan, compatibility-order, and fail-stop fixtures passed. | Verified locally for this cumulative source/working-tree union; production must derive its plan from the most recent successful production SHA to the exact final committed SHA. This remediation intentionally receives a full 89-function rollout because the deploy control plane changed. Selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| iOS portable release tooling               | Scope, workflow, structured failure extraction, and critical-result contracts passed; the result validator now rejects absent or skipped exact regressions across analysis, retryable-status dispatch, durable retry survival through media re-stage, description-only manual retry budget reset, offline completion, positive-proof and process-single-flight cloud deletion, existing-scan Explore recovery payload/safety, Community/Explore sharing, reconciliation, current/legacy media-health response compatibility, and Field Chat rather than accepting any one passing case in each broad suite                                                                                                                                 | Verified locally without invoking a simulator; this validates the fail-closed evidence parser, not execution of the protected tests on Xcode                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| iOS project/source integrity               | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Verified locally                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Changed Swift source quality               | Strict no-cache SwiftLint reported 0 violations across all eight changed production files; the Swift compiler frontend parsed those files plus the three changed test files                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Verified locally for syntax and lint; parser success does not replace project-level macro/type checking or the hosted Xcode gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Public web projection                      | Web unit suite: 56 passed, 0 failed, 0 skipped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Verified locally; no web source changed in this remediation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Hosted iOS compile, unit, and archive gate | The latest supplied hosted run compiled and executed 879 tests in 67 suites, then failed with three unique regressions: `completedInferenceAndQueueDeletionCommitTogether()` rejected `repeatedDelete`; malformed Explore share and share-state responses leaked `DecodingError` instead of `MerianError.invalidResponse`. The committed `0dae738e9` production changes address all three and add direct negative invariants plus broader malformed-response coverage.                                                                                                                                                                   | The supplied run remains failed evidence. Only a full build, complete unit target, and current-SHA Release archive from the final committed remediation can close this gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Fresh PostgreSQL catalog replay and pgTAP  | The latest hosted run discovered 26 files and completed 24. Identity merge/recovery and all 30 inline/video assertions passed. Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501` on `explore_community_requests`; their later bad plans were secondary. The present source adds a 27th Field Chat catalog that has not executed against PostgreSQL.                                                                                                                                                                                                                                          | Pending one exact-SHA replay after the forward service-privilege and Field Chat migrations; both revised 22- and 25-assertion atomic files, the 16-assertion Field Chat file, and all 27 files must pass                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Staging joined-flow smoke matrix           | No retained post-remediation smoke evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Pending image, queued image, audio, video, Describe, Field Chat same-UUID/case/conflict/different-key concurrency/cross-table daily cap/conversation cap/stale recovery/ambiguous-insert/relaunch replay, atomic Explore rollback, atomic Community rollback/reopen/share-race, malformed publication-response, ambiguous-response, and partial-upload tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Production deployment and observation      | Runs 1549–1552, the identity follow-up, `1a75179dd`, and the latest 26-file catalog run all stopped before production mutation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Pending exact-SHA catalog acceptance, ordered migration/function deployment, matching iOS release, and a clean observation window                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 A local Release archive and a compile-only test build were also attempted with
 package, derived-data, module, and Foundation cache paths redirected to writable
@@ -1020,6 +1104,8 @@ workflow remains authoritative for simulator and archive behavior.
 | Atomic Ask the Community request      | `migrations/20260729033000_atomic_community_identification_requests.sql`       |
 | Atomic invoker table privileges       | `migrations/20260729044500_grant_atomic_explore_service_privileges.sql`        |
 | Media-health share-state alignment    | `migrations/20260729120000_align_explore_share_state_media_health.sql`         |
+| Atomic Field Chat admission/recovery  | `migrations/20260729163616_reserve_field_chat_sends_atomically.sql`            |
+| Proven media-abandoned owner recovery | `migrations/20260729173000_recover_media_abandoned_owned_scans.sql`            |
 | Exact Supabase CLI preflight          | `scripts/require_supabase_cli_version.sh`                                      |
 | Offline upload callback accumulator   | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`   |
 | Status and guarded owner recovery     | `functions/check-scan-status/index.ts`                                         |

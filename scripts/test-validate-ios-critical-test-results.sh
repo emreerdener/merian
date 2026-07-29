@@ -72,6 +72,12 @@ write_test_tree() {
             suite("OfflineQueueManagerTests"; [
               "generationFenceTest",
               "backgroundInferencePreservesRecoverableHTTPFailures",
+              "scheduledServerFailureRetryBreaksStatusUploadDeadlock",
+              "scheduledServerFailureMarkerIsReadFromDurableStore",
+              "cloudDeletionRequiresExplicitNetworkConfirmation",
+              "cloudDeletionRetriesNeverEnterAnUnrecoverableState",
+              "cloudDeletionDrainIsProcessSingleFlight",
+              "testManualRetryResetsBudgetForDescriptionOnlyScan",
               "testEnqueueCapture_WithValidData_PersistsQueuedScan"
             ]),
             suite("SyncStateManagerTests"; [
@@ -79,15 +85,21 @@ write_test_tree() {
             ]),
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
-              "generatedConfidenceZeroBackgroundResultIsTerminal"
+              "generatedConfidenceZeroBackgroundResultIsTerminal",
+              "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
             ]),
             suite("Offline Queued Scan Deletion Tests"; [
               "completedInferenceAndQueueDeletionCommitTogether"
             ]),
             suite("Network Client Tests"; [
               "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON",
+              "testDeleteScanRejectsUnconfirmedSuccessResponse",
               "testExploreShareSendsStableAIIdempotencyKey",
               "testExploreShareRejectsContradictorySuccessResponses",
+              "testExploreShareSendsMissingScanRecoveryPayload",
+              "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion",
+              "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
+              "testExploreMediaIncidentsRejectsUnknownSuccessShape",
               "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload",
               "testCommunityRequestSendsStableAIIdempotencyKey",
               "testCommunityRequestRejectsUnconfirmedSuccessResponse",
@@ -145,11 +157,23 @@ required_cases=(
   "generatedBackgroundResultRejectsMalformedSuccessBody"
   "generatedConfidenceZeroBackgroundResultIsTerminal"
   "backgroundInferencePreservesRecoverableHTTPFailures"
+  "scheduledServerFailureRetryBreaksStatusUploadDeadlock"
+  "scheduledServerFailureMarkerIsReadFromDurableStore"
+  "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
   "testEnqueueCapture_WithValidData_PersistsQueuedScan"
+  "testManualRetryResetsBudgetForDescriptionOnlyScan"
   "completedInferenceAndQueueDeletionCommitTogether"
+  "cloudDeletionRequiresExplicitNetworkConfirmation"
+  "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
+  "cloudDeletionDrainIsProcessSingleFlight"
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON"
+  "testDeleteScanRejectsUnconfirmedSuccessResponse"
   "testExploreShareSendsStableAIIdempotencyKey"
   "testExploreShareRejectsContradictorySuccessResponses"
+  "testExploreShareSendsMissingScanRecoveryPayload"
+  "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion"
+  "testExploreMediaIncidentsAndLifecycleNotificationsDecode"
+  "testExploreMediaIncidentsRejectsUnknownSuccessShape"
   "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"
   "testCommunityRequestSendsStableAIIdempotencyKey"
   "testCommunityRequestRejectsUnconfirmedSuccessResponse"

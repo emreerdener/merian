@@ -185,7 +185,7 @@ export async function markReconciliationJobFailed(
     })
     .eq("scan_id", scanId)
     .eq("user_id", userId)
-    .neq("status", "complete");
+    .not("status", "in", "(complete,failed_terminal)");
 
   if (error) {
     throw new Error(`markReconciliationJobFailed: ${error.message}`);

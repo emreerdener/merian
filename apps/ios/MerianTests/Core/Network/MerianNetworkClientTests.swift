@@ -2768,6 +2768,25 @@ struct MerianNetworkClientTests {
         #expect(incidentResponse.data[0].mediaHealthStatus == .quarantined)
         #expect(incidentResponse.data[0].missingMediaUrls.count == 2)
 
+        let incidentObject = try #require(
+            JSONSerialization.jsonObject(with: incidentData)
+                as? [String: Any]
+        )
+        let legacyIncidentData = try JSONSerialization.data(
+            withJSONObject: try #require(incidentObject["data"])
+        )
+        let populatedLegacyIncidentResponse = try decoder.decode(
+            ExploreMediaIncidentsResponse.self,
+            from: legacyIncidentData
+        )
+        #expect(populatedLegacyIncidentResponse.data == incidentResponse.data)
+
+        let legacyIncidentResponse = try decoder.decode(
+            ExploreMediaIncidentsResponse.self,
+            from: Data("[]".utf8)
+        )
+        #expect(legacyIncidentResponse.data.isEmpty)
+
         let notificationData = Data("""
         {
           "data": [
@@ -2824,6 +2843,22 @@ struct MerianNetworkClientTests {
         )
 
         #expect(notificationResponse.data.map(\.type) == [.mediaMissing, .mediaRestored])
+    }
+
+    @Test func testExploreMediaIncidentsRejectsUnknownSuccessShape() async throws {
+        let response = HTTPURLResponse(
+            url: try #require(URL(string: "https://example.com")),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        MockURLProtocol.mockEndpoints["/get-explore-media-incidents"] = { _ in
+            (response, Data(#"{"incidents":[]}"#.utf8))
+        }
+
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared.getExploreMediaIncidents()
+        }
     }
 
     @Test func testExploreMapResponseToleratesMediaOnlyPostsWithoutHeroImages() throws {
@@ -4009,11 +4044,42 @@ struct MerianNetworkClientTests {
         MockURLProtocol.mockEndpoints["/delete-scan"] = { request in
             #expect(request.url?.path.hasSuffix("/delete-scan") == true)
             #expect(request.httpMethod == "POST")
-            return (mockResponse, Data())
+            return (
+                mockResponse,
+                Data(#"{"success":true,"message":"Scan deleted."}"#.utf8)
+            )
         }
         
-        try await MerianNetworkClient.shared.deleteScan(scanId: "test_scan_delete_id")
+        try await MerianNetworkClient.shared.deleteScan(
+            scanId: "019fad40-061e-7eb7-a896-996d93813d22"
+        )
         // Success if no errors throw
+    }
+
+    @Test func testDeleteScanRejectsUnconfirmedSuccessResponse() async throws {
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let invalidResponses = [
+            Data(),
+            Data(#"{"success":false}"#.utf8),
+            Data(#"{"ok":true}"#.utf8),
+            Data(#"[]"#.utf8)
+        ]
+
+        for invalidResponse in invalidResponses {
+            MockURLProtocol.mockEndpoints["/delete-scan"] = { _ in
+                (mockResponse, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared.deleteScan(
+                    scanId: "019fad40-061e-7eb7-a896-996d93813d22"
+                )
+            }
+        }
     }
     
     @Test func testSafeDeleteAccountEndpoint() async throws {
