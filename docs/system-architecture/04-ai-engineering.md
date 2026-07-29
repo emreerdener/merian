@@ -56,13 +56,15 @@ The AI inference layer is split across three files under
   this guard, a slow enrichment Task started for scan A that completes after the
   user has already moved to scan B would overwrite scan B's `speciesData` with
   scan A's habitat description and lookalikes. **Tracked background write
-  tasks** (`executeTrackedBackgroundTask`): Cloud-sync and DB write tasks
-  spawned after identification review actions (confirm, override, flag, unflag,
-  reset), as well as Wikipedia and GBIF hydration DB writes
-  (`updateScanWithWikipedia`), are dispatched via
-  `executeTrackedBackgroundTask { }`. This method assigns each task a `UUID` key
-  in `backgroundWriteTasks: [UUID: Task<Void, Never>]` and removes it on
-  completion via `defer { removeValue(forKey: id) }`. A
+  tasks** (`executeTrackedBackgroundTask`): Best-effort Wikipedia, GBIF, and
+  enrichment DB writes that are not tied to an identification review action are
+  dispatched via `executeTrackedBackgroundTask { }`. This method assigns each
+  task a `UUID` key in
+  `backgroundWriteTasks: [UUID: Task<Void, Never>]` and removes it on completion
+  via `defer { removeValue(forKey: id) }`. Review-bound metadata plus confirm,
+  override, flag, unflag, and reset persistence instead use the serial
+  `identificationReviewWriteTail`, preserving newest-action final-writer order.
+  A
   `backgroundWriteTaskCap = 8` and `pendingBackgroundWriteTaskCap = 8` guards
   prevent unbounded accumulation. If all active slots are occupied, at most
   eight best-effort metadata writes wait in `pendingBackgroundTasks`; further

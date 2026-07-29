@@ -5,9 +5,9 @@
 **Affected flow:** Existing local scan → Explore composer → cloud owner repair →
 local media restoration → publication\
 **Repository status:** Core runtime remediation committed as
-`a21155a3299598e81be0ec322ce339adbff62ff1`; the current working tree adds the
-presentation-identity follow-up and documentation, with immutable descendant SHA
-pending\
+`a21155a3299598e81be0ec322ce339adbff62ff1`; the joined presentation-identity,
+offline-handoff, response-validation, and bounded-backlog follow-up is committed
+on `main` as `cc664a20d6212299966b4579f733e612ed836514`\
 **Production status:** Open until the ordered database/Edge/iOS rollout and
 legacy-record smoke test satisfy the closure gates below
 
@@ -287,13 +287,12 @@ The repository now locks:
   local publication marker, so its next deliberate share reaches guarded
   recovery instead of a stale Edit action.
 
-The current mutable worktree passes the complete portable Edge, migration,
-deployment-tooling, documentation, iOS source/parser, changed-scope lint, and
-CI-evidence contract set. Those results are source evidence only and must be
-repeated from an immutable descendant SHA. Fresh hosted PostgreSQL catalogs,
-full Xcode tests plus archive, and ordered production deployment remain
-mandatory closure evidence. A same-account legacy-record smoke test is also
-mandatory.
+The exact runtime source committed as `cc664a20d` passes the complete portable
+Edge, migration, deployment-tooling, documentation, iOS source/parser,
+changed-scope lint, and CI-evidence contract set. Those results are source
+evidence only. Fresh hosted PostgreSQL catalogs, full Xcode tests plus archive,
+and ordered production deployment remain mandatory closure evidence. A
+same-account legacy-record smoke test is also mandatory.
 
 The final PostgreSQL fixture calls the real proof and recovery routines for the
 affected legacy committed lineage, modern structured lineage, unproven,

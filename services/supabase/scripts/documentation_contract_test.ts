@@ -1007,7 +1007,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(retryIncidentSource),
-    "`a21155a3299598e81be0ec322ce339adbff62ff1`",
+    "`cc664a20d6212299966b4579f733e612ed836514`",
   );
   assertStringIncludes(
     compact(retryIncidentSource),
@@ -1243,6 +1243,18 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   assertStringIncludes(
     compact(inferenceEngineImplementationSource),
     "presentationGeneration: historicPresentationGeneration, reviewActionGeneration: reviewActionGeneration",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "private let pendingBackgroundWriteTaskCap = 8",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "guard pendingBackgroundTasks.count < pendingBackgroundWriteTaskCap else",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "bounded inference metadata-write backlog",
   );
   assertStringIncludes(
     compact(insightContentImplementationSource),
@@ -1485,15 +1497,19 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "immutable descendant SHA is pending",
+    "the joined presentation-identity, offline-handoff, response-validation, and bounded-backlog follow-up is committed",
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "Current-worktree portable repetition now passes",
+    "Exact-source portable repetition passes",
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "critical-result validator with all 19 new exact cases",
+    "critical-result validator with 53 protected exact cases total, including all 19 added by the joined follow-up",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "The current validator protects 53 exact cases; 19 were added by the joined scan-reliability follow-up",
   );
   assertStringIncludes(
     compact(shareIncidentSource),
@@ -1904,7 +1920,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "a scope-only success is not release evidence",
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
       "authoritative known location-sharing value",
-      "At review, `HEAD` and `origin/main` both resolved to `a21155a32`",
+      "At review, `HEAD` and `origin/main` both resolved to `cc664a20d`",
       "`scripts/require_supabase_cli_version.sh`",
       "Current deterministic non-PostgreSQL Deno discovery run: 1,338 passed, 0 failed",
       "The current configured broad task reported 1,421 passed",
@@ -1921,8 +1937,9 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "atomic_community_identification_request_security.sql",
       "The hosted 24-assertion revision completed its first five preflight assertions",
       "The revised rollback-only fixture plans 25 assertions",
-      "contains 104 changed paths",
+      "contains 136 changed paths",
       "is an explicit deployment control path, so the fail-closed planner resolves all 89 configured functions",
+      "On exact joined source SHA `cc664a20d`",
       "all 89 isolated function graphs validated across 292 runtime files",
       "Full-fallback, shuffled-plan, compatibility-order, and fail-stop fixtures passed.",
       "An unsafe or missing baseline falls back to all 89 functions.",
@@ -1934,7 +1951,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "The latest supplied hosted run compiled and executed 879 tests in 67 suites",
       "`completedInferenceAndQueueDeletionCommitTogether()` rejected `repeatedDelete`",
       "malformed Explore share and share-state responses leaked `DecodingError`",
-      "Exact committed runtime source `a21155a32` addresses all three",
+      "Exact committed joined source `cc664a20d` addresses all three",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",

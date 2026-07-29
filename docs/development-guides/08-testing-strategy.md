@@ -236,7 +236,9 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    one passed test case from each critical concurrency boundary:
    `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
-   reports every named scan-flow regression as `Passed`:
+   reports every named scan-flow regression as `Passed`. The current validator
+   protects 53 exact cases; 19 were added by the joined scan-reliability
+   follow-up:
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,

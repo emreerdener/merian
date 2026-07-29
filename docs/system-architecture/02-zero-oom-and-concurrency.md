@@ -946,11 +946,12 @@ path entirely.
 
 After a successful identification, `InferenceEngine` can queue background
 `BackgroundDatabaseActor` write tasks for Wikipedia hydration, GBIF image
-hydration, enrichment persistence, and identification review actions (confirm,
-override, flag, unflag, reset). Without a ceiling, rapid successive scans or a
-heavy session opening dozens of historical records could accumulate an unbounded
-number of concurrent actor instances and their associated `ModelContext`
-objects, eventually triggering JetSam OOM.
+hydration, and enrichment persistence. Identification review persistence and
+review-bound metadata use a separate serial latest-action tail. Without a
+ceiling, rapid successive scans or a heavy session opening dozens of historical
+records could accumulate an unbounded number of concurrent actor instances,
+retained closures, and associated `ModelContext` objects, eventually triggering
+JetSam OOM.
 
 `InferenceEngine` caps both concurrent in-flight tasks and retained pending
 closures with `backgroundWriteTaskCap = 8` and
