@@ -149,6 +149,16 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,
   heap, provider throttles, or Postgres writes.
+- **`fieldChatResponse.ts`**: Shared Insight/Explore Field Chat success-envelope
+  builders. Every thread and action payload echoes the exact requested scan or
+  post as `subject_id`; thread builders also own the v1 limits and clamp the
+  remaining daily sends. The helper also binds an assistant to its originating
+  send UUID in private safety metadata, canonicalizes request UUID case, derives
+  a deterministic UUIDv8 assistant-row identity, and performs bounded completion
+  polling when the quota layer identifies an in-flight or completed replay. Keep
+  this boundary shared so an empty thread, feedback, note summary, prompt
+  response, concurrent local refusal, or ambiguous send retry cannot silently
+  lose subject/request identity in one route.
 - **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Upload
   signing creates staged scan-media asset rows with `scan_id` null until the
   final scan exists, identify finalization marks them promoted/deleted/failed,

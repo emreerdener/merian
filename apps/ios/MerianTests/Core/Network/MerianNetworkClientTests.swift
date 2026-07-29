@@ -1330,7 +1330,8 @@ struct MerianNetworkClientTests {
         func responseData(
             success: Bool,
             responseScanID: String,
-            requestedAt: String
+            requestedAt: String,
+            status: String = "needs_id"
         ) -> Data {
             Data(
                 """
@@ -1342,7 +1343,7 @@ struct MerianNetworkClientTests {
                     "scan_id": "\(responseScanID)",
                     "requested_by": "019f7004-f66f-71bf-845c-bf05dff2eb30",
                     "requested_at": "\(requestedAt)",
-                    "status": "needs_id",
+                    "status": "\(status)",
                     "initial_taxon_node_id": "019f7004-c59b-74ab-8730-45bcae1bb390",
                     "taxonomy_version_id": "019f7004-ca4e-7c3a-a9e8-5ff84002063e",
                     "consensus_identification_count": 0
@@ -1367,6 +1368,12 @@ struct MerianNetworkClientTests {
                 success: true,
                 responseScanID: scanID,
                 requestedAt: "not-a-timestamp"
+            ),
+            responseData(
+                success: true,
+                responseScanID: scanID,
+                requestedAt: "2026-07-23T18:00:00Z",
+                status: "future-unknown-status"
             )
         ]
 
@@ -1380,6 +1387,831 @@ struct MerianNetworkClientTests {
                 try await MerianNetworkClient.shared
                     .requestCommunityIdentification(scanId: scanID)
             }
+        }
+    }
+
+    @Test func testFieldChatRejectsMalformedOrCrossSubjectSuccessResponses() async throws {
+        let insightScanID = "019faaeb-4616-7a1c-b5d8-19d0b6214c83"
+        let explorePostID = "019faaeb-4ab8-75ff-8254-26b6430e0d85"
+        let otherSubjectID = "019faaeb-4d99-7a19-8471-89676790048b"
+        let conversationID = "019faaeb-507d-7901-9be2-8cc9b908ce74"
+        let requestID = "019faaeb-52e2-7a67-b085-b9972b0ef36c"
+        let responseURL = try #require(URL(string: "https://example.com"))
+        let response = try #require(
+            HTTPURLResponse(
+                url: responseURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+
+        func chatResponse(
+            subjectID: String,
+            envelopeSubjectID: String? = nil,
+            role: String = "assistant",
+            envelopeConversationID: String? = nil,
+            messageConversationID: String? = nil,
+            messageID: String =
+                "019faaeb-5400-70a5-a6db-5469275b29fa",
+            messageText: String =
+                "The saved evidence supports this identification.",
+            clientMessageID: String? = nil,
+            dailySendLimit: Int = 20,
+            sendsRemainingToday: Int = 19
+        ) -> Data {
+            let clientMessageJSON = clientMessageID.map {
+                "\"\($0)\""
+            } ?? "null"
+            return Data(
+                """
+                {
+                  "data": {
+                    "subject_id": "\(envelopeSubjectID ?? subjectID)",
+                    "conversation_id": "\(envelopeConversationID ?? conversationID)",
+                    "messages": [
+                      {
+                        "id": "\(messageID)",
+                        "conversation_id": "\(messageConversationID ?? conversationID)",
+                        "scan_id": "\(subjectID)",
+                        "role": "\(role)",
+                        "text": "\(messageText)",
+                        "client_message_id": \(clientMessageJSON),
+                        "model": "gemini-2.5-flash",
+                        "is_refusal": false,
+                        "refusal_reason": null,
+                        "created_at": "2026-07-29T15:00:00.000Z"
+                      }
+                    ],
+                    "limits": {
+                      "max_user_message_chars": 600,
+                      "max_messages_per_conversation": 30,
+                      "daily_send_limit": \(dailySendLimit),
+                      "sends_remaining_today": \(sendsRemainingToday)
+                    }
+                  }
+                }
+                """.utf8
+            )
+        }
+
+        func completedSendResponse(
+            subjectID: String,
+            clientMessageID: String,
+            userMessageText: String = "Which traits support this ID?"
+        ) -> Data {
+            Data(
+                """
+                {
+                  "data": {
+                    "subject_id": "\(subjectID)",
+                    "conversation_id": "\(conversationID)",
+                    "messages": [
+                      {
+                        "id": "019faaeb-5330-7e2d-b3b8-36232fde6397",
+                        "conversation_id": "\(conversationID)",
+                        "scan_id": "\(subjectID)",
+                        "role": "user",
+                        "text": "\(userMessageText)",
+                        "client_message_id": "\(clientMessageID)",
+                        "model": null,
+                        "is_refusal": false,
+                        "refusal_reason": null,
+                        "created_at": "2026-07-29T15:00:00.000Z"
+                      },
+                      {
+                        "id": "019faaeb-5400-70a5-a6db-5469275b29fa",
+                        "conversation_id": "\(conversationID)",
+                        "scan_id": "\(subjectID)",
+                        "role": "assistant",
+                        "text": "The saved evidence supports this identification.",
+                        "client_message_id": "\(clientMessageID)",
+                        "model": "gemini-2.5-flash",
+                        "is_refusal": false,
+                        "refusal_reason": null,
+                        "created_at": "2026-07-29T15:00:01.000Z"
+                      }
+                    ],
+                    "limits": {
+                      "max_user_message_chars": 600,
+                      "max_messages_per_conversation": 30,
+                      "daily_send_limit": 20,
+                      "sends_remaining_today": 19
+                    }
+                  }
+                }
+                """.utf8
+            )
+        }
+
+        func emptyChatResponse(subjectID: String) -> Data {
+            Data(
+                """
+                {
+                  "data": {
+                    "subject_id": "\(subjectID)",
+                    "conversation_id": null,
+                    "messages": [],
+                    "limits": {
+                      "max_user_message_chars": 600,
+                      "max_messages_per_conversation": 30,
+                      "daily_send_limit": 20,
+                      "sends_remaining_today": 20
+                    }
+                  }
+                }
+                """.utf8
+            )
+        }
+
+        let missingSubjectEmptyChatResponse = Data(
+            """
+            {
+              "data": {
+                "conversation_id": null,
+                "messages": [],
+                "limits": {
+                  "max_user_message_chars": 600,
+                  "max_messages_per_conversation": 30,
+                  "daily_send_limit": 20,
+                  "sends_remaining_today": 20
+                }
+              }
+            }
+            """.utf8
+        )
+
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (response, chatResponse(subjectID: insightScanID))
+        }
+        let validInsight = try await MerianNetworkClient.shared
+            .loadInsightChat(scanId: insightScanID)
+        #expect(validInsight.messages.first?.scanId == insightScanID)
+
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (
+                response,
+                completedSendResponse(
+                    subjectID: insightScanID,
+                    clientMessageID: requestID
+                )
+            )
+        }
+        let completedSend = try await MerianNetworkClient.shared
+            .sendInsightChatMessage(
+                scanId: insightScanID,
+                messageText: "Which traits support this ID?",
+                clientMessageId: requestID
+            )
+        #expect(
+            completedSend.messages.filter {
+                $0.clientMessageId == requestID
+            }.count == 2
+        )
+
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (
+                response,
+                completedSendResponse(
+                    subjectID: insightScanID,
+                    clientMessageID: requestID,
+                    userMessageText: "A different question"
+                )
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared.sendInsightChatMessage(
+                scanId: insightScanID,
+                messageText: "Which traits support this ID?",
+                clientMessageId: requestID
+            )
+        }
+
+        let invalidInsightResponses = [
+            chatResponse(subjectID: otherSubjectID),
+            emptyChatResponse(subjectID: otherSubjectID),
+            missingSubjectEmptyChatResponse,
+            chatResponse(
+                subjectID: insightScanID,
+                envelopeSubjectID: otherSubjectID
+            ),
+            chatResponse(subjectID: insightScanID, role: "future-role"),
+            chatResponse(
+                subjectID: insightScanID,
+                messageConversationID:
+                    "019faaeb-5923-71a8-a959-e2d8d864f9b7"
+            ),
+            chatResponse(subjectID: insightScanID, messageID: "not-a-uuid"),
+            chatResponse(
+                subjectID: insightScanID,
+                envelopeConversationID: " \(conversationID) "
+            ),
+            chatResponse(subjectID: insightScanID, messageText: ""),
+            chatResponse(
+                subjectID: insightScanID,
+                messageText: " padded answer "
+            ),
+            chatResponse(
+                subjectID: insightScanID,
+                messageText: String(repeating: "x", count: 4_001)
+            ),
+            chatResponse(
+                subjectID: insightScanID,
+                clientMessageID: "not-a-uuid"
+            ),
+            chatResponse(
+                subjectID: insightScanID,
+                dailySendLimit: 20,
+                sendsRemainingToday: 21
+            ),
+            chatResponse(
+                subjectID: insightScanID,
+                dailySendLimit: 21,
+                sendsRemainingToday: 19
+            )
+        ]
+        for invalidResponse in invalidInsightResponses {
+            MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared
+                    .loadInsightChat(scanId: insightScanID)
+            }
+        }
+
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (
+                response,
+                chatResponse(
+                    subjectID: insightScanID,
+                    clientMessageID: requestID
+                )
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared.sendInsightChatMessage(
+                scanId: insightScanID,
+                messageText: "Which traits support this ID?",
+                clientMessageId: requestID
+            )
+        }
+
+        var oversizedResponse = completedSendResponse(
+            subjectID: insightScanID,
+            clientMessageID: requestID
+        )
+        oversizedResponse.append(
+            Data(
+                repeating: 0x20,
+                count: 1_048_577 - oversizedResponse.count
+            )
+        )
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (response, oversizedResponse)
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared.sendInsightChatMessage(
+                scanId: insightScanID,
+                messageText: "Which traits support this ID?",
+                clientMessageId: requestID
+            )
+        }
+
+        MockURLProtocol.mockEndpoints["/explore-post-chat"] = { _ in
+            (response, chatResponse(subjectID: otherSubjectID))
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared
+                .loadExplorePostChat(postId: explorePostID)
+        }
+    }
+
+    @Test func testFieldChatFeedbackRequiresConfirmedMatchingResponse() async throws {
+        let scanID = "019fab51-2c31-7468-a020-541c8baa73f1"
+        let postID = "019fab51-2f96-78c6-9646-d815258c5cd4"
+        let messageID = "019fab51-325f-7f42-8124-7eb39b714413"
+        let otherMessageID = "019fab51-34d9-7bd3-8b00-c3ff3487bf47"
+        let responseURL = try #require(URL(string: "https://example.com"))
+        let response = try #require(
+            HTTPURLResponse(
+                url: responseURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+
+        func feedbackResponse(
+            subjectID: String,
+            ok: Bool,
+            responseMessageID: String,
+            rating: String
+        ) -> Data {
+            Data(
+                """
+                {
+                  "data": {
+                    "ok": \(ok ? "true" : "false"),
+                    "subject_id": "\(subjectID)",
+                    "message_id": "\(responseMessageID)",
+                    "rating": "\(rating)"
+                  }
+                }
+                """.utf8
+            )
+        }
+
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (
+                response,
+                feedbackResponse(
+                    subjectID: scanID,
+                    ok: true,
+                    responseMessageID: messageID,
+                    rating: "wrong"
+                )
+            )
+        }
+        let validFeedback = try await MerianNetworkClient.shared
+            .submitInsightChatFeedback(
+                scanId: scanID,
+                messageId: messageID,
+                rating: .wrong
+            )
+        #expect(validFeedback.ok)
+        #expect(validFeedback.messageId == messageID)
+        #expect(validFeedback.rating == .wrong)
+
+        MockURLProtocol.mockEndpoints["/explore-post-chat"] = { _ in
+            (
+                response,
+                feedbackResponse(
+                    subjectID: postID,
+                    ok: true,
+                    responseMessageID: messageID,
+                    rating: "wrong"
+                )
+            )
+        }
+        let validExploreFeedback = try await MerianNetworkClient.shared
+            .submitExplorePostChatFeedback(
+                postId: postID,
+                messageId: messageID,
+                rating: .wrong
+            )
+        #expect(validExploreFeedback.subjectId == postID)
+
+        let invalidFeedbackResponses = [
+            feedbackResponse(
+                subjectID: scanID,
+                ok: false,
+                responseMessageID: messageID,
+                rating: "wrong"
+            ),
+            feedbackResponse(
+                subjectID: scanID,
+                ok: true,
+                responseMessageID: otherMessageID,
+                rating: "wrong"
+            ),
+            feedbackResponse(
+                subjectID: scanID,
+                ok: true,
+                responseMessageID: messageID,
+                rating: "helpful"
+            ),
+            feedbackResponse(
+                subjectID: scanID,
+                ok: true,
+                responseMessageID: messageID,
+                rating: "future-rating"
+            ),
+            feedbackResponse(
+                subjectID: postID,
+                ok: true,
+                responseMessageID: messageID,
+                rating: "wrong"
+            )
+        ]
+        for invalidResponse in invalidFeedbackResponses {
+            MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared
+                    .submitInsightChatFeedback(
+                        scanId: scanID,
+                        messageId: messageID,
+                        rating: .wrong
+                    )
+            }
+        }
+
+        MockURLProtocol.mockEndpoints["/explore-post-chat"] = { _ in
+            (
+                response,
+                feedbackResponse(
+                    subjectID: postID,
+                    ok: false,
+                    responseMessageID: messageID,
+                    rating: "wrong"
+                )
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared
+                .submitExplorePostChatFeedback(
+                    postId: postID,
+                    messageId: messageID,
+                    rating: .wrong
+                )
+        }
+    }
+
+    @Test func testFieldChatFeatureFeedbackAndSummaryRequireSafeSuccess() async throws {
+        let scanID = "019fab54-78c1-7b64-b982-e27c68caf098"
+        let feedbackID = "019fab54-7bb3-7db5-8ac5-76e6ace87a93"
+        let responseURL = try #require(URL(string: "https://example.com"))
+        let response = try #require(
+            HTTPURLResponse(
+                url: responseURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+
+        func featureFeedbackResponse(
+            subjectID: String,
+            ok: Bool,
+            responseID: String,
+            sentiment: String?
+        ) -> Data {
+            let sentimentJSON = sentiment.map { "\"\($0)\"" } ?? "null"
+            return Data(
+                """
+                {
+                  "data": {
+                    "ok": \(ok ? "true" : "false"),
+                    "subject_id": "\(subjectID)",
+                    "id": "\(responseID)",
+                    "sentiment": \(sentimentJSON)
+                  }
+                }
+                """.utf8
+            )
+        }
+
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (
+                response,
+                featureFeedbackResponse(
+                    subjectID: scanID,
+                    ok: true,
+                    responseID: feedbackID,
+                    sentiment: "positive"
+                )
+            )
+        }
+        let validFeatureFeedback = try await MerianNetworkClient.shared
+            .submitInsightChatFeatureFeedback(
+                scanId: scanID,
+                sentiment: .positive,
+                note: "Useful context."
+            )
+        #expect(validFeatureFeedback.ok)
+        #expect(validFeatureFeedback.id == feedbackID)
+        #expect(validFeatureFeedback.sentiment == .positive)
+
+        let invalidFeatureResponses = [
+            featureFeedbackResponse(
+                subjectID: scanID,
+                ok: false,
+                responseID: feedbackID,
+                sentiment: "positive"
+            ),
+            featureFeedbackResponse(
+                subjectID: scanID,
+                ok: true,
+                responseID: "not-a-uuid",
+                sentiment: "positive"
+            ),
+            featureFeedbackResponse(
+                subjectID: scanID,
+                ok: true,
+                responseID: feedbackID,
+                sentiment: "negative"
+            ),
+            featureFeedbackResponse(
+                subjectID: scanID,
+                ok: true,
+                responseID: feedbackID,
+                sentiment: "future-sentiment"
+            ),
+            featureFeedbackResponse(
+                subjectID: "019fab54-7e92-7a80-9f31-6d894c671042",
+                ok: true,
+                responseID: feedbackID,
+                sentiment: "positive"
+            )
+        ]
+        for invalidResponse in invalidFeatureResponses {
+            MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared
+                    .submitInsightChatFeatureFeedback(
+                        scanId: scanID,
+                        sentiment: .positive,
+                        note: "Useful context."
+                    )
+            }
+        }
+
+        let validSummary = Data(
+            """
+            {
+              "data": {
+                "subject_id": "\(scanID)",
+                "summary_text": "The discussion compared two wing traits."
+              }
+            }
+            """.utf8
+        )
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (response, validSummary)
+        }
+        let summary = try await MerianNetworkClient.shared
+            .summarizeInsightChatForFieldNotes(scanId: scanID)
+        #expect(summary.summaryText == "The discussion compared two wing traits.")
+
+        let invalidSummaries = [
+            Data(
+                #"{"data":{"subject_id":"\#(scanID)","summary_text":"   "}}"#
+                    .utf8
+            ),
+            Data(
+                """
+                {
+                  "data": {
+                    "subject_id": "\(scanID)",
+                    "summary_text": "Observation 46b35079-75a1-4e47-bfd3-0414c2fdda00 leaked an internal identifier."
+                  }
+                }
+                """.utf8
+            ),
+            Data(
+                """
+                {
+                  "data": {
+                    "subject_id": "\(scanID)",
+                    "summary_text": "Observation 019fab61-1e83-7e64-90e7-ef275922fa7e leaked a current UUIDv7 identifier."
+                  }
+                }
+                """.utf8
+            ),
+            Data(#"{"data":{}}"#.utf8),
+            Data(
+                """
+                {
+                  "data": {
+                    "subject_id": "019fab54-7e92-7a80-9f31-6d894c671042",
+                    "summary_text": "This belongs to another observation."
+                  }
+                }
+                """.utf8
+            )
+        ]
+        for invalidResponse in invalidSummaries {
+            MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared
+                    .summarizeInsightChatForFieldNotes(scanId: scanID)
+            }
+        }
+    }
+
+    @Test func testFieldChatPromptSuggestionsRequireBoundedSafePayloads() async throws {
+        let scanID = "019fab58-f128-71bd-a96d-62795221be8a"
+        let postID = "019fab58-f454-7382-884b-a35052099f74"
+        let conversationID = "019fab58-f797-725f-8271-de87d99f7380"
+        let responseURL = try #require(URL(string: "https://example.com"))
+        let response = try #require(
+            HTTPURLResponse(
+                url: responseURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+
+        func promptResponse(
+            subjectID: String,
+            conversationID: String?,
+            prompts: [[String: String]]
+        ) throws -> Data {
+            let conversationValue: Any =
+                conversationID.map { $0 as Any } ?? NSNull()
+            return try JSONSerialization.data(
+                withJSONObject: [
+                    "data": [
+                        "subject_id": subjectID,
+                        "conversation_id": conversationValue,
+                        "prompts": prompts
+                    ]
+                ]
+            )
+        }
+
+        let validPrompts = try promptResponse(
+            subjectID: scanID,
+            conversationID: conversationID,
+            prompts: [
+                [
+                    "text": "How does this animal forage?",
+                    "category": "ecology"
+                ],
+                [
+                    "text": "Which traits distinguish tea plants?",
+                    "category": "evidence"
+                ],
+                [
+                    "text": "What habitat does poison ivy prefer?",
+                    "category": "habitat"
+                ]
+            ]
+        )
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (response, validPrompts)
+        }
+        let suggestions = try await MerianNetworkClient.shared
+            .suggestInsightChatPrompts(scanId: scanID)
+        #expect(suggestions.prompts.count == 3)
+
+        let validTaxonomyLanguage = try promptResponse(
+            subjectID: scanID,
+            conversationID: conversationID,
+            prompts: [
+                [
+                    "text": "Can I treat this as a subspecies?",
+                    "category": "evidence"
+                ]
+            ]
+        )
+        MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+            (response, validTaxonomyLanguage)
+        }
+        let taxonomySuggestions = try await MerianNetworkClient.shared
+            .suggestInsightChatPrompts(scanId: scanID)
+        #expect(taxonomySuggestions.prompts.count == 1)
+
+        let validExplorePrompts = try promptResponse(
+            subjectID: postID,
+            conversationID: nil,
+            prompts: [
+                [
+                    "text": "Which public trait matters most?",
+                    "category": "evidence"
+                ]
+            ]
+        )
+        MockURLProtocol.mockEndpoints["/explore-post-chat"] = { _ in
+            (response, validExplorePrompts)
+        }
+        let exploreSuggestions = try await MerianNetworkClient.shared
+            .suggestExplorePostChatPrompts(postId: postID)
+        #expect(exploreSuggestions.subjectId == postID)
+
+        let invalidPromptResponses = [
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: "not-a-uuid",
+                prompts: []
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    ["text": "One?", "category": "generic"],
+                    ["text": "Two?", "category": "generic"],
+                    ["text": "Three?", "category": "generic"],
+                    ["text": "Four?", "category": "generic"]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    ["text": "Which trait matters?", "category": "evidence"],
+                    ["text": "Which trait matters?", "category": "evidence"]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    [
+                        "text": "Can I eat this observation?",
+                        "category": "generic"
+                    ]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    [
+                        "text": "What is the best way to kill it?",
+                        "category": "generic"
+                    ]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    [
+                        "text": "Can I treat this rash?",
+                        "category": "generic"
+                    ]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    [
+                        "text": "How should I harvest this observation?",
+                        "category": "generic"
+                    ]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    [
+                        "text": "Tell me how to remove this nest.",
+                        "category": "generic"
+                    ]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    [
+                        "text": "Which trait matters?",
+                        "category": "future-category"
+                    ]
+                ]
+            ),
+            try promptResponse(
+                subjectID: scanID,
+                conversationID: conversationID,
+                prompts: [
+                    [
+                        "text": String(repeating: "x", count: 121),
+                        "category": "generic"
+                    ]
+                ]
+            ),
+            try promptResponse(
+                subjectID: postID,
+                conversationID: conversationID,
+                prompts: []
+            )
+        ]
+        for invalidResponse in invalidPromptResponses {
+            MockURLProtocol.mockEndpoints["/insight-chat"] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared
+                    .suggestInsightChatPrompts(scanId: scanID)
+            }
+        }
+
+        let unsafeExplorePrompts = try promptResponse(
+            subjectID: postID,
+            conversationID: nil,
+            prompts: [
+                [
+                    "text": "Can I handle this observation?",
+                    "category": "generic"
+                ]
+            ]
+        )
+        MockURLProtocol.mockEndpoints["/explore-post-chat"] = { _ in
+            (response, unsafeExplorePrompts)
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared
+                .suggestExplorePostChatPrompts(postId: postID)
         }
     }
 

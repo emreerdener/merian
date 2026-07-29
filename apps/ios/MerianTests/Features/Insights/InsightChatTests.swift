@@ -396,6 +396,113 @@ struct InsightChatTests {
 
         #expect(viewModel.pendingUserMessage == nil)
         #expect(viewModel.draftText == "Original failed question")
+
+        let conversationId = "019facf5-71fc-70ca-83e4-698b55d1e260"
+        let subjectId = "019facf5-74df-704b-878e-decb347ac1d0"
+        let interruptedRequestId =
+            "019FACF5-778F-7602-9B75-31101508B2B7"
+        let interrupted = InsightChatMessage(
+            id: "019facf5-7a48-7531-b258-2fa37f0d7aed",
+            conversationId: conversationId,
+            scanId: subjectId,
+            role: .user,
+            text: "Which traits support this ID?",
+            clientMessageId: interruptedRequestId,
+            model: nil,
+            isRefusal: false,
+            refusalReason: nil,
+            createdAt: Date()
+        )
+        let recovered = InsightChatViewModel.reconcileThread([interrupted])
+        #expect(recovered.messages.isEmpty)
+        #expect(
+            recovered.pendingMessage?.id ==
+                interruptedRequestId.lowercased()
+        )
+        #expect(
+            recovered.pendingMessage?.deliveryState ==
+                .failed(InsightChatViewModel.interruptedSendMessage)
+        )
+
+        let assistant = InsightChatMessage(
+            id: "019facf5-7d16-7f2e-bab0-7a31290e2a75",
+            conversationId: conversationId,
+            scanId: subjectId,
+            role: .assistant,
+            text: "The saved evidence supports two visible traits.",
+            clientMessageId: interruptedRequestId.lowercased(),
+            model: "gemini-2.5-flash",
+            isRefusal: false,
+            refusalReason: nil,
+            createdAt: Date()
+        )
+        let duplicateAssistant = InsightChatMessage(
+            id: "019facf5-7fbd-77f7-96a5-4613baf49695",
+            conversationId: conversationId,
+            scanId: subjectId,
+            role: .assistant,
+            text: "Duplicate answer",
+            clientMessageId: interruptedRequestId,
+            model: "gemini-2.5-flash",
+            isRefusal: false,
+            refusalReason: nil,
+            createdAt: Date()
+        )
+        let orphanAssistant = InsightChatMessage(
+            id: "019facf5-824a-7530-8a69-68f31ea9fd5d",
+            conversationId: conversationId,
+            scanId: subjectId,
+            role: .assistant,
+            text: "Orphan answer",
+            clientMessageId:
+                "019facf5-8484-7c80-a7fc-93a2932e0ad8",
+            model: "gemini-2.5-flash",
+            isRefusal: false,
+            refusalReason: nil,
+            createdAt: Date()
+        )
+        let recoveredPastOrphan = InsightChatViewModel.reconcileThread(
+            [interrupted, orphanAssistant]
+        )
+        #expect(recoveredPastOrphan.messages.isEmpty)
+        #expect(
+            recoveredPastOrphan.pendingMessage?.id ==
+                interruptedRequestId.lowercased()
+        )
+        let completed = InsightChatViewModel.reconcileThread(
+            [
+                interrupted,
+                assistant,
+                duplicateAssistant,
+                orphanAssistant
+            ]
+        )
+        #expect(
+            completed.messages.map(\.id) == [
+                interrupted.id,
+                assistant.id
+            ]
+        )
+        #expect(completed.pendingMessage == nil)
+
+        viewModel.messages = (0 ..< 29).map { index in
+            InsightChatMessage(
+                id: "message-\(index)",
+                conversationId: conversationId,
+                scanId: subjectId,
+                role: .assistant,
+                text: "Saved answer \(index)",
+                clientMessageId: nil,
+                model: nil,
+                isRefusal: false,
+                refusalReason: nil,
+                createdAt: Date()
+            )
+        }
+        #expect(!viewModel.canSend)
+        viewModel.messages.removeLast()
+        viewModel.isOffline = false
+        #expect(viewModel.canSend)
     }
 
     @Test func testFeedbackAndSummaryResponsesDecode() throws {

@@ -3,8 +3,10 @@ import {
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  assertConversationHasRoom,
   isSafetyCriticalQuestion,
   normalizeAction,
+  normalizeAssistantAnswer,
   normalizeFeatureFeedbackSentiment,
   normalizeUserMessage,
   refusalAnswer,
@@ -38,9 +40,25 @@ Deno.test("normalizeUserMessage trims and caps text", () => {
   );
   assertThrows(() => normalizeUserMessage(""));
   assertThrows(() => normalizeUserMessage("x".repeat(601)));
+  assertEquals(
+    normalizeAssistantAnswer("  saved answer  ", "fallback"),
+    "saved answer",
+  );
+  assertEquals(normalizeAssistantAnswer(null, " fallback "), "fallback");
+  assertEquals(
+    normalizeAssistantAnswer("x".repeat(4001), "fallback").length,
+    4000,
+  );
+  assertThrows(() => normalizeAssistantAnswer(null, "   "));
+  assertConversationHasRoom(28);
+  assertThrows(() => assertConversationHasRoom(29));
+  assertThrows(() => assertConversationHasRoom(30));
+  assertConversationHasRoom(29, 1);
+  assertThrows(() => assertConversationHasRoom(30, 1));
+  assertThrows(() => assertConversationHasRoom(-1));
 });
 
-Deno.test("safety classifier catches ingestion and treatment prompts", () => {
+Deno.test("safety classifier catches unsafe action intent", () => {
   assertEquals(
     isSafetyCriticalQuestion("Can I bake this berry in a pie?"),
     "foraging_or_ingestion",
@@ -53,7 +71,56 @@ Deno.test("safety classifier catches ingestion and treatment prompts", () => {
     isSafetyCriticalQuestion("How do I trap and relocate it?"),
     "dangerous_handling",
   );
-  assertEquals(isSafetyCriticalQuestion("Which traits support this ID?"), null);
+  assertEquals(
+    isSafetyCriticalQuestion("How should I harvest it?"),
+    "legal_or_collection",
+  );
+  assertEquals(
+    isSafetyCriticalQuestion("Is this safe to handle?"),
+    "dangerous_handling",
+  );
+  assertEquals(
+    isSafetyCriticalQuestion("Can this be harvested?"),
+    "legal_or_collection",
+  );
+  assertEquals(
+    isSafetyCriticalQuestion("Can I treat this rash?"),
+    "medical_or_veterinary",
+  );
+  assertEquals(
+    isSafetyCriticalQuestion("What should I do if I was stung?"),
+    "medical_or_veterinary",
+  );
+  assertEquals(
+    isSafetyCriticalQuestion("What is the best way to kill it?"),
+    "dangerous_handling",
+  );
+  assertEquals(
+    isSafetyCriticalQuestion("Show me how to collect it."),
+    "legal_or_collection",
+  );
+  assertEquals(
+    isSafetyCriticalQuestion("Give me instructions for handling it."),
+    "dangerous_handling",
+  );
+});
+
+Deno.test("safety classifier permits educational biology language", () => {
+  for (
+    const educational of [
+      "What does this bird eat?",
+      "How does this animal forage?",
+      "What habitat does poison ivy prefer?",
+      "Which traits distinguish tea plants?",
+      "Why is handling this species discouraged?",
+      "Do bees sting when defending their nest?",
+      "How do researchers handle it during surveys?",
+      "Can I treat this as a subspecies?",
+      "Which traits support this ID?",
+    ]
+  ) {
+    assertEquals(isSafetyCriticalQuestion(educational), null, educational);
+  }
 });
 
 Deno.test("refusal answers redirect to educational use", () => {

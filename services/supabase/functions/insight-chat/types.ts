@@ -1,5 +1,6 @@
 export const INSIGHT_CHAT_MODEL = "gemini-2.5-flash";
 export const MAX_USER_MESSAGE_CHARS = 600;
+export const MAX_CHAT_MESSAGE_CHARS = 4000;
 export const MAX_MESSAGES_PER_CONVERSATION = 30;
 export const DAILY_SEND_LIMIT = 20;
 
@@ -62,6 +63,7 @@ export interface InsightChatMessagePayload {
 }
 
 export interface InsightChatResponsePayload {
+  subject_id: string;
   conversation_id: string | null;
   messages: InsightChatMessagePayload[];
   limits: {
@@ -74,17 +76,20 @@ export interface InsightChatResponsePayload {
 
 export interface InsightChatFeedbackPayload {
   ok: boolean;
+  subject_id: string;
   message_id: string;
   rating: InsightChatFeedbackRating;
 }
 
 export interface InsightChatFeatureFeedbackPayload {
   ok: boolean;
+  subject_id: string;
   id: string;
   sentiment: InsightChatFeatureFeedbackSentiment | null;
 }
 
 export interface InsightChatSummaryPayload {
+  subject_id: string;
   summary_text: string;
 }
 
@@ -94,6 +99,7 @@ export interface InsightChatPromptSuggestionPayload {
 }
 
 export interface InsightChatPromptSuggestionsPayload {
+  subject_id: string;
   conversation_id: string | null;
   prompts: InsightChatPromptSuggestionPayload[];
 }

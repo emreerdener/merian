@@ -131,6 +131,28 @@ Deno.test("field notes summary text removes internal UUID labels", () => {
     ),
     "Follow-up for this observation confirmed cactus traits.",
   );
+  assertEquals(
+    sanitizeFieldNotesDraft(
+      "Observation 019fab61-1e83-7e64-90e7-ef275922fa7e: The saved evidence supports the identification.",
+    ),
+    "The saved evidence supports the identification.",
+  );
+  assertEquals(
+    sanitizeFieldNotesDraft(
+      "Follow-up for 019fab61-1e83-7e64-90e7-ef275922fa7e compared two traits.",
+    ),
+    "Follow-up for this observation compared two traits.",
+  );
+  assertEquals(
+    sanitizeFieldNotesDraft(
+      "Observation 019fab61-1e83-7e64-90e7-ef275922fa7e:",
+    ),
+    "Field chat discussed the saved observation and follow-up identification context.",
+  );
+  assertEquals(
+    sanitizeFieldNotesDraft(""),
+    "Field chat discussed the saved observation and follow-up identification context.",
+  );
 });
 
 Deno.test("system instruction states raw image is unavailable", () => {

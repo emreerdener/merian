@@ -60,7 +60,9 @@ The action is complete only when the response reports true success, echoes the
 exact scan UUID, contains valid request, post, requester, taxon, and taxonomy
 UUIDs, supplies a parseable request timestamp, remains in `needs_id`, and has a
 nonnegative consensus count. A decodable but unconfirmed HTTP `200` cannot clear
-normal Explore state or show “Asked community.”
+normal Explore state or show “Asked community.” Decoder failures and unknown
+request statuses are normalized to `MerianError.invalidResponse` at the same
+candidate-success boundary.
 
 ## Missing Cloud-Row Recovery
 

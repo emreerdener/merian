@@ -1,5 +1,6 @@
 import { publicHttpError } from "../_shared/http.ts";
 import {
+  MAX_CHAT_MESSAGE_CHARS,
   MAX_MESSAGES_PER_CONVERSATION,
   MAX_USER_MESSAGE_CHARS,
 } from "./types.ts";
@@ -78,8 +79,32 @@ export function normalizeUserMessage(value: unknown): string {
   return trimmed;
 }
 
-export function assertConversationHasRoom(messageCount: number): void {
-  if (messageCount >= MAX_MESSAGES_PER_CONVERSATION) {
+export function normalizeAssistantAnswer(
+  value: unknown,
+  fallback: string,
+): string {
+  const fallbackText = fallback.trim();
+  if (!fallbackText) {
+    throw new TypeError("Field Chat answer fallback cannot be empty.");
+  }
+  const answer = typeof value === "string" && value.trim()
+    ? value.trim()
+    : fallbackText;
+  return Array.from(answer).slice(0, MAX_CHAT_MESSAGE_CHARS).join("");
+}
+
+export function assertConversationHasRoom(
+  messageCount: number,
+  requiredMessageSlots = 2,
+): void {
+  // A new send needs two rows. An incomplete retry already owns its user row
+  // but must still prove that its missing assistant fits inside the same cap.
+  if (
+    !Number.isSafeInteger(messageCount) ||
+    messageCount < 0 ||
+    (requiredMessageSlots !== 1 && requiredMessageSlots !== 2) ||
+    messageCount + requiredMessageSlots > MAX_MESSAGES_PER_CONVERSATION
+  ) {
     throw publicHttpError(
       429,
       "Conversation message limit reached.",
@@ -92,19 +117,87 @@ export function isSafetyCriticalQuestion(text: string): string | null {
   const normalized = text.toLowerCase();
   const patterns: Array<[RegExp, string]> = [
     [
-      /\b(eat|edible|taste|cook|bake|brew|tea|forag|mushroom\s+hunt|feed\s+(it|this|to)|safe\s+to\s+consume)\b/,
+      /\b(?:can|could|should|may|would)\s+(?:i|we|you)\s+(?:safely\s+)?(?:eat|consume|taste|cook|bake|brew|forage|feed)\b/,
       "foraging_or_ingestion",
     ],
     [
-      /\b(poison control|antidote|treat|treatment|dose|dosage|medicine|medicinal|symptom|rash|bite|sting|venom|allergic reaction)\b/,
+      /\bhow\s+(?:(?:do|can|could|should|would|may)\s+(?:i|we|you)\s+|to\s+)(?:eat|consume|taste|cook|bake|brew|forage|feed)\b/,
+      "foraging_or_ingestion",
+    ],
+    [
+      /\b(?:edible|safe\s+to\s+(?:eat|consume|taste|cook|brew|feed)|(?:can|could|should|may|would)\s+(?:this|that|it|these|those)\s+be\s+(?:eaten|consumed|tasted|cooked|brewed|fed)|safe\s+for\s+(?:me|us|people|humans?|children|dogs?|cats?|pets?|livestock))\b/,
+      "foraging_or_ingestion",
+    ],
+    [
+      /\b(?:can|could|should|may|would)\s+(?:my|our)\s+(?:dog|cat|pet|livestock)\s+(?:eat|consume|taste)\b/,
+      "foraging_or_ingestion",
+    ],
+    [
+      /\b(?:what\s+happens\s+if|after)\s+(?:i|we|you|someone|a\s+person|a\s+child|my\s+(?:dog|cat|pet))\s+(?:eat|ate|consume|consumed|taste|tasted|ingest|ingested)\b/,
+      "foraging_or_ingestion",
+    ],
+    [
+      /\b(?:(?:best|safest|proper|recommended)\s+(?:ways?|methods?)\s+to|(?:instructions?|steps?|tips?|advice|guide)\s+(?:for|on|to)|(?:tell|show)\s+me\s+how\s+to)\s+(?:eat(?:ing)?|consum(?:e|ing)|tast(?:e|ing)|cook(?:ing)?|bak(?:e|ing)|brew(?:ing)?|forag(?:e|ing)|feed(?:ing)?)\b/,
+      "foraging_or_ingestion",
+    ],
+    [
+      /\b(?:dosage|antidote|treatment\s+(?:advice|instructions?|plan)|medical\s+treatment|veterinary\s+treatment|medicine\s+for|poison\s+control)\b/,
       "medical_or_veterinary",
     ],
     [
-      /\b(pesticide|poison|kill it|exterminate|trap|capture|handle|pick up|relocate|collect eggs|remove nest)\b/,
+      /\b(?:how|what)\s+(?:(?:do|can|could|should|would|may)\s+(?:i|we|you)\s+|to\s+)(?:treat|manage)\b.{0,40}\b(?:rash|bite|sting|venom|allergic\s+reaction|poisoning|exposure)\b/,
+      "medical_or_veterinary",
+    ],
+    [
+      /\b(?:can|could|should|may|would)\s+(?:i|we|you)\s+(?:treat|medicate|manage)\b.{0,40}\b(?:rash|bite|sting|venom|allergic\s+reaction|poisoning|exposure)\b/,
+      "medical_or_veterinary",
+    ],
+    [
+      /\bwhat\s+should\s+(?:i|we|you|someone|a\s+person|a\s+child)\s+do\b.{0,30}\b(?:if|after)\b.{0,30}\b(?:bitten|stung|ate|ingested|rash|allergic\s+reaction|poisoning|exposure)\b/,
+      "medical_or_veterinary",
+    ],
+    [
+      /\b(?:i|we|someone|a\s+person|a\s+child|my\s+(?:dog|cat|pet))\b.{0,30}\b(?:was\s+(?:bitten|stung)|ate|ingested|has\s+(?:a\s+)?rash|is\s+having\s+an\s+allergic\s+reaction)\b.{0,40}\b(?:what\s+should|help|emergency|treat|treatment|antidote|dose|dosage)\b/,
+      "medical_or_veterinary",
+    ],
+    [
+      /\b(?:can|could|should|may|would)\s+(?:i|we|you)\s+(?:safely\s+)?(?:kill|exterminate|trap|capture|handle|pick\s+up|relocate|remove\s+(?:it|this|that|a\s+nest))\b/,
       "dangerous_handling",
     ],
     [
-      /\b(legal to collect|protected species|take it home|harvest|permit)\b/,
+      /\bhow\s+(?:(?:do|can|could|should|would|may)\s+(?:i|we|you)\s+|to\s+)(?:kill|exterminate|trap|capture|handle|pick\s+up|relocate|remove\s+(?:it|this|that|a\s+nest))\b/,
+      "dangerous_handling",
+    ],
+    [
+      /\b(?:safe\s+to\s+(?:handle|pick\s+up|capture|relocate)|(?:can|could|should|may|would)\s+(?:this|that|it|these|those)\s+be\s+(?:killed|trapped|captured|handled|picked\s+up|relocated))\b/,
+      "dangerous_handling",
+    ],
+    [
+      /\b(?:pesticide\s+(?:instructions?|application|use)|apply\s+(?:a\s+)?pesticide|(?:use|apply)\s+poison|poison\s+(?:it|this|that|them)|extermination\s+instructions?)\b/,
+      "dangerous_handling",
+    ],
+    [
+      /\b(?:(?:best|safest|proper|recommended)\s+(?:ways?|methods?)\s+to|(?:instructions?|steps?|tips?|advice|guide)\s+(?:for|on|to)|(?:tell|show)\s+me\s+how\s+to)\s+(?:kill(?:ing)?|exterminat(?:e|ing)|trap(?:ping)?|captur(?:e|ing)|handl(?:e|ing)|pick(?:ing)?\s+up|relocat(?:e|ing)|remov(?:e|ing)\s+(?:it|this|that|a\s+nest))\b/,
+      "dangerous_handling",
+    ],
+    [
+      /\b(?:can|could|should|may|would)\s+(?:i|we|you)\s+(?:collect|harvest|take\s+(?:it|this|that)\s+home)\b/,
+      "legal_or_collection",
+    ],
+    [
+      /\bhow\s+(?:(?:do|can|could|should|would|may)\s+(?:i|we|you)\s+|to\s+)(?:collect|harvest|take\s+(?:it|this|that)\s+home)\b/,
+      "legal_or_collection",
+    ],
+    [
+      /\b(?:can|could|should|may|would)\s+(?:this|that|it|these|those)\s+be\s+(?:collected|harvested|taken\s+home)\b/,
+      "legal_or_collection",
+    ],
+    [
+      /\b(?:legal|allowed|permit(?:ted)?|permission)\b.{0,30}\b(?:collect|harvest|capture|take|remove|relocate)\b/,
+      "legal_or_collection",
+    ],
+    [
+      /\b(?:(?:best|safest|proper|recommended)\s+(?:ways?|methods?)\s+to|(?:instructions?|steps?|tips?|advice|guide)\s+(?:for|on|to)|(?:tell|show)\s+me\s+how\s+to)\s+(?:collect(?:ing)?|harvest(?:ing)?|tak(?:e|ing)\s+(?:it|this|that)\s+home)\b/,
       "legal_or_collection",
     ],
   ];

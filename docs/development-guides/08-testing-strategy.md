@@ -234,10 +234,9 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    gate fails if Xcode returns success without a `Passed` result, a non-empty
    test run, zero skipped tests, an exact passed/total count match, and at least
    one passed test case from each critical concurrency boundary:
-   `CameraManagerTests`, `InferenceEngineTests`,
-   `OfflineQueueManagerTests`, and `SyncStateManagerTests`. It also fails closed
-   unless the structured test tree reports every named scan-flow regression as
-   `Passed`:
+   `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
+   `SyncStateManagerTests`. It also fails closed unless the structured test tree
+   reports every named scan-flow regression as `Passed`:
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
@@ -328,12 +327,12 @@ generated project changes.
 Start with the job summary, then use the retained artifact that matches the
 failure:
 
-| Failure                                         | Artifact or local action                                                                                                                   |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Unit compile or execution                       | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the `.xcresult`, package-resolution log, and `xcodebuild` log.                |
-| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator. |
-| Release archive, embedding, or dSYM             | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`. |
-| Intended release SHA was out of scope           | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                              |
+| Failure                                                               | Artifact or local action                                                                                                                   |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the `.xcresult`, package-resolution log, and `xcodebuild` log.                |
+| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.        |
+| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`. |
+| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                              |
 
 For an executed test failure, the summary prints `testFailures` from Xcode's
 structured result summary. If that is unavailable, it prints failed test cases
@@ -571,12 +570,14 @@ MerianTests/
   extraction across a `Task.detached` boundary. Its upload and inference
   reconciliation tests also seed rows on both sides of an `observedThrough`
   cutoff and prove the older orphan resets while newer replacement work remains
-  claimed. `SyncStateManagerTests` also locks the generation-fencing contract: a
-  stale upload completion cannot clear a replacement batch; a completion
-  delivered after `forceIdle()` cannot remove a newer inference token; a stale
-  finalizing transition cannot advance the replacement's UI phase; and
-  `GenerationTaskRegistry` rejects compare-before-clear and owner-cancel
-  attempts from a replaced slot.
+  claimed. Its terminal replay test accepts an absent queue only for the exact
+  generation's completed durable job, while rejecting nonterminal and
+  mismatched-generation jobs. `SyncStateManagerTests` also locks the
+  generation-fencing contract: a stale upload completion cannot clear a
+  replacement batch; a completion delivered after `forceIdle()` cannot remove a
+  newer inference token; a stale finalizing transition cannot advance the
+  replacement's UI phase; and `GenerationTaskRegistry` rejects
+  compare-before-clear and owner-cancel attempts from a replaced slot.
   **`testFetchPendingScansExcludesNonPendingScans`** (V33) seeds scans in all
   five states (`.pending`, `.uploading`, `.staged`, `.inferencing`, `.failed`)
   and asserts `fetchPendingScans` returns only the `.pending` record — directly
@@ -601,8 +602,23 @@ MerianTests/
   context below 70% confidence and server-provided confidence-category
   preservation, failed outgoing recovery state, deterministic unavailable-state
   hiding, identification-concern action buckets plus negative examples, and the
-  600-character draft cap. `UserTagsMutationControllerTests.swift` verifies tag
-  saves commit locally before external cloud/search side effects can run.
+  600-character draft cap. `MerianNetworkClientTests.swift` exercises the
+  candidate-success boundary: malformed Community enums become
+  `MerianError.invalidResponse`, and Field Chat rejects cross-subject,
+  missing-subject, cross-conversation, unknown-role, non-UUID-message, or
+  invalid-limit envelopes before the view model can apply them, including an
+  otherwise valid empty thread from the wrong subject. Send cases additionally
+  reject an incomplete or mismatched `client_message_id` pair, padded/empty or
+  over-4,000-character message text, and a JSON body over 1 MiB; manual retry
+  retains the failed send UUID. Backend source/helper tests lock bounded
+  same-UUID quota replay coalescing. Action-response cases reject
+  false/mismatched answer and feature feedback, empty or internal-ID-leaking
+  note summaries, and malformed, duplicate, unsafe, oversized, or
+  unknown-category prompt suggestions. Safety fixtures distinguish direct action
+  requests such as harvesting/handling from ordinary educational species names
+  and behavior questions such as poison ivy habitat or animal foraging.
+  `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
+  before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
   captures explicitly decouple live sensor leakage (like LiDAR distance vectors
   or view-finder zoom scopes) away from EXIF bounds.
@@ -1084,8 +1100,13 @@ Public-web Explore authorization has three additional layers:
 Function-local tests under `services/supabase/functions/insight-chat/` verify
 the expanded text-only prompt context, raw image URL/storage-key/coordinate
 exclusion, raw-image-access system instruction, supported action parsing,
-message caps, deterministic safety refusals, and the `suggest_prompts` action's
-safe three-prompt JSON contract.
+message caps, action-intent safety refusals plus educational near-miss
+allowance, and the `suggest_prompts` action's safe three-prompt JSON contract.
+Shared response-builder tests prove every Insight/Explore thread and action
+success echoes its exact subject, while prompt-suggestion tests prove
+action-intent filtering does not reject harmless species names or educational
+ecology questions. Explore fixtures also cap deterministic common-name labels so
+all generated chips remain within 120 characters.
 
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
@@ -1252,6 +1273,24 @@ message/conversation actions, and status `not_found` must leave
 `unavailableScanId` unset and preserve a retryable toolbar action. Terminal
 ownership failure, `unsupported_scan`, and unavailable Explore-post sources
 remain deterministic unavailability.
+
+Send/retry coverage must also force an ambiguous response after the user row is
+saved, replay the same `client_message_id` while the provider call is in flight,
+and require one persisted user/assistant pair. The 20th-send replay must run
+before daily-limit rejection. A failed provider attempt must resume under that
+same UUID; allocating a fresh UUID on manual retry is a duplicate-message
+regression. Repeat with uppercase request UUID input and lowercase PostgreSQL
+projection, reject the same UUID with different normalized text both after a
+normal read and when contradictory payloads race before insert/replay
+reconciliation, start a new send at 28 persisted rows, reject one at 29, and
+allow an incomplete retry at 29 while rejecting one at 30. Race two
+deterministic local refusals. Assistant persistence must read-after-write
+reconcile an ambiguous insert and expose one deterministic UUIDv8 answer row.
+Reload a UUID-bound user row without its assistant—even with a filtered orphan
+assistant after it—and require the same UUID/text to return as the failed
+pending bubble rather than a delivered message; orphan and duplicate bound
+assistants must not enter the transcript, and hidden recovery rows must still
+count against composer capacity.
 
 Explore composer regression coverage must distinguish “request stopped” from
 “publication succeeded.” The create callback returns success only after the post
@@ -1666,12 +1705,12 @@ Public species-observation stats have layered resource-abuse coverage:
   daily rotation, purpose separation, and strong server-key failure behavior.
 - `_shared/mediaBudgets_test.ts` proves declared and chunked request/provider
   bodies are rejected before crossing their byte budgets.
-- `species-observation-stats/db.test.ts` proves UUID/name binding happens before
-  provider work, exact taxon misses are negatively cached, non-owners dispatch
-  no provider calls, every fetch receives an abort signal, provider bodies are
-  stream-bounded, failed empty populations resolve `unavailable` instead of
-  `partial`, and failed database finalization is not retried with downgraded
-  cache state.
+- `species-observation-stats/db.test.ts` proves canonical RFC UUID versions
+  1...8 and UUID/name binding are accepted before provider work, exact taxon
+  misses are negatively cached, non-owners dispatch no provider calls, every
+  fetch receives an abort signal, provider bodies are stream-bounded, failed
+  empty populations resolve `unavailable` instead of `partial`, and failed
+  database finalization is not retried with downgraded cache state.
 - `species-observation-stats/security.test.ts` locks the pre-auth IP budget,
   stable HTTP mapping for database rate/identity denials, cache-race claim
   responses, and finalization token forwarding.

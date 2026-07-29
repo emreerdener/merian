@@ -21,11 +21,13 @@ struct InsightChatPromptSuggestionsEnvelope: Decodable {
 }
 
 struct InsightChatResponse: Decodable, Equatable {
+    let subjectId: String?
     let conversationId: String?
     let messages: [InsightChatMessage]
     let limits: InsightChatLimits
 
     private enum CodingKeys: String, CodingKey {
+        case subjectId = "subject_id"
         case conversationId = "conversation_id"
         case messages
         case limits
@@ -48,11 +50,13 @@ struct InsightChatLimits: Decodable, Equatable {
 
 struct InsightChatFeedbackResponse: Decodable, Equatable {
     let ok: Bool
+    let subjectId: String?
     let rating: InsightChatFeedbackRating
     let messageId: String
 
     private enum CodingKeys: String, CodingKey {
         case ok
+        case subjectId = "subject_id"
         case rating
         case messageId = "message_id"
     }
@@ -60,23 +64,35 @@ struct InsightChatFeedbackResponse: Decodable, Equatable {
 
 struct InsightChatFeatureFeedbackResponse: Decodable, Equatable {
     let ok: Bool
+    let subjectId: String?
     let id: String
     let sentiment: InsightChatFeatureFeedbackSentiment?
+
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case subjectId = "subject_id"
+        case id
+        case sentiment
+    }
 }
 
 struct InsightChatSummaryResponse: Decodable, Equatable {
+    let subjectId: String?
     let summaryText: String
 
     private enum CodingKeys: String, CodingKey {
+        case subjectId = "subject_id"
         case summaryText = "summary_text"
     }
 }
 
 struct InsightChatPromptSuggestionsResponse: Decodable, Equatable {
+    let subjectId: String?
     let conversationId: String?
     let prompts: [InsightChatPromptSuggestion]
 
     private enum CodingKeys: String, CodingKey {
+        case subjectId = "subject_id"
         case conversationId = "conversation_id"
         case prompts
     }

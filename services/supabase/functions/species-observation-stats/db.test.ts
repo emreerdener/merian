@@ -17,6 +17,7 @@ import {
 import { SpeciesObservationStatsError } from "./security.ts";
 
 const SPECIES_ID = "1cf79982-e5ee-4e3d-8d65-274527e6ae01";
+const UUID_V7_SPECIES_ID = "019faa36-fefc-7311-bc53-4e8977ef7d1c";
 const LEASE_TOKEN = "00000000-0000-4000-8000-000000000901";
 const SECURITY_CONTEXT = {
   userId: "00000000-0000-4000-8000-000000000902",
@@ -31,6 +32,17 @@ Deno.test("species-observation-stats validates request body", () => {
     }),
     {
       speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientificName: "Danaus plexippus",
+    },
+  );
+
+  assertEquals(
+    parseSpeciesObservationStatsRequest({
+      species_id: UUID_V7_SPECIES_ID,
+      scientific_name: "Danaus plexippus",
+    }),
+    {
+      speciesId: UUID_V7_SPECIES_ID,
       scientificName: "Danaus plexippus",
     },
   );
@@ -71,6 +83,18 @@ Deno.test("species-observation-stats validates GET query parameters", () => {
     ),
     {
       speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientificName: "Danaus plexippus",
+    },
+  );
+
+  assertEquals(
+    parseSpeciesObservationStatsQuery(
+      new URL(
+        `https://example.com/functions/v1/species-observation-stats?species_id=${UUID_V7_SPECIES_ID}&scientific_name=Danaus%20plexippus`,
+      ),
+    ),
+    {
+      speciesId: UUID_V7_SPECIES_ID,
       scientificName: "Danaus plexippus",
     },
   );

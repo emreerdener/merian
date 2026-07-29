@@ -162,6 +162,72 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   assertStringIncludes(moderation, "await quotaLease?.commit();");
   assertStringIncludes(moderation, "await quotaLease.fail();");
 
+  for (
+    const path of [
+      "../insight-chat/index.ts",
+      "../explore-post-chat/index.ts",
+    ]
+  ) {
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    assertStringIncludes(source, "waitForFieldChatRequestCompletion(");
+    assertStringIncludes(source, "fieldChatUserMessageForRequest(");
+    assertStringIncludes(source, '"ai_request_already_completed"');
+    assertStringIncludes(source, '"ai_request_in_progress"');
+    assertStringIncludes(source, '"X-Merian-Idempotent-Replay"');
+    assertStringIncludes(source, '"field_chat_send_in_progress"');
+    assertStringIncludes(source, '"field_chat_idempotency_conflict"');
+    assertStringIncludes(source, "requestId: clientMessageId");
+    assertStringIncludes(source, ").toLowerCase();");
+    assertStringIncludes(source, "sendsTodayAfterRequest");
+    assertStringIncludes(source, "await quotaLease?.fail();");
+  }
+
+  const fieldChatResponse = await Deno.readTextFile(
+    new URL("../_shared/fieldChatResponse.ts", import.meta.url),
+  );
+  assertStringIncludes(
+    fieldChatResponse,
+    "deriveFieldChatAssistantMessageId(",
+  );
+  assertStringIncludes(
+    fieldChatResponse,
+    "merian-field-chat-assistant-v1:",
+  );
+
+  for (
+    const path of [
+      "../insight-chat/db.ts",
+      "../explore-post-chat/db.ts",
+    ]
+  ) {
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    assertStringIncludes(source, "deriveFieldChatAssistantMessageId(");
+    assertStringIncludes(source, "assistantMessageId");
+    assertStringIncludes(source, 'error.code === "23505"');
+    assertStringIncludes(source, "reserveFieldChatSend<");
+  }
+
+  const fieldChatReservation = await Deno.readTextFile(
+    new URL("../_shared/fieldChatReservation.ts", import.meta.url),
+  );
+  assertStringIncludes(fieldChatReservation, '"reserve_field_chat_send"');
+  assertStringIncludes(
+    fieldChatReservation,
+    "message.message_text === input.messageText",
+  );
+  assertStringIncludes(
+    fieldChatReservation,
+    "canonicalUuid(message.client_message_id)",
+  );
+  assertStringIncludes(
+    fieldChatReservation,
+    '"field_chat_idempotency_conflict"',
+  );
+  assertStringIncludes(
+    fieldChatReservation,
+    '"recover_stale_field_chat_quota"',
+  );
+
   const share = await Deno.readTextFile(
     new URL("../share-scan-to-explore/index.ts", import.meta.url),
   );

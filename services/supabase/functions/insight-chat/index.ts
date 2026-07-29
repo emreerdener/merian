@@ -6,7 +6,18 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, publicErrorResponse } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { resolveTierForUser } from "../_shared/entitlement.ts";
-import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
+import { AIQuotaError, reserveAIProviderCall } from "../_shared/aiQuota.ts";
+import {
+  fieldChatFeatureFeedbackPayload,
+  fieldChatFeedbackPayload,
+  fieldChatPromptSuggestionsPayload,
+  fieldChatSummaryPayload,
+  fieldChatThreadPayload,
+  fieldChatUserMessageForRequest,
+  isFieldChatRequestComplete,
+  waitForFieldChatRequestCompletion,
+} from "../_shared/fieldChatResponse.ts";
+import { recoverStaleFieldChatQuota } from "../_shared/fieldChatReservation.ts";
 import {
   countUserSendsToday,
   deleteConversation,
@@ -25,6 +36,7 @@ import {
   assertConversationHasRoom,
   isSafetyCriticalQuestion,
   normalizeAction,
+  normalizeAssistantAnswer,
   normalizeFeatureFeedbackSentiment,
   normalizeFeedbackNote,
   normalizeFeedbackRating,
@@ -37,49 +49,28 @@ import {
   buildUserPrompt,
   sanitizeFieldNotesDraft,
 } from "./prompt.ts";
+import { sanitizePromptSuggestions } from "./promptSuggestions.ts";
 import {
   DAILY_SEND_LIMIT,
   INSIGHT_CHAT_MODEL,
   InsightChatMessageRow,
   InsightChatPromptSuggestionPayload,
   InsightChatResponsePayload,
-  MAX_MESSAGES_PER_CONVERSATION,
-  MAX_USER_MESSAGE_CHARS,
   ModelChatResult,
 } from "./types.ts";
 
-const PROMPT_CATEGORY_ALLOWLIST = new Set([
-  "lookalike_compare",
-  "hazard",
-  "invasive",
-  "evidence",
-  "habitat",
-  "season",
-  "confidence",
-  "ecology",
-  "field_notes",
-  "generic",
-]);
-
-function limitsPayload(sendsToday: number) {
-  return {
-    max_user_message_chars: MAX_USER_MESSAGE_CHARS,
-    max_messages_per_conversation: MAX_MESSAGES_PER_CONVERSATION,
-    daily_send_limit: DAILY_SEND_LIMIT,
-    sends_remaining_today: Math.max(0, DAILY_SEND_LIMIT - sendsToday),
-  };
-}
-
 function responsePayload(
+  subjectId: string,
   conversationId: string | null,
   messages: InsightChatMessageRow[],
   sendsToday: number,
 ): InsightChatResponsePayload {
-  return {
-    conversation_id: conversationId,
-    messages: messages.map(formatMessage),
-    limits: limitsPayload(sendsToday),
-  };
+  return fieldChatThreadPayload(
+    subjectId,
+    conversationId,
+    messages.map(formatMessage),
+    sendsToday,
+  );
 }
 
 function messageCategory(text: string): string {
@@ -138,12 +129,11 @@ async function generateAssistantReply(
     refusal_reason?: unknown;
   }>(result.text ?? "");
 
-  const answer = typeof parsed.answer === "string" && parsed.answer.trim()
-    ? parsed.answer.trim()
-    : "I could not produce a useful answer from the saved scan context.";
-
   return {
-    answer,
+    answer: normalizeAssistantAnswer(
+      parsed.answer,
+      "I could not produce a useful answer from the saved scan context.",
+    ),
     isRefusal: parsed.is_refusal === true,
     refusalReason: typeof parsed.refusal_reason === "string"
       ? parsed.refusal_reason
@@ -195,44 +185,9 @@ medical, edible, legal, pesticide, or exact-location instructions.`;
   const rawSummaryText = typeof parsed.summary_text === "string" &&
       parsed.summary_text.trim()
     ? parsed.summary_text.trim()
-    : "Field chat discussed the saved observation and follow-up identification context.";
+    : "";
   const summaryText = sanitizeFieldNotesDraft(rawSummaryText);
   return { summaryText, usage: result.usageMetadata };
-}
-
-function sanitizePromptSuggestions(
-  prompts: unknown,
-): InsightChatPromptSuggestionPayload[] {
-  if (!Array.isArray(prompts)) return [];
-
-  const seen = new Set<string>();
-  const safePattern =
-    /\b(eat|edible|taste|cook|bake|brew|tea|forag|feed|consume|treat|treatment|dosage|medicine|medical|veterinary|pesticide|poison|kill|exterminate|trap|capture|handle|pick up|relocate|collect|harvest|permit|gps|coordinates|latitude|longitude|person|human)\b/i;
-  const suggestions: InsightChatPromptSuggestionPayload[] = [];
-
-  for (const prompt of prompts) {
-    if (!prompt || typeof prompt !== "object") continue;
-    const rawText = "text" in prompt ? prompt.text : null;
-    const rawCategory = "category" in prompt ? prompt.category : null;
-    if (typeof rawText !== "string") continue;
-
-    const text = rawText.trim().replace(/\s+/g, " ");
-    if (!text || text.length > 120 || safePattern.test(text)) continue;
-
-    const key = text.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const category = typeof rawCategory === "string" &&
-        PROMPT_CATEGORY_ALLOWLIST.has(rawCategory)
-      ? rawCategory
-      : "generic";
-
-    suggestions.push({ text, category });
-    if (suggestions.length === 3) break;
-  }
-
-  return suggestions;
 }
 
 async function generatePromptSuggestions(
@@ -290,7 +245,7 @@ Deno.serve((req: Request) =>
     if (parsedBody instanceof Response) return parsedBody;
 
     const action = normalizeAction(parsedBody.action);
-    const scanId = requireUuid(parsedBody.scan_id, "scan_id");
+    const scanId = requireUuid(parsedBody.scan_id, "scan_id").toLowerCase();
     const sendsToday = await countUserSendsToday(user.id, supabaseAdmin);
 
     const scan = await fetchOwnedScan(user.id, scanId, supabaseAdmin);
@@ -324,7 +279,9 @@ Deno.serve((req: Request) =>
 
     if (action === "delete") {
       await deleteConversation(user.id, scanId, supabaseAdmin);
-      return jsonResponse({ data: responsePayload(null, [], sendsToday) }, 200);
+      return jsonResponse({
+        data: responsePayload(scanId, null, [], sendsToday),
+      }, 200);
     }
 
     const existingConversation = await fetchConversation(
@@ -338,6 +295,7 @@ Deno.serve((req: Request) =>
         : [];
       return jsonResponse({
         data: responsePayload(
+          scanId,
           existingConversation?.id ?? null,
           messages,
           sendsToday,
@@ -399,10 +357,11 @@ Deno.serve((req: Request) =>
         );
 
         return jsonResponse({
-          data: {
-            conversation_id: existingConversation?.id ?? null,
-            prompts: suggestions.prompts,
-          },
+          data: fieldChatPromptSuggestionsPayload(
+            scanId,
+            existingConversation?.id ?? null,
+            suggestions.prompts,
+          ),
         }, 200);
       } catch (error) {
         if (providerAttempted) {
@@ -466,7 +425,11 @@ Deno.serve((req: Request) =>
         console.error("PostHog InsightChatFeedbackSubmitted failed:", e)
       );
       return jsonResponse({
-        data: { ok: true, message_id: message.id, rating },
+        data: fieldChatFeedbackPayload(
+          scanId,
+          message.id,
+          rating,
+        ),
       }, 200);
     }
 
@@ -499,7 +462,11 @@ Deno.serve((req: Request) =>
         console.error("PostHog InsightChatFeatureFeedbackSubmitted failed:", e)
       );
       return jsonResponse({
-        data: { ok: true, id: saved.id, sentiment: saved.sentiment },
+        data: fieldChatFeatureFeedbackPayload(
+          scanId,
+          saved.id,
+          saved.sentiment,
+        ),
       }, 200);
     }
 
@@ -570,10 +537,64 @@ Deno.serve((req: Request) =>
       }).catch((e) =>
         console.error("PostHog InsightChatNotesSummarized failed:", e)
       );
-      return jsonResponse({ data: { summary_text: summary.summaryText } }, 200);
+      return jsonResponse({
+        data: fieldChatSummaryPayload(scanId, summary.summaryText),
+      }, 200);
     }
 
-    if (sendsToday >= DAILY_SEND_LIMIT) {
+    const messageText = normalizeUserMessage(parsedBody.message_text);
+    const clientMessageId = requireUuid(
+      parsedBody.client_message_id,
+      "client_message_id",
+    ).toLowerCase();
+
+    const resolvedConversation = await getOrCreateConversation(
+      user.id,
+      scanId,
+      supabaseAdmin,
+    );
+    let beforeMessages = await fetchMessages(
+      resolvedConversation.id,
+      supabaseAdmin,
+    );
+    const existingRequestMessage = fieldChatUserMessageForRequest(
+      beforeMessages,
+      clientMessageId,
+    );
+    const isExistingRequest = existingRequestMessage != null;
+    if (
+      existingRequestMessage &&
+      existingRequestMessage.message_text !== messageText
+    ) {
+      return publicErrorResponse(
+        req,
+        409,
+        "field_chat_idempotency_conflict",
+        "This Field Chat retry key was already used for a different message.",
+      );
+    }
+    let sendsTodayAfterRequest = sendsToday + (isExistingRequest ? 0 : 1);
+    if (
+      isExistingRequest &&
+      isFieldChatRequestComplete(beforeMessages, clientMessageId)
+    ) {
+      return jsonResponse(
+        {
+          data: responsePayload(
+            scanId,
+            resolvedConversation.id,
+            beforeMessages,
+            sendsToday,
+          ),
+        },
+        200,
+        {
+          "X-Merian-Idempotent-Replay": "field-chat-message",
+        },
+      );
+    }
+
+    if (!isExistingRequest && sendsToday >= DAILY_SEND_LIMIT) {
       trackPostHogEvent(user, "InsightChatRateLimited", {
         reason: "daily_limit",
         scan_id: scanId,
@@ -585,6 +606,7 @@ Deno.serve((req: Request) =>
         code: "daily_limit_reached",
         error: "Daily Insight chat limit reached.",
         data: responsePayload(
+          scanId,
           existingConversation?.id ?? null,
           existingConversation
             ? await fetchMessages(existingConversation.id, supabaseAdmin)
@@ -594,49 +616,157 @@ Deno.serve((req: Request) =>
       }, 429);
     }
 
-    const messageText = normalizeUserMessage(parsedBody.message_text);
-    const clientMessageId = parsedBody.client_message_id == null
-      ? null
-      : requireUuid(parsedBody.client_message_id, "client_message_id");
-
-    const resolvedConversation = await getOrCreateConversation(
-      user.id,
-      scanId,
-      supabaseAdmin,
-    );
-    const beforeMessages = await fetchMessages(
-      resolvedConversation.id,
-      supabaseAdmin,
-    );
-    if (
-      clientMessageId &&
-      beforeMessages.some((message) =>
-        message.client_message_id === clientMessageId
-      )
-    ) {
-      return jsonResponse({
-        data: responsePayload(
-          resolvedConversation.id,
-          beforeMessages,
-          sendsToday,
-        ),
-      }, 200);
+    if (!isExistingRequest) {
+      assertConversationHasRoom(beforeMessages.length);
     }
-    assertConversationHasRoom(beforeMessages.length);
 
     const startedAt = Date.now();
     let assistantResult: ModelChatResult;
     const localRefusalReason = isSafetyCriticalQuestion(messageText);
-    const quotaLease = localRefusalReason
-      ? null
-      : await reserveAIProviderCall(req, supabaseAdmin, {
-        userId: user.id,
-        operation: "insight_chat_reply",
-        requestId: clientMessageId ?? parsedBody.ai_request_id,
-      });
-    let userMessage: Awaited<ReturnType<typeof insertUserMessage>>;
+    if (isExistingRequest && localRefusalReason) {
+      const completion = await waitForFieldChatRequestCompletion(
+        beforeMessages,
+        clientMessageId,
+        () => fetchMessages(resolvedConversation.id, supabaseAdmin),
+      );
+      if (completion) {
+        return jsonResponse(
+          {
+            data: responsePayload(
+              scanId,
+              resolvedConversation.id,
+              completion,
+              sendsToday,
+            ),
+          },
+          200,
+          {
+            "X-Merian-Idempotent-Replay": "field-chat-message",
+          },
+        );
+      }
+      beforeMessages = await fetchMessages(
+        resolvedConversation.id,
+        supabaseAdmin,
+      );
+    }
+
+    let quotaLease = null;
+    if (!localRefusalReason) {
+      try {
+        quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+          userId: user.id,
+          operation: "insight_chat_reply",
+          requestId: clientMessageId,
+        });
+      } catch (error) {
+        if (
+          error instanceof AIQuotaError &&
+          (
+            error.code === "ai_request_already_completed" ||
+            error.code === "ai_request_in_progress"
+          )
+        ) {
+          const completion = await waitForFieldChatRequestCompletion(
+            beforeMessages,
+            clientMessageId,
+            () => fetchMessages(resolvedConversation.id, supabaseAdmin),
+          );
+          if (completion) {
+            const completedRequestMessage = fieldChatUserMessageForRequest(
+              completion,
+              clientMessageId,
+            );
+            if (completedRequestMessage?.message_text !== messageText) {
+              return publicErrorResponse(
+                req,
+                409,
+                "field_chat_idempotency_conflict",
+                "This Field Chat retry key was already used for a different message.",
+              );
+            }
+            return jsonResponse(
+              {
+                data: responsePayload(
+                  scanId,
+                  resolvedConversation.id,
+                  completion,
+                  sendsTodayAfterRequest,
+                ),
+              },
+              200,
+              {
+                "X-Merian-Idempotent-Replay": "field-chat-message",
+              },
+            );
+          }
+          if (
+            error.code === "ai_request_already_completed" &&
+            await recoverStaleFieldChatQuota(supabaseAdmin, {
+              userId: user.id,
+              operation: "insight_chat_reply",
+              requestId: clientMessageId,
+              conversationId: resolvedConversation.id,
+              subjectId: scanId,
+            })
+          ) {
+            beforeMessages = await fetchMessages(
+              resolvedConversation.id,
+              supabaseAdmin,
+            );
+            quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+              userId: user.id,
+              operation: "insight_chat_reply",
+              requestId: clientMessageId,
+            });
+          }
+          if (quotaLease === null) {
+            return publicErrorResponse(
+              req,
+              503,
+              "field_chat_send_in_progress",
+              "Your earlier Field Chat send is still completing. Please try again.",
+              { retryAfterSeconds: 2 },
+            );
+          }
+        }
+        throw error;
+      }
+    }
+    if (isExistingRequest) {
+      beforeMessages = await fetchMessages(
+        resolvedConversation.id,
+        supabaseAdmin,
+      );
+      if (isFieldChatRequestComplete(beforeMessages, clientMessageId)) {
+        await quotaLease?.refund();
+        return jsonResponse(
+          {
+            data: responsePayload(
+              scanId,
+              resolvedConversation.id,
+              beforeMessages,
+              sendsToday,
+            ),
+          },
+          200,
+          {
+            "X-Merian-Idempotent-Replay": "field-chat-message",
+          },
+        );
+      }
+      try {
+        assertConversationHasRoom(beforeMessages.length, 1);
+      } catch (error) {
+        await quotaLease?.refund();
+        throw error;
+      }
+    }
+    let userMessage: Awaited<
+      ReturnType<typeof insertUserMessage>
+    >["message"];
     try {
-      userMessage = await insertUserMessage(
+      const admission = await insertUserMessage(
         resolvedConversation.id,
         user.id,
         scanId,
@@ -644,6 +774,35 @@ Deno.serve((req: Request) =>
         clientMessageId,
         supabaseAdmin,
       );
+      userMessage = admission.message;
+      sendsTodayAfterRequest = admission.sendsToday;
+      const admittedMessages = await fetchMessages(
+        resolvedConversation.id,
+        supabaseAdmin,
+      );
+      if (admission.isReplay) {
+        if (isFieldChatRequestComplete(admittedMessages, clientMessageId)) {
+          await quotaLease?.refund();
+          return jsonResponse(
+            {
+              data: responsePayload(
+                scanId,
+                resolvedConversation.id,
+                admittedMessages,
+                admission.sendsToday,
+              ),
+            },
+            200,
+            {
+              "X-Merian-Idempotent-Replay": "field-chat-message",
+            },
+          );
+        }
+        if (!isExistingRequest) {
+          assertConversationHasRoom(admittedMessages.length, 1);
+        }
+      }
+      beforeMessages = admittedMessages;
     } catch (error) {
       await quotaLease?.refund();
       throw error;
@@ -660,7 +819,13 @@ Deno.serve((req: Request) =>
       let providerAttempted = false;
       try {
         const systemInstruction = buildSystemInstruction(scan);
-        const userPrompt = buildUserPrompt(beforeMessages, messageText);
+        const userPrompt = buildUserPrompt(
+          beforeMessages.filter((message) =>
+            message.role !== "user" ||
+            message.client_message_id !== clientMessageId
+          ),
+          messageText,
+        );
         await quotaLease!.commit();
         providerAttempted = true;
         assistantResult = await generateAssistantReply(
@@ -695,14 +860,47 @@ Deno.serve((req: Request) =>
       }
     }
 
-    await insertAssistantMessage(
-      resolvedConversation.id,
-      user.id,
-      scanId,
-      assistantResult,
-      supabaseAdmin,
-      quotaLease?.reservation.model,
-    );
+    try {
+      await insertAssistantMessage(
+        resolvedConversation.id,
+        user.id,
+        scanId,
+        clientMessageId,
+        assistantResult,
+        supabaseAdmin,
+        quotaLease?.reservation.model,
+      );
+    } catch (error) {
+      try {
+        const recoveredMessages = await fetchMessages(
+          resolvedConversation.id,
+          supabaseAdmin,
+        );
+        if (
+          isFieldChatRequestComplete(recoveredMessages, clientMessageId)
+        ) {
+          return jsonResponse(
+            {
+              data: responsePayload(
+                scanId,
+                resolvedConversation.id,
+                recoveredMessages,
+                sendsTodayAfterRequest,
+              ),
+            },
+            200,
+            {
+              "X-Merian-Idempotent-Replay": "field-chat-message",
+            },
+          );
+        }
+      } catch {
+        // Preserve the original persistence error. A failed quota transition
+        // below makes the same request id eligible for a metered retry.
+      }
+      await quotaLease?.fail();
+      throw error;
+    }
 
     const messages = await fetchMessages(
       resolvedConversation.id,
@@ -746,9 +944,10 @@ Deno.serve((req: Request) =>
 
     return jsonResponse({
       data: responsePayload(
+        scanId,
         resolvedConversation.id,
         messages,
-        sendsToday + 1,
+        sendsTodayAfterRequest,
       ),
     }, 200);
   })

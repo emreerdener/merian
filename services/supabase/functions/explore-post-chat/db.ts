@@ -2,6 +2,15 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { fetchExplorePost } from "../get-explore-post/db.ts";
 import { fetchExplorePostDetail } from "../get-explore-post-detail/db.ts";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import {
+  deriveFieldChatAssistantMessageId,
+  fieldChatAssistantMetadata,
+  fieldChatMessageRequestId,
+} from "../_shared/fieldChatResponse.ts";
+import {
+  FieldChatAdmission,
+  reserveFieldChatSend,
+} from "../_shared/fieldChatReservation.ts";
 import type {
   ExplorePostChatContext,
   ExplorePostChatConversationRow,
@@ -24,7 +33,7 @@ export function formatMessage(row: ExplorePostChatMessageRow) {
     scan_id: row.post_id,
     role: row.role,
     text: row.message_text,
-    client_message_id: row.client_message_id,
+    client_message_id: fieldChatMessageRequestId(row),
     model: row.model,
     is_refusal: row.is_refusal,
     refusal_reason: row.refusal_reason,
@@ -111,38 +120,37 @@ export async function insertUserMessage(
   userId: string,
   postId: string,
   text: string,
-  clientMessageId: string | null,
+  clientMessageId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<ExplorePostChatMessageRow> {
-  const { data, error } = await supabaseAdmin
-    .from("explore_post_chat_messages")
-    .insert({
-      conversation_id: conversationId,
-      post_id: postId,
-      user_id: userId,
-      role: "user",
-      message_text: text,
-      client_message_id: clientMessageId,
-    })
-    .select(MESSAGE_SELECT)
-    .single();
-  if (error) {
-    throw new Error(`Failed to save Explore chat message: ${error.message}`);
-  }
-  return data as ExplorePostChatMessageRow;
+): Promise<FieldChatAdmission<ExplorePostChatMessageRow>> {
+  return await reserveFieldChatSend<ExplorePostChatMessageRow>(supabaseAdmin, {
+    userId,
+    conversationId,
+    subjectType: "explore",
+    subjectId: postId,
+    messageText: text,
+    clientMessageId,
+  });
 }
 
 export async function insertAssistantMessage(
   conversationId: string,
   userId: string,
   postId: string,
+  requestId: string,
   result: ModelChatResult,
   supabaseAdmin: SupabaseClient,
   model = "gemini-2.5-flash",
-): Promise<void> {
+): Promise<ExplorePostChatMessageRow> {
   const usage = result.usage;
-  const { error } = await supabaseAdmin.from("explore_post_chat_messages")
+  const assistantMessageId = await deriveFieldChatAssistantMessageId(
+    conversationId,
+    requestId,
+  );
+  const { data, error } = await supabaseAdmin
+    .from("explore_post_chat_messages")
     .insert({
+      id: assistantMessageId,
       conversation_id: conversationId,
       post_id: postId,
       user_id: userId,
@@ -156,11 +164,34 @@ export async function insertAssistantMessage(
       llm_cached_tokens: usage?.cachedContentTokenCount ?? null,
       is_refusal: result.isRefusal,
       refusal_reason: result.refusalReason,
-      safety_metadata: usage
-        ? { prompt_tokens_by_modality: geminiUsageModalityBreakdown(usage) }
-        : null,
-    });
+      safety_metadata: fieldChatAssistantMetadata(
+        requestId,
+        usage
+          ? { prompt_tokens_by_modality: geminiUsageModalityBreakdown(usage) }
+          : {},
+      ),
+    })
+    .select(MESSAGE_SELECT)
+    .single();
   if (error) {
+    if (error.code === "23505") {
+      const { data: existing, error: fetchError } = await supabaseAdmin
+        .from("explore_post_chat_messages")
+        .select(MESSAGE_SELECT)
+        .eq("id", assistantMessageId)
+        .maybeSingle();
+      const existingMessage = existing as ExplorePostChatMessageRow | null;
+      if (
+        !fetchError && existingMessage &&
+        existingMessage.conversation_id === conversationId &&
+        existingMessage.user_id === userId &&
+        existingMessage.post_id === postId &&
+        existingMessage.role === "assistant" &&
+        fieldChatMessageRequestId(existingMessage) === requestId.toLowerCase()
+      ) {
+        return existingMessage;
+      }
+    }
     throw new Error(`Failed to save Explore chat answer: ${error.message}`);
   }
   const { error: touchError } = await supabaseAdmin
@@ -170,6 +201,7 @@ export async function insertAssistantMessage(
   if (touchError) {
     throw new Error(`Failed to update Explore chat: ${touchError.message}`);
   }
+  return data as ExplorePostChatMessageRow;
 }
 
 export async function deleteConversation(

@@ -654,33 +654,40 @@ provider dispatch:
   `usageMetadata.cachedContentTokenCount`) to track implicit cache hit volume —
   a non-zero value means Google served those prefix tokens from cache at the 75%
   discount rate.
-- **Insight Chat (`insight-chat`)**: Pro follow-up chat uses `gemini-2.5-flash`
-  from an authenticated Edge Function and appears as an Insight bottom-sheet
-  conversation surface. The client never sends raw image data for chat turns;
-  the server assembles a text-only context from the owned scan row, species
-  dictionary fields, AI reasoning, identification provenance, observed traits,
-  ecology annotations, species group tags, telemetry, candidates/lookalikes,
-  coarse field context, and image/capture-quality metadata. Exact GPS
-  coordinates, raw image bytes, storage keys, internal scan IDs, cloud image
-  URLs, Explore/community content, and export payloads are excluded. Chat
-  conversations, messages, answer feedback, and sheet-level feature feedback are
-  private rows in `insight_chat_conversations`, `insight_chat_messages`,
-  `insight_chat_message_feedback`, and `insight_chat_feature_feedback`; each
-  scan has one saved conversation per user. User messages are capped at 600
-  characters, each conversation is capped at 30 messages, and all chats share
-  the 20 sends per Pro user per day. Token usage is stored on assistant message
-  rows and tracked with `InsightChatAnswered`, `InsightChatRefused`,
-  `InsightChatRateLimited`, `InsightChatModelError`,
-  `InsightChatFeedbackSubmitted`, and `InsightChatNotesSummarized`; send/answer
-  events include a deterministic `answer_category` for prompt and cost review.
-  The same Edge Function also supports `action: "suggest_prompts"` for
-  AI-generated quick prompt chips. Prompt suggestions use the same private
-  text-only scan context plus recent saved chat history, return exactly three
-  short non-persisted prompts with allowlisted telemetry categories, and never
-  consume the daily chat send limit. iOS requests suggestions after initial chat
-  load and after successful assistant responses, keeps local deterministic chips
-  as a fallback, and suppresses prompt refresh while typing, offline, after
-  failed sends, or after feedback taps.
+- **Field Chat (`insight-chat` + `explore-post-chat`)**: Pro follow-up chat uses
+  `gemini-2.5-flash` from authenticated Edge Functions and appears as an Insight
+  or private per-viewer Explore conversation surface. Insight context is
+  text-only evidence from the owned completed scan; Explore context is only the
+  privacy-filtered public post and Species Dictionary projection. Neither route
+  receives raw media, object keys/URLs, exact GPS, comments, another viewer's
+  chat, or export payloads. Conversations, messages, and feedback are private
+  per user and subject. User messages are capped at 600 characters, each
+  conversation at 30 messages, and both routes share 20 model sends per Pro user
+  per day. Token usage and bounded telemetry retain route-specific events
+  without prompt/chat text. Both routes use `_shared/fieldChatResponse.ts` so
+  every empty/populated thread and action success echoes the exact requested
+  scan/post as `subject_id`; iOS treats `200` as candidate evidence and
+  validates that echo plus populated message/conversation identity before
+  applying it. Every send requires a UUID request identity; the assistant stores
+  its canonical lowercase form in private metadata and projects it as
+  `client_message_id`, allowing duplicate, transport, and quota replays to
+  coalesce into one saved user/assistant pair. A new send reserves its two rows
+  within the 30-row cap; UUID reuse with different text fails explicitly.
+  Deterministic assistant UUIDv8 rows and read-after-write reconciliation make
+  answer persistence idempotent, including concurrent local refusals. In-flight
+  replay polling is bounded, failed provider or persistence attempts resume
+  under the same UUID, and iOS requires the exact pair, bounded message text,
+  and a 1 MiB decode ceiling before clearing a pending send. Manual retry
+  preserves the UUID rather than creating another question. Prompt suggestions
+  are non-persisted, at most three strings of 120 characters, use allowlisted
+  telemetry categories, and do not consume the send limit. Action-intent
+  filtering blocks ingestion, treatment, dangerous handling, exact-location, and
+  human-identification requests without rejecting harmless species names or
+  educational ecology language. Insight note summaries scrub canonical UUIDs
+  including UUIDv7 and fall back to bounded non-sensitive text if scrubbing
+  empties the draft. Deploy the additive subject echo to both functions before
+  shipping the fail-closed iOS validator, then smoke a same-UUID ambiguous send
+  replay as well as empty/action subject echoes.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:
@@ -870,11 +877,11 @@ provider dispatch:
   inference frames retained in the compatibility image array are not display
   rows. Migration `20260729012153_fix_video_scan_canonical_finalization.sql`
   corrected the contradictory all-image-array check without relaxing exact
-  owner, kind, URL, or staging-disposition requirements.
-  Repeated delivery checks for stored completion or an exact reconstructible
-  owner row first and returns marked `200`; reconstruction may coexist with a
-  retryable canonical ledger, and concurrent delivery coalesces without another
-  model call. Only analytics, group tags, and candidate enrichment remain behind
+  owner, kind, URL, or staging-disposition requirements. Repeated delivery
+  checks for stored completion or an exact reconstructible owner row first and
+  returns marked `200`; reconstruction may coexist with a retryable canonical
+  ledger, and concurrent delivery coalesces without another model call. Only
+  analytics, group tags, and candidate enrichment remain behind
   `EdgeRuntime.waitUntil`. The same request records `scan_ingestion_intents`, a
   service-role-only sanitized replay payload with a `payload_checksum`; raw
   inline media bytes are redacted and mark the intent non-resumable. The

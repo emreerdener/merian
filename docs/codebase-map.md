@@ -239,7 +239,7 @@ the native iOS source tree.
 | Offline sync   | `apps/ios/Merian/Core/Data/OfflineSync/`   | Durable queue state machine, generation-fenced upload/inference URLSession ownership, exact server-issued staging-key handoff, consumed-key re-upload recovery, compare-before-clear retry/probe registries, background replay and reconciliation, audio queue helpers, and tokenized sync phase state. |
 | Store recovery | `apps/ios/Merian/Core/Data/StoreRecovery/` | SwiftData store metadata parsing, source-aware migration hints, duplicate-checksum detection, corruption-gated quarantine, legacy migration rescue archives, safe-mode decision support, and sanitized recovery manifests.                                                                              |
 | Hardware       | `apps/ios/Merian/Core/Hardware/`           | Camera, environment context, audio, spectrogram, haptics, thermal/battery orchestration, and push token management.                                                                                                                                                                                     |
-| Network        | `apps/ios/Merian/Core/Network/`            | Supabase auth/client facade, TLS-pinned network client, private Field trip completion-scan DTO mapping, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager.                                                                                                                  |
+| Network        | `apps/ios/Merian/Core/Network/`            | Supabase auth/client facade, TLS-pinned network client, subject-bound Insight/Explore Field Chat DTO validation, private Field trip completion-scan DTO mapping, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager.                                                         |
 | Security       | `apps/ios/Merian/Core/Security/`           | Circuit breaker, device identity, RevenueCat, and social guard.                                                                                                                                                                                                                                         |
 | UI             | `apps/ios/Merian/Core/UI/`                 | Shared controls, tab bar, media mode toggle, domain-neutral goal progress ring, slide-to-confirm, reusable modifiers, and theme model.                                                                                                                                                                  |
 | Utilities      | `apps/ios/Merian/Core/Utilities/`          | App lifecycle, app events, config constants, field notes repository, image downsampling, errors, sharing, date/size helpers, and UserDefaults keys.                                                                                                                                                     |
@@ -414,6 +414,8 @@ Explore and social:
 - `get-explore-comments`
 - `get-explore-comment-replies`
 - `get-explore-mention-suggestions`
+- `explore-post-chat` — private per-viewer Pro Field Chat grounded only in the
+  public privacy-filtered post projection
 - `field-trips`
 - `report-explore-comment`
 - `report-explore-post` — authenticated Explore post-content moderation queue;
@@ -452,6 +454,19 @@ Explore publishing, activity, and delivery:
 - `register-push-device`
 - `send-push-notification`
 - `block-user`
+
+`services/supabase/functions/_shared/fieldChatResponse.ts` owns the additive
+success-envelope identity shared by `insight-chat` and `explore-post-chat`.
+Every empty/populated thread and action success echoes its requested scan/post
+as `subject_id`; iOS validates that echo plus populated message/conversation
+identity before applying candidate success. The same helper binds each assistant
+to its canonical send UUID in private metadata, derives its deterministic UUIDv8
+row identity, and boundedly coalesces in-flight quota/transport replays; both
+response messages project that UUID so iOS can require one complete pair and
+manual retry can preserve the original request. New sends reserve both rows
+inside the 30-row cap, and conflicting text reuse fails explicitly. Route-local
+prompt builders keep Insight model output and deterministic Explore labels
+within the shared three-prompt, 120-character safety contract.
 
 Data lifecycle, identity, and exports:
 

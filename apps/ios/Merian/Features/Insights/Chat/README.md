@@ -81,6 +81,58 @@ Platform route failure is distinct from a handler-owned missing scan.
 `MerianError.edgeFunctionUnavailable` uses temporary service-unavailable copy
 and must not enter owner-row recovery.
 
+Every chat HTTP `200` is candidate evidence, not completion by itself. Before
+the view model replaces the visible thread, the network client requires an exact
+top-level `subject_id` echo even for an empty thread, valid v1 contract limits,
+unique UUID message IDs, one valid conversation UUID when messages are present,
+an exact subject match on every message, trimmed/nonempty message text no longer
+than 4,000 characters, and a JSON body no larger than 1 MiB before decoding.
+Insight messages must reference the requested scan; Explore messages must
+reference the requested post through the compatibility `scan_id` field. A send
+success additionally contains exactly one persisted user message and one
+persisted assistant message carrying the original `client_message_id`; its user
+row must acknowledge the exact trimmed question sent. Malformed, incomplete,
+cross-subject, or cross-conversation payloads become
+`MerianError.invalidResponse`. A failed send therefore remains visible with
+retry/edit recovery instead of clearing the pending question or displaying
+another thread.
+
+`PendingInsightChatMessage.id` is the send's durable idempotency UUID. Automatic
+network replay and `retryFailedMessage` must reuse it in canonical lowercase
+form; a manual retry must never allocate a new UUID and insert a duplicate
+question. Reusing it for edited text is a server-confirmed
+`field_chat_idempotency_conflict`, so Edit intentionally starts a new send UUID.
+The backend coalesces an in-flight quota replay into the exact saved pair or
+returns retryable `field_chat_send_in_progress`. It reserves both persisted rows
+within the 30-row conversation cap and gives the assistant a deterministic row
+identity, preventing concurrent or ambiguous persistence from duplicating an
+answer.
+
+On load, `reconcileThread` distinguishes a completed historical user/assistant
+turn from the latest unanswered UUID-bound user row whose answer never
+persisted, even if a filtered orphan assistant follows it. That unanswered row
+is removed from the delivered transcript and restored as the failed pending
+bubble with its canonical UUID, text, timestamp, Retry, and Edit actions.
+Orphan/duplicate UUID-bound assistant rows are not displayed. The separate
+persisted-row count still controls composer capacity, so hiding an interrupted
+row cannot create a local 29-row off-by-one send.
+
+Action responses use the same subject rule. Answer feedback requires the exact
+scan/post echo, `ok: true`, and the requested message UUID and rating; feature
+feedback requires the exact scan echo, `ok: true`, a valid saved-feedback UUID,
+and the requested sentiment. Field-note summaries must echo the scan, be
+nonempty and bounded, and remain free of canonical internal UUIDs, including
+UUIDv7. Prompt suggestions echo their scan/post and are limited to three unique,
+trimmed, 120-character allowlisted safe prompts with an optional valid
+conversation UUID. Invalid best-effort suggestions fall back to local chips;
+invalid feedback or summaries never show success.
+
+Send-time and prompt safety match unsafe action intent rather than isolated
+words. Direct requests to harvest or handle the observation remain blocked,
+while educational questions about poison ivy habitat, tea plants, animal
+foraging, bee stings, or why handling is discouraged are not discarded or
+automatically refused merely because they contain a safety-adjacent word.
+
 ## Context and Privacy
 
 Owned Insight chat uses only saved owner text evidence. Explore-post chat is a

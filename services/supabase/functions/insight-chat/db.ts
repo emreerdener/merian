@@ -1,5 +1,14 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import {
+  deriveFieldChatAssistantMessageId,
+  fieldChatAssistantMetadata,
+  fieldChatMessageRequestId,
+} from "../_shared/fieldChatResponse.ts";
+import {
+  FieldChatAdmission,
+  reserveFieldChatSend,
+} from "../_shared/fieldChatReservation.ts";
 import { publicHttpError } from "../_shared/http.ts";
 import {
   ChatScanContext,
@@ -48,7 +57,7 @@ export function formatMessage(
     scan_id: row.scan_id,
     role: row.role,
     text: row.message_text,
-    client_message_id: row.client_message_id,
+    client_message_id: fieldChatMessageRequestId(row),
     model: row.model,
     is_refusal: row.is_refusal,
     refusal_reason: row.refusal_reason,
@@ -156,56 +165,37 @@ export async function insertUserMessage(
   userId: string,
   scanId: string,
   messageText: string,
-  clientMessageId: string | null,
+  clientMessageId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<InsightChatMessageRow> {
-  const { data, error } = await supabaseAdmin
-    .from("insight_chat_messages")
-    .insert({
-      conversation_id: conversationId,
-      user_id: userId,
-      scan_id: scanId,
-      role: "user",
-      message_text: messageText,
-      client_message_id: clientMessageId,
-    })
-    .select(MESSAGE_SELECT)
-    .single();
-
-  if (error) {
-    if (error.code === "23505" && clientMessageId) {
-      const { data: existing, error: fetchError } = await supabaseAdmin
-        .from("insight_chat_messages")
-        .select(MESSAGE_SELECT)
-        .eq("conversation_id", conversationId)
-        .eq("client_message_id", clientMessageId)
-        .single();
-      if (fetchError) {
-        throw new Error(
-          `Failed to fetch duplicate chat message: ${fetchError.message}`,
-        );
-      }
-      return existing as InsightChatMessageRow;
-    }
-    throw new Error(`Failed to insert user chat message: ${error.message}`);
-  }
-
-  await touchConversation(conversationId, supabaseAdmin);
-  return data as InsightChatMessageRow;
+): Promise<FieldChatAdmission<InsightChatMessageRow>> {
+  return await reserveFieldChatSend<InsightChatMessageRow>(supabaseAdmin, {
+    userId,
+    conversationId,
+    subjectType: "insight",
+    subjectId: scanId,
+    messageText,
+    clientMessageId,
+  });
 }
 
 export async function insertAssistantMessage(
   conversationId: string,
   userId: string,
   scanId: string,
+  requestId: string,
   result: ModelChatResult,
   supabaseAdmin: SupabaseClient,
   model = "gemini-2.5-flash",
 ): Promise<InsightChatMessageRow> {
   const usage = result.usage;
+  const assistantMessageId = await deriveFieldChatAssistantMessageId(
+    conversationId,
+    requestId,
+  );
   const { data, error } = await supabaseAdmin
     .from("insight_chat_messages")
     .insert({
+      id: assistantMessageId,
       conversation_id: conversationId,
       user_id: userId,
       scan_id: scanId,
@@ -220,14 +210,33 @@ export async function insertAssistantMessage(
       llm_usage_metadata: geminiUsageModalityBreakdown(usage),
       is_refusal: result.isRefusal,
       refusal_reason: result.refusalReason,
-      safety_metadata: result.isRefusal
-        ? { refusal_reason: result.refusalReason }
-        : null,
+      safety_metadata: fieldChatAssistantMetadata(
+        requestId,
+        result.isRefusal ? { refusal_reason: result.refusalReason } : {},
+      ),
     })
     .select(MESSAGE_SELECT)
     .single();
 
   if (error) {
+    if (error.code === "23505") {
+      const { data: existing, error: fetchError } = await supabaseAdmin
+        .from("insight_chat_messages")
+        .select(MESSAGE_SELECT)
+        .eq("id", assistantMessageId)
+        .maybeSingle();
+      const existingMessage = existing as InsightChatMessageRow | null;
+      if (
+        !fetchError && existingMessage &&
+        existingMessage.conversation_id === conversationId &&
+        existingMessage.user_id === userId &&
+        existingMessage.scan_id === scanId &&
+        existingMessage.role === "assistant" &&
+        fieldChatMessageRequestId(existingMessage) === requestId.toLowerCase()
+      ) {
+        return existingMessage;
+      }
+    }
     throw new Error(
       `Failed to insert assistant chat message: ${error.message}`,
     );

@@ -1488,6 +1488,12 @@ UUID case normalization. PostgreSQL emits lowercase UUID text while Apple
 clients may send uppercase UUID strings; casing alone is not an identity
 mismatch.
 
+iOS also treats this `200` as candidate evidence. Decode failure, an unknown
+status, `success: false`, a mismatched scan, malformed request/post/owner/taxon
+UUID, invalid request timestamp, any status other than `needs_id`, or a negative
+consensus count becomes `MerianError.invalidResponse`. No Community success
+state is cached from that response.
+
 ### `/get-community-identification-feed`
 
 Returns unresolved `needs_id` requests for the Identify tab. Optional `scope`
@@ -2637,7 +2643,9 @@ Compatibility request body:
 
 Validation rules:
 
-- `species_id` is required and must be a valid dictionary UUID.
+- `species_id` is required and must be a canonical RFC-variant dictionary UUID
+  using version 1...8. Dictionary rows are UUIDv4 today; accepting newer
+  versions keeps the HTTP parser aligned with the database identity boundary.
 - `scientific_name` is required.
 - `scientific_name` must be a string and non-empty after trimming.
 - Internal whitespace is collapsed before lookup.
@@ -4137,8 +4145,8 @@ Behavior notes:
 
 - the Edge wrapper derives owner identity from the validated user JWT; the
   underlying `SECURITY INVOKER` routine is executable only by `service_role`,
-  and `PUBLIC`, `anon`, or `authenticated` cannot submit a replacement
-  `self_id` directly
+  and `PUBLIC`, `anon`, or `authenticated` cannot submit a replacement `self_id`
+  directly
 - the lookup is owner-only: it reads only scans where `scans.user_id = self_id`
 - when a live Explore post exists, `location_sharing` is the post-owned value
   used to hydrate share/edit options
@@ -5405,7 +5413,7 @@ text:
 `action` accepts `load`, `send`, `delete`, `feedback`, `feature_feedback`,
 `summarize_notes`, or `suggest_prompts`. `load` returns the single saved
 conversation for the scan when one exists. `send` creates that conversation when
-missing, requires `message_text`, and may include `client_message_id` for
+missing, and requires both `message_text` and a UUID `client_message_id` for
 idempotency. `delete` clears the scan's saved chat. `feedback` stores private
 owner-only answer feedback for an assistant `message_id` with `feedback_rating`
 (`helpful`, `not_helpful`, `wrong`, `unsafe`, `other`) and optional
@@ -5419,15 +5427,32 @@ short, non-persisted prompt chip suggestions plus allowlisted categories for
 telemetry; it uses the same owned scan context and recent saved chat history,
 does not consume the daily send limit, and is best-effort so load/send chat
 behavior remains independent if prompt generation fails. The server caps v1 at
-600 characters per user message, 30 total messages per conversation, and 20
-sends per Pro user per day across all of that user's Insight chats. Effective
-Pro includes active trial users.
+600 characters per user message, 30 total persisted message rows per
+conversation, and 20 sends per Pro user per day across all of that user's
+Insight chats. A new request reserves room for its user and assistant rows
+together; an incomplete retry already owns its user row but must still have one
+slot for the assistant. Effective Pro includes active trial users.
 
 `send` uses `client_message_id` as the UUID provider idempotency key. The iOS
 client sends a UUID `Idempotency-Key` header for `suggest_prompts` and
 `summarize_notes`; every automatic network/auth/server retry preserves the same
-value. `load`, delete, feedback, and local safety refusals do not invoke Gemini
-and do not consume AI quota.
+value. For a send, the UUID is also the durable saved request identity: the
+server canonicalizes it to lowercase, binds it to the user row and assistant
+safety metadata, then projects it as `client_message_id` on both messages.
+Reusing the UUID with different normalized text returns
+`409 field_chat_idempotency_conflict`. The server rechecks that binding after a
+duplicate insert and before returning a waited replay, so contradictory
+same-UUID requests that race the initial read cannot receive the other request's
+success. The assistant row has a deterministic UUIDv8 derived from conversation
+and request identity. A duplicate or quota replay either returns that exact
+pair, waits a bounded interval for the original in-flight answer, or returns
+retryable `503 field_chat_send_in_progress`. A failed provider or
+assistant-persistence attempt may resume under the same UUID without inserting
+another user question. An ambiguous assistant insert is read-after-write
+reconciled before failure; deterministic identity prevents a concurrent local
+refusal from saving two answers. iOS manual retry preserves the failed UUID.
+`load`, delete, feedback, and local safety refusals do not invoke Gemini and do
+not consume AI quota.
 
 ### Prompt and Privacy Boundary
 
@@ -5447,35 +5472,48 @@ requesting, revealing, or reconstructing exact GPS coordinates.
 
 The Gemini request uses `gemini-2.5-flash` with a stable prompt prefix,
 `maxOutputTokens: 700`, no streaming, no Google Search grounding, and thinking
-disabled. Assistant messages store model/token telemetry, including cached
-tokens when Gemini reports implicit cache hits.
+disabled. Assistant text is normalized to a nonempty fallback and capped at
+4,000 Unicode code points before persistence. Assistant messages store
+model/token telemetry, including cached tokens when Gemini reports implicit
+cache hits.
 
 Prompt suggestions are generated with the same text-only privacy boundary. The
 model must return exactly three short prompt strings with safe categories such
 as `evidence`, `lookalike_compare`, `habitat`, `season`, `hazard`, `invasive`,
 `confidence`, `field_notes`, or `generic`. The guardrail prompt forbids edible
 certainty, medical/veterinary treatment, illegal collection, pesticide/poison
-instructions, exact-location requests, and human-subject identification.
+instructions, exact-location requests, and human-subject identification. The
+send-time classifier and post-generation filter match direct unsafe action
+intent rather than isolated words, so harmless names such as poison ivy and
+educational questions about animal foraging, bee stings, or discouraged handling
+remain usable and are not automatically refused.
 
 ### Response Payload
 
 ```json
 {
   "data": {
+    "subject_id": "11111111-1111-4111-8111-111111111111",
     "conversation_id": "22222222-2222-4222-8222-222222222222",
     "messages": [
       {
         "id": "33333333-3333-4333-8333-333333333333",
+        "conversation_id": "22222222-2222-4222-8222-222222222222",
+        "scan_id": "A1B2C3D4-...",
         "role": "user",
         "text": "What traits support this identification?",
+        "client_message_id": "11111111-1111-4111-8111-111111111111",
         "created_at": "2026-06-26T16:20:00.000Z",
         "is_refusal": false,
         "refusal_reason": null
       },
       {
         "id": "44444444-4444-4444-8444-444444444444",
+        "conversation_id": "22222222-2222-4222-8222-222222222222",
+        "scan_id": "A1B2C3D4-...",
         "role": "assistant",
         "text": "The saved evidence points to...",
+        "client_message_id": "11111111-1111-4111-8111-111111111111",
         "created_at": "2026-06-26T16:20:02.000Z",
         "is_refusal": false,
         "refusal_reason": null
@@ -5491,11 +5529,25 @@ instructions, exact-location requests, and human-subject identification.
 }
 ```
 
+iOS treats this HTTP `200` as candidate evidence. Before replacing the current
+thread it requires `subject_id` to echo the requested scan even when the thread
+is empty, the exact v1 message/conversation limits, a bounded message count,
+unique UUID message IDs, a valid envelope conversation UUID whenever messages
+are present, and exact agreement between each message's `conversation_id`,
+envelope conversation, and requested `scan_id`. Message text must be exactly
+trimmed, nonempty, and at most 4,000 characters, and the JSON body must not
+exceed the reviewed 1 MiB decode ceiling. A send response must contain exactly
+one user and one assistant message carrying the requested `client_message_id`.
+Any decode, identity, incomplete-pair, size, duplicate, limit, or conversation
+mismatch is `MerianError.invalidResponse`; a pending send stays failed and
+retryable under the same UUID.
+
 For `suggest_prompts`:
 
 ```json
 {
   "data": {
+    "subject_id": "11111111-1111-4111-8111-111111111111",
     "conversation_id": "22222222-2222-4222-8222-222222222222",
     "prompts": [
       {
@@ -5521,6 +5573,7 @@ For `feedback`:
 {
   "data": {
     "ok": true,
+    "subject_id": "11111111-1111-4111-8111-111111111111",
     "message_id": "33333333-3333-4333-8333-333333333333",
     "rating": "wrong"
   }
@@ -5533,6 +5586,7 @@ For `feature_feedback`:
 {
   "data": {
     "ok": true,
+    "subject_id": "11111111-1111-4111-8111-111111111111",
     "id": "44444444-4444-4444-8444-444444444444",
     "sentiment": "positive"
   }
@@ -5544,10 +5598,32 @@ For `summarize_notes`:
 ```json
 {
   "data": {
+    "subject_id": "11111111-1111-4111-8111-111111111111",
     "summary_text": "Concise reviewed draft text for append-only field notes."
   }
 }
 ```
+
+iOS validates each action-specific `200` before applying success. Every action
+must echo the exact requested scan through `subject_id`. Answer feedback must
+also report `ok: true`, the requested message UUID, and the requested rating.
+Feature feedback must report `ok: true`, a valid saved-feedback UUID, and the
+requested optional sentiment. A field-note summary must be nonempty, no longer
+than 4,000 characters, and contain no canonical internal UUID, including current
+UUIDv7 identifiers. Prompt suggestions permit zero through three unique, trimmed
+strings of at most 120 characters, require an allowlisted category and optional
+valid conversation UUID, and repeat the server's
+unsafe-action/exact-location/human-subject intent filter as client defense in
+depth. Any mismatch is `MerianError.invalidResponse`; prompt generation falls
+back locally, while feedback and summary surfaces remain unsuccessful.
+
+Roll this contract out backend-first. Deploy the additive `subject_id` field and
+assistant request-pair projection to both `/insight-chat` and
+`/explore-post-chat`, verify empty-thread/action responses plus an ambiguous
+same-UUID send replay in staging, and only then ship the hardened iOS validator.
+Existing iOS versions ignore the additive fields; the corrected version
+deliberately fails closed against an older anonymous-success envelope or a send
+that cannot prove its persisted pair.
 
 ### Safety and Errors
 
@@ -5562,10 +5638,12 @@ identification requests.
 | `400`  | `{ "code": "unsupported_scan", ... }`            | Scan is non-biological or request shape is invalid |
 | `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not Pro/trial                    |
 | `404`  | `{ "code": "scan_not_ready", ... }`              | No owned completed scan row exists yet             |
+| `409`  | `{ "code": "field_chat_idempotency_conflict" }`  | UUID was reused with different normalized text     |
 | `429`  | `{ "code": "daily_limit_reached", ... }`         | Daily send cap reached                             |
 | `429`  | `{ "code": "ai_quota_daily_exceeded", ... }`     | Database AI safety ceiling reached                 |
 | `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached                 |
 | `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }`   | Shared network minute ceiling reached              |
+| `503`  | `{ "code": "field_chat_send_in_progress", ... }` | Same-UUID send has not completed its pair yet      |
 | `503`  | `{ "code": "ai_entitlement_unavailable", ... }`  | Entitlement/quota lookup failed closed             |
 
 The iOS client treats `404 scan_not_ready`, action-level `message_not_found` /
@@ -5608,7 +5686,10 @@ Model sends reserve `explore_post_chat_reply` using
 `client_message_id`/`Idempotency-Key` before provider dispatch and use the
 database-selected model. Local safety refusals and deterministic prompt
 suggestions do not call Gemini and do not consume AI quota. Explore and Insight
-model chat share the `ai_chat` quota buckets.
+model chat share the `ai_chat` quota buckets. `client_message_id` is required
+for `send`, binds the persisted user/assistant pair, and is reused by automatic
+and manual retries. Quota replays coalesce into the saved pair or return the
+same retryable in-progress contract as Insight Chat.
 
 Request bodies use `post_id` and support `load`, `send`, `delete`, `feedback`,
 and `suggest_prompts`:
@@ -5624,9 +5705,21 @@ and `suggest_prompts`:
 
 The response reuses the iOS `InsightChatResponse` envelope. For compatibility,
 each message's `scan_id` field contains the Explore post ID; it never exposes
-the owner's source scan ID. Conversations allow 600 characters per user message,
-30 total messages, and share the 20-send UTC daily allowance with the viewer's
-Insight chats. Prompt suggestions and feedback do not consume a send.
+the owner's source scan ID. Top-level `subject_id` also contains the requested
+Explore post ID on every thread, feedback, and prompt-suggestion response,
+including an empty thread. Conversations allow 600 characters per user message,
+30 total persisted rows, and share the 20-send UTC daily allowance with the
+viewer's Insight chats. New sends reserve room for user and assistant rows
+together. Request UUIDs are canonical lowercase values; UUID reuse with
+different normalized text returns `409 field_chat_idempotency_conflict`, and
+deterministic assistant UUIDv8 rows make answer persistence idempotent.
+Assistant text is capped at 4,000 Unicode code points before persistence. Prompt
+suggestions and feedback do not consume a send. The same iOS candidate-success
+validation binds the envelope and every returned message to the requested post
+ID and one conversation; a send also requires its exact two-message
+`client_message_id` pair, exact acknowledged user text, and bounded response
+body before the private thread can be displayed, a pending send can be cleared,
+or an action can show success.
 
 The model context is built from the privacy-filtered `get_explore_post` and
 `get_explore_post_detail` projections plus public Species Dictionary fields. It

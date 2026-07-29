@@ -30,6 +30,8 @@ final class InsightChatViewModel {
     static let maxDraftCharacters = 600
     static let stillSyncingMessage =
         "This observation is still syncing. Please try Field chat again in a moment."
+    static let interruptedSendMessage =
+        "This question did not finish. Tap Retry to continue."
 
     var messages: [InsightChatMessage] = []
     var pendingUserMessage: PendingInsightChatMessage?
@@ -46,6 +48,7 @@ final class InsightChatViewModel {
     var isOffline = false
     var conversationId: String?
     var unavailableScanId: String?
+    private(set) var persistedMessageCount = 0
     var suggestedPrompts: [InsightChatPromptSuggestion] = []
     var submittedFeedback: [String: InsightChatFeedbackRating] = [:]
     var notesSummaryDraft: String?
@@ -92,7 +95,8 @@ final class InsightChatViewModel {
             && pendingUserMessage == nil
             && !trimmedDraft.isEmpty
             && trimmedDraft.count <= limits.maxUserMessageCharacters
-            && messages.count < limits.maxMessagesPerConversation
+            && max(messages.count, persistedMessageCount) + 2 <=
+                limits.maxMessagesPerConversation
             && limits.sendsRemainingToday > 0
     }
 
@@ -224,8 +228,33 @@ final class InsightChatViewModel {
     }
 
     func send(_ text: String, scanId: String) async {
+        await send(
+            text,
+            scanId: scanId,
+            clientMessageId: UUID().uuidString.lowercased()
+        )
+    }
+
+    private func send(
+        _ text: String,
+        scanId: String,
+        clientMessageId: String
+    ) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        guard let requestUuid = UUID(uuidString: clientMessageId),
+              !isSending else { return }
+        let clientMessageId = requestUuid.uuidString.lowercased()
+        let isRetry = pendingUserMessage.map { pendingMessage in
+            guard case .failed = pendingMessage.deliveryState,
+                  let pendingRequestUuid = UUID(uuidString: pendingMessage.id)
+            else {
+                return false
+            }
+            return pendingRequestUuid.uuidString.lowercased() ==
+                clientMessageId
+        } ?? false
+        guard isRetry || pendingUserMessage == nil else { return }
         guard !isOffline else {
             HapticManager.shared.triggerErrorThump()
             errorMessage = "Connect to send."
@@ -236,8 +265,20 @@ final class InsightChatViewModel {
             errorMessage = "Keep questions under \(limits.maxUserMessageCharacters) characters."
             return
         }
+        let requiredMessageSlots = isRetry ? 1 : 2
+        guard max(messages.count, persistedMessageCount) +
+                requiredMessageSlots <= limits.maxMessagesPerConversation
+        else {
+            HapticManager.shared.triggerErrorThump()
+            errorMessage = "This Field chat has reached its message limit."
+            return
+        }
+        guard isRetry || limits.sendsRemainingToday > 0 else {
+            HapticManager.shared.triggerErrorThump()
+            errorMessage = "Daily Field chat limit reached."
+            return
+        }
 
-        let clientMessageId = UUID().uuidString
         beginSending(trimmed, clientMessageId: clientMessageId)
         if trimmed == draftText.trimmingCharacters(in: .whitespacesAndNewlines) {
             draftText = ""
@@ -277,7 +318,11 @@ final class InsightChatViewModel {
     func retryFailedMessage(scanId: String) async {
         guard let pendingUserMessage,
               case .failed = pendingUserMessage.deliveryState else { return }
-        await send(pendingUserMessage.text, scanId: scanId)
+        await send(
+            pendingUserMessage.text,
+            scanId: scanId,
+            clientMessageId: pendingUserMessage.id
+        )
     }
 
     func editFailedMessage() {
@@ -826,17 +871,100 @@ final class InsightChatViewModel {
     }
 
     private func apply(_ response: InsightChatResponse) {
+        let reconciled = Self.reconcileThread(response.messages)
         conversationId = response.conversationId
-        messages = response.messages
-        pendingUserMessage = nil
+        persistedMessageCount = response.messages.count
+        messages = reconciled.messages
+        pendingUserMessage = reconciled.pendingMessage
         limits = response.limits
         unavailableScanId = nil
         errorMessage = nil
     }
 
+    static func reconcileThread(
+        _ sourceMessages: [InsightChatMessage]
+    ) -> (
+        messages: [InsightChatMessage],
+        pendingMessage: PendingInsightChatMessage?
+    ) {
+        func canonicalRequestId(_ value: String?) -> String? {
+            guard let value, let uuid = UUID(uuidString: value) else {
+                return nil
+            }
+            return uuid.uuidString.lowercased()
+        }
+
+        let userRequestIds = Set(
+            sourceMessages.compactMap { message in
+                message.role == .user
+                    ? canonicalRequestId(message.clientMessageId)
+                    : nil
+            }
+        )
+        let assistantRequestIds = Set(
+            sourceMessages.compactMap { message in
+                message.role == .assistant
+                    ? canonicalRequestId(message.clientMessageId)
+                    : nil
+            }
+        )
+        var seenAssistantRequestIds = Set<String>()
+        var visibleMessages: [InsightChatMessage] = []
+        var unansweredUserMessages: [(
+            message: InsightChatMessage,
+            requestId: String
+        )] = []
+
+        for (index, message) in sourceMessages.enumerated() {
+            let requestId = canonicalRequestId(message.clientMessageId)
+            switch message.role {
+            case .assistant:
+                if let requestId {
+                    guard userRequestIds.contains(requestId),
+                          seenAssistantRequestIds.insert(requestId).inserted
+                    else {
+                        continue
+                    }
+                }
+                visibleMessages.append(message)
+            case .user:
+                let hasBoundAssistant = requestId.map {
+                    assistantRequestIds.contains($0)
+                } ?? false
+                let nextMessage = sourceMessages.indices.contains(index + 1)
+                    ? sourceMessages[index + 1]
+                    : nil
+                let hasAdjacentLegacyAssistant =
+                    nextMessage?.role == .assistant &&
+                    nextMessage?.clientMessageId == nil
+                if requestId == nil ||
+                    hasBoundAssistant ||
+                    hasAdjacentLegacyAssistant {
+                    visibleMessages.append(message)
+                } else if let requestId {
+                    unansweredUserMessages.append((message, requestId))
+                }
+            }
+        }
+
+        guard let unansweredUserMessage = unansweredUserMessages.last else {
+            return (visibleMessages, nil)
+        }
+        return (
+            visibleMessages,
+            PendingInsightChatMessage(
+                id: unansweredUserMessage.requestId,
+                text: unansweredUserMessage.message.text,
+                createdAt: unansweredUserMessage.message.createdAt,
+                deliveryState: .failed(interruptedSendMessage)
+            )
+        )
+    }
+
     private func clearLoadedState() {
         loadedScanId = nil
         messages = []
+        persistedMessageCount = 0
         pendingUserMessage = nil
         conversationId = nil
         errorMessage = nil

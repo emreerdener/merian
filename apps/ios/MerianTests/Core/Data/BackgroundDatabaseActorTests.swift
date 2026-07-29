@@ -1808,6 +1808,54 @@ struct BackgroundDatabaseActorTests {
         #expect(secondGenerationStillOwnsPersistence)
     }
 
+    @Test func absentQueueRequiresExactCompletedGenerationForInferenceDeletion() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "guarded-completion-replay-\(UUID().uuidString)"
+        let generation = UUID()
+        let otherGeneration = UUID()
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(for: generation)
+        )
+        context.insert(job)
+        try context.save()
+
+        func durableGenerationIsCurrent() async -> Bool {
+            await ScanInferencePersistenceCoordinator.shared.acquire(
+                scanId: scanId
+            )
+            let actor = BackgroundDatabaseActor(modelContainer: container)
+            let isCurrent =
+                await actor
+                    .inferenceGenerationIsCurrentAssumingPersistenceLock(
+                        scanId: scanId,
+                        expectedGeneration: generation
+                    )
+            await ScanInferencePersistenceCoordinator.shared.release(
+                scanId: scanId
+            )
+            return isCurrent
+        }
+
+        #expect(!(await durableGenerationIsCurrent()))
+
+        job.status = .complete
+        job.metadataJSON =
+            InferenceGenerationMetadataContract.json(for: otherGeneration)
+        try context.save()
+        #expect(!(await durableGenerationIsCurrent()))
+
+        job.metadataJSON =
+            InferenceGenerationMetadataContract.json(for: generation)
+        try context.save()
+        #expect(await durableGenerationIsCurrent())
+    }
+
     @Test func testTransitionScanToStagedDoesNotResurrectTombstone() async throws {
         // The critical guard: a MainActor softDeleteQueuedScan wins the race and sets .failed.
         // The background actor must not overwrite it when its transitionScanToStaged runs later.

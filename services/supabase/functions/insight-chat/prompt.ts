@@ -32,6 +32,9 @@ Return JSON with exactly:
 }
 `;
 
+const FIELD_NOTES_FALLBACK =
+  "Field chat discussed the saved observation and follow-up identification context.";
+
 function relationValue<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -230,16 +233,17 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
 }
 
 export function sanitizeFieldNotesDraft(text: string): string {
-  return text
+  const sanitized = text
     .replace(
-      /\bObservation\s+[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:\s*/gi,
+      /\bObservation\s+[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}:\s*/gi,
       "",
     )
     .replace(
-      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+      /\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/gi,
       "this observation",
     )
     .trim();
+  return sanitized ? sanitized.slice(0, 4000) : FIELD_NOTES_FALLBACK;
 }
 
 export function buildConversationHistory(

@@ -25,7 +25,11 @@ Preferred transport is an authenticated `GET` from the first-party app:
 POST bodies are stream-bounded to 4 KiB before JSON decoding. Both fields are
 required:
 
-- `species_id` must be a valid Merian `species_dictionary.id` UUID.
+- `species_id` must be a canonical Merian `species_dictionary.id` UUID using an
+  RFC variant and UUID version 1...8. PostgreSQL generates UUIDv4 dictionary
+  rows today; accepting UUIDv7 keeps the boundary compatible with newer
+  identifier sources instead of rejecting them before database ownership/name
+  verification.
 - `scientific_name` is trimmed, internal whitespace is collapsed, and the result
   must be 1...160 characters.
 - The database compares the normalized name with the canonical name belonging to

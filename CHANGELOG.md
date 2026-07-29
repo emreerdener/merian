@@ -124,12 +124,53 @@ TestFlight, App Store, support, and QA.
   rather than persisting cancellation first or leaving foreground work
   cancelled. Crash replay after that save is idempotent and does not duplicate
   the completion audit event.
+- Field Chat now validates every successful thread response against the exact
+  requested Insight scan or Explore post and one conversation before replacing
+  visible messages. Even an empty thread must echo its subject. Malformed or
+  mismatched replies remain retryable and cannot clear a failed outgoing
+  question. Each send now requires one durable UUID and can report success only
+  with its exact saved user/assistant pair; automatic, quota-layer, and manual
+  retries coalesce under that UUID instead of inserting a duplicate question.
+  Request UUID case is canonicalized, conflicting text reuse is rejected, new
+  sends reserve both rows within the 30-row cap, and deterministic assistant
+  UUIDv8 rows prevent duplicate answers during concurrent refusal or ambiguous
+  persistence. Duplicate-insert and waited-replay checks now reject
+  contradictory same-key payloads even when they race the initial read, and iOS
+  requires the acknowledged user text to match the sent question exactly.
+  In-flight retries wait boundedly, failed provider or persistence attempts can
+  resume, message text is capped before persistence, and oversized/incomplete
+  response bodies fail closed. The latest interrupted user row now returns to
+  the failed Retry/Edit bubble after relaunch—even when a filtered orphan
+  response follows it—instead of appearing delivered without an answer, while
+  its persisted row still counts toward capacity. Feedback, note summaries, and
+  generated prompts also require exact subject-bound, bounded, privacy-safe
+  confirmation before success. Backend and iOS note sanitizers now remove
+  current UUIDv7 identifiers as well as older UUID forms and use a safe fallback
+  if identifier removal empties the draft. Send-time and prompt safety now block
+  unsafe action requests without rejecting or automatically refusing ordinary
+  species names and educational ecology or hazard questions, and long Explore
+  species labels cannot overflow prompt chips. Ask the Community applies the
+  same `MerianError.invalidResponse` boundary to malformed success payloads
+  instead of leaking decoder failures or showing an unconfirmed request.
+- Species observation-chart requests now accept canonical RFC-variant UUID
+  versions 1...8 at both GET and POST boundaries, matching the service security
+  layer instead of rejecting a valid newer dictionary identifier before
+  canonical UUID/name verification.
 - Owned scan-image repair now reconciles a lost atomic metadata response from
   exact owner source/replacement references and never deletes a promoted
   replacement whose commit outcome is ambiguous.
 
 ### Release Assurance
 
+- The latest supplied hosted iOS run compiled and executed 879 tests but exposed
+  three unique release regressions: replay after an already-committed offline
+  completion rejected the repeated queue deletion, and two malformed Explore
+  share/share-state `200` responses leaked `DecodingError` instead of the
+  required `MerianError.invalidResponse`. The committed production correction
+  now accepts an absent queue only when the exact generation's durable job is
+  complete and normalizes both decoder failures. Direct negative generation
+  tests and malformed-response fixtures lock those boundaries. That failed run
+  is retained as diagnostic evidence; it is not exact-final-SHA release proof.
 - Fixed the only failing test in iOS workflow run 73 without weakening staging
   security. The mixed-media upload fixture now uses the same canonical lowercase
   Auth UUID namespace required of server-issued object keys. Failed iOS jobs now
