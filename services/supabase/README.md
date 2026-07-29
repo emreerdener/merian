@@ -31,6 +31,14 @@ the complete migration fleet for this parser seam, but static checks are not
 deployment evidence. The pinned CLI must still build the disposable database
 and run every `tests/*.sql` catalog fixture before production `db push`.
 
+Catalog fixtures preserve production signup behavior. An `auth.users` insert
+fires `on_auth_user_created` and can create `public.users` synchronously; a
+fixture that customizes the profile must use a constraint-valid
+`ON CONFLICT (id) DO UPDATE` or update the created row, not follow with another
+plain insert. Conflict handling does not bypass immediate username or identity
+CHECKs. Keep fixture identities deterministic, catalog-wide unique, and inside
+`BEGIN` / `ROLLBACK`.
+
 ## Edge Functions
 
 Edge Functions are written in TypeScript and run on Deno. They handle logic like

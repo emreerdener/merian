@@ -8,13 +8,20 @@ const migrationUrl = new URL(
   "../../migrations/20260728233000_recover_identity_merge_interrupted_scans.sql",
   import.meta.url,
 );
+const securityFixtureUrl = new URL(
+  "../../tests/identity_merge_scan_recovery_security.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replace(/\s+/g, " ").trim();
 }
 
 Deno.test("identity merge fences unfinished scans before generic ownership reparenting", async () => {
-  const sql = normalized(await Deno.readTextFile(migrationUrl));
+  const [sql, securityFixture] = await Promise.all([
+    Deno.readTextFile(migrationUrl).then(normalized),
+    Deno.readTextFile(securityFixtureUrl).then(normalized),
+  ]);
 
   for (
     const fragment of [
@@ -48,6 +55,26 @@ Deno.test("identity merge fences unfinished scans before generic ownership repar
       "release_ai_quota_reservation_counters( collision_row.source_id )",
     ) || sql.includes("collision_row.source_state = 'reserved'"),
     "Only an undispatched reservation may release consumed counters.",
+  );
+
+  for (const username of ["identity_source_d801", "identity_target_d802"]) {
+    assert(
+      username.length >= 3 &&
+        username.length <= 24 &&
+        /^[a-z][a-z0-9_]*[a-z0-9]$/.test(username) &&
+        !username.includes("__"),
+      `Catalog fixture username violates public.users constraints: ${username}`,
+    );
+    assertStringIncludes(securityFixture, `'${username}'`);
+  }
+  assertStringIncludes(
+    securityFixture,
+    "ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, public_username = EXCLUDED.public_username, public_author_name = EXCLUDED.public_author_name, public_identity_source = EXCLUDED.public_identity_source, subscription_tier = EXCLUDED.subscription_tier, created_at = EXCLUDED.created_at",
+  );
+  assert(
+    !securityFixture.includes("'identity_merge_source_d801'") &&
+      !securityFixture.includes("'identity_merge_target_d802'"),
+    "Overlong pre-constraint fixture usernames returned.",
   );
 });
 

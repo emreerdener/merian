@@ -518,6 +518,17 @@ and the migration-fleet contract rejects qualified `FROM`, `FOR`, or `SIMILAR`
 forms. This static correction is not fresh-catalog replay evidence; require a
 new exact-SHA workflow run.
 
+Workflow run 1551 for commit
+`f841a436a87bfafa296f4c0fb89e1d8264192f91` successfully replayed every
+migration on the disposable PostgreSQL catalog. The discovered catalog suite
+then completed 22 of 24 catalog files; the remaining two aborted during setup
+because stale fixtures used overlong usernames and plain `public.users` inserts
+after the Auth signup trigger had already created those profiles. Both fixtures
+now use policy-valid identities and trigger-aware profile upserts, and their
+source contracts pin that setup. The run stopped before production connection
+preparation and made no production mutation. Require the exact corrected SHA to
+repeat all 24 fixtures and continue through deployment and smoke testing.
+
 Then deploy these Edge Functions from one exact reviewed SHA, in order:
 
 1. `generate-upload-urls`
@@ -630,7 +641,7 @@ The focused regression inventory includes:
 
 This snapshot records the strongest evidence available for the local working
 tree rooted at
-`16397c0cdf79b622dd0072b2fd2432a53ea20b5f` on 2026-07-28. Local working-tree
+`f841a436a87bfafa296f4c0fb89e1d8264192f91` on 2026-07-28. Local working-tree
 evidence is not immutable release evidence. Repeat every applicable gate on one
 committed SHA before deployment or release.
 
@@ -646,9 +657,9 @@ committed SHA before deployment or release.
 | Changed Swift source quality | Strict SwiftLint reported 0 violations and compiler frontend parsing passed | Verified locally |
 | Public web projection | Web unit suite: 56 passed, 0 failed | Verified locally |
 | Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected at the current base SHA | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate |
-| Fresh PostgreSQL catalog replay and pgTAP | Run 1550 proved the bounded inline-recovery replacement advanced, then rejected qualified `SUBSTRING(value FROM pattern)` in the identity-merge recovery migration; comma invocation is corrected locally | Pending an exact-corrected-SHA disposable-catalog replay and the three focused pgTAP suites |
+| Fresh PostgreSQL catalog replay and pgTAP | Run 1551 replayed every migration and completed 22 of 24 catalog files; two stale fixture setups are corrected locally with valid usernames and trigger-aware profile upserts | Pending an exact-corrected-SHA replay of all 24 catalog files and the three focused pgTAP suites |
 | Staging joined-flow smoke matrix | No retained post-remediation smoke evidence | Pending image, queued image, audio, video, Describe, Field Chat, Explore, ambiguous-response, and partial-upload tests |
-| Production deployment and observation | Runs 1549 and 1550 made no production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
+| Production deployment and observation | Runs 1549, 1550, and 1551 made no production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
 
 A local Release archive was also attempted with package, derived-data, module,
 and Foundation cache paths redirected to writable temporary storage. Xcode

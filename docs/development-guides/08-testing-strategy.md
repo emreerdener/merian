@@ -1120,6 +1120,15 @@ expressions—and accept unqualified expressions plus qualified comma invocation
 This catches the workflow-run-1550 parser regression before Docker startup; it
 does not replace fresh-catalog replay.
 
+Workflow run 1551 supplied that fresh-catalog replay evidence: all migrations
+applied before the catalog runner reached its fixtures. Two fixtures then
+failed during setup because they assumed an `auth.users` insert did not create
+the matching public profile, and one also proposed 26-character usernames
+against the 24-character limit. The recovery fixture source contracts now pin
+policy-valid usernames and a trigger-aware `ON CONFLICT (id) DO UPDATE`.
+Treat a setup exception followed by `Bad plan` as one root failure; the aborted
+pgTAP block did not execute a second independent assertion failure.
+
 The normative expected behavior and source inventory are in
 [`16-scan-ingestion-reliability-and-recovery.md`](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#verification-gates).
 
@@ -1541,16 +1550,17 @@ Public species-observation stats have layered resource-abuse coverage:
 UUIDs, empty/overlong names, legacy schemas, and response identity mismatches
 before either network dispatch or memoization.
 
-Owner-level pgTAP fixtures that insert `public.users` directly bypass
-`handle_new_user()`. They must first create a matching transactional
-`auth.users` fixture, then supply a deterministic, unique `public_username`
-accepted by `public.is_valid_public_username(...)`, a non-empty
-`public_author_name`, and a CHECK-valid `public_identity_source`, in addition to
-the fields relevant to the behavior under test. Usernames are currently 3–24
-lowercase characters, start with a letter, end with an alphanumeric character,
-contain no `__`, and cannot be reserved. Keep fixtures transactional; never drop
-or weaken the Auth FK or another production constraint to accommodate stale test
-data.
+Owner-level pgTAP fixtures must first create a matching transactional
+`auth.users` fixture. That insert fires `handle_new_user()` and may already
+create `public.users`, so customization uses a trigger-aware
+`ON CONFLICT (id) DO UPDATE` or updates the exact profile instead of issuing a
+second plain insert. Supply a deterministic, unique `public_username` accepted
+by `public.is_valid_public_username(...)`, a non-empty `public_author_name`, and
+a CHECK-valid `public_identity_source`, in addition to the fields relevant to
+the behavior under test. Usernames are currently 3–24 lowercase characters,
+start with a letter, end with an alphanumeric character, contain no `__`, and
+cannot be reserved. Keep fixtures transactional; never drop or weaken the Auth
+FK or another production constraint to accommodate stale test data.
 
 Identification latency has focused contract coverage at each boundary:
 

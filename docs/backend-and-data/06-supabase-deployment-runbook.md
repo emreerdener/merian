@@ -529,6 +529,16 @@ exactly this parser seam. The migration-fleet contract now rejects that syntax
 before disposable startup, and every executable runbook example uses ordinary
 invocation too.
 
+Workflow run 1551 proved the corrected migration fleet replays completely, then
+found two pgTAP setup failures. In this schema an `auth.users` insert
+synchronously fires the `on_auth_user_created` AFTER INSERT trigger and creates
+the matching `public.users` row. A fixture that needs custom profile fields must
+therefore use a trigger-aware `ON CONFLICT (id) DO UPDATE` or update that exact
+row; it must not issue a second plain insert. The proposed row must still satisfy
+every immediate CHECK before conflict handling, including the current
+3–24-character public-username policy. Use deterministic IDs unique across
+catalog fixtures and keep setup inside `BEGIN` / `ROLLBACK`.
+
 Treat a `jsonb_to_record(...)` field declared as `TEXT` as wire input, not as a
 catalog enum. Validate the allowed strings first, then cast explicitly to the
 fully qualified enum type at the write boundary. Otherwise migration replay can

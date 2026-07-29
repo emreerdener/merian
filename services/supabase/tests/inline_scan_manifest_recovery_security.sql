@@ -46,7 +46,12 @@ VALUES (
     'inline_recovery_f101',
     'Inline Recovery',
     'alias'
-);
+)
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    public_username = EXCLUDED.public_username,
+    public_author_name = EXCLUDED.public_author_name,
+    public_identity_source = EXCLUDED.public_identity_source;
 
 SELECT extensions.ok(
     NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(

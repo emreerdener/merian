@@ -104,6 +104,12 @@ TestFlight, App Store, support, and QA.
   depth-aware fleet contract rejects qualified `FROM`, `FOR`, or `SIMILAR`
   forms in every migration, and copied operator SQL was corrected at the same
   seam.
+- Backend workflow run 1551 proved every migration now parses and applies on a
+  fresh PostgreSQL catalog. Its remaining two failures were fixture setup:
+  overlong identity-merge usernames and a second plain `public.users` insert
+  after the Auth signup trigger had already created the profile. Both fixtures
+  now use constraint-valid usernames and trigger-aware profile upserts, with
+  source contracts preventing either regression.
 - Production function deployment now extracts every selected critical scan
   function from the graph plan and deploys the nine-function compatibility unit
   in its required order before unrelated parallel batches. Duplicate plan

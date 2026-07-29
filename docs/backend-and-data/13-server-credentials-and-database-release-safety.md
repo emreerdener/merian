@@ -258,6 +258,16 @@ deploy workflow discovers every `*Migration*.test.ts` and `migration*.test.ts`
 source contract before starting the disposable database, so a new contract
 cannot be omitted from a curated list.
 
+Database fixtures must preserve production trigger and constraint behavior.
+Inserting `auth.users` fires `on_auth_user_created` and can synchronously create
+the matching `public.users` profile. A fixture that customizes that profile uses
+a constraint-valid `ON CONFLICT (id) DO UPDATE` or updates the trigger-created
+row; it does not follow the Auth insert with a second plain profile insert.
+Conflict handling is not a CHECK bypass: proposed public usernames must satisfy
+the current 3–24-character policy and all other immediate constraints. Fixture
+UUIDs and usernames remain deterministic, catalog-wide unique, and
+transactional.
+
 ### Large or partitioned indexes
 
 Migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`

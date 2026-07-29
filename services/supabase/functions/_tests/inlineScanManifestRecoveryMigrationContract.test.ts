@@ -8,6 +8,10 @@ const migrationUrl = new URL(
   "../../migrations/20260728230000_recover_inline_scan_ingestion_completions.sql",
   import.meta.url,
 );
+const securityFixtureUrl = new URL(
+  "../../tests/inline_scan_manifest_recovery_security.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -140,7 +144,10 @@ function assertStructurallyBalancedRoutine(name: string, sql: string): void {
 }
 
 Deno.test("stranded scan completion recovery is narrow, atomic, and service-only", async () => {
-  const sql = normalized(await Deno.readTextFile(migrationUrl));
+  const [sql, securityFixture] = await Promise.all([
+    Deno.readTextFile(migrationUrl).then(normalized),
+    Deno.readTextFile(securityFixtureUrl).then(normalized),
+  ]);
 
   for (
     const fragment of [
@@ -259,6 +266,15 @@ Deno.test("stranded scan completion recovery is narrow, atomic, and service-only
     "GRANT EXECUTE ON FUNCTION public.recover_inline_scan_ingestion_completion",
     "'public.recover_inline_scan_ingestion_completion(uuid,uuid)'",
     "The reviewed grant must exist before its allowlist entry.",
+  );
+
+  const setupEnd = securityFixture.indexOf("SELECT extensions.ok(");
+  assert(setupEnd > 0, "Inline recovery fixture setup boundary is missing.");
+  const profileSetup = securityFixture.slice(0, setupEnd);
+  assertStringIncludes(profileSetup, "'inline_recovery_f101'");
+  assertStringIncludes(
+    profileSetup,
+    "ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, public_username = EXCLUDED.public_username, public_author_name = EXCLUDED.public_author_name, public_identity_source = EXCLUDED.public_identity_source",
   );
 });
 

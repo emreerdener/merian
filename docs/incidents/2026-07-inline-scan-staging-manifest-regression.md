@@ -379,6 +379,39 @@ testing. It therefore made no production mutation. The source correction and
 164 passing migration contracts remain repository evidence only; a new exact-SHA
 fresh-catalog replay is still required.
 
+## Deployment Follow-up: Workflow Run 1551
+
+Attempt 1 of `Deploy Merian to Supabase` for commit
+`f841a436a87bfafa296f4c0fb89e1d8264192f91` successfully rebuilt the
+disposable PostgreSQL catalog and applied the complete migration history,
+including both incident recovery migrations that had blocked runs 1549 and
+1550. This is the first hosted evidence that the corrected migration fleet
+parses and applies from an empty catalog.
+
+The next gate discovered 24 pgTAP files and completed 22. Two files aborted
+during fixture setup before their plans:
+
+- `identity_merge_scan_recovery_security.sql` proposed 26-character public
+  usernames even though the production CHECK permits at most 24. The same
+  fixture also performed a plain profile insert after its `auth.users` inserts
+  had synchronously fired `on_auth_user_created`.
+- `inline_scan_manifest_recovery_security.sql` likewise inserted
+  `public.users` after the Auth trigger had already created the same primary-key
+  row.
+
+The identity fixture now uses 20-character, policy-valid usernames. Both
+fixtures use `ON CONFLICT (id) DO UPDATE` to customize the trigger-created
+profile without bypassing the Auth foreign key, username policy, identity
+source checks, or transaction rollback. Focused source contracts pin the valid
+fixture identities and the trigger-aware upsert. The later `Bad plan` messages
+were consequences of setup exceptions aborting the pgTAP blocks, not additional
+test failures.
+
+Run 1551 stopped before production connection preparation, `db push`, secret
+synchronization, Edge deployment, or smoke testing, so it made no production
+mutation. A new exact-SHA run must repeat fresh-catalog replay, execute all 24
+fixtures, and continue through deployment and production smokes.
+
 ## Release Follow-up: iOS Workflow Run 73
 
 Attempt 1 of `iOS Build and Test` for the same commit compiled and completed its

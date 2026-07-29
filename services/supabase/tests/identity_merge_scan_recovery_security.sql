@@ -109,7 +109,7 @@ BEGIN
         (
             source_user_id,
             NULL,
-            'identity_merge_source_d801',
+            'identity_source_d801',
             'Identity Merge Source',
             'alias',
             'free',
@@ -118,12 +118,19 @@ BEGIN
         (
             target_user_id,
             'identity-merge-target@naturebook.invalid',
-            'identity_merge_target_d802',
+            'identity_target_d802',
             'Identity Merge Target',
             'display_name',
             'pro',
             pg_catalog.NOW() - INTERVAL '30 days'
-        );
+        )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        public_username = EXCLUDED.public_username,
+        public_author_name = EXCLUDED.public_author_name,
+        public_identity_source = EXCLUDED.public_identity_source,
+        subscription_tier = EXCLUDED.subscription_tier,
+        created_at = EXCLUDED.created_at;
 
     INSERT INTO public.scan_ingestion_jobs (
         scan_id,
