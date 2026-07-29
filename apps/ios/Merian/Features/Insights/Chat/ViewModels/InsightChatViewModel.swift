@@ -893,12 +893,12 @@ final class InsightChatViewModel {
         if playHaptic {
             HapticManager.shared.triggerErrorThump()
         }
-        var shouldMarkUnavailable = Self.isDeterministicallyUnavailable(error)
-        if source == .explorePost,
-           case let MerianError.httpError(statusCode, _) = error,
-           statusCode == 403 || statusCode == 404 {
+        let shouldMarkUnavailable = Self.isDeterministicallyUnavailable(
+            error,
+            source: source
+        )
+        if source == .explorePost, shouldMarkUnavailable {
             errorMessage = "This Explore post isn't available for Field chat."
-            shouldMarkUnavailable = true
         } else {
             errorMessage = Self.userFacingMessage(for: error)
         }
@@ -918,14 +918,20 @@ final class InsightChatViewModel {
         )
     }
 
-    static func isDeterministicallyUnavailable(_ error: Error) -> Bool {
-        guard case let MerianError.httpError(statusCode, message) = error else {
+    static func isDeterministicallyUnavailable(
+        _ error: Error,
+        source: FieldChatSource = .insightScan
+    ) -> Bool {
+        guard case let MerianError.httpError(statusCode, _) = error else {
             return false
         }
 
         if statusCode == 403 { return true }
-        if statusCode == 400 && message.contains("unsupported_scan") { return true }
-        return false
+        let code = MerianNetworkClient.stableEdgeErrorCode(from: error)
+        if source == .explorePost {
+            return statusCode == 404 && code == "post_not_available"
+        }
+        return statusCode == 400 && code == "unsupported_scan"
     }
 
     static func userFacingMessage(for error: Error) -> String {

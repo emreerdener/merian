@@ -23,6 +23,21 @@ The default moderation helper refuses to fetch media or call Gemini when this
 authoritative quota callback is absent. A database, policy, entitlement,
 provider, or moderation failure publishes nothing.
 
+After taxonomy resolution and moderation, the route performs one final
+relational mutation: `request_community_identification_atomically(...)`. The
+service-role-only, invoker-rights RPC locks an existing request before the exact
+owner scan, preserves existing field notes and hashtags, writes the complete
+post/media snapshot, and creates or reopens `needs_id` state in the same
+transaction. A taxonomy, constraint, trigger, or request write failure rolls the
+post snapshot back. A reopened request clears its prior publication marker,
+worker state, and active-vote generation while retaining identification rows as
+withdrawn audit history.
+
+The accompanying post trigger rechecks `needs_id` at the actual `shared_at`
+write. This closes the race where an explicit Explore share observed no request,
+waited on the scan lock, and otherwise could have returned success after a
+Community request committed.
+
 ## Request
 
 ```json

@@ -57,6 +57,7 @@ printf '%s\n' \
   identify-describe \
   check-scan-status \
   identify-multimodal \
+  request-community-identification \
   > "$temp_dir/ordered-plan.txt"
 PATH="$fake_bin:$PATH" \
   FAKE_SUPABASE_LOG="$fake_log" \
@@ -76,6 +77,7 @@ printf '%s\n' \
   'functions deploy reconcile-scan-media-assets --project-ref test-project' \
   'functions deploy repair-scan-image --project-ref test-project' \
   'functions deploy share-scan-to-explore --project-ref test-project' \
+  'functions deploy request-community-identification --project-ref test-project' \
   'functions deploy other --project-ref test-project --jobs 1' \
   > "$expected_log"
 

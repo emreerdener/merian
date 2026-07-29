@@ -2039,6 +2039,14 @@ change cannot leave a stale default. Any late failure restores
 the previous post and media snapshot rather than relying on read-time hiding of
 a partial write.
 
+Ask the Community creation uses the companion forward migration
+`20260729033000_atomic_community_identification_requests.sql`. Its service-only
+invoker RPC calls the validated publication boundary and creates or reopens the
+`needs_id` request in the same PostgreSQL transaction, so failed taxonomy,
+projection, or request state cannot leave a normal post visible. A
+`BEFORE UPDATE OF shared_at` trigger rechecks committed `needs_id` state at the
+actual post write and closes the absent-request concurrency race.
+
 ### `scan_media_assets`
 
 Normalized scan media lifecycle assets. Added in migration
@@ -2689,6 +2697,13 @@ coordinates to the client contract.
   resolved-community publication state in one statement transaction. `PUBLIC`,
   `anon`, and `authenticated` cannot execute it. Any error rolls the prior
   complete post snapshot back.
+- `public.request_community_identification_atomically(p_scan_id UUID, p_user_id UUID, p_note TEXT, p_location_sharing TEXT, p_species_common_name TEXT, p_media_rows JSONB, p_initial_taxon_node_id UUID, p_taxonomy_version_id UUID)`:
+  Service-role-only `SECURITY INVOKER` Ask the Community boundary. It preserves
+  request-before-scan lock order, verifies the initial taxon belongs to the
+  locked owner scan and pinned version, commits one complete Explore media
+  snapshot and `needs_id` request, and returns the authoritative request row.
+  Reopening withdrawn state clears stale publication/consensus/worker state and
+  withdraws old active votes without deleting their audit rows.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`. It
   selects currently visible Explore posts, unnests all non-empty

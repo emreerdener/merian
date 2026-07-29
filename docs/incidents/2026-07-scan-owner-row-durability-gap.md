@@ -253,7 +253,7 @@ remain required before production promotion.
 | 2026-07-27 | Durable identify success, guarded server recovery, staged-media repair, retryable Field Chat behavior, customer-facing toasts, tests, and documentation were corrected in the repository.                                                                                          |
 | 2026-07-28 | Production listed updated scan functions as active. The next reported Share attempt coincided with a separate zero-latency platform route failure affecting Share and composer media.                                                                                              |
 | 2026-07-28 | Final adversarial review moved non-biological retention onto the same generation-tombstone/reaper lifecycle, closing its remaining finalizer-versus-inline-purge race.                                                                                                             |
-| 2026-07-28 | Production route probes subsequently reached marked handlers. Atomic database recovery, typed client route failure, and a fleet-wide route gate with five stricter authorization probes were added for lasting resilience; authenticated end-to-end verification remains required. |
+| 2026-07-28 | Production route probes subsequently reached marked handlers. Atomic database recovery, typed client route failure, and a fleet-wide route gate with six stricter authorization probes were added for lasting resilience; authenticated end-to-end verification remains required. |
 
 ## Required Production Verification
 

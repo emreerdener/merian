@@ -616,6 +616,27 @@ struct InsightChatTests {
         #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
             MerianError.edgeFunctionUnavailable
         ))
+        #expect(InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(
+                statusCode: 404,
+                message: #"{"code":"post_not_available"}"#
+            ),
+            source: .explorePost
+        ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(
+                statusCode: 404,
+                message: #"{"code":"message_not_found"}"#
+            ),
+            source: .explorePost
+        ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(
+                statusCode: 404,
+                message: #"{"error":"route not found"}"#
+            ),
+            source: .explorePost
+        ))
         #expect(
             InsightChatViewModel.userFacingMessage(for: MerianError.edgeFunctionUnavailable)
                 == "Chat is unavailable right now."

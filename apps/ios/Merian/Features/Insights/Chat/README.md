@@ -64,11 +64,11 @@ durable owner read-back is part of Identify success.
 
 `InsightChatViewModel` must make the same distinction after preflight. It stores
 permanent `unavailableScanId` only for terminal ownership failure,
-`unsupported_scan`, or an unavailable Explore-post source. Owned-scan
-`scan_not_ready`, action-level `message_not_found` /
-`conversation_not_found`, and a plain status `not_found` remain retryable and
-must not hide the toolbar action. `stillSyncingMessage` is the single client
-copy for this state.
+`unsupported_scan`, or an unavailable Explore-post source identified by
+`post_not_available`. Owned-scan `scan_not_ready`, action-level
+`message_not_found` / `conversation_not_found` from either source, and a plain
+status `not_found` remain retryable and must not hide the toolbar action.
+`stillSyncingMessage` is the single client copy for this state.
 
 Video owner readiness follows the canonical media timeline: one ready playback
 clip and its poster, not separate ready image rows for sampled inference frames

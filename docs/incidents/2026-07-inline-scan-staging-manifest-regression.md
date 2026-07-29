@@ -274,6 +274,29 @@ submission → analysis → chat → publication experience.
   evidence as a committed atomic repair. It deletes a replacement only after a
   returned rejection plus source-present/replacement-absent evidence; every
   ambiguous or unreadable topology preserves the object.
+- Upload retry accounting now resets only when the generation-scoped exact-key
+  accumulator contains the complete manifest and the reset itself saves.
+- An exact-owner server `found` response is persisted as a dedicated local-result
+  recovery fence before hydration. Failed hydration, relaunch, a later status
+  outage, and explicit manual retry keep the scan `.inferencing` and consume only
+  bounded owner-result recovery; they never return it to provider dispatch.
+- Field Chat permanent unavailability is code-specific. Owned readiness and
+  action-target 404s remain retryable; Explore hides chat only for
+  `post_not_available`, not feedback’s `message_not_found` or an unmarked
+  platform-route 404.
+- Explore create returns validated Boolean publication success to the composer.
+  Failure or malformed HTTP success retains the draft and does not cache a post
+  ID.
+- Final Explore publication is one service-role-only invoker transaction for
+  post, media, hashtags, and resolved-community state. It locks community request
+  before scan, rechecks `needs_id`, resolves omitted privacy from the locked scan,
+  and rolls the previous complete snapshot back on every late failure.
+- Ask the Community now resolves taxonomy and moderation before one
+  service-role-only invoker transaction commits post, media, and hidden
+  `needs_id` state. It no longer imports the removed legacy Explore upsert,
+  cannot leak a normal post on a late request failure, resets stale consensus
+  generations on reopen, and rejects an explicit share that loses the
+  concurrent Community-request race at the actual post write.
 
 ## Security Properties Preserved
 
@@ -323,7 +346,10 @@ submission → analysis → chat → publication experience.
   composition, and union-cap refusal. Migration contracts pin the unique index,
   owner-scoped advisory lock, trigger cap, and deny-by-default routine ACL.
 - Field Chat, Explore sharing/media, scan status, workflow route, and quota
-  contract suites remain part of the connected-flow verification.
+  contract suites remain part of the connected-flow verification. Source-aware
+  Field Chat tests distinguish `post_not_available` from action-level and
+  platform 404s; Explore tests cover draft retention, strict response integrity,
+  transaction rollback, lock ordering, and locked privacy defaulting.
 - Profile-prerequisite source and pgTAP contracts cover exact Auth backing,
   mandatory identity validity, idempotence, ACLs, and all retirement fences.
 - Identity-merge source contracts and pgTAP fixtures cover pre-reparent fencing,
@@ -430,9 +456,9 @@ test failures.
 
 Run 1551 stopped before production connection preparation, `db push`, secret
 synchronization, Edge deployment, or smoke testing, so it made no production
-mutation. A new exact-SHA run must repeat fresh-catalog replay, execute all 25
-current fixtures—including the subsequently added atomic Explore rollback
-fixture—and continue through deployment and production smokes.
+mutation. A new exact-SHA run must repeat fresh-catalog replay, execute all 26
+current fixtures—including the subsequently added atomic Explore and Community
+rollback fixtures—and continue through deployment and production smokes.
 
 ## Deployment Follow-up: Workflow Run 1552
 
@@ -498,7 +524,27 @@ This was a fixture defect; the run never invoked
 catalog files complete, before production connection preparation, `db push`,
 secret synchronization, Edge deployment, or smoke testing, and made no
 production mutation. A further exact-SHA run must execute the now-reachable
-identity merge and recovery assertions and pass all 25 current files.
+identity merge and recovery assertions and pass all 26 current files.
+
+## Deployment Follow-up: Atomic Explore Graph Regression
+
+The backend workflow for
+`1a75179dd88f20163cb5c01bffd60478b9545009` stopped during isolated Edge
+Function graph validation, before disposable database startup, production
+connection preparation, migration push, secret synchronization, Function
+deployment, or smoke testing. Deno reported that
+`request-community-identification/db.ts` imported `upsertExplorePost`, although
+the same commit intentionally removed that export while replacing separate
+Explore writes with `publish_scan_to_explore_atomically(...)`.
+
+Restoring the deleted helper would make the graph compile while reintroducing
+the partial-publication boundary. Instead, Ask the Community now resolves
+taxonomy and prepares moderated media before one owner-checked
+`request_community_identification_atomically(...)` transaction commits the post
+snapshot and hidden request. The route is the tenth member of the ordered
+critical rollout. Local isolated validation now checks all 89 entrypoints with
+their function-specific deploy configs, but only a final exact-SHA hosted run
+can replace the failed workflow evidence.
 
 ## Release Follow-up: iOS Workflow Run 73
 

@@ -138,6 +138,12 @@ TestFlight, App Store, support, and QA.
   permission needed to list successful runs in a private repository. This
   guarantees a fixture-only follow-up after failed catalog runs still deploys
   every pending scan and Explore runtime change before production smoke tests.
+- Production smoke now proves the scan-owner prerequisite, atomic Explore
+  publication, and atomic Community-request RPCs are present in the live
+  PostgREST schema cache. Exact
+  SQLSTATE `22023` no-write sentinels validate server execution before any lock
+  or mutation, while every real anon/publishable credential must remain denied;
+  arbitrary `400` responses and logged response bodies cannot satisfy the gate.
 - Release guidance now requires a manual `iOS Build and Test` dispatch on the
   final exact SHA when backend-only follow-up commits cause ordinary iOS scope
   detection to skip macOS work. Scope-only success cannot replace the full unit
@@ -145,8 +151,9 @@ TestFlight, App Store, support, and QA.
 - Field Chat no longer hides its toolbar action after a transient owned-scan
   `404 scan_not_ready`, plain status `not_found`, or action-level missing
   message/conversation response. Only terminal ownership, unsupported-scan, or
-  unavailable Explore-post errors set permanent scan-scoped unavailability; the
-  retry path uses one canonical still-syncing message.
+  an exact Explore `post_not_available` error sets permanent scan-scoped
+  unavailability. Explore feedback’s `message_not_found` and unmarked platform
+  404s remain retryable; the retry path uses one canonical still-syncing message.
 - Multi-file offline uploads now clear durable retry accounting only after the
   exact complete manifest succeeds and the reset saves. One successful file, an
   absent queue row, or a failed persistence write can no longer advance staging
@@ -177,8 +184,14 @@ TestFlight, App Store, support, and QA.
   insert or constraint failure restores the previous complete snapshot
   instead of leaving a visible partial post or erasing healthy media while
   reporting failure.
+- Ask the Community no longer depends on the removed legacy Explore upsert or
+  performs post, media, and request writes in separate transactions. Taxonomy
+  and moderation complete first, then one owner-checked RPC commits the complete
+  hidden `needs_id` snapshot. Reopen resets stale publication/consensus state,
+  and a write-time trigger rejects an explicit share that loses a concurrent
+  Community-request race.
 - Production function deployment now extracts every selected critical scan
-  function from the graph plan and deploys the nine-function compatibility unit
+  function from the graph plan and deploys the ten-function compatibility unit
   in its required order before unrelated parallel batches. Duplicate plan
   entries fail closed, and failure of one ordered member stops every later
   deployment instead of creating a knowingly incompatible partial rollout.

@@ -3262,7 +3262,7 @@ Treat these components as one compatibility release:
    `public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`
    for `service_role` in `internal.privileged_routine_grants`; a grant without
    that reviewed row must fail the disposable catalog before `db push`. Also
-   apply the six incident migrations in timestamp order before any
+   apply the seven incident migrations in timestamp order before any
    scan-producing bundle:
 
    - `20260728230000_recover_inline_scan_ingestion_completions.sql` installs the
@@ -3295,6 +3295,11 @@ Treat these components as one compatibility release:
      locks an existing community request before its scan, matching the legacy
      publisher’s order so concurrent consensus work cannot form a deadlock
      cycle.
+   - `20260729033000_atomic_community_identification_requests.sql` installs the
+     matching service-role-only invoker transaction for
+     `request-community-identification`. It commits the post/media snapshot and
+     hidden `needs_id` request together, resets stale consensus state on reopen,
+     and adds the post-write `needs_id` race recheck.
 
    Do not reorder or selectively apply these migrations. The fourth migration
    verifies the current merge routine and fails closed if it cannot install its
@@ -3303,22 +3308,25 @@ Treat these components as one compatibility release:
    blocks exactly once and install exactly one projection and frame-classifier
    call. The sixth must precede the updated Explore function because that bundle
    removes every separate post/media/hashtag mutation path and invokes only the
-   atomic RPC.
+   atomic RPC. The seventh must precede the updated Community function because
+   its Edge module removes every direct post/media/request mutation path.
 2. From one exact SHA, run the normal production backend workflow. The
    graph-derived plan for this repair must select `generate-upload-urls`,
    `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
    `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and
-   `share-scan-to-explore`. Their `_shared/identify/db.ts`,
+   `share-scan-to-explore`, plus `request-community-identification`. Their
+   `_shared/identify/db.ts`,
    `_shared/identify/completedResponse.ts`, `_shared/scanIngestionJobs.ts`,
    `_shared/scanIngestionCompatibility.ts`, `_shared/scanMediaAssets.ts`, and
-   `_shared/scanRecovery.ts` dependencies bundle transitively. Deploy the nine
+   `_shared/scanRecovery.ts` dependencies bundle transitively. Deploy the ten
    affected functions in the listed order: signing becomes idempotent first, all
    scan producers stop false success next, then status/reconciliation and
-   publication recovery consume the new states. Do not promote only the current
+   publication and Community request recovery consume the new states. Do not
+   promote only the current
    multimodal endpoint; older app builds still call every compatibility route.
    `_shared/scanPersistence.ts` is also a transitive dependency of all four
    producers and must resolve from that exact SHA. The normal production helper
-   enforces this order for whichever of the nine functions the graph selects,
+   enforces this order for whichever of the ten functions the graph selects,
    deploys them before unrelated parallel batches, rejects duplicate plan
    entries, and aborts before every later function when an ordered deployment
    exhausts its retries. Do not bypass that helper with a direct concurrent
@@ -3380,9 +3388,25 @@ Do not modify or weaken either production routine for this test-only error.
 
 That run stopped after 23 of 24 catalog files, before production connection
 preparation, `db push`, secret synchronization, function deployment, or smoke
-tests. It made no production mutation. The current suite discovers 25 files
-after adding the atomic Explore rollback fixture. Require another exact-SHA run
-to pass all 25 and then continue through the normal ordered deployment.
+tests. It made no production mutation. The current suite discovers 26 files
+after adding the atomic Explore and Community rollback fixtures. Require another
+exact-SHA run to pass all 26 and then continue through the normal ordered
+deployment.
+
+### Atomic rollout graph-failure interpretation
+
+The backend workflow for
+`1a75179dd88f20163cb5c01bffd60478b9545009` failed before disposable database
+startup or production mutation while type-checking isolated Function graphs.
+Atomic Explore publication had intentionally removed
+`share-scan-to-explore/db.ts`’s exported `upsertExplorePost`, while
+`request-community-identification/db.ts` still imported that legacy helper.
+Do not repair this by restoring the separate post/media mutation path. The
+Community route must ship with
+`20260729033000_atomic_community_identification_requests.sql`, invoke only its
+atomic request boundary after taxonomy/moderation preparation, and pass all 89
+deploy-time entrypoint configs on the final exact SHA before catalog replay or
+deployment can proceed.
 
 After `db push`, use an owner connection for this bounded catalog check:
 
@@ -3559,6 +3583,18 @@ Use disposable staging identities and media:
     authoritative location, missing status, and non-published status. The iOS
     composer must reject every case, retain its draft, and remain available for
     retry.
+19. Request Community Identification for an eligible unpublished scan while
+    injecting a failure in the request insert or observation-projection trigger.
+    The request must fail with no normal Explore post, media snapshot, or
+    Community state left behind. Repeat against a previously withdrawn request
+    and verify the reopen resets its publication marker, consensus cache, worker
+    job/lease, and active vote generation while retaining withdrawn vote rows as
+    audit history. Race two same-scan requests and require the loser’s single
+    relational-only retry to return the committed request without another media
+    moderation/provider call. Race a direct Explore share against request
+    creation; if Community state commits first, the direct share must fail at
+    the post write and the observation must remain hidden from normal Explore
+    projections.
 
 ### Monitoring and incident triggers
 
@@ -3618,8 +3654,8 @@ Close the incident only after:
 - production deployment records tie all affected Edge Function versions to the
   reviewed exact SHA;
 - the matching iOS build is available to the intended cohort;
-- new-scan immediate status, Field Chat, Explore, and legacy recovery smoke
-  checks pass;
+- new-scan immediate status, Field Chat, Explore, Ask the Community, and legacy
+  recovery smoke checks pass;
 - lost-response and concurrent same-UUID replay returns marked `200` through all
   four scan-producing routes with one provider dispatch;
 - monitoring shows no identify-success/missing-owner-row pairs through the
@@ -4049,6 +4085,21 @@ critical route must return `401` with the marker, additionally proving
 user-scoped access fails closed. A gateway `404` with no handler marker never
 counts as a missing scan and never permits the production workflow to report
 success. Do not run the matching iOS smoke while either gate is still retrying.
+
+The workflow next proves the three critical database boundaries are present in the
+production PostgREST schema cache and executable only with server authority. It
+calls `ensure_scan_user_profile` with the zero UUID and
+`publish_scan_to_explore_atomically` with an empty media array, plus
+`request_community_identification_atomically` with null required identifiers.
+All inputs are syntactically valid JSON but raise their exact SQLSTATE `22023`
+message before any advisory lock, row lock, or write. A successful readiness
+probe therefore requires HTTP `400`, code `22023`, and the pinned message; an
+arbitrary `400` does not pass. Missing-schema and transient statuses receive the
+same bounded propagation treatment as route probes. Every retrieved
+anon/publishable credential must separately receive `401`, `403`, or
+hidden-routine `404` from all three RPCs. HTTP `400` on that public path means
+the role reached a service-only routine body and fails the deployment security
+gate. Probe response bodies and request identifiers are never printed.
 
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only
@@ -4741,6 +4792,12 @@ After deployment:
   anon/publishable project key received `401` from `community-taxonomy-status`.
   A `200` with an empty data set is an authorization failure, not a harmless RLS
   result.
+- Confirm the exact no-write SQLSTATE `22023` probes reached
+  `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`, and
+  `request_community_identification_atomically` with server authority. Confirm
+  every retrieved anon/publishable credential instead received `401`, `403`, or
+  hidden-routine `404` from all three. Never accept a generic `400`, log a
+  response body, or replace these checks with a production fixture write.
 - Confirm the deploy's hash-only gate matched the stored SHA-256 digest for
   `MERIAN_SUPABASE_SERVER_API_KEY` to the exact selected production key before
   Function rollout. Never print the key or either digest. A final positive `401`

@@ -311,6 +311,14 @@ feed/map/author/hashtag projections. Resolved community requests remain public
 inside Identify, but they do not enter normal Explore surfaces until the owner
 explicitly publishes them afterward.
 
+Taxonomy resolution and audible-media moderation complete before one final
+`request_community_identification_atomically(...)` mutation. The post/media
+snapshot and hidden request commit together; a late request or projection
+failure restores the prior post instead of leaking a normal Explore item.
+Reopening withdrawn state begins a fresh consensus generation while preserving
+withdrawn vote history. A write-time `needs_id` recheck also prevents a
+concurrent direct share from returning success after a Community request wins.
+
 If an Insight-originated action finds that the authenticated owner's cloud row
 is absent, `MerianNetworkClient` first polls `/check-scan-status`. Active or
 retryable ingestion remains authoritative, and known moderation/provider-policy

@@ -1403,6 +1403,18 @@ limits. Cache hits refund the provisional reservation. Missing quota,
 entitlement, policy, provider, or moderation state fails closed and does not
 replace public media.
 
+Taxonomy resolution also completes before publication. The final relational
+mutation is service-only
+`request_community_identification_atomically(...)`: it locks an existing
+request before the exact owner scan and commits the post metadata, complete
+media snapshot, and `needs_id` request together. An error at any later request,
+projection-trigger, or constraint boundary restores the prior complete post.
+Reopening withdrawn state resets its public-publish marker, cached consensus,
+worker lease/job, and active vote generation while preserving withdrawn
+identification rows as audit history. A post-level recheck at the actual
+`shared_at` update also rejects an explicit share that lost a concurrent race
+with new `needs_id` state.
+
 The endpoint intentionally returns `404 { "error": "Scan not found." }` when
 `public.scans` has no row for the authenticated user. The iOS Insight client
 handles that specific error by resolving the server `species_dictionary.id` by
@@ -1417,9 +1429,9 @@ older/interrupted drift, not the expected current multimodal success path.
 
 Before inspecting or returning an existing active request, the endpoint repairs
 any Community request on that `scan_id` whose `requested_by` no longer matches
-the authenticated scan owner. This covers legacy ghost-account ownership drift
-and keeps the Identify Yours filter, owner-only actions, and duplicate-request
-guard tied to the current account.
+the authenticated scan owner inside that same transaction. This covers legacy
+ghost-account ownership drift and keeps the Identify Yours filter, owner-only
+actions, and duplicate-request guard tied to the current account.
 
 The response envelope is:
 
@@ -5502,7 +5514,8 @@ The iOS client treats `404 scan_not_ready`, action-level `message_not_found` /
 `conversation_not_found`, and a preflight status `not_found` as retryable state.
 None may set scan-scoped permanent unavailability or hide the Field Chat action.
 Only terminal ownership failure, `unsupported_scan`, and unavailable
-Explore-post sources do so.
+Explore-post sources identified by `post_not_available` do so. In particular,
+Explore feedback’s `message_not_found` does not hide chat for the healthy post.
 
 Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
 `InsightChatRateLimited`, `InsightChatModelError`,

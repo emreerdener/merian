@@ -533,6 +533,15 @@ omitted privacy default is resolved from the locked scan rather than a stale
 Edge read. Any late constraint or trigger failure restores the prior complete
 snapshot; the Edge route contains no separate table-mutation fallback.
 
+Forward migration
+`20260729033000_atomic_community_identification_requests.sql` applies the same
+boundary to Ask the Community. After taxonomy and moderation preparation,
+`request-community-identification` makes one final RPC call that commits the
+post/media snapshot and hidden `needs_id` request together. Reopening withdrawn
+state clears stale publication and consensus generations while retaining
+withdrawn vote history. A post trigger rechecks `needs_id` at the actual
+`shared_at` update, closing the concurrent explicit-share race.
+
 The export route's resource contract follows the current
 [hosted Edge Function limits](https://supabase.com/docs/guides/functions/limits)
 but does not consume the published CPU ceiling as a work budget. Keep
@@ -683,7 +692,7 @@ owner-advisory-locked trigger enforces the cap across concurrent disjoint-key
 requests. Do not remove failed `superseded_staging_registration` rows: they are
 historical audit evidence used by the narrow recovery contract.
 
-The four July 28 incident migrations and the nine affected Edge Functions are
+The seven joined incident migrations and the ten affected Edge Functions are
 one ordered release unit. Do not selectively deploy only the multimodal route,
 because older app builds still use compatibility producers. The production batch
 helper extracts selected members of that unit from the graph plan, deploys them
@@ -1622,9 +1631,18 @@ explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
 imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for the five
-customer-critical scan and Explore routes. Database migrations still run before
-function deployment, so same-release schema changes must follow
+followed by stricter fail-closed authorization probes for the six
+customer-critical scan, Explore, and Ask the Community routes. It then reaches
+the exact no-write
+SQLSTATE `22023` boundary in `ensure_scan_user_profile` and
+`publish_scan_to_explore_atomically` and
+`request_community_identification_atomically` with server authority, while
+proving every real anon/publishable project credential remains denied from all
+three routines.
+
+This verifies PostgREST schema-cache readiness and production grants without
+creating a fixture or logging a response body. Database migrations still run
+before function deployment, so same-release schema changes must follow
 expand/migrate/contract compatibility: the migration must remain safe for the
 currently live function version, and destructive cleanup ships only after the
 new readers/writers are proven live.

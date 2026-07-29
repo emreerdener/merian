@@ -56,6 +56,7 @@ critical_scan_rollout_order=(
   reconcile-scan-media-assets
   repair-scan-image
   share-scan-to-explore
+  request-community-identification
 )
 ordered_scan_functions=()
 remaining_functions=()

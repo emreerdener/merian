@@ -674,6 +674,14 @@ MerianTests/
     media, preserves request-before-scan lock ordering, rejects a locked
     `needs_id` community request as conflict, and rolls back the prior post,
     media, hashtags, timestamp, and community state after a forced late failure.
+  - **Atomic Ask the Community creation**: Assert taxonomy resolves before the
+    final relational mutation, the RPC locks request before exact owner scan,
+    and post/media plus `needs_id` state roll back together. Reopen coverage must
+    reset old publication, vote, and worker generations without deleting audit
+    rows. Simulate the absent-request race and require one relational-only retry
+    to return the committed request without a second moderation/provider call;
+    simulate concurrent direct sharing and require the write-time trigger to
+    reject its late `shared_at` update.
   - **Durable queue retry policy**: `OfflineQueueRetryPolicy` tests should cover
     transient network/server failures, local-media terminal failures, persisted
     `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. An
@@ -1172,9 +1180,9 @@ requires owner-matched ready rows for that projection.
 `_tests/inlineScanManifestRecoveryMigrationContract.test.ts` statically pins the
 projection and guarded rewrite; the existing recovery case and direct six-object
 production-shape pgTAP case are the authoritative live regressions. Source
-inspection is not PostgreSQL evidence. The current suite discovers 25 fixtures
-after adding atomic Explore rollback coverage; run all 25 on the exact
-remediated SHA.
+inspection is not PostgreSQL evidence. The current suite discovers 26 fixtures
+after adding atomic Explore and Community rollback coverage; run all 26 on the
+exact remediated SHA.
 
 The same run showed that an outer multi-phase `DO` can still hide the useful
 PostgreSQL error: the identity-merge fixture reported `planned 1, ran 0`.
@@ -1398,8 +1406,9 @@ production checks:
   bounded propagation window. It uses only a validated legacy anon JWT to cross
   any intentional gateway `verify_jwt = true` boundary and fails closed if that
   execution credential is unavailable; a publishable key is never sent in Bearer
-  authorization. The five customer-critical scan and Explore routes additionally
-  return marked fail-closed `401` responses without user Authorization. Final
+  authorization. The six customer-critical scan, Explore, and Community routes
+  additionally return marked fail-closed `401` responses without user
+  Authorization. Final
   Function failures classify only whether the fixed `X-Merian-Handler: 1` marker
   was present; Data API failures use separate PostgREST/RPC guidance and never
   expect a Function marker. Both paths keep the body and request-ID value

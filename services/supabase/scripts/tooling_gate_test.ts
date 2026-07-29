@@ -368,3 +368,51 @@ Deno.test("production deploy reports aggregate Explore publication health", asyn
   );
   assertMatch(workflow, /--connect-timeout 10[\s\S]*--max-time 60/);
 });
+
+Deno.test("production deploy proves critical scan RPC readiness without mutation", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+
+  for (
+    const requiredFragment of [
+      "probe_server_rpc_validation_boundary()",
+      'local endpoint="/rest/v1/rpc/${rpc_name}"',
+      '.code == "22023" and .message == $expected_message',
+      '"ensure_scan_user_profile"',
+      '"scan_user_profile_invalid_user"',
+      '"publish_scan_to_explore_atomically"',
+      '"Explore media count is outside the supported range"',
+      '"request_community_identification_atomically"',
+      '"Community request identifiers are required"',
+      "critical_service_rpc_names=(",
+      "critical_service_rpc_payloads=(",
+      "A public Supabase API credential unexpectedly reached the service-only",
+      "Data API schema cache, routine grant, and database logs",
+      "response bodies and request identifiers are intentionally withheld",
+    ]
+  ) {
+    assert(
+      workflow.includes(requiredFragment),
+      `Critical production RPC smoke contract is missing: ${requiredFragment}`,
+    );
+  }
+
+  const rpcProbeIndex = workflow.indexOf(
+    "probe_server_rpc_validation_boundary \\",
+  );
+  const publicDenialIndex = workflow.indexOf(
+    "critical_service_rpc_names=(",
+  );
+  const credentialedBusinessSmokeIndex = workflow.indexOf(
+    'status_response="$(',
+  );
+  assert(
+    rpcProbeIndex >= 0 &&
+      publicDenialIndex > rpcProbeIndex &&
+      credentialedBusinessSmokeIndex > publicDenialIndex,
+    "No-write RPC readiness and public-denial probes must precede credentialed production business smokes.",
+  );
+  assert(
+    !workflow.includes('cat "$rpc_validation_response_file"'),
+    "Critical RPC validation responses must never be copied into Actions logs.",
+  );
+});

@@ -34,12 +34,13 @@ steps are tracked in the
 > synthetic `scan_id` variable was ambiguous beside `jobs.scan_id`, before
 > production merge/recovery ran. The committed fixture now uses
 > `fixture_scan_id`, while the current remediation also makes final Explore
-> publication one owner-checked transaction and preserves offline retry history
-> until local recovery succeeds. None of these pending changes has been
-> deployed. The release remains held until one reviewed exact SHA passes all 25
+> publication and Ask the Community creation owner-checked transactions and
+> preserves offline retry history until local recovery succeeds. These
+> corrections have not been deployed. The release remains held until one
+> reviewed exact SHA passes all 26
 > current catalog files, completes the ordered backend deployment, passes the
 > matching hosted iOS gate, and clears joined video, Field Chat, offline, and
-> Explore staging smokes. See the
+> Explore/Ask the Community staging smokes. See the
 > [video finalization incident](docs/incidents/2026-07-video-scan-canonical-finalization-regression.md).
 
 ---
@@ -654,8 +655,11 @@ a validated legacy anon JWT for this preflight; a publishable key is never sent
 as Bearer, and rollout fails closed if the required execution credential is
 unavailable. It separately verifies that `identify-multimodal`,
 `check-scan-status`, Explore sharing/composer media, and Field Chat fail closed
-without user Authorization; a transient Supabase gateway `404` remains a failed
-or in-progress rollout. Static caller coverage rejects a route literal from any
+without user Authorization, along with Ask the Community creation. Exact
+non-mutating SQLSTATE probes also verify the three required scan/publication
+RPCs are live for server authority and denied to real public project
+credentials; a transient Supabase gateway `404` remains a failed or in-progress
+rollout. Static caller coverage rejects a route literal from any
 application target, workflow, worker, script, or active migration when it has no
 configured entrypoint. Scan-producing routes treat at-least-once delivery as
 idempotent success: the same owner/scan UUID replays its validated response as

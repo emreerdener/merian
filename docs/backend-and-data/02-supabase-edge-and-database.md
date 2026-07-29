@@ -1269,6 +1269,16 @@ An insert, constraint, or late community-publication failure therefore restores
 the entire previous snapshot; it cannot leave a newly visible partial post or
 erase healthy media while returning failure.
 
+Ask the Community uses the companion
+`public.request_community_identification_atomically(...)` boundary after
+taxonomy resolution and the same media/moderation preparation. It commits the
+post snapshot and hidden `needs_id` request together rather than issuing
+separate post, media, and request Data API writes. Reopening starts a clean
+consensus generation while preserving withdrawn vote history. A post-write
+trigger rechecks `needs_id` at `shared_at`, preventing a concurrent explicit
+share from returning success after the Community request wins the scan-lock
+race.
+
 The scan finalizer uses that same distinction. Compatibility
 `image_storage_urls` may retain sampled frames used for inference and video
 posters, so those URLs are not individually required as ready standalone image

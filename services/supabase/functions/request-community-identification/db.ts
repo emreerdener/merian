@@ -4,10 +4,22 @@ import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import {
   fetchShareEligibleScan,
   prepareExplorePostMediaForPublication,
-  upsertExplorePost,
 } from "../share-scan-to-explore/db.ts";
-import type { ShareEligibleScanRow } from "../share-scan-to-explore/db.ts";
 import type { AudioModerationQuota } from "../_shared/audioModeration.ts";
+
+const COMMUNITY_IDENTIFICATION_PENDING_MESSAGE =
+  "Wait for the community to identify this request before sharing it to Explore.";
+
+export interface AtomicCommunityIdentificationPayload {
+  p_scan_id: string;
+  p_user_id: string;
+  p_note: string | null;
+  p_location_sharing: string | null;
+  p_species_common_name: string | null;
+  p_media_rows: ReturnType<typeof buildExplorePostMediaRows>;
+  p_initial_taxon_node_id: string;
+  p_taxonomy_version_id: string;
+}
 
 export interface CommunityRequestRow {
   id: string;
@@ -26,13 +38,20 @@ export interface CommunityRequestRow {
   consensus_rank?: string | null;
 }
 
-async function fetchInitialTaxonNodeId(
+export async function fetchInitialTaxonNodeId(
   speciesId: string | null,
   supabaseAdmin: SupabaseClient,
 ): Promise<{ id: string; taxonomyVersionId: string } | null> {
   if (!speciesId) return null;
 
-  await supabaseAdmin.rpc("sync_taxon_nodes_from_species_dictionary");
+  const { error: syncError } = await supabaseAdmin.rpc(
+    "sync_taxon_nodes_from_species_dictionary",
+  );
+  if (syncError) {
+    throw new Error(
+      `Failed to synchronize taxonomy nodes: ${syncError.message}`,
+    );
+  }
 
   const { data: activeVersion, error: activeVersionError } = await supabaseAdmin
     .from("taxonomy_versions")
@@ -68,103 +87,60 @@ async function fetchInitialTaxonNodeId(
   return { id: row.id, taxonomyVersionId: row.taxonomy_version_id };
 }
 
-async function upsertCommunityExplorePost(
-  scan: ShareEligibleScanRow,
-  userId: string,
-  speciesCommonName: string | null,
-  locationSharing: string,
-  supabaseAdmin: SupabaseClient,
-  moderationQuota: AudioModerationQuota,
-): Promise<{ id: string; shared_at: string }> {
-  const { data: existing, error: existingError } = await supabaseAdmin
-    .from("explore_posts")
-    .select("id,shared_at,unshared_at")
-    .eq("scan_id", scan.id)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (existingError) {
-    throw new Error(`Failed to inspect Explore post: ${existingError.message}`);
-  }
-
-  if (!existing) {
-    return await upsertExplorePost(
-      scan,
-      userId,
-      speciesCommonName,
-      null,
-      locationSharing,
-      undefined,
-      supabaseAdmin,
-      moderationQuota,
-    );
-  }
-
-  const updates: Record<string, string | null> = {
-    location_sharing: locationSharing,
-    unshared_at: null,
-  };
-  if (speciesCommonName) {
-    updates.species_common_name = speciesCommonName;
-  }
-  if ((existing as { unshared_at?: string | null }).unshared_at != null) {
-    updates.shared_at = new Date().toISOString();
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from("explore_posts")
-    .update(updates)
-    .eq("id", (existing as { id: string }).id)
-    .select("id,shared_at")
-    .single();
-
-  if (error || !data) {
-    throw new Error(
-      `Failed to update Explore post for community request: ${
-        error?.message ?? "Unknown error"
-      }`,
-    );
-  }
-
-  const post = data as { id: string; shared_at: string };
-  let mediaRows = buildExplorePostMediaRows(scan, undefined);
-  mediaRows = await prepareExplorePostMediaForPublication(
-    scan.id,
-    userId,
-    mediaRows,
-    supabaseAdmin,
-    moderationQuota,
-  );
-  await replaceCommunityExplorePostMediaRows(post.id, mediaRows, supabaseAdmin);
-
-  return post;
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(value);
 }
 
-async function replaceCommunityExplorePostMediaRows(
-  postId: string,
-  rows: ReturnType<typeof buildExplorePostMediaRows>,
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string" &&
+    value.length > 0 &&
+    Number.isFinite(Date.parse(value));
+}
+
+function isCommunityRequestRow(value: unknown): value is CommunityRequestRow {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const row = value as Record<string, unknown>;
+  return isUuid(row.id) &&
+    isUuid(row.post_id) &&
+    isUuid(row.scan_id) &&
+    isUuid(row.requested_by) &&
+    isTimestamp(row.requested_at) &&
+    (
+      row.status === "needs_id" ||
+      row.status === "resolved" ||
+      row.status === "withdrawn"
+    ) &&
+    isUuid(row.taxonomy_version_id) &&
+    isUuid(row.initial_taxon_node_id) &&
+    Number.isInteger(row.consensus_identification_count) &&
+    (row.consensus_identification_count as number) >= 0;
+}
+
+export async function invokeAtomicCommunityIdentificationRequest(
+  payload: AtomicCommunityIdentificationPayload,
   supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error: deleteError } = await supabaseAdmin
-    .from("explore_post_media")
-    .delete()
-    .eq("post_id", postId);
-
-  if (deleteError) {
-    throw new Error(
-      `Failed to clear Explore post media: ${deleteError.message}`,
+) {
+  let result = await supabaseAdmin.rpc(
+    "request_community_identification_atomically",
+    payload,
+  );
+  if (
+    result.error?.code === "P0001" &&
+    result.error.message === COMMUNITY_IDENTIFICATION_PENDING_MESSAGE
+  ) {
+    // A same-scan request can commit while this transaction waits for the scan
+    // lock. Retry the already-prepared relational call once; its active-request
+    // branch returns the definitive row without repeating media moderation.
+    result = await supabaseAdmin.rpc(
+      "request_community_identification_atomically",
+      payload,
     );
   }
-
-  const { error: insertError } = await supabaseAdmin
-    .from("explore_post_media")
-    .insert(rows.map((row) => ({ ...row, post_id: postId })));
-
-  if (insertError) {
-    throw new Error(
-      `Failed to save Explore post media: ${insertError.message}`,
-    );
-  }
+  return result;
 }
 
 export async function requestCommunityIdentification(
@@ -186,48 +162,6 @@ export async function requestCommunityIdentification(
     supabaseAdmin,
   );
 
-  const { error: repairError } = await supabaseAdmin
-    .from("explore_community_requests")
-    .update({
-      requested_by: userId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("scan_id", scanId)
-    .neq("requested_by", userId);
-
-  if (repairError) {
-    throw new Error(
-      `Failed to repair community request ownership: ${repairError.message}`,
-    );
-  }
-
-  const post = await upsertCommunityExplorePost(
-    scan,
-    userId,
-    speciesCommonName,
-    locationSharing ?? scan.geoprivacy,
-    supabaseAdmin,
-    moderationQuota,
-  );
-
-  const { data: existing, error: existingError } = await supabaseAdmin
-    .from("explore_community_requests")
-    .select(
-      "id,post_id,scan_id,requested_by,requested_at,status,note,initial_taxon_node_id,taxonomy_version_id,current_community_taxon_node_id,resolved_taxon_node_id,consensus_score,consensus_identification_count,consensus_rank",
-    )
-    .eq("post_id", post.id)
-    .maybeSingle();
-
-  if (existingError) {
-    throw new Error(
-      `Failed to inspect community request: ${existingError.message}`,
-    );
-  }
-
-  if (existing && (existing as CommunityRequestRow).status !== "withdrawn") {
-    return existing as CommunityRequestRow;
-  }
-
   const initialTaxonNode = await fetchInitialTaxonNodeId(
     scan.confirmed_species_id ?? scan.species_id,
     supabaseAdmin,
@@ -240,47 +174,43 @@ export async function requestCommunityIdentification(
     );
   }
 
-  const payload = {
-    post_id: post.id,
-    scan_id: scanId,
-    requested_by: userId,
-    note,
-    status: "needs_id",
-    initial_taxon_node_id: initialTaxonNode.id,
-    taxonomy_version_id: initialTaxonNode.taxonomyVersionId,
-    current_community_taxon_node_id: null,
-    resolved_taxon_node_id: null,
-    resolved_observation_taxon_node_id: null,
-    consensus_score: null,
-    consensus_identification_count: 0,
-    consensus_rank: null,
-    resolved_at: null,
-    withdrawn_at: null,
-    updated_at: new Date().toISOString(),
+  let mediaRows = buildExplorePostMediaRows(scan, undefined);
+  mediaRows = await prepareExplorePostMediaForPublication(
+    scan.id,
+    userId,
+    mediaRows,
+    supabaseAdmin,
+    moderationQuota,
+  );
+
+  const payload: AtomicCommunityIdentificationPayload = {
+    p_scan_id: scanId,
+    p_user_id: userId,
+    p_note: note,
+    p_location_sharing: locationSharing,
+    p_species_common_name: speciesCommonName,
+    p_media_rows: mediaRows,
+    p_initial_taxon_node_id: initialTaxonNode.id,
+    p_taxonomy_version_id: initialTaxonNode.taxonomyVersionId,
   };
+  const result = await invokeAtomicCommunityIdentificationRequest(
+    payload,
+    supabaseAdmin,
+  );
+  const { data, error } = result;
 
-  const selection =
-    "id,post_id,scan_id,requested_by,requested_at,status,note,initial_taxon_node_id,taxonomy_version_id,current_community_taxon_node_id,resolved_taxon_node_id,consensus_score,consensus_identification_count,consensus_rank";
-  const { data, error } = existing
-    ? await supabaseAdmin
-      .from("explore_community_requests")
-      .update(payload)
-      .eq("post_id", post.id)
-      .select(selection)
-      .single()
-    : await supabaseAdmin
-      .from("explore_community_requests")
-      .insert(payload)
-      .select(selection)
-      .single();
-
-  if (error || !data) {
+  if (
+    error ||
+    !isCommunityRequestRow(data) ||
+    data.scan_id !== scanId ||
+    data.requested_by !== userId
+  ) {
     throw new Error(
-      `Failed to create community request: ${
-        error?.message ?? "Unknown error"
+      `Failed to create community request atomically: ${
+        error?.message ?? "Invalid database response"
       }`,
     );
   }
 
-  return data as CommunityRequestRow;
+  return data;
 }

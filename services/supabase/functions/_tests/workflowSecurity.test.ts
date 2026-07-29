@@ -253,6 +253,18 @@ Deno.test("production smoke proves every Edge route reaches a Merian handler", a
     deployWorkflow,
     /probe_all_function_routes\s*\n\s*critical_user_functions=/,
   );
+  for (
+    const criticalRoute of [
+      "identify-multimodal",
+      "check-scan-status",
+      "share-scan-to-explore",
+      "get-explore-composer-media",
+      "insight-chat",
+      "request-community-identification",
+    ]
+  ) {
+    assertStringIncludes(deployWorkflow, criticalRoute);
+  }
 });
 
 Deno.test("production smoke drains and checks the private DwCA cleanup outbox", async () => {
