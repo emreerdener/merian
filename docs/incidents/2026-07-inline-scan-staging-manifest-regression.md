@@ -445,6 +445,39 @@ connection preparation, `db push`, secret synchronization, Edge deployment, or
 smoke test. It made no production mutation. Only a new exact-remediated-SHA run
 with every fixture passing can replace this failed evidence.
 
+## Deployment Follow-up: Exact-SHA Catalog Rerun
+
+The next hosted catalog run exercised commit
+`50d905f85ac536052abefa63d36c9b45e5e4ec74`. The complete 30-assertion inline
+recovery fixture passed, including historical mixed-video repair and the direct
+six-object production-shape case. This is fresh disposable-PostgreSQL evidence
+that the forward video projection accepts sampled inference frames without
+turning them into standalone display images.
+
+The diagnostic-hardened identity fixture emitted one precise failure before it
+reached the production merge routine:
+
+```text
+phase=ingestion-intent setup
+sqlstate=42702
+column reference "scan_id" is ambiguous
+```
+
+Its anonymous block declared a synthetic variable named `scan_id`, then used
+that name beside `jobs.scan_id` in an `INSERT ... SELECT`. PL/pgSQL could not
+choose between the variable and the table column. The fixture now calls the
+synthetic identity `fixture_scan_id` everywhere while retaining real
+`scan_id` column names. The source contract forbids the ambiguous declaration
+and pins the qualified comparison.
+
+This was a fixture defect; the run never invoked
+`internal.perform_ghost_profile_merge` or
+`public.recover_stranded_scan_ingestion_attempt`. It stopped with 23 of 24
+catalog files complete, before production connection preparation, `db push`,
+secret synchronization, Edge deployment, or smoke testing, and made no
+production mutation. A further exact-SHA run must execute the now-reachable
+identity merge and recovery assertions and pass all 24 files.
+
 ## Release Follow-up: iOS Workflow Run 73
 
 Attempt 1 of `iOS Build and Test` for the same commit compiled and completed its

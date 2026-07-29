@@ -139,16 +139,21 @@ migration is not edited.
   routine differs.
 
 Local repository evidence after remediation is 165 passing migration assertions
-across all 25 discovered migration contract files. That is source evidence, not
-fresh-catalog PostgreSQL or production evidence.
+across all 25 discovered migration contract files. The next exact-SHA hosted
+catalog run also passed all 30 assertions in the live inline/video fixture on a
+disposable PostgreSQL catalog. That is fresh-catalog evidence for this
+regression, not staging joined-flow or production evidence.
 
 The other Run 1552 failure,
 `identity_merge_scan_recovery_security.sql`, is independent: its single
 all-or-nothing block aborted before emitting TAP. The fixture now catches its
 own exception, emits phase/SQLSTATE/message/detail/hint as a deterministic
-warning, and returns one failed TAP assertion. Do not claim that identity-merge
-path verified until a hosted rerun either passes or supplies that exact
-diagnostic for a further production-code correction.
+warning, and returns one failed TAP assertion. The next run identified a
+fixture-only `42702` at `ingestion-intent setup`: its synthetic `scan_id`
+variable was ambiguous beside the ledger column. That variable is now
+`fixture_scan_id`, and a source contract prevents the old declaration. Do not
+claim the identity-merge path verified until another hosted rerun reaches and
+passes the production merge/recovery operations.
 
 ## Deployment and Closure
 

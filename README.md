@@ -27,16 +27,16 @@ steps are tracked in the
 > moves to the separate DwC-A feature-enable gate. See the
 > [canonical release-hold record](docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
-> **Critical scan release gate (2026-07-28):** backend workflow run 1552
-> replayed the migration fleet but exposed a valid-video finalization
-> regression: sampled inference frames in the compatibility image array were
-> incorrectly required as standalone ready images. Forward migration
-> `20260729012153_fix_video_scan_canonical_finalization.sql` now validates the
-> intended canonical media projection without weakening owner, promotion, or
-> complete-last checks. Production is unchanged, and the release remains held
-> until the exact remediated SHA passes every catalog fixture—including the
-> separately diagnostic-hardened identity-merge case—then completes joined
-> video, Field Chat, and Explore staging smokes. See the
+> **Critical scan release gate (2026-07-28):** the exact-SHA follow-up passed
+> all 30 disposable-catalog inline/video assertions after forward migration
+> `20260729012153_fix_video_scan_canonical_finalization.sql`. Its remaining
+> identity test stopped during fixture setup with SQLSTATE `42702`: a synthetic
+> `scan_id` variable was ambiguous beside `jobs.scan_id`, before production
+> merge/recovery ran. The fixture now uses `fixture_scan_id` and a source
+> contract prevents the old declaration. Production is unchanged, and the
+> release remains held until another exact SHA passes all 24 catalog files,
+> then completes ordered deployment plus joined video, Field Chat, and Explore
+> staging smokes. See the
 > [video finalization incident](docs/incidents/2026-07-video-scan-canonical-finalization-regression.md).
 
 ---

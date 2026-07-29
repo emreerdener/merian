@@ -48,6 +48,13 @@ fixture exposed only `planned 1, ran 0`. The identity fixture now follows this
 diagnostic contract. The warning must never include credentials, raw media,
 provider bodies, or nondeterministic private user data.
 
+The next exact-SHA catalog run localized that identity failure to fixture setup:
+a PL/pgSQL variable named `scan_id` was ambiguous beside `jobs.scan_id` in an
+`INSERT ... SELECT`. Use a role-prefixed name such as `fixture_scan_id` for
+synthetic identities and qualify real columns. The source contract rejects the
+ambiguous declaration. Do not change production merge/recovery logic when the
+phase proves it was never invoked.
+
 ## Edge Functions
 
 Edge Functions are written in TypeScript and run on Deno. They handle logic like

@@ -1155,9 +1155,17 @@ PostgreSQL error: the identity-merge fixture reported `planned 1, ran 0`.
 emits one bounded warning containing fixture phase, SQLSTATE, message, detail,
 and hint, stores context for the TAP description, and emits its one planned
 assertion. Never put credentials, raw media, provider payloads, or arbitrary
-customer data in this diagnostic. A hosted warning is evidence of the remaining
-root failure, not a passing fixture; correct the production contract and rerun
-until the assertion passes.
+customer data in this diagnostic.
+
+The next exact-SHA run proved why phase diagnostics matter: it reported `42702`
+at `ingestion-intent setup`, where a synthetic PL/pgSQL variable named
+`scan_id` appeared beside `jobs.scan_id`. The production merge and recovery
+routines had not run. Catalog fixtures must use role-prefixed identities such as
+`fixture_scan_id` whenever a statement also references the corresponding column,
+and must qualify every table column. The source contract pins that declaration
+and rejects the ambiguous variable name. A hosted warning is evidence of the
+remaining root failure, not a passing fixture; correct the layer identified by
+the phase and rerun until the assertion passes.
 
 The normative expected behavior and source inventory are in
 [`16-scan-ingestion-reliability-and-recovery.md`](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#verification-gates).

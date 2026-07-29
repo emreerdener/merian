@@ -125,6 +125,13 @@ TestFlight, App Store, support, and QA.
   and hint and returns one failed assertion instead of another opaque bad plan.
   Run 1552 stopped before production preparation and made no production
   mutation; an exact-remediated-SHA catalog replay remains required.
+- The next exact-SHA catalog run passed the complete 30-assertion inline/video
+  fixture and localized the sole remaining failure to identity fixture setup:
+  a synthetic PL/pgSQL `scan_id` variable was ambiguous beside
+  `jobs.scan_id`. It is now named `fixture_scan_id`; a source contract rejects
+  the old declaration. Production merge/recovery code had not run, so it was
+  not weakened for this fixture-only SQLSTATE `42702`. The run stopped before
+  production preparation and made no production mutation.
 - Production function deployment now extracts every selected critical scan
   function from the graph plan and deploys the nine-function compatibility unit
   in its required order before unrelated parallel batches. Duplicate plan

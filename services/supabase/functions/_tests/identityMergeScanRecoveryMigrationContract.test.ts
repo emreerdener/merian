@@ -74,6 +74,8 @@ Deno.test("identity merge fences unfinished scans before generic ownership repar
   for (
     const diagnosticFragment of [
       "CREATE TEMP TABLE identity_merge_scan_recovery_result",
+      "fixture_scan_id UUID :=",
+      "jobs.scan_id = fixture_scan_id::TEXT",
       "fixture_phase := 'atomic Ghost merge'",
       "fixture_phase := 'live target-lease recovery'",
       "fixture_phase := 'merged-source recovery'",
@@ -92,6 +94,10 @@ Deno.test("identity merge fences unfinished scans before generic ownership repar
     (securityFixture.match(/SELECT extensions\.plan\(1\)/g) ?? []).length,
     1,
     "The diagnostic fixture must still emit exactly one planned TAP assertion.",
+  );
+  assert(
+    !/\bscan_id\s+UUID\s*:=/.test(securityFixture),
+    "A fixture variable named scan_id is ambiguous beside ledger columns.",
   );
   assert(
     !securityFixture.includes("'identity_merge_source_d801'") &&

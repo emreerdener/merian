@@ -3346,6 +3346,25 @@ one new exact SHA. If identity still fails, use the emitted
 root diagnostic, correct the production contract, and rerun. A failed assertion
 with better diagnostics is not closure.
 
+### Exact-SHA follow-up catalog interpretation
+
+The next hosted catalog run exercised
+`50d905f85ac536052abefa63d36c9b45e5e4ec74`. Its 30-assertion inline/video
+fixture passed completely, providing disposable-catalog evidence for both the
+historical mixed-video repair and the direct five-frame-plus-playback shape.
+
+The identity diagnostic failed at `ingestion-intent setup` with SQLSTATE
+`42702`: the test block's synthetic `scan_id` variable was ambiguous beside
+`jobs.scan_id`. Production merge and recovery code had not run. Rename the
+fixture identity to `fixture_scan_id`, retain actual ledger column names, and
+pin both the declaration and the qualified comparison in the source contract.
+Do not modify or weaken either production routine for this test-only error.
+
+That run stopped after 23 of 24 catalog files, before production connection
+preparation, `db push`, secret synchronization, function deployment, or smoke
+tests. It made no production mutation. Require another exact-SHA run to pass all
+24 files and then continue through the normal ordered deployment.
+
 After `db push`, use an owner connection for this bounded catalog check:
 
 ```sql

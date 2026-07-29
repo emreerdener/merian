@@ -544,6 +544,17 @@ it now emits bounded phase/SQLSTATE/message diagnostics and one TAP result.
 Run 1552 stopped at the disposable catalog gate and made no production
 mutation. Require every fixture to pass on the exact remediated SHA.
 
+The next exact-SHA catalog run at
+`50d905f85ac536052abefa63d36c9b45e5e4ec74` passed the complete 30-assertion
+inline/video fixture. The remaining identity fixture emitted SQLSTATE `42702`
+at `ingestion-intent setup`: its synthetic `scan_id` PL/pgSQL variable was
+ambiguous beside `jobs.scan_id`, so neither production identity-merge routine
+had run. The fixture identity is now named `fixture_scan_id`, and its source
+contract rejects the ambiguous declaration. That run completed 23 of 24 catalog
+files and stopped before production preparation, making no production mutation.
+Require one further exact-SHA replay to execute and pass the production merge
+and recovery path.
+
 Then deploy these Edge Functions from one exact reviewed SHA, in order:
 
 1. `generate-upload-urls`
@@ -657,9 +668,10 @@ The focused regression inventory includes:
 
 This snapshot records the strongest evidence available for the local working
 tree rooted at
-`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` on 2026-07-28. Local working-tree
-evidence is not immutable release evidence. Repeat every applicable gate on one
-committed SHA before deployment or release.
+`50d905f85ac536052abefa63d36c9b45e5e4ec74` plus the uncommitted identity
+fixture correction on 2026-07-28. Local working-tree evidence is not immutable
+release evidence. Repeat every applicable gate on one committed SHA before
+deployment or release.
 
 | Layer | Retained result | Status and meaning |
 | --- | --- | --- |
@@ -673,9 +685,9 @@ committed SHA before deployment or release.
 | Changed Swift source quality | Strict SwiftLint reported 0 violations and compiler frontend parsing passed | Verified locally |
 | Public web projection | Web unit suite: 56 passed, 0 failed | Verified locally |
 | Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected at the current base SHA | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate |
-| Fresh PostgreSQL catalog replay and pgTAP | Run 1552 replayed every migration and completed 22 of 24 catalog files; inline passed 15 assertions before exposing the video-frame finalizer defect, while identity aborted opaquely | Pending an exact-remediated-SHA replay of all 24 catalog files; video projection is corrected forward and identity now self-reports any remaining exception |
+| Fresh PostgreSQL catalog replay and pgTAP | The exact-SHA follow-up completed 23 of 24 catalog files and passed all 30 inline/video assertions; identity then reported fixture-only `42702` ambiguity at `ingestion-intent setup`, before production merge/recovery ran | Pending one further exact-SHA replay after the `fixture_scan_id` rename; all 24 files must pass |
 | Staging joined-flow smoke matrix | No retained post-remediation smoke evidence | Pending image, queued image, audio, video, Describe, Field Chat, Explore, ambiguous-response, and partial-upload tests |
-| Production deployment and observation | Runs 1549–1552 made no production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
+| Production deployment and observation | Runs 1549–1552 and the exact-SHA follow-up stopped before production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
 
 A local Release archive was also attempted with package, derived-data, module,
 and Foundation cache paths redirected to writable temporary storage. Xcode

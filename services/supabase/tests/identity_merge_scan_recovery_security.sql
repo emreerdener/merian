@@ -19,7 +19,7 @@ DECLARE
         '00000000-0000-4000-8000-00000000d801';
     target_user_id UUID :=
         '00000000-0000-4000-8000-00000000d802';
-    scan_id UUID :=
+    fixture_scan_id UUID :=
         '00000000-0000-4000-8000-00000000d803';
     upload_session_id UUID :=
         '00000000-0000-4000-8000-00000000d804';
@@ -166,7 +166,7 @@ BEGIN
         lock_expires_at
     )
     VALUES (
-        scan_id::TEXT,
+        fixture_scan_id::TEXT,
         source_user_id,
         'identify-multimodal',
         'finalizing',
@@ -214,7 +214,7 @@ BEGIN
         jobs.endpoint,
         pg_catalog.JSONB_BUILD_OBJECT(
             'clientScanId',
-            scan_id::TEXT
+            fixture_scan_id::TEXT
         ),
         jobs.media_counts,
         jobs.media_object_keys,
@@ -222,7 +222,7 @@ BEGIN
         TRUE
     FROM public.scan_ingestion_jobs AS jobs
     WHERE jobs.user_id = source_user_id
-      AND jobs.scan_id = scan_id::TEXT;
+      AND jobs.scan_id = fixture_scan_id::TEXT;
 
     fixture_phase := 'staged-media setup';
     INSERT INTO public.scan_media_assets (
@@ -241,7 +241,7 @@ BEGIN
     )
     VALUES (
         NULL,
-        scan_id,
+        fixture_scan_id,
         upload_session_id,
         source_user_id,
         'image',
@@ -262,7 +262,7 @@ BEGIN
     FROM public.reserve_ai_quota(
         source_user_id,
         'scan_identification',
-        scan_id,
+        fixture_scan_id,
         pg_catalog.REPEAT('d', 64)
     );
 
@@ -301,7 +301,7 @@ BEGIN
         SELECT 1
         FROM public.scan_ingestion_jobs AS jobs
         WHERE jobs.user_id = target_user_id
-          AND jobs.scan_id = scan_id::TEXT
+          AND jobs.scan_id = fixture_scan_id::TEXT
           AND jobs.status = 'failed_retryable'
           AND jobs.stage = 'identity_merge_interrupted'
           AND jobs.locked_at IS NULL
@@ -310,7 +310,7 @@ BEGIN
         SELECT 1
         FROM public.scan_ingestion_intents AS intents
         WHERE intents.user_id = target_user_id
-          AND intents.scan_id = scan_id::TEXT
+          AND intents.scan_id = fixture_scan_id::TEXT
           AND intents.resumable = FALSE
           AND intents.last_replay_error =
               'identity_merge_interrupted'
@@ -318,7 +318,7 @@ BEGIN
         SELECT 1
         FROM public.scan_media_assets AS assets
         WHERE assets.user_id = target_user_id
-          AND assets.client_scan_id = scan_id
+          AND assets.client_scan_id = fixture_scan_id
           AND assets.status = 'failed'
           AND assets.failure_reason =
               'superseded_identity_merge_staging'
@@ -327,7 +327,7 @@ BEGIN
         FROM internal.ai_quota_reservations AS reservations
         WHERE reservations.user_id = target_user_id
           AND reservations.operation = 'scan_identification'
-          AND reservations.request_id = scan_id
+          AND reservations.request_id = fixture_scan_id
           AND reservations.state = 'failed'
     ) THEN
         RAISE EXCEPTION
@@ -384,12 +384,12 @@ BEGIN
         locked_at = pg_catalog.NOW(),
         lock_expires_at = pg_catalog.NOW() + INTERVAL '10 minutes'
     WHERE jobs.user_id = target_user_id
-      AND jobs.scan_id = scan_id::TEXT;
+      AND jobs.scan_id = fixture_scan_id::TEXT;
 
     fixture_phase := 'live target-lease recovery';
     SET LOCAL ROLE service_role;
     SELECT public.recover_stranded_scan_ingestion_attempt(
-        scan_id,
+        fixture_scan_id,
         target_user_id
     )
     INTO STRICT recovery_result;
@@ -409,12 +409,12 @@ BEGIN
         locked_at = NULL,
         lock_expires_at = NULL
     WHERE jobs.user_id = target_user_id
-      AND jobs.scan_id = scan_id::TEXT;
+      AND jobs.scan_id = fixture_scan_id::TEXT;
 
     fixture_phase := 'merged-source recovery';
     SET LOCAL ROLE service_role;
     SELECT public.recover_stranded_scan_ingestion_attempt(
-        scan_id,
+        fixture_scan_id,
         target_user_id
     )
     INTO STRICT recovery_result;
@@ -436,7 +436,7 @@ BEGIN
     FROM public.reserve_ai_quota(
         target_user_id,
         'scan_identification',
-        scan_id,
+        fixture_scan_id,
         pg_catalog.REPEAT('f', 64)
     );
 
