@@ -291,7 +291,10 @@ dashboards.
    A thrown PostgREST response alone is neither proof.
 8. **Canonical media:** verify every genuine claimed source has one compatible
    capture lifecycle row and every promoted retained URL has a ready canonical
-   image/video/audio representation.
+   image/video/audio representation. For video, do not classify sampled
+   inference-frame URLs in the compatibility image array as missing standalone
+   images; require the canonical playback row and only genuine display images
+   from `captured_media` or the legacy standalone-image prefix.
 9. **Persistence class:** classify committed, definitely rejected, or unknown
    before quota/media cleanup.
 10. **Downstream check:** only after owner durability is proven, reproduce Field
@@ -309,6 +312,7 @@ dashboards.
 | `*/wire_contract_failed`                                                                                                                                                              | Final server-enriched response violated the executable contract  | Expect HTTP 502 `identify_response_invalid` and retained retryable ledger              |
 | `multimodal/background_ingestion_failed`, `identify-describe/background_ingestion_failed`, `audio_spec/background_ingestion_failed`, or legacy Identify `background_ingestion_failed` | Required persistence/finalization failed                         | Prove owner row and media topology; do not infer rollback from exception               |
 | `multimodal/scan_persistence_failed`                                                                                                                                                  | Current durable success boundary did not complete                | Expect 503; poll same UUID and preserve unknown-state resources                        |
+| database `canonical_scan_media_incomplete` on a video generation                                                                                                                     | Canonical projection lacks a ready owner media row, or the video projection migration is stale | Verify migration `20260729012153`, ready playback/audio/display rows, and captured timeline; never manufacture inference-frame image rows |
 | `multimodal/observation_rejected`                                                                                                                                                     | Terminal media/policy rejection                                  | Confirm no scan and terminal fence; never owner-recover it                             |
 | `explore/restored_media_persistence_unconfirmed`                                                                                                                                      | Restored owner-media update may have committed                   | Preserve promoted media; retry exact owner share                                       |
 | `explore/restored_media_rollback_partial_failure`                                                                                                                                     | A proven rollback could not remove all known objects             | Immediate storage reconciliation; never blanket-delete prefixes                        |
@@ -328,6 +332,8 @@ without a separate `parse_failed` event.
 - Identify `200` is followed immediately by `/check-scan-status` `found`.
 - A fresh unmarked multimodal success has owner ledger
   `complete / media_finalization_complete`.
+- A video success has one ready playback item with its poster; sampled
+  inference frames do not appear as standalone display media.
 - A marked reconstructed replay has the exact durable owner row and no second
   provider dispatch; its canonical ledger may still be retryable and must drain
   through reconciliation.

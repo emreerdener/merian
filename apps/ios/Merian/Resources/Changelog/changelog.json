@@ -10,6 +10,7 @@
           "title": "Fixed",
           "items": [
             "Completed scan analyses now finish saving before they appear, so the same observation is ready for your library, Field chat, and Explore sharing.",
+            "Video scans now complete with one playable clip and poster instead of being rejected or exposing sampled analysis frames as separate photos.",
             "Offline image, audio, video, and description scans now keep their media and resume safely after an app relaunch, authentication change, partial upload, or temporary service failure.",
             "Eligible older observations can recover a missing cloud record when you open Field chat, and can restore surviving local media when you deliberately share to Explore."
           ]

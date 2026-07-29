@@ -4,6 +4,15 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 
+CREATE TEMP TABLE identity_merge_scan_recovery_result (
+    phase TEXT NOT NULL,
+    error_sqlstate TEXT,
+    error_message TEXT,
+    error_detail TEXT,
+    error_hint TEXT,
+    error_context TEXT
+) ON COMMIT DROP;
+
 DO $test$
 DECLARE
     source_user_id UUID :=
@@ -19,7 +28,14 @@ DECLARE
     recovery_result JSONB;
     charged_before BIGINT;
     charged_after BIGINT;
+    fixture_phase TEXT := 'service recovery ACL';
+    error_sqlstate TEXT;
+    error_message TEXT;
+    error_detail TEXT;
+    error_hint TEXT;
+    error_context TEXT;
 BEGIN
+    fixture_phase := 'service recovery ACL';
     IF pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
         'public.recover_stranded_scan_ingestion_attempt(uuid,uuid)',
@@ -37,6 +53,7 @@ BEGIN
             'stranded scan recovery does not have an exact service-only ACL';
     END IF;
 
+    fixture_phase := 'trusted merge-hook ACL';
     IF EXISTS (
         SELECT 1
         FROM (
@@ -52,6 +69,7 @@ BEGIN
             'an API role can execute the trusted identity-merge scan hook';
     END IF;
 
+    fixture_phase := 'auth-user setup';
     INSERT INTO auth.users (
         instance_id,
         id,
@@ -96,6 +114,7 @@ BEGIN
             FALSE
         );
 
+    fixture_phase := 'public-profile setup';
     INSERT INTO public.users (
         id,
         email,
@@ -132,6 +151,7 @@ BEGIN
         subscription_tier = EXCLUDED.subscription_tier,
         created_at = EXCLUDED.created_at;
 
+    fixture_phase := 'ingestion-job setup';
     INSERT INTO public.scan_ingestion_jobs (
         scan_id,
         user_id,
@@ -177,6 +197,7 @@ BEGIN
         pg_catalog.NOW() + INTERVAL '10 minutes'
     );
 
+    fixture_phase := 'ingestion-intent setup';
     INSERT INTO public.scan_ingestion_intents (
         scan_id,
         user_id,
@@ -203,6 +224,7 @@ BEGIN
     WHERE jobs.user_id = source_user_id
       AND jobs.scan_id = scan_id::TEXT;
 
+    fixture_phase := 'staged-media setup';
     INSERT INTO public.scan_media_assets (
         scan_id,
         client_scan_id,
@@ -234,6 +256,7 @@ BEGIN
         'image/webp'
     );
 
+    fixture_phase := 'initial quota reservation';
     SELECT *
     INTO STRICT first_reservation
     FROM public.reserve_ai_quota(
@@ -243,6 +266,7 @@ BEGIN
         pg_catalog.REPEAT('d', 64)
     );
 
+    fixture_phase := 'initial quota commit';
     PERFORM public.finalize_ai_quota_reservation(
         first_reservation.reservation_id,
         source_user_id,
@@ -250,6 +274,7 @@ BEGIN
         'committed'
     );
 
+    fixture_phase := 'pre-merge charged-usage snapshot';
     SELECT COALESCE(
         pg_catalog.SUM(counters.request_count),
         0
@@ -261,11 +286,13 @@ BEGIN
 
     -- Exercise the actual patched merge function. It must fence the scan before
     -- generic FK ownership changes and profile deletion.
+    fixture_phase := 'atomic Ghost merge';
     PERFORM internal.perform_ghost_profile_merge(
         source_user_id,
         target_user_id
     );
 
+    fixture_phase := 'merged scan-dependency assertions';
     IF EXISTS (
         SELECT 1
         FROM public.users AS profiles
@@ -307,6 +334,7 @@ BEGIN
             'atomic Ghost merge did not fence every scan dependency';
     END IF;
 
+    fixture_phase := 'post-merge charged-usage snapshot';
     SELECT COALESCE(
         pg_catalog.SUM(counters.request_count),
         0
@@ -316,6 +344,7 @@ BEGIN
     WHERE counters.scope_type IN ('user_daily', 'user_rate')
       AND counters.scope_key = source_user_id::TEXT;
 
+    fixture_phase := 'committed-usage preservation assertion';
     IF charged_after <> charged_before OR charged_before < 1 THEN
         RAISE EXCEPTION
             'committed provider usage was refunded during merge: % -> %',
@@ -323,6 +352,7 @@ BEGIN
             charged_after;
     END IF;
 
+    fixture_phase := 'merged-handoff setup';
     INSERT INTO internal.ghost_profile_merge_handoffs (
         ghost_user_id,
         target_user_id,
@@ -347,6 +377,7 @@ BEGIN
     -- Exact merge lineage does not override a live target-owned job lease. A
     -- concurrent target retry must win rather than being interrupted and
     -- charged twice.
+    fixture_phase := 'live target-lease setup';
     UPDATE public.scan_ingestion_jobs AS jobs
     SET status = 'processing',
         stage = 'ai_inference',
@@ -355,6 +386,7 @@ BEGIN
     WHERE jobs.user_id = target_user_id
       AND jobs.scan_id = scan_id::TEXT;
 
+    fixture_phase := 'live target-lease recovery';
     SET LOCAL ROLE service_role;
     SELECT public.recover_stranded_scan_ingestion_attempt(
         scan_id,
@@ -363,12 +395,14 @@ BEGIN
     INTO STRICT recovery_result;
     RESET ROLE;
 
+    fixture_phase := 'live target-lease assertion';
     IF recovery_result ->> 'outcome' <> 'active' THEN
         RAISE EXCEPTION
             'exact merge lineage overrode a live target lease: %',
             recovery_result;
     END IF;
 
+    fixture_phase := 'abandoned target-lease setup';
     UPDATE public.scan_ingestion_jobs AS jobs
     SET status = 'failed_retryable',
         stage = 'identity_merge_interrupted',
@@ -377,6 +411,7 @@ BEGIN
     WHERE jobs.user_id = target_user_id
       AND jobs.scan_id = scan_id::TEXT;
 
+    fixture_phase := 'merged-source recovery';
     SET LOCAL ROLE service_role;
     SELECT public.recover_stranded_scan_ingestion_attempt(
         scan_id,
@@ -385,6 +420,7 @@ BEGIN
     INTO STRICT recovery_result;
     RESET ROLE;
 
+    fixture_phase := 'merged-source recovery assertion';
     IF recovery_result ->> 'outcome'
             <> 'media_restage_required'
        OR recovery_result ->> 'authorized_source_user_id'
@@ -394,6 +430,7 @@ BEGIN
             recovery_result;
     END IF;
 
+    fixture_phase := 'metered retry reservation';
     SELECT *
     INTO STRICT retried_reservation
     FROM public.reserve_ai_quota(
@@ -403,6 +440,7 @@ BEGIN
         pg_catalog.REPEAT('f', 64)
     );
 
+    fixture_phase := 'metered retry assertion';
     IF retried_reservation.is_replay
        OR retried_reservation.reservation_id
             <> first_reservation.reservation_id
@@ -414,18 +452,71 @@ BEGIN
             'failed merged reservation did not produce a fenced metered retry';
     END IF;
 
+    fixture_phase := 'metered retry refund';
     PERFORM public.finalize_ai_quota_reservation(
         retried_reservation.reservation_id,
         target_user_id,
         retried_reservation.lease_token,
         'refunded'
     );
+    fixture_phase := 'complete';
+
+    INSERT INTO identity_merge_scan_recovery_result (phase)
+    VALUES (fixture_phase);
+EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS
+        error_sqlstate = RETURNED_SQLSTATE,
+        error_message = MESSAGE_TEXT,
+        error_detail = PG_EXCEPTION_DETAIL,
+        error_hint = PG_EXCEPTION_HINT,
+        error_context = PG_EXCEPTION_CONTEXT;
+
+    RAISE WARNING
+        'identity_merge_scan_recovery phase=% sqlstate=% message=% detail=% hint=%',
+        fixture_phase,
+        error_sqlstate,
+        error_message,
+        COALESCE(error_detail, '-'),
+        COALESCE(error_hint, '-');
+
+    INSERT INTO identity_merge_scan_recovery_result (
+        phase,
+        error_sqlstate,
+        error_message,
+        error_detail,
+        error_hint,
+        error_context
+    )
+    VALUES (
+        fixture_phase,
+        error_sqlstate,
+        error_message,
+        error_detail,
+        error_hint,
+        error_context
+    );
 END;
 $test$;
 
 SELECT extensions.ok(
-    TRUE,
-    'identity-merge scan recovery is fenced, charged, and owner-exact'
-);
+    results.error_sqlstate IS NULL,
+    CASE
+        WHEN results.error_sqlstate IS NULL THEN
+            'identity-merge scan recovery is fenced, charged, and owner-exact'
+        ELSE pg_catalog.FORMAT(
+            'identity-merge scan recovery failed at phase "%s" [%s]: %s (detail: %s; hint: %s; context: %s)',
+            results.phase,
+            results.error_sqlstate,
+            results.error_message,
+            COALESCE(results.error_detail, '-'),
+            COALESCE(results.error_hint, '-'),
+            COALESCE(
+                pg_catalog.LEFT(results.error_context, 2000),
+                '-'
+            )
+        )
+    END
+)
+FROM identity_merge_scan_recovery_result AS results;
 SELECT * FROM extensions.finish();
 ROLLBACK;

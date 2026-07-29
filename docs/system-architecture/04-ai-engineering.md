@@ -865,6 +865,12 @@ provider dispatch:
   owner-scoped read-back, and a final transaction that proves every claimed key
   disposition plus every ready canonical media row. The response-aware wrapper
   writes ledger completion and the validated success envelope atomically.
+  Canonical proof uses structured captured media when usable and otherwise the
+  refresher's legacy standalone-image/playback/audio projection; sampled video
+  inference frames retained in the compatibility image array are not display
+  rows. Migration `20260729012153_fix_video_scan_canonical_finalization.sql`
+  corrected the contradictory all-image-array check without relaxing exact
+  owner, kind, URL, or staging-disposition requirements.
   Repeated delivery checks for stored completion or an exact reconstructible
   owner row first and returns marked `200`; reconstruction may coexist with a
   retryable canonical ledger, and concurrent delivery coalesces without another

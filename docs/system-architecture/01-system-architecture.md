@@ -152,7 +152,10 @@ orphaned object does not reconstruct its relational context.
   canonical-media finalization, with ledger completion last. A marked same-UUID
   replay may reconstruct from the exact durable owner row while canonical repair
   remains retryable, without another provider call; compatibility routes also
-  permit a narrow immediate post-row fallback. Analytics, group tags, and
+  permit a narrow immediate post-row fallback. Canonical video proof follows the
+  captured-media timeline (or its legacy standalone-image/playback projection);
+  compatibility inference frames are not standalone ready images. Analytics,
+  group tags, and
   candidate enrichment remain optional background tasks. Privacy-safe
   `Server-Timing` separates auth, request body, database, Gemini, dictionary,
   and response work; the Gemini timer stops as soon as the single

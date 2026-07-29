@@ -282,7 +282,11 @@ clip targets 720p or a 1,280-pixel long edge, approximately 3 MB, with a 12 MB
 hard cap.
 
 Video is a short observation aid, not a general video publishing tool. Capture
-affordances must show the limit before recording.
+affordances must show the limit before recording. A completed video observation
+contains one playable clip with its poster; sampled inference frames are not
+separate Insight or Explore media. Backend completion requires the exact owner's
+ready playback representation before Field Chat or Explore can consume the
+scan.
 
 ## 4.7 Audio capture - Implemented on iPhone
 

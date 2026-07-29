@@ -13,6 +13,13 @@ TestFlight, App Store, support, and QA.
   synthetic staging object, and the strict media finalizer now receives only
   real upload sources. The shared durable success boundary is restored for the
   Insight result, Field Chat, Explore sharing, field trips, and owner sync.
+- Fixed the valid-video finalization regression isolated by backend workflow run
+  1552. Sampled video inference frames may remain in the compatibility image
+  array but are no longer required as standalone ready images. Finalization now
+  projects the same canonical image/playback/audio timeline rendered by the app
+  and still requires exact owner-matched ready rows before completion, restoring
+  video Insight, Field Chat, and Explore prerequisites without weakening lost
+  upload detection.
 - Fixed a second production-confirmed 503 before scan insertion: replay/profile
   drift tried to create a user with none of Explore’s mandatory public identity
   fields. All Identify routes now call one service-only, Auth-backed profile
@@ -110,6 +117,14 @@ TestFlight, App Store, support, and QA.
   after the Auth signup trigger had already created the profile. Both fixtures
   now use constraint-valid usernames and trigger-aware profile upserts, with
   source contracts preventing either regression.
+- Backend workflow run 1552 proved those setup corrections were only partial
+  closure. Inline recovery passed its first 15 assertions and then raised in
+  the mixed-video finalizer, exposing the compatibility-frame contradiction now
+  corrected by a forward migration. The separate identity-merge fixture still
+  aborted before TAP; it now emits phase, SQLSTATE, PostgreSQL message, detail,
+  and hint and returns one failed assertion instead of another opaque bad plan.
+  Run 1552 stopped before production preparation and made no production
+  mutation; an exact-remediated-SHA catalog replay remains required.
 - Production function deployment now extracts every selected critical scan
   function from the graph plan and deploys the nine-function compatibility unit
   in its required order before unrelated parallel batches. Duplicate plan

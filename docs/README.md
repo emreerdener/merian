@@ -117,6 +117,7 @@ as their permanent engineering identity.
   [joined reliability contract](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md),
   [owner-row incident report](./incidents/2026-07-scan-owner-row-durability-gap.md),
   [inline staging-manifest incident](./incidents/2026-07-inline-scan-staging-manifest-regression.md),
+  [video finalization incident](./incidents/2026-07-video-scan-canonical-finalization-regression.md),
   and
   [Identify idempotency incident](./incidents/2026-07-identify-idempotency-conflict.md).
 - **Image-analysis latency contract**: Durable queue acceptance remains the
@@ -206,6 +207,10 @@ as their permanent engineering identity.
   — Joined iOS/Edge/catalog root cause and fail-closed remediation for inline
   scans rejected by a phantom staged-upload manifest, including offline, Field
   Chat, and Explore consequences.
+- **[`/incidents/2026-07-video-scan-canonical-finalization-regression.md`](./incidents/2026-07-video-scan-canonical-finalization-regression.md)**
+  — Hosted-test isolation, canonical-media projection fix, security invariants,
+  and production closure gates for valid video scans rejected because sampled
+  inference frames were mistaken for standalone images.
 - **[`/incidents/2026-07-identify-idempotency-conflict.md`](./incidents/2026-07-identify-idempotency-conflict.md)**
   — Root cause, server response replay, exact queued-presentation recovery, and
   production exit criteria for handler-owned Identify 409 conflicts.

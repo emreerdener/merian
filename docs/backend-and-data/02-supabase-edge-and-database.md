@@ -1257,6 +1257,18 @@ has at least one saved `explore_post_media` row; this prevents failed media
 snapshot writes from surfacing as phantom shared posts in the Insight Share
 sheet.
 
+The scan finalizer uses that same distinction. Compatibility
+`image_storage_urls` may retain sampled frames used for inference and video
+posters, so those URLs are not individually required as ready standalone image
+rows. Migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` projects valid
+structured `captured_media` visuals when available and otherwise mirrors the
+legacy refresher's standalone-image count (`images - videos × 5`) plus every
+playback video and standalone audio item. Every projected item must still match
+the exact scan owner, media kind, URL, and `ready` status before the ingestion
+ledger can become complete. This corrects valid-video rejection without
+weakening staged-key promotion, deletion, or missing standalone-image checks.
+
 Author profile reads are split the same way as feed/detail reads.
 `get-explore-author-profile` returns a privacy-scoped profile sheet payload only
 when the target author has at least one visible Explore post or visible Field

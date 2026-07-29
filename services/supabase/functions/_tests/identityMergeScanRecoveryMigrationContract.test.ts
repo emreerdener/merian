@@ -71,6 +71,28 @@ Deno.test("identity merge fences unfinished scans before generic ownership repar
     securityFixture,
     "ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, public_username = EXCLUDED.public_username, public_author_name = EXCLUDED.public_author_name, public_identity_source = EXCLUDED.public_identity_source, subscription_tier = EXCLUDED.subscription_tier, created_at = EXCLUDED.created_at",
   );
+  for (
+    const diagnosticFragment of [
+      "CREATE TEMP TABLE identity_merge_scan_recovery_result",
+      "fixture_phase := 'atomic Ghost merge'",
+      "fixture_phase := 'live target-lease recovery'",
+      "fixture_phase := 'merged-source recovery'",
+      "fixture_phase := 'metered retry reservation'",
+      "EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS",
+      "error_sqlstate = RETURNED_SQLSTATE",
+      "error_message = MESSAGE_TEXT",
+      "RAISE WARNING 'identity_merge_scan_recovery phase=% sqlstate=% message=% detail=% hint=%'",
+      "results.error_sqlstate IS NULL",
+      "identity-merge scan recovery failed at phase",
+    ]
+  ) {
+    assertStringIncludes(securityFixture, diagnosticFragment);
+  }
+  assertEquals(
+    (securityFixture.match(/SELECT extensions\.plan\(1\)/g) ?? []).length,
+    1,
+    "The diagnostic fixture must still emit exactly one planned TAP assertion.",
+  );
   assert(
     !securityFixture.includes("'identity_merge_source_d801'") &&
       !securityFixture.includes("'identity_merge_target_d802'"),

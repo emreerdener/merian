@@ -412,6 +412,39 @@ synchronization, Edge deployment, or smoke testing, so it made no production
 mutation. A new exact-SHA run must repeat fresh-catalog replay, execute all 24
 fixtures, and continue through deployment and production smokes.
 
+## Deployment Follow-up: Workflow Run 1552
+
+Attempt 1 for commit
+`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated complete disposable
+catalog replay. The fixture corrections did not close the gate: 22 of 24 files
+completed.
+
+The inline fixture now executed assertions 1–15 successfully. That proves its
+ACL checks, adversarial topology checks, profile setup, first inline-image
+repair, normalized ledger state, and ready canonical image path. The next
+statement is mixed-video recovery for scan `...f112`; it raised before
+assertion 16.
+
+The video scan retains sampled inference frames in
+`image_storage_urls`, while canonical refresh correctly creates one playback
+video and no standalone rows for those frames. The strict finalizer introduced
+on July 28 nevertheless required every compatibility image URL as a ready image
+row and raised `canonical_scan_media_incomplete`. Forward migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` now validates the
+same structured or legacy canonical projection as refresh and still requires
+exact owner/kind/URL ready rows. See the dedicated
+[video finalization incident](./2026-07-video-scan-canonical-finalization-regression.md).
+
+The identity-merge fixture separately remained at `planned 1, ran 0`. It now
+catches its outer exception, emits phase/SQLSTATE/message/detail/hint as a
+bounded deterministic warning, and returns one TAP result so another hosted run
+cannot hide the root PostgreSQL error.
+
+Run 1552 again stopped at the disposable catalog gate before any production
+connection preparation, `db push`, secret synchronization, Edge deployment, or
+smoke test. It made no production mutation. Only a new exact-remediated-SHA run
+with every fixture passing can replace this failed evidence.
+
 ## Release Follow-up: iOS Workflow Run 73
 
 Attempt 1 of `iOS Build and Test` for the same commit compiled and completed its

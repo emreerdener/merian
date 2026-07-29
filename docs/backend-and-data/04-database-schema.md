@@ -1085,7 +1085,8 @@ The transaction log for every successful identification.
   video audio was actually persisted. Video rows should be present whenever
   `video_storage_urls` is present. Ready display/playback rows in
   `scan_media_assets` are refreshed from this manifest when present and fall
-  back to legacy media arrays for older rows.
+  back to legacy media arrays for older rows. The compatibility image array is
+  therefore not itself the canonical display-image set for a video scan.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` and
@@ -1731,6 +1732,47 @@ scan, and staged-media topology agree. Its bounded outcomes are used internally
 to distinguish already durable state, fresh media restaging, quota retry, and
 not-applicable/deleted state; it never returns source identity through the
 status API or reopens committed provider usage.
+
+Migration `20260729012153_fix_video_scan_canonical_finalization.sql` adds private
+`internal.scan_canonical_media_projection_complete(scan_id UUID)`. It is a
+stable `SECURITY INVOKER` SQL validator with an empty search path and no API-role
+execute grant. It projects the exact canonical media set refreshed for the
+scan:
+
+- valid image/playback references in nonempty structured `captured_media`, or
+  the legacy standalone image prefix plus every video URL when no structured
+  visual is usable;
+- legacy standalone image count is
+  `max(clean image URLs - clean video URLs × 5, 0)` for video rows and every
+  clean image URL for image-only rows; and
+- standalone audio references from both structured media and the compatibility
+  audio array.
+
+The function requires projected image/video counts to equal the exact job's
+endpoint-normalized standalone-image count and validated `video_count`. Native
+`identify-multimodal` counts already exclude video frames; the three
+compatibility endpoints include them in `image_count`, so the validator
+subtracts their separately validated `video_inference_frame_count`. Unknown
+endpoint and malformed or impossible counts fail closed. It then returns true
+only when every projected tuple has a `scan_media_assets` row matching scan id,
+scan owner, kind, URL, and `status = ready`; a missing scan/job returns false.
+The service-only finalizer calls it after `refresh_scan_media_assets`. Its
+previous all-image-array check was incorrect for inference-only video frames.
+
+The migration also adds private
+`internal.scan_media_reference_is_video_inference_frame(scan_id UUID, user_id
+UUID, url TEXT)`. It permits a promoted image capture to omit a standalone ready
+image only when the exact owner/job row declares a positive numeric video-frame
+count, its endpoint-normalized image count equals the projected standalone-image
+count, the complete classified-frame set has exactly the declared count, the
+URL occurs in the scan's compatibility image array, and the URL is outside the
+structured canonical image set for a proven video or inside the exact legacy
+frame suffix. Both validators are stable security invokers with empty search
+paths and no API-role execute grants.
+
+The forward migration rewrites exactly two catalog fragments and leaves the
+finalizer's manifest proof, captured-promotion requirement for every non-frame
+item, completion fence, and complete-last invariants intact.
 
 Migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql` also
 adds `recover_missing_owned_scan(...)`, which validates the bounded non-media

@@ -221,6 +221,17 @@ known terminal media-policy rejection returns customer-safe
 `400 observation_rejected`. The client must not persist either error response as
 a successful local observation.
 
+For video, canonical completeness means the exact owner's ready playback row,
+standalone image rows represented by the captured timeline (or legacy
+`max(images - videos × 5, 0)` prefix), and standalone audio rows. Sampled
+inference frames may remain in the compatibility image array and are not
+standalone media. Migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` corrects the former
+over-strict check. A real missing projected row still produces retryable
+`503 scan_persistence_failed`; neither Edge nor iOS may convert it to success,
+hydrate inference frames as display images, or suppress the Field Chat/Explore
+prerequisite check.
+
 The route claims `scan_ingestion_jobs` before AI inference and updates it
 through `processing`, `finalizing`, `failed_retryable`, `failed_terminal`, and
 `complete` states. `/check-scan-status` can therefore distinguish active,

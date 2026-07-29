@@ -124,6 +124,13 @@ by the composer: ready display/playback rows in `scan_media_assets` first, then
 and poster thumbnail paired even when sampled inference frames also exist in
 legacy image URL arrays.
 
+The completed-scan prerequisite uses the same projection. Forward migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` prevents valid video
+scans from being rejected merely because their compatibility frame URLs have no
+standalone ready image rows; it still requires the ready playback row and every
+genuine standalone image/audio row for the exact owner. Sharing must never
+publish those inference frames as separate observation media.
+
 Video `has_audio` metadata is copied from normalized media rows or derived from
 the `captured_media` video audio reference. Legacy URL-array videos default to
 `false` because those rows do not prove that an audio companion was persisted.

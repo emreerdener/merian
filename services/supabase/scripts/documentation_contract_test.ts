@@ -788,6 +788,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     sharingClientSource,
     exploreFeedSource,
     incidentSource,
+    videoIncidentSource,
     inAppChangelogSource,
   ] = await Promise.all([
     read(
@@ -807,6 +808,9 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     read("apps/ios/Merian/Features/Explore/Feed/README.md"),
     read(
       "docs/incidents/2026-07-inline-scan-staging-manifest-regression.md",
+    ),
+    read(
+      "docs/incidents/2026-07-video-scan-canonical-finalization-regression.md",
     ),
     read("apps/ios/Merian/Resources/Changelog/changelog.json"),
   ]);
@@ -831,18 +835,21 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Field Chat receives text-only context; Explore receives only the explicitly selected and privacy-projected public snapshot.",
       "`20260728230000_recover_inline_scan_ingestion_completions.sql`",
       "`20260728233000_recover_identity_merge_interrupted_scans.sql`",
+      "`20260729012153_fix_video_scan_canonical_finalization.sql`",
       "deploys them sequentially in the listed order before unrelated parallel batches",
       "stops immediately when an ordered member exhausts its bounded retries",
       "Local working-tree evidence is not immutable release evidence.",
-      "Full Deno function suite: 1,346 passed, 0 failed",
-      "164 assertions passed across 25 migration contract files",
+      "Full Deno function suite: 1,347 passed, 0 failed",
+      "165 assertions passed across 25 migration contract files",
       "including all nine required scan functions",
       "shuffled-plan and fail-stop fixtures passed",
-      "Pending an exact-corrected-SHA replay of all 24 catalog files and the three focused pgTAP suites",
+      "Pending an exact-remediated-SHA replay of all 24 catalog files",
       "Workflow run 1551 for commit",
+      "Workflow run 1552 for commit",
       "22 of 24 catalog files",
-      "Runs 1549, 1550, and 1551 made no production mutation",
+      "Runs 1549–1552 made no production mutation",
       "trigger-aware profile upserts",
+      "owner-matched ready rows",
       "`sandbox_apply: Operation not permitted`",
     ]
   ) {
@@ -884,6 +891,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     "A later same-UUID invocation may independently return a marked reconstructed replay from that exact owner row while canonical finalization remains retryable.",
   );
   assertStringIncludes(
+    compact(multimodalSource),
+    "Sampled inference frames may remain in `image_storage_urls` as compatibility/thumbnail inputs but are not required or created as standalone ready images.",
+  );
+  assertStringIncludes(
     compact(identifyCompatibilitySource),
     "If only finalization or bookkeeping fails after that row committed, this compatibility route may return its already validated response while leaving the ledger retryable for same-UUID canonical reconciliation.",
   );
@@ -911,8 +922,16 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     "Do not cache this result as permanent unavailability.",
   );
   assertStringIncludes(
+    compact(chatClientSource),
+    "one ready playback clip and its poster, not separate ready image rows for sampled inference frames",
+  );
+  assertStringIncludes(
     compact(sharingClientSource),
     "A lost database response can occur after restored media was promoted and the owner scan update committed.",
+  );
+  assertStringIncludes(
+    compact(sharingClientSource),
+    "they are not standalone composer items",
   );
   assertStringIncludes(
     compact(exploreFeedSource),
@@ -930,6 +949,23 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     compact(incidentSource),
     "Failure reporting now reads Xcode's structured result-summary failures first",
   );
+  const videoIncident = compact(videoIncidentSource);
+  for (
+    const fragment of [
+      "Assertions 13–15 prove",
+      "sampled inference frames are thumbnail inputs, not standalone canonical images",
+      "`internal.scan_canonical_media_projection_complete(scan_id)`",
+      "`internal.scan_media_reference_is_video_inference_frame(scan_id, user_id, url)`",
+      "requires an exact scan, owner, kind, URL, and `ready` status",
+      "positive numeric `video_inference_frame_count`",
+      "endpoint-normalized image count",
+      "compatibility counts subtract their separately validated declared frame subset",
+      "It made no production mutation.",
+      "Field Chat opening and Explore publication for that same completed scan",
+    ]
+  ) {
+    assertStringIncludes(videoIncident, fragment);
+  }
 
   const inAppChangelog = JSON.parse(inAppChangelogSource) as {
     entries: Array<{
@@ -947,6 +983,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
     "Offline image, audio, video, and description scans",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "one playable clip and poster",
   );
 });
 
@@ -1072,6 +1112,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/incidents/2026-07-scan-owner-row-durability-gap.md",
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
     "docs/incidents/2026-07-supabase-edge-route-not-found.md",
+    "docs/incidents/2026-07-video-scan-canonical-finalization-regression.md",
     "docs/product/01-master-product-document.md",
     "docs/system-architecture/01-system-architecture.md",
     "docs/system-architecture/02-zero-oom-and-concurrency.md",

@@ -492,12 +492,13 @@ migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql`, and
 idempotent-response migration
 `20260728220000_persist_idempotent_scan_responses.sql` are present.
 
-Then confirm these four incident migrations applied in order:
+Then confirm these five incident migrations applied in order:
 
 1. `20260728230000_recover_inline_scan_ingestion_completions.sql`
 2. `20260728231000_make_staged_scan_media_registration_idempotent.sql`
 3. `20260728232000_ensure_scan_user_profile.sql`
 4. `20260728233000_recover_identity_merge_interrupted_scans.sql`
+5. `20260729012153_fix_video_scan_canonical_finalization.sql`
 
 The first migration must install four bounded routine definitions: three
 no-grant private validators and the service-only public wrapper. Workflow run
@@ -528,6 +529,20 @@ now use policy-valid identities and trigger-aware profile upserts, and their
 source contracts pin that setup. The run stopped before production connection
 preparation and made no production mutation. Require the exact corrected SHA to
 repeat all 24 fixtures and continue through deployment and smoke testing.
+
+Workflow run 1552 for commit
+`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated the full migration replay
+and again completed 22 of 24 catalog files. The inline fixture advanced from
+setup to 15 passing assertions; its next statement, mixed-video recovery, raised
+inside finalization. The strict block required every compatibility image URL as
+a ready display image even though video inference frames are intentionally not
+standalone canonical media. The fifth migration now projects the same
+structured or legacy image/playback/audio set as the canonical refresher,
+requires owner-matched ready rows for that set, and preserves every other
+finalization fence. The identity fixture remained opaque at `planned 1, ran 0`;
+it now emits bounded phase/SQLSTATE/message diagnostics and one TAP result.
+Run 1552 stopped at the disposable catalog gate and made no production
+mutation. Require every fixture to pass on the exact remediated SHA.
 
 Then deploy these Edge Functions from one exact reviewed SHA, in order:
 
@@ -566,6 +581,7 @@ Treat any current Identify `200` immediately followed by owner status
 - `multimodal/scan_persistence_failed`;
 - provider dispatch followed by profile prerequisite failure;
 - new phantom/nonexistent keys in inline manifests;
+- `canonical_scan_media_incomplete`, especially on video generations;
 - aged `failed_retryable`, `identity_merge_interrupted`, or finalizing jobs;
 - Field Chat `scan_not_ready` after a current successful analysis;
 - Explore `Scan not found` or restored-media persistence uncertainty;
@@ -641,15 +657,15 @@ The focused regression inventory includes:
 
 This snapshot records the strongest evidence available for the local working
 tree rooted at
-`f841a436a87bfafa296f4c0fb89e1d8264192f91` on 2026-07-28. Local working-tree
+`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` on 2026-07-28. Local working-tree
 evidence is not immutable release evidence. Repeat every applicable gate on one
 committed SHA before deployment or release.
 
 | Layer | Retained result | Status and meaning |
 | --- | --- | --- |
-| Edge and shared scan logic | Full Deno function suite: 1,346 passed, 0 failed | Verified locally, including all four producers, persistence classification, status recovery, Field Chat, Explore sharing, media registration, and repair workers |
+| Edge and shared scan logic | Full Deno function suite: 1,347 passed, 0 failed | Verified locally, including all four producers, persistence classification, status recovery, Field Chat, Explore sharing, media registration, and repair workers |
 | Edge static quality | `deno fmt --check` and `deno lint` passed | Verified locally |
-| Migration source contracts | 164 assertions passed across 25 migration contract files | Verified locally, including the qualified-`SUBSTRING` fleet guard; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
+| Migration source contracts | 165 assertions passed across 25 migration contract files | Verified locally, including the video canonical-projection rewrite and identity fixture diagnostic contract; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
 | Supabase release tooling and documentation | 104 tooling assertions and 9 documentation contracts passed | Verified locally |
 | Production function selection and order | Graph simulation across the base commit plus working tree resolved 13 affected functions from 125 changed files, including all nine required scan functions; shuffled-plan and fail-stop fixtures passed | Verified locally; selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward |
 | iOS portable release tooling | Scope, workflow, structured failure extraction, and critical-result contracts passed | Verified locally without invoking a simulator |
@@ -657,9 +673,9 @@ committed SHA before deployment or release.
 | Changed Swift source quality | Strict SwiftLint reported 0 violations and compiler frontend parsing passed | Verified locally |
 | Public web projection | Web unit suite: 56 passed, 0 failed | Verified locally |
 | Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected at the current base SHA | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate |
-| Fresh PostgreSQL catalog replay and pgTAP | Run 1551 replayed every migration and completed 22 of 24 catalog files; two stale fixture setups are corrected locally with valid usernames and trigger-aware profile upserts | Pending an exact-corrected-SHA replay of all 24 catalog files and the three focused pgTAP suites |
+| Fresh PostgreSQL catalog replay and pgTAP | Run 1552 replayed every migration and completed 22 of 24 catalog files; inline passed 15 assertions before exposing the video-frame finalizer defect, while identity aborted opaquely | Pending an exact-remediated-SHA replay of all 24 catalog files; video projection is corrected forward and identity now self-reports any remaining exception |
 | Staging joined-flow smoke matrix | No retained post-remediation smoke evidence | Pending image, queued image, audio, video, Describe, Field Chat, Explore, ambiguous-response, and partial-upload tests |
-| Production deployment and observation | Runs 1549, 1550, and 1551 made no production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
+| Production deployment and observation | Runs 1549–1552 made no production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
 
 A local Release archive was also attempted with package, derived-data, module,
 and Foundation cache paths redirected to writable temporary storage. Xcode
@@ -681,6 +697,7 @@ workflow remains authoritative for simulator and archive behavior.
 | Historical inline completion repair   | `migrations/20260728230000_recover_inline_scan_ingestion_completions.sql`      |
 | Database staging uniqueness/cap       | `migrations/20260728231000_make_staged_scan_media_registration_idempotent.sql` |
 | Identity-merge fence/recovery         | `migrations/20260728233000_recover_identity_merge_interrupted_scans.sql`       |
+| Video canonical finalization          | `migrations/20260729012153_fix_video_scan_canonical_finalization.sql`          |
 | Offline upload callback accumulator   | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`   |
 | Status and guarded owner recovery     | `functions/check-scan-status/index.ts`                                         |
 | Explore restored-media reconciliation | `functions/share-scan-to-explore/db.ts`                                        |

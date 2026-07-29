@@ -284,6 +284,16 @@ this routine rather than updating the ledger directly. Terminal outcomes carry
 stable `terminal_reason_code` values; compatibility recovery is allowlisted only
 for `replay_exhausted` and fails closed on legacy or unknown reasons.
 
+Canonical completeness follows `captured_media` when it has a valid visual
+timeline. For a legacy video row, it mirrors the refresher: only the standalone
+image prefix `max(images - videos × 5, 0)` is display media, while every
+playback video and standalone audio item is required. Sampled inference frames
+may remain in `image_storage_urls` as compatibility/thumbnail inputs but are not
+required or created as standalone ready images. Forward migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` corrected the former
+all-image-array check; exact owner, kind, URL, promotion, deletion, captured
+mapping, and complete-last checks remain fail-closed.
+
 Successful responses add diagnostic headers without changing the JSON body:
 
 - `Server-Timing`: `auth`, `body_read`, `tier`, `pre_gemini_db`, `gemini`,

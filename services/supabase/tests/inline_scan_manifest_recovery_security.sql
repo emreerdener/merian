@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(23);
+SELECT extensions.plan(30);
 
 INSERT INTO auth.users (
     instance_id,
@@ -845,6 +845,405 @@ SELECT extensions.ok(
             '00000000-0000-4000-8000-00000000f111'
     ),
     'a refused repair leaves the real staged manifest untouched'
+);
+
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'internal.scan_canonical_media_projection_complete(uuid)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'internal.scan_canonical_media_projection_complete(uuid)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.scan_canonical_media_projection_complete(uuid)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'internal.scan_media_reference_is_video_inference_frame(uuid,uuid,text)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'internal.scan_media_reference_is_video_inference_frame(uuid,uuid,text)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.scan_media_reference_is_video_inference_frame(uuid,uuid,text)',
+        'EXECUTE'
+    ),
+    'video canonical validators remain private implementation details'
+);
+
+INSERT INTO public.scans (
+    id,
+    user_id,
+    image_storage_urls,
+    video_storage_urls,
+    captured_media,
+    ai_confidence_score,
+    timestamp,
+    is_biological_subject
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000f114',
+    '00000000-0000-4000-8000-00000000f101',
+    ARRAY[
+        'https://media.merian.app/public_uploads/pro/'
+        || '00000000-0000-4000-8000-00000000f101/'
+        || '00000000-0000-4000-8000-00000000f150.webp',
+        'https://media.merian.app/public_uploads/pro/'
+        || '00000000-0000-4000-8000-00000000f101/'
+        || '00000000-0000-4000-8000-00000000f151.webp',
+        'https://media.merian.app/public_uploads/pro/'
+        || '00000000-0000-4000-8000-00000000f101/'
+        || '00000000-0000-4000-8000-00000000f152.webp',
+        'https://media.merian.app/public_uploads/pro/'
+        || '00000000-0000-4000-8000-00000000f101/'
+        || '00000000-0000-4000-8000-00000000f153.webp',
+        'https://media.merian.app/public_uploads/pro/'
+        || '00000000-0000-4000-8000-00000000f101/'
+        || '00000000-0000-4000-8000-00000000f154.webp'
+    ],
+    ARRAY[
+        'https://media.merian.app/public_uploads/pro/'
+        || '00000000-0000-4000-8000-00000000f101/'
+        || '00000000-0000-4000-8000-00000000f160.mp4'
+    ],
+    '[
+      {
+        "video":{
+          "_0":{
+            "video":{
+              "storage":"remoteURL",
+              "path":"https://media.merian.app/public_uploads/pro/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f160.mp4"
+            },
+            "thumbnail":{
+              "storage":"remoteURL",
+              "path":"https://media.merian.app/public_uploads/pro/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f150.webp"
+            }
+          }
+        }
+      }
+    ]'::JSONB,
+    0.95,
+    pg_catalog.NOW(),
+    TRUE
+);
+
+INSERT INTO public.scan_ingestion_jobs (
+    scan_id,
+    user_id,
+    endpoint,
+    status,
+    stage,
+    attempt_count,
+    media_counts,
+    media_object_keys,
+    upload_session_ids
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000f114',
+    '00000000-0000-4000-8000-00000000f101',
+    'identify-multimodal',
+    'finalizing',
+    'media_promotion_started',
+    1,
+    '{
+      "image_count":0,
+      "audio_count":0,
+      "video_count":1,
+      "required_video_count":1,
+      "video_inference_frame_count":5
+    }'::JSONB,
+    '{
+      "image":[
+        "staging/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f150.webp",
+        "staging/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f151.webp",
+        "staging/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f152.webp",
+        "staging/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f153.webp",
+        "staging/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f154.webp"
+      ],
+      "audio":[],
+      "video":[
+        "staging/00000000-0000-4000-8000-00000000f101/00000000-0000-4000-8000-00000000f160.mp4"
+      ]
+    }'::JSONB,
+    ARRAY[
+        '00000000-0000-4000-8000-00000000f134'::UUID
+    ]
+);
+
+INSERT INTO public.scan_media_assets (
+    client_scan_id,
+    upload_session_id,
+    user_id,
+    kind,
+    role,
+    status,
+    source,
+    storage_key,
+    order_index
+)
+VALUES
+    (
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f134',
+        '00000000-0000-4000-8000-00000000f101',
+        'image',
+        'display',
+        'staged',
+        'capture_upload',
+        'staging/00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f150.webp',
+        0
+    ),
+    (
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f134',
+        '00000000-0000-4000-8000-00000000f101',
+        'image',
+        'display',
+        'staged',
+        'capture_upload',
+        'staging/00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f151.webp',
+        1
+    ),
+    (
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f134',
+        '00000000-0000-4000-8000-00000000f101',
+        'image',
+        'display',
+        'staged',
+        'capture_upload',
+        'staging/00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f152.webp',
+        2
+    ),
+    (
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f134',
+        '00000000-0000-4000-8000-00000000f101',
+        'image',
+        'display',
+        'staged',
+        'capture_upload',
+        'staging/00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f153.webp',
+        3
+    ),
+    (
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f134',
+        '00000000-0000-4000-8000-00000000f101',
+        'image',
+        'display',
+        'staged',
+        'capture_upload',
+        'staging/00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f154.webp',
+        4
+    ),
+    (
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f134',
+        '00000000-0000-4000-8000-00000000f101',
+        'video',
+        'playback',
+        'staged',
+        'capture_upload',
+        'staging/00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f160.mp4',
+        5
+    );
+
+SELECT public.refresh_scan_media_assets(
+    '00000000-0000-4000-8000-00000000f114'
+);
+SELECT extensions.ok(
+    internal.scan_canonical_media_projection_complete(
+        '00000000-0000-4000-8000-00000000f114'
+    )
+    AND internal.scan_media_reference_is_video_inference_frame(
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f101',
+        'https://media.merian.app/public_uploads/pro/'
+            || '00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f150.webp'
+    ),
+    'native video counts normalize to the canonical playback projection'
+);
+
+UPDATE public.scan_ingestion_jobs AS jobs
+SET endpoint = 'identify',
+    media_counts = pg_catalog.JSONB_SET(
+        jobs.media_counts,
+        '{image_count}',
+        '5'::JSONB,
+        FALSE
+    )
+WHERE jobs.scan_id =
+        '00000000-0000-4000-8000-00000000f114'
+  AND jobs.user_id =
+        '00000000-0000-4000-8000-00000000f101';
+SELECT extensions.ok(
+    internal.scan_canonical_media_projection_complete(
+        '00000000-0000-4000-8000-00000000f114'
+    )
+    AND internal.scan_media_reference_is_video_inference_frame(
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f101',
+        'https://media.merian.app/public_uploads/pro/'
+            || '00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f150.webp'
+    ),
+    'compatibility video counts subtract the declared inference-frame subset'
+);
+
+UPDATE public.scan_ingestion_jobs AS jobs
+SET media_counts = pg_catalog.JSONB_SET(
+    pg_catalog.JSONB_SET(
+        jobs.media_counts,
+        '{video_inference_frame_count}',
+        '4'::JSONB,
+        FALSE
+    ),
+    '{image_count}',
+    '4'::JSONB,
+    FALSE
+)
+WHERE jobs.scan_id =
+        '00000000-0000-4000-8000-00000000f114'
+  AND jobs.user_id =
+        '00000000-0000-4000-8000-00000000f101';
+SELECT extensions.ok(
+    NOT internal.scan_media_reference_is_video_inference_frame(
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f101',
+        'https://media.merian.app/public_uploads/pro/'
+            || '00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f150.webp'
+    ),
+    'frame classification fails closed when the declared set is incomplete'
+);
+UPDATE public.scan_ingestion_jobs AS jobs
+SET media_counts = pg_catalog.JSONB_SET(
+    pg_catalog.JSONB_SET(
+        jobs.media_counts,
+        '{video_inference_frame_count}',
+        '5'::JSONB,
+        FALSE
+    ),
+    '{image_count}',
+    '5'::JSONB,
+    FALSE
+)
+WHERE jobs.scan_id =
+        '00000000-0000-4000-8000-00000000f114'
+  AND jobs.user_id =
+        '00000000-0000-4000-8000-00000000f101';
+
+SELECT extensions.is(
+    public.complete_scan_ingestion_finalization(
+        '00000000-0000-4000-8000-00000000f114',
+        '00000000-0000-4000-8000-00000000f101',
+        pg_catalog.JSONB_BUILD_OBJECT(
+            'staging/00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f150.webp',
+            'https://media.merian.app/public_uploads/pro/'
+                || '00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f150.webp',
+            'staging/00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f151.webp',
+            'https://media.merian.app/public_uploads/pro/'
+                || '00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f151.webp',
+            'staging/00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f152.webp',
+            'https://media.merian.app/public_uploads/pro/'
+                || '00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f152.webp',
+            'staging/00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f153.webp',
+            'https://media.merian.app/public_uploads/pro/'
+                || '00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f153.webp',
+            'staging/00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f154.webp',
+            'https://media.merian.app/public_uploads/pro/'
+                || '00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f154.webp',
+            'staging/00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f160.mp4',
+            'https://media.merian.app/public_uploads/pro/'
+                || '00000000-0000-4000-8000-00000000f101/'
+                || '00000000-0000-4000-8000-00000000f160.mp4'
+        ),
+        '{}'::TEXT[]
+    ),
+    'completed',
+    'a staged video and its five inference frames finalize atomically'
+);
+SELECT extensions.ok(
+    (
+        SELECT jobs.status = 'complete'
+            AND jobs.stage = 'media_finalization_complete'
+            AND jobs.completed_at IS NOT NULL
+        FROM public.scan_ingestion_jobs AS jobs
+        WHERE jobs.scan_id =
+            '00000000-0000-4000-8000-00000000f114'
+          AND jobs.user_id =
+            '00000000-0000-4000-8000-00000000f101'
+    )
+    AND (
+        SELECT pg_catalog.COUNT(*) = 6
+        FROM public.scan_media_assets AS assets
+        WHERE assets.client_scan_id =
+            '00000000-0000-4000-8000-00000000f114'
+          AND assets.user_id =
+            '00000000-0000-4000-8000-00000000f101'
+          AND assets.source = 'capture_upload'
+          AND assets.status = 'promoted'
+    ),
+    'video completion remains complete-last after all six promotions'
+);
+SELECT extensions.ok(
+    EXISTS (
+        SELECT 1
+        FROM public.scan_media_assets AS assets
+        WHERE assets.scan_id =
+            '00000000-0000-4000-8000-00000000f114'
+          AND assets.user_id =
+            '00000000-0000-4000-8000-00000000f101'
+          AND assets.kind = 'video'
+          AND assets.role = 'playback'
+          AND assets.status = 'ready'
+          AND assets.url =
+            'https://media.merian.app/public_uploads/pro/'
+            || '00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f160.mp4'
+          AND assets.thumbnail_url =
+            'https://media.merian.app/public_uploads/pro/'
+            || '00000000-0000-4000-8000-00000000f101/'
+            || '00000000-0000-4000-8000-00000000f150.webp'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM public.scan_media_assets AS assets
+        WHERE assets.scan_id =
+            '00000000-0000-4000-8000-00000000f114'
+          AND assets.kind = 'image'
+          AND assets.status = 'ready'
+    ),
+    'canonical media contains one playback clip and no standalone frame images'
 );
 
 SELECT * FROM extensions.finish();

@@ -12,6 +12,14 @@ const securityFixtureUrl = new URL(
   "../../tests/inline_scan_manifest_recovery_security.sql",
   import.meta.url,
 );
+const videoFinalizationMigrationUrl = new URL(
+  "../../migrations/20260729012153_fix_video_scan_canonical_finalization.sql",
+  import.meta.url,
+);
+const strictFinalizationMigrationUrl = new URL(
+  "../../migrations/20260728035237_harden_dwca_downloads_and_scan_finalization.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -387,4 +395,113 @@ Deno.test("scan recovery separates JSON type validation from unsafe operations",
     numericCast > boundedNumberGate,
     "The integer cast must follow bounded numeric validation.",
   );
+});
+
+Deno.test("video finalization validates canonical media without treating inference frames as images", async () => {
+  const [migrationSource, strictFinalizationSource, securityFixtureSource] =
+    await Promise.all([
+      Deno.readTextFile(videoFinalizationMigrationUrl),
+      Deno.readTextFile(strictFinalizationMigrationUrl),
+      Deno.readTextFile(securityFixtureUrl),
+    ]);
+  const sql = normalized(migrationSource);
+  const securityFixture = normalized(securityFixtureSource);
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION internal.scan_canonical_media_projection_complete",
+      "STABLE SECURITY INVOKER SET search_path = ''",
+      "scans.captured_media",
+      "JOIN public.scan_ingestion_jobs AS jobs",
+      "jobs.media_counts",
+      "public.scan_media_reference_path( captured_items.item #> '{image,_0}' )",
+      "public.scan_media_reference_path( captured_items.item #> '{video,_0,video}' )",
+      "legacy_counts.image_count - (legacy_counts.video_count * 5)",
+      "WHERE NOT EXISTS ( SELECT 1 FROM captured_visuals )",
+      "assets.user_id = scan_row.user_id",
+      "assets.kind = expected_media.kind",
+      "assets.status = 'ready'",
+      "declared_visual_counts.image_count",
+      "declared_visual_counts.video_count",
+      "parsed_visual_counts.endpoint = 'identify-multimodal'",
+      "parsed_visual_counts.endpoint IN ( 'identify', 'identify-describe', 'audio-spec' )",
+      "parsed_visual_counts.image_count - parsed_visual_counts.frame_count",
+      "FROM expected_visuals WHERE expected_visuals.kind = 'image'",
+      "FROM expected_visuals WHERE expected_visuals.kind = 'video'",
+      "REVOKE ALL ON FUNCTION internal.scan_canonical_media_projection_complete",
+      "CREATE OR REPLACE FUNCTION internal.scan_media_reference_is_video_inference_frame",
+      "jobs.media_counts",
+      "jobs.endpoint",
+      "-> 'video_inference_frame_count' ) = 'number'",
+      "~ '^(0|[1-9]|1[0-6])$'",
+      "scan_job.media_counts -> 'image_count' ) = 'number'",
+      "parsed_declared_media.endpoint = 'identify-multimodal'",
+      "parsed_declared_media.endpoint IN ( 'identify', 'identify-describe', 'audio-spec' )",
+      "parsed_declared_media.image_count - parsed_declared_media.frame_count",
+      "projection_state.captured_has_video",
+      "projection_state.captured_image_count",
+      "SELECT image_count FROM declared_media",
+      "inference_frames AS",
+      "(SELECT frame_count FROM declared_media) = ( SELECT pg_catalog.COUNT(*) FROM inference_frames",
+      "inference_frames.url = p_url",
+      "legacy_images.sequence > GREATEST",
+      "REVOKE ALL ON FUNCTION internal.scan_media_reference_is_video_inference_frame",
+      "FROM PUBLIC, anon, authenticated, service_role",
+      "PG_GET_FUNCTIONDEF",
+      "IF NOT internal.scan_canonical_media_projection_complete(p_scan_id)",
+      "Could not locate the exact canonical-media validation block",
+      "Could not install the exact canonical-media projection check",
+      "Could not locate the exact captured-media validation block",
+      "Could not install the exact video-frame manifest exclusion",
+      "GRANT EXECUTE ON FUNCTION public.complete_scan_ingestion_finalization",
+      "TO service_role",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("CARDINALITY(scans.video_storage_urls) = 0"),
+    "Mixed image/video scans must use projection validation, not skip images.",
+  );
+  assertBefore(
+    sql,
+    "PERFORM public.refresh_scan_media_assets(p_scan_id)",
+    "IF NOT internal.scan_canonical_media_projection_complete(p_scan_id)",
+    "Canonical rows must be refreshed before projection validation.",
+  );
+
+  for (
+    const fragment of [
+      "SELECT extensions.plan(30)",
+      "'00000000-0000-4000-8000-00000000f114'",
+      '"video_inference_frame_count":5',
+      "native video counts normalize to the canonical playback projection",
+      "compatibility video counts subtract the declared inference-frame subset",
+      "public.complete_scan_ingestion_finalization(",
+      "SELECT pg_catalog.COUNT(*) = 6",
+      "assets.source = 'capture_upload'",
+      "frame classification fails closed when the declared set is incomplete",
+      "AND NOT EXISTS ( SELECT 1 FROM public.scan_media_assets AS assets",
+      "AND assets.kind = 'image' AND assets.status = 'ready'",
+    ]
+  ) {
+    assertStringIncludes(securityFixture, fragment);
+  }
+
+  const guardedFragments = [
+    ...migrationSource.matchAll(/\$guard\$\n([\s\S]*?)\n\$guard\$/g),
+  ].map((match) => match[1]);
+  assert(
+    guardedFragments.length === 2,
+    `Expected two exact finalizer guards, found ${guardedFragments.length}.`,
+  );
+  for (const guardedFragment of guardedFragments) {
+    assert(
+      strictFinalizationSource.split(guardedFragment).length - 1 === 1,
+      "Each guarded replacement must match the historical finalizer exactly once.",
+    );
+  }
 });

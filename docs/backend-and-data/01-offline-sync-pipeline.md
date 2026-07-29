@@ -229,6 +229,16 @@ sharing anchored to the single playback video item. Queue deletion treats those
 sampled frames as inference-only cleanup candidates and preserves any video,
 audio, or display media adopted by the final local scan.
 
+Server finalization mirrors this split. Sampled frame URLs may remain in the
+scan's compatibility image array but are not standalone canonical image rows.
+Migration `20260729012153_fix_video_scan_canonical_finalization.sql` projects
+the structured timeline when available and otherwise applies the legacy
+standalone-image rule `max(images - videos × 5, 0)`, then requires every
+projected image, playback video, and standalone audio row as exact owner-matched
+ready media before completing the ingestion ledger. An offline video retry must
+therefore preserve and promote its real playback key; it must not manufacture
+display rows from inference frames or downgrade into a frame-only scan.
+
 Still-image descriptors may also contain an optional normalized `focusRegion`.
 The existing `visualMediaItemsJSON` field preserves it across queued upload and
 replay without a SwiftData migration. `QueuedScanContext` snapshots the same

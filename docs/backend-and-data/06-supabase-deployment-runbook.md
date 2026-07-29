@@ -3254,7 +3254,7 @@ Treat these components as one compatibility release:
    `public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`
    for `service_role` in `internal.privileged_routine_grants`; a grant without
    that reviewed row must fail the disposable catalog before `db push`. Also
-   apply the four incident migrations in timestamp order before any
+   apply the five incident migrations in timestamp order before any
    scan-producing bundle:
 
    - `20260728230000_recover_inline_scan_ingestion_completions.sql` installs the
@@ -3269,10 +3269,23 @@ Treat these components as one compatibility release:
    - `20260728233000_recover_identity_merge_interrupted_scans.sql` patches the
      current catalog merge routine to fence unfinished scans before generic
      reparenting and installs target-only stranded-attempt recovery.
+   - `20260729012153_fix_video_scan_canonical_finalization.sql` replaces the
+     contradictory compatibility-image completeness block with strict canonical
+     media projection validation and narrows the later captured-to-canonical
+     check only for owner/job-declared inference frames whose projected and
+     endpoint-normalized standalone-image counts agree and whose complete
+     classified set exactly equals the declared frame count. Native counts
+     already exclude frames; compatibility counts subtract their validated
+     declared frame subset. It preserves frames as non-display thumbnail inputs
+     while requiring every standalone image, playback video, and audio item as
+     an exact owner-matched ready row.
 
-   Do not reorder or selectively apply these migrations. The final migration
+   Do not reorder or selectively apply these migrations. The fourth migration
    verifies the current merge routine and fails closed if it cannot install its
-   fence at the exact pre-reparent boundary.
+   fence at the exact pre-reparent boundary. The fifth obtains the current scan
+   finalizer definition twice and aborts unless it can replace each of two known
+   blocks exactly once and install exactly one projection and frame-classifier
+   call.
 2. From one exact SHA, run the normal production backend workflow. The
    graph-derived plan for this repair must select `generate-upload-urls`,
    `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
@@ -3315,6 +3328,77 @@ Run database integration/pgTAP gates against a disposable local or staging
 catalog when Docker/database access is available. A sandbox that cannot reach
 Docker is missing evidence, not a passing integration result.
 
+### Workflow run 1552 interpretation
+
+Run 1552 at
+`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` is fresh-catalog replay evidence,
+not deployment evidence. It applied the full then-current migration fleet and
+completed 22 of 24 catalog files. Inline recovery passed 15 assertions and then
+raised in the mixed-video finalizer because sampled frames were incorrectly
+required as standalone images. Identity-merge recovery aborted its outer block
+before TAP exposed the underlying exception. The run stopped before production
+connection preparation, `db push`, secret synchronization, Edge deployment, or
+smokes; it made no production mutation.
+
+The forward video migration and diagnostic-hardened identity fixture must run on
+one new exact SHA. If identity still fails, use the emitted
+`identity_merge_scan_recovery phase=... sqlstate=... message=...` warning as the
+root diagnostic, correct the production contract, and rerun. A failed assertion
+with better diagnostics is not closure.
+
+After `db push`, use an owner connection for this bounded catalog check:
+
+```sql
+SELECT
+    roles.role_name,
+    routines.signature,
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        roles.role_name,
+        routines.signature,
+        'EXECUTE'
+    ) AS can_execute
+FROM (
+    VALUES ('anon'), ('authenticated'), ('service_role')
+) AS roles(role_name)
+CROSS JOIN (
+    VALUES
+        ('internal.scan_canonical_media_projection_complete(uuid)'),
+        ('internal.scan_media_reference_is_video_inference_frame(uuid,uuid,text)')
+) AS routines(signature)
+ORDER BY roles.role_name, routines.signature;
+
+WITH definition AS (
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(
+        'public.complete_scan_ingestion_finalization(uuid,uuid,jsonb,text[])'
+            ::pg_catalog.REGPROCEDURE
+    ) AS sql
+)
+SELECT
+    (
+        SELECT pg_catalog.COUNT(*) = 1
+        FROM definition
+        CROSS JOIN LATERAL pg_catalog.REGEXP_MATCHES(
+            definition.sql,
+            'internal[.]scan_canonical_media_projection_complete[(]p_scan_id[)]',
+            'g'
+        )
+    ) AS has_one_projection_call,
+    (
+        SELECT pg_catalog.COUNT(*) = 1
+        FROM definition
+        CROSS JOIN LATERAL pg_catalog.REGEXP_MATCHES(
+            definition.sql,
+            'internal[.]scan_media_reference_is_video_inference_frame[(]',
+            'g'
+        )
+    ) AS has_one_frame_classifier_call;
+```
+
+All six privilege rows must be false; both finalizer booleans must be true. The
+private invokers are called under finalizer owner authority; granting them
+directly to `service_role` is not required and would widen the reviewed
+boundary.
+
 ### Staging smoke matrix
 
 Use disposable staging identities and media:
@@ -3325,7 +3409,12 @@ Use disposable staging identities and media:
    public post snapshot.
 2. Repeat the immediate owner-row check for standalone audio and playback video.
    Video is successful only with its required promoted `.mp4` and ready playback
-   representation. Inspect the ledger:
+   representation. Its sampled inference-frame URLs may remain in
+   `image_storage_urls`, but they must not appear as selectable standalone
+   `kind = image / status = ready` media unless they are genuine standalone
+   captures in the canonical timeline. Open Field Chat and publish this same
+   video to Explore; the post must contain one playable clip with its poster,
+   not five frame images. Inspect the ledger:
    `complete /
    media_finalization_complete` may appear only after every
    claimed storage key is promoted or explicitly deleted and every promoted

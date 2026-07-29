@@ -39,6 +39,15 @@ plain insert. Conflict handling does not bypass immediate username or identity
 CHECKs. Keep fixture identities deterministic, catalog-wide unique, and inside
 `BEGIN` / `ROLLBACK`.
 
+A multi-phase fixture must not hide its PostgreSQL exception behind a pgTAP
+`Bad plan`. Catch the outer exception, emit a bounded deterministic warning
+containing phase, SQLSTATE, message, detail, and hint, and emit every planned
+TAP result. Workflow run 1552 showed why: inline recovery completed 15
+assertions before its video call raised, while the single-block identity-merge
+fixture exposed only `planned 1, ran 0`. The identity fixture now follows this
+diagnostic contract. The warning must never include credentials, raw media,
+provider bodies, or nondeterministic private user data.
+
 ## Edge Functions
 
 Edge Functions are written in TypeScript and run on Deno. They handle logic like
@@ -477,6 +486,34 @@ owner-and-scan fence. Completed status and scan identity cannot be rewritten.
 The sole owner-transition exception is the atomic ghost-profile merge, bound to
 its exact `internal.ai_usage_reparenting`, source, and target transaction-local
 markers; a generic service-key update cannot use the exception.
+
+Canonical media completeness follows the app-facing media projection, not every
+compatibility URL. `image_storage_urls` may retain five sampled inference frames
+per video, but `refresh_scan_visual_media_assets` intentionally creates one
+playback row and no standalone image rows for those frames. Forward migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` installs private
+`internal.scan_canonical_media_projection_complete(scan_id)` and
+`internal.scan_media_reference_is_video_inference_frame(scan_id, user_id, url)`
+and rewires only the two exact contradictory finalizer blocks. Structured
+`captured_media` wins when it contains a valid visual timeline; legacy rows use
+standalone image count `images - (videos × 5)`, plus every playback video and
+standalone audio. The second validator requires exact owner/job evidence, a
+positive declared frame count, agreement between projected and
+endpoint-normalized standalone-image counts, exact agreement between the
+complete classified-frame set and the declared frame count,
+compatibility-array membership, and exclusion from the canonical image set
+before a promoted image capture can omit a ready display row. Native
+`identify-multimodal` jobs already declare standalone `image_count`;
+compatibility jobs declare all inference images, so the validator subtracts
+their separately validated frame count. Unknown endpoint or malformed count
+contracts fail closed.
+The projection validator also requires its image and video counts to equal the
+job's normalized standalone-image and validated playback-video counts.
+Finalization still requires exact scan/owner/kind/URL ready rows after refresh
+and retains all storage-manifest checks, captured-promotion proof for every
+non-frame item, completion fencing, and complete-last updates. Do not “fix”
+video scans by hydrating inference frames as display images or by skipping image
+checks for all mixed media.
 
 The export route's resource contract follows the current
 [hosted Edge Function limits](https://supabase.com/docs/guides/functions/limits)

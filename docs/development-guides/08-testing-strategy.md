@@ -1094,7 +1094,10 @@ that previously passed in isolation:
   `tests/scan_user_profile_security.sql`, and
   `tests/identity_merge_scan_recovery_security.sql` execute the corresponding
   authorization and topology contracts against a fully migrated disposable
-  PostgreSQL catalog.
+  PostgreSQL catalog. The inline fixture also finalizes the production video
+  shape—five promoted sampled-frame captures plus one promoted playback
+  capture—and requires one ready playback row with no ready standalone frame
+  images.
 
 iOS regression coverage is intentionally joined as well:
 
@@ -1128,6 +1131,33 @@ against the 24-character limit. The recovery fixture source contracts now pin
 policy-valid usernames and a trigger-aware `ON CONFLICT (id) DO UPDATE`.
 Treat a setup exception followed by `Bad plan` as one root failure; the aborted
 pgTAP block did not execute a second independent assertion failure.
+
+Workflow run 1552 repeated the full replay at
+`7e54a1ade9806f40654c937fe9eaf6f7d93439e9`, then supplied a more precise
+boundary: inline recovery passed assertions 1–15 and raised in the next
+mixed-video recovery call. The finalizer had incorrectly required sampled
+inference-frame URLs from the compatibility image array as ready standalone
+images, even though the canonical refresher intentionally emits only the
+playback row. Forward migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` now projects
+structured media or the exact legacy standalone-image/video/audio set and
+requires owner-matched ready rows for that projection.
+
+`_tests/inlineScanManifestRecoveryMigrationContract.test.ts` statically pins the
+projection and guarded rewrite; the existing recovery case and direct
+six-object production-shape pgTAP case are the authoritative live regressions.
+Source inspection is not PostgreSQL evidence. Run all 24 fixtures on the exact
+remediated SHA.
+
+The same run showed that an outer multi-phase `DO` can still hide the useful
+PostgreSQL error: the identity-merge fixture reported `planned 1, ran 0`.
+`identity_merge_scan_recovery_security.sql` now catches its outer exception,
+emits one bounded warning containing fixture phase, SQLSTATE, message, detail,
+and hint, stores context for the TAP description, and emits its one planned
+assertion. Never put credentials, raw media, provider payloads, or arbitrary
+customer data in this diagnostic. A hosted warning is evidence of the remaining
+root failure, not a passing fixture; correct the production contract and rerun
+until the assertion passes.
 
 The normative expected behavior and source inventory are in
 [`16-scan-ingestion-reliability-and-recovery.md`](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#verification-gates).

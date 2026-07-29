@@ -36,6 +36,14 @@ that text in the composer.
 Current Identify success guarantees the exact owner scan already exists.
 Recovery is for older/interrupted local/cloud drift only.
 
+For video scans, the backend completed prerequisite represents one ready
+playback clip with its poster. Sampled inference frames may remain in the
+compatibility image array, but they are not standalone composer items and must
+not be uploaded or selected as separate observation photos merely to satisfy
+sharing. Backend migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` aligns finalization
+with this existing composer contract.
+
 When the ordinary share returns a handler-owned `404 Scan not found`, the
 network client:
 

@@ -62,6 +62,13 @@ Do not cache this result as permanent unavailability. A current Identify `200`
 followed by this preflight returning missing is a severity incident because
 durable owner read-back is part of Identify success.
 
+Video owner readiness follows the canonical media timeline: one ready playback
+clip and its poster, not separate ready image rows for sampled inference frames
+retained in compatibility storage. The client does not manufacture frame media
+to make Field Chat available; backend finalization migration
+`20260729012153_fix_video_scan_canonical_finalization.sql` restores the shared
+completed prerequisite while keeping Field Chat context text-only.
+
 Platform route failure is distinct from a handler-owned missing scan.
 `MerianError.edgeFunctionUnavailable` uses temporary service-unavailable copy
 and must not enter owner-row recovery.

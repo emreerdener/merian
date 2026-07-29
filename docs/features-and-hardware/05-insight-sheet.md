@@ -551,6 +551,13 @@ together separate image-only arrays.
    collapse sampled frame URLs into the video thumbnail instead of rendering
    those frames as standalone pages.
 
+Backend finalization now proves this same canonical projection. Forward
+migration `20260729012153_fix_video_scan_canonical_finalization.sql` no longer
+requires sampled frame URLs as ready standalone images, but still requires the
+exact owner's ready playback row and every genuine image/audio row before a
+fresh multimodal result can complete. The UI must not compensate for an
+incomplete backend scan by manufacturing sampled-frame pages.
+
 Persisted, completed scans with standalone audio add **Boost audio** to the top
 ellipsis menu and directly on the spectrogram. The compact bottom-left control
 shares the carousel attribution-tag inset and transitions to **Boosted audio**

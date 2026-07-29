@@ -2084,6 +2084,17 @@ arrays. Video promotion failure is also a durability failure for video captures:
 the edge cleans up promoted objects/staging where possible and does not insert a
 frame-only scan row.
 
+Canonical proof does not reinterpret sampled video inference frames as
+standalone user images. After migration
+`20260729012153_fix_video_scan_canonical_finalization.sql`, the finalizer
+validates the structured captured-media visual timeline when usable; legacy
+video rows validate only the standalone image prefix
+`max(images - videos × 5, 0)`, every playback video, and standalone audio. Each
+projected item must still have a ready normalized row matching the exact scan
+owner, kind, and URL. A missing playback row, real standalone image row, audio
+row, promoted capture mapping, or claimed storage disposition still fails the
+request before completion and before a fresh HTTP `200`.
+
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
 deleted, `users.abuse_strikes` is incremented, and the scan is not inserted. At
@@ -3781,7 +3792,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   writes from appearing as existing Explore posts. When a selected video source
   is missing from the cloud row, the endpoint returns a clean validation error
   so the iOS client can attempt local `.mp4` repair instead of publishing an
-  image-only historical row.
+  image-only historical row. Scan finalization now proves this same canonical
+  projection, so a valid playback scan can reach the completed prerequisite
+  consumed here without requiring inference frames to become separately
+  selectable media.
 - Video `has_audio` metadata is copied from ready media rows or derived from the
   `captured_media` video audio reference. Legacy URL-array video sources default
   false because they do not prove that an audio companion exists.

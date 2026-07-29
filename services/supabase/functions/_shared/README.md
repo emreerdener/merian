@@ -183,7 +183,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   work can detect accidental media-shape drift. Finalization delegates all
   promoted/deleted dispositions to one per-scan-locked database routine, which
   validates the complete claimed-key manifest, rebuilds ready canonical media,
-  and marks the ledger complete last.
+  and marks the ledger complete last. Canonical video completeness follows
+  structured captured media or the legacy standalone-image/playback/audio
+  projection; sampled inference frames retained in compatibility image arrays
+  are not standalone display rows. Migration
+  `20260729012153_fix_video_scan_canonical_finalization.sql` aligns the database
+  proof with that projection while retaining exact owner, kind, URL, and
+  claimed-key checks.
 - **Compatibility success nuance**: `identify`, `identify-describe`, and
   `audio-spec` invoke that finalizer synchronously. Only a failure after the
   exact owner scan row has committed may degrade to a validated compatibility
