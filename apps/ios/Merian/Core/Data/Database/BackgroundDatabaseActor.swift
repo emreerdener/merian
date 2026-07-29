@@ -379,18 +379,27 @@ actor BackgroundDatabaseActor {
     /// for `scanId`. This intentionally does not acquire the coordinator itself
     /// so the main-actor queue deletion path can validate durable ownership
     /// while keeping the lock across URLSession cancellation and SwiftData save.
+    ///
+    /// An absent queue row is accepted only when the exact generation's durable
+    /// job is already complete. That narrow terminal proof makes committed
+    /// queue deletion idempotent without allowing an active or stale generation
+    /// to delete replacement work.
     func inferenceGenerationIsCurrentAssumingPersistenceLock(
         scanId: String,
         expectedGeneration: UUID
     ) -> Bool {
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate {
-                $0.id == scanId && $0.scanStateRaw == inferencingRaw
-            }
+            predicate: #Predicate { $0.id == scanId }
         )
         scanDescriptor.fetchLimit = 1
-        guard (try? modelContext.fetch(scanDescriptor).first) != nil else {
+        let queuedScan: OfflineQueuedScan?
+        do {
+            queuedScan = try modelContext.fetch(scanDescriptor).first
+        } catch {
+            MerianLog.data.error(
+                "inferenceGenerationIsCurrent: queue lookup failed scanId=\(scanId, privacy: .private): \(error, privacy: .private)"
+            )
             return false
         }
 
@@ -405,7 +414,20 @@ actor BackgroundDatabaseActor {
             }
         )
         jobDescriptor.fetchLimit = 1
-        return (try? modelContext.fetch(jobDescriptor).first) != nil
+        let job: OfflineJobRecord?
+        do {
+            job = try modelContext.fetch(jobDescriptor).first
+        } catch {
+            MerianLog.data.error(
+                "inferenceGenerationIsCurrent: job lookup failed scanId=\(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+        guard let job else { return false }
+        if let queuedScan {
+            return queuedScan.scanStateRaw == inferencingRaw
+        }
+        return job.status == .complete
     }
 
     /// Validates a foreground owner while

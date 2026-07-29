@@ -3238,10 +3238,15 @@ final class MerianNetworkClient {
         let functionUrl = try endpointURL("get-scan-explore-share-state")
         let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let state = try makeExploreDecoder().decode(
-            ExploreScanShareStateResponse.self,
-            from: data
-        ).data
+        let state: ExploreScanShareState
+        do {
+            state = try makeExploreDecoder().decode(
+                ExploreScanShareStateResponse.self,
+                from: data
+            ).data
+        } catch {
+            throw MerianError.invalidResponse
+        }
         let postId = state.postId?.trimmingCharacters(in: .whitespacesAndNewlines)
         let communityRequestId = state.communityRequestId?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3428,10 +3433,15 @@ final class MerianNetworkClient {
             body: bodyData,
             idempotencyKey: resolvedIdempotencyKey
         )
-        let decoded = try makeExploreDecoder().decode(
-            ExploreShareResponse.self,
-            from: data
-        )
+        let decoded: ExploreShareResponse
+        do {
+            decoded = try makeExploreDecoder().decode(
+                ExploreShareResponse.self,
+                from: data
+            )
+        } catch {
+            throw MerianError.invalidResponse
+        }
         guard decoded.success,
               decoded.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
               UUID(uuidString: decoded.postId) != nil,
