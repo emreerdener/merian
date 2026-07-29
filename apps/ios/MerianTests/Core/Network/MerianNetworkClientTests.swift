@@ -1317,9 +1317,10 @@ struct MerianNetworkClientTests {
 
     @Test func testCommunityRequestRejectsUnconfirmedSuccessResponse() async throws {
         let scanID = "019f7004-d6c4-7da1-8561-9cc101f6db62"
+        let responseURL = try #require(URL(string: "https://example.com"))
         let response = try #require(
             HTTPURLResponse(
-                url: URL(string: "https://example.com"),
+                url: responseURL,
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: nil
@@ -1475,9 +1476,10 @@ struct MerianNetworkClientTests {
             }
         }
         """.utf8)
+        let responseURL = try #require(URL(string: "https://example.com"))
         let mockResponse = try #require(
             HTTPURLResponse(
-                url: URL(string: "https://example.com"),
+                url: responseURL,
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: nil
@@ -1501,9 +1503,10 @@ struct MerianNetworkClientTests {
 
     @Test func testGetExploreShareStateRejectsUnconfirmedState() async throws {
         let scanID = "019f7004-3505-73c0-9e4a-26fe8db264e8"
+        let responseURL = try #require(URL(string: "https://example.com"))
         let mockResponse = try #require(
             HTTPURLResponse(
-                url: URL(string: "https://example.com"),
+                url: responseURL,
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: nil
