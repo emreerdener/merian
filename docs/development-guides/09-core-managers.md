@@ -591,19 +591,25 @@ triggering excessive SwiftUI view rebuilds.
 - **`MediaStagingContract`**: Owns the canonical R2 staging manifest for queued
   images, audio, and video: sanitized filename, deterministic
   `staging/{userId}/...` key, media kind, content type, `sizeBytes`,
-  `clientScanId`, `mediaRole`, upload task description, audio-file count, and
-  byte-budget validation before `.pending → .uploading`. The same manifest is
-  sent to `/generate-upload-urls`, whose Edge parser validates
-  kind/type/size/role before signing and creates staged media-asset session rows
-  for scan uploads. The complete position-aligned signed response is validated
-  before any PUT, and its exact server keys—not locally predicted owner
-  segments—travel in task descriptions. Swift and Deno tests both load
-  `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits,
-  allowed content types, and optional session fields. This prevents upload
-  completion, replay, request construction, and Edge signing from reconstructing
-  object keys differently. The server later recovers those upload-session ids
-  from `scan_media_assets` and includes them in the ingestion-job manifest
-  checksum.
+  `clientScanId`, `mediaRole`, optional `uploadPurpose`, upload task
+  description, audio-file count, and byte-budget validation before
+  `.pending → .uploading`. Ordinary ingestion omits the purpose;
+  `scan_share_restore` is reserved for deterministic media repair of an exact
+  scan after analysis or during guarded missing-owner-row recovery. A completed
+  job requires a fresh unrestricted scan read: an existing row must be live and
+  owner-exact, while a genuinely missing row may only stage for guarded
+  reconstruction. Pre-scan signing grants no scan-write or publication
+  authority. The same manifest is sent to `/generate-upload-urls`, whose Edge
+  parser validates kind/type/size/role before signing and creates staged
+  media-asset session rows for scan uploads. The complete position-aligned
+  signed response is validated before any PUT, and its exact server keys—not
+  locally predicted owner segments—travel in task descriptions. Swift and Deno
+  tests both load `docs/contracts/media-staging-upload-manifest.json` to catch
+  drift in limits, allowed content types, and optional session fields. This
+  prevents upload completion, replay, request construction, and Edge signing
+  from reconstructing object keys differently. The server later recovers those
+  upload-session ids from `scan_media_assets` and includes them in the
+  ingestion-job manifest checksum.
 - **Concurrent upload staging (`withTaskGroup`)**: File copy and
   `URLSession.uploadTask` creation for each image in a batch are fanned out via
   `withTaskGroup`. Pre-flight guards (URL validation, file existence,

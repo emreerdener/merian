@@ -187,6 +187,14 @@ Deno.test("database documentation preserves migration, RLS, and index safety", a
     "`service_role` only `SELECT`, `INSERT`, and `DELETE`",
   );
   assertStringIncludes(
+    schema,
+    "`20260729120000_align_explore_share_state_media_health.sql` aligns",
+  );
+  assertStringIncludes(
+    schema,
+    "`SECURITY INVOKER`, and service-role-only; `PUBLIC`, `anon`, and `authenticated` cannot invoke it",
+  );
+  assertStringIncludes(
     contributing,
     "New migrations must not add top-level transaction controls or concurrent index DDL.",
   );
@@ -283,6 +291,18 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
     "run `require_supabase_cli_version.sh` before config parsing or mutation",
   );
   assertStringIncludes(runbook, "rerun the same workflow SHA");
+  assertStringIncludes(
+    runbook,
+    "`20260729120000_align_explore_share_state_media_health.sql` aligns the owner-facing scan share-state visibility bit",
+  );
+  assertStringIncludes(
+    runbook,
+    "Require all four migration versions",
+  );
+  assertStringIncludes(
+    runbook,
+    "`client_can_read_scan_share_state_directly = false`",
+  );
   assertStringIncludes(
     agent,
     "A queue marker is not destructive authority.",
@@ -792,6 +812,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     audioCompatibilitySource,
     repairImageSource,
     exploreShareSource,
+    exploreShareStateSource,
     communityRequestSource,
     insightChatSource,
     coreDataSource,
@@ -814,6 +835,9 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     read("services/supabase/functions/audio-spec/README.md"),
     read("services/supabase/functions/repair-scan-image/README.md"),
     read("services/supabase/functions/share-scan-to-explore/README.md"),
+    read(
+      "services/supabase/functions/get-scan-explore-share-state/README.md",
+    ),
     read(
       "services/supabase/functions/request-community-identification/README.md",
     ),
@@ -844,7 +868,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "A transport retry never creates a replacement UUID for the same user action.",
       "Inline image bytes are authoritative. A current foreground still sends `imageBase64s` and `r2ObjectKeys: []`.",
       "A malformed or partial signing response starts no upload.",
-      "the combined non-superseded capture-key union cannot exceed six",
+      "every requested file declares `scan_share_restore`",
+      "proves the row absent for guarded reconstruction; tombstoned or foreign rows fail closed",
+      "contradictory aliases fail before lifecycle registration",
+      "the combined active staged/processing capture-key set cannot exceed six",
       "the accumulator equals the duplicate-free exact complete expected key set",
       "Sanitized filename/object-key collisions are rejected locally before signing or upload.",
       "`markScanAsStaged` must atomically save the keys, reset upload retry accounting",
@@ -854,6 +881,12 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "server status `found` starts local result recovery but does not zero the attempt count",
       "the queue stays server-owned and `.inferencing`",
       "the row cannot retreat to `.staged` and issue a second provider request",
+      "A background download's HTTP `200` is not itself a durable client success.",
+      "does not explicitly report failure, contains a bounded nonempty scan ID",
+      "Only after both local commits succeed may the offline job become complete.",
+      "the committed queue-deletion path is the sole local file-cleanup authority",
+      "one main-context save marks the job complete, clears transient job errors, inserts the completed event, and deletes the queue row",
+      "Explicit deletion remains the only path that records cancellation.",
       "The owner-row observation is marked durably before hydration",
       "a failed, unavailable, or temporarily inconsistent status probe therefore continues completed-result recovery",
       "`server_result_local_recovery_pending`",
@@ -875,6 +908,16 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "A transaction-time `needs_id` request fails with conflict and leaves the prior publication unchanged.",
       "An Explore source is unavailable only on the handler code `post_not_available`",
       "The community request is locked before its scan",
+      "Ask the Community uses the same eligible canonical image, playback-video, and standalone-audio projection.",
+      "The Community client treats HTTP `200` as candidate evidence only.",
+      "A decodable but unconfirmed response remains failure",
+      "canonicalizes UUID casing before exact comparison",
+      "Authoritative share-state reconciliation is also identity-bound.",
+      "`20260729120000_align_explore_share_state_media_health.sql`",
+      "preserves owner-only publication identity while quarantine or moderation",
+      "API roles cannot substitute another `self_id`",
+      "Private location sharing hides location, not the post",
+      "visible-without-post `200` preserves the local optimistic cache",
       "deploys them sequentially in the listed order before unrelated parallel batches",
       "stops immediately when an ordered member exhausts its bounded retries",
       "The planner compares the current exact SHA with the most recent successful production workflow SHA",
@@ -887,18 +930,24 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "manually dispatch `iOS Build and Test` on that final SHA",
       "a scope-only success is not release evidence",
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
-      "authoritative location-sharing value",
+      "authoritative known location-sharing value",
       "Local working-tree evidence is not immutable release evidence.",
       "`scripts/require_supabase_cli_version.sh`",
-      "Final Deno discovery run: 1,368 passed, 0 failed",
-      "optional PostgreSQL integration bodies self-skipped because this sandbox denied localhost TCP",
-      "178 assertions passed across 28 migration contract files",
+      "Final deterministic non-PostgreSQL Deno discovery run: 1,389 passed, 0 failed",
+      "An unrestricted run connected to a stale local Docker schema",
+      "1,386 passed and the two affected author-profile integration cases failed",
+      "The stale-listener failures are retained as environment evidence",
+      "180 assertions passed across 28 migration contract files",
       "The hosted 21-assertion revision completed its first four preflight assertions",
       "The revised fixture plans 22 assertions",
       "atomic_community_identification_request_security.sql",
       "The hosted 24-assertion revision completed its first five preflight assertions",
       "The revised rollback-only fixture plans 25 assertions",
-      "across all 29 dirty paths resolved the full 89-function fleet",
+      "The current 60-path uncommitted delta resolves eight graph-affected functions",
+      "The retained undeployed-baseline/control-path simulation resolved all 89 functions",
+      "`get-explore-composer-media`",
+      "`update-explore-field-notes`",
+      "An unsafe or missing baseline falls back to all 89 functions.",
       "including all ten required scan functions",
       "shuffled-plan and fail-stop fixtures passed",
       "The latest hosted run discovered 26 files and completed 24.",
@@ -947,6 +996,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     compact(generateUploadSource),
     "A partial, extra, malformed, cross-owner, or media-incompatible response starts no upload.",
+  );
+  assertStringIncludes(
+    compact(incidentSource),
+    "100 linear/squash history entries and zero merge commits",
   );
   assertStringIncludes(
     compact(multimodalSource),
@@ -1000,8 +1053,24 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     "`20260729044500_grant_atomic_explore_service_privileges.sql` also installs the operation-scoped table privileges",
   );
   assertStringIncludes(
+    compact(exploreShareStateSource),
+    "Current iOS only applies an HTTP-successful response when it echoes the exact requested scan ID",
+  );
+  assertStringIncludes(
+    compact(exploreShareStateSource),
+    "no feed-visible claim without a post",
+  );
+  assertStringIncludes(
     compact(communityRequestSource),
     "Both final transaction RPCs remain `SECURITY INVOKER`.",
+  );
+  assertStringIncludes(
+    compact(communityRequestSource),
+    "A video-only or audio-only biological scan is valid recovery input",
+  );
+  assertStringIncludes(
+    compact(communityRequestSource),
+    "An HTTP-successful response is only a candidate success.",
   );
   assertStringIncludes(
     compact(coreDataSource),
@@ -1010,6 +1079,14 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     compact(coreDataSource),
     "must equal the duplicate-free exact expected key set",
+  );
+  assertStringIncludes(
+    compact(coreDataSource),
+    "writes the scan job's `.complete` status",
+  );
+  assertStringIncludes(
+    compact(coreDataSource),
+    "Explicit user/system deletion instead records `.cancelled`.",
   );
   assertStringIncludes(
     compact(insightChatSource),
@@ -1038,6 +1115,18 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     compact(sharingClientSource),
     "parseable share timestamp",
+  );
+  assertStringIncludes(
+    compact(sharingClientSource),
+    "It does not require a recovered image",
+  );
+  assertStringIncludes(
+    compact(sharingClientSource),
+    "A decodable but unconfirmed HTTP `200` cannot",
+  );
+  assertStringIncludes(
+    compact(sharingClientSource),
+    "cannot overwrite the optimistic cache for the open Insight",
   );
   assertStringIncludes(
     compact(exploreFeedSource),
@@ -1108,6 +1197,22 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "reject empty or damaged success responses",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "require every later local save and cleanup step to finish before completion",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "retain source media until durable cleanup even when no identification is found",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "record successful work as completed instead of cancelled",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
     "one playable clip and poster",
   );
   assertStringIncludes(
@@ -1120,7 +1225,19 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "stale or partial share-state responses cannot create a phantom post",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
     "Ask the Community now saves the observation and identification request together",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "recovery keeps surviving image, video, and audio media",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "an unconfirmed response no longer shows a false success",
   );
 });
 

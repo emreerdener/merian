@@ -177,6 +177,7 @@ assert_contains 'echo "XCODE_ARCHIVE=$RUNNER_TEMP/Merian.xcarchive"'
 assert_contains "CODE_SIGNING_ALLOWED=NO"
 assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
+assert_contains 'Critical scan-flow regressions: \`passed\`'
 assert_contains "bash scripts/extract-ios-test-failure-diagnostics.sh"
 assert_contains "dwarfdump --uuid"
 assert_contains 'main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"'

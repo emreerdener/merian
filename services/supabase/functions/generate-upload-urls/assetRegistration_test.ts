@@ -85,3 +85,23 @@ Deno.test("stagedAssetInputs index is independent of legacy and other-scan files
     `staging/${userId}/target-b.webp`,
   ]);
 });
+
+Deno.test("stagedAssetInputs preserves scan-share restore authorization metadata", () => {
+  const restoreFile = {
+    ...file(`${firstScanId}_explore_restore_0.webp`, firstScanId),
+    uploadPurpose: "scan_share_restore" as const,
+  };
+  const [input] = stagedAssetInputs(
+    userId,
+    [restoreFile],
+    [url(restoreFile.fileName)],
+    () => "restore-session",
+  );
+
+  assertEquals(input.uploadPurpose, "scan_share_restore");
+  assertEquals(input.metadata, {
+    fileName: restoreFile.fileName,
+    endpoint: "generate-upload-urls",
+    uploadPurpose: "scan_share_restore",
+  });
+});

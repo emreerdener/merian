@@ -11,10 +11,10 @@ receives durable lifecycle registration before any URL is returned.
 - **`index.ts`**: The HTTP orchestrator. It reads a bounded JSON object through
   the shared `parseJsonBody(...)` ingress contract, accepts the structured
   `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`,
-  optional `clientScanId`, optional `mediaRole`), keeps legacy `fileNames`
-  compatibility, blocks requests that exceed the shared six-file staging cap,
-  and creates staged `scan_media_assets` rows for scan media before returning
-  signed URLs.
+  optional `clientScanId`, optional `mediaRole`, optional `uploadPurpose`),
+  keeps legacy `fileNames` compatibility, blocks requests that exceed the shared
+  six-file staging cap, and creates staged `scan_media_assets` rows for scan
+  media before returning signed URLs.
 - **`storage.ts`**: Validates media kind/content type/byte budgets and role/kind
   combinations before signing, enforces the `Promise.all` key generation
   mapping, injects the verified `userId` to strictly namespace objects
@@ -50,10 +50,16 @@ receives durable lifecycle registration before any URL is returned.
 }
 ```
 
-`clientScanId` accepts `client_scan_id`, and `mediaRole` accepts `media_role`
-for compatibility. Every structured entry requires a non-negative integer
-`sizeBytes`. The filename must already be sanitized, flat, and unique within the
-request. Role/kind combinations are strict:
+`clientScanId` accepts `client_scan_id`, `mediaRole` accepts `media_role`, and
+`uploadPurpose` accepts `upload_purpose` for compatibility. `uploadPurpose` is
+normally omitted. `scan_share_restore` is reserved for re-staging surviving
+local media bound to an exact scan during explicit Explore or Community repair,
+including guarded missing-owner-row recovery. Every structured entry requires a
+non-negative integer `sizeBytes`. The filename must already be sanitized, flat,
+and unique within the request. Role/kind combinations are strict:
+
+If both spellings of a compatibility field are present, their values must be
+identical. Conflicting aliases are rejected rather than choosing one silently.
 
 - image: `display`, `thumbnail`, or `inference_frame`;
 - video: `playback`; and
@@ -61,6 +67,33 @@ request. Role/kind combinations are strict:
 
 The authenticated JWT—not a body owner field—selects the owner. The returned key
 is always directly under `staging/{authenticatedUserId}/`.
+
+`scan_share_restore` additionally requires `clientScanId`, the canonical role
+for its kind, and the exact deterministic
+`{clientScanId}_explore_restore_{category/index}.{extension}` filename shape.
+When the ingestion job is complete, registration performs a fresh unrestricted
+`scans` lookup. An existing row must be active, non-tombstoned, and owned by the
+authenticated user; a genuinely absent row may only stage the exact media before
+guarded owner-row reconstruction. A missing or nonterminal job may stage for the
+same guarded flow. Signing grants no scan-write or publication authority, and
+the later recovery route must validate the authenticated owner and payload. The
+signer never permits a `failed_terminal` ingestion job, cross-scan filename,
+arbitrary repair key, mixed ordinary/repair registration for one scan, or a
+completed non-owner scan.
+
+For example, an image repair entry is:
+
+```json
+{
+  "fileName": "11111111-1111-4111-8111-111111111111_explore_restore_0.webp",
+  "mediaKind": "image",
+  "contentType": "image/webp",
+  "sizeBytes": 482310,
+  "clientScanId": "11111111-1111-4111-8111-111111111111",
+  "mediaRole": "display",
+  "uploadPurpose": "scan_share_restore"
+}
+```
 
 Response:
 
@@ -101,16 +134,22 @@ deterministic object key as the registration identity:
 - a lost HTTP response followed by the same request reuses the staged row and
   original upload session;
 - a compatible retryable failed row may be reactivated;
-- terminal, completed, promoted, deleted, or incompatible lifecycle state fails
-  closed;
+- failed-terminal, deleted, incompatible, and ordinary completed-ingestion
+  registration fails closed;
+- an exact `scan_share_restore` request may register or reactivate media after
+  ingestion is complete only when the fresh scan read finds the active
+  authenticated-owner row or no row for guarded reconstruction; tombstoned,
+  foreign, and moderation-rejected rows cannot be reopened;
 - requested subsets compose with existing unrequested rows for the same scan;
   and
-- the union of non-superseded capture sources remains capped at six.
+- the union of active staged/processing sources remains capped at six.
 
 This subset rule is intentional. A live inline still has no staged source but
 may later be recovered by the queue, and video/recovery components may be signed
 in separate requests for the same stable scan UUID. Existing rows do not define
-an immutable full manifest for later signing calls.
+an immutable full manifest for later signing calls. Historical promoted rows
+remain durable identity/audit evidence but do not consume the separate active
+staging budget when an owner deliberately repairs sharing.
 
 Migration `20260728231000_make_staged_scan_media_registration_idempotent.sql`
 must be applied before this function version. It:
@@ -149,7 +188,7 @@ payload is the server-side replay source for staged scan requests consumed by
 ## Failure Semantics
 
 - `400`: malformed manifest, duplicate/unsafe filename, invalid UUID, media
-  count, kind, content type, or role.
+  count, kind, content type, role, or restore-purpose contract.
 - `409 account_deletion_in_progress`: destructive account lifecycle owns the
   identity; the client must not upload or recreate profile state.
 - `413`: one item or the combined image set exceeds its byte budget.

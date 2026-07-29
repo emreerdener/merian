@@ -2,7 +2,34 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(20);
+SELECT extensions.plan(25);
+
+SELECT extensions.ok(
+    pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_scan_explore_share_state(uuid,uuid)',
+        'EXECUTE'
+    ),
+    'service role can read owner share state through the authenticated Edge boundary'
+);
+
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_scan_explore_share_state(uuid,uuid)',
+        'EXECUTE'
+    ),
+    'authenticated clients cannot supply another owner identity directly'
+);
+
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.get_scan_explore_share_state(uuid,uuid)',
+        'EXECUTE'
+    ),
+    'anonymous clients cannot bypass the Edge owner boundary'
+);
 
 INSERT INTO auth.users (
     instance_id,
@@ -302,6 +329,19 @@ SELECT extensions.is(
 
 SELECT extensions.is(
     (
+        SELECT share_state.post_id::TEXT || ':'
+            || share_state.is_explore_feed_visible::TEXT
+        FROM public.get_scan_explore_share_state(
+            '00000000-0000-4000-8000-00000000e701',
+            '00000000-0000-4000-8000-00000000e721'
+        ) AS share_state
+    ),
+    '00000000-0000-4000-8000-00000000e731:false',
+    'owner share state preserves quarantined publication intent without claiming feed visibility'
+);
+
+SELECT extensions.is(
+    (
         SELECT pg_catalog.COUNT(*)
         FROM public.get_explore_post_detail(
             '00000000-0000-4000-8000-00000000e701',
@@ -432,6 +472,18 @@ SELECT extensions.ok(
         WHERE post_id = '00000000-0000-4000-8000-00000000e731'
     ),
     'repairing one item automatically republishes the usable remainder'
+);
+
+SELECT extensions.is(
+    (
+        SELECT share_state.is_explore_feed_visible
+        FROM public.get_scan_explore_share_state(
+            '00000000-0000-4000-8000-00000000e701',
+            '00000000-0000-4000-8000-00000000e721'
+        ) AS share_state
+    ),
+    TRUE,
+    'owner share state becomes feed-visible when a degraded post has usable media'
 );
 
 UPDATE public.explore_post_media

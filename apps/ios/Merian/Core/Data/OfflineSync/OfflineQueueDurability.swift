@@ -658,22 +658,6 @@ extension OfflineQueueManager {
         }
     }
 
-    func markScanJobComplete(scanId: String) {
-        guard let context = modelContext, let job = fetchScanJob(scanId: scanId, in: context) else { return }
-        job.status = .complete
-        job.updatedAt = Date()
-        job.nextRunAt = nil
-        job.lastErrorCode = nil
-        job.lastErrorMessage = nil
-        job.lastHTTPStatus = nil
-        do {
-            try context.save()
-            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
-        } catch {
-            context.rollback()
-        }
-    }
-
     func persistServerStatus(scanId: String, response: ScanStatusResponse) {
         guard let context = modelContext else { return }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(

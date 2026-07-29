@@ -206,7 +206,7 @@ as their permanent engineering identity.
 - **[`/incidents/2026-07-inline-scan-staging-manifest-regression.md`](./incidents/2026-07-inline-scan-staging-manifest-regression.md)**
   — Joined iOS/Edge/catalog root cause and fail-closed remediation for inline
   scans rejected by a phantom staged-upload manifest, including offline, Field
-  Chat, and Explore consequences.
+  Chat, Explore, and Ask the Community consequences.
 - **[`/incidents/2026-07-video-scan-canonical-finalization-regression.md`](./incidents/2026-07-video-scan-canonical-finalization-regression.md)**
   — Hosted-test isolation, canonical-media projection fix, security invariants,
   and production closure gates for valid video scans rejected because sampled

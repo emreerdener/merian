@@ -93,15 +93,15 @@ The workflow performs the following steps:
    DwC-A claim/stream/idempotency, and static migration-contract tests in
    addition to the complete tooling gate. The migration execution contract
    enumerates every SQL migration and rejects direct or dynamic
-   pipeline-incompatible concurrent index DDL plus schema-qualified
-   `SUBSTRING` calls that use the unqualified `FROM`, `FOR`, or `SIMILAR`
-   expression forms. The public-schema contract rejects transaction controls in
-   new files, requires effective RLS, and locks final grants/default ACLs plus
-   bounded user-FK index behavior. The species-count contract separately
-   preserves its immutable historical
-   `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover ordering.
-   Source-inspection tests receive explicit read grants because Deno does not
-   grant `readTextFile` access merely because a source is in the import graph.
+   pipeline-incompatible concurrent index DDL plus schema-qualified `SUBSTRING`
+   calls that use the unqualified `FROM`, `FOR`, or `SIMILAR` expression forms.
+   The public-schema contract rejects transaction controls in new files,
+   requires effective RLS, and locks final grants/default ACLs plus bounded
+   user-FK index behavior. The species-count contract separately preserves its
+   immutable historical `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover
+   ordering. Source-inspection tests receive explicit read grants because Deno
+   does not grant `readTextFile` access merely because a source is in the import
+   graph.
 8. Starts a disposable local Postgres instance, applies all pending migrations,
    and discovers every `services/supabase/tests/*.sql` pgTAP fixture through
    `test_database_catalogs.sh`. An empty fixture directory or any failed catalog
@@ -112,14 +112,13 @@ The workflow performs the following steps:
    skip.
 9. Builds an affected-function deployment plan across the cumulative Git range
    from the most recent successful production workflow SHA through the current
-   exact SHA—not merely the triggering commit. The baseline must be a 40-character
-   hexadecimal SHA and an ancestor of the current revision. Manual dispatch,
-   an unavailable workflow baseline, or an unsafe Git relationship selects the
-   full fleet. The workflow token has only `actions: read` plus
-   `contents: read`, which is sufficient to list the repository's prior
-   workflow runs without granting write access. Therefore a fixture-only
-   follow-up after one or more failed runs still deploys every pending runtime
-   change.
+   exact SHA—not merely the triggering commit. The baseline must be a
+   40-character hexadecimal SHA and an ancestor of the current revision. Manual
+   dispatch, an unavailable workflow baseline, or an unsafe Git relationship
+   selects the full fleet. The workflow token has only `actions: read` plus
+   `contents: read`, which is sufficient to list the repository's prior workflow
+   runs without granting write access. Therefore a fixture-only follow-up after
+   one or more failed runs still deploys every pending runtime change.
 10. Prepares a Postgres connection string for database migrations without
     calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
     can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
@@ -548,8 +547,8 @@ found two pgTAP setup failures. In this schema an `auth.users` insert
 synchronously fires the `on_auth_user_created` AFTER INSERT trigger and creates
 the matching `public.users` row. A fixture that needs custom profile fields must
 therefore use a trigger-aware `ON CONFLICT (id) DO UPDATE` or update that exact
-row; it must not issue a second plain insert. The proposed row must still satisfy
-every immediate CHECK before conflict handling, including the current
+row; it must not issue a second plain insert. The proposed row must still
+satisfy every immediate CHECK before conflict handling, including the current
 3–24-character public-username policy. Use deterministic IDs unique across
 catalog fixtures and keep setup inside `BEGIN` / `ROLLBACK`.
 
@@ -1533,17 +1532,21 @@ Ship the Explore response to unexpected object loss as one compatibility unit:
    five-minute cron;
 3. `20260726174555_align_explore_author_publication_contract.sql` aligns author
    count/preview/grid visibility and adds owner and service aggregate summaries;
-4. deploy `reconcile-explore-media-health`, `get-explore-media-incidents`, and
+4. `20260729120000_align_explore_share_state_media_health.sql` aligns the
+   owner-facing scan share-state visibility bit with moderation, aggregate
+   quarantine, and usable-item projection boundaries while retaining the post
+   identifier for repair;
+5. deploy `reconcile-explore-media-health`, `get-explore-media-incidents`, and
    `ingest-r2-media-events`;
-5. redeploy `get-explore-author-profile`, `get-explore-author-posts`, and
+6. redeploy `get-explore-author-profile`, `get-explore-author-posts`, and
    `send-push-notification`;
-6. verify Vault has `SUPABASE_URL` and an active current or legacy server key in
+7. verify Vault has `SUPABASE_URL` and an active current or legacy server key in
    the compatibility-named `SUPABASE_SERVICE_ROLE_KEY` slot, then configure
    bucket-scoped Object Read credentials in `R2_READ_ACCESS_KEY_ID` /
    `R2_READ_SECRET_ACCESS_KEY` at the GitHub and Supabase boundaries;
-7. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
+8. optionally configure the same high-entropy `R2_EVENT_WEBHOOK_SECRET` in
    GitHub/Supabase and the trusted Cloudflare Queue consumer; and
-8. release the iOS owner banners, notification routes, repair refresh, and scan
+9. release the iOS owner banners, notification routes, repair refresh, and scan
    deletion warning only after the backend owner endpoints are available.
 
 Do not combine the enum migration into the state-machine transaction: PostgreSQL
@@ -1578,7 +1581,8 @@ FROM supabase_migrations.schema_migrations
 WHERE version IN (
   '20260726144647',
   '20260726144754',
-  '20260726174555'
+  '20260726174555',
+  '20260729120000'
 )
 ORDER BY version;
 
@@ -1612,18 +1616,31 @@ SELECT
     'service_role',
     'public.get_explore_publication_health_summary()',
     'EXECUTE'
-  ) AS service_can_read_global_summary;
+  ) AS service_can_read_global_summary,
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'service_role',
+    'public.get_scan_explore_share_state(uuid,uuid)',
+    'EXECUTE'
+  ) AS service_can_read_scan_share_state,
+  pg_catalog.HAS_FUNCTION_PRIVILEGE(
+    'authenticated',
+    'public.get_scan_explore_share_state(uuid,uuid)',
+    'EXECUTE'
+  ) AS client_can_read_scan_share_state_directly;
 
 SELECT jobname, schedule, active
 FROM cron.job
 WHERE jobname = 'reconcile_explore_media_health_every_five_minutes';
 ```
 
-Require all three migration versions, `service_can_claim = true`,
+Require all four migration versions, `service_can_claim = true`,
 `client_can_claim = false`, `owner_can_list_incidents = true`,
 `owner_can_read_publication_summary = true`,
 `client_can_read_global_summary = false`,
-`service_can_read_global_summary = true`, and one active `*/5 * * * *` cron row.
+`service_can_read_global_summary = true`,
+`service_can_read_scan_share_state = true`,
+`client_can_read_scan_share_state_directly = false`, and one active
+`*/5 * * * *` cron row.
 
 Staging smoke matrix:
 
@@ -1637,10 +1654,11 @@ Staging smoke matrix:
 5. delete the second fixture object and repeat confirmation; verify
    `quarantined`, every public surface omits the post, and the owner endpoint,
    in-app notification, push, Profile explanation, and Scan Library banner
-   expose recovery;
+   expose recovery; verify `get_scan_explore_share_state(...)` retains the owner
+   post UUID but reports `is_explore_feed_visible = false`;
 6. verify the post row, `unshared_at`, likes, and comments are unchanged;
 7. restore one object and run reconciliation; verify the post automatically
-   returns as degraded;
+   returns as degraded and owner share-state visibility returns to `true`;
 8. restore the second object; verify healthy state, one in-app `media_restored`,
    no restore push, and no owner banner;
 9. mark the fixture author-unpublished and prove a later healthy check does not
@@ -3294,13 +3312,12 @@ Treat these components as one compatibility release:
      while requiring every standalone image, playback video, and audio item as
      an exact owner-matched ready row.
    - `20260729024157_atomic_explore_scan_publication.sql` installs the
-     service-role-only invoker transaction used by
-     `share-scan-to-explore`. It revalidates and locks the exact owner scan,
-     accepts only bounded media URLs from that scan, and replaces post metadata,
-     media, hashtags, and resolved-community publication state together. It
-     locks an existing community request before its scan, matching the legacy
-     publisher’s order so concurrent consensus work cannot form a deadlock
-     cycle.
+     service-role-only invoker transaction used by `share-scan-to-explore`. It
+     revalidates and locks the exact owner scan, accepts only bounded media URLs
+     from that scan, and replaces post metadata, media, hashtags, and
+     resolved-community publication state together. It locks an existing
+     community request before its scan, matching the legacy publisher’s order so
+     concurrent consensus work cannot form a deadlock cycle.
    - `20260729033000_atomic_community_identification_requests.sql` installs the
      matching service-role-only invoker transaction for
      `request-community-identification`. It commits the post/media snapshot and
@@ -3329,15 +3346,14 @@ Treat these components as one compatibility release:
    `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
    `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and
    `share-scan-to-explore`, plus `request-community-identification`. Their
-   `_shared/identify/db.ts`,
-   `_shared/identify/completedResponse.ts`, `_shared/scanIngestionJobs.ts`,
-   `_shared/scanIngestionCompatibility.ts`, `_shared/scanMediaAssets.ts`, and
-   `_shared/scanRecovery.ts` dependencies bundle transitively. Deploy the ten
-   affected functions in the listed order: signing becomes idempotent first, all
-   scan producers stop false success next, then status/reconciliation and
-   publication and Community request recovery consume the new states. Do not
-   promote only the current
-   multimodal endpoint; older app builds still call every compatibility route.
+   `_shared/identify/db.ts`, `_shared/identify/completedResponse.ts`,
+   `_shared/scanIngestionJobs.ts`, `_shared/scanIngestionCompatibility.ts`,
+   `_shared/scanMediaAssets.ts`, and `_shared/scanRecovery.ts` dependencies
+   bundle transitively. Deploy the ten affected functions in the listed order:
+   signing becomes idempotent first, all scan producers stop false success next,
+   then status/reconciliation and publication and Community request recovery
+   consume the new states. Do not promote only the current multimodal endpoint;
+   older app builds still call every compatibility route.
    `_shared/scanPersistence.ts` is also a transitive dependency of all four
    producers and must resolve from that exact SHA. The normal production helper
    enforces this order for whichever of the ten functions the graph selects,
@@ -3370,15 +3386,14 @@ Docker is missing evidence, not a passing integration result.
 
 ### Workflow run 1552 interpretation
 
-Run 1552 at
-`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` is fresh-catalog replay evidence,
-not deployment evidence. It applied the full then-current migration fleet and
-completed 22 of 24 catalog files. Inline recovery passed 15 assertions and then
-raised in the mixed-video finalizer because sampled frames were incorrectly
-required as standalone images. Identity-merge recovery aborted its outer block
-before TAP exposed the underlying exception. The run stopped before production
-connection preparation, `db push`, secret synchronization, Edge deployment, or
-smokes; it made no production mutation.
+Run 1552 at `7e54a1ade9806f40654c937fe9eaf6f7d93439e9` is fresh-catalog replay
+evidence, not deployment evidence. It applied the full then-current migration
+fleet and completed 22 of 24 catalog files. Inline recovery passed 15 assertions
+and then raised in the mixed-video finalizer because sampled frames were
+incorrectly required as standalone images. Identity-merge recovery aborted its
+outer block before TAP exposed the underlying exception. The run stopped before
+production connection preparation, `db push`, secret synchronization, Edge
+deployment, or smokes; it made no production mutation.
 
 The forward video migration and diagnostic-hardened identity fixture must run on
 one new exact SHA. If identity still fails, use the emitted
@@ -3397,8 +3412,8 @@ The identity diagnostic failed at `ingestion-intent setup` with SQLSTATE
 `42702`: the test block's synthetic `scan_id` variable was ambiguous beside
 `jobs.scan_id`. Production merge and recovery code had not run. Rename the
 fixture identity to `fixture_scan_id`, retain actual ledger column names, and
-pin both the declaration and the qualified comparison in the source contract.
-Do not modify or weaken either production routine for this test-only error.
+pin both the declaration and the qualified comparison in the source contract. Do
+not modify or weaken either production routine for this test-only error.
 
 That run stopped after 23 of 24 catalog files, before production connection
 preparation, `db push`, secret synchronization, function deployment, or smoke
@@ -3409,13 +3424,12 @@ deployment.
 
 ### Atomic rollout graph-failure interpretation
 
-The backend workflow for
-`1a75179dd88f20163cb5c01bffd60478b9545009` failed before disposable database
-startup or production mutation while type-checking isolated Function graphs.
-Atomic Explore publication had intentionally removed
+The backend workflow for `1a75179dd88f20163cb5c01bffd60478b9545009` failed
+before disposable database startup or production mutation while type-checking
+isolated Function graphs. Atomic Explore publication had intentionally removed
 `share-scan-to-explore/db.ts`’s exported `upsertExplorePost`, while
-`request-community-identification/db.ts` still imported that legacy helper.
-Do not repair this by restoring the separate post/media mutation path. The
+`request-community-identification/db.ts` still imported that legacy helper. Do
+not repair this by restoring the separate post/media mutation path. The
 Community route must ship with
 `20260729033000_atomic_community_identification_requests.sql`, invoke only its
 atomic request boundary after taxonomy/moderation preparation, and pass all 89
@@ -3426,9 +3440,8 @@ deployment can proceed.
 
 The next attached hosted replay discovered all 26 current catalog files and
 passed 24, including the complete inline/video and corrected identity-merge
-fixtures. The two failures were
-`atomic_explore_scan_publication_security.sql` and
-`atomic_community_identification_request_security.sql`. Both reached their
+fixtures. The two failures were `atomic_explore_scan_publication_security.sql`
+and `atomic_community_identification_request_security.sql`. Both reached their
 service-role-only `SECURITY INVOKER` RPC and failed on the first
 `explore_community_requests ... FOR UPDATE` with SQLSTATE `42501` / permission
 denied. The former 21- and 24-assertion plans stopped after four and five
@@ -3448,10 +3461,10 @@ withdrawn-generation cleanup. The revised rollback catalogs have 22 and 25
 matching assertions and verify both positive service access and negative
 anon/auth writes.
 
-This workflow stopped in disposable-catalog testing before production
-connection preparation, `db push`, secret synchronization, Edge deployment, or
-smoke tests. It made no production mutation. Require another reviewed exact SHA
-to pass all 26 files before allowing the normal deployment to continue.
+This workflow stopped in disposable-catalog testing before production connection
+preparation, `db push`, secret synchronization, Edge deployment, or smoke tests.
+It made no production mutation. Require another reviewed exact SHA to pass all
+26 files before allowing the normal deployment to continue.
 
 After `db push`, use an owner connection for this bounded catalog check:
 
@@ -3621,8 +3634,8 @@ Use disposable staging identities and media:
 18. Publish an eligible scan, then inject a failure after replacement post and
     media writes but before hashtag completion. The request must fail and the
     previous post ID, timestamp, metadata, media, and hashtags must remain
-    byte-for-byte equivalent with no duplicate or partial rows. Remove the
-    fault and retry the same scan; the response must explicitly report
+    byte-for-byte equivalent with no duplicate or partial rows. Remove the fault
+    and retry the same scan; the response must explicitly report
     `publication_status = published`. Separately return a malformed HTTP `200`
     with false success, a mismatched scan ID, invalid post UUID, missing
     authoritative location, missing status, and non-published status. The iOS
@@ -4131,9 +4144,9 @@ user-scoped access fails closed. A gateway `404` with no handler marker never
 counts as a missing scan and never permits the production workflow to report
 success. Do not run the matching iOS smoke while either gate is still retrying.
 
-The workflow next proves the three critical database boundaries are present in the
-production PostgREST schema cache and executable only with server authority. It
-calls `ensure_scan_user_profile` with the zero UUID and
+The workflow next proves the three critical database boundaries are present in
+the production PostgREST schema cache and executable only with server authority.
+It calls `ensure_scan_user_profile` with the zero UUID and
 `publish_scan_to_explore_atomically` with an empty media array, plus
 `request_community_identification_atomically` with null required identifiers.
 All inputs are syntactically valid JSON but raise their exact SQLSTATE `22023`
@@ -4717,15 +4730,14 @@ After deployment:
   `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
   `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and
   `share-scan-to-explore` to the same reviewed SHA. Verify the six incident
-  migrations through
-  `20260729024157_atomic_explore_scan_publication.sql` are present first. Submit a
-  brand-new scan, require immediate owner status `found` after identify `200`,
-  then open Field Chat and publish it to Explore. Force one late Explore
-  relational failure and prove the previous complete post survives before
-  retrying to an explicit `published` response. Run the eligible legacy
-  repair, active/retryable deferral, exact policy-rejection block, cross-owner
-  isolation, staged-media restoration, interrupted identity merge, dual-source
-  legacy audio, and multi-file generation-fence cases in
+  migrations through `20260729024157_atomic_explore_scan_publication.sql` are
+  present first. Submit a brand-new scan, require immediate owner status `found`
+  after identify `200`, then open Field Chat and publish it to Explore. Force
+  one late Explore relational failure and prove the previous complete post
+  survives before retrying to an explicit `published` response. Run the eligible
+  legacy repair, active/retryable deferral, exact policy-rejection block,
+  cross-owner isolation, staged-media restoration, interrupted identity merge,
+  dual-source legacy audio, and multi-file generation-fence cases in
   [Scan Owner-Row Durability and Recovery Rollout](#scan-owner-row-durability-and-recovery-rollout).
   Do not call backend smoke complete until the matching iOS build independently
   passes its customer-facing retry/toast checks.

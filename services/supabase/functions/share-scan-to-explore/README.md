@@ -154,12 +154,13 @@ the `captured_media` video audio reference. Legacy URL-array videos default to
 `false` because those rows do not prove that an audio companion was persisted.
 
 `restored_video_object_keys` is optional and only used by repair-capable
-clients. If the owner still has the original local `.mp4` but the cloud scan row
-is missing `video_storage_urls`, the client uploads that clip to staging and
-sends the returned keys here. The function promotes the videos, rebuilds
-`captured_media`, makes a best-effort `scan_media_assets` refresh, and validates
-the selected video media again before publishing. Rows whose original local
-video is gone remain image-only historical rows.
+clients. At most one playback-video staging key is accepted. If the owner still
+has the original local `.mp4` but the cloud scan row is missing
+`video_storage_urls`, the client uploads that clip to staging and sends the
+returned key here. The function promotes the video, rebuilds `captured_media`,
+makes a best-effort `scan_media_assets` refresh, and validates the selected
+video media again before publishing. Rows whose original local video is gone
+remain image-only historical rows.
 
 `restored_audio_object_keys` is the equivalent owner-scoped repair input for
 legacy audio scans whose local WAV/M4A still exists but whose cloud scan
@@ -174,6 +175,21 @@ response or unavailable reread returns retryable
 them could break a scan whose update actually committed. The retry recognizes
 the canonical durable URLs and does not consume the staging source twice. If the
 local recording is gone, the audio cannot be recovered.
+
+Across images, playback video, and standalone audio, one repair request accepts
+at most six staging keys in total. A key cannot appear under two media kinds.
+This mirrors the canonical signing ledger and rejects contradictory repair
+payloads before promotion.
+
+Current restore keys are also bound to the authoritative capture-upload ledger
+before the first promotion. Each row must match the authenticated owner, exact
+client scan ID, media kind, and canonical role. Therefore an owner-scoped key
+registered to another scan, an inference-only frame, or a signed audio/video key
+relabeled into an image field cannot become public through repair. If a ledger
+row exists but conflicts, it always wins and the request is rejected. For
+compatibility with released clients that signed restore media before ledger
+registration, a missing row is accepted only when the key matches their exact
+deterministic scan/category filename and legacy extension-derived kind.
 
 Valid location values:
 

@@ -45,6 +45,7 @@ struct OfflineQueueManagerTests {
         let canonicalQueuedM4AContentType: String
         let canonicalQueuedVideoContentType: String
         let optionalRequestFields: [String]
+        let uploadPurposes: [String]
         let optionalResponseFields: [String]
         let mediaRolesByKind: [String: [String]]
         let fileNamesMustBeUnique: Bool
@@ -258,13 +259,46 @@ struct OfflineQueueManagerTests {
                 responseData: Data(#"{"code":"not_found"}"#.utf8)
             ) == .needsAttention
         )
+        let validSuccessPayload = Data(
+            """
+            {
+              "success": true,
+              "data": {
+                "scan_id": "queued-valid-response",
+                "is_biological_subject": false,
+                "confidence_score": 0
+              }
+            }
+            """.utf8
+        )
         #expect(
             OfflineQueueManager.backgroundInferenceResponseDisposition(
                 statusCode: 200,
                 functionRouteEvidence: try evidence(statusCode: 200),
-                responseData: Data()
+                responseData: validSuccessPayload
             ) == .success
         )
+        for invalidSuccessPayload in [
+            Data(),
+            Data(#"{"success":true,"data":"truncated"}"#.utf8),
+            Data(
+                #"{"success":false,"data":{"scan_id":"queued-failure","confidence_score":0}}"#.utf8
+            ),
+            Data(
+                #"{"success":true,"data":{"scan_id":"queued-missing-confidence"}}"#.utf8
+            ),
+            Data(
+                #"{"success":true,"data":{"scan_id":"queued-invalid-confidence","confidence_score":2}}"#.utf8
+            )
+        ] {
+            #expect(
+                OfflineQueueManager.backgroundInferenceResponseDisposition(
+                    statusCode: 200,
+                    functionRouteEvidence: try evidence(statusCode: 200),
+                    responseData: invalidSuccessPayload
+                ) == .retry
+            )
+        }
 
     }
 
@@ -483,7 +517,7 @@ struct OfflineQueueManagerTests {
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 
-        #expect(contract.schemaVersion == 2)
+        #expect(contract.schemaVersion == 3)
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
         #expect(MerianConfig.mediaStagingMaxImageFilesPerRequest == contract.maxImageFiles)
@@ -500,7 +534,11 @@ struct OfflineQueueManagerTests {
         #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.wav")))
         #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.m4a")))
         #expect(contract.videoContentTypes.contains(StagedMediaKind.video.contentType(for: "queued.mp4")))
-        #expect(contract.optionalRequestFields == ["clientScanId", "mediaRole"])
+        #expect(
+            contract.optionalRequestFields ==
+                ["clientScanId", "mediaRole", "uploadPurpose"]
+        )
+        #expect(contract.uploadPurposes == ["scan_share_restore"])
         #expect(contract.optionalResponseFields == ["mediaAssetId", "mediaSessionId"])
         #expect(contract.mediaRolesByKind["image"] == ["display", "thumbnail", "inference_frame"])
         #expect(contract.mediaRolesByKind["audio"] == ["audio"])

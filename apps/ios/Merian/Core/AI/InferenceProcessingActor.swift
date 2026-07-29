@@ -69,6 +69,12 @@ actor InferenceProcessingActor {
             MerianLog.general.debug("AI JSON decoding error: \(error.localizedDescription, privacy: .private)")
             throw MerianError.decodingFailed
         }
+        guard IdentifySuccessEnvelopeValidator.isUsable(parsedWrapper) else {
+            MerianLog.general.debug(
+                "AI response decoded but failed the client success boundary."
+            )
+            throw MerianError.decodingFailed
+        }
 
         var mappedData = SpeciesData(
             fromEdgeResponse: parsedWrapper.data,

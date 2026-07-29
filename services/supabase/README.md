@@ -60,8 +60,7 @@ passed, as did 23 other files. The two new atomic Explore/Community fixtures
 then stopped at their first real service-role request lock because the
 `SECURITY INVOKER` routines had `EXECUTE` but the hardened public-schema
 defaults supplied no corresponding table privilege. Do not convert these
-routines to `SECURITY DEFINER` or restore separate Data API mutations.
-Migration
+routines to `SECURITY DEFINER` or restore separate Data API mutations. Migration
 `20260729044500_grant_atomic_explore_service_privileges.sql` grants only the
 service-role operations used by the two transactions. The fixtures assert that
 anon and authenticated retain no Community-table writes. Repeat all 26
@@ -305,9 +304,10 @@ and the
 
 ### Explore Media Health and Reversible Quarantine
 
-Migrations `20260726144647`, `20260726144754`, and `20260726174555` preserve
-published posts when primary media is unexpectedly absent and keep author
-profile count/preview/grid visibility aligned:
+Migrations `20260726144647`, `20260726144754`, `20260726174555`, and
+`20260729120000` preserve published posts when primary media is unexpectedly
+absent and keep author profile count/preview/grid and owner share-state
+visibility aligned:
 
 - `reconcile-explore-media-health` leases bounded active rows and performs
   signed direct R2-origin `HEAD` with required, bucket-scoped read-only
@@ -321,7 +321,8 @@ profile count/preview/grid visibility aligned:
 - optional `ingest-r2-media-events` batches make rows due under
   `R2_EVENT_WEBHOOK_SECRET` but never confirm state;
 - owner repair atomically resets item health and restores ordinary projection;
-  and
+- `get_scan_explore_share_state` preserves repairable owner publication identity
+  but reports quarantined or moderated posts as not feed-visible; and
 - one incident push/in-app row is replaced by an in-app-only restore row after
   full recovery.
 
@@ -546,23 +547,21 @@ omitted privacy default is resolved from the locked scan rather than a stale
 Edge read. Any late constraint or trigger failure restores the prior complete
 snapshot; the Edge route contains no separate table-mutation fallback.
 
-Forward migration
-`20260729033000_atomic_community_identification_requests.sql` applies the same
-boundary to Ask the Community. After taxonomy and moderation preparation,
-`request-community-identification` makes one final RPC call that commits the
-post/media snapshot and hidden `needs_id` request together. Reopening withdrawn
-state clears stale publication and consensus generations while retaining
-withdrawn vote history. A post trigger rechecks `needs_id` at the actual
-`shared_at` update, closing the concurrent explicit-share race.
+Forward migration `20260729033000_atomic_community_identification_requests.sql`
+applies the same boundary to Ask the Community. After taxonomy and moderation
+preparation, `request-community-identification` makes one final RPC call that
+commits the post/media snapshot and hidden `needs_id` request together.
+Reopening withdrawn state clears stale publication and consensus generations
+while retaining withdrawn vote history. A post trigger rechecks `needs_id` at
+the actual `shared_at` update, closing the concurrent explicit-share race.
 
-Forward migration
-`20260729044500_grant_atomic_explore_service_privileges.sql` supplies the
-explicit table allowlist required by both `SECURITY INVOKER` RPCs under the
-deny-by-default public-schema ACLs. It grants `service_role` only the operation
-classes exercised by owner locking, snapshot replacement, request creation,
-location projection, taxonomy validation, and withdrawn-request consensus
-cleanup. It grants no browser-facing write, broad `ALL`, destructive schema
-capability, or sequence access.
+Forward migration `20260729044500_grant_atomic_explore_service_privileges.sql`
+supplies the explicit table allowlist required by both `SECURITY INVOKER` RPCs
+under the deny-by-default public-schema ACLs. It grants `service_role` only the
+operation classes exercised by owner locking, snapshot replacement, request
+creation, location projection, taxonomy validation, and withdrawn-request
+consensus cleanup. It grants no browser-facing write, broad `ALL`, destructive
+schema capability, or sequence access.
 
 The export route's resource contract follows the current
 [hosted Edge Function limits](https://supabase.com/docs/guides/functions/limits)
@@ -708,14 +707,20 @@ replay and reconciliation.
 
 Scan signing registration is idempotent per authenticated owner, client scan
 UUID, and deterministic object key. Requested media subsets compose with
-existing unrequested rows for the same scan; their non-superseded union remains
-capped at six. A partial unique index serializes identical active keys, while an
-owner-advisory-locked trigger enforces the cap across concurrent disjoint-key
-requests. Do not remove failed `superseded_staging_registration` rows: they are
-historical audit evidence used by the narrow recovery contract.
+existing unrequested rows for the same scan; their active staged/processing set
+remains capped at six. Historical promoted rows remain audit evidence and do not
+consume a later restore budget. A partial unique index serializes identical
+active keys, while an owner-advisory-locked trigger enforces the staged-row cap
+across concurrent disjoint-key requests. Completed ingestion rejects ordinary
+signing. Only an exact `scan_share_restore` request with deterministic
+scan/category identity may register repair media for a completed job. A fresh
+unrestricted scan lookup must confirm an active authenticated-owner row or prove
+the row absent for the later guarded reconstruction; any tombstoned or foreign
+row fails closed. Do not remove failed `superseded_staging_registration` rows:
+they are historical audit evidence used by the narrow recovery contract.
 
-The seven joined incident migrations and the ten affected Edge Functions are
-one ordered release unit. Do not selectively deploy only the multimodal route,
+The seven joined incident migrations and the ten affected Edge Functions are one
+ordered release unit. Do not selectively deploy only the multimodal route,
 because older app builds still use compatibility producers. The production batch
 helper extracts selected members of that unit from the graph plan, deploys them
 in compatibility order before unrelated parallel batches, and stops on the first
@@ -1577,10 +1582,10 @@ Confirm the local version before database verification:
 supabase --version
 ```
 
-The shared catalog gate and mutation-capable Make targets enforce this exact
-pin before touching a database or deploying a Function. A version mismatch
-fails before config parsing, migration replay, or network mutation; upgrade or
-switch the local CLI instead of rewriting `config.toml` for an older parser.
+The shared catalog gate and mutation-capable Make targets enforce this exact pin
+before touching a database or deploying a Function. A version mismatch fails
+before config parsing, migration replay, or network mutation; upgrade or switch
+the local CLI instead of rewriting `config.toml` for an older parser.
 
 From the repo root, point the Supabase CLI at the backend service directory:
 
@@ -1660,8 +1665,7 @@ imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
 followed by stricter fail-closed authorization probes for the six
 customer-critical scan, Explore, and Ask the Community routes. It then reaches
-the exact no-write
-SQLSTATE `22023` boundary in `ensure_scan_user_profile` and
+the exact no-write SQLSTATE `22023` boundary in `ensure_scan_user_profile` and
 `publish_scan_to_explore_atomically` and
 `request_community_identification_atomically` with server authority, while
 proving every real anon/publishable project credential remains denied from all

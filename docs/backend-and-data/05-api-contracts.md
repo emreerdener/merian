@@ -1071,6 +1071,24 @@ budgets or media asset sessions. Pre-signed `PUT` URLs include an
 `BackgroundTasks` flexibility to transmit overnight, subject to OS memory,
 thermal, and Wi-Fi conditions, without hitting 403 errors.
 
+An already-persisted observation that is missing durable sharing media adds
+`"uploadPurpose": "scan_share_restore"` to each repair entry. That purpose is
+accepted only with `clientScanId`, the canonical media role, and an exact
+scan/category-bound deterministic restore filename. For a completed job, the
+signer performs a fresh unrestricted scan read. An existing row must be active,
+non-tombstoned, and owned by the authenticated caller; a genuinely absent row
+may only stage these exact files before guarded owner-row reconstruction. A
+missing or nonterminal job can stage for the same guarded flow, but signing
+grants no scan-write or publication authority; the recovery route still
+validates the owner and payload. Repair and ordinary files cannot mix for one
+scan. Ordinary uploads cannot use completed ingestion as a new staging
+namespace, and `failed_terminal` ingestion remains closed. This exception is
+what lets Explore and Ask the Community restore surviving local image,
+playback-video, or standalone-audio media after analysis has durably completed.
+When camelCase and snake_case compatibility aliases are both supplied for scan
+ID, media role, or upload purpose, their values must be identical; contradictory
+aliases fail before lifecycle registration.
+
 The Edge function uses the `fileName` parameter from the JSON body (after
 applying basic sanitization to prevent path traversal vectors) rather than
 generating random internal UUIDs. The verified server identity, not the optional
@@ -1110,14 +1128,20 @@ storing media bytes.
 Scan-media registration is idempotent on
 `(authenticated owner, clientScanId, objectKey)`. A retry after a lost signing
 response returns the committed asset and original upload session. An exactly
-compatible failed row may reactivate only when its ingestion job is absent or
-retryable; terminal, active, completed, promoted, deleted, or media-incompatible
-rows fail closed. A partial unique index serializes registration races, while
-the repair migration retains historical extras as
-`failed / superseded_staging_registration` audit rows. New rows use a
-per-client-scan media index, never a flat position among other scans in the
-signing request. Any response manifest mismatch starts no upload and returns the
-claimed scans to `.pending` with durable backoff.
+compatible failed row may reactivate when its ingestion job is absent or
+retryable. An exact `scan_share_restore` row may also register or reactivate for
+completed ingestion when the fresh scan read finds either the active owned row
+or no row for the guarded reconstruction; tombstoned, foreign, and
+moderation-rejected rows fail closed. Failed-terminal, deleted, ordinary
+completed-ingestion, or media-incompatible rows also fail closed. A partial
+unique index serializes registration races, while the repair migration retains
+historical extras as `failed / superseded_staging_registration` audit rows. New
+rows use a per-client-scan media index, never a flat position among other scans
+in the signing request. The six-item union counts active staged/processing
+sources; historical promoted capture rows remain audit evidence but do not
+consume a later explicit share-repair budget. Any response manifest mismatch
+starts no upload and returns the claimed scans to `.pending` with durable
+backoff.
 
 > The pre-signed URL is generated with the exact `contentType` from the
 > structured manifest. The iOS `URLRequest` must send the same `Content-Type`
@@ -1391,7 +1415,8 @@ Creates or reopens an Explore post as a `needs_id` community request. The
 request is gated to the authenticated user's biological scan with shareable
 media. It accepts `scan_id`, optional `note`, optional `location_sharing`
 (`open`, `obscured`, `private`), optional `species_common_name`, and optional
-`restored_object_keys` for media repair.
+`restored_object_keys`, `restored_video_object_keys`, and
+`restored_audio_object_keys` for bounded media repair.
 
 Clients attach one UUID `Idempotency-Key` and preserve it across transport,
 authentication, and media-restoration retries. Newly created and existing
@@ -1404,25 +1429,23 @@ entitlement, policy, provider, or moderation state fails closed and does not
 replace public media.
 
 Taxonomy resolution also completes before publication. The final relational
-mutation is service-only
-`request_community_identification_atomically(...)`: it locks an existing
-request before the exact owner scan and commits the post metadata, complete
-media snapshot, and `needs_id` request together. An error at any later request,
-projection-trigger, or constraint boundary restores the prior complete post.
-Reopening withdrawn state resets its public-publish marker, cached consensus,
-worker lease/job, and active vote generation while preserving withdrawn
-identification rows as audit history. A post-level recheck at the actual
-`shared_at` update also rejects an explicit share that lost a concurrent race
-with new `needs_id` state.
+mutation is service-only `request_community_identification_atomically(...)`: it
+locks an existing request before the exact owner scan and commits the post
+metadata, complete media snapshot, and `needs_id` request together. An error at
+any later request, projection-trigger, or constraint boundary restores the prior
+complete post. Reopening withdrawn state resets its public-publish marker,
+cached consensus, worker lease/job, and active vote generation while preserving
+withdrawn identification rows as audit history. A post-level recheck at the
+actual `shared_at` update also rejects an explicit share that lost a concurrent
+race with new `needs_id` state.
 
-The final RPC and the companion direct-share RPC are `SECURITY INVOKER`.
-Forward migration
-`20260729044500_grant_atomic_explore_service_privileges.sql` grants only their
-required table operation classes to `service_role`. Their existing `EXECUTE`
-allowlists still exclude `PUBLIC`, `anon`, and `authenticated`, and the forward
-migration grants those browser roles no new writes. A service-role table
-permission failure is a deployment/catalog defect, not a reason to weaken the
-routine to definer authority.
+The final RPC and the companion direct-share RPC are `SECURITY INVOKER`. Forward
+migration `20260729044500_grant_atomic_explore_service_privileges.sql` grants
+only their required table operation classes to `service_role`. Their existing
+`EXECUTE` allowlists still exclude `PUBLIC`, `anon`, and `authenticated`, and
+the forward migration grants those browser roles no new writes. A service-role
+table permission failure is a deployment/catalog defect, not a reason to weaken
+the routine to definer authority.
 
 The endpoint intentionally returns `404 { "error": "Scan not found." }` when
 `public.scans` has no row for the authenticated user. The iOS Insight client
@@ -1431,9 +1454,10 @@ scientific name and sending a bounded non-media `recovery_scan` through the
 single `/check-scan-status` contract. The server defers to active/retryable
 richer ingestion, permits only exact structured `replay_exhausted` among
 terminal states, creates only an absent authenticated-owner row, and reloads it
-by owner. After status returns `found`, iOS uploads local images to staging and
-retries this endpoint with `restored_object_keys`. This endpoint itself does not
-accept `recovery_scan`; the sequence is compatibility repair for
+by owner. After status returns `found`, iOS uploads surviving eligible local
+images, playback video, and standalone audio to staging and retries this
+endpoint with the three category-specific restored-key arrays. This endpoint
+itself does not accept `recovery_scan`; the sequence is compatibility repair for
 older/interrupted drift, not the expected current multimodal success path.
 
 Before inspecting or returning an existing active request, the endpoint repairs
@@ -1457,6 +1481,12 @@ The response envelope is:
   }
 }
 ```
+
+The Edge/database boundary accepts the returned request only when `scan_id` and
+`requested_by` equal the requested scan and authenticated owner after canonical
+UUID case normalization. PostgreSQL emits lowercase UUID text while Apple
+clients may send uppercase UUID strings; casing alone is not an identity
+mismatch.
 
 ### `/get-community-identification-feed`
 
@@ -3859,11 +3889,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   condition and canonical message; matching text on another SQLSTATE is not
   downgraded to a user conflict. A failure in any relational step restores the
   prior complete snapshot and returns no published response.
-- Forward migration
-  `20260729044500_grant_atomic_explore_service_privileges.sql` provides the
-  service role's narrow table-operation allowlist for both atomic invoker RPCs.
-  Browser roles retain no direct publication write and neither RPC uses definer
-  authority.
+- Forward migration `20260729044500_grant_atomic_explore_service_privileges.sql`
+  provides the service role's narrow table-operation allowlist for both atomic
+  invoker RPCs. Browser roles retain no direct publication write and neither RPC
+  uses definer authority.
 - Clients send one UUID `Idempotency-Key` for the share and preserve it through
   transport/auth/media-restoration retries. Each audible checksum and policy
   version receives a deterministic child reservation ID, allowing multiple clips
@@ -4106,26 +4135,38 @@ Current response shape:
 
 Behavior notes:
 
+- the Edge wrapper derives owner identity from the validated user JWT; the
+  underlying `SECURITY INVOKER` routine is executable only by `service_role`,
+  and `PUBLIC`, `anon`, or `authenticated` cannot submit a replacement
+  `self_id` directly
 - the lookup is owner-only: it reads only scans where `scans.user_id = self_id`
 - when a live Explore post exists, `location_sharing` is the post-owned value
   used to hydrate share/edit options
 - `community_request_id` and `community_request_status` restore the Identify
   request state for scans that have been made public as community ID requests
 - `is_explore_feed_visible` is true only when the post belongs in normal Explore
-  feed/map/author/hashtag surfaces
+  feed/map/author/hashtag surfaces, including the same moderation,
+  post-media-health, and item-health predicates as the canonical public
+  projection
 - pending Identify requests and resolved-but-unpublished Identify requests
   return their request state with `is_explore_feed_visible = false`; resolved
   requests become feed-visible only after the owner explicitly publishes them to
   Explore
+- a fully media-quarantined or moderated post preserves owner-only `post_id`,
+  `shared_at`, and its location choice while returning
+  `is_explore_feed_visible = false`, even when there is no Community request; a
+  degraded post remains visible when at least one non-missing item is eligible
 - when no live post exists, `location_sharing` falls back to the scan's current
   geoprivacy so a new share composer can seed the default option
 - the endpoint does not mutate scan or post geoprivacy
-- if the scan still has an active Explore post and is still publicly visible,
-  `post_id` and `shared_at` are returned
+- if the scan still has an active Explore publication snapshot, `post_id` and
+  `shared_at` are returned even when an independent server visibility boundary
+  currently hides it
 - if the scan exists but the Explore post was unshared or the scan is no longer
-  publicly viewable because it was tombstoned, lost all media, became private,
-  or no longer resolves to a species, the endpoint returns the same `scan_id`
-  with `post_id = null`
+  a valid live snapshot because it was tombstoned, lost every media row, no
+  longer resolves to a species, or its owner is shadowbanned, the endpoint
+  returns the same `scan_id` with `post_id = null`; Private location sharing
+  hides location, not the post
 - if the scan no longer exists for the current viewer, the Edge Function still
   returns `200` with `post_id = null` so the client can safely clear stale local
   cache without branching on `404`

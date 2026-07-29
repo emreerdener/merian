@@ -1,5 +1,6 @@
 import {
   assert,
+  assertEquals,
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
@@ -17,6 +18,14 @@ const publicationContractMigrationUrl = new URL(
 );
 const projectionReadGrantMigrationUrl = new URL(
   "../../migrations/20260727035937_grant_authenticated_explore_projection_reads.sql",
+  import.meta.url,
+);
+const shareStateMigrationUrl = new URL(
+  "../../migrations/20260729120000_align_explore_share_state_media_health.sql",
+  import.meta.url,
+);
+const catalogUrl = new URL(
+  "../../tests/explore_media_quarantine_security.sql",
   import.meta.url,
 );
 
@@ -79,6 +88,34 @@ Deno.test("Explore media lifecycle is reversible and independent from publicatio
   assert(
     !/\bSET\s+unshared_at\s*=/i.test(sql),
     "System media health must not overwrite the author's publication state.",
+  );
+});
+
+Deno.test("Explore scan share state uses the canonical visibility boundary", async () => {
+  const [sql, catalog] = await Promise.all([
+    Deno.readTextFile(shareStateMigrationUrl).then(normalized),
+    Deno.readTextFile(catalogUrl),
+  ]);
+
+  for (
+    const fragment of [
+      "SET search_path = ''",
+      "post.moderated_at IS NULL",
+      "post.media_health_status <> 'quarantined'",
+      "media.health_status <> 'missing'",
+      "state.has_live_post AND state.is_projection_eligible",
+      "WHEN state.has_live_post THEN state.post_id",
+      "REVOKE ALL ON FUNCTION public.get_scan_explore_share_state(UUID, UUID) FROM PUBLIC, anon, authenticated, service_role",
+      "GRANT EXECUTE ON FUNCTION public.get_scan_explore_share_state(UUID, UUID) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+  assertStringIncludes(catalog, "SELECT extensions.plan(25)");
+  assertEquals(
+    catalog.match(/^SELECT extensions.(?:ok|is|throws_ok)\(/gm)?.length,
+    25,
+    "Explore media quarantine pgTAP plan must match its executable assertions.",
   );
 });
 

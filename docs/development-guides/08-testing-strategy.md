@@ -232,9 +232,32 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    process-level parallel testing is disabled because several hardware,
    networking, and persistence suites exercise shared singletons. The result
    gate fails if Xcode returns success without a `Passed` result, a non-empty
-   test run, and at least one passed test case from each critical concurrency
-   boundary: `CameraManagerTests`, `InferenceEngineTests`,
-   `OfflineQueueManagerTests`, and `SyncStateManagerTests`.
+   test run, zero skipped tests, an exact passed/total count match, and at least
+   one passed test case from each critical concurrency boundary:
+   `CameraManagerTests`, `InferenceEngineTests`,
+   `OfflineQueueManagerTests`, and `SyncStateManagerTests`. It also fails closed
+   unless the structured test tree reports every named scan-flow regression as
+   `Passed`:
+
+   - foreground and background malformed-success rejection, confidence-zero
+     source-media durability, retryable background HTTP-success disposition,
+     durable offline enqueue, and atomic queue/job completion;
+   - foreground request construction, Explore idempotency and contradictory
+     response rejection, pre-upload restored-media budget validation, Community
+     all-media recovery and response validation, and exact Explore
+     reconciliation validation; and
+   - Explore-post identifier routing plus retryable and single-flight Field Chat
+     preparation.
+
+   These checks live in `scripts/validate-ios-critical-test-results.sh`; their
+   positive, missing-case, and skipped-case fixtures live in
+   `scripts/test-validate-ios-critical-test-results.sh`. Renaming a protected
+   test requires updating both files in the same change. The exact-case
+   allowlist validates evidence after the complete target runs; it must never
+   replace the complete-target selector with a focused test invocation. A
+   successful validation is recorded as
+   `Critical scan-flow regressions:
+   passed` in the hosted job summary.
 2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
    signing disabled. It requires production-shaped RevenueCat client
@@ -308,7 +331,7 @@ failure:
 | Failure                                         | Artifact or local action                                                                                                                   |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Unit compile or execution                       | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the `.xcresult`, package-resolution log, and `xcodebuild` log.                |
-| Unit result is empty or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.        |
+| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator. |
 | Release archive, embedding, or dSYM             | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`. |
 | Intended release SHA was out of scope           | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                              |
 
@@ -677,12 +700,12 @@ MerianTests/
     media, hashtags, timestamp, and community state after a forced late failure.
   - **Atomic Ask the Community creation**: Assert taxonomy resolves before the
     final relational mutation, the RPC locks request before exact owner scan,
-    and post/media plus `needs_id` state roll back together. Reopen coverage must
-    reset old publication, vote, and worker generations without deleting audit
-    rows. Simulate the absent-request race and require one relational-only retry
-    to return the committed request without a second moderation/provider call;
-    simulate concurrent direct sharing and require the write-time trigger to
-    reject its late `shared_at` update.
+    and post/media plus `needs_id` state roll back together. Reopen coverage
+    must reset old publication, vote, and worker generations without deleting
+    audit rows. Simulate the absent-request race and require one relational-only
+    retry to return the committed request without a second moderation/provider
+    call; simulate concurrent direct sharing and require the write-time trigger
+    to reject its late `shared_at` update.
   - **Durable queue retry policy**: `OfflineQueueRetryPolicy` tests should cover
     transient network/server failures, local-media terminal failures, persisted
     `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. An
@@ -757,6 +780,10 @@ MerianTests/
   camera-generation tests plus `InferenceEngineTests`,
   `OfflineQueueManagerTests`, and `SyncStateManagerTests`, runs in
   `.github/workflows/ios-build-and-test.yml` for every relevant source change.
+  The post-run XCResult validator additionally requires the exact critical scan,
+  offline-finalization, Community/Explore, and Field Chat regressions described
+  above to pass, so one unrelated passing case cannot stand in for a protected
+  workflow.
 - **`MediaPreparationActorTests.swift`**: Pins the production still-image
   contract directly: file URL inputs return bounded inference/display payloads,
   metrics stay within byte and dimension limits, avatar/crop previews return
@@ -1215,8 +1242,8 @@ reports were secondary to that statement failure. Forward migration
 `20260729044500_grant_atomic_explore_service_privileges.sql` now provides an
 operation-scoped service allowlist while preserving invoker rights and no
 browser-role writes. The revised Explore and Community catalogs plan 22 and 25
-assertions and include live privilege checks. Static migration contracts can
-pin that correction, but all 26 catalogs must still pass on a fresh exact-SHA
+assertions and include live privilege checks. Static migration contracts can pin
+that correction, but all 26 catalogs must still pass on a fresh exact-SHA
 database before deployment.
 
 Field Chat regression tests separately enforce that transient owned-scan
@@ -1425,15 +1452,15 @@ production checks:
   execution credential is unavailable; a publishable key is never sent in Bearer
   authorization. The six customer-critical scan, Explore, and Community routes
   additionally return marked fail-closed `401` responses without user
-  Authorization. Final
-  Function failures classify only whether the fixed `X-Merian-Handler: 1` marker
-  was present; Data API failures use separate PostgREST/RPC guidance and never
-  expect a Function marker. Both paths keep the body and request-ID value
-  private and never print a variable header value. Do not create a production
-  user merely to obtain an authenticated JWT for this smoke: exact-value
-  matching is covered deterministically and the disposable catalog exercises the
-  authenticated role. Use a dedicated staging user for end-to-end
-  authenticated-JWT testing when a credential-transport change is under review.
+  Authorization. Final Function failures classify only whether the fixed
+  `X-Merian-Handler: 1` marker was present; Data API failures use separate
+  PostgREST/RPC guidance and never expect a Function marker. Both paths keep the
+  body and request-ID value private and never print a variable header value. Do
+  not create a production user merely to obtain an authenticated JWT for this
+  smoke: exact-value matching is covered deterministically and the disposable
+  catalog exercises the authenticated role. Use a dedicated staging user for
+  end-to-end authenticated-JWT testing when a credential-transport change is
+  under review.
 
 Run the focused Deno tests from `services`:
 

@@ -414,17 +414,23 @@ and deterministic object key. If the first HTTP response is lost after its
 `scan_media_assets` rows commit, a retry returns the same row and upload-session
 IDs instead of creating another active staging generation. A retryable failed
 row reactivates with its original session; terminal, completed, or
-media-incompatible rows fail closed. The database enforces one active staged row
-for that identity, and the parser rejects duplicate filenames (including legacy
-names that sanitize to one key) before signing. New ledger rows use a per-scan
-media slot, so retrying one scan alone does not change its recorded order.
-Signing calls are composable subsets: a foreground inline generation may have no
-staged sources while its queued recovery later adds them, and live video may
-sign separately from queue frames/audio/video for the same scan. Existing
-unrequested rows do not define an immutable full manifest. Edge code bounds the
-combined non-superseded capture-key union at six, and a database trigger takes
-an owner-scoped transaction advisory lock before enforcing the same staged-row
-cap, so concurrent disjoint subsets cannot evade it.
+media-incompatible rows fail closed for normal queue uploads. Completed scans
+have one separate, fail-closed exception for a deterministic
+`scan_share_restore` request. A fresh unrestricted scan lookup must confirm the
+active authenticated-owner row or prove it absent for guarded reconstruction;
+tombstoned and foreign rows reject signing. The offline queue never sets that
+purpose. The database enforces one active staged row for that identity, and the
+parser rejects duplicate filenames (including legacy names that sanitize to one
+key) before signing. New ledger rows use a per-scan media slot, so retrying one
+scan alone does not change its recorded order. Signing calls are composable
+subsets: a foreground inline generation may have no staged sources while its
+queued recovery later adds them, and live video may sign separately from queue
+frames/audio/video for the same scan. Existing unrequested rows do not define an
+immutable full manifest. Edge code bounds the combined active staged/processing
+capture-key set at six and ignores historical promoted rows when a completed
+scan needs a later restore. A database trigger takes an owner-scoped transaction
+advisory lock before enforcing the same active staged-row cap, so concurrent
+disjoint subsets cannot evade it.
 
 After that preflight, `BackgroundDatabaseActor.markScansAsUploading(scanIds:)`
 atomically transitions only the valid selected scans from `.pending` to
@@ -479,10 +485,10 @@ callback to its originating batch, and carrying the authenticated destination
 through suspension. The parser still accepts the previous three-/four-part forms
 and the legacy underscore form for OS-owned tasks created by an older app build.
 Legacy callbacks recover and validate the key from the signed request path.
-Before signing, local validation rejects duplicate sanitized filenames or
-object keys, including collisions produced by distinct local path spellings.
-Staged image roles are a signing-time hint; final user-visible media still comes
-from the saved `captured_media` manifest and ready `scan_media_assets` rows.
+Before signing, local validation rejects duplicate sanitized filenames or object
+keys, including collisions produced by distinct local path spellings. Staged
+image roles are a signing-time hint; final user-visible media still comes from
+the saved `captured_media` manifest and ready `scan_media_assets` rows.
 
 Upload retry accounting is scan-generation scoped, not file scoped. Each
 successful callback contributes its exact key to the generation accumulator but
@@ -532,15 +538,15 @@ inference time — a session that may have expired hours later.
 them via `dispatchInferenceDownloadTask` using the persisted keys.
 
 The transition returns a durable `ScanStagingTransitionOutcome`; HTTP success is
-not itself permission to start inference. Only `.staged` or
-`.alreadyAdvanced` may continue to the generation-aware inference claim.
-`.retryRequired` keeps the current completion evidence fenced until the
-delegate envelope releases its callback token, then the timestamp-fenced orphan
-pass resets a row that is still `.uploading` to `.pending` and restarts signing.
-`.discarded` clears the in-memory manifest without resurrecting a missing,
-failed, or external-import row. Likewise `updateQueuedScanForRetry` returns an
-attempt only after its queue and job changes save; callers distinguish a failed
-durable schedule from the bounded in-process retry wake.
+not itself permission to start inference. Only `.staged` or `.alreadyAdvanced`
+may continue to the generation-aware inference claim. `.retryRequired` keeps the
+current completion evidence fenced until the delegate envelope releases its
+callback token, then the timestamp-fenced orphan pass resets a row that is still
+`.uploading` to `.pending` and restarts signing. `.discarded` clears the
+in-memory manifest without resurrecting a missing, failed, or external-import
+row. Likewise `updateQueuedScanForRetry` returns an attempt only after its queue
+and job changes save; callers distinguish a failed durable schedule from the
+bounded in-process retry wake.
 
 **Audio, video, and non-visual scans**:
 `OfflineQueueManager.enqueueNonVisualCapture` enters audio-bearing records at
@@ -658,8 +664,8 @@ additional callback fence, but they are not the persistence authority:
   server-issued key in a generation-scoped accumulator. The scan can become
   staged only when that set equals the duplicate-free expected manifest key set;
   missing, extra, or duplicate expected members fail closed, and disappearance
-  from the URLSession task list is never success evidence. Each handler publishes
-  its outcome before its first suspension.
+  from the URLSession task list is never success evidence. Each handler
+  publishes its outcome before its first suspension.
 - Inference-driven queue deletion carries either a background
   `InferenceGenerationExpectation` or foreground
   `ForegroundInferenceGenerationExpectation` and revalidates it after awaiting
@@ -667,8 +673,12 @@ additional callback fence, but they are not the persistence authority:
   slot token through the same check. It then acquires the per-scan persistence
   coordinator, validates the appropriate durable generation, and keeps that
   ownership across URLSession cancellation and the main-context queue-deletion
-  save. Explicit user deletion remains intentionally unguarded and cancels all
-  work for that scan.
+  save. That one save marks the scan job complete, clears transient job errors,
+  inserts the completed event, and deletes the queue row; it never persists a
+  successful inference as cancelled in an earlier transaction. Explicit user
+  deletion remains intentionally unguarded and records cancellation for all work
+  on that scan. A crash replay that finds no queue row and an already-complete
+  job succeeds idempotently without inserting another completed event.
 - Connectivity loss invalidates the current upload and inference generations,
   cancels registered delayed tasks, clears preparation ownership, and calls
   `SyncStateManager.forceIdle()`. Late callbacks carry retired UUIDs and become
@@ -912,7 +922,8 @@ the latch without waiting for a URLSession delegate callback.
   `deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:preservePreferredGoalHint:inferenceExpectation:serverPollTokenToPreserve:)`
   on the main actor. The expectation is rechecked after URLSession task
   enumeration, so a delayed finalizer cannot cancel or delete a replacement
-  generation. The generation is checked again before job-completion, UI,
+  generation. Job completion, its completed event, and queue deletion commit in
+  that same guarded save; the generation is checked again before later UI,
   notification, and retry-accounting side effects. That main-context deletion
   still provides the reliable `@Query` re-evaluation trigger for open sheets,
   but it also has access to the queued row before deletion, so it can delete

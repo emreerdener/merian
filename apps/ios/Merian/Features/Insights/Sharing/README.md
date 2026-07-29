@@ -27,15 +27,14 @@ Normal publication:
    post as feed-visible; and
 5. persist the returned post ID and authoritative share state locally.
 
-The create callback returns an explicit success result to
-`InsightShareButton`. The composer closes only after publication returns and
-the response confirms success, echoes the requested scan ID, supplies a valid
-post UUID, parseable share timestamp, authoritative location choice, and
-published status, and the post ID has been cached. A transport,
-readiness, moderation, persistence, or response-integrity failure leaves the
-same draft mounted and presents a retry alert; notes, hashtags, location choice,
-and ordered media selection are not discarded merely because
-`isSharingToExplore` returned to `false`.
+The create callback returns an explicit success result to `InsightShareButton`.
+The composer closes only after publication returns and the response confirms
+success, echoes the requested scan ID, supplies a valid post UUID, parseable
+share timestamp, authoritative location choice, and published status, and the
+post ID has been cached. A transport, readiness, moderation, persistence, or
+response-integrity failure leaves the same draft mounted and presents a retry
+alert; notes, hashtags, location choice, and ordered media selection are not
+discarded merely because `isSharingToExplore` returned to `false`.
 
 The backend corresponding to this client must expose
 `publish_scan_to_explore_atomically(...)`. It commits post metadata, ordered
@@ -47,6 +46,21 @@ backend before this app build.
 Describe text and private observation context are never copied into public field
 notes, hashtags, captions, or media metadata unless the user explicitly writes
 that text in the composer.
+
+## Ask the Community Contract
+
+Ask the Community uses the same stable scan UUID, owner boundary, canonical
+public-media builder, and fail-closed audio moderation path as explicit Explore
+publication. If compatibility recovery is required, iOS stages every surviving
+eligible local media kind and sends images, playback video, and standalone audio
+in their separate restored-key arrays. It does not require a recovered image
+when a biological scan has only video or audio.
+
+The action is complete only when the response reports true success, echoes the
+exact scan UUID, contains valid request, post, requester, taxon, and taxonomy
+UUIDs, supplies a parseable request timestamp, remains in `needs_id`, and has a
+nonnegative consensus count. A decodable but unconfirmed HTTP `200` cannot clear
+normal Explore state or show “Asked community.”
 
 ## Missing Cloud-Row Recovery
 
@@ -79,10 +93,33 @@ The repair-capable share may then combine `recovery_scan` with:
 - `restored_video_object_keys` for one playable `.mp4`; and
 - `restored_audio_object_keys` for bounded standalone recordings.
 
+Ask the Community cannot accept `recovery_scan` directly. It first completes the
+same guarded `/check-scan-status` owner-row recovery and then uses all three
+restored-key fields on its own route.
+
 The server validates traversal, owner prefix, count, type, promotion, canonical
 media refresh, selection, privacy, and audible-media moderation before
-publication. iOS never sends a direct durable URL as recovery input and never
-upserts `public.scans`.
+publication. The shared restored-media parser allows no more than five images,
+one playback video, two standalone recordings, or six keys total and rejects a
+key claimed under two media kinds. Before requesting the first signing URL, iOS
+preflights that same complete mixed-media count plus every image/video/audio
+byte budget so an invalid legacy snapshot cannot upload a partial repair set. It
+never sends a direct durable URL as recovery input and never upserts
+`public.scans`. Every current restore manifest sets
+`uploadPurpose = scan_share_restore`; the signer accepts that completed-scan
+exception only for an exact deterministic scan/category filename, canonical
+role, and fresh unrestricted scan read. An existing row must be active and
+JWT-owned; a genuinely absent row may only stage for guarded reconstruction.
+Failed-terminal ingestion, a tombstoned or foreign scan, and an ordinary
+post-completion upload remain rejected. That signing step grants no scan-write
+or publication authority. Historical promoted capture rows do not consume this
+repair's active six-item staging budget. Every current key must also match an
+authoritative capture-upload ledger row for the exact authenticated owner, scan
+ID, media kind, and role before the server promotes any object. This prevents an
+owner key from another scan or a signed audio/video key relabeled as an image
+from crossing into publication. Compatibility with released clients that signed
+before ledger registration is limited to their exact deterministic scan/category
+filename and legacy extension-derived kind.
 
 If no eligible local user media survives, publication remains unavailable; a
 reference image is not observation evidence and cannot replace it.
@@ -116,6 +153,18 @@ The toolbar may render a cached same-device post ID immediately, then
 post is considered shared only when it is active and has eligible saved public
 media. A partial media-less post clears the local cache rather than opening a
 phantom Explore destination.
+
+The client applies reconciliation only when the response echoes the exact open
+scan, post and Community IDs are valid UUIDs, the share time is parseable,
+Community ID/status are paired, location is present, and an explicit feed
+visibility Boolean has a coherent committed-post topology. Visibility is never
+inferred from a partial response. A committed post may legitimately be hidden
+without a Community request when the server has quarantined its media or
+moderation has removed it; that owner-only publication identity is accepted
+without being cached as a visible Explore destination. A stale, mismatched,
+unknown-location, visible-without-post, or structurally partial HTTP `200` is
+ignored as unavailable and cannot overwrite the optimistic cache for the open
+Insight.
 
 ## Privacy and Security
 

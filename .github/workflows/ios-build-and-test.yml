@@ -283,6 +283,8 @@ jobs:
             bash scripts/validate-ios-critical-test-results.sh \
               "$XCODE_TEST_SUMMARY" \
               "$XCODE_TEST_TREE"
+            echo "- Critical scan-flow regressions: \`passed\`" \
+              >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Print unit-test failure diagnostics

@@ -16,6 +16,7 @@ export type ScanMediaAssetStatus =
   | "failed"
   | "deleted";
 export type ReadyScanMediaAssetKind = "image" | "video" | "audio";
+export type StagedScanMediaUploadPurpose = "scan_share_restore";
 
 export interface ScanMediaAssetRow {
   kind: ScanMediaAssetKind;
@@ -49,6 +50,7 @@ export interface StagedScanMediaAssetInput {
   orderIndex: number;
   contentType: string;
   byteSize?: number | null;
+  uploadPurpose?: StagedScanMediaUploadPurpose;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -76,6 +78,59 @@ type NormalizedScanMediaAssetRow = ScanMediaAssetRow & {
   url: string;
   order_index: number;
 };
+
+function isScanShareRestoreInput(
+  input: StagedScanMediaAssetInput,
+): boolean {
+  return input.uploadPurpose === "scan_share_restore";
+}
+
+function isValidScanShareRestoreInput(
+  input: StagedScanMediaAssetInput,
+): boolean {
+  if (!isScanShareRestoreInput(input)) return false;
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      .test(input.clientScanId)
+  ) {
+    return false;
+  }
+  const fileName = input.storageKey.slice(
+    input.storageKey.lastIndexOf("/") + 1,
+  );
+  if (
+    input.storageKey !==
+      `staging/${input.userId.toLowerCase()}/${fileName}` ||
+    !/^[A-Za-z0-9._-]+$/.test(fileName)
+  ) {
+    return false;
+  }
+  const escapedScanId = input.clientScanId.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const suffix = "[.][A-Za-z0-9]+$";
+  switch (input.kind) {
+    case "image":
+      return input.role === "display" &&
+        new RegExp(
+          `^${escapedScanId}_explore_restore_(?:live|[0-9]+)${suffix}`,
+          "i",
+        ).test(fileName);
+    case "video":
+      return input.role === "playback" &&
+        new RegExp(
+          `^${escapedScanId}_explore_restore_video_[0-9]+${suffix}`,
+          "i",
+        ).test(fileName);
+    case "audio":
+      return input.role === "audio" &&
+        new RegExp(
+          `^${escapedScanId}_explore_restore_audio_[0-9]+${suffix}`,
+          "i",
+        ).test(fileName);
+  }
+}
 
 export type ReadyScanMediaAssetRow =
   & Omit<
@@ -206,6 +261,29 @@ export async function createStagedScanMediaAssets(
       "createStagedScanMediaAssets: one storage key cannot represent multiple scans",
     );
   }
+  if (
+    inputs.some((input) =>
+      isScanShareRestoreInput(input) &&
+      !isValidScanShareRestoreInput(input)
+    )
+  ) {
+    throw new Error(
+      "createStagedScanMediaAssets: invalid scan-share restore registration",
+    );
+  }
+  const restoreScanIds = new Set(
+    inputs.filter(isScanShareRestoreInput).map((input) => input.clientScanId),
+  );
+  if (
+    inputs.some((input) =>
+      restoreScanIds.has(input.clientScanId) &&
+      !isValidScanShareRestoreInput(input)
+    )
+  ) {
+    throw new Error(
+      "createStagedScanMediaAssets: scan-share restore cannot mix with ordinary registration",
+    );
+  }
 
   const rowsByIdentity = new Map<string, StagedScanMediaAssetRow>();
   const activeStorageKeysByClientScanId = new Map<string, Set<string>>();
@@ -242,14 +320,16 @@ export async function createStagedScanMediaAssets(
       ) {
         continue;
       }
-      const activeStorageKeys = activeStorageKeysByClientScanId.get(
-        row.client_scan_id,
-      ) ?? new Set<string>();
-      activeStorageKeys.add(row.storage_key);
-      activeStorageKeysByClientScanId.set(
-        row.client_scan_id,
-        activeStorageKeys,
-      );
+      if (row.status === "staged" || row.status === "processing") {
+        const activeStorageKeys = activeStorageKeysByClientScanId.get(
+          row.client_scan_id,
+        ) ?? new Set<string>();
+        activeStorageKeys.add(row.storage_key);
+        activeStorageKeysByClientScanId.set(
+          row.client_scan_id,
+          activeStorageKeys,
+        );
+      }
       const rowIdentity = identity({
         clientScanId: row.client_scan_id,
         storageKey: row.storage_key,
@@ -350,14 +430,52 @@ export async function createStagedScanMediaAssets(
         (row) => [row.scan_id, { status: row.status, stage: row.stage }],
       ),
     );
-    if (
-      [...jobStatusByScanId.values()].some(({ status }) =>
-        status === "complete" || status === "failed_terminal"
-      )
-    ) {
+    const completedRestoreScanIds: string[] = [];
+    const hasDisallowedTerminalJob = requestedClientScanIds.some((scanId) => {
+      const status = jobStatusByScanId.get(scanId)?.status;
+      if (status === "failed_terminal") return true;
+      if (status !== "complete") return false;
+      if (!restoreScanIds.has(scanId)) return true;
+      completedRestoreScanIds.push(scanId);
+      return false;
+    });
+    if (hasDisallowedTerminalJob) {
       throw new Error(
         "createStagedScanMediaAssets: terminal staging registration cannot be retried",
       );
+    }
+    if (completedRestoreScanIds.length > 0) {
+      const { data: scanData, error: scanError } = await supabaseAdmin
+        .from("scans")
+        .select("id,user_id,is_tombstoned")
+        .in("id", completedRestoreScanIds);
+      if (scanError) {
+        throw new Error(
+          `createStagedScanMediaAssets: ${scanError.message}`,
+        );
+      }
+      const scanById = new Map(
+        ((scanData ?? []) as Array<{
+          id: string;
+          user_id: string;
+          is_tombstoned: boolean;
+        }>).map((row) => [row.id.toLowerCase(), row]),
+      );
+      if (
+        completedRestoreScanIds.some((scanId) => {
+          const scan = scanById.get(scanId.toLowerCase());
+          // An absent row is allowed to stage only; the later guarded
+          // recovery route remains responsible for reconstructing and
+          // authorizing the owner row before any publication.
+          if (!scan) return false;
+          return scan.user_id.toLowerCase() !== userId.toLowerCase() ||
+            scan.is_tombstoned !== false;
+        })
+      ) {
+        throw new Error(
+          "createStagedScanMediaAssets: terminal staging registration cannot be retried",
+        );
+      }
     }
 
     const failedRows = [...rowsByIdentity.entries()].filter(([, row]) =>
@@ -373,13 +491,18 @@ export async function createStagedScanMediaAssets(
       );
     }
     if (
-      failedRows.some(([, row]) => {
+      failedRows.some(([rowIdentity, row]) => {
         const jobStatus = jobStatusByScanId.get(row.client_scan_id)?.status;
+        const requestedInput = inputByIdentity.get(rowIdentity);
+        const isCompletedRestore = jobStatus === "complete" &&
+          requestedInput != null &&
+          isValidScanShareRestoreInput(requestedInput);
         return row.failure_reason === "moderation_rejected" ||
           (
             jobStatus != null &&
             jobStatus !== "failed_retryable" &&
-            jobStatus !== "retrying"
+            jobStatus !== "retrying" &&
+            !isCompletedRestore
           );
       })
     ) {

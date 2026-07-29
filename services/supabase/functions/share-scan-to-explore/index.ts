@@ -28,7 +28,7 @@ import {
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { normalizeOwnedScanRecovery } from "../_shared/scanRecovery.ts";
-import { normalizeRestoredObjectKeys } from "./restoredMediaValidation.ts";
+import { normalizeRestoredMediaObjectKeys } from "./restoredMediaValidation.ts";
 
 function makeHttpError(
   status: number,
@@ -205,21 +205,11 @@ Deno.serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const scanId = requireUuid(body.scan_id, "scan_id");
-    const restoredObjectKeys = normalizeRestoredObjectKeys(
-      body.restored_object_keys,
-      user.id,
-    );
-    const restoredVideoObjectKeys = normalizeRestoredObjectKeys(
-      body.restored_video_object_keys,
-      user.id,
-      "restored_video_object_keys",
-    );
-    const restoredAudioObjectKeys = normalizeRestoredObjectKeys(
-      body.restored_audio_object_keys,
-      user.id,
-      "restored_audio_object_keys",
-      2,
-    );
+    const {
+      restoredObjectKeys,
+      restoredVideoObjectKeys,
+      restoredAudioObjectKeys,
+    } = normalizeRestoredMediaObjectKeys(body, user.id);
     const speciesCommonName = normalizeSpeciesCommonName(
       body.species_common_name,
     );

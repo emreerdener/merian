@@ -124,18 +124,40 @@ Background PUT completion is also not inference readiness by itself. The exact
 duplicate-free all-member manifest must first be confirmed by set equality;
 missing, extra, or duplicate expected members cannot advance. Sanitized
 filename/object-key collisions are rejected locally before signing or upload.
-Then `markScanAsStaged` must
-atomically save the keys, reset upload retry accounting, and return `.staged`,
-or return `.alreadyAdvanced` for the same durable staged manifest or an owner
-already in inference. A retryable fetch/state/manifest/save outcome returns
-before inference dispatch; after the callback token is released, replay uses
-only the authoritative durable row.
+Then `markScanAsStaged` must atomically save the keys, reset upload retry
+accounting, and return `.staged`, or return `.alreadyAdvanced` for the same
+durable staged manifest or an owner already in inference. A retryable
+fetch/state/manifest/save outcome returns before inference dispatch; after the
+callback token is released, replay uses only the authoritative durable row.
 Timestamp-fenced orphan reconciliation resets a row that is still `.uploading`
 and restarts signing, while an already-staged row replays its persisted keys. A
 missing, failed, or external-import row is discarded without resurrection.
 Main-actor retry persistence returns an attempt number only after its queue/job
 write commits; save rollback is logged as persistence failure while a bounded
 process-local wake remains available.
+
+A background download's HTTP `200` is not itself a durable client success. iOS
+first requires a nonempty body that decodes as the generated Identify envelope,
+does not explicitly report failure, contains a bounded nonempty scan ID, and
+contains a finite confidence score from zero through one. It then requires the
+exact queue generation and echoed scan UUID, followed by committed local result
+persistence and main-context queue deletion. An empty, truncated, malformed,
+wrong-scan, or locally uncommitted response stays recoverable under the same
+UUID and enters status reconciliation before any fenced retry. Only after both
+local commits succeed may the offline job become complete. A schema-valid
+confidence-zero response for the exact UUID is the one intentional no-record
+terminal outcome. Even then, the background actor does not delete source media
+before main-context queue deletion commits; the committed queue-deletion path is
+the sole local file-cleanup authority.
+
+Inference-driven deletion does not first classify successful work as cancelled.
+Under the same foreground/background generation guard, one main-context save
+marks the job complete, clears transient job errors, inserts the completed
+event, and deletes the queue row. Explicit deletion remains the only path that
+records cancellation. Foreground success and background/server recovery
+therefore have the same crash-consistent terminal job state. Replaying that
+proven generation after the queue row is already absent treats a complete job as
+idempotent success and does not append another completed event.
 
 ## Stable Identity and Idempotency
 
@@ -209,14 +231,22 @@ deterministic object key:
 
 - a lost signing response reuses the committed staged asset and upload session;
 - a retryable failed asset may reactivate only for a compatible nonterminal
-  generation;
-- promoted, deleted, terminal, completed, or media-incompatible state fails
-  closed;
+  generation, except for the exact completed-scan restore case below;
+- promoted, deleted, failed-terminal, or media-incompatible state fails closed;
+- completed ingestion fails closed unless every requested file declares
+  `scan_share_restore`, has the deterministic scan/category filename and
+  canonical role, and a fresh unrestricted database read either proves the live
+  scan belongs to the authenticated owner or proves the row absent for guarded
+  reconstruction; tombstoned or foreign rows fail closed;
+- camelCase and snake_case compatibility aliases may coexist only when their
+  values are identical; contradictory aliases fail before lifecycle
+  registration;
 - duplicate requested filenames are rejected before signing;
 - requested subsets compose with unrequested rows for the same scan;
 - new order indexes are assigned within each scan represented by a signing call,
   so unrelated scans in a mixed batch cannot perturb them; and
-- the combined non-superseded capture-key union cannot exceed six.
+- the combined active staged/processing capture-key set cannot exceed six;
+  promoted historical capture rows do not consume a later restore budget.
 
 The partial unique index `idx_scan_media_assets_active_staging_key_unique`
 serializes identical active keys. The `enforce_staged_scan_media_budget` trigger
@@ -431,12 +461,12 @@ It must not cache the scan as permanently unavailable. A current Identify `200`
 followed by `scan_not_ready` is a severity incident, not expected steady state.
 The client therefore sets `unavailableScanId` only for terminal ownership
 failure (`403`), `unsupported_scan`, or an unavailable Explore-post source. An
-Explore source is unavailable only on the handler code `post_not_available`,
-not every HTTP 404. An owned-scan `scan_not_ready`, action-level
-`message_not_found`, `conversation_not_found`, or
-plain status `not_found` updates the retryable error message without hiding the
-toolbar action. The former blanket HTTP-404 classification violated this
-contract and could make Field Chat disappear after one transient readiness race.
+Explore source is unavailable only on the handler code `post_not_available`, not
+every HTTP 404. An owned-scan `scan_not_ready`, action-level
+`message_not_found`, `conversation_not_found`, or plain status `not_found`
+updates the retryable error message without hiding the toolbar action. The
+former blanket HTTP-404 classification violated this contract and could make
+Field Chat disappear after one transient readiness race.
 
 Explore-post Field Chat is a separate private per-viewer contract. It uses only
 the privacy-filtered public post and Species Dictionary projection and does not
@@ -453,9 +483,29 @@ owner-scoped share. If an eligible older row is absent, it may combine:
 
 Every restored key must be a flat traversal-safe key directly under
 `staging/{authenticated-owner}/`. Image and audio accept their documented
-bounded counts; video accepts one playback item. The server promotes media,
-updates the exact owner scan, refreshes canonical assets, reruns selection and
-moderation, and only then writes the public `explore_post_media` snapshot.
+bounded counts; video accepts one playback item. Before promotion, every current
+key must match its capture-upload ledger row's exact owner, client scan ID,
+kind, and canonical role. A conflicting row cannot fall back to filename
+inference. Ledger-less compatibility is limited to the exact deterministic
+scan/category key emitted by older released restore clients and its legacy
+extension-derived kind. The server then promotes media, updates the exact owner
+scan, refreshes canonical assets, reruns selection and moderation, and only then
+writes the public `explore_post_media` snapshot.
+
+Current repair signing sets the explicit `scan_share_restore` upload purpose.
+The signer accepts it only for a canonical-role item whose deterministic
+filename contains the exact client scan UUID and restore category. This purpose
+resolves a regression introduced when upload-ledger registration began rejecting
+all completed ingestion jobs: sharing recovery necessarily runs after analysis
+has completed. The narrow exception requires a fresh active, non-tombstoned
+JWT-owner scan read when the row exists. A genuinely absent row may only stage
+for the subsequent guarded owner reconstruction; tombstoned and foreign rows
+fail closed. The exception never applies to `failed_terminal` jobs, ordinary
+post-completion uploads, cross-scan filenames, or moderation-rejected rows. Only
+active staged/processing rows consume the six-item repair budget; historical
+promoted capture rows remain identity/audit evidence without blocking a later
+repair. A lost signing response reuses the exact committed restore row and
+upload session.
 
 The final relational publication is one
 `publish_scan_to_explore_atomically(...)` transaction. Its service-role-only
@@ -464,13 +514,13 @@ media URLs outside that scan and non-contiguous selection order, rechecks the
 locked community request, and commits post metadata, the complete media
 snapshot, hashtags, and resolved-community publication state together. An
 omitted `location_sharing` value is resolved from the locked scan, not a stale
-pre-transaction geoprivacy read. A
-transaction-time `needs_id` request fails with conflict and leaves the prior
-publication unchanged. The community request is locked before its scan, matching
-the community helper’s established order and preventing a publication/consensus
-deadlock cycle. Any late insert, constraint, or community failure restores the
-prior post metadata, timestamp, media, and hashtags. Read-time feed filtering is
-defense in depth, not a substitute for atomic publication.
+pre-transaction geoprivacy read. A transaction-time `needs_id` request fails
+with conflict and leaves the prior publication unchanged. The community request
+is locked before its scan, matching the community helper’s established order and
+preventing a publication/consensus deadlock cycle. Any late insert, constraint,
+or community failure restores the prior post metadata, timestamp, media, and
+hashtags. Read-time feed filtering is defense in depth, not a substitute for
+atomic publication.
 
 Because both final publication RPCs retain `SECURITY INVOKER`, their exact
 `EXECUTE` grants are necessary but not sufficient. Forward migration
@@ -487,19 +537,65 @@ Unknown state returns retryable `503 scan_media_restore_unavailable` and
 preserves the objects. A retry recognizes already-durable filenames and never
 consumes the staging source twice.
 
+Ask the Community uses the same eligible canonical image, playback-video, and
+standalone-audio projection. Its compatibility repair first recovers the owner
+row through `/check-scan-status`, then stages every surviving eligible local
+media kind and forwards the three separate restored-key arrays. It does not
+require an image when the biological observation has only video or audio. All
+keys pass the same flat traversal-safe authenticated-owner validator used by
+explicit Explore publication. One shared parser applies the canonical maxima of
+five images, one playback video, two standalone audio clips, and six aggregate
+keys and rejects a key claimed under multiple media kinds before promotion,
+moderation, and the atomic Community transaction. The iOS repair planner applies
+the same complete-set limits before its first signing call, preventing an
+over-budget legacy snapshot from staging only an initial subset. The common
+fetch path additionally verifies each current key against its capture-upload
+ledger row for the exact scan, kind, and role before any promotion, with only
+the narrowly specified released-client filename compatibility path when no
+ledger row exists.
+
+The Community client treats HTTP `200` as candidate evidence only. Before
+changing Community or Explore UI state it requires true success, the exact
+requested scan UUID, valid request/post/requester/taxonomy UUIDs, a parseable
+request timestamp, `needs_id`, and a nonnegative consensus count. A decodable
+but unconfirmed response remains failure, so it cannot clear normal share state
+or present “Asked community.” The Edge/database response identity check
+canonicalizes UUID casing before exact comparison because PostgreSQL emits
+lowercase text while Apple clients commonly submit uppercase UUID strings.
+
 An Explore post is feed-visible only with saved eligible `explore_post_media`. A
 partial or media-less publication row is not a successful share.
 
 Publication completion is also the composer dismissal boundary. The client
 requires a true success flag, the exact echoed scan ID, a valid post UUID, an
-authoritative location-sharing value, and a `published` publication status
-before accepting an HTTP-successful response. Missing location or status is not
-rolling-compatibility success because the corrected backend must be released
-before this client. The async create callback returns
+authoritative known location-sharing value that equals any explicitly requested
+privacy mode, and a `published` publication status before accepting an
+HTTP-successful response. Missing/unknown location, mismatched privacy, or
+missing status is not rolling-compatibility success because the corrected
+backend must be released before this client. The async create callback returns
 `true` only after that validation and the returned post ID is cached. On
 `false`, the composer remains mounted with the user’s notes, hashtags, location
 choice, and ordered media selection intact and shows a retry alert. Merely
 transitioning `isSharingToExplore` back to `false` is not publication evidence.
+
+Authoritative share-state reconciliation is also identity-bound. iOS applies the
+read response only when it echoes the exact open scan and has coherent
+post/time, Community ID/status, known location, and explicit feed-visibility
+topology. Visibility is not inferred when the server omits it. A stale,
+cross-scan, malformed-ID, invalid-time, unknown-location, or
+visible-without-post `200` preserves the local optimistic cache and cannot
+create a phantom Explore or Community destination. The database share-state
+routine now applies the same moderation, aggregate media-health, and
+non-missing-item predicates as canonical public Explore projections. It
+preserves owner-only publication identity while quarantine or moderation returns
+explicit false visibility; iOS accepts that legitimate hidden-post topology
+without caching it as an Explore destination. A degraded post becomes visible
+again as soon as one eligible media item recovers. Forward migration
+`20260729120000_align_explore_share_state_media_health.sql` closes the mismatch
+without changing author publication intent. The invoker RPC is executable only
+by `service_role` behind the JWT-authenticated Edge wrapper, so API roles cannot
+substitute another `self_id`. Private location sharing hides location, not the
+post.
 
 ## Owned Scan-Image Repair
 
@@ -613,8 +709,8 @@ those profiles. Both fixtures now use policy-valid identities and trigger-aware
 profile upserts, and their source contracts pin that setup. The run stopped
 before production connection preparation and made no production mutation.
 Require the exact corrected SHA to repeat all 26 current fixtures, including
-atomic Explore and Community rollback, and continue through deployment and
-smoke testing.
+atomic Explore and Community rollback, and continue through deployment and smoke
+testing.
 
 Workflow run 1552 for commit `7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated
 the full migration replay and again completed 22 of 24 catalog files. The inline
@@ -641,34 +737,36 @@ after adding the atomic Explore and Community rollback fixtures. Require one
 further exact-SHA replay to execute and pass the production merge and recovery
 path plus every other current catalog file.
 
-The backend workflow for
-`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge
-graph validation, before disposable database startup or any production
-mutation. That commit intentionally removed the legacy `upsertExplorePost`
-helper when Explore publication moved to one transaction, but
-`request-community-identification/db.ts` still imported it. The current repair
-does not restore that partial-write helper: Community creation now performs one
-final `request_community_identification_atomically(...)` call after taxonomy and
-moderation preparation. All 89 isolated entrypoints type-check locally with
-their deploy-time configs, but the complete backend workflow must repeat on the
-final committed exact SHA.
+The backend workflow for `1a75179dd88f20163cb5c01bffd60478b9545009` then stopped
+during isolated Edge graph validation, before disposable database startup or any
+production mutation. That commit intentionally removed the legacy
+`upsertExplorePost` helper when Explore publication moved to one transaction,
+but `request-community-identification/db.ts` still imported it. The current
+repair does not restore that partial-write helper: Community creation now
+performs one final `request_community_identification_atomically(...)` call after
+taxonomy and moderation preparation. All 89 isolated entrypoints type-check
+locally with their deploy-time configs, but the complete backend workflow must
+repeat on the final committed exact SHA.
 
 The latest hosted fresh-catalog run discovered all 26 current files and
-completed 24. Identity merge/recovery and inline/video recovery both passed.
-The two new atomic fixtures then reached their first real `service_role` calls
-and both stopped with SQLSTATE `42501`, `permission denied for table
-explore_community_requests`. The routines deliberately remain `SECURITY
-INVOKER`; an `EXECUTE` grant alone does not supply the row-lock and mutation
-privileges used by their bodies under hardened public-schema defaults. Forward
-migration `20260729044500_grant_atomic_explore_service_privileges.sql` now
-grants only the required operation classes on the nine participating tables
-to `service_role`. It grants no browser-role write access and does not convert
-either RPC to definer authority. The fixtures now plan 22 and 25 assertions,
-including live ACL checks. The reported bad plans—21 planned/4 run and 24
-planned/5 run—were consequences of those two statement-level privilege errors,
-not 36 independent assertion failures. The workflow stopped at the disposable
-catalog gate before production preparation and made no production mutation.
-Require a fresh replay of all 26 files on the final exact SHA.
+completed 24. Identity merge/recovery and inline/video recovery both passed. The
+two new atomic fixtures then reached their first real `service_role` calls and
+both stopped with SQLSTATE `42501`,
+`permission denied for table
+explore_community_requests`. The routines
+deliberately remain `SECURITY
+INVOKER`; an `EXECUTE` grant alone does not supply
+the row-lock and mutation privileges used by their bodies under hardened
+public-schema defaults. Forward migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` now grants only the
+required operation classes on the nine participating tables to `service_role`.
+It grants no browser-role write access and does not convert either RPC to
+definer authority. The fixtures now plan 22 and 25 assertions, including live
+ACL checks. The reported bad plans—21 planned/4 run and 24 planned/5 run—were
+consequences of those two statement-level privilege errors, not 36 independent
+assertion failures. The workflow stopped at the disposable catalog gate before
+production preparation and made no production mutation. Require a fresh replay
+of all 26 files on the final exact SHA.
 
 Then deploy these Edge Functions from one exact reviewed SHA, in order:
 
@@ -704,9 +802,9 @@ both full-fleet fallbacks.
 Production smoke must prove database readiness as well as Edge route liveness.
 With server authority, the workflow sends no-write sentinel inputs to
 `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`, and
-`request_community_identification_atomically(...)` and requires each routine's exact
-SQLSTATE `22023` message. Those inputs are rejected before any lock or data
-mutation, while `404`, throttling, and platform failures receive bounded
+`request_community_identification_atomically(...)` and requires each routine's
+exact SQLSTATE `22023` message. Those inputs are rejected before any lock or
+data mutation, while `404`, throttling, and platform failures receive bounded
 schema-propagation retries. The same call through every real anon/publishable
 credential must remain `401`, `403`, or hidden-routine `404`; a public `400`
 would prove the service-only body was reached and fails closed. Responses and
@@ -821,34 +919,44 @@ The focused regression inventory includes:
 ## Verification Evidence at Review
 
 This snapshot records the strongest evidence available for the local working
-tree rooted at `492094c0ad8914a15e4b4759af394e08d9993077`, which commits
-the client, queue, owner-result recovery, source-aware Field Chat, atomic
-Explore and Ask the Community backends, identity-fixture correction,
-service-role invoker privileges, completed-upload durability, and release
-contracts. The current working-tree follow-up adds duplicate-free exact upload
-manifest equality, pre-signing collision rejection, parseable publication
-timestamps, exact-code Community conflict mapping, an exact Supabase CLI
-preflight, and the Xcode 26.6 predicate-macro compile correction on 2026-07-29.
-Local working-tree evidence is not immutable release evidence. Repeat every
-applicable gate on one committed SHA before deployment or release.
+tree rooted at `69ef995204d2ae61a0f12cb9c6c7a64d0b4e6b37`, which commits the
+client, queue, owner-result recovery, source-aware Field Chat, atomic Explore
+and Ask the Community backends, identity-fixture correction, service-role
+invoker privileges, completed-upload durability, and release contracts,
+duplicate-free exact upload manifest equality, pre-signing collision rejection,
+parseable publication timestamps, exact-code Community conflict mapping, the
+exact Supabase CLI preflight, and the Xcode 26.6 predicate-macro compile
+correction. The current working-tree follow-up makes malformed HTTP-success
+analysis bodies and incomplete local finalization retryable on 2026-07-29,
+preserves confidence-zero source media until durable queue deletion, commits
+successful queue removal and job completion together, validates Community and
+Explore reconciliation responses before changing UI state, and restores image,
+video, and standalone-audio media through the same Community recovery boundary.
+It also gives completed scans a narrowly authenticated `scan_share_restore`
+signing purpose, binds restored keys to their exact owner/scan/kind upload
+identity, canonicalizes database-returned UUID case before exact Community
+identity checks, and makes Explore visibility and explicitly requested privacy
+confirmation fail closed. Local working-tree evidence is not immutable release
+evidence. Repeat every applicable gate on one committed SHA before deployment or
+release.
 
-| Layer                                      | Retained result                                                                                                                                                                                                                                                    | Status and meaning                                                                                                                                                                                                                                 |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Edge and shared scan logic                 | Final Deno discovery run: 1,368 passed, 0 failed; optional PostgreSQL integration bodies self-skipped because this sandbox denied localhost TCP                                                                                                                      | Complete source and mocked assertions passed, including transaction-time community readiness, atomic Community-request structure, invoker privilege allowlisting, exact publication-response validation, fail-closed taxonomy synchronization, concurrent retry, and authoritative privacy output; this is not a PostgreSQL integration gate and cannot replace a fresh exact-SHA replay |
-| Edge static quality                        | `deno fmt --check` passed across 679 files and `deno lint` passed across 523 files                                                                                                                                                                                  | Verified locally                                                                                                                                                                                                                                   |
-| Migration source contracts                 | 178 assertions passed across 28 migration contract files                                                                                                                                                                                                           | Verified locally, including video canonical projection, identity fixture diagnostics, atomic Explore and Community publication, request-before-scan lock ordering, and the service-only invoker privilege allowlist; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
-| Atomic Explore PostgreSQL fixture          | The hosted 21-assertion revision completed its first four preflight assertions, then its first service-role publication call stopped at a missing request-table privilege. The revised fixture plans 22 assertions and adds the live least-privilege check; the local exact-version guard rejected stale CLI 2.101.0 before replay and this sandbox denied the Supabase child process Docker access. | Current source contracts verify ACL, owner/media rejection, complete-snapshot rollback, transaction-time `needs_id` rejection, locked-geoprivacy structure, and exact service grants; exact current-source PostgreSQL acceptance remains part of the all-26-catalog hosted replay |
-| Atomic Community PostgreSQL fixture        | The hosted 24-assertion revision completed its first five preflight assertions, then its first service-role creation call stopped at the same missing request-table privilege. The revised rollback-only fixture plans 25 assertions and adds the live least-privilege check; the same exact-version and nested-Docker boundaries prevented a local fresh replay. | Source and exact grants are present and automatically discovered, but the corrected fixture is not counted as passed locally; exact-current-source disposable PostgreSQL execution plus staging concurrency tests remain mandatory |
-| Supabase release tooling and documentation | 106 tooling assertions and 9 documentation contracts passed; the catalog/Make/workflow pin contract rejects any CLI other than reviewed 2.109.1 before a database or deployment call                                                                                                                                                         | Verified locally                                                                                                                                                                                                                                   |
-| Production function selection and order    | Graph simulation across all 29 dirty paths resolved the full 89-function fleet because the production workflow control path changed, including all ten required scan functions; shuffled-plan and fail-stop fixtures passed                                                                                                           | Verified locally; selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward                                                                                                                |
-| iOS portable release tooling               | Scope, workflow, structured failure extraction, and critical-result contracts passed                                                                                                                                                                               | Verified locally without invoking a simulator                                                                                                                                                                                                      |
-| iOS project/source integrity               | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2                                                                                                                                      | Verified locally                                                                                                                                                                                                                                   |
-| Changed Swift source quality               | Strict no-cache SwiftLint reported 0 violations across the four changed application files; Xcode 26.6 compiler frontend parsing passed for those files and four changed test files, and the corrected plain-identifier predicate shape macro-typechecked under the same Swift 6.3.3 compiler with nested sandboxing disabled                         | Verified locally                                                                                                                                                                                                                                   |
-| Public web projection                      | Web unit suite: 56 passed, 0 failed                                                                                                                                                                                                                                | Verified locally                                                                                                                                                                                                                                   |
-| Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes. The newest supplied Xcode 26.6 log compiled the app but failed test-module emission because one new SwiftData predicate captured `scan.id`; the working tree now snapshots the plain identifier and no sibling predicate misuse remains. | The correction parses under Xcode 26.6, but only a full exact-remediated-SHA hosted build, unit target, and archive can close this gate |
-| Fresh PostgreSQL catalog replay and pgTAP  | The latest hosted run discovered 26 files and completed 24. Identity merge/recovery and all 30 inline/video assertions passed. Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501` on `explore_community_requests`; their later bad plans were secondary.                         | Pending one exact-SHA replay after the forward service-privilege migration; both revised 22- and 25-assertion atomic files and all 26 files must pass |
-| Staging joined-flow smoke matrix           | No retained post-remediation smoke evidence                                                                                                                                                                                                                        | Pending image, queued image, audio, video, Describe, Field Chat, atomic Explore rollback, atomic Community rollback/reopen/share-race, malformed publication-response, ambiguous-response, and partial-upload tests                                  |
-| Production deployment and observation      | Runs 1549–1552, the identity follow-up, `1a75179dd`, and the latest 26-file catalog run all stopped before production mutation                                                                                                                                        | Pending exact-SHA catalog acceptance, ordered migration/function deployment, matching iOS release, and a clean observation window                                                                                                                  |
+| Layer                                      | Retained result                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Status and meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edge and shared scan logic                 | Final deterministic non-PostgreSQL Deno discovery run: 1,389 passed, 0 failed, with `127.0.0.1:54322` explicitly denied. An unrestricted run connected to a stale local Docker schema missing `explore_post_media.health_status`: 1,386 passed and the two affected author-profile integration cases failed.                                                                                                                                                                               | Complete source and mocked assertions passed, including transaction-time community readiness, atomic Community-request structure, restored-media ledger binding, invoker privilege allowlisting, canonical UUID response identity, exact publication-response validation, fail-closed taxonomy synchronization, concurrent retry, and authoritative privacy output. The stale-listener failures are retained as environment evidence, not counted as current-schema PostgreSQL acceptance; a fresh exact-SHA replay remains mandatory. |
+| Edge static quality                        | The deployment-configured `functions` and `scripts` scope passed `deno fmt --check` across 679 files and `deno lint` across 523 files                                                                                                                                                                                                                                                                                                                                                      | Verified locally; a repo-root Deno check is not a configured gate and separately exposes unrelated existing web/admin/asset debt                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Migration source contracts                 | 180 assertions passed across 28 migration contract files                                                                                                                                                                                                                                                                                                                                                                                                                                   | Verified locally, including video canonical projection, identity fixture diagnostics, atomic Explore and Community publication, complete Community recovery-media handoff, request-before-scan lock ordering, canonical media-health share visibility, and the service-only invoker privilege allowlist; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance                                                                                                                                     |
+| Atomic Explore PostgreSQL fixture          | The hosted 21-assertion revision completed its first four preflight assertions, then its first service-role publication call stopped at a missing request-table privilege. The revised fixture plans 22 assertions and adds the live least-privilege check; the local exact-version guard rejected stale CLI 2.101.0 before replay and this sandbox denied the Supabase child process Docker access.                                                                                       | Current source contracts verify ACL, owner/media rejection, complete-snapshot rollback, transaction-time `needs_id` rejection, locked-geoprivacy structure, and exact service grants; exact current-source PostgreSQL acceptance remains part of the all-26-catalog hosted replay                                                                                                                                                                                                                                                      |
+| Atomic Community PostgreSQL fixture        | The hosted 24-assertion revision completed its first five preflight assertions, then its first service-role creation call stopped at the same missing request-table privilege. The revised rollback-only fixture plans 25 assertions and adds the live least-privilege check; the same exact-version and nested-Docker boundaries prevented a local fresh replay.                                                                                                                          | Source and exact grants are present and automatically discovered, but the corrected fixture is not counted as passed locally; exact-current-source disposable PostgreSQL execution plus staging concurrency tests remain mandatory                                                                                                                                                                                                                                                                                                     |
+| Supabase release tooling and documentation | 106 tooling assertions and 9 documentation contracts passed; the catalog/Make/workflow pin contract rejects any CLI other than reviewed 2.109.1 before a database or deployment call                                                                                                                                                                                                                                                                                                       | Verified locally                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Production function selection and order    | The current 60-path uncommitted delta resolves eight graph-affected functions: `check-scan-status`, `generate-upload-urls`, `get-explore-composer-media`, `identify-multimodal`, `reconcile-scan-media-assets`, `request-community-identification`, `share-scan-to-explore`, and `update-explore-field-notes`. The retained undeployed-baseline/control-path simulation resolved all 89 functions, including all ten required scan functions; shuffled-plan and fail-stop fixtures passed. | Verified locally; production must derive its plan from the most recent successful production SHA to the exact final SHA. An unsafe or missing baseline falls back to all 89 functions. Selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward.                                                                                                                                                                                                                              |
+| iOS portable release tooling               | Scope, workflow, structured failure extraction, and critical-result contracts passed; the result validator now rejects absent or skipped exact regressions across analysis, offline completion, Community/Explore sharing, reconciliation, and Field Chat rather than accepting any one passing case in each broad suite                                                                                                                                                                   | Verified locally without invoking a simulator; this validates the fail-closed evidence parser, not execution of the protected tests on Xcode                                                                                                                                                                                                                                                                                                                                                                                           |
+| iOS project/source integrity               | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2                                                                                                                                                                                                                                                                                                                                                              | Verified locally                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Changed Swift source quality               | Strict no-cache SwiftLint reported 0 violations across nine changed application files; Xcode 26.6 compiler frontend parsing passed for those files and five changed test files, and source audit found no remaining SwiftData predicate that captures an object member directly                                                                                                                                                                                                            | Verified locally for syntax and lint; the nested-sandbox package-manifest failure below prevented project-level macro type-checking and does not replace the hosted Xcode gate                                                                                                                                                                                                                                                                                                                                                         |
+| Public web projection                      | Web unit suite: 56 passed, 0 failed, 0 skipped                                                                                                                                                                                                                                                                                                                                                                                                                                             | Verified locally; no web source changed in this remediation                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes. The newest supplied Xcode 26.6 log compiled the app but failed test-module emission because one new SwiftData predicate captured `scan.id`; the working tree now snapshots the plain identifier and no sibling predicate misuse remains.                                                                                                                | The correction parses under Xcode 26.6, but only a full exact-remediated-SHA hosted build, unit target, and archive can close this gate                                                                                                                                                                                                                                                                                                                                                                                                |
+| Fresh PostgreSQL catalog replay and pgTAP  | The latest hosted run discovered 26 files and completed 24. Identity merge/recovery and all 30 inline/video assertions passed. Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501` on `explore_community_requests`; their later bad plans were secondary.                                                                                                                                                                                        | Pending one exact-SHA replay after the forward service-privilege migration; both revised 22- and 25-assertion atomic files and all 26 files must pass                                                                                                                                                                                                                                                                                                                                                                                  |
+| Staging joined-flow smoke matrix           | No retained post-remediation smoke evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                | Pending image, queued image, audio, video, Describe, Field Chat, atomic Explore rollback, atomic Community rollback/reopen/share-race, malformed publication-response, ambiguous-response, and partial-upload tests                                                                                                                                                                                                                                                                                                                    |
+| Production deployment and observation      | Runs 1549–1552, the identity follow-up, `1a75179dd`, and the latest 26-file catalog run all stopped before production mutation                                                                                                                                                                                                                                                                                                                                                             | Pending exact-SHA catalog acceptance, ordered migration/function deployment, matching iOS release, and a clean observation window                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 A local Release archive and a compile-only test build were also attempted with
 package, derived-data, module, and Foundation cache paths redirected to writable
@@ -874,6 +982,7 @@ workflow remains authoritative for simulator and archive behavior.
 | Atomic Explore publication            | `migrations/20260729024157_atomic_explore_scan_publication.sql`                |
 | Atomic Ask the Community request      | `migrations/20260729033000_atomic_community_identification_requests.sql`       |
 | Atomic invoker table privileges       | `migrations/20260729044500_grant_atomic_explore_service_privileges.sql`        |
+| Media-health share-state alignment    | `migrations/20260729120000_align_explore_share_state_media_health.sql`         |
 | Exact Supabase CLI preflight          | `scripts/require_supabase_cli_version.sh`                                      |
 | Offline upload callback accumulator   | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`   |
 | Status and guarded owner recovery     | `functions/check-scan-status/index.ts`                                         |

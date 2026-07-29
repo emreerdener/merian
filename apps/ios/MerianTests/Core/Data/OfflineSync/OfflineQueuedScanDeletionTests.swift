@@ -154,6 +154,71 @@ struct OfflineQueuedScanDeletionTests {
         queueManager.acknowledgeFieldTripProgress(scanId: scanId)
         #expect(try context.fetch(hintDescriptor).isEmpty)
     }
+
+    @Test func completedInferenceAndQueueDeletionCommitTogether() async throws {
+        let context = try createIsolatedContext()
+        let scanId = "atomic-inference-completion-\(UUID().uuidString)"
+        let generation = UUID()
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        context.insert(OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .inferencing
+        ))
+        context.insert(OfflineJobRecord(
+            id: jobId,
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(for: generation)
+        ))
+        try context.save()
+
+        let queueManager = OfflineQueueManager.shared
+        let originalContext = queueManager.modelContext
+        defer {
+            queueManager.activeInferenceGenerations.removeValue(
+                forKey: scanId
+            )
+            queueManager.modelContext = originalContext
+        }
+        queueManager.modelContext = context
+        queueManager.activeInferenceGenerations[scanId] = generation
+
+        let deleted = await queueManager.deleteQueuedScan(
+            scanId: scanId,
+            preservePreferredGoalHint: true,
+            inferenceExpectation: InferenceGenerationExpectation(
+                generation: generation
+            )
+        )
+        let repeatedDelete = await queueManager.deleteQueuedScan(
+            scanId: scanId,
+            preservePreferredGoalHint: true,
+            inferenceExpectation: InferenceGenerationExpectation(
+                generation: generation
+            )
+        )
+
+        let queueDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        let completedRaw = OfflineQueueEventKind.completed.rawValue
+        let completedEventDescriptor = FetchDescriptor<OfflineQueueEvent>(
+            predicate: #Predicate {
+                $0.scanId == scanId && $0.kindRaw == completedRaw
+            }
+        )
+        #expect(deleted)
+        #expect(repeatedDelete)
+        #expect(try context.fetch(queueDescriptor).isEmpty)
+        #expect(try context.fetch(jobDescriptor).first?.status == .complete)
+        #expect(try context.fetch(completedEventDescriptor).count == 1)
+    }
     
     @Test func testDeleteQueuedScanCancelsURLSessionTasks() async throws {
         // Arrange

@@ -3,7 +3,7 @@
 **Date:** 2026-07-28\
 **Severity:** Release-blocking\
 **Affected flow:** Capture → Identify → Insight → Field Chat / Explore sharing /
-Field trips / owner sync\
+Ask the Community / Field trips / owner sync\
 **Repository status:** Remediated\
 **Production status:** Open until ordered deployment and retained customer-flow
 evidence satisfy the closure gates below
@@ -137,13 +137,13 @@ also treated a synthetic key as harmless because the inline resolver never
 fetched it. The failure existed only at the joined transport → ledger →
 catalog-finalization seam.
 
-A review of the last 100 integrated commits found a linear/squash history rather
-than merge commits. The relevant sequence was the combination of latency work,
-generation fencing, server quota/idempotency changes, owner-row durability
-repair, and the strict 2026-07-28 media-finalization migrations. No single
-downstream Field Chat or Explore handler caused all four symptoms.
+A review of the last 100 integrated commits found 100 linear/squash history
+entries and zero merge commits. The relevant sequence was the combination of
+latency work, generation fencing, server quota/idempotency changes, owner-row
+durability repair, and the strict 2026-07-28 media-finalization migrations. No
+single downstream Field Chat or Explore handler caused all four symptoms.
 
-The same history review identified four independent state-boundary regressions
+The same history review identified five independent state-boundary regressions
 that amplified the backend outage:
 
 - `212f9ce91` reset scan-level retry accounting after each successful upload
@@ -155,14 +155,21 @@ that amplified the backend outage:
   handling for HTTP 404, so an owned scan that was merely still syncing could
   hide Field Chat; and
 - `23da15f33` dismissed the Explore composer when the in-flight flag returned to
-  false rather than when publication returned validated success.
+  false rather than when publication returned validated success;
+- `b233693b3` correctly attached restore uploads to the client scan UUID, but
+  `fab31d92a` later made completed ingestion terminal for all signing without a
+  distinct post-analysis repair purpose. Since Explore and Community repair
+  necessarily runs after analysis, every current restore request could fail
+  before upload. That same registration path counted promoted historical capture
+  rows against the six-file active budget, so a completed video scan could have
+  no repair capacity even with no active staging generation.
 
 Explore post, media, hashtag, and resolved-community writes also remained
-separate PostgREST transactions after the media-snapshot changes in
-`6def1242f`. A late failure could therefore report failure after exposing or
-erasing only part of a post. These regressions explain why earlier
-owner-persistence fixes improved individual layers without restoring the joined
-submission → analysis → chat → publication experience.
+separate PostgREST transactions after the media-snapshot changes in `6def1242f`.
+A late failure could therefore report failure after exposing or erasing only
+part of a post. These regressions explain why earlier owner-persistence fixes
+improved individual layers without restoring the joined submission → analysis →
+chat → publication experience.
 
 ## Resolution
 
@@ -187,16 +194,23 @@ submission → analysis → chat → publication experience.
   finalizer.
 - Upload signing now reuses an exactly compatible staged row and its original
   upload session. Retryable failed rows are reactivated rather than duplicated;
-  a failed row attached to a terminal, completed, or active generation fails
-  closed, as do promoted, deleted, or media-incompatible rows. A partial unique
-  index serializes concurrent active registration, duplicate filenames are
-  rejected before signing, and historical extras remain as explicit
+  failed-terminal, promoted, deleted, and media-incompatible rows fail closed.
+  Completed ingestion also fails closed for ordinary capture signing. The sole
+  completed-job exception is an exact `scan_share_restore` request whose
+  deterministic scan/category filename, canonical role, authenticated owner, and
+  completed job agree. A fresh unrestricted scan read must confirm an existing
+  active owner row or prove the row absent for guarded reconstruction;
+  tombstoned and foreign rows fail. This permits post-analysis Explore and
+  Community repair without reopening ingestion. A partial unique index
+  serializes concurrent active registration, duplicate filenames are rejected
+  before signing, and historical extras remain as explicit
   `superseded_staging_registration` audit rows. New rows use a stable per-scan
   media slot; exact legacy rows remain reusable despite their historical flat
   batch index. Exact requested subsets compose with unrequested rows for the
-  same scan, while the union of non-superseded capture keys remains bounded at
-  six. A database trigger takes an owner-scoped transaction advisory lock and
-  enforces that cap across concurrent disjoint-key registrations.
+  same scan, while the active staged/processing capture-key set remains bounded
+  at six. Promoted historical capture rows do not consume a new restore budget.
+  A database trigger takes an owner-scoped transaction advisory lock and
+  enforces the staged-row cap across concurrent disjoint-key registrations.
 - Upload dispatch validates the entire signed response before starting any PUT
   and embeds the exact server key in each generation-fenced task. Legacy tasks
   parse and validate it from the signed URL path. Completion derives the owner
@@ -276,10 +290,11 @@ submission → analysis → chat → publication experience.
   ambiguous or unreadable topology preserves the object.
 - Upload retry accounting now resets only when the generation-scoped exact-key
   accumulator contains the complete manifest and the reset itself saves.
-- An exact-owner server `found` response is persisted as a dedicated local-result
-  recovery fence before hydration. Failed hydration, relaunch, a later status
-  outage, and explicit manual retry keep the scan `.inferencing` and consume only
-  bounded owner-result recovery; they never return it to provider dispatch.
+- An exact-owner server `found` response is persisted as a dedicated
+  local-result recovery fence before hydration. Failed hydration, relaunch, a
+  later status outage, and explicit manual retry keep the scan `.inferencing`
+  and consume only bounded owner-result recovery; they never return it to
+  provider dispatch.
 - Field Chat permanent unavailability is code-specific. Owned readiness and
   action-target 404s remain retryable; Explore hides chat only for
   `post_not_available`, not feedback’s `message_not_found` or an unmarked
@@ -287,16 +302,26 @@ submission → analysis → chat → publication experience.
 - Explore create returns validated Boolean publication success to the composer.
   Failure or malformed HTTP success retains the draft and does not cache a post
   ID.
+- Owner share-state now uses the same moderation and media-health boundary as
+  canonical public Explore projections. A quarantined or moderated post keeps
+  its repairable owner-only identity but returns false feed visibility, while a
+  degraded post becomes visible when one usable item remains. iOS accepts that
+  legitimate hidden-post topology without treating it as a public destination.
 - Final Explore publication is one service-role-only invoker transaction for
-  post, media, hashtags, and resolved-community state. It locks community request
-  before scan, rechecks `needs_id`, resolves omitted privacy from the locked scan,
-  and rolls the previous complete snapshot back on every late failure.
+  post, media, hashtags, and resolved-community state. It locks community
+  request before scan, rechecks `needs_id`, resolves omitted privacy from the
+  locked scan, and rolls the previous complete snapshot back on every late
+  failure.
 - Ask the Community now resolves taxonomy and moderation before one
   service-role-only invoker transaction commits post, media, and hidden
   `needs_id` state. It no longer imports the removed legacy Explore upsert,
   cannot leak a normal post on a late request failure, resets stale consensus
-  generations on reopen, and rejects an explicit share that loses the
-  concurrent Community-request race at the actual post write.
+  generations on reopen, and rejects an explicit share that loses the concurrent
+  Community-request race at the actual post write. Compatibility repair carries
+  image, playback-video, and standalone-audio keys through the same owner-safe
+  ledger boundary. The response must echo the exact scan and owner identity
+  after canonical UUID case normalization, preventing PostgreSQL lowercase text
+  from turning an Apple client’s uppercase UUID into a false failure.
 
 ## Security Properties Preserved
 
@@ -406,11 +431,11 @@ syntax.
 
 This combined two incompatible PostgreSQL forms. Keyword-separated
 `SUBSTRING(value FROM pattern)`, `SUBSTRING(value FOR count)`, and
-`SUBSTRING(value SIMILAR pattern ...)` are unqualified SQL expressions. Once
-the function is schema-qualified, PostgreSQL expects ordinary comma-separated
-arguments. Both recovery calls now use
-`pg_catalog.SUBSTRING(value, pattern)`. This changes no owner, merge, ledger,
-quota, tombstone, media, or execution-grant rule.
+`SUBSTRING(value SIMILAR pattern ...)` are unqualified SQL expressions. Once the
+function is schema-qualified, PostgreSQL expects ordinary comma-separated
+arguments. Both recovery calls now use `pg_catalog.SUBSTRING(value, pattern)`.
+This changes no owner, merge, ledger, quota, tombstone, media, or
+execution-grant rule.
 
 The migration execution contract now performs a depth-aware scan of every SQL
 migration and rejects a schema-qualified `SUBSTRING` whose first top-level
@@ -422,18 +447,18 @@ used qualified `FOR` forms; those examples now use ordinary
 
 Run 1550 failed in disposable `supabase db start`, before production connection
 preparation, `db push`, secret synchronization, Edge deployment, or smoke
-testing. It therefore made no production mutation. The source correction and
-164 passing migration contracts remain repository evidence only; a new exact-SHA
+testing. It therefore made no production mutation. The source correction and 164
+passing migration contracts remain repository evidence only; a new exact-SHA
 fresh-catalog replay is still required.
 
 ## Deployment Follow-up: Workflow Run 1551
 
 Attempt 1 of `Deploy Merian to Supabase` for commit
-`f841a436a87bfafa296f4c0fb89e1d8264192f91` successfully rebuilt the
-disposable PostgreSQL catalog and applied the complete migration history,
-including both incident recovery migrations that had blocked runs 1549 and
-1550. This is the first hosted evidence that the corrected migration fleet
-parses and applies from an empty catalog.
+`f841a436a87bfafa296f4c0fb89e1d8264192f91` successfully rebuilt the disposable
+PostgreSQL catalog and applied the complete migration history, including both
+incident recovery migrations that had blocked runs 1549 and 1550. This is the
+first hosted evidence that the corrected migration fleet parses and applies from
+an empty catalog.
 
 The next gate discovered 24 pgTAP files and completed 22. Two files aborted
 during fixture setup before their plans:
@@ -442,17 +467,16 @@ during fixture setup before their plans:
   usernames even though the production CHECK permits at most 24. The same
   fixture also performed a plain profile insert after its `auth.users` inserts
   had synchronously fired `on_auth_user_created`.
-- `inline_scan_manifest_recovery_security.sql` likewise inserted
-  `public.users` after the Auth trigger had already created the same primary-key
-  row.
+- `inline_scan_manifest_recovery_security.sql` likewise inserted `public.users`
+  after the Auth trigger had already created the same primary-key row.
 
 The identity fixture now uses 20-character, policy-valid usernames. Both
 fixtures use `ON CONFLICT (id) DO UPDATE` to customize the trigger-created
-profile without bypassing the Auth foreign key, username policy, identity
-source checks, or transaction rollback. Focused source contracts pin the valid
-fixture identities and the trigger-aware upsert. The later `Bad plan` messages
-were consequences of setup exceptions aborting the pgTAP blocks, not additional
-test failures.
+profile without bypassing the Auth foreign key, username policy, identity source
+checks, or transaction rollback. Focused source contracts pin the valid fixture
+identities and the trigger-aware upsert. The later `Bad plan` messages were
+consequences of setup exceptions aborting the pgTAP blocks, not additional test
+failures.
 
 Run 1551 stopped before production connection preparation, `db push`, secret
 synchronization, Edge deployment, or smoke testing, so it made no production
@@ -462,10 +486,9 @@ rollback fixtures—and continue through deployment and production smokes.
 
 ## Deployment Follow-up: Workflow Run 1552
 
-Attempt 1 for commit
-`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated complete disposable
-catalog replay. The fixture corrections did not close the gate: 22 of 24 files
-completed.
+Attempt 1 for commit `7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated
+complete disposable catalog replay. The fixture corrections did not close the
+gate: 22 of 24 files completed.
 
 The inline fixture now executed assertions 1–15 successfully. That proves its
 ACL checks, adversarial topology checks, profile setup, first inline-image
@@ -473,11 +496,11 @@ repair, normalized ledger state, and ready canonical image path. The next
 statement is mixed-video recovery for scan `...f112`; it raised before
 assertion 16.
 
-The video scan retains sampled inference frames in
-`image_storage_urls`, while canonical refresh correctly creates one playback
-video and no standalone rows for those frames. The strict finalizer introduced
-on July 28 nevertheless required every compatibility image URL as a ready image
-row and raised `canonical_scan_media_incomplete`. Forward migration
+The video scan retains sampled inference frames in `image_storage_urls`, while
+canonical refresh correctly creates one playback video and no standalone rows
+for those frames. The strict finalizer introduced on July 28 nevertheless
+required every compatibility image URL as a ready image row and raised
+`canonical_scan_media_incomplete`. Forward migration
 `20260729012153_fix_video_scan_canonical_finalization.sql` now validates the
 same structured or legacy canonical projection as refresh and still requires
 exact owner/kind/URL ready rows. See the dedicated
@@ -514,9 +537,9 @@ column reference "scan_id" is ambiguous
 Its anonymous block declared a synthetic variable named `scan_id`, then used
 that name beside `jobs.scan_id` in an `INSERT ... SELECT`. PL/pgSQL could not
 choose between the variable and the table column. The fixture now calls the
-synthetic identity `fixture_scan_id` everywhere while retaining real
-`scan_id` column names. The source contract forbids the ambiguous declaration
-and pins the qualified comparison.
+synthetic identity `fixture_scan_id` everywhere while retaining real `scan_id`
+column names. The source contract forbids the ambiguous declaration and pins the
+qualified comparison.
 
 This was a fixture defect; the run never invoked
 `internal.perform_ghost_profile_merge` or
@@ -528,11 +551,10 @@ identity merge and recovery assertions and pass all 26 current files.
 
 ## Deployment Follow-up: Atomic Explore Graph Regression
 
-The backend workflow for
-`1a75179dd88f20163cb5c01bffd60478b9545009` stopped during isolated Edge
-Function graph validation, before disposable database startup, production
-connection preparation, migration push, secret synchronization, Function
-deployment, or smoke testing. Deno reported that
+The backend workflow for `1a75179dd88f20163cb5c01bffd60478b9545009` stopped
+during isolated Edge Function graph validation, before disposable database
+startup, production connection preparation, migration push, secret
+synchronization, Function deployment, or smoke testing. Deno reported that
 `request-community-identification/db.ts` imported `upsertExplorePost`, although
 the same commit intentionally removed that export while replacing separate
 Explore writes with `publish_scan_to_explore_atomically(...)`.
@@ -550,26 +572,26 @@ can replace the failed workflow evidence.
 
 The latest hosted fresh-catalog replay discovered all 26 current pgTAP files.
 Identity merge/recovery passed, proving the `fixture_scan_id` correction reached
-and exercised the production merge and recovery path. Inline/video recovery
-also passed. In total, 24 files completed.
+and exercised the production merge and recovery path. Inline/video recovery also
+passed. In total, 24 files completed.
 
 Only the new atomic Explore and Ask the Community files aborted. Both reached
 their first real `service_role` routine call and raised SQLSTATE `42501`,
-`permission denied for table explore_community_requests`, during a `SELECT ...
-FOR UPDATE`. Their `SECURITY INVOKER` routines had explicit service-only
-`EXECUTE`, but hardened public-schema defaults did not provide the relational
-privileges used by the routine bodies. The later TAP reports—21 planned/4 run
-and 24 planned/5 run—were consequences of those two statement errors, not 36
-additional business-logic failures.
+`permission denied for table explore_community_requests`, during a
+`SELECT ...
+FOR UPDATE`. Their `SECURITY INVOKER` routines had explicit
+service-only `EXECUTE`, but hardened public-schema defaults did not provide the
+relational privileges used by the routine bodies. The later TAP reports—21
+planned/4 run and 24 planned/5 run—were consequences of those two statement
+errors, not 36 additional business-logic failures.
 
-Forward migration
-`20260729044500_grant_atomic_explore_service_privileges.sql` grants
-`service_role` only the operation classes required on the nine participating
-tables. It grants no browser-role write, no broad or destructive privilege, and
-does not convert either routine to definer authority. The two catalogs now plan
-22 and 25 assertions and include live least-privilege checks. Local source
-contracts pass, but only a new fresh-database replay can prove the corrected
-grants against PostgreSQL.
+Forward migration `20260729044500_grant_atomic_explore_service_privileges.sql`
+grants `service_role` only the operation classes required on the nine
+participating tables. It grants no browser-role write, no broad or destructive
+privilege, and does not convert either routine to definer authority. The two
+catalogs now plan 22 and 25 assertions and include live least-privilege checks.
+Local source contracts pass, but only a new fresh-database replay can prove the
+corrected grants against PostgreSQL.
 
 The failed workflow stopped at the disposable catalog gate before production
 connection preparation, `db push`, secret synchronization, Edge deployment, or
@@ -598,8 +620,8 @@ containing `error:`. That selected a deliberately injected
 `ExploreReplyLoadingStateTests` failure and metadata reads against intentionally
 unreadable temporary Core Data stores from passing negative-path tests. Neither
 was causal. Failure reporting now reads Xcode's structured result-summary
-failures first, then failed test-tree nodes, and consults the build log only as a
-fallback. The release archive success remains valid evidence for that SHA, but
+failures first, then failed test-tree nodes, and consults the build log only as
+a fallback. The release archive success remains valid evidence for that SHA, but
 it cannot substitute for a passing full unit target; both jobs must pass again
 on one exact remediated SHA.
 
@@ -618,8 +640,9 @@ retaining all of the following:
    video, and Describe scans, including ambiguous response and partial-upload
    fault injection;
 4. immediate exact-owner `found` status after every producer `200`;
-5. Field Chat opening and Explore publication with eligible saved public media
-   for the same newly completed scan;
+5. Field Chat opening, Explore publication, and Ask the Community publication
+   with eligible saved public media for the same newly completed scan, plus
+   restore publication for an eligible older completed scan;
 6. guarded recovery of eligible historical drift without provider redispatch,
    quota decrement, direct client scan writes, or destructive ambiguous-state
    cleanup; and

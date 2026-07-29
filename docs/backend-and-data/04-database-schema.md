@@ -1733,11 +1733,11 @@ to distinguish already durable state, fresh media restaging, quota retry, and
 not-applicable/deleted state; it never returns source identity through the
 status API or reopens committed provider usage.
 
-Migration `20260729012153_fix_video_scan_canonical_finalization.sql` adds private
-`internal.scan_canonical_media_projection_complete(scan_id UUID)`. It is a
-stable `SECURITY INVOKER` SQL validator with an empty search path and no API-role
-execute grant. It projects the exact canonical media set refreshed for the
-scan:
+Migration `20260729012153_fix_video_scan_canonical_finalization.sql` adds
+private `internal.scan_canonical_media_projection_complete(scan_id UUID)`. It is
+a stable `SECURITY INVOKER` SQL validator with an empty search path and no
+API-role execute grant. It projects the exact canonical media set refreshed for
+the scan:
 
 - valid image/playback references in nonempty structured `captured_media`, or
   the legacy standalone image prefix plus every video URL when no structured
@@ -1761,14 +1761,15 @@ previous all-image-array check was incorrect for inference-only video frames.
 
 The migration also adds private
 `internal.scan_media_reference_is_video_inference_frame(scan_id UUID, user_id
-UUID, url TEXT)`. It permits a promoted image capture to omit a standalone ready
-image only when the exact owner/job row declares a positive numeric video-frame
-count, its endpoint-normalized image count equals the projected standalone-image
-count, the complete classified-frame set has exactly the declared count, the
-URL occurs in the scan's compatibility image array, and the URL is outside the
-structured canonical image set for a proven video or inside the exact legacy
-frame suffix. Both validators are stable security invokers with empty search
-paths and no API-role execute grants.
+UUID, url TEXT)`.
+It permits a promoted image capture to omit a standalone ready image only when
+the exact owner/job row declares a positive numeric video-frame count, its
+endpoint-normalized image count equals the projected standalone-image count, the
+complete classified-frame set has exactly the declared count, the URL occurs in
+the scan's compatibility image array, and the URL is outside the structured
+canonical image set for a proven video or inside the exact legacy frame suffix.
+Both validators are stable security invokers with empty search paths and no
+API-role execute grants.
 
 The forward migration rewrites exactly two catalog fragments and leaves the
 finalizer's manifest proof, captured-promotion requirement for every non-frame
@@ -2031,13 +2032,12 @@ before returning a post as feed-visible. Migration
 publication: service-role-only invoker RPC
 `publish_scan_to_explore_atomically(...)` revalidates and locks the exact owner
 scan, then commits the post metadata, complete media snapshot, hashtags, and
-resolved-community publication state together. An existing community request
-is locked before its scan, matching the helper’s request-to-scan order and
+resolved-community publication state together. An existing community request is
+locked before its scan, matching the helper’s request-to-scan order and
 preventing a publication/consensus deadlock cycle. An omitted post privacy
 choice is resolved from the scan after that lock, so a concurrent geoprivacy
-change cannot leave a stale default. Any late failure restores
-the previous post and media snapshot rather than relying on read-time hiding of
-a partial write.
+change cannot leave a stale default. Any late failure restores the previous post
+and media snapshot rather than relying on read-time hiding of a partial write.
 
 Ask the Community creation uses the companion forward migration
 `20260729033000_atomic_community_identification_requests.sql`. Its service-only
@@ -2054,8 +2054,8 @@ is not enough under the hardened public-schema defaults. Migration
 `taxon_nodes`, `species_dictionary`, `explore_posts`,
 `explore_community_requests`, `explore_post_media`, `explore_post_hashtags`,
 `explore_identifications`, and `community_consensus_jobs`. It grants no
-browser-role writes and no `ALL`,
-`TRUNCATE`, `REFERENCES`, `TRIGGER`, or `MAINTAIN` capability.
+browser-role writes and no `ALL`, `TRUNCATE`, `REFERENCES`, `TRIGGER`, or
+`MAINTAIN` capability.
 
 ### `scan_media_assets`
 
@@ -2106,7 +2106,8 @@ that add different keys to the same scan. BEFORE INSERT/UPDATE trigger
 `enforce_staged_scan_media_budget` therefore takes an owner-scoped transaction
 advisory lock and rejects a seventh active staged source with SQLSTATE `54000`.
 Requested signing subsets remain composable with existing unrequested rows, but
-their combined non-superseded capture-key union cannot exceed six.
+their combined active staged capture-key set cannot exceed six. Historical
+promoted rows remain audit evidence and do not consume this trigger budget.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until
@@ -2337,6 +2338,17 @@ Migration `20260726174555_align_explore_author_publication_contract.sql` adds:
 
 The same migration moves the author-profile visible count onto
 `explore_projected_post_cards(self_id)`, matching preview and grid visibility.
+
+Migration `20260729120000_align_explore_share_state_media_health.sql` aligns
+`get_scan_explore_share_state(self_id, target_scan_id)` with that canonical
+projection. It preserves the active post UUID and share timestamp for owner
+recovery while returning `is_explore_feed_visible = false` for moderated,
+quarantined, or all-missing-media posts. A degraded post remains visible when at
+least one non-missing item survives. The routine remains owner-scoped,
+`SECURITY INVOKER`, and service-role-only; `PUBLIC`, `anon`, and `authenticated`
+cannot invoke it with a substituted `self_id`. The JWT-authenticated Edge
+wrapper supplies the owner identity. The read does not change publication,
+moderation, health, or engagement state.
 
 `internal.refresh_explore_post_media_health` maintains aggregate post state. Its
 triggers create one `media_missing` notification when an incident begins,
@@ -2703,21 +2715,19 @@ coordinates to the client contract.
   existing community request before its exact owned, non-tombstoned biological
   scan; validates bounded media, contiguous order, hashtags, and source-array
   membership; resolves an omitted location choice from the locked scan; then
-  replaces post metadata, media, hashtags, and
-  resolved-community publication state in one statement transaction. `PUBLIC`,
-  `anon`, and `authenticated` cannot execute it. Any error rolls the prior
-  complete post snapshot back.
+  replaces post metadata, media, hashtags, and resolved-community publication
+  state in one statement transaction. `PUBLIC`, `anon`, and `authenticated`
+  cannot execute it. Any error rolls the prior complete post snapshot back.
 - `public.request_community_identification_atomically(p_scan_id UUID, p_user_id UUID, p_note TEXT, p_location_sharing TEXT, p_species_common_name TEXT, p_media_rows JSONB, p_initial_taxon_node_id UUID, p_taxonomy_version_id UUID)`:
   Service-role-only `SECURITY INVOKER` Ask the Community boundary. It preserves
   request-before-scan lock order, verifies the initial taxon belongs to the
   locked owner scan and pinned version, commits one complete Explore media
   snapshot and `needs_id` request, and returns the authoritative request row.
   Reopening withdrawn state clears stale publication/consensus/worker state and
-  withdraws old active votes without deleting their audit rows.
-  Forward migration
-  `20260729044500_grant_atomic_explore_service_privileges.sql` supplies the
-  narrow relational privileges needed by this routine and the companion
-  publication routine without changing either to definer rights.
+  withdraws old active votes without deleting their audit rows. Forward
+  migration `20260729044500_grant_atomic_explore_service_privileges.sql`
+  supplies the narrow relational privileges needed by this routine and the
+  companion publication routine without changing either to definer rights.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`. It
   selects currently visible Explore posts, unnests all non-empty

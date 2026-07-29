@@ -69,6 +69,12 @@ enum StagedMediaKind: String, Codable, Sendable, Equatable {
     }
 }
 
+enum StagingUploadPurpose: String, Codable, Sendable, Equatable {
+    /// Re-stages surviving local media bound to an exact scan so Explore or
+    /// Community publication can repair durable media or guarded owner-row drift.
+    case scanShareRestore = "scan_share_restore"
+}
+
 struct StagedMediaObjectKeys: Sendable, Equatable {
     let imageR2ObjectKeys: [String]
     let audioR2ObjectKeys: [String]
@@ -301,6 +307,7 @@ struct StagingUploadFile: Codable, Sendable, Equatable {
     let sizeBytes: Int?
     let clientScanId: String?
     let mediaRole: String?
+    let uploadPurpose: StagingUploadPurpose?
 
     init(
         fileName: String,
@@ -308,7 +315,8 @@ struct StagingUploadFile: Codable, Sendable, Equatable {
         contentType: String,
         sizeBytes: Int?,
         clientScanId: String? = nil,
-        mediaRole: String? = nil
+        mediaRole: String? = nil,
+        uploadPurpose: StagingUploadPurpose? = nil
     ) {
         self.fileName = fileName
         self.mediaKind = mediaKind
@@ -316,6 +324,7 @@ struct StagingUploadFile: Codable, Sendable, Equatable {
         self.sizeBytes = sizeBytes
         self.clientScanId = clientScanId
         self.mediaRole = mediaRole
+        self.uploadPurpose = uploadPurpose
     }
 }
 

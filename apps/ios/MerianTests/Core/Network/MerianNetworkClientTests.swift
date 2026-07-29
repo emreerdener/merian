@@ -652,6 +652,16 @@ struct MerianNetworkClientTests {
               "shared_at": "2026-07-28T23:45:00Z",
               "publication_status": "published"
             }
+            """.utf8),
+            Data("""
+            {
+              "success": true,
+              "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+              "scan_id": "\(scanID)",
+              "shared_at": "2026-07-28T23:45:00Z",
+              "location_sharing": "future-unknown-mode",
+              "publication_status": "published"
+            }
             """.utf8)
         ]
         let response = HTTPURLResponse(
@@ -672,6 +682,31 @@ struct MerianNetworkClientTests {
                     idempotencyKey: requestID
                 )
             }
+        }
+
+        MockURLProtocol.mockEndpoints["/share-scan-to-explore"] = { _ in
+            (
+                response,
+                Data(
+                    """
+                    {
+                      "success": true,
+                      "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+                      "scan_id": "\(scanID)",
+                      "shared_at": "2026-07-28T23:45:00Z",
+                      "location_sharing": "open",
+                      "publication_status": "published"
+                    }
+                    """.utf8
+                )
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared.shareScanToExplore(
+                scanId: scanID,
+                locationSharing: .privateLocation,
+                idempotencyKey: requestID
+            )
         }
     }
 
@@ -1117,9 +1152,111 @@ struct MerianNetworkClientTests {
         #expect(result.updatedPostMediaCount == 2)
     }
 
+    @Test func testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload() throws {
+        try validateExploreRestoreMediaPayload(
+            imageSizes: [1, 2, 3],
+            videoSizes: [MerianConfig.videoPayloadMaxBytes],
+            audioSizes: [1, MerianConfig.audioPayloadMaxBytes]
+        )
+        try validateExploreRestoreMediaBudget(
+            imageCount: 5,
+            videoCount: 1,
+            audioCount: 0
+        )
+
+        for counts in [
+            (image: -1, video: 0, audio: 0),
+            (image: 6, video: 0, audio: 0),
+            (image: 0, video: 2, audio: 0),
+            (image: 0, video: 0, audio: 3),
+            (image: 5, video: 0, audio: 2)
+        ] {
+            #expect(throws: MerianError.payloadTooLarge) {
+                try validateExploreRestoreMediaBudget(
+                    imageCount: counts.image,
+                    videoCount: counts.video,
+                    audioCount: counts.audio
+                )
+            }
+        }
+
+        for sizes in [
+            (
+                images: [-1],
+                videos: [Int](),
+                audio: [Int]()
+            ),
+            (
+                images: [MerianConfig.stagedImagePayloadMaxBytes, 1],
+                videos: [Int](),
+                audio: [Int]()
+            ),
+            (
+                images: [Int](),
+                videos: [MerianConfig.videoPayloadMaxBytes + 1],
+                audio: [Int]()
+            ),
+            (
+                images: [Int](),
+                videos: [Int](),
+                audio: [MerianConfig.audioPayloadMaxBytes + 1]
+            )
+        ] {
+            #expect(throws: MerianError.payloadTooLarge) {
+                try validateExploreRestoreMediaPayload(
+                    imageSizes: sizes.images,
+                    videoSizes: sizes.videos,
+                    audioSizes: sizes.audio
+                )
+            }
+        }
+
+        let scanId = "019f7004-d6c4-7da1-8561-9cc101f6db62"
+        for (kind, fileName, expectedRole) in [
+            (
+                StagedMediaKind.image,
+                "\(scanId)_explore_restore_0.webp",
+                "display"
+            ),
+            (
+                StagedMediaKind.video,
+                "\(scanId)_explore_restore_video_0.mp4",
+                "playback"
+            ),
+            (
+                StagedMediaKind.audio,
+                "\(scanId)_explore_restore_audio_0.wav",
+                "audio"
+            )
+        ] {
+            let uploadFile = makeScanShareRestoreUploadFile(
+                fileName: fileName,
+                mediaKind: kind,
+                contentType: kind.contentType(for: fileName),
+                sizeBytes: 42,
+                scanId: scanId
+            )
+            #expect(uploadFile.clientScanId == scanId)
+            #expect(uploadFile.mediaRole == expectedRole)
+            #expect(uploadFile.uploadPurpose == .scanShareRestore)
+            let encoded = try JSONEncoder().encode(uploadFile)
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: encoded)
+                    as? [String: Any]
+            )
+            #expect(
+                payload["uploadPurpose"] as? String ==
+                    StagingUploadPurpose.scanShareRestore.rawValue
+            )
+        }
+    }
+
     @Test func testCommunityRequestSendsStableAIIdempotencyKey() async throws {
         let requestID = "019f7004-cb18-7cd0-84e5-b4a97b759666"
         let scanID = "019f7004-d6c4-7da1-8561-9cc101f6db62"
+        let restoredImageKey = "staging/user/restored-image.webp"
+        let restoredVideoKey = "staging/user/restored-video.mp4"
+        let restoredAudioKey = "staging/user/restored-audio.wav"
         let responseData = Data("""
         {
           "success": true,
@@ -1130,6 +1267,8 @@ struct MerianNetworkClientTests {
             "requested_by": "019f7004-f66f-71bf-845c-bf05dff2eb30",
             "requested_at": "2026-07-23T18:00:00Z",
             "status": "needs_id",
+            "initial_taxon_node_id": "019f7004-c59b-74ab-8730-45bcae1bb390",
+            "taxonomy_version_id": "019f7004-ca4e-7c3a-a9e8-5ff84002063e",
             "consensus_identification_count": 0
           }
         }
@@ -1145,11 +1284,30 @@ struct MerianNetworkClientTests {
             #expect(
                 request.value(forHTTPHeaderField: "Idempotency-Key") == requestID
             )
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(
+                payload["restored_object_keys"] as? [String] ==
+                    [restoredImageKey]
+            )
+            #expect(
+                payload["restored_video_object_keys"] as? [String] ==
+                    [restoredVideoKey]
+            )
+            #expect(
+                payload["restored_audio_object_keys"] as? [String] ==
+                    [restoredAudioKey]
+            )
             return (response, responseData)
         }
 
         let result = try await MerianNetworkClient.shared.requestCommunityIdentification(
             scanId: scanID,
+            restoredObjectKeys: [restoredImageKey],
+            restoredVideoObjectKeys: [restoredVideoKey],
+            restoredAudioObjectKeys: [restoredAudioKey],
             idempotencyKey: requestID
         )
 
@@ -1157,12 +1315,81 @@ struct MerianNetworkClientTests {
         #expect(result.status == .needsId)
     }
 
+    @Test func testCommunityRequestRejectsUnconfirmedSuccessResponse() async throws {
+        let scanID = "019f7004-d6c4-7da1-8561-9cc101f6db62"
+        let response = try #require(
+            HTTPURLResponse(
+                url: URL(string: "https://example.com"),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+
+        func responseData(
+            success: Bool,
+            responseScanID: String,
+            requestedAt: String
+        ) -> Data {
+            Data(
+                """
+                {
+                  "success": \(success ? "true" : "false"),
+                  "data": {
+                    "id": "019f7004-e4c2-7feb-8f4d-39ab2a89ca1e",
+                    "post_id": "019f7004-ee31-7e9e-961d-30b49352f12a",
+                    "scan_id": "\(responseScanID)",
+                    "requested_by": "019f7004-f66f-71bf-845c-bf05dff2eb30",
+                    "requested_at": "\(requestedAt)",
+                    "status": "needs_id",
+                    "initial_taxon_node_id": "019f7004-c59b-74ab-8730-45bcae1bb390",
+                    "taxonomy_version_id": "019f7004-ca4e-7c3a-a9e8-5ff84002063e",
+                    "consensus_identification_count": 0
+                  }
+                }
+                """.utf8
+            )
+        }
+
+        let invalidResponses = [
+            responseData(
+                success: false,
+                responseScanID: scanID,
+                requestedAt: "2026-07-23T18:00:00Z"
+            ),
+            responseData(
+                success: true,
+                responseScanID: "019f7004-d6c4-7da1-8561-9cc101f6db63",
+                requestedAt: "2026-07-23T18:00:00Z"
+            ),
+            responseData(
+                success: true,
+                responseScanID: scanID,
+                requestedAt: "not-a-timestamp"
+            )
+        ]
+
+        for invalidResponse in invalidResponses {
+            MockURLProtocol.mockEndpoints[
+                "/request-community-identification"
+            ] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared
+                    .requestCommunityIdentification(scanId: scanID)
+            }
+        }
+    }
+
     @Test func testGetExploreShareStateConstructsPayloadAndParsesJSON() async throws {
+        let scanID = "019f7004-1caa-78e2-b1f0-98f806955892"
+        let postID = "019f7004-23fc-7fa6-9852-2cf928e9e81d"
         let testData = Data("""
         {
             "data": {
-                "scan_id": "scan-share-123",
-                "post_id": "post-share-456",
+                "scan_id": "\(scanID)",
+                "post_id": "\(postID)",
                 "shared_at": "2026-04-29T22:18:03.000Z",
                 "community_request_id": null,
                 "community_request_status": null,
@@ -1179,14 +1406,16 @@ struct MerianNetworkClientTests {
 
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try JSONSerialization.jsonObject(with: body) as? [String: Any]
-            #expect(payload?["scan_id"] as? String == "scan-share-123")
+            #expect(payload?["scan_id"] as? String == scanID)
             return (mockResponse, testData)
         }
 
-        let response = try await MerianNetworkClient.shared.getExploreShareState(scanId: "scan-share-123")
+        let response = try await MerianNetworkClient.shared.getExploreShareState(
+            scanId: scanID
+        )
 
-        #expect(response.scanId == "scan-share-123")
-        #expect(response.postId == "post-share-456")
+        #expect(response.scanId == scanID)
+        #expect(response.postId == postID)
         #expect(response.sharedAt == "2026-04-29T22:18:03.000Z")
         #expect(response.communityRequestId == nil)
         #expect(response.communityRequestStatus == nil)
@@ -1195,13 +1424,16 @@ struct MerianNetworkClientTests {
     }
 
     @Test func testGetExploreShareStateParsesCommunityRequestState() async throws {
+        let scanID = "019f7004-3505-73c0-9e4a-26fe8db264e8"
+        let postID = "019f7004-3a81-7cc4-9bd4-dcf6aef91ec3"
+        let requestID = "019f7004-41d5-7e34-b08a-d4ec37a3f647"
         let testData = Data("""
         {
             "data": {
-                "scan_id": "scan-share-community-123",
-                "post_id": "post-share-community-456",
+                "scan_id": "\(scanID)",
+                "post_id": "\(postID)",
                 "shared_at": "2026-04-29T22:18:03.000Z",
-                "community_request_id": "request-share-community-789",
+                "community_request_id": "\(requestID)",
                 "community_request_status": "needs_id",
                 "is_explore_feed_visible": false,
                 "location_sharing": "obscured"
@@ -1215,14 +1447,146 @@ struct MerianNetworkClientTests {
             return (mockResponse, testData)
         }
 
-        let response = try await MerianNetworkClient.shared.getExploreShareState(scanId: "scan-share-community-123")
+        let response = try await MerianNetworkClient.shared.getExploreShareState(
+            scanId: scanID
+        )
 
-        #expect(response.scanId == "scan-share-community-123")
-        #expect(response.postId == "post-share-community-456")
-        #expect(response.communityRequestId == "request-share-community-789")
+        #expect(response.scanId == scanID)
+        #expect(response.postId == postID)
+        #expect(response.communityRequestId == requestID)
         #expect(response.communityRequestStatus == .needsId)
         #expect(response.isExploreFeedVisible == false)
         #expect(response.locationSharing == .obscured)
+    }
+
+    @Test func testGetExploreShareStateAcceptsServerHiddenPostWithoutCommunityRequest() async throws {
+        let scanID = "019f7004-4b3a-7d6a-a8fd-5b7db04e6395"
+        let postID = "019f7004-50b2-7a28-8972-38fc70217558"
+        let testData = Data("""
+        {
+            "data": {
+                "scan_id": "\(scanID)",
+                "post_id": "\(postID)",
+                "shared_at": "2026-07-29T12:00:00.000Z",
+                "community_request_id": null,
+                "community_request_status": null,
+                "is_explore_feed_visible": false,
+                "location_sharing": "open"
+            }
+        }
+        """.utf8)
+        let mockResponse = try #require(
+            HTTPURLResponse(
+                url: URL(string: "https://example.com"),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+
+        MockURLProtocol.mockEndpoints[
+            "/get-scan-explore-share-state"
+        ] = { _ in
+            (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared
+            .getExploreShareState(scanId: scanID)
+
+        #expect(response.postId == postID)
+        #expect(response.communityRequestId == nil)
+        #expect(response.isExploreFeedVisible == false)
+        #expect(response.locationSharing == .open)
+    }
+
+    @Test func testGetExploreShareStateRejectsUnconfirmedState() async throws {
+        let scanID = "019f7004-3505-73c0-9e4a-26fe8db264e8"
+        let mockResponse = try #require(
+            HTTPURLResponse(
+                url: URL(string: "https://example.com"),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+        let invalidResponses = [
+            Data("""
+            {
+              "data": {
+                "scan_id": "019f7004-3505-73c0-9e4a-26fe8db264e9",
+                "post_id": "019f7004-3a81-7cc4-9bd4-dcf6aef91ec3",
+                "shared_at": "2026-04-29T22:18:03.000Z",
+                "community_request_id": null,
+                "community_request_status": null,
+                "is_explore_feed_visible": true,
+                "location_sharing": "open"
+              }
+            }
+            """.utf8),
+            Data("""
+            {
+              "data": {
+                "scan_id": "\(scanID)",
+                "post_id": null,
+                "shared_at": null,
+                "community_request_id": null,
+                "community_request_status": null,
+                "is_explore_feed_visible": true,
+                "location_sharing": "open"
+              }
+            }
+            """.utf8),
+            Data("""
+            {
+              "data": {
+                "scan_id": "\(scanID)",
+                "post_id": "019f7004-3a81-7cc4-9bd4-dcf6aef91ec3",
+                "shared_at": "not-a-timestamp",
+                "community_request_id": null,
+                "community_request_status": null,
+                "is_explore_feed_visible": true,
+                "location_sharing": "open"
+              }
+            }
+            """.utf8),
+            Data("""
+            {
+              "data": {
+                "scan_id": "\(scanID)",
+                "post_id": "019f7004-3a81-7cc4-9bd4-dcf6aef91ec3",
+                "shared_at": "2026-04-29T22:18:03.000Z",
+                "community_request_id": null,
+                "community_request_status": null,
+                "location_sharing": "open"
+              }
+            }
+            """.utf8),
+            Data("""
+            {
+              "data": {
+                "scan_id": "\(scanID)",
+                "post_id": "019f7004-3a81-7cc4-9bd4-dcf6aef91ec3",
+                "shared_at": "2026-04-29T22:18:03.000Z",
+                "community_request_id": null,
+                "community_request_status": null,
+                "is_explore_feed_visible": true,
+                "location_sharing": "future-unknown-mode"
+              }
+            }
+            """.utf8)
+        ]
+
+        for invalidResponse in invalidResponses {
+            MockURLProtocol.mockEndpoints[
+                "/get-scan-explore-share-state"
+            ] = { _ in
+                (mockResponse, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared
+                    .getExploreShareState(scanId: scanID)
+            }
+        }
     }
 
     @Test func testExplorePostDetailDecodesSimilarSpecies() throws {

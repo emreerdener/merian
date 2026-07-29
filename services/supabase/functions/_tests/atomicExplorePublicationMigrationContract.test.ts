@@ -162,6 +162,14 @@ Deno.test("Explore Edge code uses only the atomic final publication mutation", a
     'supabaseAdmin.rpc(\n    "publish_scan_to_explore_atomically"',
   );
   assertStringIncludes(routeSource, "publishExplorePostAtomically(");
+  assertStringIncludes(
+    compact(routeSource),
+    "normalizeRestoredMediaObjectKeys(body, user.id)",
+  );
+  assertStringIncludes(
+    compact(dbSource),
+    "await requireRestoredMediaLedgerBinding( scanId, userId, { restoredObjectKeys, restoredVideoObjectKeys, restoredAudioObjectKeys, }, supabaseAdmin, )",
+  );
   for (
     const obsoleteMutation of [
       '.from("explore_posts")',

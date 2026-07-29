@@ -230,26 +230,36 @@ The `/generate-upload-urls` Edge Function signs direct-to-Cloudflare R2 `PUT`
 URLs for background staging. Current clients send a structured `files` manifest
 built by `MediaStagingContract` for the app queue. Each entry includes
 `fileName`, `mediaKind`, `contentType`, `sizeBytes`, and, for scan media,
-`clientScanId` plus `mediaRole`. When those scan fields are present, the signer
-creates staged `scan_media_assets` rows and returns `mediaAssetId` /
-`mediaSessionId` next to each signed URL. These staged rows are allowed to keep
-`scan_id` null until `identify-multimodal` inserts the final scan and promotes
-the media. The Edge parser rejects unsanitized names, media-kind/content-type
-mismatches, invalid role/kind combinations, over-budget audio, video, or image
-files, batches above six files, batches above five images, batches above one
-video, and batches above two audio files before calling
-`generatePresignedPutUrl()`. The six-file cap is specifically for video scans
-that need five sampled inference frames plus one playback clip. Legacy
-`fileNames` remains accepted for older clients only; it is compatibility-only
-because it cannot express byte budgets or media asset sessions. The limit and
-content-type contract is pinned in
+`clientScanId` plus `mediaRole`. Explicit post-analysis sharing recovery also
+sets `uploadPurpose` to `scan_share_restore`. When those scan fields are
+present, the signer creates staged `scan_media_assets` rows and returns
+`mediaAssetId` / `mediaSessionId` next to each signed URL. These staged rows are
+allowed to keep `scan_id` null until `identify-multimodal` inserts the final
+scan and promotes the media. The restore purpose is accepted only for an exact
+scan/category-bound deterministic filename and canonical role. A completed job
+requires a fresh unrestricted scan read: an existing row must be non-tombstoned
+and owned by the authenticated caller, while a genuinely absent row may only
+stage media for guarded reconstruction. A missing or nonterminal job may also
+stage before that reconstruction, but signing itself grants no scan-write or
+publication authority. Failed-terminal and ordinary completed-ingestion uploads
+stay closed, and repair/ordinary files cannot mix for one scan. The Edge parser
+rejects unsanitized names, media-kind/content-type mismatches, invalid role/kind
+combinations, over-budget audio, video, or image files, batches above six files,
+batches above five images, batches above one video, and batches above two audio
+files before calling `generatePresignedPutUrl()`. The six-file cap is
+specifically for video scans that need five sampled inference frames plus one
+playback clip. Legacy `fileNames` remains accepted for older clients only; it is
+compatibility-only because it cannot express byte budgets or media asset
+sessions. The limit and content-type contract is pinned in
 `docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
 Deno tests. Registration is idempotent per owner/client-scan/object key, but
 signing calls for one scan may be composable subsets (for example live video and
 later queue recovery media). Existing unrequested rows are retained rather than
-treated as an immutable full manifest. Edge code bounds the combined
-non-superseded key union at six; an owner-serialized database trigger enforces
-the staged-row cap across concurrent disjoint-key registrations.
+treated as an immutable full manifest. Edge code bounds the combined active
+staged/processing key union at six; historical promoted capture rows do not
+consume a later explicit share-repair budget. An owner-serialized database
+trigger enforces the staged-row cap across concurrent disjoint-key
+registrations.
 
 Profile avatar uploads also use this signing path. The iOS client uploads a
 single prepared square WebP or JPEG to `staging/{userId}/...`, then calls
@@ -1262,12 +1272,11 @@ Initial publication additionally uses
 generation, and moderation complete. The invoker-rights, service-role-only RPC
 locks and revalidates the exact owned biological scan, accepts only bounded
 media URLs from that scan, and performs the post upsert, media replacement,
-hashtag replacement, and resolved-community publication in one transaction.
-When backward-compatible clients omit `location_sharing`, the RPC resolves
-geoprivacy from that locked scan.
-An insert, constraint, or late community-publication failure therefore restores
-the entire previous snapshot; it cannot leave a newly visible partial post or
-erase healthy media while returning failure.
+hashtag replacement, and resolved-community publication in one transaction. When
+backward-compatible clients omit `location_sharing`, the RPC resolves geoprivacy
+from that locked scan. An insert, constraint, or late community-publication
+failure therefore restores the entire previous snapshot; it cannot leave a newly
+visible partial post or erase healthy media while returning failure.
 
 Ask the Community uses the companion
 `public.request_community_identification_atomically(...)` boundary after
@@ -1279,26 +1288,26 @@ trigger rechecks `needs_id` at `shared_at`, preventing a concurrent explicit
 share from returning success after the Community request wins the scan-lock
 race.
 
-Both transaction boundaries intentionally remain `SECURITY INVOKER`.
-Migration `20260729044500_grant_atomic_explore_service_privileges.sql` supplies
-the exact table operation classes their `service_role` caller needs for scan and
-request locks, snapshot replacement, taxon validation, identification
-withdrawal, consensus-job cleanup, and the existing invoker-rights location
-projection trigger. `EXECUTE` remains revoked from `PUBLIC`, `anon`, and
-`authenticated`; those roles receive no new table writes. Do not work around an
-invoker `permission denied` by converting either routine to `SECURITY DEFINER`.
+Both transaction boundaries intentionally remain `SECURITY INVOKER`. Migration
+`20260729044500_grant_atomic_explore_service_privileges.sql` supplies the exact
+table operation classes their `service_role` caller needs for scan and request
+locks, snapshot replacement, taxon validation, identification withdrawal,
+consensus-job cleanup, and the existing invoker-rights location projection
+trigger. `EXECUTE` remains revoked from `PUBLIC`, `anon`, and `authenticated`;
+those roles receive no new table writes. Do not work around an invoker
+`permission denied` by converting either routine to `SECURITY DEFINER`.
 
 The scan finalizer uses that same distinction. Compatibility
 `image_storage_urls` may retain sampled frames used for inference and video
 posters, so those URLs are not individually required as ready standalone image
-rows. Migration
-`20260729012153_fix_video_scan_canonical_finalization.sql` projects valid
-structured `captured_media` visuals when available and otherwise mirrors the
-legacy refresher's standalone-image count (`images - videos × 5`) plus every
-playback video and standalone audio item. Every projected item must still match
-the exact scan owner, media kind, URL, and `ready` status before the ingestion
-ledger can become complete. This corrects valid-video rejection without
-weakening staged-key promotion, deletion, or missing standalone-image checks.
+rows. Migration `20260729012153_fix_video_scan_canonical_finalization.sql`
+projects valid structured `captured_media` visuals when available and otherwise
+mirrors the legacy refresher's standalone-image count (`images - videos × 5`)
+plus every playback video and standalone audio item. Every projected item must
+still match the exact scan owner, media kind, URL, and `ready` status before the
+ingestion ledger can become complete. This corrects valid-video rejection
+without weakening staged-key promotion, deletion, or missing standalone-image
+checks.
 
 Author profile reads are split the same way as feed/detail reads.
 `get-explore-author-profile` returns a privacy-scoped profile sheet payload only

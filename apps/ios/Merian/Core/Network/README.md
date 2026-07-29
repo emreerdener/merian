@@ -40,7 +40,12 @@ session from creating an anonymous production user.
 - Builds `OwnedScanRecoveryPayload` only from an owned local record. Single
   `/check-scan-status` can repair eligible non-media state; record-based Explore
   sharing can combine it with owner-staged local image/video/audio. Ask the
-  Community repairs status first. Bulk status never mutates server state.
+  Community repairs status first. Restore signing uses the explicit
+  `scan_share_restore` purpose and deterministic scan/category filenames, so a
+  completed ingestion can stage surviving local media only after an unrestricted
+  scan read confirms the active JWT-owned row or proves it absent for guarded
+  reconstruction; tombstoned and foreign rows fail closed. Bulk status never
+  mutates server state.
 - Translates known technical Explore failures at the UI boundary so database
   authorization and missing-row implementation detail are not customer-facing.
 
@@ -192,6 +197,22 @@ queue's maximum delay. Other handler-owned `4xx` responses preserve the local
 media as `queueNeedsAttention`; only the exact stable `observation_rejected`
 policy response is terminal.
 
+An HTTP `200` is only a candidate background success. Its body must be nonempty,
+decode as the generated Identify envelope, not explicitly report
+`success: false`, contain a nonempty bounded scan ID, and contain a finite
+confidence score from zero through one before local finalization starts. Empty,
+truncated, or structurally unusable bodies are ambiguous transport outcomes and
+enter exact-ID status recovery plus the durable retry path. The queue row is
+removed and its job is marked complete only after response persistence and the
+main-context queue deletion both commit. Wrong-scan envelopes, local save
+failures, and cleanup save failures retain the queue instead of converting a
+no-op save into data loss. A valid confidence-zero envelope for the exact scan
+remains terminal and intentionally creates no `LocalScanRecord`, but its source
+media stays intact until the main-context queue deletion commits and authorizes
+file cleanup. The guarded deletion marks the job complete, inserts the completed
+event, and removes the row in the same save; only explicit deletion records
+cancellation.
+
 Foreground Identify handling does not translate every `409` into a network
 timeout. Only handler responses whose stable code is exactly
 `ai_request_in_progress`, `ai_request_already_completed`,
@@ -215,10 +236,11 @@ and keep transient/unknown state retryable. The joined contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 An HTTP-successful Explore-share response is not accepted on decoding alone.
-`shareScanToExplore` requires `success: true`, the exact requested scan UUID,
-a valid post UUID, a parseable ISO-8601 share timestamp, an authoritative
-location-sharing value, and an explicit `published` publication status. Any
-integrity mismatch becomes
+`shareScanToExplore` requires `success: true`, the exact requested scan UUID, a
+valid post UUID, a parseable ISO-8601 share timestamp, an authoritative
+location-sharing value that equals an explicitly requested privacy mode, and an
+explicit `published` publication status. Unknown location values are rejected
+instead of being coerced into success. Any integrity mismatch becomes
 `MerianError.invalidResponse`; callers must not cache the post ID or dismiss the
 composer as though publication succeeded.
 

@@ -31,9 +31,11 @@ export function stagedAssetInputs(
       orderIndex,
       contentType: file.contentType,
       byteSize: file.sizeBytes ?? null,
+      uploadPurpose: file.uploadPurpose,
       metadata: {
         fileName: file.fileName,
         endpoint: "generate-upload-urls",
+        ...(file.uploadPurpose ? { uploadPurpose: file.uploadPurpose } : {}),
       },
     }];
   });

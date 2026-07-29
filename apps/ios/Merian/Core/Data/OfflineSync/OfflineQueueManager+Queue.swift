@@ -263,6 +263,9 @@ extension OfflineQueueManager {
         foregroundInferenceExpectation: ForegroundInferenceGenerationExpectation?,
         serverPollTokenToPreserve: UUID?
     ) async -> Bool {
+        let completedInference =
+            inferenceExpectation != nil ||
+            foregroundInferenceExpectation != nil
         if let foregroundInferenceExpectation {
             guard foregroundInferenceGenerations[scanId]
                     == foregroundInferenceExpectation.generation,
@@ -423,6 +426,41 @@ extension OfflineQueueManager {
             return false
         }
         guard let scan else {
+            let job: OfflineJobRecord?
+            do {
+                job = try fetchOfflineJob(
+                    id: Self.scanIngestionJobId(scanId: scanId),
+                    context: context
+                )
+            } catch {
+                MerianLog.data.error(
+                    "deleteQueuedScan: job fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+                )
+                return false
+            }
+            if completedInference, let job, job.status != .complete {
+                job.status = .complete
+                job.updatedAt = Date()
+                job.nextRunAt = nil
+                job.lastErrorCode = nil
+                job.lastErrorMessage = nil
+                job.lastHTTPStatus = nil
+                context.insert(OfflineQueueEvent(
+                    jobId: job.id,
+                    scanId: scanId,
+                    kind: .completed,
+                    message: "Queued scan inference completed."
+                ))
+                do {
+                    try context.save()
+                    OfflineJobScheduler.shared.scheduleNextPersistedWake(
+                        using: self
+                    )
+                } catch {
+                    context.rollback()
+                    return false
+                }
+            }
             if preservePreferredGoalHint {
                 clearForegroundInferenceOwnershipAfterDeletion(
                     scanId: scanId,
@@ -509,19 +547,35 @@ extension OfflineQueueManager {
             appendDeletionCandidate(.documents(inferenceImagePath))
         }
 
-        if let job = try? fetchOfflineJob(
-            id: Self.scanIngestionJobId(scanId: scanId),
-            context: context
-        ) {
-            job.status = .cancelled
+        let job: OfflineJobRecord?
+        do {
+            job = try fetchOfflineJob(
+                id: Self.scanIngestionJobId(scanId: scanId),
+                context: context
+            )
+        } catch {
+            MerianLog.data.error(
+                "deleteQueuedScan: job fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+        if let job {
+            job.status = completedInference ? .complete : .cancelled
             job.updatedAt = Date()
             job.nextRunAt = nil
+            if completedInference {
+                job.lastErrorCode = nil
+                job.lastErrorMessage = nil
+                job.lastHTTPStatus = nil
+            }
         }
         context.insert(OfflineQueueEvent(
             jobId: Self.scanIngestionJobId(scanId: scanId),
             scanId: scanId,
-            kind: .cancelled,
-            message: "Queued scan was removed locally."
+            kind: completedInference ? .completed : .cancelled,
+            message: completedInference
+                ? "Queued scan inference completed."
+                : "Queued scan was removed locally."
         ))
         if !preservePreferredGoalHint {
             deletePreferredGoalHint(scanId: scanId, in: context)
@@ -529,6 +583,7 @@ extension OfflineQueueManager {
         context.delete(scan)
         do {
             try context.save()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
             clearForegroundInferenceOwnershipAfterDeletion(
                 scanId: scanId,
                 inferenceExpectation: inferenceExpectation,

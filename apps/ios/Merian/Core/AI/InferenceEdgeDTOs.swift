@@ -304,6 +304,25 @@ struct EdgeResponse: Codable {
 }
 // END GENERATED: Identify wire DTOs
 
+enum IdentifySuccessEnvelopeValidator {
+    /// Minimal client-side success boundary retained outside the generated DTO
+    /// block. Required wire fields remain optional in Swift for rolling-version
+    /// compatibility, so decoding alone cannot establish a usable result.
+    static func isUsable(_ wrapper: EdgeResponseWrapper) -> Bool {
+        guard wrapper.success != false,
+              let scanId = wrapper.data.scan_id?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !scanId.isEmpty,
+              scanId.count <= 128,
+              let confidenceScore = wrapper.data.confidence_score,
+              confidenceScore.isFinite,
+              (0.0...1.0).contains(confidenceScore) else {
+            return false
+        }
+        return true
+    }
+}
+
 // MARK: - Enrich-Scan Response
 
 /// Returned by the enrich-scan Edge Function for async enrichment + similar species loading.

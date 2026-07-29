@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "endpoint": "/generate-upload-urls",
   "maxFilesPerRequest": 6,
   "maxImageBytes": 5242880,
@@ -28,7 +28,11 @@
   "canonicalQueuedVideoContentType": "video/mp4",
   "optionalRequestFields": [
     "clientScanId",
-    "mediaRole"
+    "mediaRole",
+    "uploadPurpose"
+  ],
+  "uploadPurposes": [
+    "scan_share_restore"
   ],
   "optionalResponseFields": [
     "mediaAssetId",

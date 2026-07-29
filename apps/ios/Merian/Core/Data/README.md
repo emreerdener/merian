@@ -30,6 +30,16 @@ orphan reconciliation restarts signing for a still-uploading row; a staged row
 replays only its persisted keys. A missing, failed, or external-import row is
 discarded and never resurrected.
 
+After foreground or background result persistence, inference-driven queue
+deletion writes the scan job's `.complete` status, clears transient errors,
+inserts the completed event, and removes the exact guarded queue row in one
+main-context save. Explicit user/system deletion instead records `.cancelled`.
+A crash or save failure therefore cannot leave successful inference durably
+classified as cancellation, and local file cleanup runs only after this save.
+If crash replay reaches the same proven generation after the queue row is gone,
+an already-complete job is accepted without appending a duplicate completion
+event.
+
 ## External Image Import Inbox
 
 `Images/ExternalImageImportStore.swift` owns the app-sandbox copy of an image

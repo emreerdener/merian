@@ -1149,7 +1149,6 @@ actor BackgroundDatabaseActor {
             )
         }
 
-        var inferenceFailed = true
         var resolvedSpeciesName: String?
         var finalIsNewDiscovery = false
         var resultingScanId: String?
@@ -1158,85 +1157,102 @@ actor BackgroundDatabaseActor {
 
         // --- Step 1: Decode Edge Response ---
         
-        let parsedWrapper: EdgeResponseWrapper?
+        let parsedWrapper: EdgeResponseWrapper
         do {
             parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
         } catch {
             MerianLog.data.debug("processAndCleanupOfflineScan: JSON decode failed: \(error, privacy: .private)")
-            parsedWrapper = nil
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return OfflineScanProcessingResult(
+                resolvedSpeciesName: nil,
+                isNewDiscovery: false,
+                finalScanId: nil,
+                speciesData: nil,
+                wasCleaned: false
+            )
+        }
+        guard IdentifySuccessEnvelopeValidator.isUsable(parsedWrapper) else {
+            MerianLog.data.debug(
+                "processAndCleanupOfflineScan: decoded response failed the client success boundary scanId=\(scanId, privacy: .public)"
+            )
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return OfflineScanProcessingResult(
+                resolvedSpeciesName: nil,
+                isNewDiscovery: false,
+                finalScanId: nil,
+                speciesData: nil,
+                wasCleaned: false
+            )
         }
 
         // --- Step 2: Map Data and Resolve Identifiers ---
         
-        if let parsedWrapper {
-            var mappedData = SpeciesData(
-                fromEdgeResponse: parsedWrapper.data,
-                locationName: telemetry?.locationName,
-                weatherCondition: telemetry?.weatherCondition,
-                weatherTemperatureF: telemetry?.weatherTemperatureF,
-                gpsElevation: telemetry?.gpsElevation,
-                gpsLatitude: telemetry?.gpsLatitude,
-                gpsLongitude: telemetry?.gpsLongitude
+        var mappedData = SpeciesData(
+            fromEdgeResponse: parsedWrapper.data,
+            locationName: telemetry?.locationName,
+            weatherCondition: telemetry?.weatherCondition,
+            weatherTemperatureF: telemetry?.weatherTemperatureF,
+            gpsElevation: telemetry?.gpsElevation,
+            gpsLatitude: telemetry?.gpsLatitude,
+            gpsLongitude: telemetry?.gpsLongitude
+        )
+        mappedData.zoomFactor = telemetry?.zoomFactor.map { Double($0) }
+        mappedData.audioFilePaths = audioFilePaths
+        mappedData.videoFilePaths = videoFilePaths
+
+        if expectedGeneration != nil,
+           mappedData.scanId?.caseInsensitiveCompare(scanId)
+                != .orderedSame {
+            await ScanInferencePersistenceCoordinator.shared.release(
+                scanId: scanId
             )
-            mappedData.zoomFactor = telemetry?.zoomFactor.map { Double($0) }
-            mappedData.audioFilePaths = audioFilePaths
-            mappedData.videoFilePaths = videoFilePaths
+            MerianLog.data.debug(
+                "processAndCleanupOfflineScan: response scan ID mismatch scanId=\(scanId, privacy: .public)"
+            )
+            return OfflineScanProcessingResult(
+                resolvedSpeciesName: nil,
+                isNewDiscovery: false,
+                finalScanId: nil,
+                speciesData: nil,
+                wasCleaned: false
+            )
+        }
 
-            if expectedGeneration != nil,
-               mappedData.scanId?.caseInsensitiveCompare(scanId)
-                    != .orderedSame {
-                await ScanInferencePersistenceCoordinator.shared.release(
-                    scanId: scanId
-                )
-                MerianLog.data.debug(
-                    "processAndCleanupOfflineScan: response scan ID mismatch scanId=\(scanId, privacy: .public)"
-                )
-                return OfflineScanProcessingResult(
-                    resolvedSpeciesName: nil,
-                    isNewDiscovery: false,
-                    finalScanId: nil,
-                    speciesData: nil,
-                    wasCleaned: false
+        if mappedData.confidenceScore > 0.0 {
+            resolvedSpeciesName = mappedData.commonName
+
+            let recordId = mappedData.scanId ?? scanId
+            await acquireFinalizationLock(scanId: recordId, operation: "offline")
+            finalizationScanId = recordId
+
+            let shouldInsertRecord = fetchLocalScanRecord(id: recordId) == nil
+            let (activeSpeciesId, isNew) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
+
+            if shouldInsertRecord && isNew {
+                mappedData.isNewDiscovery = true
+                finalIsNewDiscovery = true
+            }
+
+            // Capture mappedData (with isNewDiscovery set) to hydrate the live InferenceEngine.
+            resultSpeciesData = mappedData
+
+            // --- Step 3: Atomic Record Insertion ---
+            if shouldInsertRecord {
+                await insertLocalScanRecordIfMissing(
+                    mappedData: mappedData,
+                    recordId: recordId,
+                    activeSpeciesId: activeSpeciesId,
+                    discoveryTimestamp: originalTimestamp,
+                    captureDate: originalTimestamp,
+                    originalImagePaths: originalImagePaths,
+                    observationContextsJSON: observationContextsJSON,
+                    audioFilePaths: audioFilePaths,
+                    videoFilePaths: videoFilePaths,
+                    capturedMediaJSON: capturedMediaJSON
                 )
             }
 
-            if mappedData.confidenceScore > 0.0 {
-                inferenceFailed = false
-                resolvedSpeciesName = mappedData.commonName
-
-                let recordId = mappedData.scanId ?? scanId
-                await acquireFinalizationLock(scanId: recordId, operation: "offline")
-                finalizationScanId = recordId
-
-                let shouldInsertRecord = fetchLocalScanRecord(id: recordId) == nil
-                let (activeSpeciesId, isNew) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
-                
-                if shouldInsertRecord && isNew {
-                    mappedData.isNewDiscovery = true
-                    finalIsNewDiscovery = true
-                }
-
-                // Capture mappedData (with isNewDiscovery set) to hydrate the live InferenceEngine.
-                resultSpeciesData = mappedData
-                
-                // --- Step 3: Atomic Record Insertion ---
-                if shouldInsertRecord {
-                    await insertLocalScanRecordIfMissing(
-                        mappedData: mappedData,
-                        recordId: recordId,
-                        activeSpeciesId: activeSpeciesId,
-                        discoveryTimestamp: originalTimestamp,
-                        captureDate: originalTimestamp,
-                        originalImagePaths: originalImagePaths,
-                        observationContextsJSON: observationContextsJSON,
-                        audioFilePaths: audioFilePaths,
-                        videoFilePaths: videoFilePaths,
-                        capturedMediaJSON: capturedMediaJSON
-                    )
-                }
-                
-                resultingScanId = recordId
-            }
+            resultingScanId = recordId
         }
 
         // --- Step 4: Commit LocalScanRecord ---
@@ -1261,13 +1277,6 @@ actor BackgroundDatabaseActor {
         }
         if let finalizationScanId {
             await ScanFinalizationCoordinator.shared.release(scanId: finalizationScanId)
-        }
-
-        if commitSuccess && inferenceFailed {
-            // HTTP 200 response but confidence == 0: no LocalScanRecord was inserted.
-            // The OfflineQueuedScan cleanup is still delegated to the main actor.
-            // Delete source image files here since they will never be referenced by a record.
-            Task { await FileIOActor.shared.deleteImages(at: originalImagePaths) }
         }
 
         let result = OfflineScanProcessingResult(

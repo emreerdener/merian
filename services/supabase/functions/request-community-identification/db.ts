@@ -120,6 +120,15 @@ function isCommunityRequestRow(value: unknown): value is CommunityRequestRow {
     (row.consensus_identification_count as number) >= 0;
 }
 
+export function communityRequestMatchesIdentity(
+  row: Pick<CommunityRequestRow, "scan_id" | "requested_by">,
+  scanId: string,
+  userId: string,
+): boolean {
+  return row.scan_id.toLowerCase() === scanId.toLowerCase() &&
+    row.requested_by.toLowerCase() === userId.toLowerCase();
+}
+
 export async function invokeAtomicCommunityIdentificationRequest(
   payload: AtomicCommunityIdentificationPayload,
   supabaseAdmin: SupabaseClient,
@@ -150,6 +159,8 @@ export async function requestCommunityIdentification(
   locationSharing: string | null,
   speciesCommonName: string | null,
   restoredObjectKeys: string[],
+  restoredVideoObjectKeys: string[],
+  restoredAudioObjectKeys: string[],
   supabaseAdmin: SupabaseClient,
   moderationQuota: AudioModerationQuota,
 ): Promise<CommunityRequestRow> {
@@ -157,8 +168,8 @@ export async function requestCommunityIdentification(
     scanId,
     userId,
     restoredObjectKeys,
-    [],
-    [],
+    restoredVideoObjectKeys,
+    restoredAudioObjectKeys,
     supabaseAdmin,
   );
 
@@ -202,8 +213,7 @@ export async function requestCommunityIdentification(
   if (
     error ||
     !isCommunityRequestRow(data) ||
-    data.scan_id !== scanId ||
-    data.requested_by !== userId
+    !communityRequestMatchesIdentity(data, scanId, userId)
   ) {
     throw new Error(
       `Failed to create community request atomically: ${

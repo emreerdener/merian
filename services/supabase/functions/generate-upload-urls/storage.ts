@@ -8,6 +8,7 @@ import type { ScanMediaAssetRole } from "../_shared/scanMediaAssets.ts";
 
 export type { StagingMediaKind };
 export { STAGING_ALLOWED_CONTENT_TYPES };
+export type StagingUploadPurpose = "scan_share_restore";
 
 export const MAX_STAGING_FILES = MEDIA_BUDGETS.maxStagingFiles;
 export const MAX_STAGED_IMAGE_BYTES = MEDIA_BUDGETS.maxImageRawBytes;
@@ -24,6 +25,7 @@ export interface StagingUploadFile {
   sizeBytes?: number;
   clientScanId?: string;
   mediaRole?: ScanMediaAssetRole;
+  uploadPurpose?: StagingUploadPurpose;
 }
 
 export interface PresignedUrlPayload {
@@ -81,6 +83,78 @@ function mediaRoleAllowedForKind(
   if (kind === "audio") return role === "audio";
   return role === "display" || role === "thumbnail" ||
     role === "inference_frame";
+}
+
+function defaultMediaRoleForRestore(
+  kind: StagingMediaKind,
+): ScanMediaAssetRole {
+  return defaultMediaRoleForKind(kind);
+}
+
+function exactScanShareRestoreFileName(
+  fileName: string,
+  clientScanId: string,
+  mediaKind: StagingMediaKind,
+): boolean {
+  const escapedScanId = clientScanId.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const suffix = "[.][A-Za-z0-9]+$";
+  switch (mediaKind) {
+    case "image":
+      return new RegExp(
+        `^${escapedScanId}_explore_restore_(?:live|[0-9]+)${suffix}`,
+        "i",
+      ).test(fileName);
+    case "video":
+      return new RegExp(
+        `^${escapedScanId}_explore_restore_video_[0-9]+${suffix}`,
+        "i",
+      ).test(fileName);
+    case "audio":
+      return new RegExp(
+        `^${escapedScanId}_explore_restore_audio_[0-9]+${suffix}`,
+        "i",
+      ).test(fileName);
+  }
+}
+
+function parseUploadPurpose(
+  value: unknown,
+): { purpose?: StagingUploadPurpose; error?: string } {
+  if (value == null) return {};
+  if (value !== "scan_share_restore") {
+    return { error: "Bad Request: uploadPurpose is not valid." };
+  }
+  return { purpose: value };
+}
+
+function aliasedRequestValue(
+  rawFile: Record<string, unknown>,
+  camelCaseKey: string,
+  snakeCaseKey: string,
+): { value?: unknown; error?: string } {
+  const hasCamelCaseValue = Object.prototype.hasOwnProperty.call(
+    rawFile,
+    camelCaseKey,
+  );
+  const hasSnakeCaseValue = Object.prototype.hasOwnProperty.call(
+    rawFile,
+    snakeCaseKey,
+  );
+  const camelCaseValue = rawFile[camelCaseKey];
+  const snakeCaseValue = rawFile[snakeCaseKey];
+  if (
+    hasCamelCaseValue &&
+    hasSnakeCaseValue &&
+    camelCaseValue !== snakeCaseValue
+  ) {
+    return {
+      error: `Bad Request: ${camelCaseKey} and ${snakeCaseKey} conflict.`,
+    };
+  }
+  return { value: hasCamelCaseValue ? camelCaseValue : snakeCaseValue };
 }
 
 function parseMediaRole(
@@ -167,9 +241,15 @@ function validateStructuredUploadFiles(
       return error(400, "Bad Request: contentType is not valid for mediaKind.");
     }
 
-    const clientScanId = cleanClientScanId(
-      rawFile.clientScanId ?? rawFile.client_scan_id,
+    const clientScanIdValue = aliasedRequestValue(
+      rawFile,
+      "clientScanId",
+      "client_scan_id",
     );
+    if (clientScanIdValue.error) {
+      return error(400, clientScanIdValue.error);
+    }
+    const clientScanId = cleanClientScanId(clientScanIdValue.value);
     if (
       (rawFile.clientScanId != null || rawFile.client_scan_id != null) &&
       !clientScanId
@@ -177,12 +257,47 @@ function validateStructuredUploadFiles(
       return error(400, "Bad Request: clientScanId must be a UUID.");
     }
 
-    const roleResult = parseMediaRole(
-      rawFile.mediaRole ?? rawFile.media_role,
-      mediaKind,
+    const mediaRoleValue = aliasedRequestValue(
+      rawFile,
+      "mediaRole",
+      "media_role",
     );
+    if (mediaRoleValue.error) {
+      return error(400, mediaRoleValue.error);
+    }
+    const roleResult = parseMediaRole(mediaRoleValue.value, mediaKind);
     if (roleResult.error || !roleResult.role) {
       return error(400, roleResult.error ?? "Bad Request: invalid mediaRole.");
+    }
+
+    const uploadPurposeValue = aliasedRequestValue(
+      rawFile,
+      "uploadPurpose",
+      "upload_purpose",
+    );
+    if (uploadPurposeValue.error) {
+      return error(400, uploadPurposeValue.error);
+    }
+    const purposeResult = parseUploadPurpose(uploadPurposeValue.value);
+    if (purposeResult.error) {
+      return error(400, purposeResult.error);
+    }
+    if (
+      purposeResult.purpose &&
+      (
+        !clientScanId ||
+        roleResult.role !== defaultMediaRoleForRestore(mediaKind) ||
+        !exactScanShareRestoreFileName(
+          fileName,
+          clientScanId,
+          mediaKind,
+        )
+      )
+    ) {
+      return error(
+        400,
+        "Bad Request: scan-share restore metadata is inconsistent.",
+      );
     }
 
     if (
@@ -234,6 +349,7 @@ function validateStructuredUploadFiles(
       sizeBytes,
       clientScanId,
       mediaRole: roleResult.role,
+      uploadPurpose: purposeResult.purpose,
     });
   }
 

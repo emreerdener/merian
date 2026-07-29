@@ -122,6 +122,15 @@ function input(
   };
 }
 
+function restoreInput(
+  orderIndex = 0,
+): StagedScanMediaAssetInput {
+  return {
+    ...input(`${clientScanId}_explore_restore_${orderIndex}`, orderIndex),
+    uploadPurpose: "scan_share_restore",
+  };
+}
+
 function candidate(
   assetInput: StagedScanMediaAssetInput,
   overrides: Record<string, unknown> = {},
@@ -360,6 +369,368 @@ Deno.test("createStagedScanMediaAssets never inserts media for a completed scan 
   );
   assertEquals(fake.insertedRows, []);
   fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets registers exact restore media for an owned completed scan", async () => {
+  const assetInput = restoreInput();
+  const inserted = candidate(assetInput);
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "select",
+      response: {
+        data: [{ scan_id: clientScanId, status: "complete" }],
+        error: null,
+      },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          id: clientScanId,
+          user_id: userId,
+          is_tombstoned: false,
+        }],
+        error: null,
+      },
+    },
+    {
+      mode: "insert",
+      response: { data: [inserted], error: null },
+    },
+  ]);
+
+  const rows = await createStagedScanMediaAssets([assetInput], supabase);
+
+  assertEquals(rows[0].storage_key, assetInput.storageKey);
+  assertEquals(fake.insertedRows.length, 1);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets permits exact pre-scan restore staging without a job", async () => {
+  const assetInput = restoreInput();
+  const inserted = candidate(assetInput);
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "insert",
+      response: { data: [inserted], error: null },
+    },
+  ]);
+
+  const rows = await createStagedScanMediaAssets([assetInput], supabase);
+
+  assertEquals(rows[0].storage_key, assetInput.storageKey);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets stages completed restore media before guarded missing-row recovery", async () => {
+  const assetInput = restoreInput();
+  const inserted = candidate(assetInput);
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "select",
+      response: {
+        data: [{ scan_id: clientScanId, status: "complete" }],
+        error: null,
+      },
+    },
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "insert",
+      response: { data: [inserted], error: null },
+    },
+  ]);
+
+  const rows = await createStagedScanMediaAssets([assetInput], supabase);
+
+  assertEquals(rows[0].storage_key, assetInput.storageKey);
+  assertEquals(fake.insertedRows.length, 1);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets rejects completed restore media for tombstoned or foreign rows", async () => {
+  for (
+    const scanRow of [
+      {
+        id: clientScanId,
+        user_id: userId,
+        is_tombstoned: true,
+      },
+      {
+        id: clientScanId,
+        user_id: "00000000-0000-4000-8000-000000000099",
+        is_tombstoned: false,
+      },
+    ]
+  ) {
+    const assetInput = restoreInput();
+    const { fake, supabase } = client([
+      { mode: "select", response: { data: [], error: null } },
+      {
+        mode: "select",
+        response: {
+          data: [{ scan_id: clientScanId, status: "complete" }],
+          error: null,
+        },
+      },
+      {
+        mode: "select",
+        response: { data: [scanRow], error: null },
+      },
+    ]);
+
+    await assertRejects(
+      () => createStagedScanMediaAssets([assetInput], supabase),
+      Error,
+      "terminal staging registration cannot be retried",
+    );
+    assertEquals(fake.insertedRows, []);
+    fake.assertExhausted();
+  }
+});
+
+Deno.test("createStagedScanMediaAssets rejects mixed restore and ordinary inputs for one scan before querying", async () => {
+  const { fake, supabase } = client([]);
+
+  await assertRejects(
+    () =>
+      createStagedScanMediaAssets(
+        [restoreInput(), input("ordinary", 1)],
+        supabase,
+      ),
+    Error,
+    "scan-share restore cannot mix with ordinary registration",
+  );
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets rejects failed-terminal restore media", async () => {
+  const assetInput = restoreInput();
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "select",
+      response: {
+        data: [{ scan_id: clientScanId, status: "failed_terminal" }],
+        error: null,
+      },
+    },
+  ]);
+
+  await assertRejects(
+    () => createStagedScanMediaAssets([assetInput], supabase),
+    Error,
+    "terminal staging registration cannot be retried",
+  );
+  assertEquals(fake.insertedRows, []);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets reuses a completed restore row after an ambiguous response", async () => {
+  const assetInput = restoreInput();
+  const existing = candidate(assetInput);
+  const { fake, supabase } = client([
+    {
+      mode: "select",
+      response: { data: [existing], error: null },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{ scan_id: clientScanId, status: "complete" }],
+        error: null,
+      },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          id: clientScanId,
+          user_id: userId,
+          is_tombstoned: false,
+        }],
+        error: null,
+      },
+    },
+  ]);
+
+  const rows = await createStagedScanMediaAssets([assetInput], supabase);
+
+  assertEquals(rows[0].id, existing.id);
+  assertEquals(fake.insertedRows, []);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets reactivates a recoverable restore row for a completed scan", async () => {
+  const assetInput = restoreInput();
+  const failed = candidate(assetInput, {
+    status: "failed",
+    failure_reason: "scan_media_restore_interrupted",
+  });
+  const reactivated = {
+    id: failed.id,
+    storage_key: failed.storage_key,
+    upload_session_id: failed.upload_session_id,
+    order_index: failed.order_index,
+  };
+  const { fake, supabase } = client([
+    {
+      mode: "select",
+      response: { data: [failed], error: null },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{ scan_id: clientScanId, status: "complete" }],
+        error: null,
+      },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          id: clientScanId,
+          user_id: userId,
+          is_tombstoned: false,
+        }],
+        error: null,
+      },
+    },
+    {
+      mode: "update",
+      response: { data: reactivated, error: null },
+    },
+  ]);
+
+  const rows = await createStagedScanMediaAssets([assetInput], supabase);
+
+  assertEquals(rows, [reactivated]);
+  assertEquals(fake.updates[0].status, "staged");
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets does not reactivate moderation-rejected restore media", async () => {
+  const assetInput = restoreInput();
+  const failed = candidate(assetInput, {
+    status: "failed",
+    failure_reason: "moderation_rejected",
+  });
+  const { fake, supabase } = client([
+    {
+      mode: "select",
+      response: { data: [failed], error: null },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{ scan_id: clientScanId, status: "complete" }],
+        error: null,
+      },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          id: clientScanId,
+          user_id: userId,
+          is_tombstoned: false,
+        }],
+        error: null,
+      },
+    },
+  ]);
+
+  await assertRejects(
+    () => createStagedScanMediaAssets([assetInput], supabase),
+    Error,
+    "terminal staging registration cannot be retried",
+  );
+  assertEquals(fake.updates, []);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets ignores historical promoted capture rows in restore budget", async () => {
+  const assetInput = restoreInput();
+  const historicalRows = Array.from(
+    { length: MEDIA_BUDGETS.maxStagingFiles },
+    (_, index) =>
+      candidate(input(`historical-${index}`, index), {
+        status: "promoted",
+      }),
+  );
+  const inserted = candidate(assetInput);
+  const { fake, supabase } = client([
+    {
+      mode: "select",
+      response: { data: historicalRows, error: null },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{ scan_id: clientScanId, status: "complete" }],
+        error: null,
+      },
+    },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          id: clientScanId,
+          user_id: userId,
+          is_tombstoned: false,
+        }],
+        error: null,
+      },
+    },
+    {
+      mode: "insert",
+      response: { data: [inserted], error: null },
+    },
+  ]);
+
+  const rows = await createStagedScanMediaAssets([assetInput], supabase);
+
+  assertEquals(rows[0].storage_key, assetInput.storageKey);
+  assertEquals(fake.insertedRows.length, 1);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets rejects an invalid restore-purpose identity before querying", async () => {
+  for (
+    const invalid of [
+      {
+        ...restoreInput(),
+        storageKey: `staging/${userId}/another-scan_explore_restore_0.webp`,
+      },
+      {
+        ...restoreInput(),
+        storageKey:
+          `staging/00000000-0000-4000-8000-000000000099/${clientScanId}_explore_restore_0.webp`,
+      },
+      {
+        ...restoreInput(),
+        storageKey:
+          `staging/${userId}/nested/${clientScanId}_explore_restore_0.webp`,
+      },
+      {
+        ...restoreInput(),
+        clientScanId: "not-a-uuid",
+        storageKey: `staging/${userId}/not-a-uuid_explore_restore_0.webp`,
+      },
+    ]
+  ) {
+    const { fake, supabase } = client([]);
+
+    await assertRejects(
+      () => createStagedScanMediaAssets([invalid], supabase),
+      Error,
+      "invalid scan-share restore registration",
+    );
+    fake.assertExhausted();
+  }
 });
 
 Deno.test("createStagedScanMediaAssets converges after a concurrent unique winner", async () => {

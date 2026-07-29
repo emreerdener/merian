@@ -505,6 +505,108 @@ struct BackgroundDatabaseActorTests {
         #expect(try context.fetch(recordDescriptor).isEmpty)
     }
 
+    @Test func generatedBackgroundResultRejectsMalformedSuccessBody() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let scanId =
+            "background-malformed-response-\(UUID().uuidString.lowercased())"
+        let generation = UUID()
+
+        context.insert(OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .inferencing
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(for: generation)
+        ))
+        try context.save()
+
+        for invalidResultData in [
+            Data(#"{"success":true,"data":"truncated"}"#.utf8),
+            Data(
+                #"{"success":false,"data":{"scan_id":"\#(scanId)","confidence_score":0}}"#.utf8
+            ),
+            Data(
+                #"{"success":true,"data":{"scan_id":"\#(scanId)"}}"#.utf8
+            )
+        ] {
+            let result = await actor.processAndCleanupOfflineScan(
+                resultData: invalidResultData,
+                originalImagePaths: [],
+                scanId: scanId,
+                originalTimestamp: Date(),
+                expectedGeneration: generation
+            )
+            #expect(!result.wasCleaned)
+        }
+        let queueDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        #expect(try context.fetch(queueDescriptor).count == 1)
+        #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).isEmpty)
+    }
+
+    @Test func generatedConfidenceZeroBackgroundResultIsTerminal() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let scanId =
+            "background-confidence-zero-\(UUID().uuidString.lowercased())"
+        let generation = UUID()
+        let sourceImageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(scanId).webp")
+        try Data(repeating: 0x55, count: 128).write(to: sourceImageURL)
+        defer { try? FileManager.default.removeItem(at: sourceImageURL) }
+
+        context.insert(OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .inferencing
+        ))
+        context.insert(OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON:
+                InferenceGenerationMetadataContract.json(for: generation)
+        ))
+        try context.save()
+
+        let result = await actor.processAndCleanupOfflineScan(
+            resultData: Data(
+                """
+                {
+                  "success": true,
+                  "data": {
+                    "scan_id": "\(scanId)",
+                    "is_biological_subject": false,
+                    "common_name": "No identification",
+                    "confidence_score": 0
+                  }
+                }
+                """.utf8
+            ),
+            originalImagePaths: [sourceImageURL.path],
+            scanId: scanId,
+            originalTimestamp: Date(),
+            expectedGeneration: generation
+        )
+
+        #expect(result.wasCleaned)
+        #expect(result.finalScanId == nil)
+        #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).isEmpty)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        #expect(FileManager.default.fileExists(atPath: sourceImageURL.path))
+    }
+
     @Test func testSaveLiveScanRecordReplacesCollisionPreservingFieldNotesAndSpeciesId() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)

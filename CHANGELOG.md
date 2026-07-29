@@ -13,6 +13,11 @@ TestFlight, App Store, support, and QA.
   synthetic staging object, and the strict media finalizer now receives only
   real upload sources. The shared durable success boundary is restored for the
   Insight result, Field Chat, Explore sharing, field trips, and owner sync.
+- Hardened the hosted iOS release gate against false-green test evidence. A
+  passing full target must now include passed—not absent or skipped—named
+  regressions for malformed analysis success, durable offline capture and atomic
+  completion, Community mixed-media recovery, Explore publication and
+  reconciliation integrity, and retryable single-flight Field Chat startup.
 - Fixed the valid-video finalization regression isolated by backend workflow run
   1552. Sampled video inference frames may remain in the compatibility image
   array but are no longer required as standalone ready images. Finalization now
@@ -75,19 +80,50 @@ TestFlight, App Store, support, and QA.
   stale-extra, or duplicate expected members cannot be omitted. Sanitized
   filename/object-key collisions are rejected before signing, and removal of a
   completed sibling from `URLSession.allTasks` cannot be mistaken for a
-  successful upload. Reattached
-  generation-tagged tasks now invoke orphan recovery even though their creating
-  process’s global sync latch is gone; a proven `.uploading → .pending` reset
-  restarts signing in the same recovery pass.
+  successful upload. Reattached generation-tagged tasks now invoke orphan
+  recovery even though their creating process’s global sync latch is gone; a
+  proven `.uploading → .pending` reset restarts signing in the same recovery
+  pass.
 - Explore media restoration now rejects traversal and cross-owner staging keys
-  and removes partially promoted media only after a returned database rejection
-  plus an exact-owner reread proves the URLs were not committed. Lost or
-  unreadable scan-write responses preserve quota and promoted image, audio, and
-  video objects so cleanup cannot break a committed scan; retries reconcile
-  through the exact owner row.
+  as well as per-kind overflow, aggregate overflow, and a staging key claimed as
+  multiple media kinds. Repair accepts at most five images, one playback video,
+  two standalone audio clips, and six keys total. Before promotion, every
+  current key must match its upload ledger row's exact owner, client scan, media
+  kind, and role; cross-scan or relabeled keys are rejected. Ledger-less
+  released-client compatibility is limited to the exact deterministic
+  scan/category filename and legacy extension-derived kind. The server removes
+  partially promoted media only after a returned database rejection plus an
+  exact-owner reread proves the URLs were not committed. Lost or unreadable
+  scan-write responses preserve quota and promoted image, audio, and video
+  objects so cleanup cannot break a committed scan; retries reconcile through
+  the exact owner row. iOS checks the complete mixed-media count and all
+  image/video/audio byte budgets before its first signing call, avoiding a
+  partial staged repair when an old local snapshot is over a canonical cap.
+- Fixed a staged-ledger regression that rejected Explore and Community media
+  recovery precisely because analysis had already completed. Current repair
+  signing carries a scan-bound `scan_share_restore` purpose. The server permits
+  its completed-job exception only for deterministic category filenames,
+  canonical roles, and a fresh scan read that either confirms the active
+  JWT-owned row or proves it genuinely absent for guarded reconstruction.
+  Pre-scan signing grants no scan-write or publication authority.
+  Failed-terminal, tombstoned, cross-scan, ordinary post-completion, and
+  moderation-rejected uploads stay closed. Historical promoted capture rows no
+  longer consume the separate active repair budget, and ambiguous signing
+  retries reuse the committed restore row and session.
 - Malformed paid-provider output now returns retryable HTTP 503 consistently
   across image, multimodal, Describe, and audio producers instead of stranding
   offline jobs behind terminal HTTP 422 handling.
+- Background analysis now treats an empty, malformed, or structurally unusable
+  HTTP-success body as ambiguous rather than complete. The exact queue row and
+  local media remain durable for status recovery and a fenced retry; a local
+  persistence or queue-cleanup failure can no longer mark the ingestion job
+  complete. Confidence-zero source media also remains intact until the durable
+  queue deletion authorizes file cleanup. Successful foreground, background, and
+  server-recovered inference now marks the durable job complete in the same
+  guarded save that inserts its completion event and removes the queue row,
+  rather than persisting cancellation first or leaving foreground work
+  cancelled. Crash replay after that save is idempotent and does not duplicate
+  the completion audit event.
 - Owned scan-image repair now reconciles a lost atomic metadata response from
   exact owner source/replacement references and never deletes a promoted
   replacement whose commit outcome is ambiguous.
@@ -138,8 +174,8 @@ TestFlight, App Store, support, and QA.
   Production merge/recovery code had not run, so it was not weakened for this
   fixture-only SQLSTATE `42702`. The run stopped before production preparation
   and made no production mutation.
-- The latest 26-file catalog replay proved the identity correction and passed
-  24 files. Its only two failures reached the new atomic Explore and Community
+- The latest 26-file catalog replay proved the identity correction and passed 24
+  files. Its only two failures reached the new atomic Explore and Community
   invoker RPCs, then PostgreSQL denied their `service_role` request-table lock
   before any fixture publication. A forward ACL migration now grants the exact
   table operations needed by those two invoker transactions—including Community
@@ -158,9 +194,9 @@ TestFlight, App Store, support, and QA.
 - Production smoke now proves the scan-owner prerequisite, atomic Explore
   publication, and atomic Community-request RPCs are present in the live
   PostgREST schema cache. Exact SQLSTATE `22023` no-write sentinels validate
-  server execution before any lock
-  or mutation, while every real anon/publishable credential must remain denied;
-  arbitrary `400` responses and logged response bodies cannot satisfy the gate.
+  server execution before any lock or mutation, while every real
+  anon/publishable credential must remain denied; arbitrary `400` responses and
+  logged response bodies cannot satisfy the gate.
 - Release guidance now requires a manual `iOS Build and Test` dispatch on the
   final exact SHA when backend-only follow-up commits cause ordinary iOS scope
   detection to skip macOS work. Scope-only success cannot replace the full unit
@@ -170,18 +206,19 @@ TestFlight, App Store, support, and QA.
   message/conversation response. Only terminal ownership, unsupported-scan, or
   an exact Explore `post_not_available` error sets permanent scan-scoped
   unavailability. Explore feedback’s `message_not_found` and unmarked platform
-  404s remain retryable; the retry path uses one canonical still-syncing message.
+  404s remain retryable; the retry path uses one canonical still-syncing
+  message.
 - Multi-file offline uploads now clear durable retry accounting only after the
   exact complete manifest succeeds and its keys, retry reset, and staged state
   save together. One successful file, an absent queue/job read, a mismatched
   already-staged manifest, or a failed persistence write can no longer advance
   inference or reset the generation count before a failing sibling, preventing
   partial uploads from looping forever at attempt one.
-- Completed background uploads now expose the durable staging-transition
-  outcome to their caller. A fetch or save failure no longer falls through into
-  an inference claim or gets logged as a persisted retry after rollback; the
-  exact completion generation stays fenced while orphan reconciliation returns
-  the still-uploading row to signing. Retry helpers now return an attempt number
+- Completed background uploads now expose the durable staging-transition outcome
+  to their caller. A fetch or save failure no longer falls through into an
+  inference claim or gets logged as a persisted retry after rollback; the exact
+  completion generation stays fenced while orphan reconciliation returns the
+  still-uploading row to signing. Retry helpers now return an attempt number
   only when the queue/backoff write actually committed, with a bounded
   process-local wake retained when durable scheduling itself fails.
 - A server-complete queued scan no longer clears retry metadata before
@@ -196,28 +233,43 @@ TestFlight, App Store, support, and QA.
   share timestamp, authoritative location choice, and explicit published status
   before caching the post. Missing or malformed publication evidence is no
   longer accepted as rolling-compatibility success. The sheet closes only after
-  that boundary; a failed or malformed response keeps the user’s draft in place and
-  presents a retry message.
+  that boundary; a failed or malformed response keeps the user’s draft in place
+  and presents a retry message.
 - Explore’s final database publication is now one service-role-only,
   invoker-rights transaction. It revalidates and locks the owner scan and
   replaces post metadata, selected media, hashtags, and resolved-community
   publication state together. It also rechecks the locked community request, so
   a transaction-time `needs_id` state returns conflict without publishing. A
   backward-compatible request that omits `location_sharing` now resolves the
-  scan’s current geoprivacy only after taking that same owner-row lock, preventing
-  a concurrent privacy change from publishing with a stale default. A late
-  insert or constraint failure restores the previous complete snapshot
+  scan’s current geoprivacy only after taking that same owner-row lock,
+  preventing a concurrent privacy change from publishing with a stale default. A
+  late insert or constraint failure restores the previous complete snapshot
   instead of leaving a visible partial post or erasing healthy media while
-  reporting failure.
-  Transaction-time Community conflicts are recognized only by the exact
-  PostgreSQL code and canonical pending-request message; unrelated database
-  failures with matching text remain server failures.
+  reporting failure. Transaction-time Community conflicts are recognized only by
+  the exact PostgreSQL code and canonical pending-request message; unrelated
+  database failures with matching text remain server failures.
 - Ask the Community no longer depends on the removed legacy Explore upsert or
   performs post, media, and request writes in separate transactions. Taxonomy
   and moderation complete first, then one owner-checked RPC commits the complete
   hidden `needs_id` snapshot. Reopen resets stale publication/consensus state,
   and a write-time trigger rejects an explicit share that loses a concurrent
-  Community-request race.
+  Community-request race. Compatibility recovery now carries surviving image,
+  playback-video, and standalone-audio staging keys through the same owner-safe
+  media path instead of requiring an image and dropping video/audio. The iOS
+  action also requires exact request identity, UUID, timestamp, status, and
+  success evidence before showing Community success or clearing Explore state.
+  Database-returned UUIDs are compared after canonical case normalization, so
+  PostgreSQL lowercase output cannot turn a committed request from an Apple
+  client's uppercase scan UUID into a false failure.
+- Explore share-state refresh now rejects a mismatched scan, malformed IDs or
+  timestamp, unpaired Community state, missing explicit feed visibility, unknown
+  location state, and feed visibility without a committed post instead of
+  mapping a stale or partial response onto the open Insight. Explore publication
+  also rejects a returned location mode that contradicts an explicit privacy
+  choice. Owner share-state now uses canonical moderation and media-health
+  visibility: quarantined or moderated publication intent stays repairable but
+  is not reported as feed-visible, and a degraded post returns when usable media
+  remains.
 - Supabase database and deployment commands now fail before config parsing or
   mutation unless the installed CLI is the exact reviewed `2.109.1` version.
   This prevents stale local parsers from producing misleading catalog failures

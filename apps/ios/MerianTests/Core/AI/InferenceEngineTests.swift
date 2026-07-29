@@ -173,6 +173,34 @@ struct InferenceEngineTests {
         #expect(!result.didCompletePersistence)
     }
 
+    @Test func decodedButUnusableSuccessEnvelopeRemainsRecoverable() async {
+        let scanId = "unusable-success-envelope"
+        for resultData in [
+            Data(
+                #"{"success":false,"data":{"scan_id":"unusable-success-envelope","confidence_score":0}}"#.utf8
+            ),
+            Data(
+                #"{"success":true,"data":{"scan_id":"unusable-success-envelope"}}"#.utf8
+            ),
+            Data(
+                #"{"success":true,"data":{"scan_id":"unusable-success-envelope","confidence_score":2}}"#.utf8
+            )
+        ] {
+            await #expect(throws: MerianError.decodingFailed) {
+                try await InferenceProcessingActor.shared.parseAndSave(
+                    resultData: resultData,
+                    telemetry: makeTelemetry(),
+                    modelContext: nil,
+                    compressedDatas: [],
+                    persistenceFence: LiveInferencePersistenceFence(
+                        scanId: scanId,
+                        generation: UUID()
+                    )
+                )
+            }
+        }
+    }
+
     @Test func positiveConfidenceResponseWithoutPersistenceRemainsRecoverable() async throws {
         let resultData = Data(
             """

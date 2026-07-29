@@ -261,6 +261,72 @@ private struct ExploreRestoreMediaObjectKeys {
     }
 }
 
+func validateExploreRestoreMediaBudget(
+    imageCount: Int,
+    videoCount: Int,
+    audioCount: Int
+) throws {
+    guard imageCount >= 0,
+          videoCount >= 0,
+          audioCount >= 0,
+          imageCount <= MerianConfig.mediaStagingMaxImageFilesPerRequest,
+          videoCount <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
+          audioCount <= MerianConfig.mediaStagingMaxAudioFilesPerRequest,
+          imageCount + videoCount + audioCount
+            <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+        throw MerianError.payloadTooLarge
+    }
+}
+
+func validateExploreRestoreMediaPayload(
+    imageSizes: [Int],
+    videoSizes: [Int],
+    audioSizes: [Int]
+) throws {
+    try validateExploreRestoreMediaBudget(
+        imageCount: imageSizes.count,
+        videoCount: videoSizes.count,
+        audioCount: audioSizes.count
+    )
+
+    var totalImageBytes = 0
+    for sizeBytes in imageSizes {
+        let addition = totalImageBytes.addingReportingOverflow(sizeBytes)
+        guard sizeBytes >= 0,
+              !addition.overflow,
+              addition.partialValue <= MerianConfig.stagedImagePayloadMaxBytes else {
+            throw MerianError.payloadTooLarge
+        }
+        totalImageBytes = addition.partialValue
+    }
+    guard videoSizes.allSatisfy({
+        $0 >= 0 && $0 <= MerianConfig.videoPayloadMaxBytes
+    }),
+    audioSizes.allSatisfy({
+        $0 >= 0 && $0 <= MerianConfig.audioPayloadMaxBytes
+    }) else {
+        throw MerianError.payloadTooLarge
+    }
+}
+
+func makeScanShareRestoreUploadFile(
+    fileName: String,
+    mediaKind: StagedMediaKind,
+    contentType: String,
+    sizeBytes: Int,
+    scanId: String
+) -> StagingUploadFile {
+    StagingUploadFile(
+        fileName: fileName,
+        mediaKind: mediaKind,
+        contentType: contentType,
+        sizeBytes: sizeBytes,
+        clientScanId: scanId,
+        mediaRole: mediaKind.defaultScanMediaRole,
+        uploadPurpose: .scanShareRestore
+    )
+}
+
 private enum ScanPersistenceProbeResult {
     case found
     case recoverableMissing
@@ -3172,7 +3238,44 @@ final class MerianNetworkClient {
         let functionUrl = try endpointURL("get-scan-explore-share-state")
         let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try makeExploreDecoder().decode(ExploreScanShareStateResponse.self, from: data).data
+        let state = try makeExploreDecoder().decode(
+            ExploreScanShareStateResponse.self,
+            from: data
+        ).data
+        let postId = state.postId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let communityRequestId = state.communityRequestId?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let sharedAt = state.sharedAt.flatMap { value in
+            DateUtilities.iso8601FractionalFormatter.date(from: value) ??
+                DateUtilities.iso8601Formatter.date(from: value)
+        }
+        let hasPost = postId.flatMap { UUID(uuidString: $0) } != nil
+        let hasCommunityRequest =
+            communityRequestId.flatMap { UUID(uuidString: $0) } != nil
+        let hasCommunityStatus = state.communityRequestStatus != nil
+
+        // A valid post can be server-hidden without a Community request when
+        // media is quarantined or the post is moderated. Visibility remains an
+        // authoritative required field; only a visible-without-post claim is
+        // structurally impossible.
+        guard state.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
+              state.locationSharing != nil,
+              hasPost == (state.postId != nil),
+              hasPost == (state.sharedAt != nil),
+              !hasPost || sharedAt != nil,
+              hasCommunityRequest == (state.communityRequestId != nil),
+              hasCommunityRequest == hasCommunityStatus,
+              !hasCommunityRequest || hasPost,
+              !state.isExploreFeedVisible || hasPost,
+              !state.isExploreFeedVisible ||
+                state.communityRequestStatus != .needsId,
+              hasPost || (
+                !state.isExploreFeedVisible &&
+                !hasCommunityRequest
+              ) else {
+            throw MerianError.invalidResponse
+        }
+        return state
     }
 
     func getExploreNotifications(
@@ -3339,6 +3442,8 @@ final class MerianNetworkClient {
                 DateUtilities.iso8601Formatter.date(from: decoded.sharedAt)
               ) != nil,
               decoded.locationSharing != nil,
+              locationSharing == nil ||
+                decoded.locationSharing == locationSharing,
               decoded.publicationStatus == "published" else {
             throw MerianError.invalidResponse
         }
@@ -3449,6 +3554,8 @@ final class MerianNetworkClient {
     func requestCommunityIdentification(
         scanId: String,
         restoredObjectKeys: [String]? = nil,
+        restoredVideoObjectKeys: [String]? = nil,
+        restoredAudioObjectKeys: [String]? = nil,
         speciesCommonName: String? = nil,
         note: String? = nil,
         locationSharing: ExplorePostLocationSharing? = nil,
@@ -3470,6 +3577,14 @@ final class MerianNetworkClient {
         if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
             payload["restored_object_keys"] = restoredObjectKeys
         }
+        if let restoredVideoObjectKeys, !restoredVideoObjectKeys.isEmpty {
+            payload["restored_video_object_keys"] =
+                restoredVideoObjectKeys
+        }
+        if let restoredAudioObjectKeys, !restoredAudioObjectKeys.isEmpty {
+            payload["restored_audio_object_keys"] =
+                restoredAudioObjectKeys
+        }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(
             url: functionUrl,
@@ -3477,7 +3592,33 @@ final class MerianNetworkClient {
             body: bodyData,
             idempotencyKey: resolvedIdempotencyKey
         )
-        return try makeExploreDecoder().decode(CommunityIdentificationRequestResponse.self, from: data).data
+        let decoded = try makeExploreDecoder().decode(
+            CommunityIdentificationRequestResponse.self,
+            from: data
+        )
+        let request = decoded.data
+        guard decoded.success,
+              request.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
+              UUID(uuidString: request.id) != nil,
+              UUID(uuidString: request.postId) != nil,
+              UUID(uuidString: request.requestedBy) != nil,
+              request.initialTaxonNodeId.flatMap({
+                  UUID(uuidString: $0)
+              }) != nil,
+              request.taxonomyVersionId.flatMap({
+                  UUID(uuidString: $0)
+              }) != nil,
+              (
+                DateUtilities.iso8601FractionalFormatter.date(
+                    from: request.requestedAt
+                ) ??
+                DateUtilities.iso8601Formatter.date(from: request.requestedAt)
+              ) != nil,
+              request.status == .needsId,
+              request.consensusIdentificationCount >= 0 else {
+            throw MerianError.invalidResponse
+        }
+        return request
     }
 
     func requestCommunityIdentification(
@@ -3524,16 +3665,23 @@ final class MerianNetworkClient {
                 guard recovered else {
                     throw error
                 }
-                let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
-                guard !restoredObjectKeys.imageObjectKeys.isEmpty else {
+                let restoredObjectKeys = try await restoreExploreMediaObjectKeys(
+                    for: mediaSnapshot,
+                    includeAudio: true
+                )
+                guard !restoredObjectKeys.isEmpty else {
                     MerianLog.network.debug("Community request cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private).")
                     throw error
                 }
 
-                MerianLog.network.debug("Community request cloud scan recovery uploaded \(restoredObjectKeys.imageObjectKeys.count, privacy: .public) media item(s); retrying.")
+                MerianLog.network.debug("Community request cloud scan recovery uploaded \(restoredObjectKeys.imageObjectKeys.count + restoredObjectKeys.videoObjectKeys.count + restoredObjectKeys.audioObjectKeys.count, privacy: .public) media item(s); retrying.")
                 return try await requestCommunityIdentification(
                     scanId: mediaSnapshot.scanId,
                     restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
+                    restoredVideoObjectKeys:
+                        restoredObjectKeys.videoObjectKeys,
+                    restoredAudioObjectKeys:
+                        restoredObjectKeys.audioObjectKeys,
                     speciesCommonName: speciesCommonName,
                     note: note,
                     locationSharing: locationSharing,
@@ -3545,14 +3693,21 @@ final class MerianNetworkClient {
                 throw error
             }
 
-            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
-            guard !restoredObjectKeys.imageObjectKeys.isEmpty else {
+            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(
+                for: mediaSnapshot,
+                includeAudio: true
+            )
+            guard !restoredObjectKeys.isEmpty else {
                 throw error
             }
 
             return try await requestCommunityIdentification(
                 scanId: mediaSnapshot.scanId,
                 restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
+                restoredVideoObjectKeys:
+                    restoredObjectKeys.videoObjectKeys,
+                restoredAudioObjectKeys:
+                    restoredObjectKeys.audioObjectKeys,
                 speciesCommonName: speciesCommonName,
                 note: note,
                 locationSharing: locationSharing,
@@ -4265,11 +4420,57 @@ final class MerianNetworkClient {
         includeImages: Bool = true,
         includeAudio: Bool = false
     ) async throws -> ExploreRestoreMediaObjectKeys {
-        let imageObjectKeys = includeImages
-            ? try await restoreExploreImageObjectKeys(for: scan)
+        let restorableImagePaths = includeImages
+            ? resolveRestorableImagePaths(for: scan)
             : []
-        let videoObjectKeys = try await restoreExploreVideoObjectKeys(for: scan)
-        let audioObjectKeys = includeAudio ? try await restoreExploreAudioObjectKeys(for: scan) : []
+        let restorableVideoPaths = resolveRestorableVideoPaths(for: scan)
+        let restorableAudioPaths = includeAudio
+            ? resolveRestorableAudioPaths(for: scan)
+            : []
+        let imageSizes: [Int]
+        if restorableImagePaths.isEmpty,
+           includeImages,
+           scan.fallbackImageData?.isEmpty == false {
+            imageSizes = [scan.fallbackImageData?.count ?? 0]
+        } else {
+            imageSizes = try restorableImagePaths.map {
+                try MediaStagingContract.fileSizeBytes(
+                    at: localExploreRestoreFileURL(for: $0)
+                )
+            }
+        }
+        let videoSizes = try restorableVideoPaths.map {
+            try MediaStagingContract.fileSizeBytes(
+                at: localExploreRestoreFileURL(for: $0)
+            )
+        }
+        let audioSizes = try restorableAudioPaths.map {
+            try MediaStagingContract.fileSizeBytes(
+                at: localExploreRestoreFileURL(for: $0)
+            )
+        }
+        try validateExploreRestoreMediaPayload(
+            imageSizes: imageSizes,
+            videoSizes: videoSizes,
+            audioSizes: audioSizes
+        )
+
+        let imageObjectKeys = includeImages
+            ? try await restoreExploreImageObjectKeys(
+                for: scan,
+                localImagePaths: restorableImagePaths
+            )
+            : []
+        let videoObjectKeys = try await restoreExploreVideoObjectKeys(
+            for: scan,
+            localVideoPaths: restorableVideoPaths
+        )
+        let audioObjectKeys = includeAudio
+            ? try await restoreExploreAudioObjectKeys(
+                for: scan,
+                localAudioPaths: restorableAudioPaths
+            )
+            : []
         return ExploreRestoreMediaObjectKeys(
             imageObjectKeys: imageObjectKeys,
             videoObjectKeys: videoObjectKeys,
@@ -4277,8 +4478,10 @@ final class MerianNetworkClient {
         )
     }
 
-    private func restoreExploreImageObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
-        let localImagePaths = resolveRestorableImagePaths(for: scan)
+    private func restoreExploreImageObjectKeys(
+        for scan: ExploreShareMediaSnapshot,
+        localImagePaths: [String]
+    ) async throws -> [String] {
         if localImagePaths.isEmpty {
             guard let fallbackImageData = scan.fallbackImageData,
                   !fallbackImageData.isEmpty else {
@@ -4287,13 +4490,12 @@ final class MerianNetworkClient {
 
             let fileName = MediaStagingContract.sanitizedFileName("\(scan.scanId)_explore_restore_live.webp")
             let uploadFiles = [
-                StagingUploadFile(
+                makeScanShareRestoreUploadFile(
                     fileName: fileName,
                     mediaKind: .image,
                     contentType: "image/webp",
                     sizeBytes: fallbackImageData.count,
-                    clientScanId: scan.scanId,
-                    mediaRole: StagedMediaKind.image.defaultScanMediaRole
+                    scanId: scan.scanId
                 )
             ]
             let uploadUrls = try await generateUploadURLs(uploadFiles: uploadFiles)
@@ -4312,13 +4514,12 @@ final class MerianNetworkClient {
 
         let uploadFiles = try zip(localImagePaths, fileNames).map { path, fileName in
             let fileURL = localExploreRestoreFileURL(for: path)
-            return StagingUploadFile(
+            return makeScanShareRestoreUploadFile(
                 fileName: fileName,
                 mediaKind: .image,
                 contentType: exploreRestoreMimeType(for: fileURL),
                 sizeBytes: try MediaStagingContract.fileSizeBytes(at: fileURL),
-                clientScanId: scan.scanId,
-                mediaRole: StagedMediaKind.image.defaultScanMediaRole
+                scanId: scan.scanId
             )
         }
 
@@ -4358,8 +4559,10 @@ final class MerianNetworkClient {
         return uploadUrls.map { $0.objectKey }
     }
 
-    private func restoreExploreVideoObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
-        let localVideoPaths = resolveRestorableVideoPaths(for: scan)
+    private func restoreExploreVideoObjectKeys(
+        for scan: ExploreShareMediaSnapshot,
+        localVideoPaths: [String]
+    ) async throws -> [String] {
         guard !localVideoPaths.isEmpty else { return [] }
         guard localVideoPaths.count <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
               localVideoPaths.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
@@ -4376,13 +4579,12 @@ final class MerianNetworkClient {
             guard sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
                 throw MerianError.payloadTooLarge
             }
-            return StagingUploadFile(
+            return makeScanShareRestoreUploadFile(
                 fileName: fileName,
                 mediaKind: .video,
                 contentType: StagedMediaKind.video.contentType(for: fileURL.path),
                 sizeBytes: sizeBytes,
-                clientScanId: scan.scanId,
-                mediaRole: StagedMediaKind.video.defaultScanMediaRole
+                scanId: scan.scanId
             )
         }
 
@@ -4403,8 +4605,10 @@ final class MerianNetworkClient {
         return uploadUrls.map(\.objectKey)
     }
 
-    private func restoreExploreAudioObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
-        let localAudioPaths = resolveRestorableAudioPaths(for: scan)
+    private func restoreExploreAudioObjectKeys(
+        for scan: ExploreShareMediaSnapshot,
+        localAudioPaths: [String]
+    ) async throws -> [String] {
         guard !localAudioPaths.isEmpty else { return [] }
         guard localAudioPaths.count <= MerianConfig.mediaStagingMaxAudioFilesPerRequest,
               localAudioPaths.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
@@ -4421,13 +4625,12 @@ final class MerianNetworkClient {
             guard sizeBytes <= MerianConfig.audioPayloadMaxBytes else {
                 throw MerianError.payloadTooLarge
             }
-            return StagingUploadFile(
+            return makeScanShareRestoreUploadFile(
                 fileName: fileName,
                 mediaKind: .audio,
                 contentType: StagedMediaKind.audio.contentType(for: fileURL.path),
                 sizeBytes: sizeBytes,
-                clientScanId: scan.scanId,
-                mediaRole: StagedMediaKind.audio.defaultScanMediaRole
+                scanId: scan.scanId
             )
         }
 

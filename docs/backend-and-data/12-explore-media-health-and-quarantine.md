@@ -1,6 +1,6 @@
 # Explore Media Health and Quarantine
 
-Last updated: July 26, 2026
+Last updated: July 29, 2026
 
 ## Decision
 
@@ -31,19 +31,19 @@ produces a broken Feed, Map, profile, search, and share experience. Reversible
 quarantine preserves both sides: the public product remains coherent and the
 owner retains a repairable record.
 
-Postgres stores metadata and URLs. R2 stores the bytes. A surviving URL is not
-a byte-level backup, and R2 durability does not protect an object from a valid
+Postgres stores metadata and URLs. R2 stores the bytes. A surviving URL is not a
+byte-level backup, and R2 durability does not protect an object from a valid
 application-authorized deletion.
 
 ## State model
 
 ### Media item
 
-| State | Meaning | Public behavior |
-|---|---|---|
-| `healthy` | Primary R2 object is expected to exist or was origin-verified. | Included. |
-| `suspected_missing` | One direct origin `404`; confirmation is not yet due. | Included to avoid reacting to one observation. |
-| `missing` | A second direct origin `404` occurred at least five minutes later. | Omitted. |
+| State               | Meaning                                                            | Public behavior                                |
+| ------------------- | ------------------------------------------------------------------ | ---------------------------------------------- |
+| `healthy`           | Primary R2 object is expected to exist or was origin-verified.     | Included.                                      |
+| `suspected_missing` | One direct origin `404`; confirmation is not yet due.              | Included to avoid reacting to one observation. |
+| `missing`           | A second direct origin `404` occurred at least five minutes later. | Omitted.                                       |
 
 A distinct poster or thumbnail is checked and its HTTP status is recorded, but
 it is auxiliary. A missing poster is omitted; it does not hide an otherwise
@@ -55,11 +55,11 @@ are `retryable_error` outcomes. They never advance an item to `missing`.
 
 ### Explore post
 
-| State | Condition | Public behavior |
-|---|---|---|
-| `healthy` | No item is confirmed missing. | Public if ordinary publication and moderation rules allow it. |
-| `degraded` | Some, but not all, items are confirmed missing. | Public with only usable items. |
-| `quarantined` | Every item is confirmed missing. | Hidden from all public projections. |
+| State         | Condition                                       | Public behavior                                               |
+| ------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `healthy`     | No item is confirmed missing.                   | Public if ordinary publication and moderation rules allow it. |
+| `degraded`    | Some, but not all, items are confirmed missing. | Public with only usable items.                                |
+| `quarantined` | Every item is confirmed missing.                | Hidden from all public projections.                           |
 
 `media_health_status` is system-owned and independent from:
 
@@ -75,6 +75,13 @@ the same quarantine and item-health predicates.
 Author profile count, preview, and full grid must all use that canonical
 projection. Preserved publication intent is a different owner-only concept and
 must never be displayed as the number of currently visible posts.
+
+`get_scan_explore_share_state` enforces the same moderation, aggregate-health,
+and non-missing-item visibility predicates. It still returns the owner-only post
+identity while quarantine or moderation hides a post, but sets
+`is_explore_feed_visible = false`. A degraded post returns true when at least
+one usable item remains. This lets clients distinguish repairable publication
+intent from a destination that can actually be opened in Explore.
 
 ## Verification pipeline
 
@@ -97,26 +104,26 @@ accepted request value. The full contract is in
 
 1. `claim_explore_media_health_checks` leases a bounded due batch with
    `FOR UPDATE SKIP LOCKED`.
-2. The worker derives the canonical durable object key from the public URL.
-   The key must be a direct `public_uploads/free|pro/{same-owner}/{object}`
-   path; arbitrary prefixes and cross-owner keys fail closed.
+2. The worker derives the canonical durable object key from the public URL. The
+   key must be a direct `public_uploads/free|pro/{same-owner}/{object}` path;
+   arbitrary prefixes and cross-owner keys fail closed.
 3. It signs a direct R2 S3-origin `HEAD`; it does not use the public CDN as
    authority.
-4. `record_explore_media_health_check` validates the lease and applies the
-   state transition.
+4. `record_explore_media_health_check` validates the lease and applies the state
+   transition.
 5. Database triggers recompute post health and owner notifications.
 6. The worker records a reconciliation-run audit row.
 
 Healthy active primary media is checked every 24 hours. A distinct impaired
-poster is rechecked hourly without hiding its healthy primary. Suspected loss
-is checked no earlier than five minutes later. Confirmed loss is rechecked
-hourly so an operator restore or object reappearance can self-heal.
+poster is rechecked hourly without hiding its healthy primary. Suspected loss is
+checked no earlier than five minutes later. Confirmed loss is rechecked hourly
+so an operator restore or object reappearance can self-heal.
 
 Cloudflare R2 event notifications are an accelerator only. A trusted Queue
 consumer may send up to 100 durable keys to `ingest-r2-media-events`, which
 makes matching rows due immediately. Create and delete events are not proof of
-existence or loss; the direct origin reconciler remains the source of truth.
-See Cloudflare's
+existence or loss; the direct origin reconciler remains the source of truth. See
+Cloudflare's
 [event notification documentation](https://developers.cloudflare.com/r2/buckets/event-notifications/)
 and Supabase's
 [scheduled Edge Function guidance](https://supabase.com/docs/guides/functions/schedule-functions).
@@ -126,8 +133,8 @@ and Supabase's
 On the first transition from healthy into an active incident:
 
 - create one unread `media_missing` in-app notification;
-- send one push only to devices whose Explore notification preference allows
-  it; and
+- send one push only to devices whose Explore notification preference allows it;
+  and
 - show a persistent **Needs attention** banner in Scan Library.
 
 The owner's Profile `Published scans` preview and full grid also show a
@@ -163,8 +170,8 @@ Recovery sources, in priority order, are:
 Current device-assisted image recovery uses `/repair-scan-image`. It verifies
 ownership and source loss, promotes a new owner-scoped durable object, and
 atomically replaces exact references in scan arrays, captured media,
-`scan_media_assets`, and `explore_post_media`. The same transaction resets
-media health to `healthy`, which can automatically clear quarantine.
+`scan_media_assets`, and `explore_post_media`. The same transaction resets media
+health to `healthy`, which can automatically clear quarantine.
 
 A routine `refresh_explore_post_media` snapshot rebuild preserves health by
 stable `(post_id, kind, url)` identity through a private continuity ledger. It
@@ -177,8 +184,10 @@ restore an object that no longer exists.
 ## Explicit deletion
 
 Explicit owner deletion remains destructive and is different from operational
-quarantine. A scan owns its Explore post through `explore_posts.scan_id ON
-DELETE CASCADE`; likes and comments then cascade from the post.
+quarantine. A scan owns its Explore post through
+`explore_posts.scan_id ON
+DELETE CASCADE`; likes and comments then cascade from
+the post.
 
 Every scan-deletion confirmation must warn:
 
@@ -196,8 +205,8 @@ reconciliation must never issue object or relational deletes.
   keys before issuing R2 requests.
 - Private lease and health-continuity tables are not directly granted even to
   API roles.
-- Event ingress uses a dedicated secret of at least 32 random characters. Do
-  not expose the Supabase service-role key to a Cloudflare Worker or Queue.
+- Event ingress uses a dedicated secret of at least 32 random characters. Do not
+  expose the Supabase service-role key to a Cloudflare Worker or Queue.
 - Production requires bucket-scoped Object Read credentials in
   `R2_READ_ACCESS_KEY_ID` and `R2_READ_SECRET_ACCESS_KEY`. The verifier does not
   fall back to promotion/deletion credentials.
@@ -248,22 +257,24 @@ Never bulk-update health to `healthy` without proving object existence.
 
 ## Implementation map
 
-- Migrations:
-  `20260726144647_add_explore_media_quarantine_lifecycle.sql` and
+- Migrations: `20260726144647_add_explore_media_quarantine_lifecycle.sql` and
   `20260726144754_implement_explore_media_quarantine_state_machine.sql`, plus
   `20260726174555_align_explore_author_publication_contract.sql` for canonical
-  profile/grid counts and aggregate scope
+  profile/grid counts and aggregate scope, and
+  `20260729120000_align_explore_share_state_media_health.sql` for owner
+  share-state/public-projection parity
 - Scheduled worker: `reconcile-explore-media-health`
 - Owner API: `get-explore-media-incidents`
 - Owner publication totals: `get_owned_explore_publication_summary`
+- Owner scan share-state: service-only
+  `get_scan_explore_share_state(self_id, target_scan_id)` behind the
+  JWT-authenticated Edge wrapper
 - Service aggregate scope: `get_explore_publication_health_summary`
 - R2 event hint API: `ingest-r2-media-events`
 - Device repair: `repair-scan-image`
-- Database integration tests:
-  `tests/explore_media_quarantine_security.sql` and
+- Database integration tests: `tests/explore_media_quarantine_security.sql` and
   `tests/scan_image_repair_security.sql`
-- Edge tests:
-  `reconcile-explore-media-health/worker_test.ts`,
+- Edge tests: `reconcile-explore-media-health/worker_test.ts`,
   `ingest-r2-media-events/validation_test.ts`, and
   `_tests/exploreMediaQuarantineMigrationContract.test.ts`
 - Incident history:
@@ -273,7 +284,7 @@ Never bulk-update health to `healthy` without proving object existence.
 
 The feature is not production-complete until all of the following are true:
 
-- both migrations are applied in order;
+- all four migrations are applied in order;
 - all three new Edge Functions and the updated push function are deployed;
 - the scheduled job can read `SUPABASE_URL` and an active current or legacy
   server key from the reviewed Vault slot;

@@ -1217,6 +1217,17 @@ extension OfflineQueueManager {
             )
             return
         }
+        guard processingResult.wasCleaned else {
+            MerianLog.data.error(
+                "processInferenceDownloadResult: local persistence rejected response scanId=\(scanId, privacy: .public)"
+            )
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: generation,
+                reason: "Local inference persistence did not complete"
+            )
+            return
+        }
 
         // Delete the OfflineQueuedScan from the main ModelContext so @Query re-evaluates in
         // any open sheet. The background actor intentionally left it alive (see wasCleaned doc);
@@ -1226,26 +1237,32 @@ extension OfflineQueueManager {
         // Route through deleteQueuedScan rather than flushOfflineQueuedScan so queue-only
         // inference frames can be purged while media adopted by the final LocalScanRecord survives.
         let didDeleteQueuedScan: Bool
-        if processingResult.wasCleaned {
-            let adoptedMediaPaths = processingResult.finalScanId == nil
-                ? []
-                : extracted.capturedMediaSnapshot.thumbnailImagePaths
-                    + (extracted.audioFilePaths ?? [])
-                    + (extracted.videoFilePaths ?? [])
-            didDeleteQueuedScan = await OfflineQueueManager.shared.deleteQueuedScan(
-                scanId: scanId,
-                explicitlyAdoptedMediaPaths: adoptedMediaPaths,
-                preservePreferredGoalHint: true,
-                inferenceExpectation: InferenceGenerationExpectation(
-                    generation: generation
-                )
+        let adoptedMediaPaths = processingResult.finalScanId == nil
+            ? []
+            : extracted.capturedMediaSnapshot.thumbnailImagePaths
+                + (extracted.audioFilePaths ?? [])
+                + (extracted.videoFilePaths ?? [])
+        didDeleteQueuedScan = await OfflineQueueManager.shared.deleteQueuedScan(
+            scanId: scanId,
+            explicitlyAdoptedMediaPaths: adoptedMediaPaths,
+            preservePreferredGoalHint: true,
+            inferenceExpectation: InferenceGenerationExpectation(
+                generation: generation
             )
-        } else {
-            didDeleteQueuedScan = false
+        )
+        guard didDeleteQueuedScan else {
+            MerianLog.data.error(
+                "processInferenceDownloadResult: durable result saved but queue cleanup failed scanId=\(scanId, privacy: .public)"
+            )
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: generation,
+                reason: "Completed inference queue cleanup did not commit"
+            )
+            return
         }
 
-        if didDeleteQueuedScan,
-           let speciesName = processingResult.resolvedSpeciesName,
+        if let speciesName = processingResult.resolvedSpeciesName,
            let dbScanId = processingResult.finalScanId {
             MerianLog.data.debug(
                 "processInferenceDownloadResult: finalized scanId=\(scanId, privacy: .private) dbScanId=\(dbScanId, privacy: .private) species=\(speciesName, privacy: .private)"
@@ -1321,11 +1338,6 @@ extension OfflineQueueManager {
             }
         }
 
-        if !didDeleteQueuedScan {
-            MerianLog.data.debug(
-                "processInferenceDownloadResult: did not delete queued scanId=\(scanId, privacy: .public) wasCleaned=\(processingResult.wasCleaned, privacy: .public)"
-            )
-        }
         guard isInferenceGenerationCurrent(
             scanId: scanId,
             expectedGeneration: generation
@@ -1337,13 +1349,7 @@ extension OfflineQueueManager {
         }
         MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
         await MainActor.run {
-            // updateUnsyncedItemCount() is already called by deleteQueuedScan above;
-            // only call it here when deletion was skipped or failed.
-            if !didDeleteQueuedScan {
-                OfflineQueueManager.shared.updateUnsyncedItemCount()
-            }
             CircuitBreakerManager.shared.recordSuccess()
-            OfflineQueueManager.shared.markScanJobComplete(scanId: scanId)
         }
     }
 
@@ -1371,6 +1377,14 @@ extension OfflineQueueManager {
             return .retry
         }
         if statusCode == 200 {
+            guard !responseData.isEmpty,
+                  let wrapper = try? JSONDecoder().decode(
+                      EdgeResponseWrapper.self,
+                      from: responseData
+                  ),
+                  IdentifySuccessEnvelopeValidator.isUsable(wrapper) else {
+                return .retry
+            }
             return .success
         }
         if shouldRetryBackgroundInferenceRouteFailure(
@@ -2026,7 +2040,6 @@ extension OfflineQueueManager {
               ) else {
             return false
         }
-        markScanJobComplete(scanId: scanId)
         updateUnsyncedItemCount()
         ScanLibraryEvents.postLibraryDidUpdate()
         let didHydratePresentedResult =

@@ -20,7 +20,10 @@ import {
   type OwnedScanRecoveryRow,
   recoverMissingOwnedScan,
 } from "../_shared/scanRecovery.ts";
-import { restoredObjectKeysMissingDurableUrls } from "./restoredMediaValidation.ts";
+import {
+  requireRestoredMediaLedgerBinding,
+  restoredObjectKeysMissingDurableUrls,
+} from "./restoredMediaValidation.ts";
 
 type TrackEvent = typeof trackPostHogEvent;
 type ModerateAudio = typeof moderateExploreAudioUrl;
@@ -412,6 +415,17 @@ export async function fetchShareEligibleScan(
   if (row.is_tombstoned) {
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
+
+  await requireRestoredMediaLedgerBinding(
+    scanId,
+    userId,
+    {
+      restoredObjectKeys,
+      restoredVideoObjectKeys,
+      restoredAudioObjectKeys,
+    },
+    supabaseAdmin,
+  );
 
   if (
     (row.image_storage_urls?.length ?? 0) === 0 && restoredObjectKeys.length > 0

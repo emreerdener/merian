@@ -11,6 +11,14 @@ const requestDbUrl = new URL(
   "../request-community-identification/db.ts",
   import.meta.url,
 );
+const requestIndexUrl = new URL(
+  "../request-community-identification/index.ts",
+  import.meta.url,
+);
+const restoredMediaValidationUrl = new URL(
+  "../share-scan-to-explore/restoredMediaValidation.ts",
+  import.meta.url,
+);
 const databaseCatalogUrl = new URL(
   "../../tests/atomic_community_identification_request_security.sql",
   import.meta.url,
@@ -150,8 +158,18 @@ Deno.test("Community request Edge DB code has one final relational mutation", as
   assertStringIncludes(source, "Failed to synchronize taxonomy nodes");
   assertStringIncludes(source, "isCommunityRequestRow(data)");
   assertStringIncludes(source, "isTimestamp(row.requested_at)");
-  assertStringIncludes(source, "data.scan_id !== scanId");
-  assertStringIncludes(source, "data.requested_by !== userId");
+  assertStringIncludes(
+    source,
+    "communityRequestMatchesIdentity(data, scanId, userId)",
+  );
+  assertStringIncludes(
+    source,
+    "row.scan_id.toLowerCase() === scanId.toLowerCase()",
+  );
+  assertStringIncludes(
+    source,
+    "row.requested_by.toLowerCase() === userId.toLowerCase()",
+  );
   assertStringIncludes(source, 'result.error?.code === "P0001"');
   assertStringIncludes(
     source,
@@ -163,5 +181,51 @@ Deno.test("Community request Edge DB code has one final relational mutation", as
       !source.includes('.from("explore_post_media")') &&
       !source.includes('.from("explore_community_requests")'),
     "Separate Community publication mutations returned to Edge code.",
+  );
+});
+
+Deno.test("Community repair validates and forwards every supported media kind", async () => {
+  const [requestIndex, requestDb, restoredMediaValidation] = await Promise.all([
+    Deno.readTextFile(requestIndexUrl),
+    Deno.readTextFile(requestDbUrl),
+    Deno.readTextFile(restoredMediaValidationUrl),
+  ]);
+  const compactIndex = compact(requestIndex);
+  const compactDb = compact(requestDb);
+  const compactValidation = compact(restoredMediaValidation);
+
+  assertStringIncludes(
+    compactIndex,
+    'from "../share-scan-to-explore/restoredMediaValidation.ts"',
+  );
+  for (
+    const fragment of [
+      "normalizeRestoredMediaObjectKeys(body, user.id)",
+      "restoredVideoObjectKeys, restoredAudioObjectKeys, supabaseAdmin",
+    ]
+  ) {
+    assertStringIncludes(compactIndex, fragment);
+  }
+  for (
+    const fragment of [
+      "body.restored_object_keys",
+      "body.restored_video_object_keys",
+      "MEDIA_BUDGETS.maxStagedVideoFiles",
+      "body.restored_audio_object_keys",
+      "MEDIA_BUDGETS.maxStagedAudioFiles",
+      "combinedKeys.length > MEDIA_BUDGETS.maxStagingFiles",
+      "new Set(combinedKeys).size !== combinedKeys.length",
+      '.from("scan_media_assets")',
+      '.eq("source", "capture_upload")',
+      "row.client_scan_id?.toLowerCase() === canonicalScanId",
+      "row.kind === expected.kind",
+      "row.role === expected.role",
+    ]
+  ) {
+    assertStringIncludes(compactValidation, fragment);
+  }
+  assertStringIncludes(
+    compactDb,
+    "restoredObjectKeys, restoredVideoObjectKeys, restoredAudioObjectKeys, supabaseAdmin",
   );
 });

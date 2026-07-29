@@ -12,40 +12,7 @@ import {
   reserveAIProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
-
-function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
-  if (value == null) return [];
-  if (!Array.isArray(value)) {
-    throw makeHttpError(400, "restored_object_keys must be an array.");
-  }
-
-  const normalized = value.map((entry) => {
-    if (typeof entry !== "string") {
-      throw makeHttpError(
-        400,
-        "restored_object_keys must only contain strings.",
-      );
-    }
-    return entry.trim();
-  }).filter((entry) => entry.length > 0);
-
-  if (normalized.length > 5) {
-    throw makeHttpError(
-      400,
-      "restored_object_keys cannot contain more than 5 items.",
-    );
-  }
-
-  const expectedPrefix = `staging/${userId.toLowerCase()}/`;
-  if (!normalized.every((entry) => entry.startsWith(expectedPrefix))) {
-    throw makeHttpError(
-      400,
-      "restored_object_keys must belong to the current user.",
-    );
-  }
-
-  return normalized;
-}
+import { normalizeRestoredMediaObjectKeys } from "../share-scan-to-explore/restoredMediaValidation.ts";
 
 function normalizeSpeciesCommonName(value: unknown): string | null {
   if (value == null) return null;
@@ -82,10 +49,11 @@ Deno.serve((req: Request) =>
     const speciesCommonName = normalizeSpeciesCommonName(
       body.species_common_name,
     );
-    const restoredObjectKeys = normalizeRestoredObjectKeys(
-      body.restored_object_keys,
-      user.id,
-    );
+    const {
+      restoredObjectKeys,
+      restoredVideoObjectKeys,
+      restoredAudioObjectKeys,
+    } = normalizeRestoredMediaObjectKeys(body, user.id);
 
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
 
@@ -97,6 +65,8 @@ Deno.serve((req: Request) =>
       locationSharing,
       speciesCommonName,
       restoredObjectKeys,
+      restoredVideoObjectKeys,
+      restoredAudioObjectKeys,
       supabaseAdmin,
       {
         beforeProvider: async ({ checksumSha256, policyVersion }) => {

@@ -34,6 +34,7 @@ interface MediaStagingUploadManifestContract {
   canonicalQueuedM4AContentType: string;
   canonicalQueuedVideoContentType: string;
   optionalRequestFields: string[];
+  uploadPurposes: string[];
   optionalResponseFields: string[];
   mediaRolesByKind: Record<string, string[]>;
   fileNameSafeCharacterPattern: string;
@@ -45,7 +46,7 @@ Deno.test("media staging constants match the documented cross-language contract"
   const contract = mediaStagingContract as MediaStagingUploadManifestContract;
 
   assertEquals(contract.endpoint, "/generate-upload-urls");
-  assertEquals(contract.schemaVersion, 2);
+  assertEquals(contract.schemaVersion, 3);
   assertEquals(MAX_STAGING_FILES, contract.maxFilesPerRequest);
   assertEquals(MAX_STAGED_IMAGE_BYTES, contract.maxImageBytes);
   assertEquals(MAX_STAGED_IMAGE_FILES, contract.maxImageFiles);
@@ -68,7 +69,9 @@ Deno.test("media staging constants match the documented cross-language contract"
   assertEquals(contract.optionalRequestFields, [
     "clientScanId",
     "mediaRole",
+    "uploadPurpose",
   ]);
+  assertEquals(contract.uploadPurposes, ["scan_share_restore"]);
   assertEquals(contract.optionalResponseFields, [
     "mediaAssetId",
     "mediaSessionId",
@@ -155,6 +158,124 @@ Deno.test("parseStagingUploadFiles accepts one video scan signing batch", () => 
     parsed.files?.filter((file) => file.mediaKind === "video").length,
     1,
   );
+});
+
+Deno.test("parseStagingUploadFiles accepts exact scan-share restore manifests", () => {
+  const clientScanId = "00000000-0000-4000-8000-000000000001";
+  const parsed = parseStagingUploadFiles({
+    files: [
+      {
+        fileName: `${clientScanId}_explore_restore_0.webp`,
+        mediaKind: "image",
+        contentType: "image/webp",
+        sizeBytes: 125_000,
+        clientScanId,
+        mediaRole: "display",
+        uploadPurpose: "scan_share_restore",
+      },
+      {
+        fileName: `${clientScanId}_explore_restore_video_0.mov`,
+        mediaKind: "video",
+        contentType: "video/mp4",
+        sizeBytes: 840_000,
+        clientScanId,
+        mediaRole: "playback",
+        upload_purpose: "scan_share_restore",
+      },
+      {
+        fileName: `${clientScanId}_explore_restore_audio_0.caf`,
+        mediaKind: "audio",
+        contentType: "audio/wav",
+        sizeBytes: 42_000,
+        clientScanId,
+        mediaRole: "audio",
+        uploadPurpose: "scan_share_restore",
+      },
+    ],
+  });
+
+  assertEquals(parsed.error, undefined);
+  assertEquals(
+    parsed.files?.map((file) => file.uploadPurpose),
+    [
+      "scan_share_restore",
+      "scan_share_restore",
+      "scan_share_restore",
+    ],
+  );
+});
+
+Deno.test("parseStagingUploadFiles rejects spoofed scan-share restore manifests", () => {
+  const clientScanId = "00000000-0000-4000-8000-000000000001";
+  const base = {
+    fileName: `${clientScanId}_explore_restore_0.webp`,
+    mediaKind: "image",
+    contentType: "image/webp",
+    sizeBytes: 125_000,
+    clientScanId,
+    mediaRole: "display",
+    uploadPurpose: "scan_share_restore",
+  };
+  const invalidFiles = [
+    { ...base, uploadPurpose: "unknown_purpose" },
+    { ...base, clientScanId: undefined },
+    {
+      ...base,
+      fileName: "00000000-0000-4000-8000-000000000099_explore_restore_0.webp",
+    },
+    {
+      ...base,
+      fileName: `${clientScanId}_explore_restore_video_0.mp4`,
+    },
+    { ...base, mediaRole: "thumbnail" },
+    {
+      ...base,
+      client_scan_id: "00000000-0000-4000-8000-000000000099",
+    },
+    { ...base, media_role: "thumbnail" },
+    { ...base, upload_purpose: "unknown_purpose" },
+    { ...base, clientScanId: null, client_scan_id: clientScanId },
+    { ...base, mediaRole: null, media_role: "display" },
+    {
+      ...base,
+      uploadPurpose: null,
+      upload_purpose: "scan_share_restore",
+    },
+  ];
+
+  for (const file of invalidFiles) {
+    const parsed = parseStagingUploadFiles({ files: [file] });
+    assertEquals(parsed.status, 400);
+  }
+});
+
+Deno.test("parseStagingUploadFiles accepts identical compatibility aliases", () => {
+  const clientScanId = "00000000-0000-4000-8000-000000000001";
+  const parsed = parseStagingUploadFiles({
+    files: [{
+      fileName: `${clientScanId}_explore_restore_0.webp`,
+      mediaKind: "image",
+      contentType: "image/webp",
+      sizeBytes: 125_000,
+      clientScanId,
+      client_scan_id: clientScanId,
+      mediaRole: "display",
+      media_role: "display",
+      uploadPurpose: "scan_share_restore",
+      upload_purpose: "scan_share_restore",
+    }],
+  });
+
+  assertEquals(parsed.error, undefined);
+  assertEquals(parsed.files, [{
+    fileName: `${clientScanId}_explore_restore_0.webp`,
+    mediaKind: "image",
+    contentType: "image/webp",
+    sizeBytes: 125_000,
+    clientScanId,
+    mediaRole: "display",
+    uploadPurpose: "scan_share_restore",
+  }]);
 });
 
 Deno.test("parseStagingUploadFiles rejects invalid scan media session metadata", () => {
