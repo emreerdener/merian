@@ -720,20 +720,33 @@ unrestricted scan lookup must confirm an active authenticated-owner row or prove
 the row absent for the later guarded reconstruction; any tombstoned or foreign
 row fails closed. A failed-terminal job additionally requires exact
 `replay_exhausted`, or exact `media_reconciliation_abandoned` with its matching
-owner/scan service-written post-result dead letter. Policy and unproven
-abandonment remain closed. Do not remove failed
+composite service proof: a post-result dead letter no earlier than the latest
+charged normal/server-replay attempt, producer-generation-appropriate evidence,
+no active reservation or invalid timestamp lineage, and no moderation-rejected
+or moderation-pipeline-failed capture lifecycle row. Policy,
+later-policy, and unproven abandonment remain closed. Do not remove failed
 `superseded_staging_registration` rows: they are historical audit evidence used
 by the narrow recovery contract.
 
-The eleven joined incident migrations and the ten affected Edge Functions are
+The twelve joined incident migrations and the ten affected Edge Functions are
 one ordered release unit. The last migration is
-`20260729173000_recover_media_abandoned_owned_scans.sql`; it must land before
-the signer/status/share bundles. Do not selectively deploy only the multimodal
-route, because older app builds still use compatibility producers. The
-production batch helper extracts selected members of that unit from the graph
-plan, deploys them in compatibility order before unrelated parallel batches,
-and stops on the first exhausted ordered deployment. The normative joined
-state, recovery, security, deployment, monitoring, and test contract is
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql`; both
+media-abandonment files are separate migration-file transactions, even inside
+one `supabase db push`. Before either can run, the production workflow
+predeploys exact-SHA fail-closed `generate-upload-urls`, `check-scan-status`,
+and `share-scan-to-explore` consumers. They require the final proof RPC only
+when legacy repair is requested, so a missing or stale boundary returns
+retryable `503` before signing or publication. Both migrations then land before
+the structured Identify producer and final signer/status/share bundle
+deployment. The final migration records its private legacy cutoff before that
+producer, so an old producer in the gap remains fail-closed for automatic
+recovery. Do not selectively deploy only the multimodal route, because older app
+builds still use compatibility producers.
+The production batch helper extracts
+selected members of that unit from the graph plan, deploys them in compatibility
+order before unrelated parallel batches, and stops on the first exhausted
+ordered deployment. The normative joined state, recovery, security, deployment,
+monitoring, and test contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 ### Identification Latency Contract
@@ -791,9 +804,23 @@ atomic service-only non-media compatibility repair used only by single status
 and Explore share requests. It shares the claim's advisory lock, writes the scan
 and completed recovery ledger in one transaction, defers every active or unknown
 state, and permits recovery from explicit `replay_exhausted`, or exact
-`media_reconciliation_abandoned` with the matching service-written post-result
-`failed_scan_ingestions` row. Unproven abandonment remains deferred. Media
-remains accepted only through separate owner-scoped staging keys.
+`media_reconciliation_abandoned` with matching composite
+dead-letter/quota/media-lifecycle proof. A reserved attempt, dead letter older
+than the latest charged attempt, invalid terminal timestamps, moderation
+rejection/pipeline failure, or unproven abandonment remains deferred.
+Pre-rollout unstructured evidence must belong to the immutable exact
+dead-letter-ID snapshot captured by the migration, precede the private database
+cutoff, and satisfy a narrow first-normal-attempt rule. The ID snapshot prevents
+a DDL-blocked producer insert from gaining legacy authority through an earlier
+transaction-start timestamp. Post-rollout evidence binds the exact quota IDs and
+completed safety evaluation. A bounded service-only proof RPC supplies the same
+decision to restore signing, and both RPC signatures are recorded in the
+privileged-routine grant ledger. Every exact failed/committed normal and replay
+reservation remains exempt from ordinary quota pruning while the terminal job
+is unresolved; refunded and unrelated terminal states retain normal retention.
+The pruner conditionally casts legacy text scan IDs only after an in-expression
+UUID-shape guard, so malformed historical rows cannot abort hourly cleanup.
+Media remains accepted only through separate owner-scoped staging keys.
 
 Owner deletion takes the same generation lock first. `/delete-scan` commits an
 `internal.scan_deletion_tombstones` row before touching R2, terminal-marks
@@ -1004,6 +1031,16 @@ pre-provider reservations are refunded automatically, and a late settlement from
 an older attempt cannot mutate a retry. A provider failure transitions
 `committed` to `failed`: counters remain charged, but the same request key can
 make a newly metered retry.
+
+Terminal quota reservations ordinarily prune after 30 days.
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql` retains only
+exact failed and committed normal/replay scan-identification reservations while
+the matching job remains unresolved
+`failed_terminal / media_reconciliation_abandoned`. These rows preserve the
+complete chronological recovery/security authority; the latest row may support
+or veto recovery depending on matching dead-letter lineage. Recovery or
+explicit operator resolution returns them to ordinary pruning. Refunded
+attempts are not retained by this exception.
 
 The internal policy matrix distinguishes `free`, `pro_trial`, and `pro_paid`.
 Current UTC-day safety ceilings are:
@@ -1701,9 +1738,10 @@ scan, signing, share-state, Explore, Field Chat, Community, and deletion routes.
 It then reaches the exact no-write SQLSTATE `22023` boundary in
 `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
 `request_community_identification_atomically`, `recover_missing_owned_scan`,
-`reserve_field_chat_send`, and `recover_stale_field_chat_quota` with server
-authority, while proving every real anon/publishable project credential remains
-denied from all six routines.
+`get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
+`recover_stale_field_chat_quota` with server authority, while proving every
+real anon/publishable project credential remains denied from all seven
+routines.
 
 This verifies PostgREST schema-cache readiness and production grants without
 creating a fixture or logging a response body. Database migrations still run

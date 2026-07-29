@@ -117,6 +117,60 @@ actor BackgroundDatabaseActor {
         let localMediaPaths: [String]
     }
 
+    /// Reconciles the two durable copies of retry ownership before a queue
+    /// transition mutates either model.
+    ///
+    /// Real migrated stores can temporarily expose a stale scalar snapshot in
+    /// one SwiftData context after another context commits. The monotonic
+    /// counter and high-authority cloud-recovery markers must therefore heal
+    /// from either copy instead of trusting only the queue row.
+    @discardableResult
+    private func reconcileMirroredInferenceState(
+        scan: OfflineQueuedScan,
+        job: OfflineJobRecord
+    ) -> Int {
+        let attempt = max(
+            0,
+            max(scan.queueAttemptCount, job.attemptCount)
+        )
+        scan.queueAttemptCount = attempt
+        job.attemptCount = attempt
+
+        let hasCompletedCloudResult =
+            OfflineQueueManager.isCompletedServerResultRecoveryCode(
+                scan.queueLastErrorCode
+            ) ||
+            OfflineQueueManager.isCompletedServerResultRecoveryCode(
+                job.lastErrorCode
+            )
+        if hasCompletedCloudResult {
+            scan.queueLastErrorCode =
+                OfflineQueueManager.completedServerResultRecoveryCode
+            scan.queueLastErrorMessage =
+                OfflineQueueManager.completedServerResultRecoveryMessage
+            job.lastErrorCode =
+                OfflineQueueManager.completedServerResultRecoveryCode
+            job.lastErrorMessage =
+                OfflineQueueManager.completedServerResultRecoveryMessage
+        } else if OfflineQueueManager.isServerRetryableFailureCode(
+            scan.queueLastErrorCode
+        ) || OfflineQueueManager.isServerRetryableFailureCode(
+            job.lastErrorCode
+        ) {
+            let retryMessage = OfflineQueueManager
+                .isServerRetryableFailureCode(scan.queueLastErrorCode)
+                ? (scan.queueLastErrorMessage ?? job.lastErrorMessage)
+                : (job.lastErrorMessage ?? scan.queueLastErrorMessage)
+            scan.queueLastErrorCode =
+                OfflineQueueManager.serverRetryableFailureCode
+            scan.queueLastErrorMessage = retryMessage
+            job.lastErrorCode =
+                OfflineQueueManager.serverRetryableFailureCode
+            job.lastErrorMessage = retryMessage
+        }
+        return attempt
+    }
+
     // MARK: - Pending Scan Fetching
 
     /// Returns up to `limit` `.pending` (state 0) `OfflineQueuedScan` records sorted oldest-first.
@@ -281,6 +335,7 @@ actor BackgroundDatabaseActor {
             modelContext.insert(created)
             return created
         }()
+        reconcileMirroredInferenceState(scan: scan, job: job)
         if let generation {
             job.metadataJSON =
                 InferenceGenerationMetadataContract.json(for: generation)
@@ -625,7 +680,31 @@ actor BackgroundDatabaseActor {
             job = createdJob
         }
 
-        let attempt = scan.queueAttemptCount + 1
+        let mirroredAttempt =
+            reconcileMirroredInferenceState(scan: scan, job: job)
+        guard !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+            scan.queueLastErrorCode
+        ), !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+            job.lastErrorCode
+        ) else {
+            do {
+                // Persist the repair even though cloud completion vetoes this
+                // retry transition. The surviving job-row authority remains
+                // sufficient if this save fails, so the caller still must not
+                // dispatch another provider request.
+                try modelContext.save()
+            } catch {
+                modelContext.rollback()
+                MerianLog.data.error(
+                    "scheduleInferenceRetry: cloud-complete mirror repair failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+                )
+            }
+            MerianLog.data.debug(
+                "scheduleInferenceRetry: completed cloud result owns scanId=\(scanId, privacy: .public)"
+            )
+            return nil
+        }
+        let attempt = mirroredAttempt + 1
         let now = Date()
         let nextRetryAt = now.addingTimeInterval(max(1, delay))
         scan.queueAttemptCount = attempt
@@ -761,7 +840,8 @@ actor BackgroundDatabaseActor {
             job = createdJob
         }
 
-        let attempt = scan.queueAttemptCount + 1
+        let attempt =
+            reconcileMirroredInferenceState(scan: scan, job: job) + 1
         let now = Date()
         let nextRetryAt = now.addingTimeInterval(max(1, delay))
         scan.queueAttemptCount = attempt
@@ -871,13 +951,25 @@ actor BackgroundDatabaseActor {
         }
 
         let now = Date()
-        let preservesInferenceRetry =
+        if let job {
+            reconcileMirroredInferenceState(scan: scan, job: job)
+        }
+        let preservesInferenceRecovery =
             OfflineQueueManager.isServerRetryableFailureCode(
                 scan.queueLastErrorCode
+            ) ||
+            OfflineQueueManager.isServerRetryableFailureCode(
+                job?.lastErrorCode
+            ) ||
+            OfflineQueueManager.isCompletedServerResultRecoveryCode(
+                scan.queueLastErrorCode
+            ) ||
+            OfflineQueueManager.isCompletedServerResultRecoveryCode(
+                job?.lastErrorCode
             )
         scan.stagedR2Keys = r2Keys
         scan.scanStateRaw = ScanQueueState.staged.rawValue
-        if !preservesInferenceRetry {
+        if !preservesInferenceRecovery {
             scan.queueAttemptCount = 0
             scan.queueLastAttemptAt = nil
             scan.queueLastErrorCode = nil
@@ -894,7 +986,7 @@ actor BackgroundDatabaseActor {
             job.status = .running
             job.updatedAt = now
             job.nextRunAt = nil
-            if !preservesInferenceRetry {
+            if !preservesInferenceRecovery {
                 job.lastAttemptAt = nil
                 job.attemptCount = 0
                 job.lastErrorCode = nil
@@ -1074,6 +1166,7 @@ actor BackgroundDatabaseActor {
                     scan.queueNextRetryAt = nil
                     scan.queueUpdatedAt = Date()
                     if let job = fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id)) {
+                        reconcileMirroredInferenceState(scan: scan, job: job)
                         job.status = .running
                         job.updatedAt = Date()
                         job.lastAttemptAt = Date()

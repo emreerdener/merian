@@ -286,10 +286,21 @@ dependency audit, tests, type-check, and production build; preserve the required
   through owner-scoped staging keys. The server must derive owner identity,
   serialize against ingestion claim creation, defer to active/retryable
   ingestion, permit exact structured `replay_exhausted`, and require matching
-  service-written post-result dead-letter provenance for exact
-  `media_reconciliation_abandoned`. It must insert without overwrite and reload
-  by both scan and owner. Never trust the terminal label alone, add a direct
-  client scan upsert, or weaken RLS/grants to make recovery work.
+  composite dead-letter/quota/media-lifecycle provenance for exact
+  `media_reconciliation_abandoned`, including rejection of active attempts,
+  dead letters older than later charged policy authority, invalid timestamps,
+  unstructured rows absent from the immutable migration-time ID snapshot or
+  outside its cutoff, and incomplete modern safety evidence. Never use
+  transaction timestamp alone as the legacy boundary: a DDL-blocked insert can
+  resume later with an earlier `now()`.
+  Restore signing must obtain the same decision from the
+  bounded service-only proof RPC; both signatures remain in the privileged
+  grant ledger and production no-write readiness gate. All exact
+  failed/committed normal and replay reservations remain retained as
+  chronological authority until the terminal job is resolved. It must insert
+  without overwrite and reload by both scan and owner.
+  Never trust the terminal label alone, add a direct client scan upsert, or
+  weaken RLS/grants to make recovery work.
 - **New migrations use the CLI transaction.** Supabase CLI `2.109.1` batches
   each migration with its history insert. Do not add top-level transaction
   controls or any executable concurrent index DDL to a new migration.
@@ -302,6 +313,12 @@ dependency audit, tests, type-check, and production build; preserve the required
   investigate request and private-job provenance with restricted access, and
   use a reviewed durable request or forward metadata migration only after the
   cause is classified.
+- **Redundant queue state must reconcile monotonically.** Scan-ingestion
+  retry/completion markers and attempts live on both `OfflineQueuedScan` and
+  `OfflineJobRecord`. Fresh reads consult both, serialized writers repair drift
+  before mutation, attempt projection is the nonnegative maximum, and cloud
+  completion outranks retry. Never reset staging state from one cached copy or
+  add the counters together.
 - **SwiftData Predicate Boolean Mapping Bug**: When creating `@Query(filter:)`
   definitions with `#Predicate`, NEVER rely on implicit boolean checks (e.g.
   `$0.isBiological`). Due to iOS 17 compilation faults, SwiftData will ignore

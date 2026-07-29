@@ -49,14 +49,36 @@ steps are tracked in the
 > state-machine deadlock after `failed_retryable / background_ingestion_failed`.
 > Media uploaded successfully, but every status preflight skipped the Identify
 > request required to reclaim the failed generation; upload success also erased
-> its retry count. A separate same-session smoke proved new Identify and Explore
-> publication healthy while an eligible older
+> its retry count. A follow-up archive showed the initial single-row latch fix
+> was insufficient on a migrated store: retry state survived in the durable job
+> while a drifted queued-scan snapshot restarted at attempt one. Retry authority
+> now reconciles both copies and advances from their monotonic maximum. A
+> separate same-session smoke proved new Identify and Explore publication
+> healthy while an eligible older
 > `media_reconciliation_abandoned` record was rejected by the terminal repair
 > signer. The tree now preserves one exact retry latch through re-stage, permits
 > its generation-fenced Identify dispatch, bounds automatic churn, and allows
 > only authenticated tombstone-free `replay_exhausted` repair, or
-> `media_reconciliation_abandoned` repair backed by the exact service-written
-> post-result dead letter. See the
+> `media_reconciliation_abandoned` repair backed by composite service proof:
+> a post-result dead letter no earlier than the latest charged normal/replay
+> attempt, evidence shaped for its producer generation, no active reservation
+> or corrupt timestamp lineage, and no moderation-rejected or
+> moderation-infrastructure-failed capture lifecycle row. Pre-rollout evidence
+> narrowly supports the vulnerable producer’s first committed normal attempt;
+> it must also belong to the immutable exact dead-letter-ID snapshot captured
+> by the migration, predate the private cutoff, and match the audited multimodal
+> post-safety error path. The exact snapshot prevents a producer blocked behind
+> migration DDL from gaining legacy authority through its earlier
+> transaction-start timestamp. Post-rollout evidence must bind the exact quota
+> IDs, validated provider result, and completed Identify safety evaluation.
+> Because the rollout uses two separate migration-file transactions,
+> production now predeploys fail-closed signing, status, and share consumers
+> before either file, then deploys the schema-dependent Identify producer only
+> after proof hardening and service-only readiness checks succeed. Library,
+> scheduler, reconnect, and URLSession replay wakes now share one process-local
+> driver plus at most one trailing pass, preventing overlapping status probes,
+> orphan transitions, retry inflation, and start-log storms. See
+> the
 > [retry deadlock incident](docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md)
 > and
 > [legacy share incident](docs/incidents/2026-07-media-abandoned-explore-share-recovery.md).
@@ -156,17 +178,20 @@ steps are tracked in the
   dispatch; rolling-deployment claim and recovery share that per-scan database
   generation lock. Recovery writes its scan and completed ledger atomically and
   requires an existing complete ledger, exact `replay_exhausted`, or exact
-  `media_reconciliation_abandoned` plus the matching service-written post-result
-  dead letter; policy, unproven abandonment, unknown, and no-ledger state fails
-  closed. A retryable scanless generation writes one
-  durable client retry latch. That exact latch survives any required fresh
-  upload and lets the delayed preflight send Identify instead of repeatedly
-  classifying its own retry as server-owned. Explicit retry starts a fresh
-  bounded automatic budget under the same scan UUID, including for
-  description-only work with no upload-reset boundary; a known cloud-complete
-  result instead remains owner-recovery-only. Owner deletion takes the same
-  lock and writes a private UUID tombstone before storage erasure, permanently
-  fencing delayed inference, replay, and cross-device recovery for the deleted
+  `media_reconciliation_abandoned` plus the matching composite
+  dead-letter/quota/media-lifecycle proof; policy, later-policy, unproven
+  abandonment, unknown, and no-ledger state fails closed. A retryable scanless
+  generation writes one durable client retry latch mirrored across its queued
+  scan and durable job. Fresh reads consult both copies, serialized transitions
+  repair drift before mutation, and retry accounting advances from the
+  monotonic maximum. That exact latch survives any required fresh upload and
+  lets the delayed preflight send Identify instead of repeatedly classifying
+  its own retry as server-owned. A known cloud-complete result has higher
+  authority than either retry copy. Explicit retry starts a fresh bounded
+  automatic budget under the same scan UUID, including for description-only
+  work with no upload-reset boundary. Owner deletion takes the same lock and
+  writes a private UUID tombstone before storage erasure, permanently fencing
+  delayed inference, replay, and cross-device recovery for the deleted
   generation.
   Storage deletion accepts only flat free/Pro object keys containing that
   canonical owner UUID, so a poisoned row cannot nominate another user's object.

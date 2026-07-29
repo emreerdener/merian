@@ -44,9 +44,10 @@ session from creating an anonymous production user.
   guarded inline repair remains compatible with an older released client that
   stages before Share. Recovery admits only a completed-but-missing job or exact
   authenticated-owner `replay_exhausted` reason, or
-  `media_reconciliation_abandoned` with the matching service-written post-result
-  dead letter. Active, retryable, policy, unproven abandonment, deletion,
-  foreign, no-ledger, and unknown state fails closed. Restore signing uses the explicit
+  `media_reconciliation_abandoned` with the matching composite
+  dead-letter/quota/media-lifecycle proof. Active, retryable, current/later
+  policy, unproven abandonment, deletion, foreign, no-ledger, and unknown state
+  fails closed. Restore signing uses the explicit
   `scan_share_restore` purpose and deterministic scan/category filenames, so a
   completed ingestion can stage surviving local media only after an unrestricted
   scan read confirms the active JWT-owned row or proves it absent for guarded
@@ -54,11 +55,13 @@ session from creating an anonymous production user.
   mutates server state.
 - Treats `failed_retryable` status as a two-step durable transition rather than
   permanent server ownership. The first observation schedules one
-  generation-fenced retry. Its exact `server_retryable_failure` marker and attempt count
-  survive required re-upload; after the persisted delay, only that marker lets
-  the next preflight send Identify. Retry-budget and marker reads use a fresh
-  context so background-actor commits cannot be hidden by cached SwiftData
-  state.
+  generation-fenced retry. Its exact `server_retryable_failure` marker and
+  attempt count are mirrored across the queued scan and durable job and survive
+  required re-upload. Fresh reads consult both copies, counters use their
+  monotonic maximum, and serialized transitions repair drift before mutation.
+  After the persisted delay, only that marker lets the next preflight send
+  Identify. A cloud-complete marker has higher authority and can never be
+  replaced by retry state.
 - Translates known technical Explore failures at the UI boundary so database
   authorization and missing-row implementation detail are not customer-facing.
 - Decodes Explore media-health incidents from the current `{data:[...]}`
@@ -255,6 +258,15 @@ Owner-row repair is not a fallback table upsert. The server derives owner
 identity, validates/gates recovery, inserts without overwrite, reloads by owner,
 and restores media only through validated staging keys. A processing/retryable
 or exact policy-rejected job remains unrepaired.
+
+Scan-status success is also treated as untrusted input. Single responses must
+decode to the reviewed enum, may echo only the exact requested scan ID, and
+cannot report a negative job-attempt count. A bulk response must contain exactly
+one unique row for every requested scan ID and no foreign row. Duplicate,
+missing, malformed, foreign, or negative-attempt rows become
+`MerianError.invalidResponse`; bulk decoding never uses
+`Dictionary(uniqueKeysWithValues:)`, whose duplicate-key precondition would
+otherwise let a contradictory server response terminate the app.
 
 Before Field Chat presentation, `ensureCloudScanAvailableForFieldChat(scan:)`
 polls the exact owner status and uses bounded non-media recovery only for

@@ -437,8 +437,10 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           plan_file="$RUNNER_TEMP/merian-supabase-functions.txt"
+          recovery_predeploy_required=false
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            recovery_predeploy_required=true
             deno run --frozen --config supabase/functions/deno.json \
               --allow-read=supabase \
               supabase/scripts/plan_function_deploy.ts \
@@ -460,6 +462,11 @@ jobs:
             if [[ "$last_success_sha" =~ ^[0-9a-f]{40}$ ]] && \
                git merge-base --is-ancestor "$last_success_sha" "$HEAD_SHA"; then
               echo "Planning from last successful production deploy: $last_success_sha"
+              if ! git diff --quiet "$last_success_sha" "$HEAD_SHA" -- \
+                ":(top)services/supabase/migrations/20260729173000_recover_media_abandoned_owned_scans.sql" \
+                ":(top)services/supabase/migrations/20260729200000_harden_media_abandoned_scan_recovery_proof.sql"; then
+                recovery_predeploy_required=true
+              fi
               deno run --frozen --config supabase/functions/deno.json \
                 --allow-read=supabase \
                 --allow-run=git \
@@ -468,6 +475,7 @@ jobs:
                 --head "$HEAD_SHA" > "$plan_file"
             else
               echo "Unable to resolve a safe successful deploy baseline; planning a full deployment."
+              recovery_predeploy_required=true
               deno run --frozen --config supabase/functions/deno.json \
                 --allow-read=supabase \
                 supabase/scripts/plan_function_deploy.ts \
@@ -478,11 +486,13 @@ jobs:
           function_count="$(grep -cve '^[[:space:]]*$' "$plan_file" || true)"
           echo "plan_file=$plan_file" >> "$GITHUB_OUTPUT"
           echo "count=$function_count" >> "$GITHUB_OUTPUT"
+          echo "recovery_predeploy_required=$recovery_predeploy_required" >> "$GITHUB_OUTPUT"
 
           {
             echo "### Edge Function deployment plan"
             echo
             echo "Functions selected: $function_count"
+            echo "Fail-closed recovery consumer predeploy: $recovery_predeploy_required"
             if [ "$function_count" -gt 0 ]; then
               sed 's/^/- /' "$plan_file"
             fi
@@ -505,6 +515,21 @@ jobs:
 
           echo "::add-mask::$db_url"
           echo "url=$db_url" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy fail-closed recovery consumers before compatibility migrations
+        if: steps.function-plan.outputs.recovery_predeploy_required == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          pre_migration_plan="$RUNNER_TEMP/merian-recovery-consumers.txt"
+          printf '%s\n' \
+            generate-upload-urls \
+            check-scan-status \
+            share-scan-to-explore > "$pre_migration_plan"
+          bash supabase/scripts/deploy_function_batches.sh \
+            "$pre_migration_plan" \
+            "$PROJECT_ID"
 
       - name: Audit production privileged routine ACLs before migration
         env:
@@ -997,6 +1022,10 @@ jobs:
             '{"p_scan_id":null,"p_user_id":null,"p_recovery_scan":null}' \
             "invalid_scan_recovery"
           probe_server_rpc_validation_boundary \
+            "get_media_abandoned_scan_recovery_proofs" \
+            '{"p_user_id":null,"p_scan_ids":null}' \
+            "invalid_media_abandoned_recovery_proof_request"
+          probe_server_rpc_validation_boundary \
             "reserve_field_chat_send" \
             '{"p_user_id":null,"p_conversation_id":null,"p_subject_type":null,"p_subject_id":null,"p_message_text":null,"p_client_message_id":null}' \
             "field_chat_invalid_request"
@@ -1010,6 +1039,7 @@ jobs:
             publish_scan_to_explore_atomically
             request_community_identification_atomically
             recover_missing_owned_scan
+            get_media_abandoned_scan_recovery_proofs
             reserve_field_chat_send
             recover_stale_field_chat_quota
           )
@@ -1018,6 +1048,7 @@ jobs:
             '{"p_scan_id":"00000000-0000-0000-0000-000000000000","p_user_id":"00000000-0000-0000-0000-000000000000","p_species_common_name":null,"p_field_notes":null,"p_location_sharing":null,"p_media_rows":[],"p_hashtags":[]}'
             '{"p_scan_id":null,"p_user_id":null,"p_note":null,"p_location_sharing":null,"p_species_common_name":null,"p_media_rows":[],"p_initial_taxon_node_id":null,"p_taxonomy_version_id":null}'
             '{"p_scan_id":null,"p_user_id":null,"p_recovery_scan":null}'
+            '{"p_user_id":null,"p_scan_ids":null}'
             '{"p_user_id":null,"p_conversation_id":null,"p_subject_type":null,"p_subject_id":null,"p_message_text":null,"p_client_message_id":null}'
             '{"p_user_id":null,"p_operation":null,"p_request_id":null,"p_conversation_id":null,"p_subject_id":null}'
           )

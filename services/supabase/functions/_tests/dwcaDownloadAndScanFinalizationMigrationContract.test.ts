@@ -674,7 +674,7 @@ Deno.test("fresh-catalog scan ACL uses one exact compatibility allowlist", () =>
 Deno.test("fresh-catalog trigger validation supplies every relation OID", () => {
   const catalog = compactSql(downloadAndFinalizationCatalog);
   const registryStart = catalog.indexOf(
-    "-- plpgsql_check requires a valid relation OID",
+    "-- plpgsql_check accepts only PL/pgSQL routines",
   );
   const registryEnd = catalog.indexOf("IF NOT EXISTS (", registryStart);
   assert(
@@ -687,9 +687,9 @@ Deno.test("fresh-catalog trigger validation supplies every relation OID", () => 
     registry,
     "AS checked(function_oid, trigger_relation_oid) CROSS JOIN LATERAL extensions.plpgsql_check_function_tb( checked.function_oid, checked.trigger_relation_oid ) AS issue",
   );
-  assertEquals([...registry.matchAll(/::REGPROCEDURE::OID/g)].length, 23);
+  assertEquals([...registry.matchAll(/::REGPROCEDURE::OID/g)].length, 24);
   assertEquals([...registry.matchAll(/::REGCLASS::OID/g)].length, 6);
-  assertEquals([...registry.matchAll(/0::OID/g)].length, 17);
+  assertEquals([...registry.matchAll(/0::OID/g)].length, 18);
   for (
     const [signature, relation] of [
       [

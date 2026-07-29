@@ -97,6 +97,36 @@ struct OfflineQueueManagerTests {
         #expect(manager.isCloudDeletionSyncing)
     }
 
+    @Test func inferenceReplayReconciliationCoalescesConcurrentWakeSources() {
+        let manager = OfflineQueueManager.shared
+        let originalIsReconciling = manager.isInferenceReplayReconciling
+        let originalNeedsTrailingPass =
+            manager.inferenceReplayRequestedWhileReconciling
+        defer {
+            manager.isInferenceReplayReconciling = originalIsReconciling
+            manager.inferenceReplayRequestedWhileReconciling =
+                originalNeedsTrailingPass
+        }
+
+        manager.isInferenceReplayReconciling = false
+        manager.inferenceReplayRequestedWhileReconciling = false
+
+        #expect(manager.beginInferenceReplayReconciliation())
+        #expect(!manager.beginInferenceReplayReconciliation())
+        #expect(!manager.beginInferenceReplayReconciliation())
+        #expect(manager.isInferenceReplayReconciling)
+        #expect(manager.inferenceReplayRequestedWhileReconciling)
+
+        #expect(manager.finishInferenceReplayReconciliation())
+        #expect(!manager.isInferenceReplayReconciling)
+        #expect(!manager.inferenceReplayRequestedWhileReconciling)
+        #expect(!manager.finishInferenceReplayReconciliation())
+
+        // The single trailing caller can claim a fresh pass immediately.
+        #expect(manager.beginInferenceReplayReconciliation())
+        #expect(!manager.finishInferenceReplayReconciliation())
+    }
+
     @Test func scheduledServerFailureRetryBreaksStatusUploadDeadlock() {
         #expect(
             OfflineQueueManager.isServerRetryableFailureCode(
@@ -182,6 +212,22 @@ struct OfflineQueueManagerTests {
             ) == 1
         )
 
+        #expect(
+            manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
+        )
+        #expect(manager.queueAttemptCount(for: scanId) == 1)
+
+        // Reproduce the migrated-store failure seen on TestFlight: one
+        // SwiftData context loses the queue-row copy while the durable job
+        // still owns the exact retry. Reads must heal from the surviving
+        // mirror instead of restarting forever at attempt one.
+        let driftContext = ModelContext(context.container)
+        let driftedScan = try #require(
+            driftContext.fetch(descriptor).first
+        )
+        driftedScan.queueLastErrorCode = nil
+        driftedScan.queueAttemptCount = 0
+        try driftContext.save()
         #expect(
             manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
         )

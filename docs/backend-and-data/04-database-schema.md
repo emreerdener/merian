@@ -1608,6 +1608,20 @@ Dead-letter table for background scan ingestion failures. Added in migration
   failure queries.
 - `error_message` (TEXT, nullable): The error thrown by `insertScan()`.
 - `failed_at` (TIMESTAMPTZ, DEFAULT NOW()): When the ingestion failed.
+- `quota_reservation_id` (UUID, nullable): Exact quota reservation identity for
+  structured post-result recovery evidence.
+- `quota_request_id` (UUID, nullable): Exact normal/replay request identity for
+  structured post-result recovery evidence.
+- `failure_kind` (TEXT, nullable): For structured recovery evidence, exactly
+  `post_result_scan_durability_failure`.
+- `provider_result_validated` (BOOLEAN, nullable): `TRUE` only after provider
+  finish-reason and response-schema validation.
+- `identify_safety_evaluation_completed` (BOOLEAN, nullable): Whether required
+  Identify media safety evaluation completed. Automatic recovery requires
+  `TRUE`.
+
+The five structured fields are either all absent (legacy/operational history) or
+all present with the constrained failure kind and validated-provider flag.
 
 **Context**: Older background ingestion originally wrote this row only after
 `insertScan()` failed (FK violation, DB timeout, network partition) even though
@@ -1622,7 +1636,15 @@ remains as legacy ops evidence and detailed insert-failure history, not the
 primary recovery surface. Field Chat availability checks and Insight-originated
 Explore or Ask the Community actions can still repair an already-affected
 observation by recreating a validated minimal owned `public.scans` row from the
-local record before media restore.
+local record before media restore. A row in this table is never sufficient
+authority by itself: media-abandonment recovery evaluates all deterministic
+normal/replay quota keys, requires the dead letter to be no earlier than the
+latest charged authority, rejects active reservations or invalid timestamp
+lineage, and rejects both moderation-rejected and moderation-pipeline-failed
+capture lifecycles. Pre-rollout unstructured rows are bounded by a private
+database cutoff, the audited multimodal post-safety error lineage, and narrow
+quota lineage; post-rollout rows must bind exact quota identity and completed
+safety evaluation.
 
 **Ops workflow**: Query by `user_id` and `failed_at` to identify affected users.
 Prefer `scan_ingestion_jobs` plus `scan_ingestion_intents` for current rows and
@@ -1639,7 +1661,50 @@ service role writes to it and ops queries it through restricted tooling.
 
 **Indexes**: `idx_failed_scan_ingestions_user_id` on `(user_id, failed_at DESC)`
 for per-user lookups; `idx_failed_scan_ingestions_failed_at` on
-`(failed_at DESC)` for chronological monitoring sweeps.
+`(failed_at DESC)` for chronological monitoring sweeps; and
+`failed_scan_ingestions_recovery_proof_idx` on
+`(user_id, scan_id, failed_at DESC)` for both owner/scan compatibility lookups
+and chronological proof evaluation. The hardened migration drops the redundant
+two-column `failed_scan_ingestions_user_scan_idx` introduced by the immediately
+preceding compatibility migration.
+
+### `internal.scan_recovery_evidence_control`
+
+Private singleton rollout boundary added by migration
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql`.
+
+- `singleton` (BOOLEAN, PRIMARY KEY, constrained `TRUE`): Enforces one control
+  row.
+- `legacy_unstructured_before` (TIMESTAMPTZ): Additional transaction-time
+  cutoff. An unstructured dead letter at or after this value never authorizes
+  automatic owner-row recovery, but an earlier timestamp is not sufficient
+  authority by itself.
+- `created_at` (TIMESTAMPTZ): Control-row creation time.
+
+RLS is enabled and all table privileges are revoked from `PUBLIC`, `anon`,
+`authenticated`, and `service_role`. Only the owner-executing private proof
+routine reads it. `ON CONFLICT DO NOTHING` preserves the original cutoff and
+prevents a later replay from expanding the paired legacy row snapshot.
+
+### `internal.scan_recovery_legacy_dead_letters`
+
+Private immutable row-identity snapshot added by migration
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql`.
+
+- `failed_scan_ingestion_id` (UUID, PRIMARY KEY, FK): Exact
+  `failed_scan_ingestions.id` visible when the hardening migration first
+  installed its control row. Deleting the dead letter cascades and removes its
+  recovery authority.
+- `captured_at` (TIMESTAMPTZ): The immutable rollout boundary returned by that
+  same first control-row insert.
+
+The migration already holds the failed-ingestion table lock when it captures
+these IDs. An older producer insert blocked behind that lock is therefore not in
+the snapshot after it resumes, even if its historical `failed_at DEFAULT now()`
+uses a transaction-start timestamp earlier than the cutoff. Legacy proof
+requires both snapshot membership and the timestamp bound. RLS is enabled and
+all table privileges are revoked from `PUBLIC`, `anon`, `authenticated`, and
+`service_role`; only owner-executing private proof code reads it.
 
 ### `scan_ingestion_jobs`
 
@@ -1648,7 +1713,9 @@ in migration `20260705120000_add_scan_ingestion_jobs.sql`.
 
 - `scan_id` (TEXT): The client-generated scan id used for idempotent scan
   insertion and status polling. TEXT keeps failure rows representable even when
-  a malformed legacy id never becomes a `public.scans.id`.
+  a malformed legacy id never becomes a `public.scans.id`. Quota pruning keeps
+  its UUID cast inside the same regex-guarded conditional expression, so one
+  malformed historical row cannot abort hourly cleanup.
 - `user_id` (UUID): The submitting auth user. This intentionally does not FK to
   `public.users`, because ghost-user upsert happens later in ingestion.
 - `endpoint` (TEXT): Current writer, usually `identify-multimodal`.
@@ -1677,8 +1744,8 @@ in migration `20260705120000_add_scan_ingestion_jobs.sql`.
   jobs. Current values include policy rejection, replay exhaustion, media
   reconciliation abandonment, and owner deletion. Compatibility recovery fails
   closed unless this is exactly `replay_exhausted`, or exact
-  `media_reconciliation_abandoned` is paired with the matching service-written
-  post-result `failed_scan_ingestions` row. `user_deleted` is permanently
+  `media_reconciliation_abandoned` is paired with matching composite
+  dead-letter/quota/media-lifecycle proof. `user_deleted` is permanently
   nonrecoverable.
 - `response_envelope` (JSONB, added by
   `20260728220000_persist_idempotent_scan_responses.sql`): At most 256 KiB of
@@ -1806,14 +1873,25 @@ adds `recover_missing_owned_scan(...)`, which validates the bounded non-media
 DTO and writes the owner scan plus a `client_recovery_complete` ledger in one
 locked transaction. Existing active, retryable, policy, unknown, and legacy
 terminal states return `deferred`; explicit `replay_exhausted` is recoverable.
-Forward migration
-`20260729173000_recover_media_abandoned_owned_scans.sql` also admits exact
-`media_reconciliation_abandoned` only when an owner/scan-matching
-`failed_scan_ingestions` row proves the service reached post-result
-finalization. The same migration adds
-`failed_scan_ingestions_user_scan_idx (user_id, scan_id)` so this exact proof
-lookup remains bounded as dead-letter history grows. Unproven abandonment
-remains deferred. A recovery-first winner makes the next ingestion claim return
+Forward migration `20260729173000_recover_media_abandoned_owned_scans.sql` also
+admits exact `media_reconciliation_abandoned` as a candidate when an
+owner/scan-matching `failed_scan_ingestions` row proves the service reached
+post-result finalization. Follow-up migration
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql` additionally
+requires a dead letter no earlier than the latest charged exact normal/replay
+attempt, no reserved attempt or invalid timestamp lineage, and no
+moderation-rejected or moderation-pipeline-failed capture row. Modern evidence
+must bind exact quota identity, validated provider output, and completed safety
+evaluation. Legacy unstructured evidence must belong to the immutable exact-ID
+snapshot taken by the migration, predate the private rollout cutoff, and either
+follow a failed latest authority or match the vulnerable producer’s first
+committed normal attempt with no charged replay. It must also match the audited
+multimodal post-safety error lineage, excluding the known pre-safety
+user-prerequisite and moderation failure messages. The exact-ID snapshot
+prevents a lock-blocked post-migration insert from gaining legacy authority
+through its backdated transaction timestamp. The chronological indexes keep
+this proof bounded as dead-letter history grows. Unproven abandonment remains
+deferred. A recovery-first winner makes the next ingestion claim return
 `already_complete` before a provider call.
 
 `internal.scan_deletion_tombstones` closes the opposite lifecycle boundary.
@@ -3313,7 +3391,16 @@ ten-minute lease without racing an active finalizer.
 `internal.prune_ai_quota_state()` runs hourly and uses cleanup indexes on
 terminal reservation update time and counter window start to delete bounded
 batches of old state and unreferenced counters; it never drops a live
-reservation without first releasing its counters.
+reservation without first releasing its counters. Migration
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql` exempts only
+exact failed/committed normal and replay scan-identification reservations while
+their owner/scan job remains unresolved
+`failed_terminal / media_reconciliation_abandoned`. These rows are durable
+chronological recovery/security authority for older library items: the latest
+row can support or veto recovery according to matching dead-letter lineage.
+Refunded attempts and unrelated terminal reservations retain the ordinary 30-day
+limit; recovery or explicit operator resolution also returns the exact authority
+rows to normal pruning.
 
 ### `internal.revenuecat_webhook_events` and customer state
 
@@ -3904,7 +3991,9 @@ mirror for migration safety and compatibility.
   require a schema migration.)
 - `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count
   for the queued scan. Replaces the older process-local `uploadRetryCount`
-  authority and feeds the automatic retry budget.)
+  authority and feeds the automatic retry budget. Scan-ingestion control mirrors
+  this value on `OfflineJobRecord.attemptCount`; reads and mutations use their
+  nonnegative monotonic maximum.)
 - `queueLastAttemptAt`, `queueNextRetryAt`: Date? (Added in V48. Used by
   `OfflineQueueRetryPolicy` and the scheduler to survive app relaunch without
   losing backoff state.)
@@ -3912,7 +4001,10 @@ mirror for migration safety and compatibility.
   User/support-facing last local retry, completed-server-result recovery marker,
   or terminal error. `server_result_local_recovery_pending` durably fences a
   known owner result from provider redispatch; the matching `_exhausted` code
-  pauses that recovery for explicit user retry.)
+  pauses that recovery for explicit user retry. High-authority completion and
+  `server_retryable_failure` state is mirrored on the scan-ingestion job;
+  serialized transitions reconcile both copies before mutation, with completion
+  taking precedence.)
 - `queueLastHTTPStatus`: Int? (Added in V48. Last HTTP response status
   associated with upload or inference retry handling.)
 - `queueLastServerStatus`, `queueLastServerStage`: String? (Added in V48.
@@ -3987,7 +4079,13 @@ values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
   failures. Cloud deletion uses the same capped value only as a bounded backoff
   exponent; a still-present `PendingCloudDeletionTask` retries without
   expiration and repairs an older paused or contradictory terminal job state.
-- `lastErrorCode`, `lastErrorMessage`: String?
+  For scan ingestion this is the redundant scheduler copy of
+  `OfflineQueuedScan.queueAttemptCount`; fresh reads consult both and use their
+  monotonic maximum.
+- `lastErrorCode`, `lastErrorMessage`: String? For scan ingestion,
+  `server_retryable_failure` and completed-result recovery codes mirror the
+  queued-scan authority. Either surviving copy repairs the other before a
+  serialized queue transition; completed-result recovery wins over retry.
 - `lastHTTPStatus`: Int?
 - `serverStatus`, `serverStage`, `serverRetryAfter`: server ingestion status
   mirrors for scan jobs.

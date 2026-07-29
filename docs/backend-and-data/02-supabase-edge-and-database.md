@@ -212,6 +212,13 @@ from an older attempt from changing the new attempt. Provider errors transition
 `committed` to `failed`; their counters remain consumed, while the same request
 key may start a newly metered retry.
 
+Terminal reservations ordinarily prune after 30 days. Migration
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql` retains only
+exact failed/committed normal and replay scan reservations as chronological
+authority while the matching owner/scan remains unresolved
+`media_reconciliation_abandoned`. The exception does not retain refunded or
+unrelated state and ends after recovery or explicit operator resolution.
+
 Current policy ceilings are 1/50/500 primary scan attempts per UTC day for
 free/trial/paid, 4/100/500 cache-miss overview/lookalike/group-tag enrichment
 attempts, 3/25/100 Explore/Community audio moderation attempts, and
@@ -557,8 +564,11 @@ The `/identify` Edge Function acts as the inference proxy:
    the authenticated owner before success. Repair writes independently defer to
    active/retryable ingestion. Terminal recovery permits explicit
    `replay_exhausted`, or exact `media_reconciliation_abandoned` only with the
-   matching owner/scan service-written post-result dead letter. Policy,
-   unproven-abandonment, and arbitrary terminal state remains closed. Server
+   matching composite dead-letter/quota/media-lifecycle proof. Current/later
+   policy, unproven-abandonment, and arbitrary terminal state remains closed. A
+   bounded service-only proof RPC gives signing the same database decision;
+   proof and recovery signatures are registered in the privileged-routine
+   ledger and reached by exact production no-write readiness probes. Server
    replay and media reconciliation use the same finalization RPC instead of
    directly writing `complete`; compatibility
    identify/audio/describe routes have no direct complete path either. A catalog

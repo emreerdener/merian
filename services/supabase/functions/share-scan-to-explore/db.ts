@@ -404,7 +404,21 @@ export async function fetchShareEligibleScan(
 
   let row = await loadShareEligibleScan(scanId, userId, supabaseAdmin);
   if (!row && recoveryScan) {
-    await recoverMissingOwnedScan(recoveryScan, supabaseAdmin);
+    try {
+      await recoverMissingOwnedScan(recoveryScan, supabaseAdmin);
+    } catch (error) {
+      logStructuredError("explore/scan_owner_recovery_failed", {
+        scan_id: scanId,
+        user_id: userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw publicHttpError(
+        503,
+        "The service is temporarily unavailable.",
+        "service_unavailable",
+        30,
+      );
+    }
     row = await loadShareEligibleScan(scanId, userId, supabaseAdmin);
   }
 

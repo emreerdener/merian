@@ -331,6 +331,83 @@ Deno.test("production deploy plans every runtime change since the last successfu
   );
 });
 
+Deno.test("production deploy fences the separate scan-recovery migration transactions", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+
+  for (
+    const requiredFragment of [
+      "recovery_predeploy_required=false",
+      "20260729173000_recover_media_abandoned_owned_scans.sql",
+      "20260729200000_harden_media_abandoned_scan_recovery_proof.sql",
+      'echo "recovery_predeploy_required=$recovery_predeploy_required" >> "$GITHUB_OUTPUT"',
+      "if: steps.function-plan.outputs.recovery_predeploy_required == 'true'",
+    ]
+  ) {
+    assert(
+      workflow.includes(requiredFragment),
+      `Recovery migration transaction fence is missing: ${requiredFragment}`,
+    );
+  }
+
+  const enabledBranches =
+    workflow.match(/recovery_predeploy_required=true/g)?.length ?? 0;
+  assert(
+    enabledBranches >= 3,
+    "Manual, migration-diff, and unsafe-baseline paths must all predeploy the fail-closed consumers.",
+  );
+
+  const planIndex = workflow.indexOf(
+    "- name: Plan affected Edge Function deployment",
+  );
+  const connectionIndex = workflow.indexOf(
+    "- name: Prepare database connection URL",
+  );
+  const predeployIndex = workflow.indexOf(
+    "- name: Deploy fail-closed recovery consumers before compatibility migrations",
+  );
+  const databasePushIndex = workflow.indexOf(
+    "- name: Push Database Migrations",
+  );
+  const finalDeployIndex = workflow.indexOf(
+    "- name: Deploy affected Edge Functions",
+  );
+  assert(
+    planIndex >= 0 &&
+      connectionIndex > planIndex &&
+      predeployIndex > connectionIndex &&
+      databasePushIndex > predeployIndex &&
+      finalDeployIndex > databasePushIndex,
+    "Fail-closed recovery consumers must deploy after planning and before either migration transaction; the cumulative exact-SHA plan deploys afterward.",
+  );
+
+  const predeployEnd = workflow.indexOf(
+    "\n      - name:",
+    predeployIndex + 1,
+  );
+  assert(predeployEnd > predeployIndex);
+  const predeployBlock = workflow.slice(predeployIndex, predeployEnd);
+  for (
+    const functionName of [
+      "generate-upload-urls",
+      "check-scan-status",
+      "share-scan-to-explore",
+    ]
+  ) {
+    assert(
+      predeployBlock.includes(functionName),
+      `Recovery predeploy is missing ${functionName}.`,
+    );
+  }
+  assertMatch(
+    predeployBlock,
+    /deploy_function_batches\.sh[\s\S]*"\$pre_migration_plan"[\s\S]*"\$PROJECT_ID"/,
+  );
+  assert(
+    !predeployBlock.includes("identify-multimodal"),
+    "The structured-proof producer is not compatible until its schema migration commits.",
+  );
+});
+
 Deno.test("production deploy reports aggregate Explore publication health", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
   const synchronizeIndex = workflow.indexOf(
@@ -410,6 +487,8 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
       '"Community request identifiers are required"',
       '"recover_missing_owned_scan"',
       '"invalid_scan_recovery"',
+      '"get_media_abandoned_scan_recovery_proofs"',
+      '"invalid_media_abandoned_recovery_proof_request"',
       '"reserve_field_chat_send"',
       '"field_chat_invalid_request"',
       '"recover_stale_field_chat_quota"',

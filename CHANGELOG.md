@@ -12,25 +12,46 @@ TestFlight, App Store, support, and QA.
   ingestion failure. The app now preserves one exact retry through any required
   media re-upload and lets that delayed generation send its Identify request
   instead of endlessly alternating status checks and successful uploads.
-  Automatic retries retain their real count, pause for manual attention at the
-  safety limit, and an explicit retry starts a fresh automatic budget under the
-  same scan UUID so description-only work cannot immediately pause again.
-  Opening the library logs only actual queue/library changes. Hosted iOS result
-  validation now requires the exact retry-dispatch, durable-latch,
-  re-stage-survival, and description-only manual-retry regressions to execute
-  and pass.
+  Retry ownership is now read from both the queued scan and its durable job,
+  counters advance from the monotonic maximum, and every serialized transition
+  repairs a drifted mirror before mutation. A known cloud-complete result wins
+  over retry state. This closes the migrated-store variant that still restarted
+  at retry one after the initial single-row fix. Automatic retries pause for
+  manual attention at the safety limit, and an explicit retry starts a fresh
+  automatic budget under the same scan UUID so description-only work cannot
+  immediately pause again. Opening the library logs only actual queue/library
+  changes, expected duplicate retry callbacks are silent, and Library,
+  scheduler, reconnect, and URLSession replay wakes share one active
+  reconciliation plus at most one trailing pass. Hosted iOS result validation
+  now requires the exact replay single-flight, retry-dispatch, dual-copy
+  durable-latch, re-stage-survival, and description-only manual-retry
+  regressions to execute and pass.
 - Restored Explore sharing for eligible older observations whose cloud media
   reconciler had abandoned a missing owner row even though the device retained
   the completed result and original media. Repair is limited to the
   authenticated owner’s exact `replay_exhausted` ledger, or exact
-  `media_reconciliation_abandoned` plus the matching service-written
-  post-result dead letter. It remains fenced by deletion tombstones and
-  per-scan locks and still blocks policy, unproven abandonment, unknown,
-  foreign, and ordinary terminal state. Media cleanup can no longer overwrite
-  an existing terminal policy decision. Rejected post-result proof writes now
-  produce an explicit backend diagnostic instead of disappearing silently. New
-  iOS builds commit owner repair before uploading; the guarded Edge path also
-  supports the current released-client sequence.
+  `media_reconciliation_abandoned` plus composite service proof: a post-result
+  dead letter no earlier than the latest charged normal/server-replay attempt,
+  no active reservation or invalid timestamp lineage, and no
+  moderation-rejected or moderation-pipeline-failed capture lifecycle row.
+  Legacy unstructured evidence must belong to the immutable exact dead-letter-ID
+  snapshot captured at rollout, predate the private database cutoff, and
+  narrowly cover the vulnerable producer’s first committed normal attempt with
+  no charged replay and the audited post-safety error path. Snapshot identity
+  prevents a DDL-blocked producer from gaining legacy authority through an
+  earlier transaction-start timestamp. New evidence binds the exact quota
+  reservation/request IDs, validated provider result, and completed Identify
+  safety evaluation. Because the baseline and hardening SQL files are separate
+  migration-file transactions, production predeploys fail-closed signer,
+  status, and share consumers before either file; the structured Identify
+  producer deploys only after proof hardening is ready. It remains fenced by
+  deletion tombstones and per-scan locks and still blocks later policy, unproven
+  abandonment, unknown, foreign, and ordinary terminal state. Media cleanup can
+  no longer overwrite an existing terminal policy decision. Rejected
+  post-result proof writes now produce an explicit backend diagnostic instead
+  of disappearing silently. New iOS builds commit owner repair before
+  uploading; the guarded Edge path also supports the current released-client
+  sequence.
 - The Scan Library now accepts both the current wrapped and exact legacy
   direct-array Explore media-health response. A deployed empty `[]` no longer
   produces a false decode error merely from opening the library, rapid queue
@@ -46,7 +67,9 @@ TestFlight, App Store, support, and QA.
   passing full target must now include passed—not absent or skipped—named
   regressions for malformed analysis success, durable offline capture and atomic
   completion, Community mixed-media recovery, Explore publication and
-  reconciliation integrity, and retryable single-flight Field Chat startup.
+  reconciliation integrity, exact scan-status identity/cardinality validation,
+  and retryable single-flight Field Chat startup. Contradictory bulk status
+  success can no longer terminate the app through duplicate dictionary keys.
 - Fixed the valid-video finalization regression isolated by backend workflow run
   1552. Sampled video inference frames may remain in the compatibility image
   array but are no longer required as standalone ready images. Finalization now
@@ -137,11 +160,11 @@ TestFlight, App Store, support, and QA.
   Pre-scan signing grants no scan-write or publication authority.
   Failed-terminal uploads stay closed except for exact authenticated-owner
   `replay_exhausted` repair, or `media_reconciliation_abandoned` repair with
-  matching service-written post-result proof; tombstoned, policy-rejected,
-  unproven-abandonment, unknown, cross-scan, and ordinary post-completion
-  uploads remain closed. Historical promoted capture rows no longer consume
-  the separate active repair budget, and ambiguous signing retries reuse the
-  committed restore row and session.
+  matching composite dead-letter/quota/media-lifecycle proof; tombstoned,
+  policy-rejected, later-policy, unproven-abandonment, unknown, cross-scan, and
+  ordinary post-completion uploads remain closed. Historical promoted capture
+  rows no longer consume the separate active repair budget, and ambiguous
+  signing retries reuse the committed restore row and session.
 - Malformed paid-provider output now returns retryable HTTP 503 consistently
   across image, multimodal, Describe, and audio producers instead of stranding
   offline jobs behind terminal HTTP 422 handling.

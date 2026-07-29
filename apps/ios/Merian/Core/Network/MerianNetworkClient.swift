@@ -2245,11 +2245,38 @@ final class MerianNetworkClient {
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try JSONDecoder().decode(ScanStatusResponse.self, from: data)
+        let decoded: ScanStatusResponse
+        do {
+            decoded = try JSONDecoder().decode(
+                ScanStatusResponse.self,
+                from: data
+            )
+        } catch {
+            throw MerianError.invalidResponse
+        }
+        guard decoded.scanId == nil ||
+                decoded.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
+              decoded.jobAttemptCount.map({ $0 >= 0 }) ?? true else {
+            throw MerianError.invalidResponse
+        }
+        return decoded
     }
 
     func checkScanStatuses(_ requirements: [String: Int]) async throws -> [String: ScanStatusResponse] {
         guard !requirements.isEmpty else { return [:] }
+        var expectedScanIds: [String: String] = [:]
+        for scanId in requirements.keys {
+            let normalized = scanId
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            guard !normalized.isEmpty,
+                  expectedScanIds.updateValue(
+                    scanId,
+                    forKey: normalized
+                  ) == nil else {
+                throw MerianError.invalidResponse
+            }
+        }
         let functionUrl = try endpointURL("check-scan-status")
         let scans = requirements.map { requirement in
             var payload: [String: Any] = ["scan_id": requirement.key]
@@ -2261,11 +2288,36 @@ final class MerianNetworkClient {
         }
         let bodyData = try JSONSerialization.data(withJSONObject: ["scans": scans])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let decoded = try JSONDecoder().decode(BulkScanStatusResponse.self, from: data)
-        return Dictionary(uniqueKeysWithValues: decoded.results.compactMap { result in
-            guard let scanId = result.scanId else { return nil }
-            return (scanId, result)
-        })
+        let decoded: BulkScanStatusResponse
+        do {
+            decoded = try JSONDecoder().decode(
+                BulkScanStatusResponse.self,
+                from: data
+            )
+        } catch {
+            throw MerianError.invalidResponse
+        }
+        guard decoded.results.count == expectedScanIds.count else {
+            throw MerianError.invalidResponse
+        }
+
+        var results: [String: ScanStatusResponse] = [:]
+        for result in decoded.results {
+            guard let returnedScanId = result.scanId?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                let requestedScanId = expectedScanIds[
+                    returnedScanId.lowercased()
+                ],
+                results[requestedScanId] == nil,
+                result.jobAttemptCount.map({ $0 >= 0 }) ?? true else {
+                throw MerianError.invalidResponse
+            }
+            results[requestedScanId] = result
+        }
+        guard results.count == expectedScanIds.count else {
+            throw MerianError.invalidResponse
+        }
+        return results
     }
 
     /// Compatibility wrapper for older call sites that only need `"found"` / `"not_found"`.

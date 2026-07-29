@@ -1378,9 +1378,43 @@ local record.
 Recovery does not weaken this rule. A bounded non-media `recovery_scan` exists
 only for older/interrupted drift. Status/share routes independently validate
 identity and fields, defer to active/retryable richer ingestion, allow exact
-structured `replay_exhausted`, and require the owner/scan-matching
-service-written post-result dead letter for exact
-`media_reconciliation_abandoned`. They write without overwrite and reload by
+structured `replay_exhausted`, and require matching composite
+dead-letter/quota/media-lifecycle proof for exact
+`media_reconciliation_abandoned`, rejecting later committed policy authority.
+They write without overwrite and reload by
 owner. Media continues through owner staging. Never trust an abandoned terminal
 label alone or repair this class of bug with a direct iOS table upsert, an
 `authenticated` grant, or a server key in the app.
+
+---
+
+## 27. Redundant Queue Authority Must Reconcile Before Mutation
+
+Scan-ingestion retry control is deliberately mirrored on
+`OfflineQueuedScan` and its scan-keyed `OfflineJobRecord`. This lets the
+presented queue row and the media-agnostic scheduler survive migrations and
+independent context lifecycles. It also means one resident SwiftData fault can
+temporarily disagree with the other after a cross-context save.
+
+Never decide whether staging may reset retry metadata from only one copy. Build
+one monotonic projection before every serialized mutation:
+
+1. a cloud-complete recovery marker outranks server-retry state;
+2. server-retry state present in either copy is authoritative;
+3. the attempt count is `max(0, max(scanCount, jobCount))`, never a sum and
+   never the value from whichever model happened to fault first; and
+4. write the projected marker/count back to both models before applying the
+   queue transition, then save them together.
+
+Read-only preflight checks use a fresh `ModelContext` and consult both rows.
+This prevents a cached main-context scan from hiding a background-actor commit.
+The writer still runs under the scan inference persistence coordinator, so
+mirror repair does not replace generation fencing. Missing or unreadable
+authority must fail closed; a message string or approximate state is never
+permission to dispatch Identify.
+
+Regression tests must drift each redundant copy independently. At minimum,
+erase the queue-row retry marker/counter while the job survives, pass through
+`.pending → .uploading → .staged`, and prove the marker survives, the next
+attempt advances, and a job-only cloud-complete marker vetoes a late inference
+retry.

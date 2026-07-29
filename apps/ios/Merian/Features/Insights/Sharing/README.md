@@ -91,6 +91,12 @@ network client:
 7. uploads only surviving local user media through the normal
    owner-authoritative staging signer.
 
+A handler-owned `503 service_unavailable` on the recovery-capable status call
+occurs before restore signing or media PUT. The client preserves the local
+record/media and presents retry; it does not treat that response as owner-row
+creation. Production must first prove both service-only recovery RPCs reach
+their exact no-write validation boundaries.
+
 The retried repair-capable share may idempotently combine `recovery_scan` with:
 
 - `restored_object_keys` for images;
@@ -120,17 +126,19 @@ never sends a direct durable URL as recovery input and never upserts
 guarded-terminal exception only for an exact deterministic scan/category
 filename, canonical role, and fresh unrestricted scan read. A guarded terminal
 restore is limited to exact `replay_exhausted`, or exact
-`media_reconciliation_abandoned` together with the matching owner/scan
-service-written post-result `failed_scan_ingestions` row. An existing row must
-be active and JWT-owned; a genuinely absent row may only stage for the later
-guarded reconstruction. Policy, unproven media abandonment, unknown/arbitrary
-terminal state, a tombstoned or foreign scan, and an ordinary post-completion
-upload remain rejected. The service-only recovery transaction independently
-requires the same proof, shares the ingestion generation lock, honors deletion
-tombstones and ID collisions, never overwrites an existing row, and commits the
-owner row plus completed ledger together. Historical promoted capture rows do
-not consume this repair's active six-item staging budget. Every current key must
-also match an authoritative capture-upload ledger row for the exact
+`media_reconciliation_abandoned` together with the matching composite
+dead-letter/quota/media-lifecycle proof. Signing obtains that decision from a
+bounded service-only proof RPC; malformed/error responses fail before a URL is
+returned. An existing row must be active and JWT-owned; a genuinely absent row
+may only stage for the later guarded reconstruction. Current/later policy,
+unproven media abandonment, unknown/arbitrary terminal state, a tombstoned or
+foreign scan, and an ordinary post-completion upload remain rejected. The
+service-only recovery transaction independently requires the same proof, shares
+the ingestion generation lock, honors deletion tombstones and ID collisions,
+never overwrites an existing row, and commits the owner row plus completed
+ledger together. Historical promoted capture rows do not consume this repair's
+active six-item staging budget. Every current key must also match an
+authoritative capture-upload ledger row for the exact
 authenticated owner, scan ID, media kind, and role before the server promotes
 any object. This prevents an owner key from another scan or a signed audio/video
 key relabeled as an image from crossing into publication. Compatibility with

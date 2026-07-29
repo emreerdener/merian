@@ -195,6 +195,14 @@ import SwiftData
     /// Guards the one-time cold-start reconciliation of orphaned `.uploading` scans.
     /// Runs exactly once per process life on the first connectivity restore.
     @ObservationIgnored var hasReconciledStartupState = false
+    /// Process-local single-flight guard for upload/inference orphan
+    /// reconciliation. Library, scheduler, reconnect, and URLSession wake
+    /// sources can arrive together; only one may enumerate and mutate the
+    /// durable queue at a time.
+    @ObservationIgnored var isInferenceReplayReconciling = false
+    /// Coalesces any wake received while replay reconciliation is active into
+    /// one trailing pass so state changes are not dropped.
+    @ObservationIgnored var inferenceReplayRequestedWhileReconciling = false
 
 #if DEBUG
     /// Number of scans successfully claimed for inference by `replayInferenceStagedScans`.
@@ -245,6 +253,29 @@ import SwiftData
         generation: UUID
     ) -> Bool {
         inferencePreparationGenerations[scanId] == generation
+    }
+
+    /// Claims the process-local orphan-reconciliation driver. A concurrent
+    /// caller records one trailing pass instead of starting overlapping status
+    /// probes and SwiftData transitions.
+    func beginInferenceReplayReconciliation() -> Bool {
+        guard !isInferenceReplayReconciling else {
+            inferenceReplayRequestedWhileReconciling = true
+            return false
+        }
+        isInferenceReplayReconciling = true
+        return true
+    }
+
+    /// Releases the orphan-reconciliation driver and reports whether one
+    /// coalesced trailing pass is required.
+    @discardableResult
+    func finishInferenceReplayReconciliation() -> Bool {
+        guard isInferenceReplayReconciling else { return false }
+        isInferenceReplayReconciling = false
+        let shouldReplay = inferenceReplayRequestedWhileReconciling
+        inferenceReplayRequestedWhileReconciling = false
+        return shouldReplay
     }
 
     func beginUploadCompletion(scanId: String) -> UUID {

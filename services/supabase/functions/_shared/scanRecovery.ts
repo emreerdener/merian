@@ -292,6 +292,44 @@ export async function recoverMissingOwnedScan(
   recoveryScan: OwnedScanRecoveryRow,
   supabaseAdmin: SupabaseClient,
 ): Promise<boolean> {
+  // `20260729173000_recover_media_abandoned_owned_scans.sql` and its
+  // adversarial hardening successor are separate migration-file transactions.
+  // Require the successor's service-only proof surface before invoking the
+  // recovery routine so live traffic can never observe the permissive
+  // intermediate definition during `db push`.
+  const { data: boundaryData, error: boundaryError } = await supabaseAdmin.rpc(
+    "get_media_abandoned_scan_recovery_proofs",
+    {
+      p_user_id: recoveryScan.user_id,
+      p_scan_ids: [recoveryScan.id],
+    },
+  );
+  if (boundaryError) {
+    throw new Error(
+      `recoverMissingOwnedScan: hardened recovery boundary unavailable: ${boundaryError.message}`,
+    );
+  }
+  if (!Array.isArray(boundaryData)) {
+    throw new Error(
+      "recoverMissingOwnedScan: invalid hardened recovery boundary response",
+    );
+  }
+  for (const value of boundaryData) {
+    const row = value != null &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ? value as { scan_id?: unknown }
+      : null;
+    if (
+      typeof row?.scan_id !== "string" ||
+      row.scan_id.toLowerCase() !== recoveryScan.id.toLowerCase()
+    ) {
+      throw new Error(
+        "recoverMissingOwnedScan: invalid hardened recovery boundary response",
+      );
+    }
+  }
+
   const { data, error } = await supabaseAdmin.rpc(
     "recover_missing_owned_scan",
     {

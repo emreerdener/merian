@@ -72,6 +72,7 @@ write_test_tree() {
             suite("OfflineQueueManagerTests"; [
               "generationFenceTest",
               "backgroundInferencePreservesRecoverableHTTPFailures",
+              "inferenceReplayReconciliationCoalescesConcurrentWakeSources",
               "scheduledServerFailureRetryBreaksStatusUploadDeadlock",
               "scheduledServerFailureMarkerIsReadFromDurableStore",
               "cloudDeletionRequiresExplicitNetworkConfirmation",
@@ -86,7 +87,9 @@ write_test_tree() {
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
               "generatedConfidenceZeroBackgroundResultIsTerminal",
-              "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
+              "testMarkScanAsStagedPreservesScheduledServerFailureRetry",
+              "testScheduleInferenceRetryUsesMonotonicMirroredAttempt",
+              "testInferenceRetryCannotOverrideCompletedCloudOwnership"
             ]),
             suite("Offline Queued Scan Deletion Tests"; [
               "completedInferenceAndQueueDeletionCommitTogether"
@@ -98,6 +101,8 @@ write_test_tree() {
               "testExploreShareRejectsContradictorySuccessResponses",
               "testExploreShareSendsMissingScanRecoveryPayload",
               "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion",
+              "testCheckScanStatusRejectsMalformedOrMismatchedSuccess",
+              "testBulkScanStatusRejectsDuplicateMissingOrForeignRows",
               "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
               "testExploreMediaIncidentsRejectsUnknownSuccessShape",
               "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload",
@@ -157,9 +162,12 @@ required_cases=(
   "generatedBackgroundResultRejectsMalformedSuccessBody"
   "generatedConfidenceZeroBackgroundResultIsTerminal"
   "backgroundInferencePreservesRecoverableHTTPFailures"
+  "inferenceReplayReconciliationCoalescesConcurrentWakeSources"
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock"
   "scheduledServerFailureMarkerIsReadFromDurableStore"
   "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
+  "testScheduleInferenceRetryUsesMonotonicMirroredAttempt"
+  "testInferenceRetryCannotOverrideCompletedCloudOwnership"
   "testEnqueueCapture_WithValidData_PersistsQueuedScan"
   "testManualRetryResetsBudgetForDescriptionOnlyScan"
   "completedInferenceAndQueueDeletionCommitTogether"
@@ -172,6 +180,8 @@ required_cases=(
   "testExploreShareRejectsContradictorySuccessResponses"
   "testExploreShareSendsMissingScanRecoveryPayload"
   "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion"
+  "testCheckScanStatusRejectsMalformedOrMismatchedSuccess"
+  "testBulkScanStatusRejectsDuplicateMissingOrForeignRows"
   "testExploreMediaIncidentsAndLifecycleNotificationsDecode"
   "testExploreMediaIncidentsRejectsUnknownSuccessShape"
   "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"

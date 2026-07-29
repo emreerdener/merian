@@ -65,15 +65,22 @@ owner `scans` row was never committed. Restore-purpose upload signing and
 state proves one of these exact post-result cases:
 
 - `replay_exhausted`; or
-- `media_reconciliation_abandoned` together with the same owner/scan
-  service-written post-result `failed_scan_ingestions` row.
+- `media_reconciliation_abandoned` together with the same owner/scan composite
+  proof: a post-result dead letter no earlier than the latest charged exact
+  normal/replay reservation, evidence valid for its producer generation, no
+  active reservation or invalid timestamp lineage, and no moderation-rejected or
+  moderation-pipeline-failed capture row.
 
 The second proof is mandatory because this worker can also mark pre-result
 orphaned media abandoned. A terminal reason by itself is therefore not authority
 to publish a local result. Policy failures, unknown legacy failures, tombstones,
 foreign-owner collisions, non-empty server media, and conflicting rows remain
-blocked. Migration `20260729173000_recover_media_abandoned_owned_scans.sql`
-carries the database side of the same boundary.
+blocked. Migrations `20260729173000_recover_media_abandoned_owned_scans.sql` and
+`20260729200000_harden_media_abandoned_scan_recovery_proof.sql` carry the
+database side of the same boundary. They retain every exact failed/committed
+normal and replay quota row as chronological authority until recovery or
+explicit terminal resolution. Ordinary 30-day pruning still applies to refunded
+and unrelated state.
 
 ## Uniqueness invariant
 

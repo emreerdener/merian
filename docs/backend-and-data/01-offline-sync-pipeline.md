@@ -428,10 +428,11 @@ have one separate, fail-closed exception for a deterministic
 `scan_share_restore` request. The same exception applies to an exact
 authenticated-owner `failed_terminal` job only when its server-written
 `terminal_reason_code` is `replay_exhausted`, or when exact
-`media_reconciliation_abandoned` is also backed by the matching
-service-written post-result `failed_scan_ingestions` row. Policy,
+`media_reconciliation_abandoned` is also backed by matching composite
+dead-letter/quota/media-lifecycle proof. Current/later policy,
 pre-result/unproven abandonment, legacy-unknown, arbitrary terminal,
-moderation-rejected, and ordinary queue signing remains closed. A fresh
+moderation-rejected, moderation-pipeline-failed, and ordinary queue signing
+remains closed. A fresh
 unrestricted scan lookup must confirm the active authenticated-owner row or
 prove it absent for guarded reconstruction; tombstoned and foreign rows reject
 signing. The offline queue never sets that purpose. The database enforces one
@@ -712,6 +713,15 @@ actor, so a replacement claim that reaches the actor before an older reconcile
 is ordered first and excluded by the cutoff. This closes the snapshot/actor
 queue ABA window without relying on task cancellation.
 
+The replay/orphan driver also has a process-local single-flight boundary.
+Library presentation, scheduler, reconnect, and URLSession completion wakes
+share one active reconciliation. Any number of wakes received while it runs
+coalesce into at most one trailing pass. This preserves a wake that observes
+new durable state without overlapping task snapshots, duplicate status probes,
+duplicate orphan transitions, retry-budget inflation, or a Library log storm.
+Process termination remains safe because runnable authority is durable and the
+next process can claim a new driver.
+
 The all-upload-tasks-settled callback invokes this recovery even when a
 reattached generation cannot finish the old process-local global sync latch. On
 every pass, a proven `.uploading → .pending` orphan reset refreshes the unsynced
@@ -977,17 +987,23 @@ the latch without waiting for a URLSession delegate callback.
   `server_retryable_failure` latch plus incremented attempt count. A not-found
   durability/promotion generation that consumed staging clears
   `stagedR2Keys`, returns to `.pending`, and uploads retained local media again;
-  its latch and attempt survive successful `.uploading → .staged`. Transient
-  signer or PUT retries also retain the latch, append their precise failure
-  event, and increment from the maximum committed count rather than a cached
-  snapshot. After the persisted delay, only that exact durable marker lets the
-  next generation-fenced status preflight dispatch Identify and reclaim the
-  backend attempt.
+  its latch and attempt survive successful `.uploading → .staged`. The marker
+  and count are mirrored on `OfflineQueuedScan` and its `OfflineJobRecord`.
+  Fresh reads consult both copies; claim, retry, upload-claim, and staging
+  transitions repair drift from the surviving high-authority marker and
+  nonnegative monotonic maximum before mutation. A cloud-complete marker wins
+  over retry state in either copy. Transient signer or PUT retries also retain
+  the latch, append their precise failure event, and increment from the maximum
+  committed count rather than a cached snapshot. After the persisted delay,
+  only that exact durable marker lets the next generation-fenced status
+  preflight dispatch Identify and reclaim the backend attempt.
   Marker-free, unrelated, manual, processing/finalizing, completed-result, and
   terminal states still reject duplicate inference. Both marker and attempt
-  reads use a fresh context so cached main-context faults cannot hide
-  background-actor commits. Retry exhaustion cancels server polling and retains
-  the scan in needs-attention state rather than creating a status/upload loop.
+  reads use a fresh context and both mirrored rows so cached main-context faults
+  or a migrated queue-row snapshot cannot hide background-actor authority.
+  Expected duplicate retreats already committed by another serialized owner
+  are silent. Retry exhaustion cancels server polling and retains the scan in
+  needs-attention state rather than creating a status/upload loop.
   Other provider/inference failures return the row to `.staged`. A retry
   timestamp that is already stale schedules a one-second recheck rather than
   the maximum five-minute wait, so clock skew or an expired lease cannot stall

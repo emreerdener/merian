@@ -86,6 +86,32 @@ DECLARE
         '00000000-0000-4000-8000-00000000d118';
     unproven_media_abandoned_scan_id UUID :=
         '00000000-0000-4000-8000-00000000d130';
+    later_policy_overwrite_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d131';
+    moderation_overwrite_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d132';
+    replay_policy_overwrite_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d134';
+    unrelated_old_quota_request_id UUID :=
+        '00000000-0000-4000-8000-00000000d135';
+    structured_media_abandoned_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d136';
+    moderation_pipeline_overwrite_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d137';
+    post_cutoff_unstructured_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d138';
+    pre_safety_unstructured_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d139';
+    incomplete_structured_safety_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d140';
+    legacy_moderation_message_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d141';
+    wrong_endpoint_recovery_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d142';
+    active_replay_recovery_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d143';
+    invalid_timestamp_recovery_scan_id UUID :=
+        '00000000-0000-4000-8000-00000000d144';
     policy_rejected_scan_id UUID :=
         '00000000-0000-4000-8000-00000000d119';
     unknown_terminal_scan_id UUID :=
@@ -117,6 +143,7 @@ DECLARE
         '00000000-0000-4000-8000-00000000d127';
     stale_archive_key TEXT;
     current_archive_key TEXT;
+    legacy_unstructured_before TIMESTAMPTZ;
     recovery_payload JSONB;
     result_text TEXT;
     result_json JSONB;
@@ -171,6 +198,30 @@ BEGIN
     ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
         'internal.scan_deletion_tombstones',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.scan_recovery_evidence_control',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.scan_recovery_evidence_control',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.scan_recovery_evidence_control',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.scan_recovery_legacy_dead_letters',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.scan_recovery_legacy_dead_letters',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.scan_recovery_legacy_dead_letters',
         'SELECT'
     ) THEN
         RAISE EXCEPTION 'an API role can inspect private lifecycle state';
@@ -420,6 +471,16 @@ BEGIN
         FROM pg_catalog.pg_class AS class_row
         WHERE class_row.oid =
             'internal.scan_deletion_tombstones'::REGCLASS
+    ) OR NOT (
+        SELECT class_row.relrowsecurity
+        FROM pg_catalog.pg_class AS class_row
+        WHERE class_row.oid =
+            'internal.scan_recovery_evidence_control'::REGCLASS
+    ) OR NOT (
+        SELECT class_row.relrowsecurity
+        FROM pg_catalog.pg_class AS class_row
+        WHERE class_row.oid =
+            'internal.scan_recovery_legacy_dead_letters'::REGCLASS
     ) THEN
         RAISE EXCEPTION 'a private lifecycle table does not have RLS enabled';
     END IF;
@@ -432,6 +493,32 @@ BEGIN
         'authenticated',
         'public.recover_missing_owned_scan(uuid,uuid,jsonb)',
         'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.get_media_abandoned_scan_recovery_proofs(uuid,uuid[])',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_media_abandoned_scan_recovery_proofs(uuid,uuid[])',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_media_abandoned_scan_recovery_proofs(uuid,uuid[])',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.media_abandoned_scan_has_recovery_proof(uuid,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.derive_ai_quota_request_id(uuid,text)',
+        'EXECUTE'
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.privileged_routine_grants AS grants
+        WHERE grants.role_name = 'service_role'
+          AND grants.routine_signature =
+              'public.get_media_abandoned_scan_recovery_proofs(uuid,uuid[])'
     ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'authenticated',
         'public.request_scan_deletion(uuid,uuid)',
@@ -464,8 +551,10 @@ BEGIN
         RAISE EXCEPTION 'a public API role can invoke an internal fence';
     END IF;
 
-    -- plpgsql_check requires a valid relation OID for trigger routines.
-    -- Keep one typed registry so every new trigger must declare its analysis
+    -- plpgsql_check accepts only PL/pgSQL routines and requires a valid
+    -- relation OID for trigger routines. LANGUAGE SQL helpers are exercised
+    -- by the direct behavioral assertions below instead. Keep one typed
+    -- registry so every new PL/pgSQL trigger must declare its analysis
     -- relation instead of being accidentally checked as an ordinary routine.
     IF EXISTS (
         SELECT 1
@@ -538,6 +627,11 @@ BEGIN
                 ),
                 (
                     'public.recover_missing_owned_scan(uuid,uuid,jsonb)'
+                        ::REGPROCEDURE::OID,
+                    0::OID
+                ),
+                (
+                    'public.get_media_abandoned_scan_recovery_proofs(uuid,uuid[])'
                         ::REGPROCEDURE::OID,
                     0::OID
                 ),
@@ -755,6 +849,11 @@ BEGIN
         RAISE EXCEPTION 'a recovered scan allowed a later provider claim';
     END IF;
 
+    SELECT controls.legacy_unstructured_before
+    INTO STRICT legacy_unstructured_before
+    FROM internal.scan_recovery_evidence_control AS controls
+    WHERE controls.singleton;
+
     INSERT INTO public.scan_ingestion_jobs (
         scan_id,
         user_id,
@@ -800,18 +899,809 @@ BEGIN
             'media_reconciliation_abandoned',
             'media_reconciliation_abandoned',
             pg_catalog.NOW()
+        ),
+        (
+            later_policy_overwrite_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            moderation_overwrite_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            replay_policy_overwrite_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            structured_media_abandoned_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            moderation_pipeline_overwrite_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            post_cutoff_unstructured_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            pre_safety_unstructured_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            incomplete_structured_safety_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            legacy_moderation_message_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            wrong_endpoint_recovery_scan_id::TEXT,
+            test_user_id,
+            'identify',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            active_replay_recovery_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            invalid_timestamp_recovery_scan_id::TEXT,
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        ),
+        (
+            'legacy-malformed-scan-id',
+            test_user_id,
+            'identify-multimodal',
+            'failed_terminal',
+            'media_reconciliation_abandoned',
+            'media_reconciliation_abandoned',
+            pg_catalog.NOW()
+        );
+
+    INSERT INTO internal.ai_quota_reservations (
+        user_id,
+        operation,
+        request_id,
+        state,
+        lease_expires_at,
+        model,
+        effective_plan,
+        effective_tier,
+        subscription_tier,
+        trial_active,
+        entitlement_version,
+        policy_version,
+        failed_at,
+        committed_at
+    )
+    VALUES
+        (
+            test_user_id,
+            'scan_identification',
+            media_abandoned_scan_id,
+            'committed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            legacy_unstructured_before - INTERVAL '2 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            later_policy_overwrite_scan_id,
+            'committed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            legacy_unstructured_before - INTERVAL '1 minute'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            moderation_overwrite_scan_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            legacy_unstructured_before - INTERVAL '2 minutes',
+            legacy_unstructured_before - INTERVAL '3 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            replay_policy_overwrite_scan_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            legacy_unstructured_before - INTERVAL '4 minutes',
+            legacy_unstructured_before - INTERVAL '5 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            internal.derive_ai_quota_request_id(
+                replay_policy_overwrite_scan_id,
+                'scan-ingestion-replay:1'
+            ),
+            'committed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            legacy_unstructured_before - INTERVAL '1 minute'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            internal.derive_ai_quota_request_id(
+                replay_policy_overwrite_scan_id,
+                'scan-ingestion-replay:2'
+            ),
+            'refunded',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            NULL
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            unrelated_old_quota_request_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            pg_catalog.NOW() - INTERVAL '31 days',
+            pg_catalog.NOW() - INTERVAL '31 days 1 second'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            structured_media_abandoned_scan_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '1 second',
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '2 seconds'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            moderation_pipeline_overwrite_scan_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            legacy_unstructured_before - INTERVAL '2 minutes',
+            legacy_unstructured_before - INTERVAL '3 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            post_cutoff_unstructured_scan_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            legacy_unstructured_before - INTERVAL '2 minutes',
+            legacy_unstructured_before - INTERVAL '3 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            pre_safety_unstructured_scan_id,
+            'committed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            legacy_unstructured_before - INTERVAL '2 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            incomplete_structured_safety_scan_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '1 second',
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '2 seconds'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            legacy_moderation_message_scan_id,
+            'committed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            legacy_unstructured_before - INTERVAL '2 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            wrong_endpoint_recovery_scan_id,
+            'committed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            legacy_unstructured_before - INTERVAL '2 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            active_replay_recovery_scan_id,
+            'committed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            legacy_unstructured_before - INTERVAL '2 minutes'
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            internal.derive_ai_quota_request_id(
+                active_replay_recovery_scan_id,
+                'scan-ingestion-replay:1'
+            ),
+            'reserved',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            NULL,
+            NULL
+        ),
+        (
+            test_user_id,
+            'scan_identification',
+            invalid_timestamp_recovery_scan_id,
+            'failed',
+            pg_catalog.NOW() + INTERVAL '10 minutes',
+            'gemini-2.5-flash',
+            'free',
+            'free',
+            'free',
+            FALSE,
+            1,
+            1,
+            legacy_unstructured_before - INTERVAL '3 minutes',
+            legacy_unstructured_before - INTERVAL '2 minutes'
+        );
+
+    INSERT INTO public.scan_ingestion_intents (
+        scan_id,
+        user_id,
+        endpoint,
+        request_payload,
+        replay_attempt_count
+    )
+    VALUES (
+        replay_policy_overwrite_scan_id::TEXT,
+        test_user_id,
+        'identify-multimodal',
+        '{}'::JSONB,
+        2
+    );
+
+    IF internal.derive_ai_quota_request_id(
+        media_abandoned_scan_id,
+        'scan-ingestion-replay:1'
+    ) IS DISTINCT FROM
+        '5bd14510-252c-85f2-adbb-7ae15e071de5'::UUID THEN
+        RAISE EXCEPTION
+            'SQL AI request-id derivation diverged from the Edge UUIDv8 contract';
+    END IF;
+
+    INSERT INTO public.scan_media_assets (
+        client_scan_id,
+        upload_session_id,
+        user_id,
+        kind,
+        role,
+        status,
+        source,
+        storage_key,
+        order_index,
+        failure_reason
+    )
+    VALUES
+        (
+            moderation_overwrite_scan_id,
+            '00000000-0000-4000-8000-00000000d133'::UUID,
+            test_user_id,
+            'image',
+            'display',
+            'failed',
+            'capture_upload',
+            'staging/00000000-0000-4000-8000-00000000d101/'
+                || moderation_overwrite_scan_id::TEXT
+                || '_policy.webp',
+            0,
+            'moderation_rejected'
+        ),
+        (
+            moderation_pipeline_overwrite_scan_id,
+            '00000000-0000-4000-8000-00000000d137'::UUID,
+            test_user_id,
+            'image',
+            'display',
+            'failed',
+            'capture_upload',
+            'staging/00000000-0000-4000-8000-00000000d101/'
+                || moderation_pipeline_overwrite_scan_id::TEXT
+                || '_pipeline.webp',
+            0,
+            'moderation_pipeline_error'
         );
 
     INSERT INTO public.failed_scan_ingestions (
         scan_id,
         user_id,
-        error_message
+        error_message,
+        failed_at,
+        quota_reservation_id,
+        quota_request_id,
+        failure_kind,
+        provider_result_validated,
+        identify_safety_evaluation_completed
     )
-    VALUES (
-        media_abandoned_scan_id::TEXT,
-        test_user_id,
-        'post-result scan finalization failed before owner row commit'
-    );
+    VALUES
+        (
+            media_abandoned_scan_id::TEXT,
+            test_user_id,
+            'legacy post-result scan finalization failed before owner row commit',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            later_policy_overwrite_scan_id::TEXT,
+            test_user_id,
+            'older post-result failure preceded a permanent provider decision',
+            legacy_unstructured_before - INTERVAL '2 minutes',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            moderation_overwrite_scan_id::TEXT,
+            test_user_id,
+            'older post-result failure preceded a moderation decision',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            replay_policy_overwrite_scan_id::TEXT,
+            test_user_id,
+            'older post-result failure preceded a replay policy decision',
+            legacy_unstructured_before - INTERVAL '3 minutes',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            structured_media_abandoned_scan_id::TEXT,
+            test_user_id,
+            'structured post-result durability failure',
+            pg_catalog.CLOCK_TIMESTAMP(),
+            (
+                SELECT reservations.id
+                FROM internal.ai_quota_reservations AS reservations
+                WHERE reservations.user_id = test_user_id
+                  AND reservations.operation = 'scan_identification'
+                  AND reservations.request_id =
+                      structured_media_abandoned_scan_id
+            ),
+            structured_media_abandoned_scan_id,
+            'post_result_scan_durability_failure',
+            TRUE,
+            TRUE
+        ),
+        (
+            moderation_pipeline_overwrite_scan_id::TEXT,
+            test_user_id,
+            'legacy moderation infrastructure failure',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            post_cutoff_unstructured_scan_id::TEXT,
+            test_user_id,
+            'unstructured evidence inserted after rollout with backdated transaction timestamp',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            pre_safety_unstructured_scan_id::TEXT,
+            test_user_id,
+            'Failed to ensure scan user exists: post-result prerequisite unavailable',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            incomplete_structured_safety_scan_id::TEXT,
+            test_user_id,
+            'structured durability failure before required safety completed',
+            pg_catalog.CLOCK_TIMESTAMP(),
+            (
+                SELECT reservations.id
+                FROM internal.ai_quota_reservations AS reservations
+                WHERE reservations.user_id = test_user_id
+                  AND reservations.operation = 'scan_identification'
+                  AND reservations.request_id =
+                      incomplete_structured_safety_scan_id
+            ),
+            incomplete_structured_safety_scan_id,
+            'post_result_scan_durability_failure',
+            TRUE,
+            FALSE
+        ),
+        (
+            legacy_moderation_message_scan_id::TEXT,
+            test_user_id,
+            'Multimodal moderation pipeline failed.',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            wrong_endpoint_recovery_scan_id::TEXT,
+            test_user_id,
+            'legacy compatibility producer failed after provider result',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            active_replay_recovery_scan_id::TEXT,
+            test_user_id,
+            'legacy durability failure while later replay remains active',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        ),
+        (
+            invalid_timestamp_recovery_scan_id::TEXT,
+            test_user_id,
+            'legacy durability failure with corrupt quota chronology',
+            legacy_unstructured_before - INTERVAL '1 minute',
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        );
+
+    -- This fixture runs after every migration, so simulate the exact immutable
+    -- identities that were visible to the hardening migration. Deliberately
+    -- omit the post-cutoff row even though its transaction timestamp is
+    -- backdated before the cutoff; row identity, not timestamp alone, must
+    -- prevent a lock-blocked older producer from gaining legacy authority.
+    INSERT INTO internal.scan_recovery_legacy_dead_letters (
+        failed_scan_ingestion_id,
+        captured_at
+    )
+    SELECT
+        failures.id,
+        legacy_unstructured_before
+    FROM public.failed_scan_ingestions AS failures
+    WHERE failures.user_id = test_user_id
+      AND failures.scan_id <> post_cutoff_unstructured_scan_id::TEXT
+      AND failures.quota_reservation_id IS NULL
+      AND failures.quota_request_id IS NULL
+      AND failures.failure_kind IS NULL
+      AND failures.provider_result_validated IS NULL
+      AND failures.identify_safety_evaluation_completed IS NULL
+    ON CONFLICT (failed_scan_ingestion_id) DO NOTHING;
+
+    -- The fixture backdates charged authority around the immutable migration
+    -- cutoff. Keep reserve -> commit chronology realistic before exercising
+    -- the proof and its deliberately corrupt failed-before-commit case.
+    UPDATE internal.ai_quota_reservations AS reservations
+    SET reserved_at = reservations.committed_at - INTERVAL '1 second'
+    WHERE reservations.user_id = test_user_id
+      AND reservations.operation = 'scan_identification'
+      AND reservations.committed_at IS NOT NULL
+      AND reservations.reserved_at > reservations.committed_at;
+
+    UPDATE internal.ai_quota_reservations AS reservations
+    SET updated_at = pg_catalog.NOW() - INTERVAL '31 days'
+    WHERE reservations.user_id = test_user_id
+      AND reservations.operation = 'scan_identification'
+      AND reservations.request_id = ANY (
+          ARRAY[
+              media_abandoned_scan_id,
+              later_policy_overwrite_scan_id,
+              moderation_overwrite_scan_id,
+              replay_policy_overwrite_scan_id,
+              internal.derive_ai_quota_request_id(
+                  replay_policy_overwrite_scan_id,
+                  'scan-ingestion-replay:1'
+              ),
+              internal.derive_ai_quota_request_id(
+                  replay_policy_overwrite_scan_id,
+                  'scan-ingestion-replay:2'
+              ),
+              structured_media_abandoned_scan_id,
+              moderation_pipeline_overwrite_scan_id,
+              post_cutoff_unstructured_scan_id,
+              pre_safety_unstructured_scan_id,
+              incomplete_structured_safety_scan_id,
+              legacy_moderation_message_scan_id,
+              wrong_endpoint_recovery_scan_id,
+              active_replay_recovery_scan_id,
+              internal.derive_ai_quota_request_id(
+                  active_replay_recovery_scan_id,
+                  'scan-ingestion-replay:1'
+              ),
+              invalid_timestamp_recovery_scan_id,
+              unrelated_old_quota_request_id
+          ]::UUID[]
+      );
+
+    -- This call also proves the malformed legacy text scan id above cannot
+    -- abort hourly quota maintenance.
+    PERFORM internal.prune_ai_quota_state();
+
+    IF EXISTS (
+        SELECT 1
+        FROM internal.ai_quota_reservations AS reservations
+        WHERE reservations.user_id = test_user_id
+          AND reservations.operation = 'scan_identification'
+          AND reservations.request_id = unrelated_old_quota_request_id
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.ai_quota_reservations AS reservations
+        WHERE reservations.user_id = test_user_id
+          AND reservations.operation = 'scan_identification'
+          AND reservations.request_id =
+              internal.derive_ai_quota_request_id(
+                  replay_policy_overwrite_scan_id,
+                  'scan-ingestion-replay:2'
+              )
+    ) OR (
+        SELECT pg_catalog.COUNT(*)
+        FROM internal.ai_quota_reservations AS reservations
+        WHERE reservations.user_id = test_user_id
+          AND reservations.operation = 'scan_identification'
+          AND reservations.request_id = ANY (
+              ARRAY[
+                  media_abandoned_scan_id,
+                  later_policy_overwrite_scan_id,
+                  moderation_overwrite_scan_id,
+                  replay_policy_overwrite_scan_id,
+                  internal.derive_ai_quota_request_id(
+                      replay_policy_overwrite_scan_id,
+                      'scan-ingestion-replay:1'
+                  ),
+                  structured_media_abandoned_scan_id,
+                  moderation_pipeline_overwrite_scan_id,
+                  post_cutoff_unstructured_scan_id,
+                  pre_safety_unstructured_scan_id,
+                  incomplete_structured_safety_scan_id,
+                  legacy_moderation_message_scan_id,
+                  wrong_endpoint_recovery_scan_id,
+                  active_replay_recovery_scan_id,
+                  internal.derive_ai_quota_request_id(
+                      active_replay_recovery_scan_id,
+                      'scan-ingestion-replay:1'
+                  ),
+                  invalid_timestamp_recovery_scan_id
+              ]::UUID[]
+          )
+    ) <> 15 THEN
+        RAISE EXCEPTION
+            'quota pruning lost recovery proof, policy, or active authority';
+    END IF;
+
+    IF (
+        SELECT pg_catalog.ARRAY_AGG(proofs.scan_id ORDER BY proofs.scan_id)
+        FROM public.get_media_abandoned_scan_recovery_proofs(
+            test_user_id,
+            ARRAY[
+                media_abandoned_scan_id,
+                later_policy_overwrite_scan_id,
+                moderation_overwrite_scan_id,
+                replay_policy_overwrite_scan_id,
+                structured_media_abandoned_scan_id,
+                moderation_pipeline_overwrite_scan_id,
+                post_cutoff_unstructured_scan_id,
+                pre_safety_unstructured_scan_id,
+                incomplete_structured_safety_scan_id,
+                legacy_moderation_message_scan_id,
+                wrong_endpoint_recovery_scan_id,
+                active_replay_recovery_scan_id,
+                invalid_timestamp_recovery_scan_id
+            ]::UUID[]
+        ) AS proofs
+    ) IS DISTINCT FROM ARRAY[
+        media_abandoned_scan_id,
+        structured_media_abandoned_scan_id
+    ]::UUID[] THEN
+        RAISE EXCEPTION
+            'restore signer proof lookup admitted unsafe media abandonment';
+    END IF;
 
     SELECT public.recover_missing_owned_scan(
         media_abandoned_scan_id,
@@ -846,7 +1736,18 @@ BEGIN
     FOREACH blocked_recovery_scan_id IN ARRAY ARRAY[
         policy_rejected_scan_id,
         unknown_terminal_scan_id,
-        unproven_media_abandoned_scan_id
+        unproven_media_abandoned_scan_id,
+        later_policy_overwrite_scan_id,
+        moderation_overwrite_scan_id,
+        replay_policy_overwrite_scan_id,
+        moderation_pipeline_overwrite_scan_id,
+        post_cutoff_unstructured_scan_id,
+        pre_safety_unstructured_scan_id,
+        incomplete_structured_safety_scan_id,
+        legacy_moderation_message_scan_id,
+        wrong_endpoint_recovery_scan_id,
+        active_replay_recovery_scan_id,
+        invalid_timestamp_recovery_scan_id
     ]::UUID[]
     LOOP
         SELECT public.recover_missing_owned_scan(
@@ -866,7 +1767,7 @@ BEGIN
                 WHERE scans.id = blocked_recovery_scan_id
            ) THEN
             RAISE EXCEPTION
-                'unallowlisted or unproven terminal reason recovered scan %',
+                'unsafe or unproven terminal reason recovered scan %',
                 blocked_recovery_scan_id;
         END IF;
     END LOOP;

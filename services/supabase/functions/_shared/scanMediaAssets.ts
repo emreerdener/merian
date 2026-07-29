@@ -97,6 +97,11 @@ const RECOVERABLE_SCAN_SHARE_RESTORE_TERMINAL_REASONS = new Set([
   "media_reconciliation_abandoned",
 ]);
 
+const NON_REACTIVATABLE_SCAN_MEDIA_FAILURE_REASONS = new Set([
+  "moderation_rejected",
+  "moderation_pipeline_error",
+]);
+
 function terminalJobAllowsScanShareRestore(
   job: ScanIngestionRegistrationJobRow | undefined,
   scanId: string,
@@ -469,31 +474,49 @@ export async function createStagedScanMediaAssets(
     );
     const provenMediaAbandonmentScanIds = new Set<string>();
     if (mediaAbandonmentRestoreScanIds.length > 0) {
-      // Older released producers wrote this service-only dead letter only
-      // after a provider result had passed the wire contract but its scan row
-      // could not be finalized. The media worker can also abandon pre-result
-      // staging generations, so the terminal reason alone is not sufficient
-      // authority to reopen one.
-      const { data: failedIngestionData, error: failedIngestionError } =
-        await supabaseAdmin
-          .from("failed_scan_ingestions")
-          .select("scan_id,user_id")
-          .eq("user_id", userId)
-          .in("scan_id", mediaAbandonmentRestoreScanIds);
-      if (failedIngestionError) {
+      // The database combines the post-result dead letter with every exact
+      // normal/server-replay quota reservation and the full capture-media
+      // lifecycle. This rejects a historical worker overwrite when a later
+      // attempt was permanently policy-rejected; the dead letter alone is not
+      // sufficient authority to reopen a generation.
+      const { data: recoveryProofData, error: recoveryProofError } =
+        await supabaseAdmin.rpc(
+          "get_media_abandoned_scan_recovery_proofs",
+          {
+            p_user_id: userId,
+            p_scan_ids: mediaAbandonmentRestoreScanIds,
+          },
+        );
+      if (recoveryProofError) {
         throw new Error(
-          `createStagedScanMediaAssets: ${failedIngestionError.message}`,
+          `createStagedScanMediaAssets: ${recoveryProofError.message}`,
         );
       }
-      for (
-        const row of (failedIngestionData ?? []) as Array<{
-          scan_id: string;
-          user_id: string;
-        }>
-      ) {
-        if (row.user_id.toLowerCase() === userId.toLowerCase()) {
-          provenMediaAbandonmentScanIds.add(row.scan_id);
+      if (recoveryProofData != null && !Array.isArray(recoveryProofData)) {
+        throw new Error(
+          "createStagedScanMediaAssets: invalid recovery proof response",
+        );
+      }
+      for (const value of recoveryProofData ?? []) {
+        const row = value != null &&
+            typeof value === "object" &&
+            !Array.isArray(value)
+          ? value as { scan_id?: unknown }
+          : null;
+        const proofScanId = typeof row?.scan_id === "string"
+          ? row.scan_id
+          : null;
+        const requestedScanId = proofScanId != null
+          ? mediaAbandonmentRestoreScanIds.find((scanId) =>
+            scanId.toLowerCase() === proofScanId.toLowerCase()
+          )
+          : undefined;
+        if (!requestedScanId) {
+          throw new Error(
+            "createStagedScanMediaAssets: invalid recovery proof response",
+          );
         }
+        provenMediaAbandonmentScanIds.add(requestedScanId);
       }
     }
     const terminalRestoreScanIds: string[] = [];
@@ -578,7 +601,10 @@ export async function createStagedScanMediaAssets(
             provenMediaAbandonmentScanIds,
           ) &&
           isValidScanShareRestoreInput(requestedInput);
-        return row.failure_reason === "moderation_rejected" ||
+        return (
+          row.failure_reason != null &&
+          NON_REACTIVATABLE_SCAN_MEDIA_FAILURE_REASONS.has(row.failure_reason)
+        ) ||
           (
             job?.status != null &&
             job.status !== "failed_retryable" &&

@@ -22,12 +22,15 @@ upload. `BackgroundDatabaseActor.markScanAsStaged` then persists those keys,
 normally resets upload retry state, updates the queue job, and transitions
 `.uploading → .staged` in one save. Only `.staged` after that commit—or a
 serialized owner with the same staged manifest—may proceed toward an inference
-claim. The one exception is an exact scheduled server-failure retry: successful
-re-stage preserves its durable `server_retryable_failure` marker, attempt count,
-last attempt, and matching job metadata. A transient signer or PUT failure while
-performing that re-stage also preserves the machine marker and increments from
-the maximum committed attempt; its precise failure remains in the queue event
-stream.
+claim. The one exception is an exact scheduled server-failure retry. Its
+`server_retryable_failure` marker, attempt count, and last attempt are mirrored
+on `OfflineQueuedScan` and the corresponding `OfflineJobRecord`. Successful
+re-stage preserves them; every serialized claim/retry/staging transition first
+repairs a drifted copy from the surviving marker and monotonic maximum. A
+cloud-complete recovery marker has higher authority than either retry copy. A
+transient signer or PUT failure while performing that re-stage also preserves
+the machine marker and increments from the maximum committed attempt; its
+precise failure remains in the queue event stream.
 
 Fetch, job-read, manifest-mismatch, or save failure returns a retry-required
 outcome before inference. Once the callback token releases, timestamp-fenced
@@ -35,14 +38,22 @@ orphan reconciliation restarts signing for a still-uploading row; a staged row
 replays only its persisted keys. A missing, failed, or external-import row is
 discarded and never resurrected.
 
+The replay/orphan driver is process-local single-flight. Library, scheduler,
+reconnect, and URLSession completion wakes share one active reconciliation.
+Wakes received while it is running coalesce into at most one trailing pass, so
+state changes are not dropped without allowing duplicate status probes, orphan
+transitions, retry-budget inflation, or Library log storms.
+
 The first `failed_retryable` status observation writes that marker and
 increments retry accounting atomically. After its persisted delay, only that
 exact marker lets the next generation-fenced status preflight reclaim the
 backend generation and dispatch Identify; all marker-free, active, completed,
 manual, and terminal states still refuse duplicate inference. Marker and
-attempt reads use a fresh `ModelContext` so background-actor commits are
-visible. Exhaustion keeps the row for manual attention and cancels polling
-instead of cycling through signing, PUT, and status indefinitely.
+attempt reads use a fresh `ModelContext`, consult both durable copies, and use
+the monotonic maximum so a migrated-store snapshot cannot hide or roll back a
+background-actor commit. Exhaustion keeps the row for manual attention and
+cancels polling instead of cycling through signing, PUT, and status
+indefinitely.
 An explicit user retry resets the bounded automatic counter under the same scan
 UUID before re-entering the atomic claim path. This matters for
 description-only staged work, which has no successful upload transition to

@@ -140,10 +140,20 @@ Bulk responses include the probed scan id on each result:
   completed recovery ledger are atomic and cannot overwrite an existing row. The
   shared repair write requires an existing ledger and allows
   completed-but-missing or structured `replay_exhausted` state. Exact
-  `media_reconciliation_abandoned` additionally requires the matching owner/scan
-  service-written post-result `failed_scan_ingestions` row. No-ledger, active,
-  retryable, policy, unproven abandonment, legacy-unknown, and arbitrary
-  terminal reasons remain untouched.
+  `media_reconciliation_abandoned` additionally requires matching composite
+  dead-letter/quota/media-lifecycle proof. No-ledger, active, retryable,
+  current/later policy, unproven abandonment, legacy-unknown, and arbitrary
+  terminal reasons remain untouched. If the service-only proof/recovery routines
+  are unavailable, stale in the Data API schema cache, or reject internally, the
+  handler returns customer-safe `503 service_unavailable` before restore signing
+  and leaves local media authoritative.
+- The service-only proof call is a mandatory rollout-readiness fence before
+  `recover_missing_owned_scan`, not an authorization shortcut. The baseline and
+  hardening migrations are separate migration-file transactions, so this
+  exact-SHA consumer predeploys before either file and cannot reach the
+  intermediate recovery definition. An empty proof response is valid boundary
+  readiness for completed or replay-exhausted repair; malformed, foreign,
+  missing, or denied responses fail closed.
 - When `required_video_count > 0`, the endpoint returns `found` only if the scan
   row has at least that many non-empty `video_storage_urls` and at least that
   many ready playback entries in `scan_media_assets` or video entries in

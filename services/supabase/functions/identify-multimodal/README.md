@@ -283,12 +283,18 @@ that promoted URLs are represented by ready canonical rows, and writes
 this routine rather than updating the ledger directly. Terminal outcomes carry
 stable `terminal_reason_code` values. Compatibility recovery permits exact
 `replay_exhausted`; exact `media_reconciliation_abandoned` also requires its
-matching owner/scan service-written post-result `failed_scan_ingestions` row.
-Policy, unproven abandonment, legacy, and unknown reasons fail closed. The
+matching composite dead-letter/quota/media-lifecycle proof. Current/later
+policy, unproven abandonment, legacy, and unknown reasons fail closed. The
 producer checks both thrown transport failures and the returned Supabase
 database error when writing that proof; either failure emits
 `multimodal/dead_letter_write_failed` instead of silently losing recovery
-provenance.
+provenance. New proof rows bind the exact quota reservation/request IDs,
+validated provider result, and whether required Identify safety evaluation
+completed. The database accepts one only when it is no earlier than the latest
+charged attempt and the safety result is affirmative. All exact failed/committed
+normal/replay quota reservations remain retained as chronological authority only
+while the terminal media-abandonment ledger is unresolved; refunded and
+unrelated terminal states retain ordinary 30-day pruning.
 
 Canonical completeness follows `captured_media` when it has a valid visual
 timeline. For a legacy video row, it mirrors the refresher: only the standalone

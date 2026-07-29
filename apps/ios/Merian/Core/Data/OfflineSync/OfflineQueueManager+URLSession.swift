@@ -1739,6 +1739,14 @@ extension OfflineQueueManager {
             delay: delay,
             resetMediaUploads: resetMediaUploads
         ) else {
+            // Another serialized owner may already have committed the same
+            // retreat, or a cloud-complete marker may have superseded it. Both
+            // are expected coalescing outcomes, not an error worth repeating
+            // on every library/scheduler wake.
+            if hasDurableScheduledServerFailureRetry(scanId: scanId) ||
+                hasDurableCompletedServerResult(scanId: scanId) {
+                return
+            }
             MerianLog.data.debug(
                 "scheduleRetryableServerFailure: persistence generation changed scanId=\(scanId, privacy: .public)"
             )

@@ -1083,10 +1083,13 @@ grants no scan-write or publication authority; the recovery route still
 validates the owner and payload. Repair and ordinary files cannot mix for one
 scan. Ordinary uploads cannot use completed ingestion as a new staging
 namespace. Failed-terminal repair is limited to exact `replay_exhausted`, or
-exact `media_reconciliation_abandoned` plus the matching owner/scan
-service-written post-result `failed_scan_ingestions` row. Policy, unproven
-abandonment, and every other terminal reason remain closed. This exception is
-what lets Explore and Ask the Community restore surviving local image,
+exact `media_reconciliation_abandoned` plus matching composite
+dead-letter/quota/media-lifecycle proof. Current/later policy, unproven
+abandonment, and every other terminal reason remain closed. Signing obtains
+that decision from bounded service-only
+`get_media_abandoned_scan_recovery_proofs`; database errors, malformed rows, or
+an unexpected scan id fail before any URL is returned. This exception is what
+lets Explore and Ask the Community restore surviving local image,
 playback-video, or standalone-audio media after analysis has durably completed.
 When camelCase and snake_case compatibility aliases are both supplied for scan
 ID, media role, or upload purpose, their values must be identical; contradictory
@@ -1135,7 +1138,8 @@ compatible failed row may reactivate when its ingestion job is absent or
 retryable. An exact `scan_share_restore` row may also register or reactivate for
 completed ingestion when the fresh scan read finds either the active owned row
 or no row for the guarded reconstruction; tombstoned, foreign, and
-moderation-rejected rows fail closed. Failed-terminal, deleted, ordinary
+moderation-rejected/moderation-pipeline-failed rows fail closed.
+Failed-terminal, deleted, ordinary
 completed-ingestion, or media-incompatible rows also fail closed. A partial
 unique index serializes registration races, while the repair migration retains
 historical extras as `failed / superseded_staging_registration` audit rows. New
@@ -1456,9 +1460,9 @@ handles that specific error by resolving the server `species_dictionary.id` by
 scientific name and sending a bounded non-media `recovery_scan` through the
 single `/check-scan-status` contract. The server defers to active/retryable
 richer ingestion, permits exact structured `replay_exhausted`, and admits exact
-`media_reconciliation_abandoned` only with matching service-written post-result
-dead-letter proof. It creates only an absent authenticated-owner row and reloads
-it by owner. After status returns `found`, iOS uploads surviving eligible local
+`media_reconciliation_abandoned` only with matching composite
+dead-letter/quota/media-lifecycle proof. It creates only an absent
+authenticated-owner row and reloads it by owner. After status returns `found`, iOS uploads surviving eligible local
 images, playback video, and standalone audio to staging and retries this
 endpoint with the three category-specific restored-key arrays. This endpoint
 itself does not accept `recovery_scan`; the sequence is compatibility repair
@@ -1699,6 +1703,13 @@ may begin a newly metered attempt. This reservation protects cost idempotency;
 by itself it does not promise to replay a prior HTTP response body. The
 scan-specific durable replay contract below absorbs these quota conflicts when
 safe completion evidence exists.
+
+Terminal reservations ordinarily prune after 30 days. Exact failed/committed
+normal and replay scan reservations remain retained as chronological authority
+only while the corresponding owner/scan job is unresolved
+`failed_terminal / media_reconciliation_abandoned`. Refunded and unrelated
+states retain ordinary retention, and successful recovery or explicit operator
+resolution ends the exception.
 
 ### Scan response replay
 
@@ -5893,8 +5904,38 @@ terminal state are never preempted. A missing ledger row also fails closed. Only
 an existing `complete` ledger whose owner row is unexpectedly absent or an
 explicit `terminal_reason_code = replay_exhausted` state is recoverable without
 additional provenance. Exact `media_reconciliation_abandoned` additionally
-requires the owner/scan-matching service-written `failed_scan_ingestions` row
-proving that a valid provider result reached post-result finalization.
+requires an owner/scan-matching post-result `failed_scan_ingestions` row no
+earlier than the latest charged exact normal/replay quota attempt, no exact
+reserved attempt or invalid terminal timestamp lineage, and no
+moderation-rejected or moderation-pipeline-failed capture lifecycle row.
+Pre-rollout unstructured evidence must be one of the exact dead-letter IDs
+snapshotted by the hardening migration, predate the private database cutoff, and
+either follow a failed latest authority or match the historical first committed
+normal attempt with no charged replay. Timestamp alone is not authority: an
+older producer insert blocked by migration DDL can resume later while retaining
+an earlier transaction-start `failed_at`; the immutable ID snapshot excludes
+that row. Legacy evidence must come from the audited multimodal post-safety
+error lineage, not the known pre-safety user prerequisite or a moderation
+failure. Post-rollout structured evidence must bind the exact quota
+reservation/request IDs, validated provider output, and completed Identify
+safety evaluation. All exact failed/committed normal and replay reservation keys
+are retained as chronological authority across ordinary quota pruning until the
+terminal ledger is resolved. The recovery and proof routines are service-only,
+recorded in
+`internal.privileged_routine_grants`, and probed in production through exact
+null-input SQLSTATE `22023` no-write boundaries.
+A handler-owned `503 service_unavailable` while processing `recovery_scan`
+therefore means the guarded database recovery boundary was not authoritative;
+the client must preserve local media and must not proceed to restore signing.
+This check is also the rollout fence. The baseline and hardening SQL files are
+separate migration-file transactions, so exact-SHA fail-closed
+`generate-upload-urls`, `check-scan-status`, and `share-scan-to-explore`
+consumers predeploy before either file. A recovery call proves that the
+service-only `get_media_abandoned_scan_recovery_proofs` surface is available
+before it can invoke `recover_missing_owned_scan`; an empty proof set is valid
+readiness for non-media-abandonment outcomes, but malformed, foreign, missing,
+or denied responses stop the flow. The structured Identify producer deploys
+only after both migrations commit.
 
 If the exact owner row is still absent, the route also invokes service-only
 `recover_stranded_scan_ingestion_attempt` before projecting client-safe job

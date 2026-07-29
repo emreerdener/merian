@@ -258,46 +258,66 @@ extension OfflineQueueManager {
         code == serverRetryableFailureCode
     }
 
-    static var completedServerResultRecoveryCode: String {
+    nonisolated static var completedServerResultRecoveryCode: String {
         "server_result_local_recovery_pending"
     }
 
-    static var completedServerResultRecoveryMessage: String {
+    nonisolated static var completedServerResultRecoveryMessage: String {
         "The completed cloud analysis could not be restored locally yet."
     }
 
-    static func isCompletedServerResultRecoveryCode(_ code: String?) -> Bool {
+    nonisolated static func isCompletedServerResultRecoveryCode(
+        _ code: String?
+    ) -> Bool {
         code?.hasPrefix("server_result_local_recovery") == true
     }
 
     func hasDurableCompletedServerResult(scanId: String) -> Bool {
         guard let context = modelContext else { return false }
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+        // Queue state is mirrored onto the scan and its durable job. Read both
+        // through one fresh context: a migrated SwiftData store can keep a
+        // stale snapshot resident in either the main or background context.
+        let readContext = ModelContext(context.container)
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
-        descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else {
-            return false
-        }
+        scanDescriptor.fetchLimit = 1
+        let scan = (try? readContext.fetch(scanDescriptor))?.first
+        let jobId = Self.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let job = (try? readContext.fetch(jobDescriptor))?.first
         return Self.isCompletedServerResultRecoveryCode(
-            scan.queueLastErrorCode
+            scan?.queueLastErrorCode
+        ) || Self.isCompletedServerResultRecoveryCode(
+            job?.lastErrorCode
         )
     }
 
     func hasDurableScheduledServerFailureRetry(scanId: String) -> Bool {
         guard let context = modelContext else { return false }
-        // Retry state is written by BackgroundDatabaseActor. Read through a
-        // fresh context so a cached main-context fault cannot hide the marker
-        // that is specifically meant to survive media restaging.
+        // Retry state is mirrored onto the scan and its durable job. Read both
+        // through a fresh context so one stale SwiftData snapshot cannot erase
+        // the exact marker that is meant to survive media restaging.
         let readContext = ModelContext(context.container)
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
-        descriptor.fetchLimit = 1
-        guard let scan = (try? readContext.fetch(descriptor))?.first else {
-            return false
-        }
-        return Self.isServerRetryableFailureCode(scan.queueLastErrorCode)
+        scanDescriptor.fetchLimit = 1
+        let scan = (try? readContext.fetch(scanDescriptor))?.first
+        let jobId = Self.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let job = (try? readContext.fetch(jobDescriptor))?.first
+        return Self.isServerRetryableFailureCode(
+            scan?.queueLastErrorCode
+        ) || Self.isServerRetryableFailureCode(
+            job?.lastErrorCode
+        )
     }
 
     nonisolated static func scanIngestionJobId(scanId: String) -> String {
@@ -567,16 +587,24 @@ extension OfflineQueueManager {
 
     func queueAttemptCount(for scanId: String) -> Int {
         guard let context = modelContext else { return 0 }
-        // Retry writers run through BackgroundDatabaseActor. Always read the
-        // committed value through a new context so retry budgets cannot be
-        // reset accidentally by a stale main-context model snapshot.
+        // Retry writers mirror the counter onto the queue row and durable job.
+        // Always take the monotonic maximum through a fresh context so one
+        // stale model snapshot cannot reset a user's automatic retry budget.
         let readContext = ModelContext(context.container)
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
-        descriptor.fetchLimit = 1
-        return ((try? readContext.fetch(descriptor).first)?
+        scanDescriptor.fetchLimit = 1
+        let scanAttempt = ((try? readContext.fetch(scanDescriptor).first)?
             .queueAttemptCount) ?? 0
+        let jobId = Self.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let jobAttempt = ((try? readContext.fetch(jobDescriptor).first)?
+            .attemptCount) ?? 0
+        return max(0, max(scanAttempt, jobAttempt))
     }
 
     @discardableResult
@@ -590,9 +618,7 @@ extension OfflineQueueManager {
 
         let snapshot = scan.capturedMediaSnapshot
         let shouldRecoverCompletedServerResult =
-            Self.isCompletedServerResultRecoveryCode(
-                scan.queueLastErrorCode
-            )
+            hasDurableCompletedServerResult(scanId: scanId)
         if !shouldRecoverCompletedServerResult {
             // The bounded counter governs automatic work. An explicit user
             // retry starts a new automatic budget under the same scan UUID;
@@ -722,8 +748,8 @@ extension OfflineQueueManager {
         if response.isFound {
             // Persist the owner-row observation before local hydration. If the
             // app terminates or the next status probe is unavailable, this
-            // marker keeps orphan reconciliation from moving a known-complete
-            // scan back to provider-dispatch eligibility.
+            // marker makes any later orphan claim enter bounded completed-result
+            // recovery instead of permitting another provider dispatch.
             scan.queueLastErrorCode =
                 Self.completedServerResultRecoveryCode
             scan.queueLastErrorMessage =

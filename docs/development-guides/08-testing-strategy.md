@@ -240,17 +240,20 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
-     exact retryable-status dispatch, durable retry-latch visibility, retry
-     preservation through media re-staging, durable offline enqueue, atomic
-     queue/job completion, and indefinite privacy-erasure retry under positive
-     server confirmation;
+     process-single-flight inference replay wake coalescing, exact
+     retryable-status dispatch, dual-copy durable retry-latch visibility, retry
+     preservation through media re-staging, monotonic mirrored retry accounting,
+     cloud-complete precedence, durable offline enqueue, atomic queue/job
+     completion, and indefinite privacy-erasure retry under positive server
+     confirmation;
    - foreground request construction, Explore idempotency and contradictory
      response rejection, existing-scan recovery-payload encoding, rejection of
-     recovery races with active/retryable ingestion, validated deletion
+     recovery races with active/retryable ingestion, exact single and bulk
+     scan-status response cardinality/identity validation, validated deletion
      confirmation, pre-upload restored-media budget validation, Community
-     all-media recovery and response validation, and exact Explore
-     reconciliation validation, plus current/legacy media-health incident
-     envelope compatibility and unknown-success-shape rejection; and
+     all-media recovery and response validation, and exact Explore reconciliation
+     validation, plus current/legacy media-health incident envelope compatibility
+     and unknown-success-shape rejection; and
    - Explore-post identifier routing plus retryable and single-flight Field Chat
      preparation.
 
@@ -259,6 +262,11 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    `ModelContext`, background-session state, and retained media. Main-actor
    isolation alone does not prevent async test cases from interleaving at
    suspension points.
+
+   The exact protected replay case is
+   `inferenceReplayReconciliationCoalescesConcurrentWakeSources()`. It proves
+   simultaneous Library, scheduler, reconnect, and URLSession wakes produce one
+   active reconciliation and at most one trailing pass.
 
    These checks live in `scripts/validate-ios-critical-test-results.sh`; their
    positive, missing-case, and skipped-case fixtures live in
@@ -1796,11 +1804,12 @@ Identification latency has focused contract coverage at each boundary:
   media-URL rejection, and delegation to the atomic recovery RPC.
   `dwcaDownloadAndScanFinalizationMigrationContract.test.ts` locks the shared
   current/rolling-compatibility claim and recovery generation lock, exact
-  `replay_exhausted` allowlist, post-result dead-letter proof for
-  `media_reconciliation_abandoned`, completion-last media finalization, strict
-  compatibility audio deletion ordering, worker compare-before-complete
-  behavior, strict atomic-setup RPC decoding, the parent-first DwC-A generation
-  lock, and the revocable grant/cleanup protocol.
+  `replay_exhausted` allowlist, composite dead-letter/quota/media-lifecycle
+  proof for `media_reconciliation_abandoned`, retention of exact failed and
+  committed recovery authority across quota pruning, completion-last media
+  finalization, strict compatibility audio deletion ordering, worker
+  compare-before-complete behavior, strict atomic-setup RPC decoding, the
+  parent-first DwC-A generation lock, and the revocable grant/cleanup protocol.
   `share-scan-to-explore/db_test.ts` locks repair-and-reload before media
   restoration and publication.
 - `_tests/auth.test.ts` covers valid anonymous claims plus expired,
@@ -1882,6 +1891,19 @@ timestamps. Inspect `Server-Timing` and the one-shot first-draw marker rather
 than treating a successful build or state assignment as latency proof. Run one
 Free and one Pro scan and verify the expected model/configuration and exactly
 one primary identification model call.
+
+Retryable status recovery must also exercise deliberate drift between
+`OfflineQueuedScan` and its scan-ingestion `OfflineJobRecord`.
+`scheduledServerFailureMarkerIsReadFromDurableStore` erases the queue-row
+marker/count while the job survives and proves a transient re-stage failure
+advances to attempt two.
+`testMarkScanAsStagedPreservesScheduledServerFailureRetry` passes the same
+topology through upload claim and staging.
+`testScheduleInferenceRetryUsesMonotonicMirroredAttempt` proves the writer uses
+the maximum copy, while
+`testInferenceRetryCannotOverrideCompletedCloudOwnership` proves a job-only
+cloud-complete marker vetoes a late retry. All four are required named Release
+results, not merely compiled tests.
 
 Field trip capture guidance has focused coverage on both sides of the Edge
 boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private

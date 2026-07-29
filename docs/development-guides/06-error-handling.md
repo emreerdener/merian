@@ -132,7 +132,11 @@ clear manager state, cancel a URLSession task, delete a queued scan, or complete
 a UI progress token. Cancellation remains cooperative, so task dictionaries also
 use compare-before-clear registry tokens. Retry state itself lives in SwiftData
 (`OfflineQueuedScan.queue*` plus `OfflineJobRecord`) rather than in process
-memory.
+memory. High-authority scan-ingestion retry/completion markers and attempt
+counts are redundant copies, not alternatives: fresh reads consult both,
+writers repair drift before mutation, counts use the nonnegative monotonic
+maximum, and cloud completion outranks retry state. Never authorize Identify
+from only one cached model fault.
 
 Delayed status probes and server polls retain their registry token across
 awaited status checks, URLSession cancellation, targeted recovery, and queue
@@ -319,9 +323,16 @@ future retry remains pending in `reconcile-scan-media-assets`; after TTL
 abandonment the worker may mark a nonterminal job `failed_terminal` with the
 `media_reconciliation_abandoned` reason so support can separate missing-media
 terminal failures from retryable server failures. It never rewrites an existing
-terminal decision. The reason is recovery-eligible only when the exact
-owner/scan also has the service-written `failed_scan_ingestions` row proving a
-valid provider result reached post-result finalization.
+terminal decision. The reason is recovery-eligible only with exact composite
+service proof: a matching post-result dead letter no earlier than the latest
+charged normal/replay scan-inference reservation, no exact reserved attempt or
+invalid timestamp lineage, and no moderation-rejected or
+moderation-pipeline-failed capture lifecycle row. Modern rows additionally bind
+exact quota/provider/safety evidence. Legacy unstructured rows must belong to
+the immutable exact-ID snapshot taken by the hardening migration, predate the
+database rollout cutoff, and match the narrow historical lineage. Timestamp
+alone is not authority because a DDL-blocked insert can resume after migration
+while retaining an earlier transaction-start `now()`.
 
 ### Owner-row recovery decision
 
@@ -336,8 +347,8 @@ is not part of a normal current multimodal success.
 | No job / missing ledger                                                  | Defer; arbitrary local state is not recovery authority              |
 | `complete` without a row                                                 | Allow duplicate-safe minimal owner-row repair, then reload by owner |
 | `failed_terminal` with exact `terminal_reason_code = 'replay_exhausted'` | Allow duplicate-safe minimal owner-row repair, then reload by owner |
-| `failed_terminal / media_reconciliation_abandoned` plus exact post-result dead letter | Allow duplicate-safe minimal owner-row repair, then reload by owner |
-| `failed_terminal / media_reconciliation_abandoned` without that proof    | Refuse repair; terminal label alone is insufficient authority       |
+| `failed_terminal / media_reconciliation_abandoned` plus exact composite proof | Allow duplicate-safe minimal owner-row repair, then reload by owner |
+| Same reason without charged quota/dead-letter lineage, with an active attempt, older/post-cutoff/incomplete evidence, invalid timestamps, or with moderation rejection/pipeline failure | Refuse repair; terminal label alone is insufficient authority |
 | Any other terminal or unknown reason                                     | Refuse repair; do not infer policy from error text                  |
 
 Single `/check-scan-status` requests may include a bounded, non-media
@@ -351,6 +362,15 @@ through its existing endpoint. Field Chat also preflights the single status
 contract before presentation. Direct media URLs, caller-selected ownership, and
 client-side table upserts are not recovery paths. A transient still-syncing
 result remains retryable and must not permanently hide Field Chat.
+
+A handler-owned `503 service_unavailable` while a single status request is
+processing `recovery_scan` occurs before restore signing. Preserve the local
+record and every media source, present a retryable failure, and require the
+production proof/recovery RPC readiness gates; do not continue to upload or
+infer owner-row creation. All exact failed/committed normal and replay
+reservations remain retained as chronological authority while an eligible
+media-abandonment ledger is unresolved, but refunded and unrelated terminal
+states retain ordinary 30-day pruning.
 
 The complete error and recovery ordering contract is
 [Scan Ingestion Reliability and Recovery](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#error-semantics).

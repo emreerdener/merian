@@ -1582,10 +1582,13 @@ export async function handleIdentifyMultimodalRequest(
     { leaseSeconds: requireDurableVideo ? 300 : 600 },
   );
 
+  const requiresIdentifySafetyEvaluation = imageBase64s.length > 0 ||
+    r2ObjectKeys.length > 0;
   const runDurableIngestion = async () => {
     let modResult:
       | Awaited<ReturnType<typeof evaluateAndProcessPayload>>
       | undefined;
+    let identifySafetyEvaluationCompleted = !requiresIdentifySafetyEvaluation;
     let scanInserted = false;
     let videoStorageUrls: string[] = [];
     let promotedAudioUrlsForRollback: string[] = [];
@@ -1618,9 +1621,7 @@ export async function handleIdentifyMultimodalRequest(
         { leaseSeconds: requireDurableVideo ? 300 : 600 },
       );
       await upsertGhostUserIfMissing(user.id, supabaseAdmin);
-      const hasImagePayload = imageBase64s.length > 0 ||
-        r2ObjectKeys.length > 0;
-      if (hasImagePayload) {
+      if (requiresIdentifySafetyEvaluation) {
         await updateIngestionJobBestEffort(
           "finalizing",
           "moderation_started",
@@ -1676,6 +1677,7 @@ export async function handleIdentifyMultimodalRequest(
             "Multimodal media rejected by moderation.",
           );
         }
+        identifySafetyEvaluationCompleted = true;
       }
 
       let speciesId: string | null = null;
@@ -2147,6 +2149,12 @@ export async function handleIdentifyMultimodalRequest(
               scan_id: generatedScanId,
               user_id: user.id,
               error_message: errorMsg,
+              quota_reservation_id: quotaLease.reservation.id,
+              quota_request_id: quotaLease.reservation.requestId,
+              failure_kind: "post_result_scan_durability_failure",
+              provider_result_validated: true,
+              identify_safety_evaluation_completed:
+                identifySafetyEvaluationCompleted,
             });
           // supabase-js reports PostgREST/database failures in the result
           // object; awaiting the query alone does not throw.

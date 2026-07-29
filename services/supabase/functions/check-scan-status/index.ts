@@ -4,7 +4,11 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseJsonBody, requireParams } from "../_shared/http.ts";
+import {
+  parseJsonBody,
+  publicHttpError,
+  requireParams,
+} from "../_shared/http.ts";
 import {
   recoverStrandedScanIngestionAttempt,
   scanIngestionClientState,
@@ -137,7 +141,12 @@ Deno.serve((req: Request) =>
         logStructuredError("check_scan_status_bulk_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        return jsonResponse({ error: "Internal Server Error" }, 500);
+        throw publicHttpError(
+          503,
+          "The service is temporarily unavailable.",
+          "service_unavailable",
+          30,
+        );
       }
     }
 
@@ -182,7 +191,12 @@ Deno.serve((req: Request) =>
         scan_id: scanId,
         error: error instanceof Error ? error.message : String(error),
       });
-      return jsonResponse({ error: "Internal Server Error" }, 500);
+      throw publicHttpError(
+        503,
+        "The service is temporarily unavailable.",
+        "service_unavailable",
+        30,
+      );
     }
   })
 );

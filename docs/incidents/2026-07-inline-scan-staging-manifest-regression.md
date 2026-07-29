@@ -199,8 +199,8 @@ chat → publication experience.
   The sole repair-purpose exception is an exact `scan_share_restore` request
   whose deterministic scan/category filename, canonical role, and authenticated
   owner agree with a complete job, exact `replay_exhausted`, or exact
-  `media_reconciliation_abandoned` plus its matching service-written
-  post-result dead letter. A fresh unrestricted scan read must confirm an
+  `media_reconciliation_abandoned` plus its matching composite
+  dead-letter/quota/media-lifecycle proof. A fresh unrestricted scan read must confirm an
   existing active owner row or prove the row absent for guarded reconstruction;
   tombstoned, foreign, policy, and unproven-abandonment rows fail. This permits
   post-analysis Explore and Community repair without reopening ingestion. A

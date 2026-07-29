@@ -811,6 +811,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     changelogSource,
     offlineSource,
     reliabilitySource,
+    deploymentRunbookSource,
     loggingSource,
     coreDataSource,
     networkSource,
@@ -823,6 +824,8 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     retryIncidentSource,
     shareIncidentSource,
     migrationSource,
+    recoveryProofMigrationSource,
+    recoverySource,
     signerSource,
     reconciliationWorkerSource,
     reconciliationDbSource,
@@ -841,6 +844,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read(
       "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
     ),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
     read("docs/development-guides/04-logging-and-debugging.md"),
     read("apps/ios/Merian/Core/Data/README.md"),
     read("apps/ios/Merian/Core/Network/README.md"),
@@ -861,6 +865,10 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read(
       "services/supabase/migrations/20260729173000_recover_media_abandoned_owned_scans.sql",
     ),
+    read(
+      "services/supabase/migrations/20260729200000_harden_media_abandoned_scan_recovery_proof.sql",
+    ),
+    read("services/supabase/functions/_shared/scanRecovery.ts"),
     read("services/supabase/functions/_shared/scanMediaAssets.ts"),
     read(
       "services/supabase/functions/reconcile-scan-media-assets/worker.ts",
@@ -931,6 +939,46 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     compact(changelogSource),
     "instead of endlessly alternating status checks and successful uploads",
   );
+  for (
+    const source of [
+      rootSource,
+      changelogSource,
+      offlineSource,
+      reliabilitySource,
+      coreDataSource,
+      retryIncidentSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "one trailing pass");
+  }
+  assertStringIncludes(
+    testingStrategySource,
+    "`inferenceReplayReconciliationCoalescesConcurrentWakeSources()`",
+  );
+  for (
+    const source of [
+      rootSource,
+      changelogSource,
+      offlineSource,
+      reliabilitySource,
+      coreDataSource,
+      networkSource,
+      retryIncidentSource,
+    ]
+  ) {
+    const canonicalSource = compact(source);
+    assert(
+      canonicalSource.includes("mirror"),
+      "Offline retry documentation must preserve its redundant durable-copy boundary.",
+    );
+    assertStringIncludes(canonicalSource, "monotonic maximum");
+    assert(
+      canonicalSource.includes("cloud-complete") ||
+        canonicalSource.includes("completed-cloud") ||
+        canonicalSource.includes("cloud result is complete"),
+      "Offline retry documentation must preserve cloud-completion precedence.",
+    );
+  }
   for (
     const source of [
       rootSource,
@@ -1056,7 +1104,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   ) {
     assertStringIncludes(
       compact(source),
-      "service-written post-result",
+      "composite",
     );
     assertStringIncludes(
       compact(source),
@@ -1075,6 +1123,97 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     compact(shareIncidentSource),
     "`multimodal/dead_letter_write_failed`",
   );
+  assertStringIncludes(
+    compact(shareIncidentSource),
+    "check-scan-status(recovery_scan) → 503 service_unavailable",
+  );
+  for (
+    const source of [
+      rootSource,
+      changelogSource,
+      reliabilitySource,
+      shareIncidentSource,
+      supabaseReadmeSource,
+    ]
+  ) {
+    const recoveryBoundary = compact(source);
+    assertStringIncludes(recoveryBoundary, "immutable");
+    assertStringIncludes(recoveryBoundary, "dead-letter-ID snapshot");
+    assertStringIncludes(recoveryBoundary, "transaction-start timestamp");
+  }
+  for (
+    const source of [
+      rootSource,
+      changelogSource,
+      reliabilitySource,
+      deploymentRunbookSource,
+      shareIncidentSource,
+      supabaseReadmeSource,
+      apiContractSource,
+      signerReadmeSource,
+      statusReadmeSource,
+      shareReadmeSource,
+    ]
+  ) {
+    const rolloutFence = compact(source);
+    assertStringIncludes(rolloutFence, "separate migration-file transactions");
+    assertStringIncludes(rolloutFence, "predeploy");
+  }
+  for (
+    const source of [
+      reliabilitySource,
+      deploymentRunbookSource,
+      shareIncidentSource,
+      supabaseReadmeSource,
+      apiContractSource,
+    ]
+  ) {
+    const rolloutFence = compact(source);
+    assertStringIncludes(rolloutFence, "`generate-upload-urls`");
+    assertStringIncludes(rolloutFence, "`check-scan-status`");
+    assertStringIncludes(rolloutFence, "`share-scan-to-explore`");
+  }
+  const recoveryImplementation = compact(recoverySource);
+  const boundaryProofIndex = recoveryImplementation.indexOf(
+    '"get_media_abandoned_scan_recovery_proofs"',
+  );
+  const atomicRecoveryIndex = recoveryImplementation.indexOf(
+    '"recover_missing_owned_scan"',
+  );
+  assert(
+    boundaryProofIndex >= 0 && atomicRecoveryIndex > boundaryProofIndex,
+    "Owner-row reconstruction must prove the hardened migration boundary before calling the atomic recovery routine.",
+  );
+  assertStringIncludes(
+    recoveryImplementation,
+    "hardened recovery boundary unavailable",
+  );
+  for (
+    const isolatedRecoveryVeto of [
+      "moderation-only legacy evidence",
+      "pre-safety legacy evidence",
+      "wrong-producer endpoint",
+      "incomplete structured safety",
+      "active replay",
+      "corrupt timestamp lineage",
+    ]
+  ) {
+    assertStringIncludes(
+      compact(shareIncidentSource),
+      isolatedRecoveryVeto,
+    );
+  }
+  for (
+    const requiredMirrorRegression of [
+      "`testScheduleInferenceRetryUsesMonotonicMirroredAttempt`",
+      "`testInferenceRetryCannotOverrideCompletedCloudOwnership`",
+    ]
+  ) {
+    assertStringIncludes(
+      compact(testingStrategySource),
+      requiredMirrorRegression,
+    );
+  }
 
   const migration = compact(migrationSource);
   assertStringIncludes(
@@ -1086,9 +1225,98 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "failures.scan_id = p_scan_id::TEXT",
   );
   assertStringIncludes(migration, "failures.user_id = p_user_id");
+  const recoveryProofMigration = compact(recoveryProofMigrationSource);
+  assertStringIncludes(
+    recoveryProofMigration,
+    "internal.media_abandoned_scan_has_recovery_proof",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "exact_reservations.state = 'reserved'",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "exact_reservations.committed_at < exact_reservations.reserved_at",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "failures.failed_at >= latest_authority.authority_at",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "failures.quota_reservation_id = latest_authority.id",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "failures.identify_safety_evaluation_completed IS TRUE",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "CREATE TABLE IF NOT EXISTS internal.scan_recovery_legacy_dead_letters",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "WITH inserted_control AS ( INSERT INTO internal.scan_recovery_evidence_control",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "ON CONFLICT (singleton) DO NOTHING RETURNING legacy_unstructured_before",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "legacy_failures.failed_scan_ingestion_id = failures.id",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "failures.failed_at < evidence_control.legacy_unstructured_before",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "jobs.endpoint = 'identify-multimodal'",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "pg_catalog.LOWER(failures.error_message) NOT LIKE 'failed to ensure scan user exists:%'",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "pg_catalog.LOWER(failures.error_message) NOT LIKE '%moderation%'",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "latest_authority.attempt = 0",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "latest_authority.attempt_count = 1",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "assets.failure_reason IN ( 'moderation_rejected', 'moderation_pipeline_error' )",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "'scan-ingestion-replay:' || attempts.attempt::TEXT",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "pg_catalog.GENERATE_SERIES(1, 10)",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "candidates.state IN ('failed', 'committed')",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "jobs.terminal_reason_code = 'media_reconciliation_abandoned'",
+  );
+  assertStringIncludes(
+    recoveryProofMigration,
+    "pg_catalog.NOW() - INTERVAL '30 days'",
+  );
   assertStringIncludes(
     compact(signerSource),
-    '.from("failed_scan_ingestions")',
+    '"get_media_abandoned_scan_recovery_proofs"',
   );
   assertStringIncludes(
     compact(reconciliationWorkerSource),
@@ -1265,13 +1493,16 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "authoritative known location-sharing value",
       "Local working-tree evidence is not immutable release evidence.",
       "`scripts/require_supabase_cli_version.sh`",
-      "Current deterministic non-PostgreSQL Deno discovery run: 1,331 passed, 0 failed",
-      "The configured broad task also reported 1,414 passed",
+      "Current deterministic non-PostgreSQL Deno discovery run: 1,338 passed, 0 failed",
+      "The current configured broad task reported 1,421 passed",
+      "the latest focused recovery/runtime/documentation suite reported 148 passed",
       "A prior unrestricted run connected to a stale local Docker schema",
       "1,386 passed and the two affected author-profile integration cases failed",
       "Localhost early returns and stale-listener failures are retained as environment evidence",
-      "189 assertions passed across 30 migration contract files",
+      "190 assertions passed across 30 migration contract files",
+      "109 tooling assertions and 11 documentation contracts passed",
       "`migrations/20260729173000_recover_media_abandoned_owned_scans.sql`",
+      "`migrations/20260729200000_harden_media_abandoned_scan_recovery_proof.sql`",
       "The hosted 21-assertion revision completed its first four preflight assertions",
       "The revised fixture plans 22 assertions",
       "atomic_community_identification_request_security.sql",
@@ -1279,7 +1510,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "The revised rollback-only fixture plans 25 assertions",
       "contains 94 changed paths",
       "is an explicit deployment control path, so the fail-closed planner resolves all 89 configured functions",
-      "All 89 isolated function graphs validated across 292 runtime files",
+      "all 89 isolated function graphs validated across 292 runtime files",
       "Full-fallback, shuffled-plan, compatibility-order, and fail-stop fixtures passed.",
       "An unsafe or missing baseline falls back to all 89 functions.",
       "Selected critical members deploy sequentially in compatibility order",
@@ -1290,7 +1521,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "The latest supplied hosted run compiled and executed 879 tests in 67 suites",
       "`completedInferenceAndQueueDeletionCommitTogether()` rejected `repeatedDelete`",
       "malformed Explore share and share-state responses leaked `DecodingError`",
-      "The committed `0dae738e9` production changes address all three",
+      "Exact committed source `b2c7a241` addresses all three",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",
@@ -1796,6 +2027,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       "`publish_scan_to_explore_atomically`",
       "`request_community_identification_atomically`",
       "`recover_missing_owned_scan`",
+      "`get_media_abandoned_scan_recovery_proofs`",
       "`reserve_field_chat_send`",
       "`recover_stale_field_chat_quota`",
     ]
@@ -1809,7 +2041,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   assertStringIncludes(
     backend,
-    "proving every real anon/publishable project credential remains denied from all six routines.",
+    "proving every real anon/publishable project credential remains denied from all seven routines.",
   );
   assertStringIncludes(
     runbook,

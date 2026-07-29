@@ -234,8 +234,11 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   completed recovery ledger in one transaction. Active/retryable richer
   ingestion is never preempted. Terminal recovery is limited to explicit
   `replay_exhausted`, or exact `media_reconciliation_abandoned` plus the
-  matching service-written post-result `failed_scan_ingestions` row. Policy,
-  unproven abandonment, and every other terminal reason remain closed.
+  matching composite dead-letter/quota/media-lifecycle proof. Current/later
+  policy, unproven abandonment, and every other terminal reason remain closed.
+  Restore signing obtains the same decision from a bounded service-only proof
+  RPC; all exact failed/committed normal and replay reservations remain retained
+  as chronological authority while that terminal job is unresolved.
   `check-scan-status` and `share-scan-to-explore` must reload by both scan and
   owner after calling it.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used

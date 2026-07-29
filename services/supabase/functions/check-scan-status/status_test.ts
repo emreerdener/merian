@@ -1,5 +1,6 @@
 import {
   assertEquals,
+  assertStringIncludes,
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
@@ -9,6 +10,10 @@ import {
   hasRequiredVideoMedia,
   normalizeRequiredVideoCount,
 } from "./status.ts";
+
+function compact(source: string): string {
+  return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
+}
 
 Deno.test("check-scan-status media completeness rejects frame-only video rows", () => {
   assertEquals(
@@ -66,4 +71,24 @@ Deno.test("check-scan-status media helpers normalize counts and urls", () => {
   );
   assertEquals(cleanMediaUrls([" a ", "", 1, "b"]), ["a", "b"]);
   assertEquals(capturedVideoCount([{ video: {} }, { image: {} }, null]), 1);
+});
+
+Deno.test("check-scan-status database failures remain explicit and retryable", async () => {
+  const source = compact(
+    await Deno.readTextFile(new URL("./index.ts", import.meta.url)),
+  );
+
+  assertStringIncludes(source, '"check_scan_status_bulk_failed"');
+  assertStringIncludes(source, '"check_scan_status_failed"');
+  assertStringIncludes(
+    source,
+    'throw publicHttpError( 503, "The service is temporarily unavailable.", "service_unavailable", 30, )',
+  );
+  assertEquals(
+    source.match(
+      /throw publicHttpError[(] 503, "The service is temporarily unavailable[.]"/g,
+    )?.length,
+    2,
+    "Bulk and single-scan database failures must both preserve retry semantics.",
+  );
 });

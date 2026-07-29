@@ -146,6 +146,11 @@ assert_suite_has_passed_test_case \
   "Offline Queue Manager Tests" \
   "backgroundInferencePreservesRecoverableHTTPFailures"
 assert_suite_has_passed_test_case \
+  "Inference replay process single-flight" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "inferenceReplayReconciliationCoalescesConcurrentWakeSources"
+assert_suite_has_passed_test_case \
   "Retryable status/upload deadlock dispatch" \
   "OfflineQueueManagerTests" \
   "Offline Queue Manager Tests" \
@@ -160,6 +165,16 @@ assert_suite_has_passed_test_case \
   "BackgroundDatabaseActorTests" \
   "Background Database Actor Tests" \
   "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
+assert_suite_has_passed_test_case \
+  "Monotonic mirrored retry accounting" \
+  "BackgroundDatabaseActorTests" \
+  "Background Database Actor Tests" \
+  "testScheduleInferenceRetryUsesMonotonicMirroredAttempt"
+assert_suite_has_passed_test_case \
+  "Cloud-complete retry veto" \
+  "BackgroundDatabaseActorTests" \
+  "Background Database Actor Tests" \
+  "testInferenceRetryCannotOverrideCompletedCloudOwnership"
 assert_suite_has_passed_test_case \
   "Offline capture durability" \
   "OfflineQueueManagerTests" \
@@ -220,6 +235,16 @@ assert_suite_has_passed_test_case \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
   "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion"
+assert_suite_has_passed_test_case \
+  "Single scan-status response integrity" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testCheckScanStatusRejectsMalformedOrMismatchedSuccess"
+assert_suite_has_passed_test_case \
+  "Bulk scan-status response integrity" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testBulkScanStatusRejectsDuplicateMissingOrForeignRows"
 assert_suite_has_passed_test_case \
   "Explore media-health rollout compatibility" \
   "MerianNetworkClientTests" \

@@ -3994,6 +3994,83 @@ struct MerianNetworkClientTests {
         #expect(status.isFound)
     }
 
+    @Test func testCheckScanStatusRejectsMalformedOrMismatchedSuccess() async {
+        let scanID = "019f6ff1-9ef3-77b1-a331-a86678f53043"
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let invalidResponses = [
+            Data(#"{"status":"unknown"}"#.utf8),
+            Data(#"{"status":"found","scan_id":"019f6ff1-c6c4-77b1-a331-a86678f53043"}"#.utf8),
+            Data(#"{"status":"not_found","job_attempt_count":-1}"#.utf8),
+            Data(#"{"ok":true}"#.utf8)
+        ]
+
+        for invalidResponse in invalidResponses {
+            MockURLProtocol.mockEndpoints["/check-scan-status"] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared.checkScanStatusDetails(
+                    scanId: scanID
+                )
+            }
+        }
+    }
+
+    @Test func testBulkScanStatusRejectsDuplicateMissingOrForeignRows() async {
+        let firstScanID = "019f6ff1-9ef3-77b1-a331-a86678f53043"
+        let secondScanID = "019f6ff1-c6c4-77b1-a331-a86678f53043"
+        let foreignScanID = "019f6ff1-d6c4-77b1-a331-a86678f53043"
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let invalidResponses = [
+            Data("""
+            {"results":[
+              {"scan_id":"\(firstScanID)","status":"found"},
+              {"scan_id":"\(firstScanID)","status":"found"}
+            ]}
+            """.utf8),
+            Data("""
+            {"results":[
+              {"scan_id":"\(firstScanID)","status":"found"}
+            ]}
+            """.utf8),
+            Data("""
+            {"results":[
+              {"scan_id":"\(firstScanID)","status":"found"},
+              {"scan_id":"\(foreignScanID)","status":"not_found"}
+            ]}
+            """.utf8),
+            Data("""
+            {"results":[
+              {"scan_id":"\(firstScanID)","status":"found"},
+              {"scan_id":"\(secondScanID)","status":"not_found",
+               "job_attempt_count":-1}
+            ]}
+            """.utf8)
+        ]
+
+        for invalidResponse in invalidResponses {
+            MockURLProtocol.mockEndpoints["/check-scan-status"] = { _ in
+                (response, invalidResponse)
+            }
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared.checkScanStatuses([
+                    firstScanID: 0,
+                    secondScanID: 1
+                ])
+            }
+        }
+    }
+
     @Test func testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion() {
         #expect(missingScanRecoveryAction(for: .processing) == .retryStatus)
         #expect(missingScanRecoveryAction(for: .finalizing) == .retryStatus)

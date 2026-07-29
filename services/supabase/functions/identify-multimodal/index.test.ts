@@ -922,6 +922,14 @@ Deno.test("scan profile prerequisite fails before quota or provider work and rec
   const quotaReservation = source.indexOf(
     "quotaLease = await reserveAIProviderCall(",
   );
+  const ingestionClaim = source.indexOf(
+    "const atomicIngestion = await beginScanIngestion(",
+    quotaReservation,
+  );
+  const quotaCommit = source.indexOf(
+    "await quotaLease.commit();",
+    ingestionClaim,
+  );
   const providerCall = source.indexOf("_genAI.models.generateContent({");
   const durableIngestion = source.indexOf(
     "const runDurableIngestion = async () =>",
@@ -934,7 +942,9 @@ Deno.test("scan profile prerequisite fails before quota or provider work and rec
 
   assert(firstProfileCheck >= 0);
   assert(quotaReservation > firstProfileCheck);
-  assert(providerCall > quotaReservation);
+  assert(ingestionClaim > quotaReservation);
+  assert(quotaCommit > ingestionClaim);
+  assert(providerCall > quotaCommit);
   assert(durableIngestion > providerCall);
   assert(secondProfileCheck > durableIngestion);
   assert(scanInsert > secondProfileCheck);

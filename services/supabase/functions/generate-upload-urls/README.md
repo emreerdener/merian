@@ -78,11 +78,26 @@ guarded owner-row reconstruction. A missing or nonterminal job may stage for the
 same guarded flow. Signing grants no scan-write or publication authority, and
 the later recovery route must validate the authenticated owner and payload. A
 failed-terminal job may sign only for exact `replay_exhausted`, or exact
-`media_reconciliation_abandoned` with the matching owner/scan service-written
-post-result `failed_scan_ingestions` row. The signer never permits policy,
+`media_reconciliation_abandoned` with matching composite service proof: a
+post-result dead letter no earlier than the latest charged normal/replay
+attempt, producer-generation-appropriate evidence, no active reservation or
+invalid timestamp lineage, and no moderation-rejected or
+moderation-pipeline-failed capture lifecycle row. The signer obtains this
+decision from the bounded service-only
+`get_media_abandoned_scan_recovery_proofs` routine. Database errors, malformed
+rows, and unexpected scan IDs fail before signing. Every exact failed/committed
+normal and replay reservation remains retained as chronological authority while
+the terminal job is unresolved. The signer never permits policy, later-policy,
 unproven abandonment, another terminal reason, a cross-scan filename, arbitrary
 repair key, mixed ordinary/repair registration for one scan, or a completed
 non-owner scan.
+
+This signer is one of three fail-closed consumers predeployed before the
+baseline and hardening recovery files execute as separate migration-file
+transactions. Its ordinary signing path does not consult the new proof RPC. Only
+a legacy `media_reconciliation_abandoned` restore reaches that surface, and an
+absent, stale, malformed, or denied response stops before URL issuance. The
+schema-dependent Identify producer deploys after both files commit.
 
 For example, an image repair entry is:
 
@@ -142,7 +157,8 @@ deterministic object key as the registration identity:
 - an exact `scan_share_restore` request may register or reactivate media after
   ingestion is complete only when the fresh scan read finds the active
   authenticated-owner row or no row for guarded reconstruction; tombstoned,
-  foreign, and moderation-rejected rows cannot be reopened;
+  foreign, moderation-rejected, and moderation-pipeline-failed rows cannot be
+  reopened;
 - requested subsets compose with existing unrequested rows for the same scan;
   and
 - the union of active staged/processing sources remains capped at six.

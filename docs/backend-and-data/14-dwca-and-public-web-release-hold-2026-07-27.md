@@ -188,8 +188,8 @@ ledger. Compatibility finalization failure becomes explicit retryable work
 rather than a swallowed background error. Compatibility recovery permits
 structured `terminal_reason_code = replay_exhausted`. Forward migration
 `20260729173000_recover_media_abandoned_owned_scans.sql` also permits exact
-`media_reconciliation_abandoned` only with the matching owner/scan
-service-written post-result dead letter; unproven abandonment and unknown
+`media_reconciliation_abandoned` only with matching composite
+dead-letter/quota/media-lifecycle proof; later policy, unproven abandonment, and unknown
 reasons fail closed. The catalog trigger rejects unfenced completion,
 reopening, and scan-identity changes even from service-key table writes.
 Completed owner reparenting is allowed only when all exact

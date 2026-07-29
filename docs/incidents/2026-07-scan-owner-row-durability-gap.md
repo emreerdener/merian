@@ -20,8 +20,8 @@ analyze and publish while an older missing owner row was terminal as
 `media_reconciliation_abandoned`. That distinct compatibility failure is
 tracked in
 [July 2026 Media-Abandoned Explore Share Recovery](./2026-07-media-abandoned-explore-share-recovery.md).
-Its narrow repair requires the exact owner/scan service-written post-result dead
-letter; the terminal reason alone is not recovery authority.
+Its narrow repair requires exact composite dead-letter/quota/media-lifecycle
+proof; the terminal reason alone is not recovery authority.
 
 ## Summary
 
@@ -155,9 +155,13 @@ Recovery is allowed only for:
 
 - a `complete` job whose scan row is unexpectedly absent; or
 - an exact structured `replay_exhausted` operational terminal outcome; or
-- exact `media_reconciliation_abandoned` paired with the matching owner/scan
-  `failed_scan_ingestions` row written by the service after a valid provider
-  result entered post-result finalization.
+- exact `media_reconciliation_abandoned` paired with matching composite
+  dead-letter/quota/media-lifecycle proof: evidence no earlier than the latest
+  charged normal/replay attempt, no active reservation or invalid timestamp
+  lineage, and no moderation-rejected or moderation-pipeline-failed capture row.
+  Legacy unstructured proof must belong to the immutable migration-time
+  dead-letter-ID snapshot and is additionally cutoff-bounded; modern proof binds
+  exact quota, provider-validation, and completed-safety identity.
 
 An absent ledger fails closed as `deferred`; accepting an arbitrary no-ledger
 UUID would let a modified client fabricate canonical history. Recovery is never

@@ -245,6 +245,8 @@ for exact_scan_regression in \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \
   "scheduledServerFailureMarkerIsReadFromDurableStore" \
   "testMarkScanAsStagedPreservesScheduledServerFailureRetry" \
+  "testScheduleInferenceRetryUsesMonotonicMirroredAttempt" \
+  "testInferenceRetryCannotOverrideCompletedCloudOwnership" \
   "testManualRetryResetsBudgetForDescriptionOnlyScan" \
   "cloudDeletionRequiresExplicitNetworkConfirmation" \
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState" \

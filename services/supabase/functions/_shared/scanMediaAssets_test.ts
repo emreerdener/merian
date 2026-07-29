@@ -18,7 +18,7 @@ interface FakeResponse {
   } | null;
 }
 
-type QueryMode = "select" | "insert" | "update";
+type QueryMode = "select" | "insert" | "update" | "rpc";
 
 interface ExpectedQuery {
   mode: QueryMode;
@@ -38,6 +38,10 @@ class FakeSupabaseClient {
     return new FakeQuery(this);
   }
 
+  rpc(_functionName: string, _parameters: unknown): FakeQuery {
+    return new FakeQuery(this, "rpc");
+  }
+
   take(mode: QueryMode): FakeResponse {
     const expected = this.expectedQueries.shift();
     assertEquals(expected?.mode, mode, `unexpected ${mode} query`);
@@ -53,9 +57,10 @@ class FakeSupabaseClient {
 }
 
 class FakeQuery {
-  private mode: QueryMode = "select";
-
-  constructor(private readonly client: FakeSupabaseClient) {}
+  constructor(
+    private readonly client: FakeSupabaseClient,
+    private mode: QueryMode = "select",
+  ) {}
 
   select(_columns?: string): this {
     return this;
@@ -562,9 +567,9 @@ Deno.test("createStagedScanMediaAssets permits exact restore media for recoverab
     ];
     if (terminalReasonCode === "media_reconciliation_abandoned") {
       expectedQueries.push({
-        mode: "select",
+        mode: "rpc",
         response: {
-          data: [{ scan_id: clientScanId, user_id: userId }],
+          data: [{ scan_id: clientScanId }],
           error: null,
         },
       });
@@ -591,7 +596,7 @@ Deno.test("createStagedScanMediaAssets permits exact restore media for recoverab
   }
 });
 
-Deno.test("createStagedScanMediaAssets rejects media-abandoned restore without post-result proof", async () => {
+Deno.test("createStagedScanMediaAssets rejects media-abandoned restore without composite proof", async () => {
   const assetInput = restoreInput();
   const { fake, supabase } = client([
     { mode: "select", response: { data: [], error: null } },
@@ -607,13 +612,81 @@ Deno.test("createStagedScanMediaAssets rejects media-abandoned restore without p
         error: null,
       },
     },
-    { mode: "select", response: { data: [], error: null } },
+    { mode: "rpc", response: { data: [], error: null } },
   ]);
 
   await assertRejects(
     () => createStagedScanMediaAssets([assetInput], supabase),
     Error,
     "terminal staging registration cannot be retried",
+  );
+  assertEquals(fake.insertedRows, []);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets fails closed when media-abandoned proof lookup fails", async () => {
+  const assetInput = restoreInput();
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          scan_id: clientScanId,
+          status: "failed_terminal",
+          stage: "media_reconciliation_abandoned",
+          terminal_reason_code: "media_reconciliation_abandoned",
+        }],
+        error: null,
+      },
+    },
+    {
+      mode: "rpc",
+      response: {
+        data: null,
+        error: { message: "proof lookup unavailable" },
+      },
+    },
+  ]);
+
+  await assertRejects(
+    () => createStagedScanMediaAssets([assetInput], supabase),
+    Error,
+    "proof lookup unavailable",
+  );
+  assertEquals(fake.insertedRows, []);
+  fake.assertExhausted();
+});
+
+Deno.test("createStagedScanMediaAssets rejects malformed media-abandoned proof rows", async () => {
+  const assetInput = restoreInput();
+  const { fake, supabase } = client([
+    { mode: "select", response: { data: [], error: null } },
+    {
+      mode: "select",
+      response: {
+        data: [{
+          scan_id: clientScanId,
+          status: "failed_terminal",
+          stage: "media_reconciliation_abandoned",
+          terminal_reason_code: "media_reconciliation_abandoned",
+        }],
+        error: null,
+      },
+    },
+    {
+      mode: "rpc",
+      response: {
+        data: [{ scan_id: "00000000-0000-4000-8000-000000000099" }],
+        error: null,
+      },
+    },
+  ]);
+
+  await assertRejects(
+    () => createStagedScanMediaAssets([assetInput], supabase),
+    Error,
+    "invalid recovery proof response",
   );
   assertEquals(fake.insertedRows, []);
   fake.assertExhausted();
@@ -729,44 +802,51 @@ Deno.test("createStagedScanMediaAssets reactivates a recoverable restore row for
   fake.assertExhausted();
 });
 
-Deno.test("createStagedScanMediaAssets does not reactivate moderation-rejected restore media", async () => {
-  const assetInput = restoreInput();
-  const failed = candidate(assetInput, {
-    status: "failed",
-    failure_reason: "moderation_rejected",
-  });
-  const { fake, supabase } = client([
-    {
-      mode: "select",
-      response: { data: [failed], error: null },
-    },
-    {
-      mode: "select",
-      response: {
-        data: [{ scan_id: clientScanId, status: "complete" }],
-        error: null,
+Deno.test("createStagedScanMediaAssets does not reactivate unsafe or unevaluated restore media", async () => {
+  for (
+    const failureReason of [
+      "moderation_rejected",
+      "moderation_pipeline_error",
+    ]
+  ) {
+    const assetInput = restoreInput();
+    const failed = candidate(assetInput, {
+      status: "failed",
+      failure_reason: failureReason,
+    });
+    const { fake, supabase } = client([
+      {
+        mode: "select",
+        response: { data: [failed], error: null },
       },
-    },
-    {
-      mode: "select",
-      response: {
-        data: [{
-          id: clientScanId,
-          user_id: userId,
-          is_tombstoned: false,
-        }],
-        error: null,
+      {
+        mode: "select",
+        response: {
+          data: [{ scan_id: clientScanId, status: "complete" }],
+          error: null,
+        },
       },
-    },
-  ]);
+      {
+        mode: "select",
+        response: {
+          data: [{
+            id: clientScanId,
+            user_id: userId,
+            is_tombstoned: false,
+          }],
+          error: null,
+        },
+      },
+    ]);
 
-  await assertRejects(
-    () => createStagedScanMediaAssets([assetInput], supabase),
-    Error,
-    "terminal staging registration cannot be retried",
-  );
-  assertEquals(fake.updates, []);
-  fake.assertExhausted();
+    await assertRejects(
+      () => createStagedScanMediaAssets([assetInput], supabase),
+      Error,
+      "terminal staging registration cannot be retried",
+    );
+    assertEquals(fake.updates, []);
+    fake.assertExhausted();
+  }
 });
 
 Deno.test("createStagedScanMediaAssets ignores historical promoted capture rows in restore budget", async () => {

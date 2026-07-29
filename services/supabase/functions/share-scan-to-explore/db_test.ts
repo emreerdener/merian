@@ -756,6 +756,59 @@ Deno.test("fetchShareEligibleScan returns a 404 only for an absent scan", async 
   assertEquals((error as PublicHttpError).status, 404);
 });
 
+Deno.test("fetchShareEligibleScan maps recovery-boundary failures to retryable 503", async () => {
+  let reads = 0;
+  const rpcCalls: string[] = [];
+  const supabase = {
+    rpc(name: string) {
+      rpcCalls.push(name);
+      return Promise.resolve({
+        data: null,
+        error: { message: "proof RPC is not visible" },
+      });
+    },
+    from(table: string) {
+      assertEquals(table, "scans");
+      return {
+        select() {
+          return {
+            eq() {
+              return this;
+            },
+            maybeSingle() {
+              reads += 1;
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const recoveryScan = {
+    id: scanId,
+    user_id: userId,
+  } as OwnedScanRecoveryRow;
+
+  const error = await assertRejects(() =>
+    fetchShareEligibleScan(
+      scanId,
+      userId,
+      [],
+      [],
+      [],
+      supabase,
+      recoveryScan,
+    )
+  );
+
+  assertEquals(error instanceof PublicHttpError, true);
+  assertEquals((error as PublicHttpError).status, 503);
+  assertEquals((error as PublicHttpError).code, "service_unavailable");
+  assertEquals((error as PublicHttpError).retryAfterSeconds, 30);
+  assertEquals(reads, 1);
+  assertEquals(rpcCalls, ["get_media_abandoned_scan_recovery_proofs"]);
+});
+
 Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing", async () => {
   const userId = "00000000-0000-0000-0000-000000000002";
   const recoveredRow: ShareEligibleScanRow = {
@@ -778,7 +831,13 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
   const supabase = {
     rpc(name: string, arguments_: unknown) {
       rpcCalls.push({ name, arguments_ });
-      return Promise.resolve({ data: "recovered", error: null });
+      if (name === "get_media_abandoned_scan_recovery_proofs") {
+        return Promise.resolve({ data: [], error: null });
+      }
+      if (name === "recover_missing_owned_scan") {
+        return Promise.resolve({ data: "recovered", error: null });
+      }
+      throw new Error(`Unexpected RPC: ${name}`);
     },
     from(table: string) {
       assertEquals(table, "scans");
@@ -812,12 +871,21 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
   );
 
   assertEquals(result, recoveredRow);
-  assertEquals(rpcCalls, [{
-    name: "recover_missing_owned_scan",
-    arguments_: {
-      p_scan_id: scanId,
-      p_user_id: userId,
-      p_recovery_scan: recoveryScan,
+  assertEquals(rpcCalls, [
+    {
+      name: "get_media_abandoned_scan_recovery_proofs",
+      arguments_: {
+        p_user_id: userId,
+        p_scan_ids: [scanId],
+      },
     },
-  }]);
+    {
+      name: "recover_missing_owned_scan",
+      arguments_: {
+        p_scan_id: scanId,
+        p_user_id: userId,
+        p_recovery_scan: recoveryScan,
+      },
+    },
+  ]);
 });

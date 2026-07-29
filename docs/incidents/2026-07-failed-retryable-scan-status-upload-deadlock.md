@@ -63,7 +63,7 @@ healthy, while no scan-producing request left the device.
 ## Root Cause
 
 The history audit covered the latest 100 first-parent commits through
-`0dae738e9d5b21e97f55560d0f163748de39430d`. This repository had zero merge
+`b2c7a241acfe12bcc9f77e853715aa94c9855f17`. This repository had zero merge
 commits in that window, so the requested “last 100 merges” review was performed
 against its linear first-parent history and each relevant scan-path change.
 
@@ -93,6 +93,17 @@ continues to expose the durable job as `failed_retryable`. The client needed a
 durable local latch; repeatedly interpreting the same response as active server
 ownership could never make progress.
 
+The first remediation preserved the latch through staging, but trusted only
+`OfflineQueuedScan.queueLastErrorCode` and
+`OfflineQueuedScan.queueAttemptCount`. The same values were already mirrored on
+the scan's `OfflineJobRecord`. A later archived build reproduced the loop on a
+migrated V50 store: the queue-row scalar snapshot no longer exposed the marker
+while the job row still did. Staging classified the upload as ordinary,
+reset both rows, and every later status observation committed “retry 1” again.
+Fresh reads also consulted only the scan row, so the surviving job authority
+could not stop the loop. The single-row fix was therefore correct for a clean
+test store but incomplete for the released migration/context topology.
+
 ## Resolution
 
 ### Durable retry latch
@@ -100,15 +111,21 @@ ownership could never make progress.
 iOS now gives the exact `server_retryable_failure` code state-machine meaning:
 
 1. the first retryable status observation writes one generation-fenced retry;
-2. the retry marker and attempt count survive a successful required re-upload;
-3. transient signer or PUT failures retain that machine latch, record their
+2. retry ownership is mirrored on the queued scan and its durable job;
+3. fresh marker reads consult both copies, retry accounting uses their
+   nonnegative monotonic maximum, and serialized claim/retry/staging transitions
+   repair a drifted copy before mutation;
+4. the retry marker and attempt count survive a successful required re-upload;
+5. transient signer or PUT failures retain that machine latch, record their
    precise error in the append-only event stream, and advance from the maximum
    committed retry count rather than a cached main-context count;
-4. retry-budget reads use a fresh SwiftData context so background-actor commits
+6. a marker that proves the cloud result is complete has higher authority than
+   either retry copy and cannot be overwritten by a late retry callback;
+7. retry-budget reads use a fresh SwiftData context so background-actor commits
    cannot be hidden by a cached main-context model;
-5. after the persisted delay, a `.retryAfter` preflight permits Identify only
+8. after the persisted delay, a `.retryAfter` preflight permits Identify only
    when that exact durable marker exists; and
-6. recovered, processing/finalizing, terminal, manual, unrelated, or
+9. recovered, processing/finalizing, terminal, manual, unrelated, or
    marker-free states still block duplicate provider dispatch.
 
 The stable `client_scan_id` remains the request idempotency key. The Identify
@@ -131,6 +148,19 @@ tile is visible to work around dropped presented-sheet SwiftData notifications.
 It now logs only when the visible queue snapshot or local record list actually
 changes. Throttled duplicate pipeline kicks are silent. The persisted scheduler,
 not the visible library, remains the durable retry authority.
+
+The replay/orphan driver is now process-local single-flight across Library,
+scheduler, reconnect, and URLSession completion wakes. A concurrent wake records
+at most one trailing pass rather than starting a second queue enumeration,
+status probe set, or orphan transition. This preserves newly observed durable
+work without the overlapping probes, retry inflation, and start-log storm seen
+in the archived physical-device trace.
+
+Late generation-fenced callbacks can also discover that another serialized
+owner already committed the same retry, or that cloud completion superseded it.
+Those are normal coalescing outcomes and no longer emit “persistence generation
+changed” on every library/scheduler wake. A genuinely missing marker and
+generation mismatch remains diagnostic.
 
 ### Adjacent media-health response drift
 
@@ -158,10 +188,13 @@ envelope.
 - Re-upload success cannot erase the inference retry latch or retry accounting.
 - A transient signer or PUT failure during re-stage cannot erase that latch or
   roll its committed count backward.
+- Drift in either redundant SwiftData copy is repaired from the surviving
+  marker and monotonic maximum before a queue transition can reset state.
 - A generic error string, unrelated retry code, manual state, or stale
   generation cannot authorize Identify.
 - A server `found` observation remains stronger than any later unavailable or
-  inconsistent status response and never returns to provider eligibility.
+  inconsistent status response, wins over retry state in either copy, and never
+  returns to provider eligibility.
 - Automatic retries are finite and durable across relaunch; local media remains
   until atomic result persistence and queue cleanup commit.
 
@@ -170,10 +203,15 @@ envelope.
 Repository regressions cover:
 
 - the pure status-action / durable-marker dispatch matrix;
-- fresh-context marker and attempt reads after a background actor commit;
+- fresh-context marker and attempt reads after a background actor commit,
+  including a queue-row marker/counter erased while the job-row mirror
+  survives;
 - the full `.staged → .inferencing → failed retryable → .pending →
   .uploading → .staged` persistence sequence;
-- marker and retry-count preservation on upload completion; and
+- process-local replay reconciliation coalescing across concurrent wake sources
+  into one active driver and at most one trailing pass;
+- mirror repair, monotonic count preservation, and cloud-complete precedence on
+  upload completion and retry retreat; and
 - retry-cap transition to retained needs-attention state.
 
 Source parsing and deterministic repository gates are necessary but not

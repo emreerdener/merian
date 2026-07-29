@@ -702,9 +702,6 @@ extension OfflineQueueManager {
     /// cross-reference to catch scans stuck in `.uploading` when `generateUploadURLs` failed
     /// or the `syncPendingScans` Task was killed before its catch block could run.
     func replayInferenceForUploadedScans() {
-        MerianLog.data.debug(
-            "replayInferenceForUploadedScans: requested isOnline=\(self.isOnline, privacy: .public) startupReconciled=\(self.hasReconciledStartupState, privacy: .public)"
-        )
         guard isOnline else {
             MerianLog.data.debug("replayInferenceForUploadedScans: skipped because network is offline")
             return
@@ -714,13 +711,27 @@ extension OfflineQueueManager {
             return
         }
         let container = context.container
+        guard beginInferenceReplayReconciliation() else {
+            return
+        }
+        MerianLog.data.debug(
+            "replayInferenceForUploadedScans: starting startupReconciled=\(self.hasReconciledStartupState, privacy: .public)"
+        )
 
         // One-time cold-start reconciliation for orphaned .uploading scans.
         // The task snapshot is timestamp-fenced, so a scan claimed while this pass
         // awaits the shared queue actor cannot be reset as an orphan.
         if !hasReconciledStartupState {
             hasReconciledStartupState = true
-            Task {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                defer {
+                    // Cold-start upload reconciliation must always be followed
+                    // by the normal inference pass. That one pass also
+                    // satisfies every wake coalesced while startup work ran.
+                    _ = self.finishInferenceReplayReconciliation()
+                    self.replayInferenceForUploadedScans()
+                }
                 let observedThrough = Date()
                 let allTasks = await backgroundSession.allTasks
                 let activeIds = Set(allTasks.compactMap {
@@ -745,7 +756,6 @@ extension OfflineQueueManager {
                 // (no orphaned uploads) does not require one.
                 await MainActor.run {
                     if hadOrphans { self.syncPendingScans() }
-                    self.replayInferenceForUploadedScans()
                 }
             }
             return
@@ -764,7 +774,13 @@ extension OfflineQueueManager {
         // the scan stuck indefinitely. Running the reset on the same actor guarantees the
         // in-memory object is updated before tryClaimForInference reads it.
         let sharedActor = resolvedQueueDbActor(container: container)
-        Task {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.finishInferenceReplayReconciliation() {
+                    self.replayInferenceForUploadedScans()
+                }
+            }
             let observedThrough = Date()
             let allTasks = await backgroundSession.allTasks
 

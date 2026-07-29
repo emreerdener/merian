@@ -1665,6 +1665,111 @@ struct BackgroundDatabaseActorTests {
         #expect(persisted?.stagedR2Keys == nil)
     }
 
+    @Test func testScheduleInferenceRetryUsesMonotonicMirroredAttempt() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            scanState: .inferencing,
+            queueAttemptCount: 0
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),
+            kind: .scanIngestion,
+            subjectId: scan.id,
+            status: .running,
+            attemptCount: 4,
+            lastErrorCode:
+                OfflineQueueManager.serverRetryableFailureCode
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        #expect(
+            await actor.scheduleInferenceRetry(
+                id: scan.id,
+                expectedGeneration: nil,
+                code: OfflineQueueManager.serverRetryableFailureCode,
+                message: "Advance the surviving durable retry counter.",
+                delay: 1
+            ) == 5
+        )
+
+        let verificationContext = ModelContext(container)
+        let scanId = scan.id
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        let persistedScan = try #require(
+            verificationContext.fetch(scanDescriptor).first
+        )
+        let jobId =
+            OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let persistedJob = try #require(
+            verificationContext.fetch(jobDescriptor).first
+        )
+        #expect(persistedScan.queueAttemptCount == 5)
+        #expect(persistedJob.attemptCount == 5)
+        #expect(
+            persistedScan.queueLastErrorCode
+                == OfflineQueueManager.serverRetryableFailureCode
+        )
+    }
+
+    @Test func testInferenceRetryCannotOverrideCompletedCloudOwnership() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            scanState: .inferencing
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),
+            kind: .scanIngestion,
+            subjectId: scan.id,
+            status: .running,
+            attemptCount: 2,
+            lastErrorCode:
+                OfflineQueueManager.completedServerResultRecoveryCode
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        #expect(
+            await actor.scheduleInferenceRetry(
+                id: scan.id,
+                expectedGeneration: nil,
+                code: OfflineQueueManager.serverRetryableFailureCode,
+                message: "This must not replace cloud-complete ownership.",
+                delay: 1
+            ) == nil
+        )
+
+        let verificationContext = ModelContext(container)
+        let scanId = scan.id
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.queueState == .inferencing)
+        #expect(
+            persisted.queueLastErrorCode
+                == OfflineQueueManager.completedServerResultRecoveryCode
+        )
+    }
+
     @Test func testServerResultRecoveryRetryPreservesCloudOwnershipEvidence() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
@@ -1958,11 +2063,28 @@ struct BackgroundDatabaseActorTests {
                 resetMediaUploads: true
             ) == 1
         )
+        // Simulate a migrated store whose queue-row snapshot lost the marker
+        // and counter while the job-row mirror remained durable.
+        let driftContext = ModelContext(container)
+        let driftedScanId = scan.id
+        var driftDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == driftedScanId }
+        )
+        driftDescriptor.fetchLimit = 1
+        let driftedScan = try #require(
+            driftContext.fetch(driftDescriptor).first
+        )
+        driftedScan.queueLastErrorCode = nil
+        driftedScan.queueAttemptCount = 0
+        try driftContext.save()
+
+        let stagingActor =
+            BackgroundDatabaseActor(modelContainer: container)
         #expect(
-            await actor.markScansAsUploading(scanIds: [scan.id]) ==
+            await stagingActor.markScansAsUploading(scanIds: [scan.id]) ==
                 Set([scan.id])
         )
-        let outcome = await actor.markScanAsStaged(
+        let outcome = await stagingActor.markScanAsStaged(
             scanId: scan.id,
             r2Keys: ["staging/user/\(scan.id)_server-retry.webp"]
         )
