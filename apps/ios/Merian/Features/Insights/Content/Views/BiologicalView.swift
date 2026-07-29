@@ -14,11 +14,27 @@ struct BiologicalView: View {
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var namePickerScanId: String?
+    @State private var namePickerScientificName: String?
+    @State private var namePickerGeneration: UInt64?
 
-    private var refinementAction: (() -> Void)? {
-        guard let scanIdStr = inferenceEngine.speciesData?.scanId else { return nil }
+    private func refinementAction(
+        scanId: String?,
+        generation: UInt64
+    ) -> (() -> Void)? {
+        guard let scanId else { return nil }
         return {
-            var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
+            guard viewModel.isPresentingLocalRecord(
+                      scanId: scanId,
+                      generation: generation
+                  ),
+                  inferenceEngine.speciesData?.scanId?
+                    .caseInsensitiveCompare(scanId) == .orderedSame else {
+                return
+            }
+            var descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
             descriptor.fetchLimit = 1
             guard let record = try? modelContext.fetch(descriptor).first else { return }
 
@@ -33,6 +49,11 @@ struct BiologicalView: View {
 
     // MARK: - Visual Layout
     var body: some View {
+        let fieldNotesScanId = viewModel.currentFieldNotesScanId
+        let fieldNotesGeneration = viewModel.scanBoundActionGeneration
+        let biologicalScanId = viewModel.presentedLocalRecordScanId
+        let biologicalScientificName = inferenceEngine.speciesData?.scientificName
+
         VStack(spacing: 32) {
 
             // MARK: - Header
@@ -48,30 +69,83 @@ struct BiologicalView: View {
                 isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
                 aiScientificName: inferenceEngine.speciesData?.aiScientificName,
                 onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                    viewModel.state.isCommunityRequestSheetPresented = true
+                    guard let scanId = biologicalScanId else { return }
+                    viewModel.presentCommunityIdentificationRequest(
+                        expectedScanId: scanId,
+                        expectedGeneration: fieldNotesGeneration
+                    )
                 } : nil,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 },
                 alternativeCommonNames: viewModel.displayAlternativeCommonNames,
                 onAlternativeNamesTap: {
+                    guard let scanId = biologicalScanId,
+                          let scientificName = biologicalScientificName,
+                          viewModel.isPresentingLocalRecord(
+                              scanId: scanId,
+                              generation: fieldNotesGeneration
+                          ),
+                          inferenceEngine.speciesData?.scientificName
+                            .caseInsensitiveCompare(scientificName) == .orderedSame else {
+                        return
+                    }
+                    namePickerScanId = scanId
+                    namePickerScientificName = scientificName
+                    namePickerGeneration = fieldNotesGeneration
                     viewModel.state.isNamePickerPresented = true
                 }
             )
             .cardEntrance(index: 0)
-            .sheet(isPresented: $viewModel.state.isNamePickerPresented) {
-                NamePickerSheet(
-                    allNames: viewModel.allNamesForPicker,
-                    activeName: viewModel.resolvedHeaderTitle,
-                    onSelect: { chosen in
-                        if let scientificName = inferenceEngine.speciesData?.scientificName {
-                            viewModel.setPreferredCommonName(chosen, for: scientificName, modelContext: modelContext)
+            .sheet(isPresented: namePickerPresentedBinding) {
+                if let scanId = namePickerScanId,
+                   let scientificName = namePickerScientificName,
+                   let generation = namePickerGeneration,
+                   viewModel.isPresentingLocalRecord(
+                       scanId: scanId,
+                       generation: generation
+                   ),
+                   inferenceEngine.speciesData?.scientificName
+                    .caseInsensitiveCompare(scientificName) == .orderedSame {
+                    NamePickerSheet(
+                        allNames: viewModel.allNamesForPicker,
+                        activeName: viewModel.resolvedHeaderTitle,
+                        onSelect: { chosen in
+                            guard viewModel.isPresentingLocalRecord(
+                                scanId: scanId,
+                                generation: generation
+                            ),
+                                  namePickerScanId?
+                                    .caseInsensitiveCompare(scanId) ==
+                                    .orderedSame,
+                                  namePickerScientificName?
+                                    .caseInsensitiveCompare(scientificName) ==
+                                    .orderedSame,
+                                  namePickerGeneration == generation else {
+                                return
+                            }
+                            viewModel.setPreferredCommonName(
+                                chosen,
+                                for: scientificName,
+                                expectedScanId: scanId,
+                                expectedGeneration: generation,
+                                modelContext: modelContext
+                            )
+                            namePickerScanId = nil
+                            namePickerScientificName = nil
+                            namePickerGeneration = nil
+                            viewModel.state.isNamePickerPresented = false
                         }
-                        viewModel.state.isNamePickerPresented = false
-                    }
-                )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            .onChange(of: inferenceEngine.scanPresentationGeneration) {
+                namePickerScanId = nil
+                namePickerScientificName = nil
+                namePickerGeneration = nil
+                viewModel.state.isNamePickerPresented = false
             }
 
             // MARK: - Toxicity Banner
@@ -95,10 +169,26 @@ struct BiologicalView: View {
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                         confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                         onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                            viewModel.state.isCommunityRequestSheetPresented = true
+                            guard let scanId = biologicalScanId else { return }
+                            viewModel.presentCommunityIdentificationRequest(
+                                expectedScanId: scanId,
+                                expectedGeneration: fieldNotesGeneration
+                            )
                         } : nil,
-                        onMatchConfirmed: { viewModel.state.toastMessage = "Match confirmed" },
-                        onRefineScan: refinementAction
+                        onMatchConfirmed: {
+                            guard let scanId = biologicalScanId,
+                                  viewModel.isPresentingLocalRecord(
+                                      scanId: scanId,
+                                      generation: fieldNotesGeneration
+                                  ) else {
+                                return
+                            }
+                            viewModel.state.toastMessage = "Match confirmed"
+                        },
+                        onRefineScan: refinementAction(
+                            scanId: biologicalScanId,
+                            generation: fieldNotesGeneration
+                        )
                     )
                     .cardEntrance(index: 2)
                 }
@@ -111,6 +201,13 @@ struct BiologicalView: View {
                         FieldTripProgressCard(
                             contributions: viewModel.fieldTripScanContributions,
                             onOpen: { destination in
+                                guard let scanId = biologicalScanId,
+                                      viewModel.isPresentingLocalRecord(
+                                          scanId: scanId,
+                                          generation: fieldNotesGeneration
+                                      ) else {
+                                    return
+                                }
                                 onOpenFieldTripOverview?(destination)
                             }
                         )
@@ -132,11 +229,17 @@ struct BiologicalView: View {
                             : (viewModel.state.exploreFieldNotesArePublic ? .published : .privateNotes),
                         onDismiss: {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                viewModel.dismissFieldNotesCard()
+                                viewModel.dismissFieldNotesCard(
+                                    expectedScanId: fieldNotesScanId,
+                                    expectedGeneration: fieldNotesGeneration
+                                )
                             }
                         },
                         action: {
-                            viewModel.state.isFieldNotesSheetPresented = true
+                            viewModel.presentFieldNotes(
+                                expectedScanId: fieldNotesScanId,
+                                expectedGeneration: fieldNotesGeneration
+                            )
                         }
                     )
                     .cardEntrance(index: 4)
@@ -144,8 +247,14 @@ struct BiologicalView: View {
 
                 // MARK: - Educational Reference
                 OverviewCard(
-                    isSafariPresented: $isSafariPresented,
-                    selectedWikiURL: $selectedWikiURL
+                    isSafariPresented: safariPresentedBinding(
+                        scanId: biologicalScanId,
+                        generation: fieldNotesGeneration
+                    ),
+                    selectedWikiURL: selectedWikiURLBinding(
+                        scanId: biologicalScanId,
+                        generation: fieldNotesGeneration
+                    )
                 )
                 .cardEntrance(index: 5)
 
@@ -204,13 +313,131 @@ struct BiologicalView: View {
                 .cardEntrance(index: 9)
 
                 // MARK: - Custom Tags
-                if let scanId = inferenceEngine.speciesData?.scanId {
+                if let scanId = viewModel.presentedLocalRecordScanId,
+                   inferenceEngine.speciesData?.scanId?
+                    .caseInsensitiveCompare(scanId) == .orderedSame {
                     UserTagsCard(scanId: scanId)
+                        .id(scanId.lowercased())
                         .cardEntrance(index: 10)
                 }
             }
         }
         .padding(.horizontal)
+    }
+
+    private func safariPresentedBinding(
+        scanId: String?,
+        generation: UInt64
+    ) -> Binding<Bool> {
+        guard let scanId else { return .constant(false) }
+        return Binding(
+            get: {
+                viewModel.isPresentingLocalRecord(
+                    scanId: scanId,
+                    generation: generation
+                ) && isSafariPresented
+            },
+            set: { isPresented in
+                guard viewModel.isPresentingLocalRecord(
+                    scanId: scanId,
+                    generation: generation
+                ) else {
+                    return
+                }
+                if isPresented {
+                    viewModel.state.safariPresentationScanId = scanId
+                    viewModel.state.safariPresentationGeneration = generation
+                } else {
+                    guard viewModel.state.safariPresentationScanId?
+                        .caseInsensitiveCompare(scanId) == .orderedSame,
+                          viewModel.state.safariPresentationGeneration ==
+                            generation else {
+                        return
+                    }
+                    viewModel.state.safariPresentationScanId = nil
+                    viewModel.state.safariPresentationGeneration = nil
+                    selectedWikiURL = nil
+                }
+                isSafariPresented = isPresented
+            }
+        )
+    }
+
+    private var namePickerPresentedBinding: Binding<Bool> {
+        let expectedScanId = namePickerScanId
+        let expectedScientificName = namePickerScientificName
+        let expectedGeneration = namePickerGeneration
+        return Binding(
+            get: {
+                guard viewModel.state.isNamePickerPresented,
+                      let expectedScanId,
+                      let expectedScientificName,
+                      let expectedGeneration,
+                      namePickerScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      namePickerScientificName?
+                        .caseInsensitiveCompare(expectedScientificName) ==
+                        .orderedSame,
+                      namePickerGeneration == expectedGeneration else {
+                    return false
+                }
+                return viewModel.isPresentingLocalRecord(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                ) && inferenceEngine.speciesData?.scientificName
+                    .caseInsensitiveCompare(expectedScientificName) ==
+                    .orderedSame
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                guard let expectedScanId,
+                      let expectedScientificName,
+                      let expectedGeneration,
+                      namePickerScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      namePickerScientificName?
+                        .caseInsensitiveCompare(expectedScientificName) ==
+                        .orderedSame,
+                      namePickerGeneration == expectedGeneration,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: expectedScanId,
+                          generation: expectedGeneration
+                      ) else {
+                    return
+                }
+                namePickerScanId = nil
+                namePickerScientificName = nil
+                namePickerGeneration = nil
+                viewModel.state.isNamePickerPresented = false
+            }
+        )
+    }
+
+    private func selectedWikiURLBinding(
+        scanId: String?,
+        generation: UInt64
+    ) -> Binding<URL?> {
+        guard let scanId else { return .constant(nil) }
+        return Binding(
+            get: {
+                guard viewModel.isPresentingLocalRecord(
+                    scanId: scanId,
+                    generation: generation
+                ) else {
+                    return nil
+                }
+                return selectedWikiURL
+            },
+            set: { url in
+                guard viewModel.isPresentingLocalRecord(
+                    scanId: scanId,
+                    generation: generation
+                ) else {
+                    return
+                }
+                selectedWikiURL = url
+            }
+        )
     }
 
     private func insightSimilarSpeciesRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {

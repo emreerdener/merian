@@ -291,7 +291,7 @@ struct InsightChatSheet: View {
                                             Task { await viewModel.retryFailedMessage(scanId: scanId) }
                                         },
                                         onEdit: {
-                                            viewModel.editFailedMessage()
+                                            viewModel.editFailedMessage(scanId: scanId)
                                             composerFocused = true
                                         }
                                     )
@@ -448,7 +448,7 @@ struct InsightChatSheet: View {
         HStack(alignment: .center, spacing: 10) {
                 TextField("Ask Naturebook AI", text: Binding(
                     get: { viewModel.draftText },
-                    set: { viewModel.setDraftText($0) }
+                    set: { viewModel.setDraftText($0, scanId: scanId) }
                 ), axis: .vertical)
                 .lineLimit(1...5)
                 .textFieldStyle(.plain)

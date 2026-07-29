@@ -62,10 +62,13 @@ healthy, while no scan-producing request left the device.
 
 ## Root Cause
 
-The history audit covered the latest 100 first-parent commits through
-`b2c7a241acfe12bcc9f77e853715aa94c9855f17`. This repository had zero merge
+The history audit was repeated over the latest 100 first-parent commits through
+`a21155a3299598e81be0ec322ce339adbff62ff1`. This repository had zero merge
 commits in that window, so the requested “last 100 merges” review was performed
-against its linear first-parent history and each relevant scan-path change.
+against its linear/squash first-parent history and each relevant scan-path
+change. The original deadlock was isolated before `b2c7a241a`; the later
+recovery-proof hardening at `a21155a32` does not alter this client scheduler root
+cause.
 
 Commit `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` joined three individually
 reasonable recovery changes into a closed state machine:

@@ -828,4 +828,79 @@ struct InsightChatTests {
         #expect(preparationCount == 1)
         #expect(!viewModel.isCheckingAvailability)
     }
+
+    @Test func testFieldChatRejectsStaleSubjectCompletion() {
+        let viewModel = InsightChatViewModel()
+        let firstScanId = "019fb00a-fb11-7765-93c8-35429f3750a1"
+        let secondScanId = "019fb00a-fbd1-7b77-bf88-fd7110114081"
+        let firstGeneration = viewModel.activateSubject(scanId: firstScanId)
+        viewModel.setDraftText("Private note for the first scan", scanId: firstScanId)
+
+        let secondGeneration = viewModel.activateSubject(scanId: secondScanId)
+        let staleResponse = InsightChatResponse(
+            subjectId: firstScanId,
+            conversationId: nil,
+            messages: [],
+            limits: InsightChatLimits(
+                maxUserMessageCharacters: 600,
+                maxMessagesPerConversation: 30,
+                dailySendLimit: 20,
+                sendsRemainingToday: 19
+            )
+        )
+        let currentResponse = InsightChatResponse(
+            subjectId: secondScanId,
+            conversationId: nil,
+            messages: [],
+            limits: InsightChatLimits(
+                maxUserMessageCharacters: 600,
+                maxMessagesPerConversation: 30,
+                dailySendLimit: 20,
+                sendsRemainingToday: 18
+            )
+        )
+
+        #expect(!viewModel.applyIfCurrent(
+            staleResponse,
+            scanId: firstScanId,
+            generation: firstGeneration
+        ))
+        #expect(viewModel.draftText.isEmpty)
+        #expect(viewModel.limits.sendsRemainingToday == 20)
+        #expect(viewModel.applyIfCurrent(
+            currentResponse,
+            scanId: secondScanId,
+            generation: secondGeneration
+        ))
+        #expect(viewModel.limits.sendsRemainingToday == 18)
+    }
+
+    @Test func testFieldChatReplacesPreparationForChangedSubject() async {
+        let viewModel = InsightChatViewModel(source: .explorePost)
+        let (firstGate, firstGateContinuation) = AsyncStream<Void>.makeStream()
+        var firstPreparationStarted = false
+        let firstRequest = Task { @MainActor in
+            await viewModel.prepareForPresentation(scanId: "post_1") {
+                firstPreparationStarted = true
+                for await _ in firstGate {
+                    break
+                }
+                return true
+            }
+        }
+        while !firstPreparationStarted {
+            await Task.yield()
+        }
+
+        let secondResult = await viewModel.prepareForPresentation(scanId: "post_2") {
+            true
+        }
+        firstGateContinuation.yield()
+        firstGateContinuation.finish()
+        let firstResult = await firstRequest.value
+
+        #expect(!firstResult)
+        #expect(secondResult)
+        #expect(!viewModel.isCheckingAvailability)
+    }
 }

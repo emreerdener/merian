@@ -103,6 +103,21 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.isTopScrollEdgeEffectHidden == true)
     }
 
+    @Test func testResetMonotonicallyInvalidatesScanBoundRequests() {
+        let viewModel = InsightSheetViewModel()
+        viewModel.scanBoundActionGeneration = 7
+        viewModel.sharedExploreStateRevision = 11
+        viewModel.sharedExploreStateRequestToken = 13
+        viewModel.fieldTripContributionRequestToken = 17
+
+        viewModel.reset()
+
+        #expect(viewModel.scanBoundActionGeneration == 8)
+        #expect(viewModel.sharedExploreStateRevision == 12)
+        #expect(viewModel.sharedExploreStateRequestToken == 14)
+        #expect(viewModel.fieldTripContributionRequestToken == 18)
+    }
+
     @Test func fieldTripContributionsLoadEveryCreditedExperience() async {
         let standard = contribution(
             kind: .standardOuting,
@@ -677,6 +692,10 @@ struct InsightSheetViewModelTests {
         viewModel.presentCandidateSwipe(source: .identificationConcern)
 
         #expect(viewModel.candidateSwipeCandidates.map(\.scientificName) == ["Pieris rapae"])
+        #expect(
+            viewModel.state.candidateSwipeEnginePresentationGeneration ==
+                engine.scanPresentationGeneration
+        )
     }
 
     @Test func testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates() {
@@ -826,7 +845,6 @@ struct InsightSheetViewModelTests {
         // Validation that the viewmodel gracefully pulls state and assigns local memory
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()
-        viewModel.inferenceEngine = InferenceEngine()
         
         // Assert initial unassigned state
         #expect(viewModel.activeLocalRecord == nil)
@@ -838,6 +856,7 @@ struct InsightSheetViewModelTests {
         let recordId = record.id
         ctx.insert(record)
         try ctx.save()
+        viewModel.inferenceEngine = biologicalEngine(scanId: recordId)
         
         viewModel.fetchLocalRecord(for: recordId, modelContext: ctx)
         
@@ -862,6 +881,228 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.sharedExplorePostId == sharedPostId)
     }
 
+    @Test func testMissingDifferentRecordClearsStaleScanBoundState() async throws {
+        let ctx = try createIsolatedContext()
+        let staleScan = LocalScanRecord(
+            speciesId: "stale_identity_species",
+            scientificName: "Quercus alba",
+            commonName: "White Oak",
+            fieldNotes: "Old observation"
+        )
+        ctx.insert(staleScan)
+        try ctx.save()
+
+        let viewModel = InsightSheetViewModel()
+        viewModel.inferenceEngine = biologicalEngine(scanId: staleScan.id)
+        #expect(viewModel.fetchLocalRecord(for: staleScan.id, modelContext: ctx))
+        viewModel.state.sharedExplorePostId = UUID().uuidString.lowercased()
+        viewModel.state.sharedCommunityIdentificationRequestId = UUID().uuidString.lowercased()
+        viewModel.state.sharedCommunityIdentificationStatus = .needsId
+        viewModel.state.isExploreFeedVisible = true
+        viewModel.state.sharedExploreHashtags = ["stale"]
+        viewModel.state.fieldNotesText = "Old observation"
+        viewModel.toastActionTitle = "View"
+        viewModel.toastAction = {}
+
+        let newScanId = UUID().uuidString.lowercased()
+        viewModel.inferenceEngine = biologicalEngine(scanId: newScanId)
+
+        #expect(!viewModel.fetchLocalRecord(for: newScanId, modelContext: ctx))
+        #expect(viewModel.activeLocalRecord == nil)
+        #expect(viewModel.activeLocalRecordId == nil)
+        #expect(viewModel.toolbarRecordSnapshot == nil)
+        #expect(viewModel.state.sharedExplorePostId == nil)
+        #expect(viewModel.state.sharedCommunityIdentificationRequestId == nil)
+        #expect(viewModel.state.sharedCommunityIdentificationStatus == nil)
+        #expect(viewModel.state.isExploreFeedVisible == false)
+        #expect(viewModel.state.sharedExploreHashtags.isEmpty)
+        #expect(viewModel.state.fieldNotesText.isEmpty)
+        #expect(viewModel.toastActionTitle == nil)
+        #expect(viewModel.toastAction == nil)
+        #expect(viewModel.presentedSpeciesScanId == newScanId)
+    }
+
+    @Test func testRecordSwitchInvalidatesPriorActionGeneration() async throws {
+        let ctx = try createIsolatedContext()
+        let firstScan = LocalScanRecord(
+            speciesId: "first_generation_species",
+            scientificName: "Quercus alba",
+            commonName: "White Oak"
+        )
+        let secondScan = LocalScanRecord(
+            speciesId: "second_generation_species",
+            scientificName: "Acer rubrum",
+            commonName: "Red Maple"
+        )
+        ctx.insert(firstScan)
+        ctx.insert(secondScan)
+        try ctx.save()
+
+        let viewModel = InsightSheetViewModel()
+        viewModel.inferenceEngine = biologicalEngine(scanId: firstScan.id)
+        #expect(viewModel.fetchLocalRecord(for: firstScan.id, modelContext: ctx))
+        let firstGeneration = viewModel.scanBoundActionGeneration
+        viewModel.state.isSharingToExplore = true
+        viewModel.state.isUpdatingExplorePostContent = true
+        viewModel.state.isUpdatingExploreFieldNotes = true
+        viewModel.state.isRequestingCommunityIdentification = true
+        viewModel.state.isFieldNotesSheetPresented = true
+        viewModel.state.fieldNotesPresentationScanId = firstScan.id
+        viewModel.state.fieldNotesPresentationGeneration = firstGeneration
+        viewModel.state.isInsightChatSheetPresented = true
+        viewModel.state.isCandidateSwipePresented = true
+        viewModel.state.candidateSwipePresentationScanId = firstScan.id
+        viewModel.state.candidateSwipePresentationGeneration = firstGeneration
+        viewModel.state.candidateSwipeEnginePresentationGeneration =
+            viewModel.inferenceEngine?.scanPresentationGeneration
+        viewModel.state.isSafariPresented = true
+        viewModel.state.selectedWikiURL = URL(string: "https://en.wikipedia.org/wiki/Quercus_alba")
+        viewModel.state.safariPresentationScanId = firstScan.id
+        viewModel.state.safariPresentationGeneration = firstGeneration
+        viewModel.state.showBottomBarTools = true
+        viewModel.state.isExplorePostComposerPresented = true
+        viewModel.state.explorePostComposerPresentationScanId = firstScan.id
+        viewModel.state.explorePostComposerPresentationGeneration = firstGeneration
+        viewModel.state.explorePostComposerPresentationPostId =
+            UUID().uuidString.lowercased()
+        viewModel.state.showExploreOnboarding = true
+        viewModel.state.exploreOnboardingPresentationScanId = firstScan.id
+        viewModel.state.exploreOnboardingPresentationGeneration = firstGeneration
+        viewModel.state.isCommunityRequestSheetPresented = true
+        viewModel.state.communityRequestPresentationScanId = firstScan.id
+        viewModel.state.communityRequestPresentationGeneration = firstGeneration
+        viewModel.state.communityRequestPresentationRequestId =
+            UUID().uuidString.lowercased()
+        viewModel.state.showExploreSheet = true
+        viewModel.state.explorePresentationTarget = .post
+        viewModel.state.explorePresentationScanId = firstScan.id
+        viewModel.state.explorePresentationGeneration = firstGeneration
+
+        viewModel.inferenceEngine = biologicalEngine(scanId: secondScan.id)
+        #expect(viewModel.fetchLocalRecord(for: secondScan.id, modelContext: ctx))
+
+        #expect(viewModel.scanBoundActionGeneration != firstGeneration)
+        #expect(!viewModel.isPresentingLocalRecord(
+            scanId: firstScan.id,
+            generation: firstGeneration
+        ))
+        #expect(viewModel.isPresentingLocalRecord(scanId: secondScan.id))
+        #expect(viewModel.state.isSharingToExplore == false)
+        #expect(viewModel.state.isUpdatingExplorePostContent == false)
+        #expect(viewModel.state.isUpdatingExploreFieldNotes == false)
+        #expect(viewModel.state.isRequestingCommunityIdentification == false)
+        #expect(viewModel.state.isFieldNotesSheetPresented == false)
+        #expect(viewModel.state.fieldNotesPresentationScanId == nil)
+        #expect(viewModel.state.fieldNotesPresentationGeneration == nil)
+        #expect(viewModel.state.isInsightChatSheetPresented == false)
+        #expect(viewModel.state.isCandidateSwipePresented == false)
+        #expect(viewModel.state.candidateSwipePresentationScanId == nil)
+        #expect(viewModel.state.candidateSwipePresentationGeneration == nil)
+        #expect(viewModel.state.candidateSwipeEnginePresentationGeneration == nil)
+        #expect(viewModel.state.isSafariPresented == false)
+        #expect(viewModel.state.selectedWikiURL == nil)
+        #expect(viewModel.state.safariPresentationScanId == nil)
+        #expect(viewModel.state.safariPresentationGeneration == nil)
+        #expect(viewModel.state.showBottomBarTools == false)
+        #expect(viewModel.state.isExplorePostComposerPresented == false)
+        #expect(viewModel.state.explorePostComposerPresentationScanId == nil)
+        #expect(viewModel.state.explorePostComposerPresentationGeneration == nil)
+        #expect(viewModel.state.explorePostComposerPresentationPostId == nil)
+        #expect(viewModel.state.showExploreOnboarding == false)
+        #expect(viewModel.state.exploreOnboardingPresentationScanId == nil)
+        #expect(viewModel.state.exploreOnboardingPresentationGeneration == nil)
+        #expect(viewModel.state.isCommunityRequestSheetPresented == false)
+        #expect(viewModel.state.communityRequestPresentationScanId == nil)
+        #expect(viewModel.state.communityRequestPresentationGeneration == nil)
+        #expect(viewModel.state.communityRequestPresentationRequestId == nil)
+        #expect(viewModel.state.showExploreSheet == false)
+        #expect(viewModel.state.explorePresentationTarget == .automatic)
+        #expect(viewModel.state.explorePresentationScanId == nil)
+        #expect(viewModel.state.explorePresentationGeneration == nil)
+
+        viewModel.presentExplore(
+            target: .post,
+            expectedScanId: firstScan.id,
+            expectedGeneration: firstGeneration
+        )
+        #expect(viewModel.state.showExploreSheet == false)
+    }
+
+    @Test func testExploreSharingRequiresExactEngineAndRecordIdentity() throws {
+        let viewModel = shareRecommendationViewModel(
+            confidence: 0.99,
+            inferenceTier: "flash"
+        )
+        let scanId = try #require(viewModel.inferenceEngine?.speciesData?.scanId)
+
+        #expect(viewModel.presentedSpeciesScanId == scanId)
+        #expect(viewModel.canShareToExplore)
+
+        let postId = UUID().uuidString.lowercased()
+        let requestId = UUID().uuidString.lowercased()
+        viewModel.state.sharedExplorePostId = postId
+        viewModel.state.sharedCommunityIdentificationRequestId = requestId
+        viewModel.presentExplorePostComposer(
+            expectedScanId: scanId,
+            expectedGeneration: viewModel.scanBoundActionGeneration
+        )
+        viewModel.presentCommunityIdentificationRequest(
+            expectedScanId: scanId,
+            expectedGeneration: viewModel.scanBoundActionGeneration
+        )
+        #expect(viewModel.state.explorePostComposerPresentationPostId == postId)
+        #expect(viewModel.state.communityRequestPresentationRequestId == requestId)
+
+        viewModel.activeLocalRecordId = UUID().uuidString.lowercased()
+        viewModel.inferenceEngine?.activeScanId = UUID().uuidString.lowercased()
+
+        #expect(viewModel.presentedSpeciesScanId == nil)
+        #expect(!viewModel.canShareToExplore)
+        #expect(viewModel.persistentScanId == scanId)
+    }
+
+    @Test func testPreferredNameRejectsStalePresentationGeneration() async throws {
+        let context = try createIsolatedContext()
+        let first = LocalScanRecord(
+            speciesId: "preferred_name_generation_1",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch"
+        )
+        let second = LocalScanRecord(
+            speciesId: "preferred_name_generation_2",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch"
+        )
+        context.insert(first)
+        context.insert(second)
+        try context.save()
+        let viewModel = InsightSheetViewModel()
+        viewModel.inferenceEngine = biologicalEngine(scanId: first.id)
+        #expect(viewModel.fetchLocalRecord(for: first.id, modelContext: context))
+        let staleGeneration = viewModel.scanBoundActionGeneration
+
+        viewModel.inferenceEngine = biologicalEngine(scanId: second.id)
+        #expect(viewModel.fetchLocalRecord(for: second.id, modelContext: context))
+        viewModel.inferenceEngine = biologicalEngine(scanId: first.id)
+        #expect(viewModel.fetchLocalRecord(for: first.id, modelContext: context))
+
+        viewModel.setPreferredCommonName(
+            "Stale Monarch Name",
+            for: "Danaus plexippus",
+            expectedScanId: first.id,
+            expectedGeneration: staleGeneration,
+            modelContext: context
+        )
+
+        #expect(
+            SpeciesPreferredNameRepository.preferredName(
+                for: "Danaus plexippus",
+                modelContext: context
+            ) == nil
+        )
+        #expect(viewModel.state.toastMessage == nil)
+    }
+
     private func shareRecommendationViewModel(
         confidence: Double,
         inferenceTier: String?,
@@ -875,6 +1116,7 @@ struct InsightSheetViewModelTests {
             commonName: "French Rose",
             coverImagePath: "rose.webp"
         )
+        viewModel.activeLocalRecord = record
         viewModel.activeLocalRecordId = record.id
         viewModel.toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
 
@@ -1186,6 +1428,178 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.fieldNotesText == "Queued field note")
         #expect(queuedScan.fieldNotes == "Queued field note")
         #expect(FieldNotesStore.fieldNotes(for: queuedScan.id) == "Queued field note")
+    }
+
+    @Test func testFieldNotesRejectChangedPresentationIdentity() async throws {
+        let ctx = try createIsolatedContext()
+        let queuedScan = OfflineQueuedScan(id: "current_field_notes_scan")
+        ctx.insert(queuedScan)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(nil, for: queuedScan.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: queuedScan.id) }
+
+        let viewModel = InsightSheetViewModel(
+            queuedContext: QueuedScanContext(from: queuedScan)
+        )
+        viewModel.syncFieldNotesFromCurrentScan(modelContext: ctx)
+
+        viewModel.presentFieldNotes(expectedScanId: "previous_field_notes_scan")
+        viewModel.updateFieldNotes(
+            "Stale note",
+            expectedScanId: "previous_field_notes_scan",
+            modelContext: ctx
+        )
+
+        #expect(viewModel.state.isFieldNotesSheetPresented == false)
+        #expect(viewModel.state.fieldNotesPresentationScanId == nil)
+        #expect(viewModel.state.fieldNotesPresentationGeneration == nil)
+        #expect(viewModel.fieldNotesText.isEmpty)
+        #expect(queuedScan.fieldNotes == nil)
+
+        viewModel.presentFieldNotes(expectedScanId: queuedScan.id)
+
+        #expect(viewModel.state.isFieldNotesSheetPresented)
+        #expect(viewModel.state.fieldNotesPresentationScanId == queuedScan.id)
+        #expect(
+            viewModel.state.fieldNotesPresentationGeneration ==
+                viewModel.scanBoundActionGeneration
+        )
+    }
+
+    @Test func testQueuedRefreshRejectsChangedPresentationIdentity() {
+        let first = QueuedScanContext(
+            id: "queued_scan_1",
+            capturedMediaItems: [.image("first.webp")],
+            queueState: .pending,
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+        let second = QueuedScanContext(
+            id: "queued_scan_2",
+            capturedMediaItems: [.image("second-old.webp")],
+            queueState: .pending,
+            timestamp: Date(timeIntervalSince1970: 2)
+        )
+        let staleFirstRefresh = QueuedScanContext(
+            id: first.id,
+            capturedMediaItems: [.image("stale-first.webp")],
+            queueState: .failed,
+            timestamp: first.timestamp,
+            queueLastErrorCode: "stale"
+        )
+        let currentSecondRefresh = QueuedScanContext(
+            id: second.id,
+            capturedMediaItems: [.image("second-new.webp")],
+            queueState: .uploading,
+            timestamp: second.timestamp
+        )
+        let viewModel = InsightSheetViewModel(queuedContext: first)
+        viewModel.queuedContext = second
+
+        #expect(!viewModel.refreshQueuedContextIfCurrent(
+            staleFirstRefresh,
+            expectedScanId: first.id
+        ))
+        #expect(viewModel.queuedContext?.id == second.id)
+        #expect(viewModel.queuedContext?.queueState == .pending)
+        #expect(viewModel.refreshQueuedContextIfCurrent(
+            currentSecondRefresh,
+            expectedScanId: second.id
+        ))
+        #expect(viewModel.queuedContext?.queueState == .uploading)
+        #expect(
+            viewModel.cachedActiveMedia?.imagePathsForUpload ==
+                ["second-new.webp"]
+        )
+    }
+
+    @Test func testQueuedPresentationSwitchInvalidatesPriorQueueIdentity() {
+        let first = QueuedScanContext(
+            id: "queued_presentation_1",
+            capturedMediaItems: [.image("first.webp")],
+            queueState: .uploading,
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+        let second = QueuedScanContext(
+            id: "queued_presentation_2",
+            capturedMediaItems: [.image("second.webp")],
+            queueState: .inferencing,
+            timestamp: Date(timeIntervalSince1970: 2)
+        )
+        let viewModel = InsightSheetViewModel(queuedContext: first)
+        let firstGeneration = viewModel.scanBoundActionGeneration
+        viewModel.state.fieldNotesText = "First queued note"
+        viewModel.state.isFieldNotesSheetPresented = true
+        viewModel.state.fieldNotesPresentationScanId = first.id
+        viewModel.state.fieldNotesPresentationGeneration = firstGeneration
+        viewModel.state.showDeleteConfirmation = true
+        viewModel.state.toastMessage = "First queued toast"
+
+        viewModel.bindQueuedPresentation(second)
+
+        #expect(viewModel.queuedContext?.id == second.id)
+        #expect(viewModel.queuedContext?.queueState == .inferencing)
+        #expect(viewModel.scanBoundActionGeneration != firstGeneration)
+        #expect(viewModel.state.fieldNotesText.isEmpty)
+        #expect(!viewModel.state.isFieldNotesSheetPresented)
+        #expect(viewModel.state.fieldNotesPresentationScanId == nil)
+        #expect(viewModel.state.fieldNotesPresentationGeneration == nil)
+        #expect(!viewModel.state.showDeleteConfirmation)
+        #expect(viewModel.state.toastMessage == nil)
+        #expect(viewModel.cachedActiveMedia?.imagePathsForUpload == ["second.webp"])
+    }
+
+    @Test func testQueuedPromotionRejectsChangedPresentationIdentity() throws {
+        let context = try createIsolatedContext()
+        let firstRecord = LocalScanRecord(
+            speciesId: "queued_promotion_species_1",
+            scientificName: "Quercus alba",
+            commonName: "White Oak"
+        )
+        let secondRecord = LocalScanRecord(
+            speciesId: "queued_promotion_species_2",
+            scientificName: "Acer rubrum",
+            commonName: "Red Maple"
+        )
+        secondRecord.hasBeenViewed = false
+        context.insert(firstRecord)
+        context.insert(secondRecord)
+        try context.save()
+
+        let firstContext = QueuedScanContext(
+            id: firstRecord.id,
+            capturedMediaItems: [],
+            queueState: .inferencing,
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+        let secondContext = QueuedScanContext(
+            id: secondRecord.id,
+            capturedMediaItems: [],
+            queueState: .inferencing,
+            timestamp: Date(timeIntervalSince1970: 2)
+        )
+        let engine = InferenceEngine()
+        let viewModel = InsightSheetViewModel(
+            queuedContext: secondContext,
+            inferenceEngine: engine
+        )
+        let queuedGeneration = viewModel.scanBoundActionGeneration
+
+        #expect(!viewModel.promoteQueuedScanIfLocalRecordExists(
+            scanId: firstContext.id,
+            modelContext: context,
+            inferenceEngine: engine
+        ))
+        #expect(viewModel.queuedContext?.id == secondContext.id)
+        #expect(engine.speciesData == nil)
+        #expect(viewModel.promoteQueuedScanIfLocalRecordExists(
+            scanId: secondContext.id,
+            modelContext: context,
+            inferenceEngine: engine
+        ))
+        #expect(viewModel.queuedContext == nil)
+        #expect(viewModel.scanBoundActionGeneration != queuedGeneration)
+        #expect(engine.speciesData?.scanId == secondRecord.id)
+        #expect(secondRecord.hasBeenViewed)
     }
 
     @Test func testTotalImagesWithReferenceImageLoading() async throws {

@@ -2,22 +2,84 @@ import SwiftData
 import SwiftUI
 
 extension InsightSheetViewModel {
+    func presentExplore(
+        target: InsightExplorePresentationTarget,
+        expectedScanId: String,
+        expectedGeneration: UInt64
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ) else {
+            return
+        }
+        state.explorePresentationTarget = target
+        state.explorePresentationScanId = expectedScanId
+        state.explorePresentationGeneration = expectedGeneration
+        state.showExploreSheet = true
+    }
+
+    func presentExplorePostComposer(
+        expectedScanId: String,
+        expectedGeneration: UInt64? = nil
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ),
+              let postId = state.sharedExplorePostId else {
+            return
+        }
+        state.explorePostComposerPresentationScanId = expectedScanId
+        state.explorePostComposerPresentationGeneration = scanBoundActionGeneration
+        state.explorePostComposerPresentationPostId = postId
+        state.isExplorePostComposerPresented = true
+    }
+
+    func presentCommunityIdentificationRequest(
+        expectedScanId: String,
+        expectedGeneration: UInt64? = nil
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ) else {
+            return
+        }
+        state.communityRequestPresentationScanId = expectedScanId
+        state.communityRequestPresentationGeneration = scanBoundActionGeneration
+        state.communityRequestPresentationRequestId =
+            state.sharedCommunityIdentificationRequestId
+        state.isCommunityRequestSheetPresented = true
+    }
+
     func shareToExplore(
         includeFieldNotes: Bool = false,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
         locationSharing: ExplorePostLocationSharing? = nil,
+        expectedScanId: String? = nil,
+        expectedGeneration: UInt64? = nil,
         modelContext: ModelContext
     ) async {
         guard canShareToExplore,
+              expectedGeneration == nil ||
+                expectedGeneration == scanBoundActionGeneration,
               let record = fetchActiveLocalRecord(modelContext: modelContext),
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(record.id) == .orderedSame,
               !state.isSharingToExplore else { return }
 
+        let scanId = record.id
+        let generation = scanBoundActionGeneration
         state.isSharingToExplore = true
-        defer { state.isSharingToExplore = false }
+        defer {
+            if generation == scanBoundActionGeneration {
+                state.isSharingToExplore = false
+            }
+        }
 
         do {
-            let scanId = record.id
             let notesForPost = fieldNotes ?? (includeFieldNotes ? shareableFieldNotes : nil)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
@@ -27,7 +89,15 @@ extension InsightSheetViewModel {
                 hashtags: hashtags,
                 locationSharing: locationSharing
             )
-            cacheSharedExplorePostId(response.postId, for: scanId)
+            cacheSharedExplorePostId(
+                response.postId,
+                for: scanId,
+                generation: generation
+            )
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ) else { return }
             state.isExploreFeedVisible = true
             state.sharedExploreHashtags = hashtags
             state.sharedExploreLocationSharing = response.locationSharing ?? locationSharing
@@ -36,12 +106,17 @@ extension InsightSheetViewModel {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = "Shared to Explore"
                 toastActionTitle = "View"
-                toastAction = { [weak self] in
-                    self?.state.explorePresentationTarget = .post
-                    self?.state.showExploreSheet = true
-                }
+                toastAction = explorePresentationAction(
+                    target: .post,
+                    scanId: scanId,
+                    generation: generation
+                )
             }
         } catch {
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ) else { return }
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
@@ -51,17 +126,29 @@ extension InsightSheetViewModel {
 
     func shareToExplore(
         _ draft: ExplorePostComposerDraft,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
         modelContext: ModelContext
     ) async -> Bool {
         guard canShareToExplore,
+              isPresentingLocalRecord(
+                  scanId: expectedScanId,
+                  generation: expectedGeneration
+              ),
               let record = fetchActiveLocalRecord(modelContext: modelContext),
+              record.id.caseInsensitiveCompare(expectedScanId) == .orderedSame,
               !state.isSharingToExplore else { return false }
 
+        let scanId = record.id
+        let generation = scanBoundActionGeneration
         state.isSharingToExplore = true
-        defer { state.isSharingToExplore = false }
+        defer {
+            if generation == scanBoundActionGeneration {
+                state.isSharingToExplore = false
+            }
+        }
 
         do {
-            let scanId = record.id
             persistComposerPreferredCommonName(draft.selectedCommonName, modelContext: modelContext)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
@@ -72,7 +159,15 @@ extension InsightSheetViewModel {
                 locationSharing: draft.locationSharing,
                 mediaItems: draft.mediaItems
             )
-            cacheSharedExplorePostId(response.postId, for: scanId)
+            cacheSharedExplorePostId(
+                response.postId,
+                for: scanId,
+                generation: generation
+            )
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ) else { return true }
             state.isExploreFeedVisible = true
             state.sharedExploreHashtags = draft.hashtags
             state.sharedExploreLocationSharing = response.locationSharing ?? draft.locationSharing
@@ -82,13 +177,18 @@ extension InsightSheetViewModel {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = "Shared to Explore"
                 toastActionTitle = "View"
-                toastAction = { [weak self] in
-                    self?.state.explorePresentationTarget = .post
-                    self?.state.showExploreSheet = true
-                }
+                toastAction = explorePresentationAction(
+                    target: .post,
+                    scanId: scanId,
+                    generation: generation
+                )
             }
             return true
         } catch {
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ) else { return false }
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
@@ -99,11 +199,21 @@ extension InsightSheetViewModel {
 
     func updateExploreFieldNotesVisibility(
         isPublic: Bool,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
         modelContext: ModelContext
     ) async -> FieldNotesVisibilityUpdateFeedback {
-        await syncExploreFieldNotesVisibility(
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ) else {
+            return .failure("The presented scan changed before field notes could update")
+        }
+        return await syncExploreFieldNotesVisibility(
             isPublic: isPublic,
             fieldNotesForPost: shareableFieldNotes,
+            expectedScanId: expectedScanId,
+            expectedGeneration: expectedGeneration,
             modelContext: modelContext
         )
     }
@@ -111,14 +221,31 @@ extension InsightSheetViewModel {
     func saveFieldNotesAndExploreVisibility(
         _ text: String,
         isPublic: Bool,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
         modelContext: ModelContext
     ) async -> FieldNotesVisibilityUpdateFeedback {
-        updateFieldNotes(text, modelContext: modelContext)
+        guard currentFieldNotesScanId?
+            .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+              isPresentingLocalRecord(
+                  scanId: expectedScanId,
+                  generation: expectedGeneration
+              ) else {
+            return .failure("This observation changed before field notes could save")
+        }
+        updateFieldNotes(
+            text,
+            expectedScanId: expectedScanId,
+            expectedGeneration: expectedGeneration,
+            modelContext: modelContext
+        )
 
         let fieldNotesForPost = FieldNotesRepository.trimmedNonEmptyText(text)
         return await syncExploreFieldNotesVisibility(
             isPublic: isPublic && fieldNotesForPost != nil,
             fieldNotesForPost: fieldNotesForPost,
+            expectedScanId: expectedScanId,
+            expectedGeneration: expectedGeneration,
             modelContext: modelContext
         )
     }
@@ -126,9 +253,15 @@ extension InsightSheetViewModel {
     private func syncExploreFieldNotesVisibility(
         isPublic: Bool,
         fieldNotesForPost: String?,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
         modelContext: ModelContext
     ) async -> FieldNotesVisibilityUpdateFeedback {
-        guard let postId = state.sharedExplorePostId, !state.isUpdatingExploreFieldNotes else {
+        guard let scanId = presentedLocalRecordScanId,
+              scanId.caseInsensitiveCompare(expectedScanId) == .orderedSame,
+              expectedGeneration == scanBoundActionGeneration,
+              let postId = state.sharedExplorePostId,
+              !state.isUpdatingExploreFieldNotes else {
             return .failure("Field notes visibility is already updating")
         }
 
@@ -136,8 +269,13 @@ extension InsightSheetViewModel {
             return .failure("Add field notes before publishing them")
         }
 
+        let generation = scanBoundActionGeneration
         state.isUpdatingExploreFieldNotes = true
-        defer { state.isUpdatingExploreFieldNotes = false }
+        defer {
+            if generation == scanBoundActionGeneration {
+                state.isUpdatingExploreFieldNotes = false
+            }
+        }
 
         do {
             if !isPublic, let fieldNotesForPost {
@@ -148,11 +286,28 @@ extension InsightSheetViewModel {
                 postId: postId,
                 fieldNotes: isPublic ? fieldNotesForPost : nil
             )
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ),
+                  state.sharedExplorePostId?
+                    .caseInsensitiveCompare(postId) == .orderedSame else {
+                return .failure("The presented scan changed while field notes were updating")
+            }
+            sharedExploreStateRevision &+= 1
             let publicNotes = response.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             state.exploreFieldNotesArePublic = publicNotes
             HapticManager.shared.triggerSuccessPulse()
             return .success(isPublic: publicNotes)
         } catch {
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ),
+                  state.sharedExplorePostId?
+                    .caseInsensitiveCompare(postId) == .orderedSame else {
+                return .failure("The presented scan changed while field notes were updating")
+            }
             HapticManager.shared.triggerErrorThump()
             return .failure(ExploreErrorFormatter.message(for: error))
         }
@@ -160,12 +315,23 @@ extension InsightSheetViewModel {
 
     func updateExplorePostContent(
         _ draft: ExplorePostComposerDraft,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
         modelContext: ModelContext
     ) async {
-        guard let postId = state.sharedExplorePostId, !state.isUpdatingExplorePostContent else { return }
+        guard let scanId = presentedLocalRecordScanId,
+              scanId.caseInsensitiveCompare(expectedScanId) == .orderedSame,
+              expectedGeneration == scanBoundActionGeneration,
+              let postId = state.sharedExplorePostId,
+              !state.isUpdatingExplorePostContent else { return }
 
+        let generation = scanBoundActionGeneration
         state.isUpdatingExplorePostContent = true
-        defer { state.isUpdatingExplorePostContent = false }
+        defer {
+            if generation == scanBoundActionGeneration {
+                state.isUpdatingExplorePostContent = false
+            }
+        }
 
         do {
             persistComposerPreferredCommonName(draft.selectedCommonName, modelContext: modelContext)
@@ -177,6 +343,15 @@ extension InsightSheetViewModel {
                 locationSharing: draft.locationSharing,
                 mediaItems: draft.mediaItems
             )
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ),
+                  state.sharedExplorePostId?
+                    .caseInsensitiveCompare(postId) == .orderedSame else {
+                return
+            }
+            sharedExploreStateRevision &+= 1
             state.sharedExploreHashtags = response.hashtags ?? draft.hashtags
             state.sharedExploreLocationSharing = response.locationSharing ?? draft.locationSharing
             state.exploreFieldNotesArePublic = response.fieldNotes?
@@ -190,6 +365,14 @@ extension InsightSheetViewModel {
                 state.toastMessage = "Explore post updated"
             }
         } catch {
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ),
+                  state.sharedExplorePostId?
+                    .caseInsensitiveCompare(postId) == .orderedSame else {
+                return
+            }
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t update Explore post", for: error)
@@ -200,14 +383,27 @@ extension InsightSheetViewModel {
     func requestCommunityIdentification(
         note: String?,
         locationSharing: ExplorePostLocationSharing,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
         modelContext: ModelContext
     ) async {
         guard canRequestCommunityIdentification,
+              isPresentingLocalRecord(
+                  scanId: expectedScanId,
+                  generation: expectedGeneration
+              ),
               let record = fetchActiveLocalRecord(modelContext: modelContext),
+              record.id.caseInsensitiveCompare(expectedScanId) == .orderedSame,
               !state.isRequestingCommunityIdentification else { return }
 
+        let scanId = record.id
+        let generation = scanBoundActionGeneration
         state.isRequestingCommunityIdentification = true
-        defer { state.isRequestingCommunityIdentification = false }
+        defer {
+            if generation == scanBoundActionGeneration {
+                state.isRequestingCommunityIdentification = false
+            }
+        }
 
         do {
             let request = try await MerianNetworkClient.shared.requestCommunityIdentification(
@@ -217,24 +413,37 @@ extension InsightSheetViewModel {
                 note: note,
                 locationSharing: locationSharing
             )
-            ExploreShareStateStore.setSharedPostId(nil, for: record.id)
-            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: record.id, postId: nil))
+            ExploreShareStateStore.setSharedPostId(nil, for: scanId)
+            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scanId, postId: nil))
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ) else { return }
+            sharedExploreStateRevision &+= 1
             state.sharedExplorePostId = nil
             state.isExploreFeedVisible = false
             state.sharedCommunityIdentificationRequestId = request.id
             state.sharedCommunityIdentificationStatus = request.status
             state.sharedExploreLocationSharing = locationSharing
             state.isCommunityRequestSheetPresented = false
+            state.communityRequestPresentationScanId = nil
+            state.communityRequestPresentationGeneration = nil
+            state.communityRequestPresentationRequestId = nil
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = "Asked the community"
                 toastActionTitle = "View"
-                toastAction = { [weak self] in
-                    self?.state.explorePresentationTarget = .communityRequest
-                    self?.state.showExploreSheet = true
-                }
+                toastAction = explorePresentationAction(
+                    target: .communityRequest,
+                    scanId: scanId,
+                    generation: generation
+                )
             }
         } catch {
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ) else { return }
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t ask the community", for: error)
@@ -244,13 +453,23 @@ extension InsightSheetViewModel {
 
     func updateCommunityIdentificationRequest(
         note: String?,
-        locationSharing: ExplorePostLocationSharing
+        locationSharing: ExplorePostLocationSharing,
+        expectedScanId: String,
+        expectedGeneration: UInt64
     ) async {
-        guard let requestId = state.sharedCommunityIdentificationRequestId,
+        guard let scanId = presentedLocalRecordScanId,
+              scanId.caseInsensitiveCompare(expectedScanId) == .orderedSame,
+              expectedGeneration == scanBoundActionGeneration,
+              let requestId = state.sharedCommunityIdentificationRequestId,
               !state.isRequestingCommunityIdentification else { return }
 
+        let generation = scanBoundActionGeneration
         state.isRequestingCommunityIdentification = true
-        defer { state.isRequestingCommunityIdentification = false }
+        defer {
+            if generation == scanBoundActionGeneration {
+                state.isRequestingCommunityIdentification = false
+            }
+        }
 
         do {
             _ = try await MerianNetworkClient.shared.updateCommunityIdentificationRequest(
@@ -258,18 +477,39 @@ extension InsightSheetViewModel {
                 note: note,
                 locationSharing: locationSharing
             )
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ),
+                  state.sharedCommunityIdentificationRequestId?
+                    .caseInsensitiveCompare(requestId) == .orderedSame else {
+                return
+            }
+            sharedExploreStateRevision &+= 1
             state.sharedExploreLocationSharing = locationSharing
             state.isCommunityRequestSheetPresented = false
+            state.communityRequestPresentationScanId = nil
+            state.communityRequestPresentationGeneration = nil
+            state.communityRequestPresentationRequestId = nil
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = "Request updated"
                 toastActionTitle = "View"
-                toastAction = { [weak self] in
-                    self?.state.explorePresentationTarget = .communityRequest
-                    self?.state.showExploreSheet = true
-                }
+                toastAction = explorePresentationAction(
+                    target: .communityRequest,
+                    scanId: scanId,
+                    generation: generation
+                )
             }
         } catch {
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ),
+                  state.sharedCommunityIdentificationRequestId?
+                    .caseInsensitiveCompare(requestId) == .orderedSame else {
+                return
+            }
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t update request", for: error)
@@ -291,10 +531,36 @@ extension InsightSheetViewModel {
         )
     }
 
+    private func explorePresentationAction(
+        target: InsightExplorePresentationTarget,
+        scanId: String,
+        generation: UInt64
+    ) -> () -> Void {
+        { [weak self] in
+            guard let self,
+                  self.isPresentingLocalRecord(
+                      scanId: scanId,
+                      generation: generation
+                  ) else {
+                return
+            }
+            self.presentExplore(
+                target: target,
+                expectedScanId: scanId,
+                expectedGeneration: generation
+            )
+        }
+    }
+
 // Removed presentShareSheet as this logic was extracted into ShareSheetUtility
     func refreshSharedExploreStateFromLocalCache(scanId: String? = nil) {
-        let resolvedScanId = scanId ?? activeLocalRecordId ?? inferenceEngine?.speciesData?.scanId
-        let cachedPostId = resolvedScanId.flatMap { ExploreShareStateStore.sharedPostId(for: $0) }
+        guard let resolvedScanId = scanId ?? activeLocalRecordId,
+              activeLocalRecord?.id.caseInsensitiveCompare(resolvedScanId) == .orderedSame,
+              activeLocalRecordId?.caseInsensitiveCompare(resolvedScanId) == .orderedSame,
+              toolbarRecordSnapshot?.scanId.caseInsensitiveCompare(resolvedScanId) == .orderedSame else {
+            return
+        }
+        let cachedPostId = ExploreShareStateStore.sharedPostId(for: resolvedScanId)
         if cachedPostId == nil, state.sharedCommunityIdentificationRequestId != nil {
             return
         }
@@ -306,10 +572,20 @@ extension InsightSheetViewModel {
         )
     }
 
-    func refreshSharedExploreStateFromServer(modelContext: ModelContext? = nil) async {
-        let scanId = activeLocalRecordId ?? inferenceEngine?.speciesData?.scanId
-        guard let scanId, !scanId.isEmpty else { return }
+    func refreshSharedExploreStateFromServer(
+        expectedScanId: String? = nil,
+        expectedGeneration: UInt64? = nil,
+        modelContext: ModelContext? = nil
+    ) async {
+        guard let scanId = presentedLocalRecordScanId,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame,
+              expectedGeneration == nil ||
+                expectedGeneration == scanBoundActionGeneration else {
+            return
+        }
 
+        let generation = scanBoundActionGeneration
         sharedExploreStateRequestToken &+= 1
         let requestToken = sharedExploreStateRequestToken
         let requestRevision = sharedExploreStateRevision
@@ -324,11 +600,19 @@ extension InsightSheetViewModel {
                 shareState.isExploreFeedVisible ? shareState.postId : nil,
                 for: scanId
             )
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ) else { return }
             applySharedExploreShareState(shareState, for: scanId, bumpRevision: false)
             state.sharedExploreLocationSharing = shareState.locationSharing
             if shareState.isExploreFeedVisible {
                 await refreshExploreFieldNotesVisibility(
                     postId: shareState.postId,
+                    scanId: scanId,
+                    generation: generation,
+                    requestToken: requestToken,
+                    requestRevision: requestRevision,
                     modelContext: modelContext
                 )
             } else {
@@ -336,14 +620,47 @@ extension InsightSheetViewModel {
                 state.sharedExploreHashtags = []
             }
         } catch {
-            // Keep the optimistic local cache when the authoritative refresh is unavailable.
+            guard MerianNetworkClient.shouldAttemptExploreCloudScanRestore(
+                after: error
+            ),
+                  requestToken == sharedExploreStateRequestToken,
+                  requestRevision == sharedExploreStateRevision,
+                  isPresentingLocalRecord(
+                    scanId: scanId,
+                    generation: generation
+                  ) else {
+                // Keep the optimistic local cache for unavailable or
+                // unconfirmed authoritative reads.
+                return
+            }
+
+            // A handler-confirmed absent owner row cannot own a valid post or
+            // Community request. Clear stale local publication state so the
+            // next deliberate action enters guarded owner-row recovery.
+            cacheSharedExplorePostId(
+                nil,
+                for: scanId,
+                generation: generation
+            )
+            state.sharedExploreHashtags = []
         }
     }
 
     private func refreshExploreFieldNotesVisibility(
         postId: String?,
+        scanId: String,
+        generation: UInt64,
+        requestToken: UInt64,
+        requestRevision: UInt64,
         modelContext: ModelContext?
     ) async {
+        guard isPresentingLocalRecord(
+            scanId: scanId,
+            generation: generation
+        ),
+              requestToken == sharedExploreStateRequestToken,
+              requestRevision == sharedExploreStateRevision else { return }
+
         guard let postId else {
             state.exploreFieldNotesArePublic = false
             state.sharedExploreHashtags = []
@@ -353,6 +670,16 @@ extension InsightSheetViewModel {
 
         do {
             let detail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
+            guard isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ),
+                  requestToken == sharedExploreStateRequestToken,
+                  requestRevision == sharedExploreStateRevision,
+                  state.sharedExplorePostId?
+                    .caseInsensitiveCompare(postId) == .orderedSame else {
+                return
+            }
             state.sharedExploreHashtags = detail.hashtags ?? []
             state.sharedExploreLocationSharing = detail.locationSharing
             if let fieldNotes = detail.trimmedFieldNotes {
@@ -367,12 +694,23 @@ extension InsightSheetViewModel {
                 state.exploreFieldNotesArePublic = false
             }
         } catch {
-            state.exploreFieldNotesArePublic = false
+            // A post-detail read is advisory. Preserve the last confirmed or
+            // optimistic visibility on transport failures instead of treating
+            // an unavailable read as proof that published notes are private.
         }
     }
-    private func cacheSharedExplorePostId(_ postId: String?, for scanId: String) {
+
+    private func cacheSharedExplorePostId(
+        _ postId: String?,
+        for scanId: String,
+        generation: UInt64
+    ) {
         ExploreShareStateStore.setSharedPostId(postId, for: scanId)
         AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scanId, postId: postId))
+        guard isPresentingLocalRecord(
+            scanId: scanId,
+            generation: generation
+        ) else { return }
         applySharedExplorePostId(
             ExploreShareStateStore.sharedPostId(for: scanId),
             for: scanId,
@@ -402,6 +740,7 @@ extension InsightSheetViewModel {
         if state.sharedExplorePostId == nil {
             state.exploreFieldNotesArePublic = false
             state.sharedExploreLocationSharing = nil
+            state.sharedExploreHashtags = []
         }
     }
 

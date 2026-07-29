@@ -392,6 +392,34 @@ struct InferenceEngineTests {
         #expect(await counter.value == 0, "Queued background writes from the cancelled scan must never run")
     }
 
+    @Test func testBackgroundWriteBacklogHasAHardMemoryBound() async throws {
+        let engine = InferenceEngine()
+        let overflow = 32
+
+        for _ in 0..<engine.debugBackgroundWriteTaskCap {
+            engine.debugEnqueueTrackedBackgroundTask {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        }
+        for _ in 0..<(engine.debugPendingBackgroundWriteTaskCap + overflow) {
+            engine.debugEnqueueTrackedBackgroundTask {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        }
+
+        let state = engine.debugBackgroundWriteState()
+        #expect(state.active == engine.debugBackgroundWriteTaskCap)
+        #expect(
+            state.pending == engine.debugPendingBackgroundWriteTaskCap,
+            "Best-effort metadata writes must not create an unbounded closure backlog"
+        )
+
+        engine.cancelActiveRequest()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        #expect(engine.debugBackgroundWriteState().active == 0)
+        #expect(engine.debugBackgroundWriteState().pending == 0)
+    }
+
     // MARK: - load(from:) enrichment gate: all-null common names
 
     @Test func testLoadFromRecordWithAllNullCommonNamesTriggersEnrichment() throws {
@@ -1109,6 +1137,53 @@ struct InferenceEngineTests {
         await engine.confirmAIIdentification(modelContext: nil)
 
         #expect(engine.speciesData?.userConfirmedIdentification == false, "No-op when scanId is nil — userConfirmedIdentification must remain false")
+    }
+
+    @Test func testConfirmAIIdentificationRejectsChangedPresentationIdentity() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "current_confirm_scan",
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(aiReasoning: "A mammal.", hazardType: "none"),
+            confidenceScore: 0.92,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial"
+        )
+
+        await engine.confirmAIIdentification(
+            expectedScanId: "previous_confirm_scan",
+            modelContext: nil
+        )
+
+        #expect(engine.speciesData?.userConfirmedIdentification == false)
+    }
+
+    @Test func testApplyIdentificationOverrideRejectsChangedPresentationIdentity() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "current_override_scan",
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(aiReasoning: "A mammal.", hazardType: "none"),
+            confidenceScore: 0.92,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial",
+            aiScientificName: "Procyon lotor"
+        )
+
+        await engine.applyIdentificationOverride(
+            scientificName: "Procyon cancrivorus",
+            expectedScanId: "previous_override_scan",
+            modelContext: nil
+        )
+
+        #expect(engine.speciesData?.scientificName == "Procyon lotor")
+        #expect(engine.speciesData?.userIdentificationOverride == nil)
     }
 
     @Test func testApplyIdentificationOverrideMutatesSpeciesData() async throws {

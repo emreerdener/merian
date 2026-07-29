@@ -32,6 +32,12 @@ final class InsightChatViewModel {
         "This observation is still syncing. Please try Field chat again in a moment."
     static let interruptedSendMessage =
         "This question did not finish. Tap Retry to continue."
+    private static let initialLimits = InsightChatLimits(
+        maxUserMessageCharacters: 600,
+        maxMessagesPerConversation: 30,
+        dailySendLimit: 20,
+        sendsRemainingToday: 20
+    )
 
     var messages: [InsightChatMessage] = []
     var pendingUserMessage: PendingInsightChatMessage?
@@ -52,18 +58,17 @@ final class InsightChatViewModel {
     var suggestedPrompts: [InsightChatPromptSuggestion] = []
     var submittedFeedback: [String: InsightChatFeedbackRating] = [:]
     var notesSummaryDraft: String?
-    var limits = InsightChatLimits(
-        maxUserMessageCharacters: 600,
-        maxMessagesPerConversation: 30,
-        dailySendLimit: 20,
-        sendsRemainingToday: 20
-    )
+    var limits = InsightChatViewModel.initialLimits
 
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private let monitorQueue = DispatchQueue(label: "com.merian.insight-chat.network")
     @ObservationIgnored private var loadedScanId: String?
+    @ObservationIgnored private var didLoadCurrentSubject = false
+    @ObservationIgnored private var subjectGeneration: UInt64 = 0
+    @ObservationIgnored private var loadRequestGeneration: UInt64 = 0
     @ObservationIgnored private var promptRequestGeneration = 0
     @ObservationIgnored private let source: FieldChatSource
+    @ObservationIgnored private var presentationPreparationGeneration: UInt64 = 0
     @ObservationIgnored private var presentationPreparationScanId: String?
     @ObservationIgnored private var presentationPreparationTask: Task<Bool, Never>?
 
@@ -102,7 +107,8 @@ final class InsightChatViewModel {
 
     func isUnavailable(for scanId: String?) -> Bool {
         guard let scanId else { return true }
-        return unavailableScanId == scanId
+        return unavailableScanId?
+            .caseInsensitiveCompare(scanId) == .orderedSame
     }
 
     func prepareForPresentation(scanId: String) async -> Bool {
@@ -125,12 +131,24 @@ final class InsightChatViewModel {
             return false
         }
 
-        if presentationPreparationScanId == scanId,
+        if presentationPreparationScanId?
+            .caseInsensitiveCompare(scanId) == .orderedSame,
            let presentationPreparationTask {
-            return await presentationPreparationTask.value
+            let preparationGeneration = presentationPreparationGeneration
+            let canPresent = await presentationPreparationTask.value
+            return canPresent &&
+                !presentationPreparationTask.isCancelled &&
+                presentationPreparationGeneration == preparationGeneration
         }
-        guard presentationPreparationTask == nil else { return false }
+        if presentationPreparationTask != nil {
+            presentationPreparationGeneration &+= 1
+            presentationPreparationTask?.cancel()
+            presentationPreparationTask = nil
+            presentationPreparationScanId = nil
+        }
 
+        presentationPreparationGeneration &+= 1
+        let preparationGeneration = presentationPreparationGeneration
         isCheckingAvailability = true
         presentationPreparationScanId = scanId
         let preparationTask = Task { @MainActor in
@@ -139,23 +157,40 @@ final class InsightChatViewModel {
         presentationPreparationTask = preparationTask
 
         let canPresent = await preparationTask.value
+        guard presentationPreparationGeneration == preparationGeneration,
+              presentationPreparationScanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame else {
+            return false
+        }
         presentationPreparationTask = nil
         presentationPreparationScanId = nil
         isCheckingAvailability = false
-        return canPresent
+        return canPresent && !preparationTask.isCancelled
     }
 
     private func performPresentationPreparation(scanId: String) async -> Bool {
         if source == .explorePost {
-            loadedScanId = scanId
-            await load(scanId: scanId)
-            return errorMessage == nil && !isUnavailable(for: scanId)
+            let generation = activateSubject(scanId: scanId)
+            await loadCurrentSubject(scanId: scanId, generation: generation)
+            return isCurrentSubject(scanId: scanId, generation: generation) &&
+                errorMessage == nil &&
+                !isUnavailable(for: scanId)
         }
 
         do {
             let status = try await MerianNetworkClient.shared.checkScanStatus(scanId: scanId)
+            guard presentationPreparationScanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame,
+                  !Task.isCancelled else {
+                return false
+            }
             return applyOwnedScanReadinessStatus(status, scanId: scanId)
         } catch {
+            guard presentationPreparationScanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame,
+                  !Task.isCancelled else {
+                return false
+            }
             handle(error, scanId: scanId)
             return false
         }
@@ -177,7 +212,8 @@ final class InsightChatViewModel {
     }
 
     func markAvailable(scanId: String) {
-        if unavailableScanId == scanId {
+        if unavailableScanId?
+            .caseInsensitiveCompare(scanId) == .orderedSame {
             unavailableScanId = nil
         }
         errorMessage = nil
@@ -189,24 +225,51 @@ final class InsightChatViewModel {
             return
         }
 
-        guard loadedScanId != scanId else {
-            refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: false)
+        if isLoadedSubject(scanId) {
+            if didLoadCurrentSubject {
+                refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: false)
+            } else if !isLoading {
+                guard let generation = currentSubjectGeneration(scanId: scanId) else {
+                    return
+                }
+                await loadCurrentSubject(scanId: scanId, generation: generation)
+            }
             return
         }
-        loadedScanId = scanId
-        await load(scanId: scanId)
+        let generation = activateSubject(scanId: scanId)
+        await loadCurrentSubject(scanId: scanId, generation: generation)
     }
 
     func load(scanId: String) async {
+        guard let generation = currentSubjectGeneration(scanId: scanId) else {
+            return
+        }
+        await loadCurrentSubject(scanId: scanId, generation: generation)
+    }
+
+    private func loadCurrentSubject(
+        scanId: String,
+        generation: UInt64
+    ) async {
+        guard isCurrentSubject(scanId: scanId, generation: generation) else {
+            return
+        }
         guard !isOffline else {
             errorMessage = "Connect to load saved chat."
             return
         }
 
+        loadRequestGeneration &+= 1
+        let requestGeneration = loadRequestGeneration
         isLoading = true
         errorMessage = nil
         unavailableScanId = nil
-        defer { isLoading = false }
+        defer {
+            if isCurrentSubject(scanId: scanId, generation: generation),
+               loadRequestGeneration == requestGeneration {
+                isLoading = false
+            }
+        }
 
         do {
             let response = switch source {
@@ -215,10 +278,25 @@ final class InsightChatViewModel {
             case .explorePost:
                 try await MerianNetworkClient.shared.loadExplorePostChat(postId: scanId)
             }
-            apply(response)
+            guard isCurrentSubject(scanId: scanId, generation: generation),
+                  loadRequestGeneration == requestGeneration,
+                  !Task.isCancelled else {
+                return
+            }
+            guard applyIfCurrent(
+                response,
+                scanId: scanId,
+                generation: generation
+            ) else {
+                return
+            }
             refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: false)
         } catch {
-            loadedScanId = nil
+            guard isCurrentSubject(scanId: scanId, generation: generation),
+                  loadRequestGeneration == requestGeneration,
+                  !Task.isCancelled else {
+                return
+            }
             handle(error, scanId: scanId)
         }
     }
@@ -240,6 +318,9 @@ final class InsightChatViewModel {
         scanId: String,
         clientMessageId: String
     ) async {
+        guard let subjectGeneration = currentSubjectGeneration(scanId: scanId) else {
+            return
+        }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard let requestUuid = UUID(uuidString: clientMessageId),
@@ -299,11 +380,29 @@ final class InsightChatViewModel {
                     clientMessageId: clientMessageId
                 )
             }
-            apply(response)
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return
+            }
+            guard applyIfCurrent(
+                response,
+                scanId: scanId,
+                generation: subjectGeneration
+            ) else {
+                return
+            }
             isSending = false
             refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: true)
             HapticManager.shared.triggerSuccessPulse()
         } catch {
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return
+            }
             handle(error, scanId: scanId, playHaptic: true)
             pendingUserMessage = PendingInsightChatMessage(
                 id: clientMessageId,
@@ -325,7 +424,11 @@ final class InsightChatViewModel {
         )
     }
 
-    func editFailedMessage() {
+    func editFailedMessage(scanId: String? = nil) {
+        if let scanId,
+           currentSubjectGeneration(scanId: scanId) == nil {
+            return
+        }
         guard let pendingUserMessage,
               case .failed = pendingUserMessage.deliveryState else { return }
         draftText = pendingUserMessage.text
@@ -339,6 +442,10 @@ final class InsightChatViewModel {
     }
 
     func deleteConversation(scanId: String) async {
+        guard let subjectGeneration = currentSubjectGeneration(scanId: scanId),
+              !isDeleting else {
+            return
+        }
         guard !isOffline else {
             HapticManager.shared.triggerErrorThump()
             errorMessage = "Connect to delete chat."
@@ -347,7 +454,14 @@ final class InsightChatViewModel {
 
         isDeleting = true
         errorMessage = nil
-        defer { isDeleting = false }
+        defer {
+            if isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ) {
+                isDeleting = false
+            }
+        }
 
         do {
             let response = switch source {
@@ -356,14 +470,36 @@ final class InsightChatViewModel {
             case .explorePost:
                 try await MerianNetworkClient.shared.deleteExplorePostChat(postId: scanId)
             }
-            apply(response)
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return
+            }
+            guard applyIfCurrent(
+                response,
+                scanId: scanId,
+                generation: subjectGeneration
+            ) else {
+                return
+            }
             HapticManager.shared.triggerSuccessPulse()
         } catch {
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return
+            }
             handle(error, scanId: scanId, playHaptic: true)
         }
     }
 
-    func setDraftText(_ newValue: String) {
+    func setDraftText(_ newValue: String, scanId: String? = nil) {
+        if let scanId,
+           currentSubjectGeneration(scanId: scanId) == nil {
+            return
+        }
         draftText = String(newValue.prefix(limits.maxUserMessageCharacters))
     }
 
@@ -373,6 +509,10 @@ final class InsightChatViewModel {
         rating: InsightChatFeedbackRating,
         note: String? = nil
     ) async -> Bool {
+        guard let subjectGeneration = currentSubjectGeneration(scanId: scanId),
+              !isSubmittingFeedback else {
+            return false
+        }
         guard !isOffline else {
             HapticManager.shared.triggerErrorThump()
             errorMessage = "Connect to send feedback."
@@ -380,7 +520,14 @@ final class InsightChatViewModel {
         }
 
         isSubmittingFeedback = true
-        defer { isSubmittingFeedback = false }
+        defer {
+            if isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ) {
+                isSubmittingFeedback = false
+            }
+        }
 
         do {
             let response = switch source {
@@ -399,10 +546,22 @@ final class InsightChatViewModel {
                     note: note
                 )
             }
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return false
+            }
             submittedFeedback[response.messageId] = response.rating
             HapticManager.shared.triggerSuccessPulse()
             return true
         } catch {
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return false
+            }
             handle(error, scanId: scanId, playHaptic: true)
             return false
         }
@@ -413,6 +572,10 @@ final class InsightChatViewModel {
         sentiment: InsightChatFeatureFeedbackSentiment?,
         note: String
     ) async -> Bool {
+        guard let subjectGeneration = currentSubjectGeneration(scanId: scanId),
+              !isSubmittingFeatureFeedback else {
+            return false
+        }
         guard source == .insightScan else { return false }
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         guard sentiment != nil || !trimmedNote.isEmpty else { return false }
@@ -423,7 +586,14 @@ final class InsightChatViewModel {
         }
 
         isSubmittingFeatureFeedback = true
-        defer { isSubmittingFeatureFeedback = false }
+        defer {
+            if isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ) {
+                isSubmittingFeatureFeedback = false
+            }
+        }
 
         do {
             _ = try await MerianNetworkClient.shared.submitInsightChatFeatureFeedback(
@@ -431,15 +601,31 @@ final class InsightChatViewModel {
                 sentiment: sentiment,
                 note: trimmedNote.isEmpty ? nil : trimmedNote
             )
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return false
+            }
             HapticManager.shared.triggerSuccessPulse()
             return true
         } catch {
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return false
+            }
             handle(error, scanId: scanId, playHaptic: true)
             return false
         }
     }
 
     func summarizeForFieldNotes(scanId: String) async -> Bool {
+        guard let subjectGeneration = currentSubjectGeneration(scanId: scanId),
+              !isSummarizingNotes else {
+            return false
+        }
         guard source == .insightScan else { return false }
         guard !isOffline else {
             HapticManager.shared.triggerErrorThump()
@@ -449,14 +635,33 @@ final class InsightChatViewModel {
         guard !messages.isEmpty else { return false }
 
         isSummarizingNotes = true
-        defer { isSummarizingNotes = false }
+        defer {
+            if isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ) {
+                isSummarizingNotes = false
+            }
+        }
 
         do {
             let response = try await MerianNetworkClient.shared.summarizeInsightChatForFieldNotes(scanId: scanId)
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return false
+            }
             notesSummaryDraft = response.summaryText
             HapticManager.shared.triggerSuccessPulse()
             return true
         } catch {
+            guard isCurrentSubject(
+                scanId: scanId,
+                generation: subjectGeneration
+            ), !Task.isCancelled else {
+                return false
+            }
             handle(error, scanId: scanId, playHaptic: true)
             return false
         }
@@ -870,6 +1075,21 @@ final class InsightChatViewModel {
         ].contains(where: { normalized.contains($0) })
     }
 
+    @discardableResult
+    func applyIfCurrent(
+        _ response: InsightChatResponse,
+        scanId: String,
+        generation: UInt64
+    ) -> Bool {
+        guard isCurrentSubject(scanId: scanId, generation: generation),
+              response.subjectId?
+                .caseInsensitiveCompare(scanId) == .orderedSame else {
+            return false
+        }
+        apply(response)
+        return true
+    }
+
     private func apply(_ response: InsightChatResponse) {
         let reconciled = Self.reconcileThread(response.messages)
         conversationId = response.conversationId
@@ -879,6 +1099,7 @@ final class InsightChatViewModel {
         limits = response.limits
         unavailableScanId = nil
         errorMessage = nil
+        didLoadCurrentSubject = true
     }
 
     static func reconcileThread(
@@ -961,25 +1182,68 @@ final class InsightChatViewModel {
         )
     }
 
-    private func clearLoadedState() {
-        loadedScanId = nil
+    @discardableResult
+    func activateSubject(scanId: String) -> UInt64 {
+        guard !isLoadedSubject(scanId) else {
+            return subjectGeneration
+        }
+
+        subjectGeneration &+= 1
+        loadRequestGeneration &+= 1
+        promptRequestGeneration += 1
+        didLoadCurrentSubject = false
+        resetSubjectState()
+        loadedScanId = scanId
+        return subjectGeneration
+    }
+
+    func isCurrentSubject(scanId: String, generation: UInt64) -> Bool {
+        generation == subjectGeneration && isLoadedSubject(scanId)
+    }
+
+    private func currentSubjectGeneration(scanId: String) -> UInt64? {
+        isLoadedSubject(scanId) ? subjectGeneration : nil
+    }
+
+    private func isLoadedSubject(_ scanId: String) -> Bool {
+        loadedScanId?.caseInsensitiveCompare(scanId) == .orderedSame
+    }
+
+    private func resetSubjectState() {
         messages = []
         persistedMessageCount = 0
         pendingUserMessage = nil
+        draftText = ""
         conversationId = nil
         errorMessage = nil
         unavailableScanId = nil
         submittedFeedback = [:]
         notesSummaryDraft = nil
         suggestedPrompts = []
+        limits = Self.initialLimits
+        isLoading = false
+        isSending = false
+        isDeleting = false
+        isSubmittingFeedback = false
+        isSubmittingFeatureFeedback = false
+        isSummarizingNotes = false
         isLoadingPrompts = false
+    }
+
+    private func clearLoadedState() {
+        subjectGeneration &+= 1
+        loadRequestGeneration &+= 1
+        promptRequestGeneration += 1
+        didLoadCurrentSubject = false
+        resetSubjectState()
+        loadedScanId = nil
     }
 
     private func refreshPromptSuggestionsAfterStateChange(
         scanId: String,
         force: Bool
     ) {
-        guard !isOffline, unavailableScanId != scanId else {
+        guard !isOffline, !isUnavailable(for: scanId) else {
             return
         }
         if isLoadingPrompts && !force { return }
@@ -991,7 +1255,10 @@ final class InsightChatViewModel {
     }
 
     private func refreshPromptSuggestions(scanId: String) async {
-        guard !isOffline else { return }
+        guard !isOffline,
+              let subjectGeneration = currentSubjectGeneration(scanId: scanId) else {
+            return
+        }
 
         promptRequestGeneration += 1
         let requestGeneration = promptRequestGeneration
@@ -1009,10 +1276,22 @@ final class InsightChatViewModel {
             case .explorePost:
                 try await MerianNetworkClient.shared.suggestExplorePostChatPrompts(postId: scanId)
             }
-            guard promptRequestGeneration == requestGeneration else { return }
+            guard promptRequestGeneration == requestGeneration,
+                  isCurrentSubject(
+                      scanId: scanId,
+                      generation: subjectGeneration
+                  ) else {
+                return
+            }
             suggestedPrompts = response.prompts
         } catch {
-            guard promptRequestGeneration == requestGeneration else { return }
+            guard promptRequestGeneration == requestGeneration,
+                  isCurrentSubject(
+                      scanId: scanId,
+                      generation: subjectGeneration
+                  ) else {
+                return
+            }
             suggestedPrompts = []
         }
     }

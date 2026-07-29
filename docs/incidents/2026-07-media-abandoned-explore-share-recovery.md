@@ -4,8 +4,10 @@
 **Severity:** Critical compatibility failure\
 **Affected flow:** Existing local scan → Explore composer → cloud owner repair →
 local media restoration → publication\
-**Repository status:** Remediated in the current working tree; immutable
-follow-up SHA pending\
+**Repository status:** Core runtime remediation committed as
+`a21155a3299598e81be0ec322ce339adbff62ff1`; the current working tree adds the
+presentation-identity follow-up and documentation, with immutable descendant SHA
+pending\
 **Production status:** Open until the ordered database/Edge/iOS rollout and
 legacy-record smoke test satisfy the closure gates below
 
@@ -38,6 +40,13 @@ Merian's recovery handler; it does not expose whether the production database
 routine was absent, stale in the Data API schema cache, or rejected internally.
 Database logs and the new exact readiness probe are the authority for that
 distinction.
+
+The retained device trace was captured at `2026-07-29 12:13:28 -05:00`. Commit
+`a21155a32`, which contains the composite-proof migration and hardened recovery
+boundary, was created at `2026-07-29 16:24:13 -05:00`. The trace therefore
+predates the remediation by about four hours and is valid failure evidence, but
+it cannot establish whether the remediated source has since deployed or passed
+the legacy-record smoke test.
 
 ## Customer Impact
 
@@ -100,8 +109,8 @@ additionally requires:
 - for unstructured evidence, its exact dead-letter row ID was visible and
   snapshotted during the first hardening migration transaction, its timestamp
   predates that cutoff, and the latest authority is `failed`, or it is narrowly
-  the vulnerable producer’s first committed normal attempt
-  (`attempt_count = 1`) with no charged replay authority; and
+  the vulnerable producer’s first committed normal attempt (`attempt_count = 1`)
+  with no charged replay authority; and
 - legacy evidence comes from the known `identify-multimodal` control flow with a
   nonempty post-safety failure message—not its only pre-safety throwing user
   prerequisite and not a moderation rejection/infrastructure error.
@@ -153,9 +162,9 @@ routine and centralize the final proof without weakening its existing boundary:
   including every deterministic replay quota key and the full capture-media
   lifecycle;
 - the database stores a private singleton rollout cutoff and immutable exact
-  dead-letter-ID snapshot, so legacy unstructured authority cannot
-  grow after migration—even when a DDL-blocked producer insert resumes with a
-  backdated transaction-start timestamp;
+  dead-letter-ID snapshot, so legacy unstructured authority cannot grow after
+  migration—even when a DDL-blocked producer insert resumes with a backdated
+  transaction-start timestamp;
 - hardened producer rows bind exact quota identity, validated provider output,
   and completed Identify safety evaluation;
 - historical rows must match the audited multimodal post-safety error lineage;
@@ -221,19 +230,19 @@ provenance.
 The allowlist expands one operational recovery reason, not general client scan
 creation:
 
-| State                                                                                                                                                                                                   | Recovery  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `complete` but owner row absent                                                                                                                                                                         | allowed   |
-| `failed_terminal / replay_exhausted`                                                                                                                                                                    | allowed   |
-| `failed_terminal / media_reconciliation_abandoned` + exact generation-appropriate composite proof                                                                                                       | allowed   |
+| State                                                                                                                                                                                                                                                 | Recovery  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `complete` but owner row absent                                                                                                                                                                                                                       | allowed   |
+| `failed_terminal / replay_exhausted`                                                                                                                                                                                                                  | allowed   |
+| `failed_terminal / media_reconciliation_abandoned` + exact generation-appropriate composite proof                                                                                                                                                     | allowed   |
 | same reason with no charged authority/dead letter, an active reservation, dead letter older than latest authority, invalid timestamps, unstructured evidence absent from the migration snapshot or at/after the cutoff, or incomplete safety evidence | deferred  |
-| same reason with moderation rejection or moderation-pipeline failure                                                                                                                                    | deferred  |
-| processing/finalizing/retrying/`failed_retryable`                                                                                                                                                       | deferred  |
-| moderation/provider policy rejection                                                                                                                                                                    | deferred  |
-| legacy unknown or arbitrary terminal reason                                                                                                                                                             | deferred  |
-| no owner-scoped ledger                                                                                                                                                                                  | deferred  |
-| deletion tombstone                                                                                                                                                                                      | deleted   |
-| foreign existing scan id                                                                                                                                                                                | collision |
+| same reason with moderation rejection or moderation-pipeline failure                                                                                                                                                                                  | deferred  |
+| processing/finalizing/retrying/`failed_retryable`                                                                                                                                                                                                     | deferred  |
+| moderation/provider policy rejection                                                                                                                                                                                                                  | deferred  |
+| legacy unknown or arbitrary terminal reason                                                                                                                                                                                                           | deferred  |
+| no owner-scoped ledger                                                                                                                                                                                                                                | deferred  |
+| deletion tombstone                                                                                                                                                                                                                                    | deleted   |
+| foreign existing scan id                                                                                                                                                                                                                              | collision |
 
 A modified client cannot select the terminal reason, owner, ledger row,
 service-only dead letter, quota state, or media lifecycle. It cannot provide
@@ -254,18 +263,47 @@ The repository now locks:
 - fresh owner/tombstone validation for terminal repair;
 - atomic owner-row/ledger completion;
 - bounded media registration, restoration ledger binding, and atomic Explore
-  publication; and
-- iOS owner repair before media upload.
+  publication;
+- iOS owner repair before media upload;
+- stable-code-first activation for handler-owned missing scans; and
+- exact engine/local-record/snapshot identity fences around Explore and Field
+  Chat, including a captured chat presentation ID across asynchronous preflight;
+- a Field Chat subject generation that rejects late load, send, delete,
+  feedback, summary, and prompt completions from another private thread;
+- a monotonic persisted-record action generation plus captured IDs for deletion,
+  identification review, candidate delays, Explore/Community/Field Notes
+  editors, nested Share sheets, New Collection, and Explore onboarding;
+- exact queued-scan refresh and result-promotion checks, direct parent A → B
+  presentation replacement, scan-scoped Retry release, and replaceable
+  completion-handoff single-flight, preventing an old queued callback from
+  restoring, promoting, or clearing UI for the wrong observation;
+- scan/scientific-name/latest-action identification hydration fences and a
+  serial local/cloud review-write tail, making the newest review action the
+  durable final writer;
+- exact post/request UUID revalidation for same-scan publication mutations,
+  advisory-detail failure preservation, and target-scoped dismissal bindings;
+  and
+- handler-confirmed owner absence clearing only the affected scan's obsolete
+  local publication marker, so its next deliberate share reaches guarded
+  recovery instead of a stale Edit action.
+
+The current mutable worktree passes the complete portable Edge, migration,
+deployment-tooling, documentation, iOS source/parser, changed-scope lint, and
+CI-evidence contract set. Those results are source evidence only and must be
+repeated from an immutable descendant SHA. Fresh hosted PostgreSQL catalogs,
+full Xcode tests plus archive, and ordered production deployment remain
+mandatory closure evidence. A same-account legacy-record smoke test is also
+mandatory.
 
 The final PostgreSQL fixture calls the real proof and recovery routines for the
 affected legacy committed lineage, modern structured lineage, unproven,
-post-rollout backdated-but-unsnapshotted, later-authority, replay-authority, moderation
-rejection, moderation-pipeline failure, moderation-only legacy evidence,
-pre-safety legacy evidence, wrong-producer endpoint, incomplete structured
-safety, active replay, corrupt timestamp lineage, and unknown terminal states.
-It also proves all exact failed/committed normal and replay authority plus the
-active replay fence survives quota pruning while refunded and unrelated old
-reservations are removed. Deno tests execute terminal signing
+post-rollout backdated-but-unsnapshotted, later-authority, replay-authority,
+moderation rejection, moderation-pipeline failure, moderation-only legacy
+evidence, pre-safety legacy evidence, wrong-producer endpoint, incomplete
+structured safety, active replay, corrupt timestamp lineage, and unknown
+terminal states. It also proves all exact failed/committed normal and replay
+authority plus the active replay fence survives quota pruning while refunded and
+unrelated old reservations are removed. Deno tests execute terminal signing
 insertion/rejection paths, reject malformed proof responses, and prove the media
 worker cannot rewrite an existing terminal decision. The production workflow now
 calls both service-only recovery RPCs with null inputs and requires their exact
@@ -280,11 +318,11 @@ public API key is denied.
    restore signing, and must preserve local media behind retryable `503` while
    it is unavailable. Do not predeploy the structured Identify producer.
 2. Apply, in order, `20260729173000_recover_media_abandoned_owned_scans.sql` and
-   `20260729200000_harden_media_abandoned_scan_recovery_proof.sql`.
-   The pinned CLI executes them as separate migration-file transactions, so
-   even one uninterrupted `db push` has a committed inter-file boundary. Never
-   stop after the first migration or exercise owner recovery until the hardened
-   routine, ACL, and privileged-grant catalog checks have passed.
+   `20260729200000_harden_media_abandoned_scan_recovery_proof.sql`. The pinned
+   CLI executes them as separate migration-file transactions, so even one
+   uninterrupted `db push` has a committed inter-file boundary. Never stop after
+   the first migration or exercise owner recovery until the hardened routine,
+   ACL, and privileged-grant catalog checks have passed.
 3. Confirm the exact service-only function ACL, privileged-grant ledger, quota
    authority retention, and catalog fixture.
 4. Deploy `identify-multimodal` and the final
@@ -322,10 +360,13 @@ Do not close this incident until:
    persistence, and publication resume idempotently;
 5. moderation/provider-policy, moderation-pipeline failure, active or
    later-authority normal/replay attempts, invalid timestamp lineage,
-   post-rollout unsnapshotted or post-cutoff unstructured evidence, incomplete structured safety evidence,
-   unproven abandonment, unknown-terminal, no-ledger, cross-owner, tombstoned,
-   malformed, and over-budget attempts remain blocked, and delayed media
-   reconciliation does not rewrite policy;
+   post-rollout unsnapshotted or post-cutoff unstructured evidence, incomplete
+   structured safety evidence, unproven abandonment, unknown-terminal,
+   no-ledger, cross-owner, tombstoned, malformed, and over-budget attempts
+   remain blocked, and delayed media reconciliation does not rewrite policy;
 6. restored media returns successfully from the canonical public origin; and
 7. retained logs contain no generic 503 for an otherwise eligible
-   `media_reconciliation_abandoned` repair.
+   `media_reconciliation_abandoned` repair; and
+8. rapid scan A → B and A → B → A switches while chat, candidate hydration,
+   queued refresh/promotion, editors, onboarding, collection, deletion, and
+   sharing callbacks are suspended produce no cross-scan state or mutation.

@@ -54,8 +54,9 @@ final class InsightSheetViewModel {
 
     /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
     func reset() {
-        sharedExploreStateRevision = 0
-        sharedExploreStateRequestToken = 0
+        scanBoundActionGeneration &+= 1
+        sharedExploreStateRevision &+= 1
+        sharedExploreStateRequestToken &+= 1
         fieldTripContributionRequestToken &+= 1
         boundFieldNotesScanId = nil
         state = UIState()
@@ -75,6 +76,7 @@ final class InsightSheetViewModel {
     /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
     /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
     var cachedActiveMedia: ActiveScanMedia?
+    @ObservationIgnored var scanBoundActionGeneration: UInt64 = 0
     @ObservationIgnored var sharedExploreStateRevision: UInt64 = 0
     @ObservationIgnored var sharedExploreStateRequestToken: UInt64 = 0
     @ObservationIgnored var boundFieldNotesScanId: String?
@@ -91,6 +93,8 @@ final class InsightSheetViewModel {
         var isCommonNameScrolledPast = false
         var isTopScrollEdgeEffectHidden = true
         var isFieldNotesSheetPresented = false
+        var fieldNotesPresentationScanId: String?
+        var fieldNotesPresentationGeneration: UInt64?
         var isFlagIssuePresented = false
         var showDeleteConfirmation = false
         var showSaveSuccessAlert = false
@@ -98,6 +102,9 @@ final class InsightSheetViewModel {
         var isInsightChatSheetPresented = false
         var isCandidateSwipePresented = false
         var candidateSwipePresentationSource: CandidateSwipePresentationSource = .standard
+        var candidateSwipePresentationScanId: String?
+        var candidateSwipePresentationGeneration: UInt64?
+        var candidateSwipeEnginePresentationGeneration: UInt64?
         var showPaywall = false
         var toastMessage: String?
         var newCollectionName = ""
@@ -105,6 +112,8 @@ final class InsightSheetViewModel {
         var isNamePickerPresented = false
         var isSafariPresented = false
         var selectedWikiURL: URL?
+        var safariPresentationScanId: String?
+        var safariPresentationGeneration: UInt64?
         var isSavingPhotos = false
         var isAudioBoostEnabled = false
         var audioBoostActionToken: UUID?
@@ -113,8 +122,16 @@ final class InsightSheetViewModel {
         var isUpdatingExploreFieldNotes = false
         var isRequestingCommunityIdentification = false
         var isExplorePostComposerPresented = false
+        var explorePostComposerPresentationScanId: String?
+        var explorePostComposerPresentationGeneration: UInt64?
+        var explorePostComposerPresentationPostId: String?
         var isCommunityRequestSheetPresented = false
+        var communityRequestPresentationScanId: String?
+        var communityRequestPresentationGeneration: UInt64?
+        var communityRequestPresentationRequestId: String?
         var showExploreOnboarding = false
+        var exploreOnboardingPresentationScanId: String?
+        var exploreOnboardingPresentationGeneration: UInt64?
         var sharedExplorePostId: String?
         var sharedCommunityIdentificationRequestId: String?
         var sharedCommunityIdentificationStatus: CommunityIdentificationRequestStatus?
@@ -124,6 +141,8 @@ final class InsightSheetViewModel {
         var exploreFieldNotesArePublic = false
         var showExploreSheet = false
         var explorePresentationTarget: InsightExplorePresentationTarget = .automatic
+        var explorePresentationScanId: String?
+        var explorePresentationGeneration: UInt64?
         var fieldNotesText = ""
         var dismissedFieldNotesCardScanId: String?
     }
@@ -133,7 +152,23 @@ final class InsightSheetViewModel {
     private(set) var fieldTripScanContributions: [FieldTripScanContribution] = []
     private(set) var isLoadingFieldTripScanContributions = false
 
-    func loadFieldTripScanContributions(scanId: String?) async {
+    func invalidateFieldTripScanContributions() {
+        fieldTripContributionRequestToken &+= 1
+        fieldTripScanContributions = []
+        isLoadingFieldTripScanContributions = false
+    }
+
+    func loadFieldTripScanContributions(
+        scanId: String?,
+        expectedGeneration: UInt64? = nil
+    ) async {
+        guard expectedGeneration == nil ||
+                expectedGeneration == scanBoundActionGeneration,
+              let scanId,
+              persistentScanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
         fieldTripContributionRequestToken &+= 1
         let requestToken = fieldTripContributionRequestToken
         fieldTripScanContributions = []
@@ -142,7 +177,6 @@ final class InsightSheetViewModel {
               fieldTripAuthenticationResolver(),
               queuedContext == nil,
               inferenceEngine?.speciesData?.isBiological == true,
-              let scanId,
               !scanId.isEmpty else {
             isLoadingFieldTripScanContributions = false
             return
@@ -158,7 +192,12 @@ final class InsightSheetViewModel {
         do {
             let contributions = try await fieldTripContributionLoader(scanId)
             guard requestToken == fieldTripContributionRequestToken,
-                  persistentScanId == scanId else { return }
+                  expectedGeneration == nil ||
+                    expectedGeneration == scanBoundActionGeneration,
+                  persistentScanId?
+                    .caseInsensitiveCompare(scanId) == .orderedSame else {
+                return
+            }
             fieldTripScanContributions = contributions.filter {
                 $0.sourceKind == .standardOuting || fieldTripEventsAvailabilityResolver()
             }
@@ -171,8 +210,33 @@ final class InsightSheetViewModel {
         }
     }
 
-    func presentCandidateSwipe(source: CandidateSwipePresentationSource = .standard) {
+    func presentCandidateSwipe(
+        source: CandidateSwipePresentationSource = .standard,
+        expectedScanId: String? = nil,
+        expectedGeneration: UInt64? = nil
+    ) {
+        if let expectedGeneration,
+           expectedGeneration != scanBoundActionGeneration {
+            return
+        }
+        let targetScanId = expectedScanId ?? presentedSpeciesScanId
+        guard let targetScanId else { return }
+        if expectedScanId != nil,
+           !isPresentingLocalRecord(
+               scanId: targetScanId,
+               generation: expectedGeneration
+           ) {
+            return
+        }
+        guard presentedSpeciesScanId?
+            .caseInsensitiveCompare(targetScanId) == .orderedSame else {
+            return
+        }
         state.candidateSwipePresentationSource = source
+        state.candidateSwipePresentationScanId = targetScanId
+        state.candidateSwipePresentationGeneration = scanBoundActionGeneration
+        state.candidateSwipeEnginePresentationGeneration =
+            inferenceEngine?.scanPresentationGeneration
         state.isCandidateSwipePresented = true
     }
 

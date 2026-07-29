@@ -11,8 +11,20 @@ extension InsightSheetViewModel {
         return inferenceEngine.speciesData?.referenceImageUrl
     }
 
-    func saveUserPhotos(inferenceEngine: InferenceEngine) {
-        guard !state.isSavingPhotos else { return }
+    func saveUserPhotos(
+        expectedScanId: String,
+        expectedGeneration: UInt64,
+        inferenceEngine: InferenceEngine
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ),
+              inferenceEngine.speciesData?.scanId?
+                .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+              !state.isSavingPhotos else {
+            return
+        }
         state.isSavingPhotos = true
 
         let exportMedia = activeMedia
@@ -24,6 +36,12 @@ extension InsightSheetViewModel {
             validPaths: validPaths,
             referenceImageUrl: exportReferenceImageUrl(for: inferenceEngine)
         ) { photosSaved in
+            guard self.isPresentingLocalRecord(
+                scanId: expectedScanId,
+                generation: expectedGeneration
+            ) else {
+                return
+            }
             self.state.isSavingPhotos = false
             if photosSaved > 0 {
                 HapticManager.shared.triggerSuccessPulse()
@@ -32,7 +50,19 @@ extension InsightSheetViewModel {
         }
     }
 
-    func shareDiscovery(inferenceEngine: InferenceEngine) {
+    func shareDiscovery(
+        expectedScanId: String,
+        expectedGeneration: UInt64,
+        inferenceEngine: InferenceEngine
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ),
+              inferenceEngine.speciesData?.scanId?
+                .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+            return
+        }
         let commonName = resolvedHeaderTitle
         let scientificName = inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy"
         let exportMedia = activeMedia
@@ -47,6 +77,12 @@ extension InsightSheetViewModel {
             historicPath: historicPath,
             referenceImageUrl: exportReferenceImageUrl(for: inferenceEngine),
             presentShareSheet: { items in
+                guard self.isPresentingLocalRecord(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                ) else {
+                    return
+                }
                 ShareSheetUtility.present(items: items)
             }
         )

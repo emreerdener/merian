@@ -96,7 +96,7 @@ struct QueuedContentView: View {
     @Bindable var viewModel: InsightSheetViewModel
 
     let queuedContext: QueuedScanContext
-    @State private var isRetrying = false
+    @State private var retryingScanId: String?
     @State private var retryReferenceDate = Date()
 
     private var serverJobStatus: ScanIngestionJobStatus? {
@@ -237,7 +237,16 @@ struct QueuedContentView: View {
         return queuedContext.queueLastErrorMessage ?? "This queued scan needs a fresh retry."
     }
 
+    private var isRetrying: Bool {
+        retryingScanId?
+            .caseInsensitiveCompare(queuedContext.id) == .orderedSame
+    }
+
     var body: some View {
+        let fieldNotesScanId = viewModel.currentFieldNotesScanId
+        let fieldNotesGeneration = viewModel.scanBoundActionGeneration
+        let queuedGeneration = viewModel.scanBoundActionGeneration
+
         VStack(alignment: .center, spacing: 24) {
 
             // Queue-state badge — driven by live OfflineQueueManager connectivity
@@ -281,7 +290,7 @@ struct QueuedContentView: View {
 
                     if queuedContext.canRetryNow {
                         Button {
-                            retryQueuedScanNow()
+                            retryQueuedScanNow(expectedGeneration: queuedGeneration)
                         } label: {
                             Label(isRetrying ? "Retrying..." : "Retry now", systemImage: "arrow.clockwise")
                         }
@@ -299,11 +308,17 @@ struct QueuedContentView: View {
                     promptContext: viewModel.fieldNotesPromptContext,
                     onDismiss: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            viewModel.dismissFieldNotesCard()
+                            viewModel.dismissFieldNotesCard(
+                                expectedScanId: fieldNotesScanId,
+                                expectedGeneration: fieldNotesGeneration
+                            )
                         }
                     },
                     action: {
-                        viewModel.state.isFieldNotesSheetPresented = true
+                        viewModel.presentFieldNotes(
+                            expectedScanId: fieldNotesScanId,
+                            expectedGeneration: fieldNotesGeneration
+                        )
                     }
                 )
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -343,35 +358,70 @@ struct QueuedContentView: View {
 
 private extension QueuedContentView {
     @MainActor
-    func retryQueuedScanNow() {
-        guard !isRetrying else { return }
-        isRetrying = true
-
+    func retryQueuedScanNow(expectedGeneration: UInt64) {
         let scanId = queuedContext.id
+        guard !isRetrying,
+              viewModel.isPresentingScan(
+                  scanId: scanId,
+                  generation: expectedGeneration
+              ) else {
+            return
+        }
+        retryingScanId = scanId
         guard offlineQueueManager.retryQueuedScanNow(scanId: scanId) else {
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.state.toastMessage = "Retry could not start"
+            if viewModel.isPresentingScan(
+                scanId: scanId,
+                generation: expectedGeneration
+            ) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    viewModel.state.toastMessage = "Retry could not start"
+                }
             }
-            isRetrying = false
+            if retryingScanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame {
+                retryingScanId = nil
+            }
             return
         }
 
         HapticManager.shared.triggerSelectionPulse()
         refreshQueuedContext(scanId: scanId)
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            viewModel.state.toastMessage = "Retry queued"
+        if viewModel.isPresentingScan(
+            scanId: scanId,
+            generation: expectedGeneration
+        ) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.state.toastMessage = "Retry queued"
+            }
         }
 
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+            } catch {
+                return
+            }
+            guard viewModel.isPresentingScan(
+                scanId: scanId,
+                generation: expectedGeneration
+            ) else {
+                return
+            }
             refreshQueuedContext(scanId: scanId)
-            isRetrying = false
+            if retryingScanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame {
+                retryingScanId = nil
+            }
         }
     }
 
     @MainActor
     func refreshQueuedContext(scanId: String) {
+        guard viewModel.queuedContext?.id
+            .caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
         let readContext = ModelContext(modelContext.container)
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
@@ -381,8 +431,9 @@ private extension QueuedContentView {
             return
         }
         let refreshed = QueuedScanContext(from: scan)
-        if refreshed != viewModel.queuedContext {
-            viewModel.queuedContext = refreshed
-        }
+        viewModel.refreshQueuedContextIfCurrent(
+            refreshed,
+            expectedScanId: scanId
+        )
     }
 }

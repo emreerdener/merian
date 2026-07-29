@@ -3,6 +3,8 @@ import SwiftData
 import SwiftUI
 
 struct ConfidenceExplanationSheet: View {
+    let scanId: String
+    let presentationGeneration: UInt64
     let confidenceScore: Double?
     let inferenceTier: String?
     var userIdentificationOverride: String?
@@ -30,6 +32,10 @@ struct ConfidenceExplanationSheet: View {
         guard let record = localRefinementRecord else { return nil }
 
         return {
+            guard isSubjectPresentationCurrent,
+                  record.id.caseInsensitiveCompare(scanId) == .orderedSame else {
+                return
+            }
             if revenueCatManager.isProActive {
                 HapticManager.shared.triggerSelectionPulse()
                 AppEventPublisher.shared.send(.triggerRefinement(
@@ -80,6 +86,12 @@ struct ConfidenceExplanationSheet: View {
         return visibleReviewCandidates
     }
 
+    private var isSubjectPresentationCurrent: Bool {
+        inferenceEngine.scanPresentationGeneration == presentationGeneration &&
+            inferenceEngine.speciesData?.scanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
@@ -93,14 +105,28 @@ struct ConfidenceExplanationSheet: View {
                     AllCandidatesReviewedView(
                         candidatesCount: storedCandidateCount,
                         onReviewAgain: {
+                            guard isSubjectPresentationCurrent else { return }
                             isSwipeModalPresented = true
                         },
                         onReset: {
+                            guard isSubjectPresentationCurrent else { return }
                             HapticManager.shared.triggerLightImpact()
-                            Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
+                            Task { @MainActor in
+                                guard isSubjectPresentationCurrent else { return }
+                                await inferenceEngine.resetIdentificationReview(
+                                    expectedScanId: scanId,
+                                    modelContext: modelContext
+                                )
+                            }
                         },
                         onAskCommunity: onAskCommunity.map { action in
-                            { openCommunityRequestAfterDismiss(action) }
+                            {
+                                openCommunityRequestAfterDismiss(
+                                    action,
+                                    expectedScanId: scanId,
+                                    expectedGeneration: presentationGeneration
+                                )
+                            }
                         }
                     )
                     .padding(.horizontal, 16)
@@ -112,9 +138,14 @@ struct ConfidenceExplanationSheet: View {
                         overrideName: displayOverride,
                         aiScientificName: aiScientificName ?? "Unknown",
                         onUndo: {
+                            guard isSubjectPresentationCurrent else { return }
                             HapticManager.shared.triggerLightImpact()
-                            Task {
-                                await inferenceEngine.resetIdentificationReview(modelContext: modelContext)
+                            Task { @MainActor in
+                                guard isSubjectPresentationCurrent else { return }
+                                await inferenceEngine.resetIdentificationReview(
+                                    expectedScanId: scanId,
+                                    modelContext: modelContext
+                                )
                             }
                         }
                     )
@@ -122,9 +153,14 @@ struct ConfidenceExplanationSheet: View {
                 } else if userConfirmedIdentification {
                     ConfirmedView(
                         onReset: {
+                            guard isSubjectPresentationCurrent else { return }
                             HapticManager.shared.triggerLightImpact()
-                            Task {
-                                await inferenceEngine.resetIdentificationReview(modelContext: modelContext)
+                            Task { @MainActor in
+                                guard isSubjectPresentationCurrent else { return }
+                                await inferenceEngine.resetIdentificationReview(
+                                    expectedScanId: scanId,
+                                    modelContext: modelContext
+                                )
                             }
                         }
                     )
@@ -137,7 +173,13 @@ struct ConfidenceExplanationSheet: View {
                         inferenceTier: inferenceTier,
                         confirmButtonTitle: confirmButtonTitle,
                         onAskCommunity: onAskCommunity.map { action in
-                            { openCommunityRequestAfterDismiss(action) }
+                            {
+                                openCommunityRequestAfterDismiss(
+                                    action,
+                                    expectedScanId: scanId,
+                                    expectedGeneration: presentationGeneration
+                                )
+                            }
                         },
                         onMatchConfirmed: nil,
                         onRefineScan: refinementAction,
@@ -160,18 +202,32 @@ struct ConfidenceExplanationSheet: View {
             .padding(.top, 32)
             .padding(.bottom, 48)
         }
-        .sheet(isPresented: $isSwipeModalPresented) {
-            
+        .sheet(isPresented: swipeModalPresentedBinding) {
             CandidateSwipeModal(
-                isPresented: $isSwipeModalPresented,
+                isPresented: swipeModalPresentedBinding,
+                scanId: scanId,
+                presentationGeneration: presentationGeneration,
                 candidates: swipeModalCandidates,
                 aiScientificName: aiScientificName ?? "Unknown",
                 confirmButtonTitle: confirmButtonTitle,
                 onConfirmOriginal: {
-                    Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
+                    guard isSubjectPresentationCurrent else { return }
+                    Task { @MainActor in
+                        guard isSubjectPresentationCurrent else { return }
+                        await inferenceEngine.confirmAIIdentification(
+                            expectedScanId: scanId,
+                            modelContext: modelContext
+                        )
+                    }
                 },
                 onAskCommunity: onAskCommunity.map { action in
-                    { openCommunityRequestAfterDismiss(action) }
+                    {
+                        openCommunityRequestAfterDismiss(
+                            action,
+                            expectedScanId: scanId,
+                            expectedGeneration: presentationGeneration
+                        )
+                    }
                 },
                 onRefineScan: refinementAction
             )
@@ -179,13 +235,23 @@ struct ConfidenceExplanationSheet: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView()
         }
-        .task(id: inferenceEngine.speciesData?.scanId) {
-            guard let scanIdStr = inferenceEngine.speciesData?.scanId else {
+        .onChange(of: inferenceEngine.scanPresentationGeneration) {
+            guard !isSubjectPresentationCurrent else { return }
+            isSwipeModalPresented = false
+            showPaywall = false
+            localRefinementRecord = nil
+        }
+        .task(id: presentationGeneration) {
+            guard isSubjectPresentationCurrent else {
                 localRefinementRecord = nil
                 return
             }
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
-            if let record = try? modelContext.fetch(descriptor).first {
+            let descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            if let record = try? modelContext.fetch(descriptor).first,
+               isSubjectPresentationCurrent,
+               record.id.caseInsensitiveCompare(scanId) == .orderedSame {
                 localRefinementRecord = record
             } else {
                 localRefinementRecord = nil
@@ -193,13 +259,35 @@ struct ConfidenceExplanationSheet: View {
         }
     }
 
-    private func openCommunityRequestAfterDismiss(_ action: @escaping () -> Void) {
-        dismiss()
-        Task {
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            await MainActor.run {
-                action()
-            }
+    private func openCommunityRequestAfterDismiss(
+        _ action: @escaping () -> Void,
+        expectedScanId: String,
+        expectedGeneration: UInt64
+    ) {
+        guard expectedGeneration == presentationGeneration,
+              expectedScanId.caseInsensitiveCompare(scanId) == .orderedSame,
+              isSubjectPresentationCurrent else {
+            return
         }
+        dismiss()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard expectedGeneration == presentationGeneration,
+                  expectedScanId.caseInsensitiveCompare(scanId) == .orderedSame,
+                  isSubjectPresentationCurrent else {
+                return
+            }
+            action()
+        }
+    }
+
+    private var swipeModalPresentedBinding: Binding<Bool> {
+        Binding(
+            get: { isSwipeModalPresented && isSubjectPresentationCurrent },
+            set: { isPresented in
+                guard !isPresented || isSubjectPresentationCurrent else { return }
+                isSwipeModalPresented = isPresented
+            }
+        )
     }
 }

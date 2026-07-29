@@ -67,7 +67,10 @@ write_test_tree() {
             ]),
             suite("Inference Engine Tests"; [
               "generationFenceTest",
-              "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
+              "decodedButUnusableSuccessEnvelopeRemainsRecoverable",
+              "testConfirmAIIdentificationRejectsChangedPresentationIdentity",
+              "testApplyIdentificationOverrideRejectsChangedPresentationIdentity",
+              "testBackgroundWriteBacklogHasAHardMemoryBound"
             ]),
             suite("OfflineQueueManagerTests"; [
               "generationFenceTest",
@@ -101,6 +104,8 @@ write_test_tree() {
               "testExploreShareRejectsContradictorySuccessResponses",
               "testExploreShareSendsMissingScanRecoveryPayload",
               "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion",
+              "testExploreCloudScanRestoreUsesStableNotFoundCodeWithLegacyFallback",
+              "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity",
               "testCheckScanStatusRejectsMalformedOrMismatchedSuccess",
               "testBulkScanStatusRejectsDuplicateMissingOrForeignRows",
               "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
@@ -109,12 +114,30 @@ write_test_tree() {
               "testCommunityRequestSendsStableAIIdempotencyKey",
               "testCommunityRequestRejectsUnconfirmedSuccessResponse",
               "testGetExploreShareStateRejectsUnconfirmedState",
+              "testMissingOwnerShareStateClearsStaleLocalPublication",
               "testGetExploreShareStateAcceptsServerHiddenPostWithoutCommunityRequest"
+            ]),
+            suite("InsightSheetViewModelTests"; [
+              "testMissingDifferentRecordClearsStaleScanBoundState",
+              "testRecordSwitchInvalidatesPriorActionGeneration",
+              "testResetMonotonicallyInvalidatesScanBoundRequests",
+              "testFieldNotesRejectChangedPresentationIdentity",
+              "testPreferredNameRejectsStalePresentationGeneration",
+              "testQueuedRefreshRejectsChangedPresentationIdentity",
+              "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity",
+              "testQueuedPromotionRejectsChangedPresentationIdentity",
+              "testExploreSharingRequiresExactEngineAndRecordIdentity"
             ]),
             suite("InsightChatTests"; [
               "explorePostRequestUsesPostIdentifierContract",
               "testTransientOwnedScanReadinessKeepsChatEntryRetryable",
-              "testConcurrentPresentationRequestsSharePreparationResult"
+              "testConcurrentPresentationRequestsSharePreparationResult",
+              "testFieldChatRejectsStaleSubjectCompletion",
+              "testFieldChatReplacesPreparationForChangedSubject"
+            ]),
+            suite("ReportInsightViewModel Tests"; [
+              "testSubmitFlagRejectsChangedScanIdentity",
+              "testSubmitFlagRejectsStaleSameScanCompletion"
             ])
           ]
           | map(select(.name != $omitted_suite))
@@ -159,6 +182,9 @@ done
 
 required_cases=(
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
+  "testConfirmAIIdentificationRejectsChangedPresentationIdentity"
+  "testApplyIdentificationOverrideRejectsChangedPresentationIdentity"
+  "testBackgroundWriteBacklogHasAHardMemoryBound"
   "generatedBackgroundResultRejectsMalformedSuccessBody"
   "generatedConfidenceZeroBackgroundResultIsTerminal"
   "backgroundInferencePreservesRecoverableHTTPFailures"
@@ -180,6 +206,17 @@ required_cases=(
   "testExploreShareRejectsContradictorySuccessResponses"
   "testExploreShareSendsMissingScanRecoveryPayload"
   "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion"
+  "testExploreCloudScanRestoreUsesStableNotFoundCodeWithLegacyFallback"
+  "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity"
+  "testMissingDifferentRecordClearsStaleScanBoundState"
+  "testRecordSwitchInvalidatesPriorActionGeneration"
+  "testResetMonotonicallyInvalidatesScanBoundRequests"
+  "testFieldNotesRejectChangedPresentationIdentity"
+  "testPreferredNameRejectsStalePresentationGeneration"
+  "testQueuedRefreshRejectsChangedPresentationIdentity"
+  "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity"
+  "testQueuedPromotionRejectsChangedPresentationIdentity"
+  "testExploreSharingRequiresExactEngineAndRecordIdentity"
   "testCheckScanStatusRejectsMalformedOrMismatchedSuccess"
   "testBulkScanStatusRejectsDuplicateMissingOrForeignRows"
   "testExploreMediaIncidentsAndLifecycleNotificationsDecode"
@@ -188,10 +225,15 @@ required_cases=(
   "testCommunityRequestSendsStableAIIdempotencyKey"
   "testCommunityRequestRejectsUnconfirmedSuccessResponse"
   "testGetExploreShareStateRejectsUnconfirmedState"
+  "testMissingOwnerShareStateClearsStaleLocalPublication"
   "testGetExploreShareStateAcceptsServerHiddenPostWithoutCommunityRequest"
   "explorePostRequestUsesPostIdentifierContract"
   "testTransientOwnedScanReadinessKeepsChatEntryRetryable"
   "testConcurrentPresentationRequestsSharePreparationResult"
+  "testFieldChatRejectsStaleSubjectCompletion"
+  "testFieldChatReplacesPreparationForChangedSubject"
+  "testSubmitFlagRejectsChangedScanIdentity"
+  "testSubmitFlagRejectsStaleSameScanCompletion"
 )
 
 for omitted_case in "${required_cases[@]}"; do

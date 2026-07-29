@@ -11,53 +11,91 @@ TestFlight, App Store, support, and QA.
 - Fixed a TestFlight-confirmed queued-scan deadlock after a retryable cloud
   ingestion failure. The app now preserves one exact retry through any required
   media re-upload and lets that delayed generation send its Identify request
-  instead of endlessly alternating status checks and successful uploads.
-  Retry ownership is now read from both the queued scan and its durable job,
-  counters advance from the monotonic maximum, and every serialized transition
-  repairs a drifted mirror before mutation. A known cloud-complete result wins
-  over retry state. This closes the migrated-store variant that still restarted
-  at retry one after the initial single-row fix. Automatic retries pause for
-  manual attention at the safety limit, and an explicit retry starts a fresh
-  automatic budget under the same scan UUID so description-only work cannot
-  immediately pause again. Opening the library logs only actual queue/library
-  changes, expected duplicate retry callbacks are silent, and Library,
-  scheduler, reconnect, and URLSession replay wakes share one active
-  reconciliation plus at most one trailing pass. Hosted iOS result validation
-  now requires the exact replay single-flight, retry-dispatch, dual-copy
-  durable-latch, re-stage-survival, and description-only manual-retry
-  regressions to execute and pass.
+  instead of endlessly alternating status checks and successful uploads. Retry
+  ownership is now read from both the queued scan and its durable job, counters
+  advance from the monotonic maximum, and every serialized transition repairs a
+  drifted mirror before mutation. A known cloud-complete result wins over retry
+  state. This closes the migrated-store variant that still restarted at retry
+  one after the initial single-row fix. Automatic retries pause for manual
+  attention at the safety limit, and an explicit retry starts a fresh automatic
+  budget under the same scan UUID so description-only work cannot immediately
+  pause again. Opening the library logs only actual queue/library changes,
+  expected duplicate retry callbacks are silent, and Library, scheduler,
+  reconnect, and URLSession replay wakes share one active reconciliation plus at
+  most one trailing pass. Hosted iOS result validation now requires the exact
+  replay single-flight, retry-dispatch, dual-copy durable-latch,
+  re-stage-survival, and description-only manual-retry regressions to execute
+  and pass.
 - Restored Explore sharing for eligible older observations whose cloud media
   reconciler had abandoned a missing owner row even though the device retained
   the completed result and original media. Repair is limited to the
   authenticated owner’s exact `replay_exhausted` ledger, or exact
   `media_reconciliation_abandoned` plus composite service proof: a post-result
   dead letter no earlier than the latest charged normal/server-replay attempt,
-  no active reservation or invalid timestamp lineage, and no
-  moderation-rejected or moderation-pipeline-failed capture lifecycle row.
-  Legacy unstructured evidence must belong to the immutable exact dead-letter-ID
-  snapshot captured at rollout, predate the private database cutoff, and
-  narrowly cover the vulnerable producer’s first committed normal attempt with
-  no charged replay and the audited post-safety error path. Snapshot identity
-  prevents a DDL-blocked producer from gaining legacy authority through an
-  earlier transaction-start timestamp. New evidence binds the exact quota
+  no active reservation or invalid timestamp lineage, and no moderation-rejected
+  or moderation-pipeline-failed capture lifecycle row. Legacy unstructured
+  evidence must belong to the immutable exact dead-letter-ID snapshot captured
+  at rollout, predate the private database cutoff, and narrowly cover the
+  vulnerable producer’s first committed normal attempt with no charged replay
+  and the audited post-safety error path. Snapshot identity prevents a
+  DDL-blocked producer from gaining legacy authority through an earlier
+  transaction-start timestamp. New evidence binds the exact quota
   reservation/request IDs, validated provider result, and completed Identify
   safety evaluation. Because the baseline and hardening SQL files are separate
-  migration-file transactions, production predeploys fail-closed signer,
-  status, and share consumers before either file; the structured Identify
-  producer deploys only after proof hardening is ready. It remains fenced by
-  deletion tombstones and per-scan locks and still blocks later policy, unproven
+  migration-file transactions, production predeploys fail-closed signer, status,
+  and share consumers before either file; the structured Identify producer
+  deploys only after proof hardening is ready. It remains fenced by deletion
+  tombstones and per-scan locks and still blocks later policy, unproven
   abandonment, unknown, foreign, and ordinary terminal state. Media cleanup can
-  no longer overwrite an existing terminal policy decision. Rejected
-  post-result proof writes now produce an explicit backend diagnostic instead
-  of disappearing silently. New iOS builds commit owner repair before
-  uploading; the guarded Edge path also supports the current released-client
-  sequence.
+  no longer overwrite an existing terminal policy decision. Rejected post-result
+  proof writes now produce an explicit backend diagnostic instead of
+  disappearing silently. New iOS builds commit owner repair before uploading;
+  the guarded Edge path also supports the current released-client sequence.
 - The Scan Library now accepts both the current wrapped and exact legacy
   direct-array Explore media-health response. A deployed empty `[]` no longer
   produces a false decode error merely from opening the library, rapid queue
   updates coalesce the independent read-only alert refresh without dropping a
   trailing repair/foreground request, account identity is revalidated after an
   in-flight call, and unknown success shapes still fail closed.
+- Fenced Field Chat and Explore actions to one exact presented scan. A delayed
+  SwiftData lookup can no longer retain the previous observation's post,
+  Community, notes, media, or action state; Field Chat proves and presents the
+  same captured scan ID across asynchronous readiness checks, and Explore
+  recovery now prefers the backend's stable `not_found` code while retaining a
+  narrow released-response text fallback. Switching records now invalidates
+  every older scan-bound action generation, so delayed publication, post edit,
+  Community, field-note, preferred-name, identification-confirmation,
+  collection, issue-report, and delete callbacks cannot mutate or display state
+  for the newly opened observation, including a same-scan issue-report
+  completion from an older presentation generation. Sheet reset now advances
+  request clocks instead of reusing zero-based tokens. A handler-confirmed
+  missing owner row also clears an obsolete local post or Community marker,
+  allowing the deliberate share action to enter guarded legacy recovery instead
+  of exposing a broken Edit action.
+- Completed the scan-switch audit across delayed and nested Insight actions.
+  Candidate hydration and identification review now require the original scan,
+  species, and latest user action; review writes remain ordered even when an
+  older request is already running. Field Chat rejects late private-thread
+  loads, sends, deletes, feedback, summaries, and prompts after another chat
+  opens. Explore/Community/Field Notes editors, nested Share sheets, onboarding,
+  and New Collection retain their original presentation identity. Nested Share
+  directly checks its parent generation, and New Collection revalidates before
+  insertion. Toolbar, export, media/audio, gallery, Wikipedia/Safari,
+  common-name, nested candidate, copied composer, Field Chat parent, and toast
+  callbacks all retain their immutable scan/generation target. Enrichment,
+  Wikipedia, GBIF, and durable species-metadata writes also require the original
+  presentation and latest review action, with writes serialized so the newest
+  user choice is always final. Presentation dismissals now clear only their
+  captured target, same-scan Explore/Community writes retain the exact
+  post/request UUID, and an unavailable advisory post-detail read no longer
+  erases confirmed Field Notes visibility. Offline queue polling, cached-media refresh,
+  direct A-to-B sheet replacement, manual-retry refresh/indicator release, and
+  result promotion can no longer restore, retain, promote, or clear UI for a
+  different queued scan. Queued-to-completed handoff invalidates queued
+  callbacks even under the same UUID, and a new completion handoff replaces an
+  obsolete poller instead of being dropped. Best-effort Wikipedia, GBIF, and
+  enrichment persistence now has a hard eight-active/eight-pending ceiling, so
+  rapid queue replay cannot build an unbounded retained-closure backlog.
 - Fixed the release-blocking scan failure that let Gemini finish but rejected
   the observation while saving it. Inline camera bytes no longer advertise a
   synthetic staging object, and the strict media finalizer now receives only
@@ -311,8 +349,8 @@ TestFlight, App Store, support, and QA.
   Community-request, legacy owner recovery, and both Field Chat quota RPCs are
   present in the live PostgREST schema cache. Exact SQLSTATE `22023` no-write
   sentinels validate server execution before any lock or mutation, while every
-  real anon/publishable credential must remain denied; arbitrary `400`
-  responses and logged response bodies cannot satisfy the gate.
+  real anon/publishable credential must remain denied; arbitrary `400` responses
+  and logged response bodies cannot satisfy the gate.
 - Release guidance now requires a manual `iOS Build and Test` dispatch on the
   final exact SHA when backend-only follow-up commits cause ordinary iOS scope
   detection to skip macOS work. Scope-only success cannot replace the full unit

@@ -226,11 +226,14 @@ struct TopToolbar: ToolbarContent {
     private var actionMenuContent: some View {
         if let audioBoostEnabled {
             Button {
-                if !audioBoostEnabled.wrappedValue {
+                let wasEnabled = audioBoostEnabled.wrappedValue
+                if !wasEnabled {
                     onAudioBoostEnableRequested?()
                 }
                 audioBoostEnabled.wrappedValue.toggle()
-                if audioBoostEnabled.wrappedValue {
+                let isEnabled = audioBoostEnabled.wrappedValue
+                guard isEnabled != wasEnabled else { return }
+                if isEnabled {
                     HapticManager.shared.triggerMediumPulse(source: "media.insight.audioBoost.enabled")
                 } else {
                     HapticManager.shared.triggerLightImpact(

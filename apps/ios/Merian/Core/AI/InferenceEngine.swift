@@ -161,14 +161,26 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
     @ObservationIgnored private var localClassificationTask: Task<Void, Never>?
     @ObservationIgnored private var backgroundWriteTasks = [UUID: Task<Void, Never>]()
-    /// Hard cap on concurrent background write tasks. When reached, new submissions are dropped
-    /// rather than allowed to stack — prevents OOM during rapid offline-queue replay where
-    /// multiple wiki/GBIF/enrichment writes can stack faster than SQLite drains them.
+    /// Hard caps on active and pending best-effort metadata writes. Together they prevent OOM
+    /// during rapid offline-queue replay where wiki/GBIF/enrichment writes can arrive faster
+    /// than SQLite drains them.
     private let backgroundWriteTaskCap = 8
+    private let pendingBackgroundWriteTaskCap = 8
     /// Monotonic session token for the bounded background-write queue. Resetting the engine
     /// increments the generation so queued work from a previous scan session cannot drain into
     /// the next one after cancellation.
     @ObservationIgnored private var backgroundWriteGeneration: UInt64 = 0
+    /// Latest identification-review action for each scan. Review hydration performs network
+    /// I/O, so an older override can otherwise finish after a newer reset and overwrite the
+    /// newer choice locally or in the cloud.
+    @ObservationIgnored private var identificationReviewActionClock: UInt64 = 0
+    @ObservationIgnored private var identificationReviewActionGenerations: [String: UInt64] = [:]
+    @ObservationIgnored private var identificationFlagActionClock: UInt64 = 0
+    @ObservationIgnored private var identificationFlagActionGenerations: [String: UInt64] = [:]
+    /// Serializes local and cloud review writes in user-action order. A generation check alone
+    /// cannot stop an already-started older request from finishing after a newer request.
+    @ObservationIgnored private var identificationReviewWriteTail: Task<Void, Never>?
+    var scanPresentationGeneration: UInt64 { backgroundWriteGeneration }
 
     private struct PendingBackgroundWrite {
         let generation: UInt64
@@ -181,9 +193,17 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         case showLoadingWhenReferenceMissing
     }
 
+    private enum IdentificationWriteChannel: Sendable {
+        case review
+        case legacyFlag
+    }
+
     private func executeTrackedBackgroundTask(operation: @escaping @Sendable () async -> Void) {
         let generation = backgroundWriteGeneration
         guard backgroundWriteTasks.count < backgroundWriteTaskCap else {
+            guard pendingBackgroundTasks.count < pendingBackgroundWriteTaskCap else {
+                return
+            }
             pendingBackgroundTasks.append(PendingBackgroundWrite(generation: generation, operation: operation))
             return
         }
@@ -224,6 +244,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         pendingBackgroundTasks.removeAll(keepingCapacity: false)
         for task in backgroundWriteTasks.values { task.cancel() }
         backgroundWriteTasks.removeAll(keepingCapacity: false)
+        // Keep the cancelled tail as the next action's predecessor. If its operation already
+        // crossed a cancellation boundary, waiting for it preserves final-writer ordering
+        // across A → B → A presentation changes.
+        identificationReviewWriteTail?.cancel()
     }
 
     private func isSpeciesEnriched(_ name: String) -> Bool {
@@ -235,6 +259,143 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         let ts = Date.now.timeIntervalSinceReferenceDate
         enrichedSpeciesTimestamps[name] = ts
         UserDefaults.standard.set(enrichedSpeciesTimestamps, forKey: UserDefaultsKeys.enrichedSpeciesTimestamps)
+    }
+
+    private func beginIdentificationReviewAction(scanId: String) -> UInt64 {
+        let key = scanId.lowercased()
+        if identificationReviewActionGenerations[key] == nil,
+           identificationReviewActionGenerations.count >= sessionSetCap,
+           let oldestKey = identificationReviewActionGenerations.min(by: { $0.value < $1.value })?.key {
+            identificationReviewActionGenerations.removeValue(forKey: oldestKey)
+        }
+        identificationReviewActionClock &+= 1
+        identificationReviewActionGenerations[key] = identificationReviewActionClock
+        return identificationReviewActionClock
+    }
+
+    private func isIdentificationReviewActionCurrent(
+        scanId: String,
+        generation: UInt64
+    ) -> Bool {
+        identificationReviewActionGenerations[scanId.lowercased()] == generation
+    }
+
+    private func beginIdentificationFlagAction(scanId: String) -> UInt64 {
+        let key = scanId.lowercased()
+        if identificationFlagActionGenerations[key] == nil,
+           identificationFlagActionGenerations.count >= sessionSetCap,
+           let oldestKey = identificationFlagActionGenerations.min(by: {
+               $0.value < $1.value
+           })?.key {
+            identificationFlagActionGenerations.removeValue(forKey: oldestKey)
+        }
+        identificationFlagActionClock &+= 1
+        identificationFlagActionGenerations[key] = identificationFlagActionClock
+        return identificationFlagActionClock
+    }
+
+    private func isIdentificationFlagActionCurrent(
+        scanId: String,
+        generation: UInt64
+    ) -> Bool {
+        identificationFlagActionGenerations[scanId.lowercased()] == generation
+    }
+
+    private func enqueueIdentificationReviewWrite(
+        scanId: String,
+        actionGeneration: UInt64,
+        channel: IdentificationWriteChannel = .review,
+        operation: @escaping @Sendable () async -> Void
+    ) {
+        let predecessor = identificationReviewWriteTail
+        let presentationGeneration = backgroundWriteGeneration
+        identificationReviewWriteTail = Task { @MainActor [weak self] in
+            _ = await predecessor?.value
+            guard !Task.isCancelled,
+                  let self,
+                  self.backgroundWriteGeneration == presentationGeneration else {
+                return
+            }
+            let isCurrent = switch channel {
+            case .review:
+                self.isIdentificationReviewActionCurrent(
+                    scanId: scanId,
+                    generation: actionGeneration
+                )
+            case .legacyFlag:
+                self.isIdentificationFlagActionCurrent(
+                    scanId: scanId,
+                    generation: actionGeneration
+                )
+            }
+            guard isCurrent else { return }
+            await operation()
+        }
+    }
+
+    private func isLiveSpeciesPresentation(
+        scanId: String,
+        scientificName: String,
+        presentationGeneration: UInt64? = nil,
+        reviewActionGeneration: UInt64? = nil
+    ) -> Bool {
+        guard let current = speciesData,
+              current.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
+              current.scientificName.caseInsensitiveCompare(scientificName) == .orderedSame else {
+            return false
+        }
+        if let presentationGeneration,
+           backgroundWriteGeneration != presentationGeneration {
+            return false
+        }
+        guard let reviewActionGeneration else { return true }
+        return isIdentificationReviewActionCurrent(
+            scanId: scanId,
+            generation: reviewActionGeneration
+        )
+    }
+
+    private func cancelSpeciesHydrationForIdentificationChange() {
+        liveHydrationTask?.cancel()
+        historicHydrationTask?.cancel()
+        gbifHydrationTask?.cancel()
+        gbifHydrationTask = nil
+        enrichmentWriteTask?.cancel()
+        enrichmentWriteTask = nil
+        isEnrichmentLoading = false
+        isLookalikesLoading = false
+    }
+
+    private func executeSpeciesMetadataWrite(
+        scanId: String,
+        scientificName: String,
+        presentationGeneration: UInt64,
+        reviewActionGeneration: UInt64?,
+        operation: @escaping @Sendable () async -> Void
+    ) {
+        let guardedOperation: @Sendable () async -> Void = { [weak self] in
+            guard !Task.isCancelled,
+                  let self,
+                  await self.isLiveSpeciesPresentation(
+                      scanId: scanId,
+                      scientificName: scientificName,
+                      presentationGeneration: presentationGeneration,
+                      reviewActionGeneration: reviewActionGeneration
+                  ) else {
+                return
+            }
+            await operation()
+        }
+
+        if let reviewActionGeneration {
+            enqueueIdentificationReviewWrite(
+                scanId: scanId,
+                actionGeneration: reviewActionGeneration,
+                operation: guardedOperation
+            )
+        } else {
+            executeTrackedBackgroundTask(operation: guardedOperation)
+        }
     }
 
     private func hasUsableLookalikeTaxonomy(_ taxonomy: TaxonomyData?) -> Bool {
@@ -772,10 +933,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         modelContext: ModelContext?,
         referencePolicy: LiveReferenceHydrationPolicy
     ) {
-        guard mappedData.isBiological else { return }
+        guard mappedData.isBiological,
+              let capturedScanId = mappedData.scanId else {
+            return
+        }
 
         let capturedScientificName = mappedData.scientificName
-        let capturedScanId = mappedData.scanId
+        let capturedPresentationGeneration = backgroundWriteGeneration
+        let reviewActionGeneration =
+            beginIdentificationReviewAction(scanId: capturedScanId)
         let capturedGbifKey = mappedData.gbifTaxonKey
         let capturedHasWikipedia = mappedData.wikipediaOverview != nil
         let shouldShowReferenceLoading = referencePolicy == .showLoadingWhenReferenceMissing &&
@@ -813,6 +979,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         await self.fetchWikipediaAndHydrate(
                             for: capturedScientificName,
                             scanId: capturedScanId,
+                            presentationGeneration: capturedPresentationGeneration,
+                            reviewActionGeneration: reviewActionGeneration,
                             modelContext: modelContext
                         )
                     }
@@ -826,7 +994,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         await self.fetchAndApplyEnrichment(
                             modelContext: modelContext,
                             needsMetadata: plannedScopes.metadata,
-                            needsLookalikes: plannedScopes.lookalikes
+                            needsLookalikes: plannedScopes.lookalikes,
+                            reviewActionGeneration: reviewActionGeneration
                         )
                         taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
                     }
@@ -837,6 +1006,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         await self.fetchGBIFImagesAndHydrate(
                             for: key,
                             scanId: capturedScanId,
+                            scientificName: capturedScientificName,
+                            presentationGeneration: capturedPresentationGeneration,
+                            reviewActionGeneration: reviewActionGeneration,
                             modelContext: modelContext
                         )
                     }
@@ -1768,7 +1940,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// Fetches and patches the Wikipedia extract and reference image for a species after inference completes.
     /// Runs independently to avoid adding latency to the inference round-trip.
     /// Only marks the species as attempted after a *successful* fetch, so transient failures are retryable.
-    private func fetchWikipediaAndHydrate(for species: String, scanId: String?, modelContext: ModelContext?) async {
+    private func fetchWikipediaAndHydrate(
+        for species: String,
+        scanId: String,
+        presentationGeneration: UInt64,
+        reviewActionGeneration: UInt64?,
+        modelContext: ModelContext?
+    ) async {
         guard !species.isEmpty,
               species.lowercased() != "taxonomy unavailable",
               species.lowercased() != "unknown subject" else { return }
@@ -1814,39 +1992,44 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 return (text, url, decoded.lead.originalimage?.source)
             }.value
 
-            // Mark as attempted only on success — transient failures (timeout, 404) remain retryable.
-            wikiFetchAttemptedIds.insert(species)
-
-            let safeImageUrlToPersist = await MainActor.run { () -> String? in
-                MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .private)")
-                // Individual optional-chain mutations (self.speciesData?.field = x) do not
-                // reliably fire @Observable notifications for struct value types; a single
-                // full-value replacement is the only guaranteed trigger.
-                if var updated = self.speciesData, updated.scientificName == species {
-                    updated.wikipediaOverview = descriptionText
-                    updated.wikipediaUrl = webUrl
-                    if let img = imageUrl, !img.isEmpty {
-                        var currentUrls = Self.normalizedReferenceURLs(from: updated.referenceImageUrl)
-                        if !currentUrls.contains(img) {
-                            currentUrls.insert(img, at: 0)
-                        }
-                        let capped = Array(currentUrls.prefix(5))
-                        updated.referenceImageUrl = capped.joined(separator: ",")
-                        self.activeMedia.referenceState = .loaded(capped)
-                        MerianLog.general.debug("Wiki hydration applied. New state: \(capped, privacy: .public)")
-                    }
-                    self.speciesData = updated
-                    return updated.referenceImageUrl ?? imageUrl
-                }
-                return imageUrl
+            guard isLiveSpeciesPresentation(
+                scanId: scanId,
+                scientificName: species,
+                presentationGeneration: presentationGeneration,
+                reviewActionGeneration: reviewActionGeneration
+            ), var updated = speciesData else {
+                return
             }
 
-            if let scanId = scanId, let context = modelContext {
+            // Mark as attempted only after the fetched species still owns this exact
+            // presentation. A stale successful request must not suppress hydration when the
+            // user later returns to the same species under a new generation.
+            wikiFetchAttemptedIds.insert(species)
+
+            MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .private)")
+            updated.wikipediaOverview = descriptionText
+            updated.wikipediaUrl = webUrl
+            if let img = imageUrl, !img.isEmpty {
+                var currentUrls = Self.normalizedReferenceURLs(from: updated.referenceImageUrl)
+                if !currentUrls.contains(img) {
+                    currentUrls.insert(img, at: 0)
+                }
+                let capped = Array(currentUrls.prefix(5))
+                updated.referenceImageUrl = capped.joined(separator: ",")
+                activeMedia.referenceState = .loaded(capped)
+                MerianLog.general.debug("Wiki hydration applied. New state: \(capped, privacy: .public)")
+            }
+            speciesData = updated
+            let safeImageUrlToPersist = updated.referenceImageUrl ?? imageUrl
+
+            if let context = modelContext {
                 let container = context.container
-                // Route through executeTrackedBackgroundTask: bounded by the cap and
-                // cancelled by prepareForNewScan() / cancelActiveRequest() so a stale
-                // wiki write cannot touch a record that is no longer active.
-                executeTrackedBackgroundTask { [safeImageUrlToPersist] in
+                executeSpeciesMetadataWrite(
+                    scanId: scanId,
+                    scientificName: species,
+                    presentationGeneration: presentationGeneration,
+                    reviewActionGeneration: reviewActionGeneration
+                ) { [safeImageUrlToPersist] in
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: safeImageUrlToPersist)
                 }
@@ -1882,7 +2065,14 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     /// Fetches high-quality field observations from GBIF (e.g. iNaturalist) once the Taxon Key is known.
     /// This acts as a robust supplement/fallback to Wikipedia imagery.
-    private func fetchGBIFImagesAndHydrate(for taxonKey: Int, scanId: String?, modelContext: ModelContext?) async {
+    private func fetchGBIFImagesAndHydrate(
+        for taxonKey: Int,
+        scanId: String,
+        scientificName: String,
+        presentationGeneration: UInt64,
+        reviewActionGeneration: UInt64?,
+        modelContext: ModelContext?
+    ) async {
         guard let url = URL(string: "https://api.gbif.org/v1/occurrence/search?taxonKey=\(taxonKey)&mediaType=StillImage&limit=4") else { return }
 
         var request = URLRequest(url: url)
@@ -1914,7 +2104,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
             // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
             var persistUrls: String?
-            if var updated = self.speciesData, updated.scanId == scanId {
+            if var updated = self.speciesData,
+               isLiveSpeciesPresentation(
+                   scanId: scanId,
+                   scientificName: scientificName,
+                   presentationGeneration: presentationGeneration,
+                   reviewActionGeneration: reviewActionGeneration
+               ) {
                 var currentUrls = Self.normalizedReferenceURLs(from: updated.referenceImageUrl)
 
                 for urlStr in newUrls where !currentUrls.contains(urlStr) {
@@ -1930,9 +2126,14 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 self.speciesData = updated
             }
 
-            if let scanId = scanId, let context = modelContext, let finalUrls = persistUrls {
+            if let context = modelContext, let finalUrls = persistUrls {
                 let container = context.container
-                executeTrackedBackgroundTask {
+                executeSpeciesMetadataWrite(
+                    scanId: scanId,
+                    scientificName: scientificName,
+                    presentationGeneration: presentationGeneration,
+                    reviewActionGeneration: reviewActionGeneration
+                ) {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: nil, url: nil, imageUrl: finalUrls)
                 }
@@ -1959,7 +2160,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         modelContext: ModelContext?,
         needsMetadata: Bool = true,
         needsLookalikes: Bool = true,
-        allowLookalikesRetry: Bool = true
+        allowLookalikesRetry: Bool = true,
+        reviewActionGeneration: UInt64? = nil
     ) async {
         guard let data = speciesData,
               let scanId = data.scanId,
@@ -1977,12 +2179,22 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         let capturedScientificName = data.scientificName
         let capturedConfidence = data.confidenceScore
         let capturedTier = data.inferenceTier ?? "flash"
+        let capturedPresentationGeneration = backgroundWriteGeneration
 
         await withTaskGroup(of: Void.self) { group in
             if needsMetadata {
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
-                    defer { if self.speciesData?.scanId == capturedScanId { self.isEnrichmentLoading = false } }
+                    defer {
+                        if self.isLiveSpeciesPresentation(
+                            scanId: capturedScanId,
+                            scientificName: capturedScientificName,
+                            presentationGeneration: capturedPresentationGeneration,
+                            reviewActionGeneration: reviewActionGeneration
+                        ) {
+                            self.isEnrichmentLoading = false
+                        }
+                    }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(
                             scanId: capturedScanId,
@@ -1999,7 +2211,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         // full-value replacement is the only guaranteed trigger.
                         // Guard on scanId: a stale enrichment task completing after a new scan
                         // has already set speciesData must not overwrite the new scan's fields.
-                        if var updated = self.speciesData, self.speciesData?.scanId == capturedScanId {
+                        if var updated = self.speciesData,
+                           self.isLiveSpeciesPresentation(
+                               scanId: capturedScanId,
+                               scientificName: capturedScientificName,
+                               presentationGeneration: capturedPresentationGeneration,
+                               reviewActionGeneration: reviewActionGeneration
+                           ) {
                             updated.habitatDescription = enrichData.habitat_description
                             if let tax = enrichData.taxonomy {
                                 updated.taxonomy = TaxonomyData(
@@ -2019,7 +2237,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                             }
                             self.speciesData = updated  // Single @Observable-triggering assignment
                         }
-                        if let key = enrichData.gbif_taxon_key {
+                        if let key = enrichData.gbif_taxon_key,
+                           self.isLiveSpeciesPresentation(
+                               scanId: capturedScanId,
+                               scientificName: capturedScientificName,
+                               presentationGeneration: capturedPresentationGeneration,
+                               reviewActionGeneration: reviewActionGeneration
+                           ) {
                             // Assign immediately on @MainActor so prepareForNewScan() / cancelActiveRequest()
                             // can always cancel this handle regardless of when the enrichment DB write completes.
                             // Late assignment (inside enrichmentWriteTask) would leave gbifHydrationTask nil
@@ -2027,7 +2251,14 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                             self.gbifHydrationTask?.cancel()
                             self.gbifHydrationTask = Task { [weak self] in
                                 guard let self else { return }
-                                await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
+                                await self.fetchGBIFImagesAndHydrate(
+                                    for: key,
+                                    scanId: capturedScanId,
+                                    scientificName: capturedScientificName,
+                                    presentationGeneration: capturedPresentationGeneration,
+                                    reviewActionGeneration: reviewActionGeneration,
+                                    modelContext: modelContext
+                                )
                             }
                         }
                         if let context = modelContext {
@@ -2036,12 +2267,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                             let gbifSnapshot = enrichData.gbif_taxon_key
                             let taxonomySnapshot = enrichData.taxonomy
                             let altNamesSnapshot = enrichData.alternative_common_names
-                            self.executeTrackedBackgroundTask { [weak self] in
-                                guard !Task.isCancelled else { return }
-                                let shouldPersist = await MainActor.run { [weak self] in
-                                    self?.speciesData?.scanId == capturedScanId
-                                }
-                                guard shouldPersist else { return }
+                            self.executeSpeciesMetadataWrite(
+                                scanId: capturedScanId,
+                                scientificName: capturedScientificName,
+                                presentationGeneration: capturedPresentationGeneration,
+                                reviewActionGeneration: reviewActionGeneration
+                            ) {
                                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                                 await dbActor.updateScanWithEnrichment(
                                     scanId: capturedScanId,
@@ -2069,7 +2300,16 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             if needsLookalikes {
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
-                    defer { if self.speciesData?.scanId == capturedScanId { self.isLookalikesLoading = false } }
+                    defer {
+                        if self.isLiveSpeciesPresentation(
+                            scanId: capturedScanId,
+                            scientificName: capturedScientificName,
+                            presentationGeneration: capturedPresentationGeneration,
+                            reviewActionGeneration: reviewActionGeneration
+                        ) {
+                            self.isLookalikesLoading = false
+                        }
+                    }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(
                             scanId: capturedScanId,
@@ -2101,19 +2341,25 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                             // Single full-value replacement — see enrichment scope comment above.
                             // Guard on scanId: a stale lookalikes task completing after a new scan
                             // has set speciesData must not overwrite the new scan's similar species.
-                            if var updated = self.speciesData, self.speciesData?.scanId == capturedScanId {
+                            if var updated = self.speciesData,
+                               self.isLiveSpeciesPresentation(
+                                   scanId: capturedScanId,
+                                   scientificName: capturedScientificName,
+                                   presentationGeneration: capturedPresentationGeneration,
+                                   reviewActionGeneration: reviewActionGeneration
+                               ) {
                                 updated.similarSpecies = SimilarSpecies(entries: mappedEntries)
                                 self.speciesData = updated
                             }
                             if let context = modelContext {
                                 let container = context.container
                                 let entriesToEncode: [SimilarSpeciesEntry]? = mappedEntries
-                                self.executeTrackedBackgroundTask { [weak self] in
-                                    guard !Task.isCancelled else { return }
-                                    let shouldPersist = await MainActor.run { [weak self] in
-                                        self?.speciesData?.scanId == capturedScanId
-                                    }
-                                    guard shouldPersist else { return }
+                                self.executeSpeciesMetadataWrite(
+                                    scanId: capturedScanId,
+                                    scientificName: capturedScientificName,
+                                    presentationGeneration: capturedPresentationGeneration,
+                                    reviewActionGeneration: reviewActionGeneration
+                                ) {
                                     // Encode off @MainActor — JSONEncoder is CPU-bound.
                                     let encodedLookalikes: Data? = await Task.detached(priority: .utility) {
                                         entriesToEncode.flatMap { try? JSONEncoder().encode($0) }
@@ -2149,14 +2395,20 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         if allowLookalikesRetry,
            needsMetadata,
            needsLookalikes,
-           speciesData?.scanId == capturedScanId,
+           isLiveSpeciesPresentation(
+               scanId: capturedScanId,
+               scientificName: capturedScientificName,
+               presentationGeneration: capturedPresentationGeneration,
+               reviewActionGeneration: reviewActionGeneration
+           ),
            speciesData?.similarSpecies == nil,
            hasUsableLookalikeTaxonomy(speciesData?.taxonomy) {
             await fetchAndApplyEnrichment(
                 modelContext: modelContext,
                 needsMetadata: false,
                 needsLookalikes: true,
-                allowLookalikesRetry: false
+                allowLookalikesRetry: false,
+                reviewActionGeneration: reviewActionGeneration
             )
         }
     }
@@ -2166,8 +2418,20 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// Called when the user selects a candidate as their preferred identification.
     /// Immediately updates display state, persists locally, syncs to cloud, and hydrates
     /// species data for the override species from `species_dictionary`.
-    func applyIdentificationOverride(scientificName: String, modelContext: ModelContext?) async {
-        guard let scanId = speciesData?.scanId else { return }
+    func applyIdentificationOverride(
+        scientificName: String,
+        expectedScanId: String? = nil,
+        modelContext: ModelContext?
+    ) async {
+        guard let scanId = speciesData?.scanId,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
+        let reviewActionGeneration = beginIdentificationReviewAction(scanId: scanId)
+        let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
+        let container = modelContext?.container
+        cancelSpeciesHydrationForIdentificationChange()
 
         // 1. Immediately update display — scientificName drives InsightHeader subtitle.
         // Wipe stale contextual data to prevent old UI cards from lingering during the fetch.
@@ -2188,65 +2452,130 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             updated.isFlagged = false
             updated.alternativesExhausted = false
             speciesData = updated
+            activeMedia.referenceState = .empty
         }
-
-        // 2. Fetch and patch species data for the override species first, so we obtain the UUID.
-        let confirmedId = await fetchAndPatchOverrideData(scientificName: scientificName, scanId: scanId, modelContext: modelContext)
-
-        // 3. Persist to SwiftData.
-        if let context = modelContext {
-            let container = context.container
-            Task {
+        if let container {
+            enqueueIdentificationReviewWrite(
+                scanId: scanId,
+                actionGeneration: flagActionGeneration,
+                channel: .legacyFlag
+            ) {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(scanId: scanId, override: scientificName, confirmed: false, newConfirmedSpeciesId: confirmedId, userReviewState: .userOverridden)
+                await dbActor.updateScanAsUnflagged(scanId: scanId)
             }
         }
 
-        // 4. Cloud sync — IDOR-guarded direct PostgREST update.
-        executeTrackedBackgroundTask { [weak self] in
-            guard let self else { return }
-            await self.syncIdentificationReviewToCloud(scanId: scanId, override: scientificName, confirmed: false, confirmedSpeciesId: confirmedId, userReviewState: UserReviewState.userOverridden.rawValue)
+        // 2. Fetch and patch species data for the override species first, so we obtain the UUID.
+        let confirmedId = await fetchAndPatchOverrideData(
+            scientificName: scientificName,
+            scanId: scanId,
+            modelContext: modelContext,
+            reviewActionGeneration: reviewActionGeneration
+        )
+        guard isIdentificationReviewActionCurrent(
+            scanId: scanId,
+            generation: reviewActionGeneration
+        ) else {
+            return
+        }
+
+        // 3–4. Serialize local and cloud writes so this choice remains the final writer even
+        // when a newer review action begins while an older request is already in flight.
+        enqueueIdentificationReviewWrite(
+            scanId: scanId,
+            actionGeneration: reviewActionGeneration
+        ) { [weak self] in
+            if let container {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanWithOverride(
+                    scanId: scanId,
+                    override: scientificName,
+                    confirmed: false,
+                    newConfirmedSpeciesId: confirmedId,
+                    userReviewState: .userOverridden
+                )
+            }
+            await self?.syncIdentificationReviewToCloud(
+                scanId: scanId,
+                override: scientificName,
+                confirmed: false,
+                confirmedSpeciesId: confirmedId,
+                userReviewState: UserReviewState.userOverridden.rawValue
+            )
         }
     }
 
     /// Called when the user confirms the AI's primary identification ("Yes, correct").
     /// Persists locally and syncs confirmation to the cloud scan record.
-    func confirmAIIdentification(modelContext: ModelContext?) async {
-        guard let scanId = speciesData?.scanId else { return }
+    func confirmAIIdentification(
+        expectedScanId: String? = nil,
+        modelContext: ModelContext?
+    ) async {
+        guard let scanId = speciesData?.scanId,
+              expectedScanId == nil ||
+              expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
+        let reviewActionGeneration = beginIdentificationReviewAction(scanId: scanId)
 
         speciesData?.userConfirmedIdentification = true
 
         var activeSpeciesId: String?
+        var container: ModelContainer?
         if let context = modelContext {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
             activeSpeciesId = (try? context.fetch(descriptor))?.first?.speciesId
-
-            let container = context.container
-            let confirmedSpeciesId = activeSpeciesId
-            executeTrackedBackgroundTask {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: true, newConfirmedSpeciesId: confirmedSpeciesId, userReviewState: .aiConfirmed)
-            }
+            container = context.container
         }
 
-        let capturedSpeciesId = activeSpeciesId
-        executeTrackedBackgroundTask { [weak self] in
-            guard let self else { return }
-            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: true, confirmedSpeciesId: capturedSpeciesId, userReviewState: UserReviewState.aiConfirmed.rawValue)
+        let confirmedSpeciesId = activeSpeciesId
+        enqueueIdentificationReviewWrite(
+            scanId: scanId,
+            actionGeneration: reviewActionGeneration
+        ) { [weak self] in
+            if let container {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanWithOverride(
+                    scanId: scanId,
+                    override: nil,
+                    confirmed: true,
+                    newConfirmedSpeciesId: confirmedSpeciesId,
+                    userReviewState: .aiConfirmed
+                )
+            }
+            await self?.syncIdentificationReviewToCloud(
+                scanId: scanId,
+                override: nil,
+                confirmed: true,
+                confirmedSpeciesId: confirmedSpeciesId,
+                userReviewState: UserReviewState.aiConfirmed.rawValue
+            )
         }
     }
 
     /// Called when the user flags an identification for manual review because no models matched.
     /// Mutates the local display state and persists the flag local-only via the `isFlagged` column.
-    func flagAIIdentification(modelContext: ModelContext?) async {
-        guard let scanId = speciesData?.scanId else { return }
+    func flagAIIdentification(
+        expectedScanId: String? = nil,
+        modelContext: ModelContext?
+    ) async {
+        guard let scanId = speciesData?.scanId,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
+        let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
 
         speciesData?.isFlagged = true
         speciesData?.alternativesExhausted = false
 
         if let context = modelContext {
             let container = context.container
-            executeTrackedBackgroundTask {
+            enqueueIdentificationReviewWrite(
+                scanId: scanId,
+                actionGeneration: flagActionGeneration,
+                channel: .legacyFlag
+            ) {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 await dbActor.updateScanAsFlagged(scanId: scanId)
             }
@@ -2254,14 +2583,26 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     }
 
     /// Removes the manual review flag from an identification.
-    func unflagAIIdentification(modelContext: ModelContext?) async {
-        guard let scanId = speciesData?.scanId else { return }
+    func unflagAIIdentification(
+        expectedScanId: String? = nil,
+        modelContext: ModelContext?
+    ) async {
+        guard let scanId = speciesData?.scanId,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
+        let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
 
         speciesData?.isFlagged = false
 
         if let context = modelContext {
             let container = context.container
-            executeTrackedBackgroundTask {
+            enqueueIdentificationReviewWrite(
+                scanId: scanId,
+                actionGeneration: flagActionGeneration,
+                channel: .legacyFlag
+            ) {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 await dbActor.updateScanAsUnflagged(scanId: scanId)
             }
@@ -2272,10 +2613,18 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// identification. Called by Undo (from `.overridden`) and Change (from `.confirmed`).
     /// Clears both `userIdentificationOverride` and `userConfirmedIdentification` locally,
     /// syncs both columns to null/false in the cloud, and re-hydrates the AI species data.
-    func resetIdentificationReview(modelContext: ModelContext?) async {
+    func resetIdentificationReview(
+        expectedScanId: String? = nil,
+        modelContext: ModelContext?
+    ) async {
         guard let scanId = speciesData?.scanId,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame,
               let aiName = speciesData?.aiScientificName,
               !aiName.isEmpty else { return }
+        let reviewActionGeneration = beginIdentificationReviewAction(scanId: scanId)
+        let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
+        cancelSpeciesHydrationForIdentificationChange()
 
         // 1. Revert in-memory state — scientificName must be restored before hydration fires.
         speciesData?.userIdentificationOverride = nil
@@ -2283,21 +2632,43 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         speciesData?.isFlagged = false
         speciesData?.alternativesExhausted = false
         speciesData?.scientificName = aiName
+        activeMedia.referenceState = .empty
 
-        // 2. Persist all reset fields locally.
-        if let context = modelContext {
-            let container = context.container
-            executeTrackedBackgroundTask {
+        let container = modelContext?.container
+        if let container {
+            enqueueIdentificationReviewWrite(
+                scanId: scanId,
+                actionGeneration: flagActionGeneration,
+                channel: .legacyFlag
+            ) {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: false, newConfirmedSpeciesId: nil, userReviewState: .unreviewed)
                 await dbActor.updateScanAsUnflagged(scanId: scanId)
             }
         }
 
-        // 3. Zero both cloud columns.
-        executeTrackedBackgroundTask { [weak self] in
-            guard let self else { return }
-            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: false, confirmedSpeciesId: nil, userReviewState: UserReviewState.unreviewed.rawValue)
+        // 2–3. Serialize the local reset and cloud reset behind any already-started older
+        // write. This makes the user's newest action the durable final state.
+        enqueueIdentificationReviewWrite(
+            scanId: scanId,
+            actionGeneration: reviewActionGeneration
+        ) { [weak self] in
+            if let container {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanWithOverride(
+                    scanId: scanId,
+                    override: nil,
+                    confirmed: false,
+                    newConfirmedSpeciesId: nil,
+                    userReviewState: .unreviewed
+                )
+            }
+            await self?.syncIdentificationReviewToCloud(
+                scanId: scanId,
+                override: nil,
+                confirmed: false,
+                confirmedSpeciesId: nil,
+                userReviewState: UserReviewState.unreviewed.rawValue
+            )
         }
 
         // 4. Re-hydrate the AI's original species data from species_dictionary.
@@ -2309,7 +2680,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
             originalAiReasoning = (try? context.fetch(descriptor))?.first?.aiReasoning
         }
-        await fetchAndPatchOverrideData(scientificName: aiName, scanId: scanId, modelContext: modelContext, restoringAiReasoning: originalAiReasoning)
+        await fetchAndPatchOverrideData(
+            scientificName: aiName,
+            scanId: scanId,
+            modelContext: modelContext,
+            restoringAiReasoning: originalAiReasoning,
+            reviewActionGeneration: reviewActionGeneration
+        )
     }
 
     /// Queries `species_dictionary` for the given scientific name and patches the live
@@ -2323,7 +2700,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     ///   original AI reasoning under the override species name.
     @MainActor
     @discardableResult
-    private func fetchAndPatchOverrideData(scientificName: String, scanId: String?, modelContext: ModelContext?, restoringAiReasoning: String? = nil) async -> String? {
+    private func fetchAndPatchOverrideData(
+        scientificName: String,
+        scanId: String,
+        modelContext: ModelContext?,
+        restoringAiReasoning: String? = nil,
+        reviewActionGeneration: UInt64
+    ) async -> String? {
         struct SpeciesDictRow: Decodable {
             let id: String
             let common_names: [String: String?]?
@@ -2368,7 +2751,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 // Individual optional-chain mutations (speciesData?.field = x) do not reliably
                 // fire @Observable notifications for struct value types; a single full-value
                 // replacement is the only guaranteed trigger.
-                if var updated = speciesData {
+                if var updated = speciesData,
+                   isLiveSpeciesPresentation(
+                       scanId: scanId,
+                       scientificName: scientificName,
+                       reviewActionGeneration: reviewActionGeneration
+                   ) {
                     updated.commonName = commonName.capitalized
                     updated.insightData = InsightData(
                         aiReasoning: restoringAiReasoning ?? "",
@@ -2391,11 +2779,17 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     updated.wikipediaOverview = row.wikipedia_overview
                     updated.wikipediaUrl = row.wikipedia_url
                     speciesData = updated
+                    let referenceURLs = Self.normalizedReferenceURLs(
+                        from: updated.referenceImageUrl
+                    )
+                    activeMedia.referenceState = referenceURLs.isEmpty
+                        ? .empty
+                        : .loaded(referenceURLs)
                 }
 
                 // Persist updated species fields so they survive sheet dismissal and reopen.
                 // scientificName is intentionally excluded — it is preserved as aiScientificName.
-                if let scanId, let context = modelContext {
+                if let context = modelContext {
                     let container = context.container
                     let capturedCommonName = commonName.capitalized
                     let capturedHazardType = row.hazard_type ?? "none"
@@ -2409,7 +2803,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     let capturedIucn = row.iucn_red_list_status
                     let capturedHabitat = row.habitat_description
                     let capturedGbif = row.gbif_taxon_key
-                    executeTrackedBackgroundTask {
+                    enqueueIdentificationReviewWrite(
+                        scanId: scanId,
+                        actionGeneration: reviewActionGeneration
+                    ) {
                         let dbActor = BackgroundDatabaseActor(modelContainer: container)
                         await dbActor.updateScanWithOverrideSpeciesData(
                             scanId: scanId,
@@ -2431,10 +2828,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 // speciesData.scientificName which is already set to the override name.
                 // Persist the scientific name as a commonName placeholder so the title survives
                 // sheet reopen before enrichment data arrives.
-                if let scanId, let context = modelContext {
+                if let context = modelContext {
                     let container = context.container
                     let capturedScientificName = scientificName
-                    executeTrackedBackgroundTask {
+                    enqueueIdentificationReviewWrite(
+                        scanId: scanId,
+                        actionGeneration: reviewActionGeneration
+                    ) {
                         let dbActor = BackgroundDatabaseActor(modelContainer: container)
                         await dbActor.updateScanWithOverrideSpeciesData(
                             scanId: scanId,
@@ -2450,7 +2850,16 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         )
                     }
                 }
-                await fetchAndApplyEnrichment(modelContext: modelContext)
+                if isLiveSpeciesPresentation(
+                    scanId: scanId,
+                    scientificName: scientificName,
+                    reviewActionGeneration: reviewActionGeneration
+                ) {
+                    await fetchAndApplyEnrichment(
+                        modelContext: modelContext,
+                        reviewActionGeneration: reviewActionGeneration
+                    )
+                }
 
                 let fallbackRows: [IdOnlyRow]? = try? await SupabaseManager.shared.client
                     .from("species_dictionary")
@@ -2577,6 +2986,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     }
 
     var debugBackgroundWriteTaskCap: Int { backgroundWriteTaskCap }
+    var debugPendingBackgroundWriteTaskCap: Int {
+        pendingBackgroundWriteTaskCap
+    }
 
     func debugBackgroundWriteState() -> DebugBackgroundWriteState {
         DebugBackgroundWriteState(
@@ -2732,6 +3144,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             isFlagged: record.isFlagged
         )
         self.isProcessing = false
+        let historicPresentationGeneration = backgroundWriteGeneration
+        let reviewActionGeneration =
+            beginIdentificationReviewAction(scanId: recordId)
 
         historicHydrationTask = Task { [weak self] in
             guard let self else { return }
@@ -2769,7 +3184,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             // Step 3: If an identification override is active, patch in the override species data.
             if let override = overrideName {
                 guard !Task.isCancelled else { return }
-                await self.fetchAndPatchOverrideData(scientificName: override, scanId: recordId, modelContext: safeContext)
+                await self.fetchAndPatchOverrideData(
+                    scientificName: override,
+                    scanId: recordId,
+                    modelContext: safeContext,
+                    reviewActionGeneration: reviewActionGeneration
+                )
             }
 
             // Steps 4 & 5: Retroactive Wikipedia hydration, Enrichment, and GBIF-image hydration.
@@ -2779,7 +3199,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     group.addTask { @MainActor [weak self] in
                         guard let self else { return }
                         guard !Task.isCancelled else { return }
-                        await self.fetchWikipediaAndHydrate(for: recordScientificName, scanId: recordId, modelContext: safeContext)
+                        await self.fetchWikipediaAndHydrate(
+                            for: recordScientificName,
+                            scanId: recordId,
+                            presentationGeneration: historicPresentationGeneration,
+                            reviewActionGeneration: reviewActionGeneration,
+                            modelContext: safeContext
+                        )
                     }
                 }
 
@@ -2806,7 +3232,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         await self.fetchAndApplyEnrichment(
                             modelContext: safeContext,
                             needsMetadata: plannedScopes.metadata,
-                            needsLookalikes: plannedScopes.lookalikes
+                            needsLookalikes: plannedScopes.lookalikes,
+                            reviewActionGeneration: reviewActionGeneration
                         )
                         if !Task.isCancelled,
                            self.speciesData?.habitatDescription != nil,
@@ -2818,7 +3245,18 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
                     if let key = taxonKeyToUse, recordIsBiological {
                         guard !Task.isCancelled else { return }
-                        await self.fetchGBIFImagesAndHydrate(for: key, scanId: recordId, modelContext: safeContext)
+                        guard let currentScientificName = self.speciesData?.scientificName,
+                              self.speciesData?.scanId?.caseInsensitiveCompare(recordId) == .orderedSame else {
+                            return
+                        }
+                        await self.fetchGBIFImagesAndHydrate(
+                            for: key,
+                            scanId: recordId,
+                            scientificName: currentScientificName,
+                            presentationGeneration: historicPresentationGeneration,
+                            reviewActionGeneration: reviewActionGeneration,
+                            modelContext: safeContext
+                        )
                     }
                 }
             }
@@ -2995,7 +3433,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         return nil
     }
 
-    func markAlternativesExhausted() {
+    func markAlternativesExhausted(expectedScanId: String? = nil) {
+        guard let scanId = speciesData?.scanId,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
+        _ = beginIdentificationReviewAction(scanId: scanId)
         speciesData?.alternativesExhausted = true
     }
 }

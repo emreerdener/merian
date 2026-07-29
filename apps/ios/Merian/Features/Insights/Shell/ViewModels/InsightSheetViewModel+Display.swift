@@ -13,15 +13,22 @@ extension InsightSheetViewModel {
     }
 
     var activeRecordTimestamp: Date? {
-        toolbarRecordSnapshot?.captureDate ?? toolbarRecordSnapshot?.timestamp
+        guard presentedLocalRecordScanId != nil else { return nil }
+        return toolbarRecordSnapshot?.captureDate ?? toolbarRecordSnapshot?.timestamp
     }
 
     var activeConfirmedSpeciesId: String? {
-        toolbarRecordSnapshot?.confirmedSpeciesId
+        guard presentedLocalRecordScanId != nil else { return nil }
+        return toolbarRecordSnapshot?.confirmedSpeciesId
     }
 
     var activeImageCount: Int {
-        toolbarRecordSnapshot?.imageCount
+        guard presentedLocalRecordScanId != nil else {
+            return activeMedia.imagePathsForUpload.count +
+                activeMedia.videoPaths.count +
+                (activeMedia.liveImageData == nil ? 0 : 1)
+        }
+        return toolbarRecordSnapshot?.imageCount
             ?? activeMedia.imagePathsForUpload.count + activeMedia.videoPaths.count + (activeMedia.liveImageData == nil ? 0 : 1)
     }
 
@@ -37,14 +44,32 @@ extension InsightSheetViewModel {
 
     // MARK: - Carousel Computed Properties
 
-    /// Stable scan ID for keying `ImagesCarousel`. Prefers the queued scan's own ID,
-    /// then the persisted local record, then the engine's in-flight scan ID, then the
-    /// completed speciesData scan ID.
+    /// Stable scan ID for keying `ImagesCarousel`. The engine's current
+    /// presentation outranks a cached record so a stale record cannot key a
+    /// newer scan's media.
     var persistentScanId: String? {
         if let ctx = queuedContext { return ctx.id }
-        return activeLocalRecordId
+        return inferenceEngine?.speciesData?.scanId
             ?? inferenceEngine?.activeScanId
-            ?? inferenceEngine?.speciesData?.scanId
+            ?? activeLocalRecordId
+    }
+
+    @discardableResult
+    func refreshQueuedContextIfCurrent(
+        _ refreshedContext: QueuedScanContext,
+        expectedScanId: String
+    ) -> Bool {
+        guard refreshedContext.id.caseInsensitiveCompare(expectedScanId) == .orderedSame,
+              queuedContext?.id
+                .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+            return false
+        }
+        if refreshedContext != queuedContext {
+            queuedContext = refreshedContext
+            cachedActiveMedia =
+                refreshedContext.capturedMediaSnapshot.activeScanMedia
+        }
+        return true
     }
 
     var refUrls: [String] {
@@ -53,8 +78,10 @@ extension InsightSheetViewModel {
 
     var shouldSuppressReferenceImages: Bool {
         if inferenceEngine?.speciesData?.shouldSuppressReferenceImages == true { return true }
-        if toolbarRecordSnapshot?.shouldSuppressReferenceImages == true { return true }
-        if activeLocalRecord?.shouldSuppressReferenceImages == true { return true }
+        if presentedLocalRecordScanId != nil {
+            if toolbarRecordSnapshot?.shouldSuppressReferenceImages == true { return true }
+            if activeLocalRecord?.shouldSuppressReferenceImages == true { return true }
+        }
         return false
     }
 
@@ -66,12 +93,16 @@ extension InsightSheetViewModel {
     }
 
     private var additionalUserMediaIdentifiers: [String] {
-        var identifiers = activeLocalRecord?.capturedMediaSnapshot.thumbnailImagePaths ?? []
+        var identifiers: [String] = []
         if let queuedContext {
             identifiers.append(contentsOf: queuedContext.capturedMediaSnapshot.thumbnailImagePaths)
-        }
-        if let coverImagePath = toolbarRecordSnapshot?.coverImagePath {
-            identifiers.append(coverImagePath)
+        } else if presentedLocalRecordScanId != nil {
+            identifiers.append(
+                contentsOf: activeLocalRecord?.capturedMediaSnapshot.thumbnailImagePaths ?? []
+            )
+            if let coverImagePath = toolbarRecordSnapshot?.coverImagePath {
+                identifiers.append(coverImagePath)
+            }
         }
         return identifiers
     }
@@ -83,6 +114,11 @@ extension InsightSheetViewModel {
 
         let engineMedia = inferenceEngine?.activeMedia ?? ActiveScanMedia()
         if engineMedia.hasUserImage {
+            return displayMedia(engineMedia)
+        }
+
+        if inferenceEngine?.speciesData != nil,
+           presentedSpeciesScanId == nil {
             return displayMedia(engineMedia)
         }
 
@@ -104,7 +140,7 @@ extension InsightSheetViewModel {
     }
 
     var audioBoostEligibleScanId: String? {
-        let hasPersistedScan = activeLocalRecord != nil || toolbarRecordSnapshot != nil
+        let hasPersistedScan = presentedLocalRecordScanId != nil
         guard InsightAudioBoostAvailability.isAvailable(
             hasPersistedScan: hasPersistedScan,
             isProcessing: isProcessing,
@@ -118,7 +154,50 @@ extension InsightSheetViewModel {
         state.audioBoostActionToken = nil
     }
 
-    func toggleAudioBoostFromMedia() {
+    func audioBoostBinding(
+        expectedScanId: String,
+        expectedGeneration: UInt64
+    ) -> Binding<Bool> {
+        Binding(
+            get: { [weak self] in
+                guard let self,
+                      self.isPresentingLocalRecord(
+                          scanId: expectedScanId,
+                          generation: expectedGeneration
+                      ),
+                      self.audioBoostEligibleScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+                    return false
+                }
+                return self.state.isAudioBoostEnabled
+            },
+            set: { [weak self] enabled in
+                guard let self,
+                      self.isPresentingLocalRecord(
+                          scanId: expectedScanId,
+                          generation: expectedGeneration
+                      ),
+                      self.audioBoostEligibleScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+                    return
+                }
+                self.state.isAudioBoostEnabled = enabled
+            }
+        )
+    }
+
+    func toggleAudioBoostFromMedia(
+        expectedScanId: String,
+        expectedGeneration: UInt64
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ),
+              audioBoostEligibleScanId?
+                .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+            return
+        }
         if !state.isAudioBoostEnabled {
             state.audioBoostActionToken = UUID()
         }
@@ -142,17 +221,102 @@ extension InsightSheetViewModel {
 
     var currentFieldNotesScanId: String? {
         if let ctx = queuedContext { return ctx.id }
-        return activeLocalRecordId
-            ?? inferenceEngine?.activeScanId
-            ?? inferenceEngine?.speciesData?.scanId
+        if inferenceEngine?.speciesData?.scanId != nil {
+            return presentedLocalRecordScanId
+        }
+        return inferenceEngine?.activeScanId
+    }
+
+    /// The completed engine result is the presentation authority. Any cached
+    /// record identity must agree before a scan-bound action may combine the
+    /// two sources.
+    var presentedSpeciesScanId: String? {
+        guard queuedContext == nil,
+              let rawScanId = inferenceEngine?.speciesData?.scanId else {
+            return nil
+        }
+
+        let scanId = rawScanId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !scanId.isEmpty else { return nil }
+
+        let cachedScanIds = [
+            activeLocalRecord?.id,
+            activeLocalRecordId,
+            toolbarRecordSnapshot?.scanId
+        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard cachedScanIds.allSatisfy({
+            $0.caseInsensitiveCompare(scanId) == .orderedSame
+        }) else {
+            return nil
+        }
+
+        return scanId
+    }
+
+    /// Exact persisted-record identity for actions that mutate local state or
+    /// reuse scan-bound server state. Unlike Field Chat presentation, these
+    /// actions cannot proceed before the local record and snapshot are bound.
+    var presentedLocalRecordScanId: String? {
+        guard let scanId = presentedSpeciesScanId,
+              let activeLocalRecord,
+              activeLocalRecord.id.caseInsensitiveCompare(scanId) == .orderedSame,
+              let activeLocalRecordId,
+              activeLocalRecordId.caseInsensitiveCompare(scanId) == .orderedSame,
+              let snapshot = toolbarRecordSnapshot,
+              snapshot.scanId.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return nil
+        }
+        return scanId
+    }
+
+    func isPresentingLocalRecord(
+        scanId: String,
+        generation: UInt64? = nil
+    ) -> Bool {
+        if let generation, generation != scanBoundActionGeneration {
+            return false
+        }
+        return presentedLocalRecordScanId?
+            .caseInsensitiveCompare(scanId) == .orderedSame
+    }
+
+    /// Exact identity for controls that are also available while a scan is
+    /// still queued. The generation rejects an obsolete A presentation even
+    /// when the same scan ID later appears again after an A → B → A switch.
+    func isPresentingScan(
+        scanId: String,
+        generation: UInt64
+    ) -> Bool {
+        guard generation == scanBoundActionGeneration else { return false }
+        if let queuedContext {
+            return queuedContext.id.caseInsensitiveCompare(scanId) == .orderedSame
+        }
+        return isPresentingLocalRecord(scanId: scanId, generation: generation)
+    }
+
+    /// Exact identity for read-only media callbacks, which remain available
+    /// before a completed local record has been bound. This deliberately uses
+    /// the presentation authority rather than the destructive-action helper.
+    func isPresentingMedia(
+        scanId: String,
+        generation: UInt64
+    ) -> Bool {
+        guard generation == scanBoundActionGeneration else { return false }
+        return persistentScanId?
+            .caseInsensitiveCompare(scanId) == .orderedSame
     }
 
     var fieldNotesText: String {
-        state.fieldNotesText
+        if queuedContext == nil,
+           inferenceEngine?.speciesData?.scanId != nil,
+           presentedLocalRecordScanId == nil {
+            return ""
+        }
+        return state.fieldNotesText
     }
 
     var hasFieldNotes: Bool {
-        !state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var shouldShowFieldNotesCard: Bool {
@@ -162,7 +326,7 @@ extension InsightSheetViewModel {
     }
 
     var shareableFieldNotes: String? {
-        let trimmed = state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
@@ -195,8 +359,7 @@ extension InsightSheetViewModel {
 
     var canReanalyze: Bool {
         guard queuedContext == nil else { return false }
-        guard activeLocalRecordId != nil else { return false }
-        return true
+        return presentedLocalRecordScanId != nil
     }
 
     var canReviewAlternatives: Bool {
@@ -237,16 +400,22 @@ extension InsightSheetViewModel {
     }
 
     var canConfirm: Bool {
-        guard queuedContext == nil else { return false }
+        guard queuedContext == nil,
+              presentedLocalRecordScanId != nil else { return false }
         return !reviewAlternativeCandidates.isEmpty
     }
 
     var canShareToExplore: Bool {
-        guard queuedContext == nil else { return false }
-        if let speciesData = inferenceEngine?.speciesData, speciesData.isHumanSubject { return false }
-        if let snapshot = toolbarRecordSnapshot, snapshot.isHumanSubject { return false }
-        return toolbarRecordSnapshot?.isExploreShareEligible == true &&
-            inferenceEngine?.speciesData?.isBiological == true
+        guard queuedContext == nil,
+              let speciesData = inferenceEngine?.speciesData,
+              presentedLocalRecordScanId != nil,
+              let snapshot = toolbarRecordSnapshot,
+              !speciesData.isHumanSubject,
+              !snapshot.isHumanSubject else {
+            return false
+        }
+
+        return snapshot.isExploreShareEligible && speciesData.isBiological
     }
 
     var canRequestCommunityIdentification: Bool {
@@ -254,11 +423,14 @@ extension InsightSheetViewModel {
     }
 
     var shareRecommendation: InsightShareRecommendation {
-        if state.sharedExplorePostId != nil, state.isExploreFeedVisible {
+        let hasPresentedRecord = presentedLocalRecordScanId != nil
+        if hasPresentedRecord,
+           state.sharedExplorePostId != nil,
+           state.isExploreFeedVisible {
             return .publishToExplore
         }
 
-        switch state.sharedCommunityIdentificationStatus {
+        switch hasPresentedRecord ? state.sharedCommunityIdentificationStatus : nil {
         case .needsId:
             return .communityPending
         case .resolved:

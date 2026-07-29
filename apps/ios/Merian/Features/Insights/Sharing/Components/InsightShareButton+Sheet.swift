@@ -2,7 +2,9 @@ import SwiftUI
 
 extension InsightShareButton {
     var shareOptionsSheet: some View {
-        ScrollView(showsIndicators: false) {
+        let expectedActionScanId = actionScanId
+        let expectedOptionsGeneration = optionsActionGeneration
+        return ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 // EXPLORE FEATURE PANEL
                 exploreFeaturePanel
@@ -10,8 +12,11 @@ extension InsightShareButton {
                 // SHARE TO EXTERNAL APPS
                 VStack(alignment: .leading, spacing: 10) {
                     Button {
-                        pendingAction = .externalShare
-                        showingOptions = false
+                        selectPendingAction(
+                            .externalShare,
+                            expectedScanId: expectedActionScanId,
+                            expectedGeneration: expectedOptionsGeneration
+                        )
                     } label: {
                         HStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 3) {
@@ -55,7 +60,9 @@ extension InsightShareButton {
 
 // MARK: - Explore Feature Panel
     private var exploreFeaturePanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let expectedActionScanId = actionScanId
+        let expectedOptionsGeneration = optionsActionGeneration
+        return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -98,8 +105,11 @@ extension InsightShareButton {
                 pendingCommunityRequestActions
             } else if sharedExplorePostId == nil {
                 Button {
-                    pendingAction = primaryExplorePanelAction
-                    showingOptions = false
+                    selectPendingAction(
+                        primaryExplorePanelAction,
+                        expectedScanId: expectedActionScanId,
+                        expectedGeneration: expectedOptionsGeneration
+                    )
                 } label: {
                     HStack(alignment: .center) {
                         Label(
@@ -131,8 +141,11 @@ extension InsightShareButton {
                             systemImage: "square.and.pencil",
                             isDisabled: isUpdatingExplorePostContent
                         ) {
-                            pendingAction = .editExplorePost
-                            showingOptions = false
+                            selectPendingAction(
+                                .editExplorePost,
+                                expectedScanId: expectedActionScanId,
+                                expectedGeneration: expectedOptionsGeneration
+                            )
                         }
                     }
 
@@ -142,8 +155,11 @@ extension InsightShareButton {
                             systemImage: "eye",
                             isDisabled: false
                         ) {
-                            pendingAction = .viewInExplore
-                            showingOptions = false
+                            selectPendingAction(
+                                .viewInExplore,
+                                expectedScanId: expectedActionScanId,
+                                expectedGeneration: expectedOptionsGeneration
+                            )
                         }
                     }
                 }
@@ -168,7 +184,9 @@ extension InsightShareButton {
     }
 
     private var pendingCommunityRequestActions: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let expectedActionScanId = actionScanId
+        let expectedOptionsGeneration = optionsActionGeneration
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 if onEditCommunityRequest != nil {
                     exploreSecondaryActionButton(
@@ -177,8 +195,11 @@ extension InsightShareButton {
                         isProminent: true,
                         isDisabled: false
                     ) {
-                        pendingAction = .editCommunityRequest
-                        showingOptions = false
+                        selectPendingAction(
+                            .editCommunityRequest,
+                            expectedScanId: expectedActionScanId,
+                            expectedGeneration: expectedOptionsGeneration
+                        )
                     }
                 }
 
@@ -188,16 +209,22 @@ extension InsightShareButton {
                         systemImage: "person.crop.circle.badge.questionmark",
                         isDisabled: false
                     ) {
-                        pendingAction = .viewCommunityRequest
-                        showingOptions = false
+                        selectPendingAction(
+                            .viewCommunityRequest,
+                            expectedScanId: expectedActionScanId,
+                            expectedGeneration: expectedOptionsGeneration
+                        )
                     }
                 }
             }
 
             if onShareToExplore != nil {
                 Button {
-                    pendingAction = .publishExploreAnyway
-                    showingOptions = false
+                    selectPendingAction(
+                        .publishExploreAnyway,
+                        expectedScanId: expectedActionScanId,
+                        expectedGeneration: expectedOptionsGeneration
+                    )
                 } label: {
                     Label("Publish to Explore", systemImage: "safari")
                         .font(.headline)
@@ -223,6 +250,8 @@ extension InsightShareButton {
 
     @ViewBuilder
     private var secondaryCommunityActions: some View {
+        let expectedActionScanId = actionScanId
+        let expectedOptionsGeneration = optionsActionGeneration
         switch shareRecommendation {
         case .askCommunity:
             if onShareToExplore != nil {
@@ -230,8 +259,11 @@ extension InsightShareButton {
                     title: "Publish anyway",
                     isDisabled: isSharingToExplore
                 ) {
-                    pendingAction = .publishExploreAnyway
-                    showingOptions = false
+                    selectPendingAction(
+                        .publishExploreAnyway,
+                        expectedScanId: expectedActionScanId,
+                        expectedGeneration: expectedOptionsGeneration
+                    )
                 }
             }
         case .communityPending:
@@ -241,8 +273,11 @@ extension InsightShareButton {
                     systemImage: "person.crop.circle.badge.questionmark",
                     isDisabled: false
                 ) {
-                    pendingAction = .viewCommunityRequest
-                    showingOptions = false
+                    selectPendingAction(
+                        .viewCommunityRequest,
+                        expectedScanId: expectedActionScanId,
+                        expectedGeneration: expectedOptionsGeneration
+                    )
                 }
             }
         case .communityResolvedNeedsPublish:
@@ -252,8 +287,11 @@ extension InsightShareButton {
                     systemImage: "person.crop.circle.badge.questionmark",
                     isDisabled: false
                 ) {
-                    pendingAction = .viewCommunityRequest
-                    showingOptions = false
+                    selectPendingAction(
+                        .viewCommunityRequest,
+                        expectedScanId: expectedActionScanId,
+                        expectedGeneration: expectedOptionsGeneration
+                    )
                 }
             }
         case .publishToExplore:
@@ -272,7 +310,38 @@ extension InsightShareButton {
         }
     }
 
-    func handlePendingAction() {
+    private func selectPendingAction(
+        _ action: PendingAction,
+        expectedScanId: String?,
+        expectedGeneration: UInt64?
+    ) {
+        guard showingOptions,
+              let expectedGeneration,
+              optionsActionGeneration == expectedGeneration,
+              isActionPresentationCurrent(
+                  expectedScanId,
+                  generation: expectedGeneration
+              ) else {
+            return
+        }
+        pendingAction = action
+        showingOptions = false
+    }
+
+    func handlePendingAction(
+        expectedScanId: String?,
+        expectedGeneration: UInt64?
+    ) {
+        guard !showingOptions,
+              let expectedGeneration,
+              optionsActionGeneration == expectedGeneration,
+              isActionPresentationCurrent(
+                  expectedScanId,
+                  generation: expectedGeneration
+              ) else {
+            return
+        }
+        optionsActionGeneration = nil
         guard let pendingAction else { return }
         self.pendingAction = nil
 
@@ -282,11 +351,18 @@ extension InsightShareButton {
         case .askCommunity:
             onAskCommunity?()
         case .composeExplorePost:
-            openExploreComposer()
+            openExploreComposer(
+                expectedScanId: expectedScanId,
+                expectedGeneration: expectedGeneration
+            )
         case .publishExploreAnyway:
+            publishConfirmationActionGeneration = expectedGeneration
             showingExplorePublishConfirmation = true
         case .editExplorePost:
-            openExploreComposer()
+            openExploreComposer(
+                expectedScanId: expectedScanId,
+                expectedGeneration: expectedGeneration
+            )
         case .editCommunityRequest:
             onEditCommunityRequest?()
         case .viewCommunityRequest:
@@ -296,9 +372,23 @@ extension InsightShareButton {
         }
     }
 
-    func openExploreComposer() {
+    func openExploreComposer(
+        expectedScanId: String? = nil,
+        expectedGeneration: UInt64? = nil
+    ) {
+        let targetGeneration = expectedGeneration ?? actionGeneration
+        let targetScanId = expectedGeneration == nil
+            ? actionScanId
+            : expectedScanId
+        guard isActionPresentationCurrent(
+            targetScanId,
+            generation: targetGeneration
+        ) else {
+            return
+        }
         composerMediaItems = nil
-        guard let scanId else {
+        composerActionGeneration = targetGeneration
+        guard let targetScanId else {
             showingExploreComposer = true
             return
         }
@@ -306,13 +396,20 @@ extension InsightShareButton {
         Task {
             let serverItems: [ExplorePostComposerMediaDraft]?
             do {
-                let payload = try await MerianNetworkClient.shared.getExploreComposerMedia(scanId: scanId)
+                let payload = try await MerianNetworkClient.shared
+                    .getExploreComposerMedia(scanId: targetScanId)
                 serverItems = ExplorePostComposerMediaDraft.sourceItems(from: payload.mediaItems)
             } catch {
                 serverItems = nil
             }
 
             await MainActor.run {
+                guard isActionPresentationCurrent(
+                    targetScanId,
+                    generation: targetGeneration
+                ) else {
+                    return
+                }
                 if let serverItems, !serverItems.isEmpty {
                     let localHasVideo = mediaItems.contains { $0.kind == .video }
                     let serverHasVideo = serverItems.contains { $0.kind == .video }

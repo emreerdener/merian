@@ -6,6 +6,8 @@ struct InsightBottomToolbar: ToolbarContent {
     
     let showBottomBarTools: Bool
     let recordSnapshot: InsightToolbarRecordSnapshot?
+    let scanId: String?
+    let scanPresentationGeneration: UInt64
     let canShowInsightChat: Bool
     let onInsightChat: () -> Void
     let shareExternally: () -> Void
@@ -27,7 +29,14 @@ struct InsightBottomToolbar: ToolbarContent {
     var onViewCommunityRequest: (() -> Void)?
     
     var body: some ToolbarContent {
-        if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
+        if showBottomBarTools,
+           let scanId,
+           let speciesData = inferenceEngine.speciesData,
+           speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
+           recordSnapshot == nil ||
+             recordSnapshot?.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
+           speciesData.isBiological &&
+             speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
                 let publicLocationLabel = visiblePublicLocationLabel(from: speciesData.locationName)
                 let isHuman = speciesData.isHumanSubject || (recordSnapshot?.isHumanSubject ?? false)
@@ -46,7 +55,8 @@ struct InsightBottomToolbar: ToolbarContent {
                         commonNameOptions: commonNameOptions,
                         initialSelectedCommonName: displaySpeciesName,
                         heroImageUrl: recordSnapshot?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
-                        scanId: recordSnapshot?.scanId ?? speciesData.scanId,
+                        scanId: scanId,
+                        presentationGeneration: scanPresentationGeneration,
                         mediaItems: recordSnapshot?.exploreMediaItems ?? [],
                         publicLocationLabel: publicLocationLabel,
                         fieldNotesPreview: fieldNotesPreview,

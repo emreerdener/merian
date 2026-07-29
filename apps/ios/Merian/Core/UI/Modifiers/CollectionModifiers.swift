@@ -18,6 +18,7 @@ struct CollectionActionAlertModifier: ViewModifier {
     var modelContext: ModelContext
     var relatedRecordId: String?
     
+    var canExecuteAction: (() -> Bool)?
     var onActionComplete: ((ScanCollection?) -> Void)?
     var onDeleted: (() -> Void)?
     
@@ -67,6 +68,8 @@ struct CollectionActionAlertModifier: ViewModifier {
     }
     
     private func executeAction() {
+        guard canExecuteAction?() != false else { return }
+
         switch action {
         case .rename:
             guard let collectionToRename = collection else { return }
@@ -222,6 +225,7 @@ extension View {
         newCollectionName: Binding<String>,
         modelContext: ModelContext,
         relatedRecordId: String? = nil,
+        canCreate: (() -> Bool)? = nil,
         onCreated: ((ScanCollection) -> Void)? = nil
     ) -> some View {
         modifier(CollectionActionAlertModifier(
@@ -230,6 +234,7 @@ extension View {
             collectionNameInputValue: newCollectionName,
             modelContext: modelContext,
             relatedRecordId: relatedRecordId,
+            canExecuteAction: canCreate,
             onActionComplete: { newCol in
                 if let newCol = newCol {
                     onCreated?(newCol)

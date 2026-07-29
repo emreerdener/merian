@@ -131,6 +131,21 @@ assert_suite_has_passed_test_case \
   "Inference Engine Tests" \
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
 assert_suite_has_passed_test_case \
+  "Identification confirmation presentation identity" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "testConfirmAIIdentificationRejectsChangedPresentationIdentity"
+assert_suite_has_passed_test_case \
+  "Identification override presentation identity" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "testApplyIdentificationOverrideRejectsChangedPresentationIdentity"
+assert_suite_has_passed_test_case \
+  "Bounded inference metadata-write backlog" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "testBackgroundWriteBacklogHasAHardMemoryBound"
+assert_suite_has_passed_test_case \
   "Background malformed-success recovery" \
   "BackgroundDatabaseActorTests" \
   "Background Database Actor Tests" \
@@ -236,6 +251,61 @@ assert_suite_has_passed_test_case \
   "Network Client Tests" \
   "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion"
 assert_suite_has_passed_test_case \
+  "Existing Explore stable missing-scan classifier" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testExploreCloudScanRestoreUsesStableNotFoundCodeWithLegacyFallback"
+assert_suite_has_passed_test_case \
+  "Field Chat local/cloud identity fence" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity"
+assert_suite_has_passed_test_case \
+  "Presented record stale-binding invalidation" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testMissingDifferentRecordClearsStaleScanBoundState"
+assert_suite_has_passed_test_case \
+  "Presented record action-generation invalidation" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testRecordSwitchInvalidatesPriorActionGeneration"
+assert_suite_has_passed_test_case \
+  "Insight reset monotonic request invalidation" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testResetMonotonicallyInvalidatesScanBoundRequests"
+assert_suite_has_passed_test_case \
+  "Field-notes presentation identity" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testFieldNotesRejectChangedPresentationIdentity"
+assert_suite_has_passed_test_case \
+  "Preferred-name presentation-generation identity" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testPreferredNameRejectsStalePresentationGeneration"
+assert_suite_has_passed_test_case \
+  "Queued scan refresh presentation identity" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testQueuedRefreshRejectsChangedPresentationIdentity"
+assert_suite_has_passed_test_case \
+  "Queued scan parent presentation switch identity" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity"
+assert_suite_has_passed_test_case \
+  "Queued scan completion presentation identity" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testQueuedPromotionRejectsChangedPresentationIdentity"
+assert_suite_has_passed_test_case \
+  "Explore presented-record identity fence" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testExploreSharingRequiresExactEngineAndRecordIdentity"
+assert_suite_has_passed_test_case \
   "Single scan-status response integrity" \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
@@ -276,6 +346,11 @@ assert_suite_has_passed_test_case \
   "Network Client Tests" \
   "testGetExploreShareStateRejectsUnconfirmedState"
 assert_suite_has_passed_test_case \
+  "Missing-owner stale publication reset" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testMissingOwnerShareStateClearsStaleLocalPublication"
+assert_suite_has_passed_test_case \
   "Explore hidden-publication reconciliation" \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
@@ -295,5 +370,25 @@ assert_suite_has_passed_test_case \
   "InsightChatTests" \
   "Insight Chat Tests" \
   "testConcurrentPresentationRequestsSharePreparationResult"
+assert_suite_has_passed_test_case \
+  "Field Chat stale-subject completion fence" \
+  "InsightChatTests" \
+  "Insight Chat Tests" \
+  "testFieldChatRejectsStaleSubjectCompletion"
+assert_suite_has_passed_test_case \
+  "Field Chat changed-subject preparation replacement" \
+  "InsightChatTests" \
+  "Insight Chat Tests" \
+  "testFieldChatReplacesPreparationForChangedSubject"
+assert_suite_has_passed_test_case \
+  "Issue-reporting presented-scan identity fence" \
+  "ReportInsightViewModelTests" \
+  "ReportInsightViewModel Tests" \
+  "testSubmitFlagRejectsChangedScanIdentity"
+assert_suite_has_passed_test_case \
+  "Issue-reporting same-scan presentation-generation fence" \
+  "ReportInsightViewModelTests" \
+  "ReportInsightViewModel Tests" \
+  "testSubmitFlagRejectsStaleSameScanCompletion"
 
 echo "Critical iOS suites and exact scan-flow regressions reported passed test cases."

@@ -18,7 +18,11 @@ struct InsightContentView: View {
     private let overlapRadius: CGFloat = 32
     private let imageSize: CGFloat = UIScreen.main.bounds.width
     @State private var isObservationSheetPresented = false
+    @State private var observationPresentationScanId: String?
+    @State private var observationPresentationGeneration: UInt64?
     @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
+    @State private var fullscreenGalleryPresentationScanId: String?
+    @State private var fullscreenGalleryPresentationGeneration: UInt64?
     private var presentationQueuedScan: QueuedScanContext? {
         viewModel.queuedContext ?? (viewModel.activeLocalRecord == nil ? queuedScan : nil)
     }
@@ -38,24 +42,56 @@ struct InsightContentView: View {
                     let bleedBuffer: CGFloat = 50
 
                     let activeQueuedContext = presentationQueuedScan
+                    let carouselScanId =
+                        activeQueuedContext?.id ?? viewModel.persistentScanId
+                    let carouselGeneration = viewModel.scanBoundActionGeneration
                     let activeIsProcessing = activeQueuedContext?.queueState == .inferencing
                         || (activeQueuedContext == nil && viewModel.isProcessing)
 
                     let activeMedia = viewModel.resolvedMedia(for: activeQueuedContext)
 
                     ImagesCarousel(
-                        scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
+                        scanId: carouselScanId,
                         activeMedia: activeMedia,
                         referenceWikipediaUrl: inferenceEngine.speciesData?.wikipediaUrl,
                         isProcessing: activeIsProcessing,
-                        onDescriptionTap: { isObservationSheetPresented = true },
+                        onDescriptionTap: {
+                            guard let carouselScanId,
+                                  viewModel.isPresentingMedia(
+                                      scanId: carouselScanId,
+                                      generation: carouselGeneration
+                                  ) else {
+                                return
+                            }
+                            observationPresentationScanId = carouselScanId
+                            observationPresentationGeneration = carouselGeneration
+                            isObservationSheetPresented = true
+                        },
                         onVisualImageTap: { presentation in
+                            guard let carouselScanId,
+                                  viewModel.isPresentingMedia(
+                                      scanId: carouselScanId,
+                                      generation: carouselGeneration
+                                  ) else {
+                                return
+                            }
+                            fullscreenGalleryPresentationScanId = carouselScanId
+                            fullscreenGalleryPresentationGeneration = carouselGeneration
                             fullscreenGalleryPresentation = presentation
                         },
-                        isAudioBoostEnabled: $viewModel.state.isAudioBoostEnabled,
+                        isAudioBoostEnabled: carouselAudioBoostBinding(
+                            scanId: carouselScanId,
+                            generation: carouselGeneration
+                        ),
                         audioBoostActionToken: viewModel.state.audioBoostActionToken,
                         onAudioBoostActionFinished: viewModel.finishAudioBoostAction,
-                        onAudioBoostToggleRequested: viewModel.toggleAudioBoostFromMedia
+                        onAudioBoostToggleRequested: {
+                            guard let carouselScanId else { return }
+                            viewModel.toggleAudioBoostFromMedia(
+                                expectedScanId: carouselScanId,
+                                expectedGeneration: carouselGeneration
+                            )
+                        }
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
@@ -98,8 +134,15 @@ struct InsightContentView: View {
         }
 
         // Modal Routings
-        .sheet(isPresented: $viewModel.state.isSafariPresented) {
-            if let safeUrl = viewModel.state.selectedWikiURL {
+        .sheet(isPresented: safariPresentedBinding) {
+            if let scanId = viewModel.state.safariPresentationScanId,
+               let generation =
+                viewModel.state.safariPresentationGeneration,
+               viewModel.isPresentingLocalRecord(
+                   scanId: scanId,
+                   generation: generation
+               ),
+               let safeUrl = viewModel.state.selectedWikiURL {
                 SafariView(url: safeUrl)
                     .ignoresSafeArea()
             }
@@ -111,30 +154,61 @@ struct InsightContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $viewModel.state.isCommunityRequestSheetPresented) {
-            if let speciesData = inferenceEngine.speciesData {
+        .sheet(isPresented: communityRequestPresentedBinding) {
+            let requestId =
+                viewModel.state.communityRequestPresentationRequestId
+            if let scanId = viewModel.state.communityRequestPresentationScanId,
+               let communityGeneration =
+                viewModel.state.communityRequestPresentationGeneration,
+               viewModel.isPresentingLocalRecord(
+                   scanId: scanId,
+                   generation: communityGeneration
+               ),
+               optionalIdentifiersMatch(
+                   requestId,
+                   viewModel.state.sharedCommunityIdentificationRequestId
+               ),
+               let speciesData = inferenceEngine.speciesData,
+               speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
                 CommunityIdentificationRequestSheet(
                     speciesName: viewModel.resolvedHeaderTitle,
                     scientificName: speciesData.scientificName,
-                    existingRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
+                    existingRequestId: requestId,
                     initialNote: nil,
                     initialLocationSharing: viewModel.state.sharedExploreLocationSharing,
                     shouldLoadExistingRequestDetail: true,
                     isSubmitting: viewModel.state.isRequestingCommunityIdentification,
                     onLoadFailed: { message in
+                        guard viewModel.isPresentingLocalRecord(
+                            scanId: scanId,
+                            generation: communityGeneration
+                        ) else {
+                            return
+                        }
                         viewModel.state.toastMessage = message
                     },
                     onSubmit: { note, locationSharing in
+                        guard isCommunityRequestPresentationCurrent(
+                            scanId: scanId,
+                            generation: communityGeneration,
+                            requestId: requestId
+                        ) else {
+                            return
+                        }
                         Task {
-                            if viewModel.state.sharedCommunityIdentificationRequestId != nil {
+                            if requestId != nil {
                                 await viewModel.updateCommunityIdentificationRequest(
                                     note: note,
-                                    locationSharing: locationSharing
+                                    locationSharing: locationSharing,
+                                    expectedScanId: scanId,
+                                    expectedGeneration: communityGeneration
                                 )
                             } else {
                                 await viewModel.requestCommunityIdentification(
                                     note: note,
                                     locationSharing: locationSharing,
+                                    expectedScanId: scanId,
+                                    expectedGeneration: communityGeneration,
                                     modelContext: modelContext
                                 )
                             }
@@ -143,63 +217,127 @@ struct InsightContentView: View {
                 )
             }
         }
-        .sheet(isPresented: Binding(
-            get: {
-                viewModel.state.sharedExplorePostId != nil &&
-                    viewModel.state.isExplorePostComposerPresented
-            },
-            set: { viewModel.state.isExplorePostComposerPresented = $0 }
-        )) {
+        .sheet(isPresented: explorePostComposerPresentedBinding) {
             explorePostComposerSheet
         }
         .sheet(isPresented: candidateSwipePresentedBinding) {
             let candidates = viewModel.candidateSwipeCandidates
-            if let speciesData = inferenceEngine.speciesData, !candidates.isEmpty {
+            if let scanId = viewModel.state.candidateSwipePresentationScanId,
+               let candidateGeneration =
+                viewModel.state.candidateSwipePresentationGeneration,
+               let candidateEngineGeneration =
+                viewModel.state.candidateSwipeEnginePresentationGeneration,
+               viewModel.isPresentingLocalRecord(
+                   scanId: scanId,
+                   generation: candidateGeneration
+               ),
+               candidateEngineGeneration ==
+                inferenceEngine.scanPresentationGeneration,
+               let speciesData = inferenceEngine.speciesData,
+               speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
+               !candidates.isEmpty {
                 CandidateSwipeModal(
                     isPresented: candidateSwipePresentedBinding,
+                    scanId: scanId,
+                    presentationGeneration: candidateEngineGeneration,
                     candidates: candidates,
                     aiScientificName: speciesData.scientificName,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
-                    onConfirmOriginal: { Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) } },
+                    onConfirmOriginal: {
+                        guard viewModel.isPresentingLocalRecord(
+                            scanId: scanId,
+                            generation: candidateGeneration
+                        ) else {
+                            return
+                        }
+                        Task { @MainActor in
+                            guard viewModel.isPresentingLocalRecord(
+                                scanId: scanId,
+                                generation: candidateGeneration
+                            ) else {
+                                return
+                            }
+                            await inferenceEngine.confirmAIIdentification(
+                                expectedScanId: scanId,
+                                modelContext: modelContext
+                            )
+                        }
+                    },
                     onAskCommunity: {
-                        viewModel.state.isCommunityRequestSheetPresented = true
+                        if viewModel.canRequestCommunityIdentification {
+                            viewModel.presentCommunityIdentificationRequest(
+                                expectedScanId: scanId,
+                                expectedGeneration: candidateGeneration
+                            )
+                        }
                     },
                     onRefineScan: {
-                        guard let scanIdStr = speciesData.scanId else { return }
+                        guard viewModel.isPresentingLocalRecord(
+                            scanId: scanId,
+                            generation: candidateGeneration
+                        ) else {
+                            return
+                        }
                         HapticManager.shared.triggerSelectionPulse()
                         AppEventPublisher.shared.send(.triggerRefinement(
-                            scanId: scanIdStr,
+                            scanId: scanId,
                             initialDescription: viewModel.shareableFieldNotes
                         ))
                     }
                 )
             }
         }
-        .sheet(isPresented: $viewModel.state.isFieldNotesSheetPresented) {
-            FieldNotesSheet(
-                text: Binding(
-                    get: { viewModel.fieldNotesText },
-                    set: { viewModel.updateFieldNotes($0, modelContext: modelContext) }
-                ),
-                promptContext: viewModel.fieldNotesPromptContext,
-                visibilityConfiguration: viewModel.state.sharedExplorePostId == nil ? nil : FieldNotesVisibilityConfiguration(
-                    initialIsPublic: viewModel.state.exploreFieldNotesArePublic,
-                    onSave: { text, isPublic in
-                        await viewModel.saveFieldNotesAndExploreVisibility(
-                            text,
-                            isPublic: isPublic,
-                            modelContext: modelContext
+        .sheet(isPresented: fieldNotesPresentedBinding) {
+            if let fieldNotesScanId = viewModel.state.fieldNotesPresentationScanId,
+               let fieldNotesGeneration =
+                viewModel.state.fieldNotesPresentationGeneration,
+               fieldNotesGeneration == viewModel.scanBoundActionGeneration,
+               viewModel.currentFieldNotesScanId?
+                .caseInsensitiveCompare(fieldNotesScanId) == .orderedSame {
+                FieldNotesSheet(
+                    text: Binding(
+                        get: { viewModel.fieldNotesText },
+                        set: {
+                            viewModel.updateFieldNotes(
+                                $0,
+                                expectedScanId: fieldNotesScanId,
+                                expectedGeneration: fieldNotesGeneration,
+                                modelContext: modelContext
+                            )
+                        }
+                    ),
+                    promptContext: viewModel.fieldNotesPromptContext,
+                    visibilityConfiguration: viewModel.isPresentingLocalRecord(
+                        scanId: fieldNotesScanId
+                    ) && viewModel.state.sharedExplorePostId != nil
+                        ? FieldNotesVisibilityConfiguration(
+                            initialIsPublic: viewModel.state.exploreFieldNotesArePublic,
+                            onSave: { text, isPublic in
+                                await viewModel.saveFieldNotesAndExploreVisibility(
+                                    text,
+                                    isPublic: isPublic,
+                                    expectedScanId: fieldNotesScanId,
+                                    expectedGeneration: fieldNotesGeneration,
+                                    modelContext: modelContext
+                                )
+                            }
                         )
-                    }
+                        : nil
                 )
-            )
+            }
         }
-        .sheet(isPresented: $isObservationSheetPresented) {
-            if let context = viewModel.observationContext {
+        .sheet(isPresented: observationPresentedBinding) {
+            if let scanId = observationPresentationScanId,
+               let generation = observationPresentationGeneration,
+               viewModel.isPresentingMedia(
+                   scanId: scanId,
+                   generation: generation
+               ),
+               let context = viewModel.observationContext {
                 InsightDescriptionSheet(text: context.freeText)
             }
         }
-        .fullScreenCover(item: $fullscreenGalleryPresentation) { presentation in
+        .fullScreenCover(item: fullscreenGalleryPresentedBinding) { presentation in
             InsightFullscreenImageCarousel(presentation: presentation)
         }
     }
@@ -220,22 +358,367 @@ private struct InsightTopScrollEdgeEffectModifier: ViewModifier {
 
 // MARK: - Subcomponents
 private extension InsightContentView {
+    func carouselAudioBoostBinding(
+        scanId: String?,
+        generation: UInt64
+    ) -> Binding<Bool> {
+        guard let scanId else { return .constant(false) }
+        return viewModel.audioBoostBinding(
+            expectedScanId: scanId,
+            expectedGeneration: generation
+        )
+    }
+
+    var safariPresentedBinding: Binding<Bool> {
+        let expectedScanId = viewModel.state.safariPresentationScanId
+        let expectedGeneration =
+            viewModel.state.safariPresentationGeneration
+        let expectedURL = viewModel.state.selectedWikiURL
+        return Binding(
+            get: {
+                guard viewModel.state.isSafariPresented,
+                      let expectedScanId,
+                      let expectedGeneration,
+                      let expectedURL,
+                      viewModel.state.safariPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state.safariPresentationGeneration ==
+                        expectedGeneration,
+                      viewModel.state.selectedWikiURL == expectedURL else {
+                    return false
+                }
+                return viewModel.isPresentingLocalRecord(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      let expectedURL,
+                      viewModel.state.safariPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state.safariPresentationGeneration ==
+                        expectedGeneration,
+                      viewModel.state.selectedWikiURL == expectedURL else {
+                    return
+                }
+                viewModel.state.isSafariPresented = false
+                viewModel.state.selectedWikiURL = nil
+                viewModel.state.safariPresentationScanId = nil
+                viewModel.state.safariPresentationGeneration = nil
+            }
+        )
+    }
+
+    var observationPresentedBinding: Binding<Bool> {
+        let expectedScanId = observationPresentationScanId
+        let expectedGeneration = observationPresentationGeneration
+        return Binding(
+            get: {
+                guard isObservationSheetPresented,
+                      let expectedScanId,
+                      let expectedGeneration,
+                      observationPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      observationPresentationGeneration ==
+                        expectedGeneration else {
+                    return false
+                }
+                return viewModel.isPresentingMedia(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      observationPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      observationPresentationGeneration ==
+                        expectedGeneration else {
+                    return
+                }
+                isObservationSheetPresented = false
+                observationPresentationScanId = nil
+                observationPresentationGeneration = nil
+            }
+        )
+    }
+
+    var fullscreenGalleryPresentedBinding:
+        Binding<InsightImageGalleryPresentation?> {
+        let expectedPresentation = fullscreenGalleryPresentation
+        let expectedScanId = fullscreenGalleryPresentationScanId
+        let expectedGeneration = fullscreenGalleryPresentationGeneration
+        return Binding(
+            get: {
+                guard let expectedPresentation,
+                      let expectedScanId,
+                      let expectedGeneration,
+                      fullscreenGalleryPresentation == expectedPresentation,
+                      fullscreenGalleryPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      fullscreenGalleryPresentationGeneration ==
+                        expectedGeneration,
+                      viewModel.isPresentingMedia(
+                          scanId: expectedScanId,
+                          generation: expectedGeneration
+                      ) else {
+                    return nil
+                }
+                return expectedPresentation
+            },
+            set: { presentation in
+                guard presentation == nil else { return }
+                guard let expectedPresentation,
+                      let expectedScanId,
+                      let expectedGeneration,
+                      fullscreenGalleryPresentation == expectedPresentation,
+                      fullscreenGalleryPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      fullscreenGalleryPresentationGeneration ==
+                        expectedGeneration else {
+                    return
+                }
+                fullscreenGalleryPresentation = nil
+                fullscreenGalleryPresentationScanId = nil
+                fullscreenGalleryPresentationGeneration = nil
+            }
+        )
+    }
 
     var candidateSwipePresentedBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.state.isCandidateSwipePresented },
-            set: { isPresented in
-                viewModel.state.isCandidateSwipePresented = isPresented
-                if !isPresented {
-                    viewModel.state.candidateSwipePresentationSource = .standard
+        let expectedScanId =
+            viewModel.state.candidateSwipePresentationScanId
+        let expectedGeneration =
+            viewModel.state.candidateSwipePresentationGeneration
+        let expectedEngineGeneration =
+            viewModel.state.candidateSwipeEnginePresentationGeneration
+        return Binding(
+            get: {
+                guard viewModel.state.isCandidateSwipePresented,
+                      let expectedScanId,
+                      let expectedGeneration,
+                      let expectedEngineGeneration,
+                      viewModel.state.candidateSwipePresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state.candidateSwipePresentationGeneration ==
+                        expectedGeneration,
+                      viewModel.state
+                        .candidateSwipeEnginePresentationGeneration ==
+                        expectedEngineGeneration,
+                      inferenceEngine.scanPresentationGeneration ==
+                        expectedEngineGeneration else {
+                    return false
                 }
+                return viewModel.isPresentingLocalRecord(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      let expectedEngineGeneration,
+                      viewModel.state.candidateSwipePresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state.candidateSwipePresentationGeneration ==
+                        expectedGeneration,
+                      viewModel.state
+                        .candidateSwipeEnginePresentationGeneration ==
+                        expectedEngineGeneration else {
+                    return
+                }
+                viewModel.state.isCandidateSwipePresented = false
+                viewModel.state.candidateSwipePresentationSource = .standard
+                viewModel.state.candidateSwipePresentationScanId = nil
+                viewModel.state.candidateSwipePresentationGeneration = nil
+                viewModel.state.candidateSwipeEnginePresentationGeneration = nil
+            }
+        )
+    }
+
+    var communityRequestPresentedBinding: Binding<Bool> {
+        let expectedScanId =
+            viewModel.state.communityRequestPresentationScanId
+        let expectedGeneration =
+            viewModel.state.communityRequestPresentationGeneration
+        let expectedRequestId =
+            viewModel.state.communityRequestPresentationRequestId
+        return Binding(
+            get: {
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      viewModel.state.communityRequestPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state.communityRequestPresentationGeneration ==
+                        expectedGeneration,
+                      optionalIdentifiersMatch(
+                          viewModel.state
+                            .communityRequestPresentationRequestId,
+                          expectedRequestId
+                      ),
+                      optionalIdentifiersMatch(
+                          viewModel.state
+                            .sharedCommunityIdentificationRequestId,
+                          expectedRequestId
+                      ) else {
+                    return false
+                }
+                return viewModel.isPresentingLocalRecord(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                ) &&
+                    viewModel.state.isCommunityRequestSheetPresented
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      viewModel.state.communityRequestPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state.communityRequestPresentationGeneration ==
+                        expectedGeneration,
+                      optionalIdentifiersMatch(
+                          viewModel.state
+                            .communityRequestPresentationRequestId,
+                          expectedRequestId
+                      ) else {
+                    return
+                }
+                viewModel.state.isCommunityRequestSheetPresented = false
+                viewModel.state.communityRequestPresentationScanId = nil
+                viewModel.state.communityRequestPresentationGeneration = nil
+                viewModel.state.communityRequestPresentationRequestId = nil
+            }
+        )
+    }
+
+    var fieldNotesPresentedBinding: Binding<Bool> {
+        let expectedScanId = viewModel.state.fieldNotesPresentationScanId
+        let expectedGeneration =
+            viewModel.state.fieldNotesPresentationGeneration
+        return Binding(
+            get: {
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      viewModel.state.fieldNotesPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state.fieldNotesPresentationGeneration ==
+                        expectedGeneration,
+                      expectedGeneration == viewModel.scanBoundActionGeneration,
+                      viewModel.currentFieldNotesScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+                    return false
+                }
+                return viewModel.state.isFieldNotesSheetPresented
+            },
+            set: { isPresented in
+                if isPresented {
+                    guard let expectedScanId,
+                          let expectedGeneration,
+                          viewModel.state.fieldNotesPresentationScanId?
+                            .caseInsensitiveCompare(expectedScanId) ==
+                            .orderedSame,
+                          viewModel.state.fieldNotesPresentationGeneration ==
+                            expectedGeneration,
+                          viewModel.currentFieldNotesScanId?
+                            .caseInsensitiveCompare(expectedScanId) ==
+                            .orderedSame,
+                          expectedGeneration ==
+                            viewModel.scanBoundActionGeneration else {
+                        return
+                    }
+                    viewModel.state.isFieldNotesSheetPresented = true
+                } else {
+                    guard let expectedScanId,
+                          let expectedGeneration,
+                          viewModel.state.fieldNotesPresentationScanId?
+                            .caseInsensitiveCompare(expectedScanId) ==
+                            .orderedSame,
+                          viewModel.state.fieldNotesPresentationGeneration ==
+                            expectedGeneration else {
+                        return
+                    }
+                    viewModel.state.isFieldNotesSheetPresented = false
+                    viewModel.state.fieldNotesPresentationScanId = nil
+                    viewModel.state.fieldNotesPresentationGeneration = nil
+                }
+            }
+        )
+    }
+
+    var explorePostComposerPresentedBinding: Binding<Bool> {
+        let expectedScanId =
+            viewModel.state.explorePostComposerPresentationScanId
+        let expectedGeneration =
+            viewModel.state.explorePostComposerPresentationGeneration
+        let expectedPostId =
+            viewModel.state.explorePostComposerPresentationPostId
+        return Binding(
+            get: {
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      let expectedPostId,
+                      viewModel.state.explorePostComposerPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state
+                        .explorePostComposerPresentationGeneration ==
+                        expectedGeneration,
+                      viewModel.state.explorePostComposerPresentationPostId?
+                        .caseInsensitiveCompare(expectedPostId) == .orderedSame,
+                      viewModel.state.sharedExplorePostId?
+                        .caseInsensitiveCompare(expectedPostId) == .orderedSame else {
+                    return false
+                }
+                return viewModel.isPresentingLocalRecord(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                ) &&
+                    viewModel.state.sharedExplorePostId != nil &&
+                    viewModel.state.isExplorePostComposerPresented
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      let expectedPostId,
+                      viewModel.state.explorePostComposerPresentationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      viewModel.state
+                        .explorePostComposerPresentationGeneration ==
+                        expectedGeneration,
+                      viewModel.state.explorePostComposerPresentationPostId?
+                        .caseInsensitiveCompare(expectedPostId) == .orderedSame else {
+                    return
+                }
+                viewModel.state.isExplorePostComposerPresented = false
+                viewModel.state.explorePostComposerPresentationScanId = nil
+                viewModel.state.explorePostComposerPresentationGeneration = nil
+                viewModel.state.explorePostComposerPresentationPostId = nil
             }
         )
     }
 
     @ViewBuilder
     var explorePostComposerSheet: some View {
-        if let speciesData = inferenceEngine.speciesData {
+        if let scanId = viewModel.state.explorePostComposerPresentationScanId,
+           let composerGeneration =
+            viewModel.state.explorePostComposerPresentationGeneration,
+           let postId =
+            viewModel.state.explorePostComposerPresentationPostId,
+           viewModel.isPresentingLocalRecord(
+               scanId: scanId,
+               generation: composerGeneration
+           ),
+           viewModel.state.sharedExplorePostId?
+            .caseInsensitiveCompare(postId) == .orderedSame,
+           let speciesData = inferenceEngine.speciesData,
+           speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
             ExplorePostComposerView(
                 mode: .edit,
                 speciesName: viewModel.resolvedHeaderTitle,
@@ -253,15 +736,71 @@ private extension InsightContentView {
                 hashtagSuggestionContext: exploreHashtagSuggestionContext(for: speciesData),
                 isSaving: viewModel.state.isUpdatingExplorePostContent,
                 onSubmit: { draft in
+                    guard viewModel.isPresentingLocalRecord(
+                        scanId: scanId,
+                        generation: composerGeneration
+                    ),
+                          viewModel.state
+                            .explorePostComposerPresentationScanId?
+                            .caseInsensitiveCompare(scanId) == .orderedSame,
+                          viewModel.state
+                            .explorePostComposerPresentationGeneration ==
+                            composerGeneration,
+                          viewModel.state
+                            .explorePostComposerPresentationPostId?
+                            .caseInsensitiveCompare(postId) == .orderedSame,
+                          viewModel.state.sharedExplorePostId?
+                            .caseInsensitiveCompare(postId) == .orderedSame else {
+                        return
+                    }
                     Task {
                         await viewModel.updateExplorePostContent(
                             draft,
+                            expectedScanId: scanId,
+                            expectedGeneration: composerGeneration,
                             modelContext: modelContext
                         )
                     }
                     viewModel.state.isExplorePostComposerPresented = false
+                    viewModel.state.explorePostComposerPresentationScanId = nil
+                    viewModel.state.explorePostComposerPresentationGeneration = nil
+                    viewModel.state.explorePostComposerPresentationPostId = nil
                 }
             )
+        }
+    }
+
+    func isCommunityRequestPresentationCurrent(
+        scanId: String,
+        generation: UInt64,
+        requestId: String?
+    ) -> Bool {
+        viewModel.isPresentingLocalRecord(
+            scanId: scanId,
+            generation: generation
+        ) &&
+            viewModel.state.communityRequestPresentationScanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame &&
+            viewModel.state.communityRequestPresentationGeneration ==
+                generation &&
+            optionalIdentifiersMatch(
+                viewModel.state.communityRequestPresentationRequestId,
+                requestId
+            ) &&
+            optionalIdentifiersMatch(
+                viewModel.state.sharedCommunityIdentificationRequestId,
+                requestId
+            )
+    }
+
+    func optionalIdentifiersMatch(_ lhs: String?, _ rhs: String?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil):
+            return true
+        case (.some(let lhs), .some(let rhs)):
+            return lhs.caseInsensitiveCompare(rhs) == .orderedSame
+        default:
+            return false
         }
     }
 

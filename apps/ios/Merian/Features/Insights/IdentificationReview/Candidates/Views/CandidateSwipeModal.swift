@@ -6,6 +6,8 @@ struct CandidateSwipeModal: View {
     
     // MARK: - Properties
     
+    let scanId: String
+    let presentationGeneration: UInt64
     let originalCandidates: [IdentificationCandidate]
     let aiScientificName: String
     let confirmButtonTitle: String
@@ -40,6 +42,8 @@ struct CandidateSwipeModal: View {
     
     init(
         isPresented: Binding<Bool>,
+        scanId: String,
+        presentationGeneration: UInt64,
         candidates: [IdentificationCandidate],
         aiScientificName: String,
         confirmButtonTitle: String,
@@ -48,6 +52,8 @@ struct CandidateSwipeModal: View {
         onRefineScan: (() -> Void)? = nil
     ) {
         self._isPresented = isPresented
+        self.scanId = scanId
+        self.presentationGeneration = presentationGeneration
         self.originalCandidates = candidates
         self.aiScientificName = aiScientificName
         self.confirmButtonTitle = confirmButtonTitle
@@ -66,6 +72,11 @@ struct CandidateSwipeModal: View {
 
     private var isSwipingRight: Bool { topCardIsDragging && topCardOffset.width > 10 }
     private var isSwipingLeft: Bool { topCardIsDragging && topCardOffset.width < -10 }
+    private var isSubjectPresentationCurrent: Bool {
+        inferenceEngine.scanPresentationGeneration == presentationGeneration &&
+            inferenceEngine.speciesData?.scanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame
+    }
 
     // MARK: - Body
     
@@ -124,8 +135,10 @@ struct CandidateSwipeModal: View {
             }
         }
         .onDisappear {
-            if session.isExhausted && !isDismissing {
-                inferenceEngine.markAlternativesExhausted()
+            if session.isExhausted,
+               !isDismissing,
+               isSubjectPresentationCurrent {
+                inferenceEngine.markAlternativesExhausted(expectedScanId: scanId)
             }
         }
         .sheet(isPresented: $showPaywall) {
@@ -236,8 +249,10 @@ extension CandidateSwipeModal {
                             
                             // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor
                             try? await Task.sleep(nanoseconds: 300_000_000)
+                            guard isSubjectPresentationCurrent else { return }
                             await inferenceEngine.applyIdentificationOverride(
                                 scientificName: candidate.scientificName,
+                                expectedScanId: scanId,
                                 modelContext: modelContext
                             )
                         }
@@ -285,7 +300,10 @@ extension CandidateSwipeModal {
                                     // Let the candidate sheet finish dismissing before the
                                     // refinement event closes the insight and changes capture mode.
                                     try? await Task.sleep(nanoseconds: 300_000_000)
-                                    await MainActor.run { onRefineScan() }
+                                    guard isSubjectPresentationCurrent else {
+                                        return
+                                    }
+                                    onRefineScan()
                                 }
                             } else {
                                 showPaywall = true
@@ -301,12 +319,16 @@ extension CandidateSwipeModal {
                         isPresented = false
                         Task {
                             try? await Task.sleep(nanoseconds: 300_000_000)
-                            await MainActor.run { onAskCommunity?() }
+                            guard isSubjectPresentationCurrent else {
+                                return
+                            }
+                            onAskCommunity?()
                         }
                     }, color: .blue)
                 }
 
                 SlideToConfirm(label: confirmButtonTitle, onConfirm: {
+                    guard isSubjectPresentationCurrent else { return }
                     isDismissing = true
                     onConfirmOriginal()
                     isPresented = false
@@ -460,8 +482,10 @@ extension CandidateSwipeModal {
             
             // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor
             try? await Task.sleep(nanoseconds: 300_000_000)
+            guard isSubjectPresentationCurrent else { return }
             await inferenceEngine.applyIdentificationOverride(
                 scientificName: name,
+                expectedScanId: scanId,
                 modelContext: modelContext
             )
         }

@@ -1480,6 +1480,9 @@ and `KeychainManager` migration logic. Do not inline
 - `InferenceEngine` now treats pending background writes as generation-scoped
   work. Any scan reset or cancellation invalidates the old generation before the
   next scan can enqueue or drain background mutations.
+- Active and pending best-effort metadata writes each have a hard depth-eight
+  ceiling. Rapid queue replay therefore retains at most sixteen write closures;
+  overflow is dropped instead of creating an unbounded OOM backlog.
 - `AudioCaptureManager` owns full startup failure cleanup. Cancellation after
   `AVAudioSession` activation now still removes the input tap, stops the engine,
   cancels DSP work, finishes the spectrogram stream, and clears pending temp

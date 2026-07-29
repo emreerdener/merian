@@ -816,7 +816,28 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     coreDataSource,
     networkSource,
     insightSharingSource,
+    insightChatSource,
     networkClientImplementationSource,
+    insightViewModelImplementationSource,
+    recordBindingImplementationSource,
+    exploreSharingImplementationSource,
+    insightSheetImplementationSource,
+    collectionModifiersImplementationSource,
+    candidateCardImplementationSource,
+    namePreferencesImplementationSource,
+    reportInsightImplementationSource,
+    inferenceEngineImplementationSource,
+    insightContentImplementationSource,
+    candidateSwipeImplementationSource,
+    shareButtonImplementationSource,
+    chatViewModelImplementationSource,
+    queuedContentImplementationSource,
+    displayImplementationSource,
+    toolbarImplementationSource,
+    biologicalImplementationSource,
+    confidenceBadgeImplementationSource,
+    confidenceExplanationImplementationSource,
+    mediaExportImplementationSource,
     signerReadmeSource,
     statusReadmeSource,
     shareReadmeSource,
@@ -849,7 +870,64 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read("apps/ios/Merian/Core/Data/README.md"),
     read("apps/ios/Merian/Core/Network/README.md"),
     read("apps/ios/Merian/Features/Insights/Sharing/README.md"),
+    read("apps/ios/Merian/Features/Insights/Chat/README.md"),
     read("apps/ios/Merian/Core/Network/MerianNetworkClient.swift"),
+    read(
+      "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Records.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSheetViewModel+ExploreSharing.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift",
+    ),
+    read("apps/ios/Merian/Core/UI/Modifiers/CollectionModifiers.swift"),
+    read(
+      "apps/ios/Merian/Features/Insights/IdentificationReview/Candidates/Components/CandidatesCard.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Content/NamePreferences/ViewModels/InsightSheetViewModel+NamePreferences.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Reporting/ViewModels/ReportInsightViewModel.swift",
+    ),
+    read("apps/ios/Merian/Core/AI/InferenceEngine.swift"),
+    read(
+      "apps/ios/Merian/Features/Insights/Shell/Views/InsightContentView.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/IdentificationReview/Candidates/Views/CandidateSwipeModal.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Chat/ViewModels/InsightChatViewModel.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Display.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Toolbar.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceBadge.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceExplanationSheet.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Media/Utilities/InsightSheetViewModel+MediaExport.swift",
+    ),
     read("services/supabase/functions/generate-upload-urls/README.md"),
     read("services/supabase/functions/check-scan-status/README.md"),
     read("services/supabase/functions/share-scan-to-explore/README.md"),
@@ -926,6 +1004,10 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   assertStringIncludes(
     compact(retryIncidentSource),
     "zero merge commits in that window",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "`a21155a3299598e81be0ec322ce339adbff62ff1`",
   );
   assertStringIncludes(
     compact(retryIncidentSource),
@@ -1090,6 +1172,337 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "Current iOS must build recovery evidence and repair the missing owner row before requesting restore upload URLs.",
   );
   assertStringIncludes(localShare, "recoveryScan: recoveryScan");
+  assertStringIncludes(
+    compact(networkClientImplementationSource),
+    'if let code = stableEdgeErrorCode(from: error) { return code == "not_found" }',
+  );
+  assertStringIncludes(
+    compact(networkClientImplementationSource),
+    "snapshot.scanId.caseInsensitiveCompare(expectedScanId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(insightViewModelImplementationSource),
+    "scanBoundActionGeneration &+= 1",
+  );
+  assertStringIncludes(
+    compact(recordBindingImplementationSource),
+    "scanBoundActionGeneration &+= 1",
+  );
+  assertStringIncludes(
+    compact(exploreSharingImplementationSource),
+    "generation == scanBoundActionGeneration",
+  );
+  assertStringIncludes(
+    compact(exploreSharingImplementationSource),
+    "isPresentingLocalRecord( scanId: scanId, generation: generation )",
+  );
+  assertStringIncludes(
+    compact(exploreSharingImplementationSource),
+    "state.sharedExplorePostId? .caseInsensitiveCompare(postId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(exploreSharingImplementationSource),
+    "state.sharedCommunityIdentificationRequestId? .caseInsensitiveCompare(requestId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(exploreSharingImplementationSource),
+    "MerianNetworkClient.shouldAttemptExploreCloudScanRestore( after: error )",
+  );
+  assertStringIncludes(
+    compact(exploreSharingImplementationSource),
+    "cacheSharedExplorePostId( nil, for: scanId, generation: generation )",
+  );
+  assertStringIncludes(
+    compact(insightSheetImplementationSource),
+    "pendingDeletionScanId = targetScanId",
+  );
+  assertStringIncludes(
+    compact(insightSheetImplementationSource),
+    "newCollectionAlertBinding",
+  );
+  assertStringIncludes(
+    compact(insightSheetImplementationSource),
+    "exploreOnboardingPresentedBinding",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "identificationReviewWriteTail = Task",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "current.scientificName.caseInsensitiveCompare(scientificName) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "executeSpeciesMetadataWrite( scanId: capturedScanId, scientificName: capturedScientificName, presentationGeneration: capturedPresentationGeneration",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "presentationGeneration: historicPresentationGeneration, reviewActionGeneration: reviewActionGeneration",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "explorePostComposerPresentationGeneration",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "communityRequestPresentationGeneration",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "explorePostComposerPresentationPostId",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "communityRequestPresentationRequestId",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "let carouselGeneration = viewModel.scanBoundActionGeneration",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "observationPresentationGeneration = carouselGeneration",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "fullscreenGalleryPresentationGeneration = carouselGeneration",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "candidateSwipeEnginePresentationGeneration",
+  );
+  assertStringIncludes(
+    compact(insightContentImplementationSource),
+    "viewModel.state.safariPresentationScanId? .caseInsensitiveCompare(expectedScanId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(candidateSwipeImplementationSource),
+    "inferenceEngine.scanPresentationGeneration == presentationGeneration",
+  );
+  assertStringIncludes(
+    compact(shareButtonImplementationSource),
+    "actionGeneration &+= 1",
+  );
+  assertStringIncludes(
+    compact(shareButtonImplementationSource),
+    "actionPresentationGeneration == presentationGeneration",
+  );
+  assertStringIncludes(
+    compact(shareButtonImplementationSource),
+    "isActionPresentationCurrent( submittedScanId, generation: submittedGeneration )",
+  );
+  assertStringIncludes(
+    compact(shareButtonImplementationSource),
+    "optionsActionGeneration == expectedGeneration",
+  );
+  assertStringIncludes(
+    compact(shareButtonImplementationSource),
+    "composerActionGeneration == expectedGeneration",
+  );
+  assertStringIncludes(
+    compact(chatViewModelImplementationSource),
+    "subjectGeneration &+= 1",
+  );
+  assertStringIncludes(
+    compact(chatViewModelImplementationSource),
+    "response.subjectId? .caseInsensitiveCompare(scanId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(queuedContentImplementationSource),
+    "viewModel.refreshQueuedContextIfCurrent( refreshed, expectedScanId: scanId )",
+  );
+  assertStringIncludes(
+    compact(queuedContentImplementationSource),
+    "retryingScanId? .caseInsensitiveCompare(scanId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(displayImplementationSource),
+    "queuedContext?.id .caseInsensitiveCompare(expectedScanId) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(displayImplementationSource),
+    "cachedActiveMedia = refreshedContext.capturedMediaSnapshot.activeScanMedia",
+  );
+  assertStringIncludes(
+    compact(displayImplementationSource),
+    "func audioBoostBinding( expectedScanId: String, expectedGeneration: UInt64 ) -> Binding<Bool>",
+  );
+  assertStringIncludes(
+    compact(displayImplementationSource),
+    "func isPresentingMedia( scanId: String, generation: UInt64 ) -> Bool",
+  );
+  assertStringIncludes(
+    compact(toolbarImplementationSource),
+    "let toolbarGeneration = viewModel.scanBoundActionGeneration",
+  );
+  assertStringIncludes(
+    compact(toolbarImplementationSource),
+    "viewModel.saveUserPhotos( expectedScanId: scanId, expectedGeneration: toolbarGeneration",
+  );
+  assertStringIncludes(
+    compact(toolbarImplementationSource),
+    "viewModel.shareDiscovery( expectedScanId: scanId, expectedGeneration: toolbarGeneration",
+  );
+  assertStringIncludes(
+    compact(toolbarImplementationSource),
+    "selectedInsightChatGeneration = toolbarGeneration",
+  );
+  assertStringIncludes(
+    compact(biologicalImplementationSource),
+    ".sheet(isPresented: namePickerPresentedBinding)",
+  );
+  assertStringIncludes(
+    compact(biologicalImplementationSource),
+    "isSafariPresented: safariPresentedBinding(",
+  );
+  assertStringIncludes(
+    compact(confidenceBadgeImplementationSource),
+    "inferenceEngine.scanPresentationGeneration == expectedGeneration",
+  );
+  assertStringIncludes(
+    compact(confidenceExplanationImplementationSource),
+    "private var isSubjectPresentationCurrent: Bool",
+  );
+  for (
+    const mediaExportEntryPoint of [
+      "func saveUserPhotos( expectedScanId: String, expectedGeneration: UInt64",
+      "func shareDiscovery( expectedScanId: String, expectedGeneration: UInt64",
+    ]
+  ) {
+    assertStringIncludes(
+      compact(mediaExportImplementationSource),
+      mediaExportEntryPoint,
+    );
+  }
+  assertStringIncludes(
+    compact(recordBindingImplementationSource),
+    "func bindQueuedPresentation(_ context: QueuedScanContext)",
+  );
+  assertStringIncludes(
+    compact(insightViewModelImplementationSource),
+    "sharedExploreStateRevision &+= 1",
+  );
+  assertStringIncludes(
+    compact(insightViewModelImplementationSource),
+    "sharedExploreStateRequestToken &+= 1",
+  );
+  assertStringIncludes(
+    compact(insightSheetImplementationSource),
+    "viewModel.bindQueuedPresentation(newScan)",
+  );
+  assertStringIncludes(
+    compact(collectionModifiersImplementationSource),
+    "guard canExecuteAction?() != false else",
+  );
+  assertStringIncludes(
+    compact(candidateCardImplementationSource),
+    "inferenceEngine.scanPresentationGeneration == generation",
+  );
+  assertStringIncludes(
+    compact(candidateCardImplementationSource),
+    "swipeModalGeneration = presentedGeneration",
+  );
+  assertStringIncludes(
+    compact(namePreferencesImplementationSource),
+    "generation: expectedGeneration",
+  );
+  assertStringIncludes(
+    compact(reportInsightImplementationSource),
+    "engine.scanPresentationGeneration == presentationGeneration",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "The completed engine scan ID is also the client presentation authority.",
+  );
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "completed engine result, active local-record model and ID, and immutable toolbar snapshot",
+  );
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "`InsightShareButton` has an independent action generation",
+  );
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "the parent view model's presentation generation",
+  );
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "exact post or request UUID they addressed",
+  );
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "The follow-up post-detail read is advisory",
+  );
+  assertStringIncludes(
+    compact(insightChatSource),
+    "`InsightChatViewModel` provides a second subject boundary",
+  );
+  assertStringIncludes(
+    compact(insightChatSource),
+    "parent Insight sheet applies the same scan/generation check",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "Local/cloud review writes and review-triggered species-metadata writes execute through one serial tail",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "A queued-to-completed transition advances that generation even when the UUID is unchanged",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "a direct parent `queuedScan` A → B replacement invalidates A before binding B",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "Issue reporting rejects a supplied scan that no longer matches the engine before remote or local flag mutation",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "Reset also advances the Explore request and revision clocks instead of zeroing them",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "changed-scan and stale same-scan-generation issue-report rejection",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "post/request publication target capture, target-scoped sheet dismissal",
+  );
+  assertStringIncludes(
+    compact(insightSharingSource),
+    "An authoritative share-state `404` activates compatibility behavior only",
+  );
+  assertStringIncludes(
+    compact(changelogSource),
+    "Fenced Field Chat and Explore actions to one exact presented scan.",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "immutable descendant SHA is pending",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "Current-worktree portable repetition now passes",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "critical-result validator with all 19 new exact cases",
+  );
+  assertStringIncludes(
+    compact(shareIncidentSource),
+    "A same-account legacy-record smoke test is also mandatory.",
+  );
+  assertStringIncludes(
+    compact(shareIncidentSource),
+    "The trace therefore predates the remediation by about four hours",
+  );
 
   for (
     const source of [
@@ -1491,7 +1904,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "a scope-only success is not release evidence",
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
       "authoritative known location-sharing value",
-      "Local working-tree evidence is not immutable release evidence.",
+      "At review, `HEAD` and `origin/main` both resolved to `a21155a32`",
       "`scripts/require_supabase_cli_version.sh`",
       "Current deterministic non-PostgreSQL Deno discovery run: 1,338 passed, 0 failed",
       "The current configured broad task reported 1,421 passed",
@@ -1508,7 +1921,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "atomic_community_identification_request_security.sql",
       "The hosted 24-assertion revision completed its first five preflight assertions",
       "The revised rollback-only fixture plans 25 assertions",
-      "contains 94 changed paths",
+      "contains 104 changed paths",
       "is an explicit deployment control path, so the fail-closed planner resolves all 89 configured functions",
       "all 89 isolated function graphs validated across 292 runtime files",
       "Full-fallback, shuffled-plan, compatibility-order, and fail-stop fixtures passed.",
@@ -1521,7 +1934,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "The latest supplied hosted run compiled and executed 879 tests in 67 suites",
       "`completedInferenceAndQueueDeletionCommitTogether()` rejected `repeatedDelete`",
       "malformed Explore share and share-state responses leaked `DecodingError`",
-      "Exact committed source `b2c7a241` addresses all three",
+      "Exact committed runtime source `a21155a32` addresses all three",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",

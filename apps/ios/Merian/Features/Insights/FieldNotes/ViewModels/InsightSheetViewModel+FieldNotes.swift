@@ -2,7 +2,35 @@ import SwiftData
 import SwiftUI
 
 extension InsightSheetViewModel {
-    func updateFieldNotes(_ text: String, modelContext: ModelContext) {
+    func presentFieldNotes(
+        expectedScanId: String? = nil,
+        expectedGeneration: UInt64? = nil
+    ) {
+        guard let scanId = currentFieldNotesScanId,
+              expectedGeneration == nil ||
+                expectedGeneration == scanBoundActionGeneration,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
+        state.fieldNotesPresentationScanId = scanId
+        state.fieldNotesPresentationGeneration = scanBoundActionGeneration
+        state.isFieldNotesSheetPresented = true
+    }
+
+    func updateFieldNotes(
+        _ text: String,
+        expectedScanId: String? = nil,
+        expectedGeneration: UInt64? = nil,
+        modelContext: ModelContext
+    ) {
+        guard let scanId = currentFieldNotesScanId,
+              expectedGeneration == nil ||
+                expectedGeneration == scanBoundActionGeneration,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return
+        }
         state.fieldNotesText = text
         if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             state.dismissedFieldNotesCardScanId = nil
@@ -10,8 +38,17 @@ extension InsightSheetViewModel {
         persistFieldNotes(text, modelContext: modelContext)
     }
 
-    func dismissFieldNotesCard() {
-        guard let currentFieldNotesScanId else { return }
+    func dismissFieldNotesCard(
+        expectedScanId: String? = nil,
+        expectedGeneration: UInt64? = nil
+    ) {
+        guard let currentFieldNotesScanId,
+              expectedGeneration == nil ||
+                expectedGeneration == scanBoundActionGeneration,
+              expectedScanId == nil ||
+                expectedScanId?.caseInsensitiveCompare(currentFieldNotesScanId) == .orderedSame else {
+            return
+        }
         HapticManager.shared.triggerLightImpact()
         state.dismissedFieldNotesCardScanId = currentFieldNotesScanId
     }

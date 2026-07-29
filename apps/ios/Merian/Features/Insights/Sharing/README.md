@@ -15,7 +15,60 @@ attachment of public hashtags and common-name snapshots.
 `InsightSheetViewModel+ExploreSharing` owns presentation state, while
 `MerianNetworkClient.shareScanToExplore(scan:...)` owns the authenticated
 publication and guarded recovery sequence. One user action always targets the
-stable scan UUID.
+stable scan UUID. Explore actions remain disabled unless the completed engine
+result, active local-record model and ID, and immutable toolbar snapshot all
+identify that same scan. A failed lookup for a newly presented scan clears stale
+scan-bound post, Community, notes, media, and action state from the previous
+record; a transient lookup miss for the same scan preserves its snapshot while
+SwiftData contexts propagate.
+
+Each persisted-record presentation also has a monotonic action generation.
+Changing records invalidates the prior generation, dismisses scan-bound editors
+and confirmations, and clears their busy flags. Explore publication, post
+content and field-note edits, Community creation and editing, and authoritative
+share-state detail refresh capture both the scan ID and generation. Their
+success and failure paths revalidate both after every network await, so an older
+response may update only its scan-keyed global cache and cannot overwrite the
+newly presented observation. Same-scan user mutations advance the share-state
+revision so an older detail refresh cannot restore stale hashtags, privacy, or
+field-note visibility. Post and Community mutations additionally retain the
+exact post or request UUID they addressed; a same-scan topology change cannot
+let an older response update the replacement publication.
+
+`InsightShareButton` has an independent action generation for its nested
+options, warning, and composer sheets. Opening Share captures the scan ID and
+the parent view model's presentation generation. Each nested options, warning,
+composer, and failure presentation also retains that exact component action
+generation, and its binding may dismiss only the matching token. Changing the
+scan or parent generation advances the component generation, dismisses every
+nested presentation, and clears pending actions and drafts. Every callback
+compares the captured parent generation directly, so it is stale even before
+SwiftUI delivers `onChange`. Composer-media
+hydration and asynchronous publication completion revalidate all values before
+opening or closing a sheet. The Insight-owned Explore editor, Community editor,
+Field Notes editor, delayed Explore onboarding prompt, and New Collection alert
+also capture the view model's exact scan ID and presentation generation. This
+closes both ordinary A → B switches and A → B → A callbacks where the UUID
+happens to match again but the original presentation no longer owns the UI.
+
+The same boundary covers callbacks outside the nested Share component. Toolbar
+collection/export/Field Chat/identification/review/reanalysis/delete actions,
+media and audio controls, local-gallery and Wikipedia/Safari sheets,
+common-name and candidate modals, copied Explore-composer submissions, and
+toast actions all retain an immutable scan/generation target. A queued result
+handoff advances the generation even when the completed record reuses the same
+UUID, so controls created by the queued presentation cannot act on the result
+presentation. Stale dismissal callbacks clear only their captured
+presentation, never a newer one.
+
+An authoritative share-state `404` activates compatibility behavior only when
+the handler supplies stable `code: "not_found"` (or the narrow released-response
+fallback has no stable code). That outcome proves an absent owner row cannot own
+a valid Explore post or Community request, so the client clears only that scan's
+obsolete local publication marker. The toolbar then offers normal publication,
+whose deliberate user action enters the guarded owner-row and media recovery
+sequence below. Availability, malformed, foreign-code, and unconfirmed responses
+preserve the optimistic cache.
 
 Normal publication:
 
@@ -77,8 +130,9 @@ sharing. Backend migration
 `20260729012153_fix_video_scan_canonical_finalization.sql` aligns finalization
 with this existing composer contract.
 
-When the ordinary share returns a handler-owned `404 Scan not found`, the
-network client:
+When the ordinary share returns a handler-owned `404` with stable
+`code: "not_found"` (or a released-backend `Scan not found` message without a
+stable code), the network client:
 
 1. polls `/check-scan-status`;
 2. leaves active or retryable richer ingestion authoritative;
@@ -138,12 +192,12 @@ the ingestion generation lock, honors deletion tombstones and ID collisions,
 never overwrites an existing row, and commits the owner row plus completed
 ledger together. Historical promoted capture rows do not consume this repair's
 active six-item staging budget. Every current key must also match an
-authoritative capture-upload ledger row for the exact
-authenticated owner, scan ID, media kind, and role before the server promotes
-any object. This prevents an owner key from another scan or a signed audio/video
-key relabeled as an image from crossing into publication. Compatibility with
-released clients that signed before ledger registration is limited to their
-exact deterministic scan/category filename and legacy extension-derived kind.
+authoritative capture-upload ledger row for the exact authenticated owner, scan
+ID, media kind, and role before the server promotes any object. This prevents an
+owner key from another scan or a signed audio/video key relabeled as an image
+from crossing into publication. Compatibility with released clients that signed
+before ledger registration is limited to their exact deterministic scan/category
+filename and legacy extension-derived kind.
 
 If no eligible local user media survives, publication remains unavailable; a
 reference image is not observation evidence and cannot replace it.
@@ -188,7 +242,10 @@ moderation has removed it; that owner-only publication identity is accepted
 without being cached as a visible Explore destination. A stale, mismatched,
 unknown-location, visible-without-post, or structurally partial HTTP `200` is
 ignored as unavailable and cannot overwrite the optimistic cache for the open
-Insight.
+Insight. The follow-up post-detail read is advisory: transport or availability
+failure preserves the last confirmed or optimistic hashtags, privacy, and
+field-note visibility rather than treating a failed read as proof that public
+notes became private.
 
 ## Privacy and Security
 

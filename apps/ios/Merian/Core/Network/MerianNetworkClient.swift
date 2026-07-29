@@ -3856,7 +3856,7 @@ final class MerianNetworkClient {
                 idempotencyKey: idempotencyKey
             )
         } catch {
-            if shouldAttemptExploreCloudScanRestore(after: error) {
+            if Self.shouldAttemptExploreCloudScanRestore(after: error) {
                 MerianLog.network.debug("Explore share missing cloud scan; attempting local scan recovery for \(mediaSnapshot.scanId, privacy: .private).")
                 switch await waitForScanPersistence(scanId: mediaSnapshot.scanId) {
                 case .found:
@@ -4036,7 +4036,7 @@ final class MerianNetworkClient {
                 idempotencyKey: idempotencyKey
             )
         } catch {
-            if shouldAttemptExploreCloudScanRestore(after: error) {
+            if Self.shouldAttemptExploreCloudScanRestore(after: error) {
                 MerianLog.network.debug("Community request missing cloud scan; attempting local scan recovery for \(mediaSnapshot.scanId, privacy: .private).")
                 switch await waitForScanPersistence(scanId: mediaSnapshot.scanId) {
                 case .found:
@@ -4615,18 +4615,28 @@ final class MerianNetworkClient {
         ))
     }
 
-    private func shouldAttemptExploreCloudScanRestore(after error: Error) -> Bool {
+    static func shouldAttemptExploreCloudScanRestore(after error: Error) -> Bool {
         guard case let MerianError.httpError(statusCode, message) = error,
               statusCode == 404 else {
             return false
         }
 
-        return message.contains("Scan not found")
+        if let code = stableEdgeErrorCode(from: error) {
+            return code == "not_found"
+        }
+
+        return message.localizedCaseInsensitiveContains("Scan not found")
     }
 
     @MainActor
-    func ensureCloudScanAvailableForFieldChat(scan: LocalScanRecord) async throws -> Bool {
+    func ensureCloudScanAvailableForFieldChat(
+        scan: LocalScanRecord,
+        expectedScanId: String
+    ) async throws -> Bool {
         let snapshot = ExploreShareMediaSnapshot(scan: scan)
+        guard snapshot.scanId.caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+            throw MerianError.invalidResponse
+        }
         switch await waitForScanPersistence(scanId: snapshot.scanId) {
         case .found:
             return true

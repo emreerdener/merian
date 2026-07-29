@@ -12,7 +12,7 @@ as a sheet modal from `CaptureWorkspaceView` when
 | File                                                                     | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Shell/ViewModels/InsightSheetViewModel.swift` + product-area extensions | `@Observable @MainActor final class` — the root file owns stored state, init/reset, and `UIState`. Extensions live beside their owners: shell display/lifecycle/record lookup in `Shell/ViewModels/`, field notes in `FieldNotes/ViewModels/`, Explore sharing in `Sharing/ViewModels/`, media export in `Media/Utilities/`, and name preferences in `Content/NamePreferences/ViewModels/`, while preserving the scan-ID/snapshot safety boundary.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `InsightSheetView`                                                       | Root sheet view. Accepts an optional `queuedScan: QueuedScanContext? = nil` value-type parameter (not an `OfflineQueuedScan @Model` reference — see §Queued Scan Value-Type Pattern). Uses a **custom `init`** to seed `_viewModel` via `State(initialValue: InsightSheetViewModel(queuedContext: queuedScan))` — this ensures the view model's `queuedContext` is set at construction time, before SwiftUI evaluates any body. (Relying on `onAppear` alone was insufficient: `.sheet(isPresented:)` pre-evaluates the body with `scanToManage = nil`, setting `@State` once at that point; later re-evaluations with a non-nil `queuedScan` do not re-run `State(initialValue:)`.) An `onChange(of: queuedScan)` modifier nils `viewModel.queuedContext` when the queued scan is cleared from outside the sheet (e.g., `LibraryView` sets `scanToManage = nil` after the scan completes), ensuring the `.analyzing` → results transition path is not blocked by a stale `queuedContext`. When non-nil, shows a dedicated trash `ToolbarItem` in place of the standard ellipsis menu, and branches the delete alert to call `offlineQueueManager.deleteQueuedScan(scanId:)` then `dismiss()` instead of `eradicateCurrentScan`. On `onAppear` also sets `suppressInferenceBanners = true` and clears `hasUnseenScan`; on `onDisappear` clears `suppressInferenceBanners`. Detects queued-scan completion through the initial `.task(id: queuedScan?.id)` and `ScanLibraryEvents.libraryDidUpdatePublisher()`; `attemptQueuedCompletionHandoff` retries up to 8 × 350 ms for the new `LocalScanRecord` before handing off to `inferenceEngine.load(from:)` (see §Queued Scan Completion Transition).                                                                                                                                                                                                                                                                                    |
+| `InsightSheetView`                                                       | Root sheet view. Accepts an optional `queuedScan: QueuedScanContext? = nil` value-type parameter (not an `OfflineQueuedScan @Model` reference — see §Queued Scan Value-Type Pattern). Uses a **custom `init`** to seed `_viewModel` via `State(initialValue: InsightSheetViewModel(queuedContext: queuedScan))` — this ensures the view model's `queuedContext` is set at construction time, before SwiftUI evaluates any body. (Relying on `onAppear` alone was insufficient: `.sheet(isPresented:)` pre-evaluates the body with `scanToManage = nil`, setting `@State` once at that point; later re-evaluations with a non-nil `queuedScan` do not re-run `State(initialValue:)`.) Its `onChange(of: queuedScan)` handles both completion and direct replacement: clearing the value releases queued routing for `.analyzing` → results, while A → B calls `bindQueuedPresentation(B)` to invalidate A's generation, state, notes, and media before binding B. When non-nil, shows a dedicated trash `ToolbarItem` in place of the standard ellipsis menu, and branches the delete alert to call `offlineQueueManager.deleteQueuedScan(scanId:)` then `dismiss()` instead of `eradicateCurrentScan`. On `onAppear` also sets `suppressInferenceBanners = true` and clears `hasUnseenScan`; on `onDisappear` clears `suppressInferenceBanners`. Detects queued-scan completion through the initial `.task(id: queuedScan?.id)` and `ScanLibraryEvents.libraryDidUpdatePublisher()`; `attemptQueuedCompletionHandoff` retries up to 8 × 350 ms for the new `LocalScanRecord` before handing off to `inferenceEngine.load(from:)` (see §Queued Scan Completion Transition).                                                                                                                                                                                                                                                                                    |
 | `Shell/Views/InsightSheetView+Toolbar.swift`                             | Keeps toolbar assembly out of the root sheet body. It wires queued-scan trash handling, collection actions, report/reanalyze/review/confirm actions, and bottom-toolbar visibility using view-model capability flags and record snapshots.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `Shell/Modifiers/EmbeddedInsightNavigationModifiers.swift`               | Hosts the feature-local back-swipe, navigation swipe enabler, and species-dictionary destination modifier used by embedded Insight navigation stacks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `Shell/Models/InsightPresentation.swift`                                 | Defines `InsightPresentationStyle` and `ScanInsightRoute`, the value-only presentation/navigation surface used across Insight, Explore, and Species Dictionary links.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -289,6 +289,60 @@ Open, Obscured, or Private without mutating the underlying scan. This keeps the
 toolbar fast on-device while also correcting stale cache after reinstall,
 cross-device share/unshare, failed media publish, or remote visibility changes.
 
+The completed `InferenceEngine.speciesData.scanId` is the action presentation
+authority. `presentedSpeciesScanId` returns a value only when any active
+local-record ID and toolbar snapshot identify that same scan. Explore requires
+all three identities before enabling publication. If asynchronous SwiftData
+lookup targets a different scan and misses, the view model clears stale
+scan-bound post, Community, notes, media, and action state; a same-scan miss
+retains its immutable snapshot during context propagation. Field Chat captures
+the exact selected ID, passes it into cloud preflight, fences every await, and
+dismisses if the engine changes scans.
+
+Persisted-record actions additionally require `presentedLocalRecordScanId`,
+which proves the engine result, active model, active-record ID, and toolbar
+snapshot all agree. A monotonic presentation generation invalidates older
+asynchronous publication, post-edit, Community, and field-note callbacks.
+Sheet reset advances rather than zeroes the Explore request/revision clocks, so
+an A → B → A cycle cannot make an older response token numerically current.
+Record-bound collection, reanalysis, identification review, and deletion actions
+independently carry or recheck their expected scan ID; delayed candidate actions
+additionally capture the engine presentation generation. The Explore and
+Community editors, Field Notes editor, New Collection alert, and delayed Explore
+onboarding prompt capture both the scan ID and presentation generation. Nested
+Share receives that parent generation and compares it directly on every
+callback, including before `onChange` cleanup. The toolbar captures one immutable
+scan/generation target for collection, export, Field Chat, identification, share,
+review, reanalysis, and deletion callbacks instead of rereading the engine when a
+menu callback finally runs. Media-carousel observation taps, audio-boost
+bindings, local-gallery sheets, Wikipedia/Safari sheets, common-name selection,
+candidate modals, Explore composer submissions, and toast actions retain that
+same exact target. Parent Field Chat close/toast callbacks also require the
+generation that opened the thread. A queued-to-completed handoff advances the
+generation even when the UUID is unchanged, invalidating callbacks rendered by
+the queue presentation before result controls become active. Presentation
+dismissals clear only the matching captured target, never an editor, gallery,
+Safari page, candidate review, or chat opened by a newer render. Same-scan
+Explore and Community mutations also retain the exact post/request UUID across
+their await. The advisory post-detail projection preserves the last confirmed
+or optimistic Field Notes visibility when that read is unavailable.
+
+The delete alert captures its target when opened. `ReportInsightViewModel` rejects
+issue submission unless its supplied scan still matches the engine result,
+before either the remote report or local flag can mutate. Its completion also
+requires the captured engine presentation generation, so an A → B → A cycle
+cannot dismiss or confirm the newer report sheet. A callback from an older
+render can therefore neither mutate the prior observation accidentally nor
+apply its state to the new presentation, including an A → B → A switch where the
+same UUID returns under a newer presentation.
+
+Identification hydration and persistence carry the original scan, scientific
+name, presentation generation, and latest review-action generation through
+dictionary, enrichment, Wikipedia, and GBIF awaits. Local/cloud review writes
+and the species-metadata writes they trigger drain through one serial tail. If
+an older write has already begun, the newer choice waits behind it and remains
+the final durable writer; if it has not begun, its stale generation rejects it.
+
 The Share sheet routes low-confidence biological scans through Identify by
 default. A Strong AI result uses the configured inference-tier threshold (Flash
 `>= 0.95`, Pro `>= 0.85`); anything below that, or a missing confidence value
@@ -417,6 +471,19 @@ the deadline, `Automatic retry is starting` when elapsed, and
 claim pipeline. The UI must never imply that a rounded minute is an execution
 receipt.
 
+Each poll and delayed Retry callback applies its fresh `QueuedScanContext` only
+when the view model still presents that exact queued scan ID. A completion from
+scan A cannot restore A's queue snapshot after scan B has opened. A direct
+parent `queuedScan` replacement calls `bindQueuedPresentation` so A's action
+generation and scan-bound state are invalidated before B's snapshot and media
+are installed. An accepted same-scan refresh replaces both queue state and the
+cached media snapshot. Manual Retry tracks `retryingScanId`, so A's delayed
+completion cannot release B's indicator. Queued Field Notes remain editable:
+their sheet
+captures the queued scan ID and presentation generation, writes through
+`FieldNotesRepository`, and rejects any callback after the queue presentation
+changes.
+
 ---
 
 ## Live Result Ownership and Background Handoff
@@ -469,6 +536,13 @@ OfflineQueueManager.deleteQueuedScan(
     → inferenceEngine.load(from: record)   // Triggers isProcessing true→false
     → InsightContentView renders results
 ```
+
+The handoff single-flight is subject-aware rather than one global busy Boolean.
+A request for a different queued scan advances its generation and replaces the
+older poller; the older task checks that token and exact queued ID before every
+promotion attempt. `promoteQueuedScanIfLocalRecordExists` independently requires
+the same queued ID before it releases queued routing and loads the completed
+record.
 
 Clearing `queuedContext` before calling `load(from:)` is critical:
 `InsightSheetView.onChange(of: inferenceEngine.isProcessing)` has a
@@ -1053,10 +1127,14 @@ the sheet auto-dismisses. `applyIdentificationOverride` is deferred a further
 300 ms after dismissal to prevent SwiftUI from destroying the host sheet anchor
 during the structural `speciesData` mutation.
 
-**`onDisappear` guard**: If `session.isExhausted && !isDismissing`,
-`inferenceEngine.markAlternativesExhausted()` is called — this sets the
-`alternativesExhausted` flag that surfaces `AllCandidatesReviewedView` in
-`ConfidenceExplanationSheet` on next open.
+**`onDisappear` guard**: If `session.isExhausted && !isDismissing` and the
+original scan ID plus engine presentation generation still own the sheet,
+`inferenceEngine.markAlternativesExhausted(expectedScanId:)` is called. This
+sets the `alternativesExhausted` flag that surfaces `AllCandidatesReviewedView`
+in `ConfidenceExplanationSheet` on next open. Delayed candidate confirmation,
+Community handoff, and reanalysis callbacks use the same two-part ownership
+check. The direct card controls wrap confirm, review, dismiss, Community, and
+refine actions in that ownership check too.
 
 **Nested sheet `Menu` incompatibility**: SwiftUI `Menu` uses
 `UIContextMenuInteraction` which fails to attach in nested sheet contexts — the
@@ -1076,9 +1154,9 @@ Users can confirm or override the AI's primary identification directly from
   `minimumScaleFactor(0.6)` typographic squishing before truncating. The user
   drags the thumb ≥88% of the track width to confirm; releasing early springs
   the thumb back. On completion,
-  `InferenceEngine.confirmAIIdentification(modelContext:)` is called, setting
-  `userConfirmedIdentification = true` locally and transitioning to
-  `.confirmed`. Refusing all alternatives lets the user ask the community for
+  `InferenceEngine.confirmAIIdentification(expectedScanId:modelContext:)` is
+  called, setting `userConfirmedIdentification = true` locally and transitioning
+  to `.confirmed`. Refusing all alternatives lets the user ask the community for
   help instead of sending a dead moderation flag. For candidates with missing
   `commonName` strings (or common names identical to taxonomy),
   `SwipeableCandidateCard` securely elevates the `scientificName` to the primary
@@ -1109,24 +1187,27 @@ Users can confirm or override the AI's primary identification directly from
   button** that opens the Community request sheet for human identification help.
 
 **Override flow**: Selecting a candidate calls
-`InferenceEngine.applyIdentificationOverride(scientificName:modelContext:)`,
+`InferenceEngine.applyIdentificationOverride(scientificName:expectedScanId:modelContext:)`,
 which:
 
 1. Mutates `speciesData.userIdentificationOverride` and
    `speciesData.scientificName` to the override name, and clears any legacy
-   local flag bit so old scans cannot carry stale review state forward.
-2. Persists `LocalScanRecord.userIdentificationOverride` via
-   `BackgroundDatabaseActor.updateScanWithOverride`.
-3. Calls the authenticated `update_owned_scan_identification_review(...)` RPC
+   local flag bit so old scans cannot carry stale review state forward. The
+   expected scan must still match before this mutation.
+2. Advances the scan's latest review-action generation, cancels older species
+   hydration, and calls
+   `fetchAndPatchOverrideData(scientificName:scanId:modelContext:reviewActionGeneration:)`.
+   A cache or enrichment result can patch the live presentation only when the
+   scan ID, scientific name, and review-action generation all still match.
+3. Serializes local review persistence and cloud review synchronization behind
+   one per-engine write tail. This guarantees a request that already started
+   cannot finish after and overwrite a newer confirm, override, or reset. Local
+   persistence uses `BackgroundDatabaseActor.updateScanWithOverride`.
+4. Calls the authenticated `update_owned_scan_identification_review(...)` RPC
    (`InferenceEngine.syncIdentificationReviewToCloud`). The database derives
    ownership from `auth.uid()`, validates the complete typed review state, and
    updates override/confirmation/species/state atomically without exposing
    general scan-table mutation.
-4. Fires `fetchAndPatchOverrideData(scientificName:scanId:modelContext:)` —
-   queries `species_dictionary` for a cache hit and patches `speciesData` fields
-   (common name, taxonomy, Wikipedia, etc.). On cache miss, calls
-   `fetchAndApplyEnrichment` (which uses the already-mutated
-   `speciesData.scientificName` as the lookup key).
 5. After patching `speciesData`, persists the updated species-dict fields
    (common name, hazard type, taxonomy, Wikipedia, habitat, GBIF key, etc.) to
    `LocalScanRecord` via
@@ -1377,7 +1458,11 @@ bottom toolbar:
 Users can add or remove the current scan from any `ScanCollection`:
 
 ```swift
-func toggleScanInCollection(_ collection: ScanCollection, modelContext: ModelContext) {
+func toggleScanInCollection(
+    _ collection: ScanCollection,
+    modelContext: ModelContext,
+    expectedScanId: String?
+) {
     // toggles record.collections membership
     // saves modelContext
     // calls OfflineQueueManager.shared.enqueueCollectionSync() for immediate cloud push
@@ -1388,7 +1473,11 @@ func toggleScanInCollection(_ collection: ScanCollection, modelContext: ModelCon
 "New Collection" is handled by the `newCollectionAlert` view modifier attached
 to `InsightSheetView`. It creates a `ScanCollection` in SwiftData with a UUID
 immediately, saves locally, and then schedules cloud sync through
-`OfflineQueueManager`'s shared collection drain.
+`OfflineQueueManager`'s shared collection drain. The alert captures the exact
+local record ID and presentation generation when it opens and passes that
+immutable record ID into the modifier. The modifier revalidates `canCreate`
+before inserting or attaching anything, so even an alert action racing
+dismissal cannot mutate an obsolete presentation.
 
 ---
 

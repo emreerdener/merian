@@ -63,14 +63,14 @@ The AI inference layer is split across three files under
   `executeTrackedBackgroundTask { }`. This method assigns each task a `UUID` key
   in `backgroundWriteTasks: [UUID: Task<Void, Never>]` and removes it on
   completion via `defer { removeValue(forKey: id) }`. A
-  `backgroundWriteTaskCap = 8` guard prevents unbounded accumulation: if
-  `backgroundWriteTasks` already holds 8 entries when a new write is attempted,
-  the write is appended to
-  `pendingBackgroundTasks: [@Sendable () async -> Void]` instead of dropped.
-  When any tracked task completes, `drainPendingBackgroundTasks()` (called on
-  `@MainActor`) dequeues and starts the next pending write — ensuring no work is
-  silently lost while still bounding live concurrent `BackgroundDatabaseActor` /
-  `ModelContext` instances. The entire dictionary is cancelled and cleared in
+  `backgroundWriteTaskCap = 8` and `pendingBackgroundWriteTaskCap = 8` guards
+  prevent unbounded accumulation. If all active slots are occupied, at most
+  eight best-effort metadata writes wait in `pendingBackgroundTasks`; further
+  submissions are dropped until capacity returns. When any tracked task
+  completes, `drainPendingBackgroundTasks()` (called on `@MainActor`) dequeues
+  and starts the next pending write. This bounds retained closures as well as
+  live `BackgroundDatabaseActor` / `ModelContext` instances. The entire
+  dictionary and pending FIFO are cancelled and cleared in
   both `cancelActiveRequest()` and `prepareForNewScan()`, ensuring that a write
   task from a previous scan's review action cannot commit stale data after the
   next scan has started.

@@ -44,6 +44,9 @@ struct AnalyzingContentView: View {
     @Bindable var viewModel: InsightSheetViewModel
 
     var body: some View {
+        let fieldNotesScanId = viewModel.currentFieldNotesScanId
+        let fieldNotesGeneration = viewModel.scanBoundActionGeneration
+
         VStack(alignment: .center, spacing: 24) {
 
             ConfidenceBadge(
@@ -61,11 +64,17 @@ struct AnalyzingContentView: View {
                     promptContext: .analyzing,
                     onDismiss: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            viewModel.dismissFieldNotesCard()
+                            viewModel.dismissFieldNotesCard(
+                                expectedScanId: fieldNotesScanId,
+                                expectedGeneration: fieldNotesGeneration
+                            )
                         }
                     },
                     action: {
-                        viewModel.state.isFieldNotesSheetPresented = true
+                        viewModel.presentFieldNotes(
+                            expectedScanId: fieldNotesScanId,
+                            expectedGeneration: fieldNotesGeneration
+                        )
                     }
                 )
                 .transition(.opacity.combined(with: .move(edge: .bottom)))

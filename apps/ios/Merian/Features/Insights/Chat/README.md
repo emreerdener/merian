@@ -33,8 +33,34 @@ additional empty-state disclaimers.
 
 Insight Field Chat depends on the exact authenticated-owner `public.scans` row;
 a locally completed `LocalScanRecord` alone is not sufficient. The toolbar calls
-`MerianNetworkClient.ensureCloudScanAvailableForFieldChat(scan:)` before it
-presents `/insight-chat`.
+`ensureCloudScanAvailableForFieldChat(scan:expectedScanId:)` before it presents
+`/insight-chat`.
+
+The completed engine result is the presentation authority. Any cached local
+record model, record ID, and toolbar snapshot must match that exact scan ID
+before the action is enabled. The preflight independently rejects a mismatched
+record, captures the selected chat scan ID, and revalidates it before and after
+every asynchronous readiness step. The sheet uses that captured ID instead of
+rereading a mutable engine ID; an engine scan change dismisses the sheet. A
+delayed preflight therefore cannot recover one observation and open another
+observation's private thread.
+
+`InsightChatViewModel` provides a second subject boundary after presentation.
+Opening a different scan/post advances a subject generation, invalidates the
+prior load and prompt tokens, and clears the prior private transcript, pending
+message, draft, feedback, and note-summary state before the new request starts.
+Load, send, delete, feedback, feature-feedback, summary, and prompt completions
+must still own that exact subject generation before changing visible state.
+Cross-subject availability preparation cancels and replaces the older request
+instead of making the new chat fail merely because an obsolete preflight is
+still running; same-subject requests remain single-flight. Even a
+network-validated response is applied only when its exact `subject_id` also
+matches the active generation. A late completion can therefore never replace
+another observation's thread or copy its private draft into the new composer.
+The parent Insight sheet applies the same scan/generation check to readiness
+failure toasts, paywall routing, unavailable-state dismissal, explicit close,
+and chat-provided toast callbacks. A callback owned by an older sheet therefore
+cannot close, toast over, or reroute a newer observation's Field Chat.
 
 The preflight:
 

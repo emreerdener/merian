@@ -952,18 +952,17 @@ heavy session opening dozens of historical records could accumulate an unbounded
 number of concurrent actor instances and their associated `ModelContext`
 objects, eventually triggering JetSam OOM.
 
-`InferenceEngine` caps concurrent in-flight tasks with
-`private let backgroundWriteTaskCap = 8`. When all 8 slots are occupied,
-`executeTrackedBackgroundTask` appends the incoming closure to
-`@ObservationIgnored private var pendingBackgroundTasks: [@Sendable () async -> Void]`
-rather than dropping it. When any slot frees (inside the `defer` block that
-removes the completed task from `backgroundWriteTasks`),
-`@MainActor private func drainPendingBackgroundTasks()` is called. It dequeues
-the next pending closure via `removeFirst()` and dispatches it into a new
-tracked slot — effectively creating a bounded work queue with depth 8 and a FIFO
-overflow buffer. This replaced the previous drop-on-cap behaviour that silently
-discarded Wikipedia and GBIF hydration writes during offline-queue replay where
-multiple scans flush simultaneously.
+`InferenceEngine` caps both concurrent in-flight tasks and retained pending
+closures with `backgroundWriteTaskCap = 8` and
+`pendingBackgroundWriteTaskCap = 8`. When all active slots are occupied,
+`executeTrackedBackgroundTask` appends at most eight incoming closures to
+`pendingBackgroundTasks`. Further best-effort metadata writes are dropped until
+capacity returns; the engine never creates an unbounded overflow buffer. When a
+slot frees (inside the `defer` block that removes the completed task from
+`backgroundWriteTasks`), `drainPendingBackgroundTasks()` dequeues the next
+pending closure via `removeFirst()` and dispatches it into a tracked slot. The
+result is a hard maximum of eight active and eight pending write closures per
+engine presentation.
 
 ### Wikipedia Decode Offloaded from `@MainActor` (`InferenceEngine`)
 

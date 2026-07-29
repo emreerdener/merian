@@ -25,6 +25,7 @@ struct InsightShareButton: View {
     var initialSelectedCommonName: String
     var heroImageUrl: String?
     var scanId: String?
+    var presentationGeneration: UInt64
     var mediaItems: [ExplorePostComposerMediaDraft] = []
     var publicLocationLabel: String?
     var fieldNotesPreview: String?
@@ -44,6 +45,13 @@ struct InsightShareButton: View {
     @State private var isAwaitingExploreShareResult = false
     @State private var showingExploreShareFailure = false
     @State var pendingAction: PendingAction?
+    @State var actionScanId: String?
+    @State var actionPresentationGeneration: UInt64?
+    @State var actionGeneration: UInt64 = 0
+    @State var optionsActionGeneration: UInt64?
+    @State var composerActionGeneration: UInt64?
+    @State var publishConfirmationActionGeneration: UInt64?
+    @State var shareFailureActionGeneration: UInt64?
     @State var composerMediaItems: [ExplorePostComposerMediaDraft]?
     @State var challengeEventHashtags: [String] = []
 
@@ -146,8 +154,19 @@ struct InsightShareButton: View {
 
     // MARK: - Body
     var body: some View {
-        Button(action: {
+        let expectedActionScanId = actionScanId
+        let expectedOptionsGeneration = optionsActionGeneration
+        let expectedComposerGeneration = composerActionGeneration
+        let expectedConfirmationGeneration =
+            publishConfirmationActionGeneration
+        let expectedFailureGeneration = shareFailureActionGeneration
+
+        return Button(action: {
+            actionGeneration &+= 1
+            actionScanId = scanId
+            actionPresentationGeneration = presentationGeneration
             if showsExploreAction {
+                optionsActionGeneration = actionGeneration
                 showingOptions = true
             } else {
                 shareExternally()
@@ -162,20 +181,45 @@ struct InsightShareButton: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(primaryBlue)
-        .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
+        .sheet(
+            isPresented: optionsPresentedBinding(
+                expectedScanId: expectedActionScanId,
+                expectedGeneration: expectedOptionsGeneration
+            ),
+            onDismiss: {
+                handlePendingAction(
+                    expectedScanId: expectedActionScanId,
+                    expectedGeneration: expectedOptionsGeneration
+                )
+            }
+        ) {
             shareOptionsSheet
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
-        .alert("Publish to Explore anyway?", isPresented: $showingExplorePublishConfirmation) {
+        .alert(
+            "Publish to Explore anyway?",
+            isPresented: publishConfirmationPresentedBinding(
+                expectedScanId: expectedActionScanId,
+                expectedGeneration: expectedConfirmationGeneration
+            )
+        ) {
             Button("Cancel", role: .cancel) { }
             Button("Publish anyway") {
-                openExploreComposer()
+                openExploreComposer(
+                    expectedScanId: expectedActionScanId,
+                    expectedGeneration: expectedConfirmationGeneration
+                )
             }
         } message: {
             Text(explorePublishConfirmationMessage)
         }
-        .sheet(isPresented: $showingExploreComposer) {
+        .sheet(
+            isPresented: composerPresentedBinding(
+                expectedScanId: expectedActionScanId,
+                expectedGeneration: expectedComposerGeneration
+            )
+        ) {
             ExplorePostComposerView(
                 mode: sharedExplorePostId == nil ? .create : .edit,
                 speciesName: speciesName,
@@ -196,21 +240,44 @@ struct InsightShareButton: View {
                     ? isSharingToExplore || isAwaitingExploreShareResult
                     : isUpdatingExplorePostContent,
                 onSubmit: { draft in
+                    guard composerActionGeneration == actionGeneration,
+                          isActionSubjectCurrent(actionScanId) else {
+                        return
+                    }
                     if sharedExplorePostId == nil {
                         guard !isAwaitingExploreShareResult else { return }
                         isAwaitingExploreShareResult = true
+                        let submittedScanId = actionScanId
+                        let submittedGeneration = actionGeneration
+                        let submitAction = onShareToExplore
                         Task { @MainActor in
-                            let didShare = await onShareToExplore?(draft) ?? false
+                            let didShare = await submitAction?(draft) ?? false
+                            guard isActionPresentationCurrent(
+                                submittedScanId,
+                                generation: submittedGeneration
+                            ) else {
+                                return
+                            }
                             isAwaitingExploreShareResult = false
                             if didShare {
-                                showingExploreComposer = false
+                                dismissComposer(
+                                    expectedScanId: submittedScanId,
+                                    expectedGeneration: submittedGeneration
+                                )
                             } else {
+                                shareFailureActionGeneration =
+                                    submittedGeneration
                                 showingExploreShareFailure = true
                             }
                         }
                     } else {
+                        let editGeneration = actionGeneration
+                        let editScanId = actionScanId
                         onEditExplorePost?(draft)
-                        showingExploreComposer = false
+                        dismissComposer(
+                            expectedScanId: editScanId,
+                            expectedGeneration: editGeneration
+                        )
                     }
                 }
             )
@@ -219,30 +286,260 @@ struct InsightShareButton: View {
             )
             .alert(
                 "Couldn’t share to Explore",
-                isPresented: $showingExploreShareFailure
+                isPresented: shareFailurePresentedBinding(
+                    expectedScanId: expectedActionScanId,
+                    expectedGeneration: expectedFailureGeneration
+                )
             ) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Your draft is still here. Check your connection and try sharing again.")
             }
         }
-        .task(id: scanId) {
-            await loadChallengeEventHashtags()
+        .task(id: "\(scanId ?? ""):\(presentationGeneration)") {
+            await loadChallengeEventHashtags(
+                expectedScanId: scanId,
+                expectedPresentationGeneration: presentationGeneration
+            )
+        }
+        .onChange(of: scanId) {
+            actionGeneration &+= 1
+            showingOptions = false
+            showingExploreComposer = false
+            showingExplorePublishConfirmation = false
+            isAwaitingExploreShareResult = false
+            showingExploreShareFailure = false
+            pendingAction = nil
+            actionScanId = nil
+            actionPresentationGeneration = nil
+            optionsActionGeneration = nil
+            composerActionGeneration = nil
+            publishConfirmationActionGeneration = nil
+            shareFailureActionGeneration = nil
+            composerMediaItems = nil
+            challengeEventHashtags = []
+        }
+        .onChange(of: presentationGeneration) {
+            actionGeneration &+= 1
+            showingOptions = false
+            showingExploreComposer = false
+            showingExplorePublishConfirmation = false
+            isAwaitingExploreShareResult = false
+            showingExploreShareFailure = false
+            pendingAction = nil
+            actionScanId = nil
+            actionPresentationGeneration = nil
+            optionsActionGeneration = nil
+            composerActionGeneration = nil
+            publishConfirmationActionGeneration = nil
+            shareFailureActionGeneration = nil
+            composerMediaItems = nil
+            challengeEventHashtags = []
         }
     }
 
-    private func loadChallengeEventHashtags() async {
+    private func optionsPresentedBinding(
+        expectedScanId: String?,
+        expectedGeneration: UInt64?
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                guard showingOptions,
+                      let expectedGeneration,
+                      optionsActionGeneration == expectedGeneration else {
+                    return false
+                }
+                return isActionPresentationCurrent(
+                    expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { isPresented in
+                guard !isPresented,
+                      let expectedGeneration,
+                      optionsActionGeneration == expectedGeneration,
+                      isActionPresentationCurrent(
+                          expectedScanId,
+                          generation: expectedGeneration
+                      ) else {
+                    return
+                }
+                // Keep the token until onDismiss consumes the action selected
+                // by this exact options presentation.
+                showingOptions = false
+            }
+        )
+    }
+
+    private func publishConfirmationPresentedBinding(
+        expectedScanId: String?,
+        expectedGeneration: UInt64?
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                guard showingExplorePublishConfirmation,
+                      let expectedGeneration,
+                      publishConfirmationActionGeneration ==
+                        expectedGeneration else {
+                    return false
+                }
+                return isActionPresentationCurrent(
+                    expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { isPresented in
+                guard !isPresented,
+                      let expectedGeneration,
+                      publishConfirmationActionGeneration ==
+                        expectedGeneration,
+                      isActionPresentationCurrent(
+                          expectedScanId,
+                          generation: expectedGeneration
+                      ) else {
+                    return
+                }
+                showingExplorePublishConfirmation = false
+                publishConfirmationActionGeneration = nil
+            }
+        )
+    }
+
+    private func composerPresentedBinding(
+        expectedScanId: String?,
+        expectedGeneration: UInt64?
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                guard showingExploreComposer,
+                      let expectedGeneration,
+                      composerActionGeneration == expectedGeneration else {
+                    return false
+                }
+                return isActionPresentationCurrent(
+                    expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                dismissComposer(
+                    expectedScanId: expectedScanId,
+                    expectedGeneration: expectedGeneration
+                )
+            }
+        )
+    }
+
+    private func shareFailurePresentedBinding(
+        expectedScanId: String?,
+        expectedGeneration: UInt64?
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                guard showingExploreShareFailure,
+                      let expectedGeneration,
+                      shareFailureActionGeneration == expectedGeneration else {
+                    return false
+                }
+                return isActionPresentationCurrent(
+                    expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { isPresented in
+                guard !isPresented,
+                      let expectedGeneration,
+                      shareFailureActionGeneration == expectedGeneration,
+                      isActionPresentationCurrent(
+                          expectedScanId,
+                          generation: expectedGeneration
+                      ) else {
+                    return
+                }
+                showingExploreShareFailure = false
+                shareFailureActionGeneration = nil
+            }
+        )
+    }
+
+    private func dismissComposer(
+        expectedScanId: String?,
+        expectedGeneration: UInt64?
+    ) {
+        guard let expectedGeneration,
+              composerActionGeneration == expectedGeneration,
+              isActionPresentationCurrent(
+                  expectedScanId,
+                  generation: expectedGeneration
+              ) else {
+            return
+        }
+        showingExploreComposer = false
+        composerActionGeneration = nil
+        showingExploreShareFailure = false
+        shareFailureActionGeneration = nil
+    }
+
+    private func loadChallengeEventHashtags(
+        expectedScanId: String?,
+        expectedPresentationGeneration: UInt64
+    ) async {
         guard FieldTripEventsAvailability.isEnabled,
-              let scanId = scanId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let scanId = expectedScanId?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
               !scanId.isEmpty else {
             challengeEventHashtags = []
             return
         }
 
         do {
-            challengeEventHashtags = try await MerianNetworkClient.shared.getFieldTripChallengeHashtags(scanId: scanId)
+            let hashtags = try await MerianNetworkClient.shared
+                .getFieldTripChallengeHashtags(scanId: scanId)
+            guard !Task.isCancelled,
+                  presentationGeneration == expectedPresentationGeneration,
+                  self.scanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+                return
+            }
+            challengeEventHashtags = hashtags
         } catch {
-            challengeEventHashtags = []
+            if !Task.isCancelled,
+               presentationGeneration == expectedPresentationGeneration,
+               self.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
+                challengeEventHashtags = []
+            }
         }
+    }
+
+    func isActionSubjectCurrent(_ expectedScanId: String?) -> Bool {
+        guard actionPresentationGeneration == presentationGeneration else {
+            return false
+        }
+        switch (expectedScanId, actionScanId) {
+        case (nil, nil):
+            break
+        case (.some(let expected), .some(let captured)):
+            guard expected.caseInsensitiveCompare(captured) == .orderedSame else {
+                return false
+            }
+        default:
+            return false
+        }
+        switch (expectedScanId, scanId) {
+        case (nil, nil):
+            return true
+        case (.some(let expected), .some(let current)):
+            return expected.caseInsensitiveCompare(current) == .orderedSame
+        default:
+            return false
+        }
+    }
+
+    func isActionPresentationCurrent(
+        _ expectedScanId: String?,
+        generation: UInt64
+    ) -> Bool {
+        generation == actionGeneration &&
+            isActionSubjectCurrent(expectedScanId)
     }
 }

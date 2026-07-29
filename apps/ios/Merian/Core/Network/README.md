@@ -268,11 +268,17 @@ missing, malformed, foreign, or negative-attempt rows become
 `Dictionary(uniqueKeysWithValues:)`, whose duplicate-key precondition would
 otherwise let a contradictory server response terminate the app.
 
-Before Field Chat presentation, `ensureCloudScanAvailableForFieldChat(scan:)`
-polls the exact owner status and uses bounded non-media recovery only for
-eligible historical drift. Explore sharing can combine the same bounded owner
-recovery with newly signed local user media. Both retain the stable scan UUID
-and keep transient/unknown state retryable. The joined contract is
+Before Field Chat presentation,
+`ensureCloudScanAvailableForFieldChat(scan:expectedScanId:)` first requires the
+local record to match the engine result that will be presented, then polls the
+exact owner status and uses bounded non-media recovery only for eligible
+historical drift. Explore sharing can combine the same bounded owner recovery
+with newly signed local user media. Both retain the stable scan UUID, reject a
+stale record/engine identity combination, and keep transient/unknown state
+retryable. A handler-owned missing scan is classified by stable
+`code: "not_found"`; case-insensitive `Scan not found` text remains only a
+released-backend compatibility fallback when no stable code is present. The
+joined contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 An HTTP-successful Explore-share response is not accepted on decoding alone.

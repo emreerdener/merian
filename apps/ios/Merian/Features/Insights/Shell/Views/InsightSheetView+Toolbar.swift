@@ -4,12 +4,32 @@ import SwiftUI
 extension InsightSheetView {
     @ToolbarContentBuilder
     var sheetToolbar: some ToolbarContent {
+        // Toolbar callbacks can outlive the render that created them. Capture
+        // the immutable subject and its monotonic presentation generation now;
+        // never resolve "the current scan" later inside an old callback.
+        let toolbarGeneration = viewModel.scanBoundActionGeneration
+        let toolbarQueuedScanId = viewModel.queuedContext?.id
+        let toolbarLocalScanId = viewModel.presentedLocalRecordScanId
+        let toolbarScanId = toolbarQueuedScanId ?? toolbarLocalScanId
+        let toolbarFieldChatScanId = fieldChatScanId
+        let toolbarRecordSnapshot = presentedRecordSnapshot
+        let toolbarSharedExplorePostId = presentedSharedExplorePostId
+        let toolbarCommunityRequestId = presentedCommunityRequestId
+        let toolbarDeleteBinding = deleteConfirmationRequestBinding(
+            expectedScanId: toolbarScanId,
+            expectedGeneration: toolbarGeneration
+        )
+        let toolbarNewCollectionBinding = newCollectionRequestBinding(
+            expectedScanId: toolbarLocalScanId,
+            expectedGeneration: toolbarGeneration
+        )
+
         // Queued scan path: the standard ellipsis menu is suppressed (isAnalyzing == true),
         // so surface a dedicated trash button for the only available destructive action.
-        if viewModel.queuedContext != nil {
+        if toolbarQueuedScanId != nil {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
-                    viewModel.state.showDeleteConfirmation = true
+                    toolbarDeleteBinding.wrappedValue = true
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 16, weight: .bold))
@@ -27,26 +47,53 @@ extension InsightSheetView {
             commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.state.isCommonNameScrolledPast,
             isSavingPhotos: $viewModel.state.isSavingPhotos,
-            showDeleteConfirmation: $viewModel.state.showDeleteConfirmation,
+            showDeleteConfirmation: toolbarDeleteBinding,
             hasUserPhotos: viewModel.hasUserPhotos,
             leadingControl: presentationStyle.isEmbedded ? .back : .close,
-            onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
-            allowsFieldNotes: viewModel.contentMode != .nonBiological,
-            hasFieldNotes: viewModel.hasFieldNotes,
+            onSavePhotos: {
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.saveUserPhotos(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration,
+                    inferenceEngine: inferenceEngine
+                )
+            },
+            allowsFieldNotes: viewModel.contentMode != .nonBiological &&
+                toolbarRecordSnapshot != nil,
+            hasFieldNotes: toolbarRecordSnapshot != nil && viewModel.hasFieldNotes,
             onFieldNotes: {
-                viewModel.state.isFieldNotesSheetPresented = true
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.presentFieldNotes(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             },
-            allowsCollectionActions: viewModel.contentMode != .nonBiological,
+            allowsCollectionActions: viewModel.contentMode != .nonBiological &&
+                toolbarRecordSnapshot != nil,
             collections: collections,
-            selectedCollectionIds: viewModel.toolbarRecordSnapshot?.collectionIds ?? [],
+            selectedCollectionIds: toolbarRecordSnapshot?.collectionIds ?? [],
             toggleScanInCollection: { collection in
-                viewModel.toggleScanInCollection(collection, modelContext: modelContext)
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.toggleScanInCollection(
+                    collection,
+                    modelContext: modelContext,
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             },
-            showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
-            hasCollectionScanId: viewModel.toolbarRecordSnapshot != nil || inferenceEngine.speciesData?.scanId != nil,
+            showNewCollectionAlert: toolbarNewCollectionBinding,
+            hasCollectionScanId: toolbarRecordSnapshot != nil,
             onReanalyze: viewModel.canReanalyze ? {
+                guard let scanId = toolbarLocalScanId,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: scanId,
+                          generation: toolbarGeneration
+                      ) else {
+                    return
+                }
                 if RevenueCatManager.shared.isProActive {
-                    if let record = viewModel.activeLocalRecord {
+                    if let record = viewModel.activeLocalRecord,
+                       record.id.caseInsensitiveCompare(scanId) == .orderedSame {
                         HapticManager.shared.triggerSelectionPulse()
                         AppEventPublisher.shared.send(.triggerRefinement(
                             scanId: record.id,
@@ -58,32 +105,100 @@ extension InsightSheetView {
                 }
             } : nil,
             onReviewAlternatives: viewModel.canReviewAlternatives ? {
-                viewModel.presentCandidateSwipe()
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.presentCandidateSwipe(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
             onConfirmIdentification: viewModel.canConfirm ? {
+                guard let scanId = toolbarLocalScanId,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: scanId,
+                          generation: toolbarGeneration
+                      ) else {
+                    return
+                }
                 HapticManager.shared.triggerSuccessPulse()
-                Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
+                Task { @MainActor in
+                    guard viewModel.isPresentingLocalRecord(
+                        scanId: scanId,
+                        generation: toolbarGeneration
+                    ) else {
+                        return
+                    }
+                    await inferenceEngine.confirmAIIdentification(
+                        expectedScanId: scanId,
+                        modelContext: modelContext
+                    )
+                }
             } : nil,
             onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                viewModel.state.isCommunityRequestSheetPresented = true
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.presentCommunityIdentificationRequest(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
-            sharedExplorePostId: viewModel.state.sharedExplorePostId,
-            sharedCommunityIdentificationRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
-            onEditExplorePost: viewModel.state.sharedExplorePostId != nil ? {
-                viewModel.state.isExplorePostComposerPresented = true
+            sharedExplorePostId: toolbarSharedExplorePostId,
+            sharedCommunityIdentificationRequestId: toolbarCommunityRequestId,
+            onEditExplorePost: toolbarSharedExplorePostId != nil ? {
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.presentExplorePostComposer(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
-            onViewExplorePost: allowsExplorePresentation && viewModel.state.sharedExplorePostId != nil ? {
-                viewModel.state.explorePresentationTarget = .post
-                viewModel.state.showExploreSheet = true
+            onViewExplorePost: allowsExplorePresentation &&
+                toolbarSharedExplorePostId != nil ? {
+                guard let scanId = toolbarLocalScanId,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: scanId,
+                          generation: toolbarGeneration
+                      ) else {
+                    return
+                }
+                viewModel.presentExplore(
+                    target: .post,
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
-            onViewCommunityRequest: allowsExplorePresentation && viewModel.state.sharedCommunityIdentificationRequestId != nil ? {
-                viewModel.state.explorePresentationTarget = .communityRequest
-                viewModel.state.showExploreSheet = true
+            onViewCommunityRequest: allowsExplorePresentation &&
+                toolbarCommunityRequestId != nil ? {
+                guard let scanId = toolbarLocalScanId,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: scanId,
+                          generation: toolbarGeneration
+                      ) else {
+                    return
+                }
+                viewModel.presentExplore(
+                    target: .communityRequest,
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
-            audioBoostEnabled: viewModel.audioBoostEligibleScanId != nil
-                ? $viewModel.state.isAudioBoostEnabled
-                : nil,
+            audioBoostEnabled: toolbarLocalScanId.flatMap { scanId in
+                guard viewModel.audioBoostEligibleScanId?
+                    .caseInsensitiveCompare(scanId) == .orderedSame else {
+                    return nil
+                }
+                return viewModel.audioBoostBinding(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
+            },
             onAudioBoostEnableRequested: {
+                guard let scanId = toolbarLocalScanId,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: scanId,
+                          generation: toolbarGeneration
+                      ),
+                      viewModel.audioBoostEligibleScanId?
+                        .caseInsensitiveCompare(scanId) == .orderedSame else {
+                    return
+                }
                 viewModel.state.audioBoostActionToken = UUID()
             },
             isAnalyzing: viewModel.isProcessing,
@@ -92,38 +207,88 @@ extension InsightSheetView {
 
         InsightBottomToolbar(
             showBottomBarTools: viewModel.state.showBottomBarTools && !viewModel.isProcessing,
-            recordSnapshot: viewModel.toolbarRecordSnapshot,
-            canShowInsightChat: canShowInsightChat,
+            recordSnapshot: toolbarRecordSnapshot,
+            scanId: toolbarLocalScanId ?? toolbarFieldChatScanId,
+            scanPresentationGeneration: toolbarGeneration,
+            canShowInsightChat: toolbarFieldChatScanId != nil &&
+                !chatViewModel.isUnavailable(for: toolbarFieldChatScanId ?? ""),
             onInsightChat: {
+                guard let scanId = toolbarFieldChatScanId,
+                      toolbarGeneration == viewModel.scanBoundActionGeneration,
+                      fieldChatScanId?
+                        .caseInsensitiveCompare(scanId) == .orderedSame else {
+                    return
+                }
                 if RevenueCatManager.shared.isProActive {
-                    guard let scanId = inferenceEngine.speciesData?.scanId else { return }
                     Task { @MainActor in
+                        guard toolbarGeneration == viewModel.scanBoundActionGeneration,
+                              fieldChatScanId?
+                                .caseInsensitiveCompare(scanId) == .orderedSame else {
+                            return
+                        }
                         if let record = viewModel.activeLocalRecord {
+                            guard record.id.caseInsensitiveCompare(scanId) == .orderedSame else {
+                                presentFieldChatUnavailableToast(
+                                    InsightChatViewModel.stillSyncingMessage,
+                                    expectedScanId: scanId,
+                                    expectedGeneration: toolbarGeneration
+                                )
+                                return
+                            }
                             do {
                                 let isAvailable = try await MerianNetworkClient.shared
-                                    .ensureCloudScanAvailableForFieldChat(scan: record)
+                                    .ensureCloudScanAvailableForFieldChat(
+                                        scan: record,
+                                        expectedScanId: scanId
+                                )
+                                guard toolbarGeneration == viewModel.scanBoundActionGeneration else {
+                                    return
+                                }
                                 guard isAvailable else {
                                     presentFieldChatUnavailableToast(
-                                        InsightChatViewModel.stillSyncingMessage
+                                        InsightChatViewModel.stillSyncingMessage,
+                                        expectedScanId: scanId,
+                                        expectedGeneration: toolbarGeneration
                                     )
                                     return
                                 }
                                 chatViewModel.markAvailable(scanId: scanId)
                             } catch {
+                                guard toolbarGeneration == viewModel.scanBoundActionGeneration,
+                                      fieldChatScanId?
+                                        .caseInsensitiveCompare(scanId) == .orderedSame else {
+                                    return
+                                }
                                 presentFieldChatUnavailableToast(
-                                    "Field chat is temporarily unavailable. Please try again."
+                                    "Field chat is temporarily unavailable. Please try again.",
+                                    expectedScanId: scanId,
+                                    expectedGeneration: toolbarGeneration
                                 )
                                 return
                             }
                         }
+                        guard toolbarGeneration == viewModel.scanBoundActionGeneration,
+                              fieldChatScanId?
+                                .caseInsensitiveCompare(scanId) == .orderedSame else {
+                            return
+                        }
                         let canPresent = await chatViewModel.prepareForPresentation(scanId: scanId)
+                        guard toolbarGeneration == viewModel.scanBoundActionGeneration,
+                              fieldChatScanId?
+                                .caseInsensitiveCompare(scanId) == .orderedSame else {
+                            return
+                        }
                         if canPresent {
+                            selectedInsightChatScanId = scanId
+                            selectedInsightChatGeneration = toolbarGeneration
                             HapticManager.shared.triggerSheetSpring()
                             viewModel.state.isInsightChatSheetPresented = true
                         } else {
                             presentFieldChatUnavailableToast(
                                 chatViewModel.errorMessage
-                                    ?? "Field chat isn't available for this scan."
+                                    ?? "Field chat isn't available for this scan.",
+                                expectedScanId: scanId,
+                                expectedGeneration: toolbarGeneration
                             )
                         }
                     }
@@ -132,61 +297,229 @@ extension InsightSheetView {
                     viewModel.state.showPaywall = true
                 }
             },
-            shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
+            shareExternally: {
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.shareDiscovery(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration,
+                    inferenceEngine: inferenceEngine
+                )
+            },
             onShareToExplore: viewModel.canShareToExplore ? { draft in
-                await viewModel.shareToExplore(draft, modelContext: modelContext)
+                guard let scanId = toolbarLocalScanId else {
+                    return false
+                }
+                return await viewModel.shareToExplore(
+                    draft,
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration,
+                    modelContext: modelContext
+                )
             } : nil,
-            onEditExplorePost: viewModel.state.sharedExplorePostId != nil ? { draft in
+            onEditExplorePost: toolbarSharedExplorePostId != nil ? { draft in
+                guard let scanId = toolbarLocalScanId else { return }
                 Task {
                     await viewModel.updateExplorePostContent(
                         draft,
+                        expectedScanId: scanId,
+                        expectedGeneration: toolbarGeneration,
                         modelContext: modelContext
                     )
                 }
             } : nil,
             onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-                viewModel.state.isCommunityRequestSheetPresented = true
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.presentCommunityIdentificationRequest(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
-            onEditCommunityRequest: viewModel.state.sharedCommunityIdentificationRequestId != nil ? {
-                viewModel.state.isCommunityRequestSheetPresented = true
+            onEditCommunityRequest: toolbarCommunityRequestId != nil ? {
+                guard let scanId = toolbarLocalScanId else { return }
+                viewModel.presentCommunityIdentificationRequest(
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
             isUpdatingExplorePostContent: viewModel.state.isUpdatingExplorePostContent,
             displaySpeciesName: viewModel.resolvedHeaderTitle,
             commonNameOptions: viewModel.allNamesForPicker,
             fieldNotesPreview: viewModel.shareableFieldNotes,
-            sharedExploreHashtags: viewModel.state.sharedExploreHashtags,
-            sharedExplorePostId: viewModel.state.sharedExplorePostId,
+            sharedExploreHashtags: toolbarRecordSnapshot == nil
+                ? []
+                : viewModel.state.sharedExploreHashtags,
+            sharedExplorePostId: toolbarSharedExplorePostId,
             shareRecommendation: viewModel.shareRecommendation,
-            sharedExploreLocationSharing: viewModel.state.sharedExploreLocationSharing,
-            fieldNotesArePublicOnExplore: viewModel.state.exploreFieldNotesArePublic,
-            onViewInExplore: allowsExplorePresentation ? {
-                viewModel.state.explorePresentationTarget = .post
-                viewModel.state.showExploreSheet = true
+            sharedExploreLocationSharing: toolbarRecordSnapshot == nil
+                ? nil
+                : viewModel.state.sharedExploreLocationSharing,
+            fieldNotesArePublicOnExplore: toolbarRecordSnapshot != nil &&
+                viewModel.state.exploreFieldNotesArePublic,
+            onViewInExplore: allowsExplorePresentation &&
+                toolbarSharedExplorePostId != nil ? {
+                guard let scanId = toolbarLocalScanId,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: scanId,
+                          generation: toolbarGeneration
+                      ) else {
+                    return
+                }
+                viewModel.presentExplore(
+                    target: .post,
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil,
-            onViewCommunityRequest: allowsExplorePresentation && viewModel.state.sharedCommunityIdentificationRequestId != nil ? {
-                viewModel.state.explorePresentationTarget = .communityRequest
-                viewModel.state.showExploreSheet = true
+            onViewCommunityRequest: allowsExplorePresentation &&
+                toolbarCommunityRequestId != nil ? {
+                guard let scanId = toolbarLocalScanId,
+                      viewModel.isPresentingLocalRecord(
+                          scanId: scanId,
+                          generation: toolbarGeneration
+                      ) else {
+                    return
+                }
+                viewModel.presentExplore(
+                    target: .communityRequest,
+                    expectedScanId: scanId,
+                    expectedGeneration: toolbarGeneration
+                )
             } : nil
         )
     }
 
-    private var canShowInsightChat: Bool {
+    private var presentedRecordSnapshot: InsightToolbarRecordSnapshot? {
+        guard viewModel.presentedLocalRecordScanId != nil else { return nil }
+        return viewModel.toolbarRecordSnapshot
+    }
+
+    private var presentedSharedExplorePostId: String? {
+        guard presentedRecordSnapshot != nil else { return nil }
+        return viewModel.state.sharedExplorePostId
+    }
+
+    private var presentedCommunityRequestId: String? {
+        guard presentedRecordSnapshot != nil else { return nil }
+        return viewModel.state.sharedCommunityIdentificationRequestId
+    }
+
+    private var fieldChatScanId: String? {
         guard !viewModel.isProcessing,
+              let scanId = viewModel.presentedSpeciesScanId,
               let speciesData = inferenceEngine.speciesData,
               speciesData.isBiological,
               !speciesData.isHumanSubject,
-              let scanId = speciesData.scanId,
-              !scanId.isEmpty,
-              !chatViewModel.isUnavailable(for: scanId) else {
-            return false
+              speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
+              presentedScanId == nil ||
+                presentedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return nil
         }
 
-        return true
+        return scanId
+    }
+
+    private func deleteConfirmationRequestBinding(
+        expectedScanId: String?,
+        expectedGeneration: UInt64
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                guard let expectedScanId,
+                      self.viewModel.state.showDeleteConfirmation,
+                      self.pendingDeletionScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      self.pendingDeletionGeneration == expectedGeneration else {
+                    return false
+                }
+                return self.viewModel.isPresentingScan(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { shouldPresent in
+                guard shouldPresent else {
+                    guard let expectedScanId,
+                          self.pendingDeletionScanId?
+                            .caseInsensitiveCompare(expectedScanId) ==
+                            .orderedSame,
+                          self.pendingDeletionGeneration ==
+                            expectedGeneration else {
+                        return
+                    }
+                    self.viewModel.state.showDeleteConfirmation = false
+                    return
+                }
+                guard let expectedScanId,
+                      self.viewModel.isPresentingScan(
+                          scanId: expectedScanId,
+                          generation: expectedGeneration
+                      ) else {
+                    return
+                }
+                self.pendingDeletionScanId = expectedScanId
+                self.pendingDeletionGeneration = expectedGeneration
+                self.viewModel.state.showDeleteConfirmation = true
+            }
+        )
+    }
+
+    private func newCollectionRequestBinding(
+        expectedScanId: String?,
+        expectedGeneration: UInt64
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                guard let expectedScanId,
+                      self.viewModel.state.showNewCollectionAlert,
+                      self.pendingNewCollectionScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      self.pendingNewCollectionGeneration == expectedGeneration else {
+                    return false
+                }
+                return self.viewModel.isPresentingLocalRecord(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                )
+            },
+            set: { shouldPresent in
+                guard shouldPresent else {
+                    guard let expectedScanId,
+                          self.pendingNewCollectionScanId?
+                            .caseInsensitiveCompare(expectedScanId) ==
+                            .orderedSame,
+                          self.pendingNewCollectionGeneration ==
+                            expectedGeneration else {
+                        return
+                    }
+                    self.viewModel.state.showNewCollectionAlert = false
+                    return
+                }
+                guard let expectedScanId,
+                      self.viewModel.isPresentingLocalRecord(
+                          scanId: expectedScanId,
+                          generation: expectedGeneration
+                      ) else {
+                    return
+                }
+                self.pendingNewCollectionScanId = expectedScanId
+                self.pendingNewCollectionGeneration = expectedGeneration
+                self.viewModel.state.showNewCollectionAlert = true
+            }
+        )
     }
 
     @MainActor
-    private func presentFieldChatUnavailableToast(_ message: String) {
+    private func presentFieldChatUnavailableToast(
+        _ message: String,
+        expectedScanId: String,
+        expectedGeneration: UInt64
+    ) {
+        guard expectedGeneration == viewModel.scanBoundActionGeneration,
+              fieldChatScanId?
+                .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+            return
+        }
         HapticManager.shared.triggerErrorThump()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             viewModel.state.toastMessage = message

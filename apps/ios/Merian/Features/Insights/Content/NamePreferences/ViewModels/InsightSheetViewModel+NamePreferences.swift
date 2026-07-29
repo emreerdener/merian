@@ -15,7 +15,21 @@ extension InsightSheetViewModel {
 
     /// Persists the user's preferred common name and updates the in-memory state immediately
     /// so `resolvedHeaderTitle` recomputes without requiring a re-fetch.
-    func setPreferredCommonName(_ name: String, for scientificName: String, modelContext: ModelContext) {
+    func setPreferredCommonName(
+        _ name: String,
+        for scientificName: String,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
+        modelContext: ModelContext
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ),
+              inferenceEngine?.speciesData?.scientificName
+                .caseInsensitiveCompare(scientificName) == .orderedSame else {
+            return
+        }
         let didSave = SpeciesPreferredNameRepository.setPreferredName(
             name,
             for: scientificName,
@@ -40,7 +54,20 @@ extension InsightSheetViewModel {
     }
 
     /// Removes the stored preference, reverting the headline to the canonical DB common name.
-    func clearPreferredCommonName(for scientificName: String, modelContext: ModelContext) {
+    func clearPreferredCommonName(
+        for scientificName: String,
+        expectedScanId: String,
+        expectedGeneration: UInt64,
+        modelContext: ModelContext
+    ) {
+        guard isPresentingLocalRecord(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ),
+              inferenceEngine?.speciesData?.scientificName
+                .caseInsensitiveCompare(scientificName) == .orderedSame else {
+            return
+        }
         let didClear = SpeciesPreferredNameRepository.clearPreferredName(
             for: scientificName,
             modelContext: modelContext

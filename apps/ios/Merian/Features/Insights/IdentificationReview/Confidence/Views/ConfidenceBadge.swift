@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ConfidenceBadge: View {
+    @Environment(InferenceEngine.self) private var inferenceEngine
+
     let confidenceScore: Double?
     let inferenceTier: String?
     var userIdentificationOverride: String?
@@ -13,6 +15,8 @@ struct ConfidenceBadge: View {
     var analyzingPhrase: String?
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
+    @State private var explanationScanId: String?
+    @State private var explanationGeneration: UInt64?
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
     @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
     @State private var iconRotation: Double = 0.0
@@ -61,12 +65,22 @@ struct ConfidenceBadge: View {
         if analyzingPhrase != nil || userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
             let data = badgeData
             let isAnalyzing = analyzingPhrase != nil
+            let presentedScanId = inferenceEngine.speciesData?.scanId
+            let presentedGeneration = inferenceEngine.scanPresentationGeneration
             
             Button(action: {
-                guard !isAnalyzing else { return }
+                guard !isAnalyzing,
+                      let presentedScanId,
+                      inferenceEngine.scanPresentationGeneration == presentedGeneration,
+                      inferenceEngine.speciesData?.scanId?
+                        .caseInsensitiveCompare(presentedScanId) == .orderedSame else {
+                    return
+                }
                 HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
                 activeDetent = .fraction(0.65)
                 allowedDetents = [.fraction(0.65), .large]
+                explanationScanId = presentedScanId
+                explanationGeneration = presentedGeneration
                 isShowingExplanation = true
             }) {
                 HStack(spacing: 6) {
@@ -192,28 +206,67 @@ struct ConfidenceBadge: View {
                     }
                 }
             }
-            .sheet(isPresented: $isShowingExplanation) {
-                ConfidenceExplanationSheet(
-                    confidenceScore: confidenceScore,
-                    inferenceTier: inferenceTier,
-                    userIdentificationOverride: userIdentificationOverride,
-                    userConfirmedIdentification: userConfirmedIdentification,
-                    isFlagged: isFlagged,
-                    aiScientificName: aiScientificName,
-                    onAskCommunity: onAskCommunity
-                )
-                .presentationDetents(allowedDetents, selection: $activeDetent)
-                    .presentationCornerRadius(32)
-                    .presentationBackground(.ultraThinMaterial)
-                    .presentationDragIndicator(.visible)
-                    // Dynamically strips the mid-way detent once fully expanded native Apple hack!
-                    .onChange(of: activeDetent) { _, newDetent in
-                        if newDetent == .large {
-                            allowedDetents = [.large]
+            .sheet(isPresented: explanationPresentedBinding) {
+                if let explanationScanId,
+                   let explanationGeneration {
+                    ConfidenceExplanationSheet(
+                        scanId: explanationScanId,
+                        presentationGeneration: explanationGeneration,
+                        confidenceScore: confidenceScore,
+                        inferenceTier: inferenceTier,
+                        userIdentificationOverride: userIdentificationOverride,
+                        userConfirmedIdentification: userConfirmedIdentification,
+                        isFlagged: isFlagged,
+                        aiScientificName: aiScientificName,
+                        onAskCommunity: onAskCommunity
+                    )
+                    .presentationDetents(allowedDetents, selection: $activeDetent)
+                        .presentationCornerRadius(32)
+                        .presentationBackground(.ultraThinMaterial)
+                        .presentationDragIndicator(.visible)
+                        // Dynamically strips the mid-way detent once fully expanded native Apple hack!
+                        .onChange(of: activeDetent) { _, newDetent in
+                            if newDetent == .large {
+                                allowedDetents = [.large]
+                            }
                         }
-                    }
+                }
             }
         }
+    }
+
+    private var explanationPresentedBinding: Binding<Bool> {
+        let expectedScanId = explanationScanId
+        let expectedGeneration = explanationGeneration
+        return Binding(
+            get: {
+                guard isShowingExplanation,
+                      let expectedScanId,
+                      let expectedGeneration,
+                      explanationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      explanationGeneration == expectedGeneration else {
+                    return false
+                }
+                return inferenceEngine.scanPresentationGeneration ==
+                    expectedGeneration &&
+                    inferenceEngine.speciesData?.scanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                guard let expectedScanId,
+                      let expectedGeneration,
+                      explanationScanId?
+                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
+                      explanationGeneration == expectedGeneration else {
+                    return
+                }
+                isShowingExplanation = false
+                explanationScanId = nil
+                explanationGeneration = nil
+            }
+        )
     }
 }
 

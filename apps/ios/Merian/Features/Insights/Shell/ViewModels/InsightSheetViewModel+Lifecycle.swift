@@ -45,23 +45,43 @@ extension InsightSheetViewModel {
         evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
         if let data = inferenceEngine.speciesData {
             if data.isBiological && !appSettings.hasSeenExploreOnboarding {
+                guard let scanId = presentedLocalRecordScanId else { return }
+                let generation = scanBoundActionGeneration
                 Task {
                     try? await Task.sleep(nanoseconds: 3_000_000_000)
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled,
+                          self.isPresentingLocalRecord(
+                              scanId: scanId,
+                              generation: generation
+                          ) else {
+                        return
+                    }
                     if self.canShareToExplore,
                        self.shareRecommendation == .publishToExplore,
                        !self.appSettings.hasSeenExploreOnboarding {
                         self.appSettings.hasSeenExploreOnboarding = true
+                        self.state.exploreOnboardingPresentationScanId = scanId
+                        self.state.exploreOnboardingPresentationGeneration = generation
                         withAnimation {
                             self.state.showExploreOnboarding = true
                         }
                     }
                 }
             } else if data.isClassifiedNonBiological {
+                let scanId = presentedLocalRecordScanId
+                let generation = scanBoundActionGeneration
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     self.state.toastMessage = "Scan succeeded. Added to non-biological collection."
                     self.toastActionTitle = "View"
-                    self.toastAction = {
+                    self.toastAction = { [weak self] in
+                        guard let self,
+                              let scanId,
+                              self.isPresentingLocalRecord(
+                                  scanId: scanId,
+                                  generation: generation
+                              ) else {
+                            return
+                        }
                         AppEventPublisher.shared.send(.requestOpenNonBiologicalScansIntent)
                     }
                 }

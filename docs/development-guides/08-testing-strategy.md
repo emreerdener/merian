@@ -241,21 +241,33 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
      process-single-flight inference replay wake coalescing, exact
-     retryable-status dispatch, dual-copy durable retry-latch visibility, retry
-     preservation through media re-staging, monotonic mirrored retry accounting,
+     retryable-status dispatch, dual-copy durable retry-latch visibility,
+     bounded inference metadata-write backlog, retry preservation through media
+     re-staging, monotonic mirrored retry accounting,
      cloud-complete precedence, durable offline enqueue, atomic queue/job
      completion, and indefinite privacy-erasure retry under positive server
      confirmation;
    - foreground request construction, Explore idempotency and contradictory
      response rejection, existing-scan recovery-payload encoding, rejection of
-     recovery races with active/retryable ingestion, exact single and bulk
-     scan-status response cardinality/identity validation, validated deletion
-     confirmation, pre-upload restored-media budget validation, Community
-     all-media recovery and response validation, and exact Explore reconciliation
-     validation, plus current/legacy media-health incident envelope compatibility
-     and unknown-success-shape rejection; and
-   - Explore-post identifier routing plus retryable and single-flight Field Chat
-     preparation.
+     recovery races with active/retryable ingestion, stable-code-first
+     missing-scan classification, exact local/cloud Field Chat identity, stale
+     presented-record invalidation, presentation-generation invalidation,
+     monotonic reset-time request invalidation,
+     identification-confirmation and override subject identity, Field Notes and
+     preferred-name presentation identity, queued refresh, direct
+     parent-presentation replacement, and completion-promotion identity,
+     exact engine/record/snapshot Explore identity, post/request publication
+     target capture, target-scoped sheet dismissal, changed-scan and stale
+     same-scan-generation issue-report rejection, missing-owner stale
+     publication reset, exact single and bulk scan-status response
+     cardinality/identity validation, validated deletion confirmation,
+     pre-upload restored-media budget validation, Community all-media recovery
+     and response validation, and exact Explore reconciliation validation, plus
+     current/legacy media-health incident envelope compatibility and
+     unknown-success-shape rejection; and
+   - Explore-post identifier routing plus retryable, single-flight, and
+     cross-subject-replacement Field Chat preparation, and rejection of stale
+     chat-subject completions.
 
    `OfflineQueueManagerTests` is explicitly serialized because its cases
    temporarily reconfigure the process-wide queue singleton, injected
@@ -611,7 +623,16 @@ MerianTests/
 - **`InsightSheetViewModelTests.swift`**: Verifies carousel handoff integrity
   across queued/analyzing/result states, including mixed media. The key
   regression is that an audio page present during analysis remains present, with
-  the same ordering, after `speciesData` arrives.
+  the same ordering, after `speciesData` arrives. It also proves a lookup miss
+  for a different presented scan clears stale scan-bound state and that Explore
+  cannot combine mismatched engine, local-record, and toolbar-snapshot IDs. A
+  direct record switch also proves the prior action generation and all
+  scan-bound busy/editor state—including exact post/request, Safari, candidate,
+  and delayed-toolbar presentation targets—is invalidated. Queued presentation regressions
+  prove a delayed scan-A poll cannot replace scan B's context and completion
+  promotion requires the exact queued subject before releasing queued routing.
+  Field Notes tests cover the same ID-plus-generation boundary while preserving
+  editing for queued/offline scans.
 - **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
@@ -622,8 +643,11 @@ MerianTests/
   context below 70% confidence and server-provided confidence-category
   preservation, failed outgoing recovery state, deterministic unavailable-state
   hiding, identification-concern action buckets plus negative examples, and the
-  600-character draft cap. `MerianNetworkClientTests.swift` exercises the
-  candidate-success boundary: malformed Community enums become
+  600-character draft cap. It additionally proves a changed chat subject clears
+  the private draft and rejects the old generation's completion, a
+  different-subject preparation replaces obsolete work, and same-subject
+  preparation remains single-flight. `MerianNetworkClientTests.swift` exercises
+  the candidate-success boundary: malformed Community enums become
   `MerianError.invalidResponse`, and Field Chat rejects cross-subject,
   missing-subject, cross-conversation, unknown-role, non-UUID-message, or
   invalid-limit envelopes before the view model can apply them, including an
@@ -717,10 +741,10 @@ MerianTests/
   - **Description-only manual retry
     (`testManualRetryResetsBudgetForDescriptionOnlyScan`)**: Starting from a
     needs-attention staged observation and scan job at the automatic limit,
-    assert explicit retry preserves the scan UUID, resets both bounded
-    counters, clears transient errors, and returns both records to runnable
-    state without relying on an upload-success transition. Hosted result
-    validation requires this exact regression to execute and pass.
+    assert explicit retry preserves the scan UUID, resets both bounded counters,
+    clears transient errors, and returns both records to runnable state without
+    relying on an upload-success transition. Hosted result validation requires
+    this exact regression to execute and pass.
   - **Multi-file generation retry accounting**: A successful upload member must
     not clear `queueAttemptCount` or the last durable error while sibling
     outcomes remain unresolved. Retry metadata resets only in the same actor
@@ -1536,15 +1560,14 @@ production checks:
   authorization. Ten customer-critical scan, signing, share-state, Explore,
   Field Chat, Community, and deletion routes additionally return marked
   fail-closed `401` responses without user Authorization. Final Function
-  failures classify only whether the fixed
-  `X-Merian-Handler: 1` marker was present; Data API failures use separate
-  PostgREST/RPC guidance and never expect a Function marker. Both paths keep the
-  body and request-ID value private and never print a variable header value. Do
-  not create a production user merely to obtain an authenticated JWT for this
-  smoke: exact-value matching is covered deterministically and the disposable
-  catalog exercises the authenticated role. Use a dedicated staging user for
-  end-to-end authenticated-JWT testing when a credential-transport change is
-  under review.
+  failures classify only whether the fixed `X-Merian-Handler: 1` marker was
+  present; Data API failures use separate PostgREST/RPC guidance and never
+  expect a Function marker. Both paths keep the body and request-ID value
+  private and never print a variable header value. Do not create a production
+  user merely to obtain an authenticated JWT for this smoke: exact-value
+  matching is covered deterministically and the disposable catalog exercises the
+  authenticated role. Use a dedicated staging user for end-to-end
+  authenticated-JWT testing when a credential-transport change is under review.
 
 Run the focused Deno tests from `services`:
 

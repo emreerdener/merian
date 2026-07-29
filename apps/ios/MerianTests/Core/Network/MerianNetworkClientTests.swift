@@ -960,6 +960,54 @@ struct MerianNetworkClientTests {
         #expect(probe.count == 1)
     }
 
+    @Test func testExploreCloudScanRestoreUsesStableNotFoundCodeWithLegacyFallback() {
+        let codedMissing = MerianError.httpError(
+            statusCode: 404,
+            message: #"{"error":"Observation unavailable.","code":"not_found"}"#
+        )
+        let legacyMissing = MerianError.httpError(
+            statusCode: 404,
+            message: "Legacy response: Scan not found."
+        )
+        let contradictoryCode = MerianError.httpError(
+            statusCode: 404,
+            message: #"{"error":"Scan not found.","code":"forbidden"}"#
+        )
+        let transientFailure = MerianError.httpError(
+            statusCode: 503,
+            message: #"{"error":"Scan not found.","code":"not_found"}"#
+        )
+
+        #expect(MerianNetworkClient.shouldAttemptExploreCloudScanRestore(
+            after: codedMissing
+        ))
+        #expect(MerianNetworkClient.shouldAttemptExploreCloudScanRestore(
+            after: legacyMissing
+        ))
+        #expect(!MerianNetworkClient.shouldAttemptExploreCloudScanRestore(
+            after: contradictoryCode
+        ))
+        #expect(!MerianNetworkClient.shouldAttemptExploreCloudScanRestore(
+            after: transientFailure
+        ))
+    }
+
+    @Test func testFieldChatCloudPreflightRejectsMismatchedRecordIdentity() async {
+        let record = LocalScanRecord(
+            speciesId: "field_chat_identity_species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch"
+        )
+
+        await #expect(throws: MerianError.invalidResponse) {
+            try await MerianNetworkClient.shared
+                .ensureCloudScanAvailableForFieldChat(
+                    scan: record,
+                    expectedScanId: UUID().uuidString.lowercased()
+                )
+        }
+    }
+
     @Test func testRecoverableInferenceConflictRequiresKnown409Code() {
         let recoverableCodes = [
             "ai_request_already_completed",
@@ -2254,6 +2302,75 @@ struct MerianNetworkClientTests {
         #expect(response.communityRequestStatus == nil)
         #expect(response.isExploreFeedVisible == true)
         #expect(response.locationSharing == .open)
+    }
+
+    @Test func testMissingOwnerShareStateClearsStaleLocalPublication() async throws {
+        let scanID = "019f7004-2a8f-77a3-8954-7a85a4a25418"
+        let postID = "019f7004-2e80-7fc8-8db5-4a27a7bca2ab"
+        let record = LocalScanRecord(
+            id: scanID,
+            speciesId: "missing_owner_share_state",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch",
+            coverImagePath: "monarch.webp"
+        )
+        let engine = InferenceEngine()
+        engine.activeMedia = ActiveScanMedia(items: [.image("monarch.webp")])
+        engine.speciesData = SpeciesData(
+            scanId: scanID,
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(
+                aiReasoning: "Orange wings with black veins.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.98,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+        viewModel.activeLocalRecord = record
+        viewModel.activeLocalRecordId = scanID
+        viewModel.toolbarRecordSnapshot = InsightToolbarRecordSnapshot(
+            record: record
+        )
+        viewModel.state.sharedExplorePostId = postID
+        viewModel.state.sharedCommunityIdentificationRequestId =
+            "019f7004-3226-7cdf-abfb-59dab91bb596"
+        viewModel.state.sharedCommunityIdentificationStatus = .needsId
+        viewModel.state.isExploreFeedVisible = true
+        viewModel.state.sharedExploreHashtags = ["stale"]
+        ExploreShareStateStore.setSharedPostId(postID, for: scanID)
+        defer { ExploreShareStateStore.setSharedPostId(nil, for: scanID) }
+
+        let missingResponse = try #require(
+            HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 404,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+        MockURLProtocol.mockEndpoints[
+            "/get-scan-explore-share-state"
+        ] = { _ in
+            (
+                missingResponse,
+                Data(#"{"error":"Scan not found.","code":"not_found"}"#.utf8)
+            )
+        }
+
+        await viewModel.refreshSharedExploreStateFromServer()
+
+        #expect(viewModel.state.sharedExplorePostId == nil)
+        #expect(viewModel.state.sharedCommunityIdentificationRequestId == nil)
+        #expect(viewModel.state.sharedCommunityIdentificationStatus == nil)
+        #expect(viewModel.state.isExploreFeedVisible == false)
+        #expect(viewModel.state.sharedExploreHashtags.isEmpty)
+        #expect(ExploreShareStateStore.sharedPostId(for: scanID) == nil)
+        #expect(viewModel.canShareToExplore)
     }
 
     @Test func testGetExploreShareStateParsesCommunityRequestState() async throws {
