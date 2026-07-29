@@ -19,6 +19,18 @@ debug files to the service root. Reusable diagnostics belong in `scripts/` with
 bounded transport, strict environment validation, tests, and documented output;
 database assertions belong in disposable `tests/` fixtures.
 
+## Migration Replay
+
+Every migration must survive a complete fresh-catalog replay, not only an
+incremental linked-project push. Schema-qualified PostgreSQL functions use
+ordinary comma-separated invocation. In particular, write
+`pg_catalog.SUBSTRING(value, pattern)`, not
+`pg_catalog.SUBSTRING(value FROM pattern)`: the `FROM`, `FOR`, and `SIMILAR`
+forms are unqualified SQL expressions. The migration execution contract scans
+the complete migration fleet for this parser seam, but static checks are not
+deployment evidence. The pinned CLI must still build the disposable database
+and run every `tests/*.sql` catalog fixture before production `db push`.
+
 ## Edge Functions
 
 Edge Functions are written in TypeScript and run on Deno. They handle logic like

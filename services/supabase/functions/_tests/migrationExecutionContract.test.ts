@@ -105,6 +105,45 @@ function usesPipelineIncompatibleConcurrentIndexDdl(sql: string): boolean {
   });
 }
 
+function usesSchemaQualifiedSubstringKeywordSyntax(sql: string): boolean {
+  const { executableSql } = sqlLexicalView(sql);
+  const invocationPattern = /\b(?:[a-z_][a-z0-9_$]*\s*\.\s*)+substring\s*\(/gi;
+
+  for (const invocation of executableSql.matchAll(invocationPattern)) {
+    const openParenthesis = (invocation.index ?? 0) + invocation[0].length - 1;
+    let depth = 1;
+
+    for (
+      let index = openParenthesis + 1;
+      index < executableSql.length && depth > 0;
+      index += 1
+    ) {
+      const character = executableSql[index];
+      if (character === "(") {
+        depth += 1;
+        continue;
+      }
+      if (character === ")") {
+        depth -= 1;
+        continue;
+      }
+      if (depth !== 1) continue;
+
+      // A top-level comma selects PostgreSQL's ordinary function invocation,
+      // which is valid with a schema-qualified name. SQL's FROM/FOR/SIMILAR
+      // keyword forms are parser productions for the unqualified SUBSTRING
+      // expression and cannot follow pg_catalog.SUBSTRING(.
+      if (character === ",") break;
+      const keyword = executableSql.slice(index).match(
+        /^(?:FROM|FOR|SIMILAR)\b/i,
+      );
+      if (keyword) return true;
+    }
+  }
+
+  return false;
+}
+
 async function migrationFileNames(): Promise<string[]> {
   const names: string[] = [];
 
@@ -160,6 +199,61 @@ Deno.test(
       violations.length === 0,
       "Concurrent index DDL cannot run in every Supabase fresh-schema " +
         `migration pipeline. Move it to a supervised operation: ${
+          violations.join(", ")
+        }`,
+    );
+  },
+);
+
+Deno.test(
+  "schema-qualified substring calls use ordinary comma invocation syntax",
+  async () => {
+    assert(
+      usesSchemaQualifiedSubstringKeywordSyntax(
+        "SELECT pg_catalog.SUBSTRING(value FROM '^prefix/(.*)$');",
+      ),
+    );
+    assert(
+      usesSchemaQualifiedSubstringKeywordSyntax(
+        "SELECT internal.SUBSTRING(COALESCE(value, '') FOR 4);",
+      ),
+    );
+    assert(
+      usesSchemaQualifiedSubstringKeywordSyntax(
+        "SELECT pg_catalog . SUBSTRING(value SIMILAR pattern ESCAPE '#');",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedSubstringKeywordSyntax(
+        "SELECT SUBSTRING(value FROM '^prefix/(.*)$');",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedSubstringKeywordSyntax(
+        "SELECT pg_catalog.SUBSTRING(value, '^prefix/(.*)$');",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedSubstringKeywordSyntax(
+        "-- SELECT pg_catalog.SUBSTRING(value FROM pattern);\n" +
+          "SELECT 'pg_catalog.SUBSTRING(value FOR 4)';",
+      ),
+    );
+
+    const violations: string[] = [];
+    for (const fileName of await migrationFileNames()) {
+      const sql = await Deno.readTextFile(
+        new URL(fileName, migrationsDirectoryUrl),
+      );
+      if (usesSchemaQualifiedSubstringKeywordSyntax(sql)) {
+        violations.push(fileName);
+      }
+    }
+
+    assert(
+      violations.length === 0,
+      "Schema-qualified SUBSTRING calls must use ordinary comma-separated " +
+        `arguments; SQL keyword syntax fails fresh catalog parsing: ${
           violations.join(", ")
         }`,
     );

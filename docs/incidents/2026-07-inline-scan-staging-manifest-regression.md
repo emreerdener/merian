@@ -346,6 +346,39 @@ execute production smoke tests. The repository remediation is not deployment
 evidence: the exact reviewed SHA must pass fresh-catalog replay and the
 remaining closure gates before this incident can be marked deployed.
 
+## Deployment Follow-up: Workflow Run 1550
+
+Attempt 1 of `Deploy Merian to Supabase` for commit
+`16397c0cdf79b622dd0072b2fd2432a53ea20b5f` advanced past the bounded inline
+completion recovery migration, then stopped while the disposable database
+applied `20260728233000_recover_identity_merge_interrupted_scans.sql`. The
+reported caret was the `FROM` in
+`pg_catalog.SUBSTRING(media_keys.storage_key FROM pattern)` inside the
+`owner_texts` CTE. The equivalent public-media-URL extraction had the same
+syntax.
+
+This combined two incompatible PostgreSQL forms. Keyword-separated
+`SUBSTRING(value FROM pattern)`, `SUBSTRING(value FOR count)`, and
+`SUBSTRING(value SIMILAR pattern ...)` are unqualified SQL expressions. Once
+the function is schema-qualified, PostgreSQL expects ordinary comma-separated
+arguments. Both recovery calls now use
+`pg_catalog.SUBSTRING(value, pattern)`. This changes no owner, merge, ledger,
+quota, tombstone, media, or execution-grant rule.
+
+The migration execution contract now performs a depth-aware scan of every SQL
+migration and rejects a schema-qualified `SUBSTRING` whose first top-level
+separator is `FROM`, `FOR`, or `SIMILAR`. Detector fixtures cover nested
+expressions, all three invalid forms, unqualified valid syntax, and qualified
+comma invocation. The deployment runbook's executable index-command query also
+used qualified `FOR` forms; those examples now use ordinary
+`pg_catalog.SUBSTRING(value, start, count)` calls.
+
+Run 1550 failed in disposable `supabase db start`, before production connection
+preparation, `db push`, secret synchronization, Edge deployment, or smoke
+testing. It therefore made no production mutation. The source correction and
+164 passing migration contracts remain repository evidence only; a new exact-SHA
+fresh-catalog replay is still required.
+
 ## Release Follow-up: iOS Workflow Run 73
 
 Attempt 1 of `iOS Build and Test` for the same commit compiled and completed its

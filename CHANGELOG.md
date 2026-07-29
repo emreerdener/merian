@@ -97,6 +97,13 @@ TestFlight, App Store, support, and QA.
   accidental recombination. Adversarial parser-seam fixtures now prove the
   structural contract rejects unmatched predicates, orphaned or unterminated
   control blocks, invalid `ELSIF` / `ELSE` ordering, and unterminated literals.
+- Fixed the next fresh-catalog parser blocker exposed by backend workflow run
+  1550. Identity-merge scan recovery used a schema-qualified `SUBSTRING` name
+  with its unqualified `FROM` expression form; both key and URL extraction calls
+  now use ordinary comma-separated `pg_catalog.SUBSTRING` invocation. A
+  depth-aware fleet contract rejects qualified `FROM`, `FOR`, or `SIMILAR`
+  forms in every migration, and copied operator SQL was corrected at the same
+  seam.
 - Production function deployment now extracts every selected critical scan
   function from the graph plan and deploys the nine-function compatibility unit
   in its required order before unrelated parallel batches. Duplicate plan

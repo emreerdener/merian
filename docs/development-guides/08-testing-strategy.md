@@ -1112,6 +1112,14 @@ migration contracts are useful when Docker is unavailable, but only a disposable
 migrated database proves live function ACLs, triggers, locking, and transaction
 behavior. Never run these transactional fixtures with `--linked`.
 
+`_tests/migrationExecutionContract.test.ts` also scans every migration for
+schema-qualified `SUBSTRING` calls that incorrectly use PostgreSQL's
+unqualified `FROM`, `FOR`, or `SIMILAR` expression forms. Its depth-aware
+fixtures reject the three keyword forms—including nested argument
+expressions—and accept unqualified expressions plus qualified comma invocation.
+This catches the workflow-run-1550 parser regression before Docker startup; it
+does not replace fresh-catalog replay.
+
 The normative expected behavior and source inventory are in
 [`16-scan-ingestion-reliability-and-recovery.md`](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#verification-gates).
 

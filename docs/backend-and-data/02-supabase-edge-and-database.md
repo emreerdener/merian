@@ -1751,7 +1751,9 @@ top-level transaction controls so those boundaries cannot be split. Top-level
 timeout guards use session `SET` plus matching `RESET`, not `SET LOCAL`, so they
 remain effective during fresh replay. The static migration contracts cover the
 full migration directory, including dynamic concurrent DDL, transaction aliases,
-and replay-safe timeout handling. Zero-downtime index creation on a populated
+replay-safe timeout handling, and schema-qualified `SUBSTRING` calls that
+incorrectly use the unqualified SQL keyword forms. Qualified calls use ordinary
+comma-separated arguments. Zero-downtime index creation on a populated
 production table is an explicit, supervised pre-deploy operation. A size-gated
 migration may converge with an ordinary index only after it verifies a reusable
 index or a relation small enough for the bounded inline path. See the canonical

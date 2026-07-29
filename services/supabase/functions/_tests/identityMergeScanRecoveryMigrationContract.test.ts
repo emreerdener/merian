@@ -69,6 +69,8 @@ Deno.test("historical scan-attempt recovery is exact, tombstone-aware, and never
       "job_row.lock_expires_at <= recovery_now",
       "reservation_row.state = 'reserved' AND reservation_row.lease_expires_at > recovery_now",
       "handoff.ghost_user_id = candidate_source_ids[1] AND handoff.target_user_id = p_user_id AND handoff.status = 'merged'",
+      "SELECT pg_catalog.SUBSTRING( media_keys.storage_key, ( '^staging/('",
+      "SELECT pg_catalog.SUBSTRING( media_urls.url, ( '^https://media[.]merian[.]app/'",
       "'media_restage_required'",
     ]
   ) {

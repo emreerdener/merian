@@ -507,6 +507,17 @@ disposable catalog startup. Matching file/blob hashes ruled out truncation. Do
 not treat source-contract success as replay evidence; require the pinned CLI to
 rebuild a fresh PostgreSQL catalog before `db push`.
 
+Workflow run 1550 for commit
+`16397c0cdf79b622dd0072b2fd2432a53ea20b5f` advanced past that bounded
+replacement, then failed before any production mutation while applying the
+fourth migration. Its owner-extraction CTE combined the schema-qualified
+`pg_catalog.SUBSTRING` name with the unqualified
+`SUBSTRING(value FROM pattern)` expression form. Both key and public-URL
+extractors now use ordinary `pg_catalog.SUBSTRING(value, pattern)` invocation,
+and the migration-fleet contract rejects qualified `FROM`, `FOR`, or `SIMILAR`
+forms. This static correction is not fresh-catalog replay evidence; require a
+new exact-SHA workflow run.
+
 Then deploy these Edge Functions from one exact reviewed SHA, in order:
 
 1. `generate-upload-urls`
@@ -619,25 +630,25 @@ The focused regression inventory includes:
 
 This snapshot records the strongest evidence available for the local working
 tree rooted at
-`fab31d92a5985c7c02669c33cadfcc2b1091e3a8` on 2026-07-28. Local working-tree
+`16397c0cdf79b622dd0072b2fd2432a53ea20b5f` on 2026-07-28. Local working-tree
 evidence is not immutable release evidence. Repeat every applicable gate on one
 committed SHA before deployment or release.
 
 | Layer | Retained result | Status and meaning |
 | --- | --- | --- |
-| Edge and shared scan logic | Full Deno function suite: 1,345 passed, 0 failed | Verified locally, including all four producers, persistence classification, status recovery, Field Chat, Explore sharing, media registration, and repair workers |
+| Edge and shared scan logic | Full Deno function suite: 1,346 passed, 0 failed | Verified locally, including all four producers, persistence classification, status recovery, Field Chat, Explore sharing, media registration, and repair workers |
 | Edge static quality | `deno fmt --check` and `deno lint` passed | Verified locally |
-| Migration source contracts | 163 assertions passed across 25 migration contract files | Verified locally; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
+| Migration source contracts | 164 assertions passed across 25 migration contract files | Verified locally, including the qualified-`SUBSTRING` fleet guard; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
 | Supabase release tooling and documentation | 104 tooling assertions and 9 documentation contracts passed | Verified locally |
 | Production function selection and order | Graph simulation across the base commit plus working tree resolved 13 affected functions from 125 changed files, including all nine required scan functions; shuffled-plan and fail-stop fixtures passed | Verified locally; selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward |
 | iOS portable release tooling | Scope, workflow, structured failure extraction, and critical-result contracts passed | Verified locally without invoking a simulator |
 | iOS project/source integrity | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2 | Verified locally |
 | Changed Swift source quality | Strict SwiftLint reported 0 violations and compiler frontend parsing passed | Verified locally |
 | Public web projection | Web unit suite: 56 passed, 0 failed | Verified locally |
-| Hosted iOS compile, unit, and archive gate | Workflow run 73 at the base SHA archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected in the working tree | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate |
-| Fresh PostgreSQL catalog replay and pgTAP | Workflow run 1549 rejected the former monolithic migration before deployment; the bounded replacement passes source contracts | Pending disposable-catalog `db push` and the three focused pgTAP suites |
+| Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected at the current base SHA | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate |
+| Fresh PostgreSQL catalog replay and pgTAP | Run 1550 proved the bounded inline-recovery replacement advanced, then rejected qualified `SUBSTRING(value FROM pattern)` in the identity-merge recovery migration; comma invocation is corrected locally | Pending an exact-corrected-SHA disposable-catalog replay and the three focused pgTAP suites |
 | Staging joined-flow smoke matrix | No retained post-remediation smoke evidence | Pending image, queued image, audio, video, Describe, Field Chat, Explore, ambiguous-response, and partial-upload tests |
-| Production deployment and observation | Run 1549 made no production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
+| Production deployment and observation | Runs 1549 and 1550 made no production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
 
 A local Release archive was also attempted with package, derived-data, module,
 and Foundation cache paths redirected to writable temporary storage. Xcode

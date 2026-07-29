@@ -512,9 +512,12 @@ BEGIN
           AND scans.user_id = p_user_id
     ),
     owner_texts(owner_text) AS (
+        -- A schema-qualified SUBSTRING is an ordinary function call. Keep its
+        -- arguments comma-separated; PostgreSQL's FROM form is an unqualified
+        -- SQL expression and fails fresh-catalog parsing after pg_catalog.
         SELECT pg_catalog.SUBSTRING(
-            media_keys.storage_key
-            FROM (
+            media_keys.storage_key,
+            (
                 '^staging/('
                 || '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
                 || '[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
@@ -525,8 +528,8 @@ BEGIN
         FROM media_keys
         UNION ALL
         SELECT pg_catalog.SUBSTRING(
-            media_urls.url
-            FROM (
+            media_urls.url,
+            (
                 '^https://media[.]merian[.]app/'
                 || 'public_uploads/[^/]+/('
                 || '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'

@@ -171,6 +171,8 @@ Deno.test("database documentation preserves migration, RLS, and index safety", a
       "at most 32 MiB",
       "`pg_index.indisvalid` and `indisready`",
       "build equivalent valid leading indexes concurrently on every leaf partition first",
+      "schema-qualified `SUBSTRING` calls use ordinary comma-separated function arguments",
+      "every migration for schema-qualified `SUBSTRING` keyword syntax",
     ]
   ) {
     assertStringIncludes(canonical, fragment);
@@ -191,6 +193,10 @@ Deno.test("database documentation preserves migration, RLS, and index safety", a
   assertStringIncludes(
     backend,
     "`tests/public_schema_security.sql` verifies those behaviors",
+  );
+  assertStringIncludes(
+    backend,
+    "`pg_catalog.SUBSTRING(value, pattern)`, not `pg_catalog.SUBSTRING(value FROM pattern)`",
   );
 });
 
@@ -395,6 +401,10 @@ Deno.test("documentation navigation and release notes expose the corrected contr
     "only failing test in iOS workflow run 73",
   );
   assertStringIncludes(
+    compact(changelog),
+    "next fresh-catalog parser blocker exposed by backend workflow run 1550",
+  );
+  assertStringIncludes(
     compact(runbook),
     "--allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests,apps/ios,.github/workflows",
   );
@@ -461,6 +471,18 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   assertStringIncludes(
     compact(runbook),
     "Never embed a mutating routine call in an `AND` or `OR` assertion",
+  );
+  assertStringIncludes(
+    compact(runbook),
+    "`pg_catalog.SUBSTRING(value, pattern)` or `pg_catalog.SUBSTRING(value, 1, count)`",
+  );
+  assertStringIncludes(
+    compact(runbook),
+    "pg_catalog.SUBSTRING(table_name, 1, 24)",
+  );
+  assert(
+    !runbook.includes("pg_catalog.SUBSTRING(table_name FOR"),
+    "Runbook index SQL returned to invalid qualified SUBSTRING keyword syntax.",
   );
   assertStringIncludes(
     compact(releaseHold),
@@ -812,11 +834,13 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "deploys them sequentially in the listed order before unrelated parallel batches",
       "stops immediately when an ordered member exhausts its bounded retries",
       "Local working-tree evidence is not immutable release evidence.",
-      "Full Deno function suite: 1,345 passed, 0 failed",
+      "Full Deno function suite: 1,346 passed, 0 failed",
+      "164 assertions passed across 25 migration contract files",
       "including all nine required scan functions",
       "shuffled-plan and fail-stop fixtures passed",
-      "Pending disposable-catalog `db push` and the three focused pgTAP suites",
-      "Run 1549 made no production mutation",
+      "Pending an exact-corrected-SHA disposable-catalog replay and the three focused pgTAP suites",
+      "Workflow run 1550 for commit",
+      "Runs 1549 and 1550 made no production mutation",
       "`sandbox_apply: Operation not permitted`",
     ]
   ) {

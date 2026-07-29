@@ -240,16 +240,23 @@ Therefore:
 - top-level `lock_timeout` and `statement_timeout` guards use session `SET` with
   a matching `RESET`; `SET LOCAL` timeout guards are forbidden because they only
   warn and have no effect outside a transaction;
+- schema-qualified `SUBSTRING` calls use ordinary comma-separated function
+  arguments, such as `pg_catalog.SUBSTRING(value, pattern)`. PostgreSQL's
+  keyword-separated `SUBSTRING(value FROM pattern)`,
+  `SUBSTRING(value FOR count)`, and `SUBSTRING(value SIMILAR pattern ...)`
+  forms are unqualified SQL expressions and cannot follow `pg_catalog.`;
 - migration filenames and applied historical contents are immutable; and
 - historical migrations that contain explicit transaction controls remain
   compatibility artifacts, not examples for future work.
 
 The repository guard masks comments, quoted strings, identifiers, and routine
 bodies before checking transaction aliases and timeout settings. It separately
-inspects executable dynamic SQL for concurrent index DDL. The deploy workflow
-discovers every `*Migration*.test.ts` and `migration*.test.ts` source contract
-before starting the disposable database, so a new contract cannot be omitted
-from a curated list.
+inspects executable dynamic SQL for concurrent index DDL and every migration for
+schema-qualified `SUBSTRING` keyword syntax. Detector fixtures cover `FROM`,
+`FOR`, `SIMILAR`, nested expressions, comments, and valid comma invocation. The
+deploy workflow discovers every `*Migration*.test.ts` and `migration*.test.ts`
+source contract before starting the disposable database, so a new contract
+cannot be omitted from a curated list.
 
 ### Large or partitioned indexes
 

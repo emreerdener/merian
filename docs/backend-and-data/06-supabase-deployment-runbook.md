@@ -92,10 +92,12 @@ The workflow performs the following steps:
    DwC-A claim/stream/idempotency, and static migration-contract tests in
    addition to the complete tooling gate. The migration execution contract
    enumerates every SQL migration and rejects direct or dynamic
-   pipeline-incompatible concurrent index DDL. The public-schema contract
-   rejects transaction controls in new files, requires effective RLS, and locks
-   final grants/default ACLs plus bounded user-FK index behavior. The
-   species-count contract separately preserves its immutable historical
+   pipeline-incompatible concurrent index DDL plus schema-qualified
+   `SUBSTRING` calls that use the unqualified `FROM`, `FOR`, or `SIMILAR`
+   expression forms. The public-schema contract rejects transaction controls in
+   new files, requires effective RLS, and locks final grants/default ACLs plus
+   bounded user-FK index behavior. The species-count contract separately
+   preserves its immutable historical
    `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover ordering.
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
@@ -515,6 +517,17 @@ entries in `pg_proc`. For example, `COALESCE` is syntax, so
 idempotent insert using
 `ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`, use
 `event_inserted IS NOT TRUE` to recognize the null left when no row is returned.
+
+Do not combine schema qualification with PostgreSQL's keyword-separated
+`SUBSTRING` expression forms. `SUBSTRING(value FROM pattern)`,
+`SUBSTRING(value FOR count)`, and `SUBSTRING(value SIMILAR pattern ...)` are
+valid only as unqualified SQL expressions. A qualified call must use ordinary
+function arguments, for example `pg_catalog.SUBSTRING(value, pattern)` or
+`pg_catalog.SUBSTRING(value, 1, count)`. Workflow run 1550 reached
+`20260728233000_recover_identity_merge_interrupted_scans.sql` and stopped at
+exactly this parser seam. The migration-fleet contract now rejects that syntax
+before disposable startup, and every executable runbook example uses ordinary
+invocation too.
 
 Treat a `jsonb_to_record(...)` field declared as `TEXT` as wire input, not as a
 catalog enum. Validate the allowed strings first, then cast explicitly to the
@@ -1168,15 +1181,16 @@ SELECT
         ELSE pg_catalog.FORMAT(
             'CREATE INDEX CONCURRENTLY %I ON %I.%I (%I);',
             'idx_'
-                || pg_catalog.SUBSTRING(table_name FOR 24)
+                || pg_catalog.SUBSTRING(table_name, 1, 24)
                 || '_'
-                || pg_catalog.SUBSTRING(column_name FOR 16)
+                || pg_catalog.SUBSTRING(column_name, 1, 16)
                 || '_'
                 || pg_catalog.SUBSTRING(
                     pg_catalog.MD5(
                         schema_name || '.' || table_name || '.' || column_name
-                    )
-                    FOR 8
+                    ),
+                    1,
+                    8
                 )
                 || '_user_fk',
             schema_name,
