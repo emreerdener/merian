@@ -3325,7 +3325,18 @@ final class MerianNetworkClient {
             body: bodyData,
             idempotencyKey: resolvedIdempotencyKey
         )
-        return try makeExploreDecoder().decode(ExploreShareResponse.self, from: data)
+        let decoded = try makeExploreDecoder().decode(
+            ExploreShareResponse.self,
+            from: data
+        )
+        guard decoded.success,
+              decoded.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
+              UUID(uuidString: decoded.postId) != nil,
+              decoded.locationSharing != nil,
+              decoded.publicationStatus == "published" else {
+            throw MerianError.invalidResponse
+        }
+        return decoded
     }
 
     func shareScanToExplore(

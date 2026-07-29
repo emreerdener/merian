@@ -62,6 +62,14 @@ Do not cache this result as permanent unavailability. A current Identify `200`
 followed by this preflight returning missing is a severity incident because
 durable owner read-back is part of Identify success.
 
+`InsightChatViewModel` must make the same distinction after preflight. It stores
+permanent `unavailableScanId` only for terminal ownership failure,
+`unsupported_scan`, or an unavailable Explore-post source. Owned-scan
+`scan_not_ready`, action-level `message_not_found` /
+`conversation_not_found`, and a plain status `not_found` remain retryable and
+must not hide the toolbar action. `stillSyncingMessage` is the single client
+copy for this state.
+
 Video owner readiness follows the canonical media timeline: one ready playback
 clip and its poster, not separate ready image rows for sampled inference frames
 retained in compatibility storage. The client does not manufacture frame media

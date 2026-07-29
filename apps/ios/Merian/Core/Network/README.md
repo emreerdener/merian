@@ -214,6 +214,13 @@ recovery with newly signed local user media. Both retain the stable scan UUID
 and keep transient/unknown state retryable. The joined contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
+An HTTP-successful Explore-share response is not accepted on decoding alone.
+`shareScanToExplore` requires `success: true`, the exact requested scan UUID,
+a valid post UUID, an authoritative location-sharing value, and an explicit
+`published` publication status. Any integrity mismatch becomes
+`MerianError.invalidResponse`; callers must not cache the post ID or dismiss the
+composer as though publication succeeded.
+
 ## Sign-out transition
 
 `SupabaseManager` closes the authenticated-request gate and clears observable

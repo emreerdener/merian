@@ -28,6 +28,8 @@ enum FieldChatSource: Equatable {
 @Observable
 final class InsightChatViewModel {
     static let maxDraftCharacters = 600
+    static let stillSyncingMessage =
+        "This observation is still syncing. Please try Field chat again in a moment."
 
     var messages: [InsightChatMessage] = []
     var pendingUserMessage: PendingInsightChatMessage?
@@ -148,20 +150,21 @@ final class InsightChatViewModel {
 
         do {
             let status = try await MerianNetworkClient.shared.checkScanStatus(scanId: scanId)
-            guard status == "found" else {
-                markUnavailable(
-                    scanId: scanId,
-                    message: "Field chat isn't available for this scan."
-                )
-                return false
-            }
-            errorMessage = nil
-            unavailableScanId = nil
-            return true
+            return applyOwnedScanReadinessStatus(status, scanId: scanId)
         } catch {
             handle(error, scanId: scanId)
             return false
         }
+    }
+
+    func applyOwnedScanReadinessStatus(_ status: String, scanId: String) -> Bool {
+        guard status == "found" else {
+            errorMessage = Self.stillSyncingMessage
+            return false
+        }
+
+        markAvailable(scanId: scanId)
+        return true
     }
 
     func markUnavailable(scanId: String, message: String? = nil) {
@@ -890,14 +893,16 @@ final class InsightChatViewModel {
         if playHaptic {
             HapticManager.shared.triggerErrorThump()
         }
+        var shouldMarkUnavailable = Self.isDeterministicallyUnavailable(error)
         if source == .explorePost,
            case let MerianError.httpError(statusCode, _) = error,
            statusCode == 403 || statusCode == 404 {
             errorMessage = "This Explore post isn't available for Field chat."
+            shouldMarkUnavailable = true
         } else {
             errorMessage = Self.userFacingMessage(for: error)
         }
-        if Self.isDeterministicallyUnavailable(error) {
+        if shouldMarkUnavailable {
             unavailableScanId = scanId
         }
     }
@@ -918,7 +923,7 @@ final class InsightChatViewModel {
             return false
         }
 
-        if statusCode == 403 || statusCode == 404 { return true }
+        if statusCode == 403 { return true }
         if statusCode == 400 && message.contains("unsupported_scan") { return true }
         return false
     }

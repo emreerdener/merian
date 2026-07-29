@@ -581,6 +581,90 @@ struct MerianNetworkClientTests {
         #expect(result.scanId == scanID)
     }
 
+    @Test func testExploreShareRejectsContradictorySuccessResponses() async {
+        let requestID = "019faaac-bfd7-7a2e-99ea-100554f24f01"
+        let scanID = "019faaac-c177-71a6-883d-eb5a50b7d013"
+        let invalidResponseBodies = [
+            Data("""
+            {
+              "success": false,
+              "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+              "scan_id": "\(scanID)",
+              "shared_at": "2026-07-28T23:45:00Z",
+              "location_sharing": "private",
+              "publication_status": "published"
+            }
+            """.utf8),
+            Data("""
+            {
+              "success": true,
+              "post_id": "not-a-uuid",
+              "scan_id": "\(scanID)",
+              "shared_at": "2026-07-28T23:45:00Z",
+              "location_sharing": "private",
+              "publication_status": "published"
+            }
+            """.utf8),
+            Data("""
+            {
+              "success": true,
+              "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+              "scan_id": "019faaac-cb5f-724d-8112-16701a8d3645",
+              "shared_at": "2026-07-28T23:45:00Z",
+              "location_sharing": "private",
+              "publication_status": "published"
+            }
+            """.utf8),
+            Data("""
+            {
+              "success": true,
+              "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+              "scan_id": "\(scanID)",
+              "shared_at": "2026-07-28T23:45:00Z",
+              "location_sharing": "private",
+              "publication_status": "draft"
+            }
+            """.utf8),
+            Data("""
+            {
+              "success": true,
+              "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+              "scan_id": "\(scanID)",
+              "shared_at": "2026-07-28T23:45:00Z",
+              "location_sharing": "private"
+            }
+            """.utf8),
+            Data("""
+            {
+              "success": true,
+              "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+              "scan_id": "\(scanID)",
+              "shared_at": "2026-07-28T23:45:00Z",
+              "publication_status": "published"
+            }
+            """.utf8)
+        ]
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        for responseData in invalidResponseBodies {
+            MockURLProtocol.mockEndpoints["/share-scan-to-explore"] = { _ in
+                (response, responseData)
+            }
+
+            await #expect(throws: MerianError.invalidResponse) {
+                try await MerianNetworkClient.shared.shareScanToExplore(
+                    scanId: scanID,
+                    idempotencyKey: requestID
+                )
+            }
+        }
+    }
+
     @Test func testExploreShareRetriesPlatformFunctionRouteNotFound() async throws {
         let requestID = "019fa6ef-279f-7c7a-9e18-ec70e067a331"
         let scanID = "019fa6ef-33ab-77b1-a331-a86678f53043"

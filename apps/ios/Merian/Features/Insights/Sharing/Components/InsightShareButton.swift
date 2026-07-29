@@ -13,7 +13,7 @@ struct InsightShareButton: View {
     }
 
     let shareExternally: () -> Void
-    let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
+    let onShareToExplore: ((ExplorePostComposerDraft) async -> Bool)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
     let onAskCommunity: (() -> Void)?
     let onEditCommunityRequest: (() -> Void)?
@@ -42,6 +42,7 @@ struct InsightShareButton: View {
     @State var showingExploreComposer = false
     @State var showingExplorePublishConfirmation = false
     @State private var isAwaitingExploreShareResult = false
+    @State private var showingExploreShareFailure = false
     @State var pendingAction: PendingAction?
     @State var composerMediaItems: [ExplorePostComposerMediaDraft]?
     @State var challengeEventHashtags: [String] = []
@@ -191,23 +192,39 @@ struct InsightShareButton: View {
                 hashtagSuggestionContext: hashtagSuggestionContext
                     .updating(fieldNotes: fieldNotesPreview)
                     .updating(eventHashtags: challengeEventHashtags),
-                isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
+                isSaving: sharedExplorePostId == nil
+                    ? isSharingToExplore || isAwaitingExploreShareResult
+                    : isUpdatingExplorePostContent,
                 onSubmit: { draft in
                     if sharedExplorePostId == nil {
+                        guard !isAwaitingExploreShareResult else { return }
                         isAwaitingExploreShareResult = true
-                        onShareToExplore?(draft)
+                        Task { @MainActor in
+                            let didShare = await onShareToExplore?(draft) ?? false
+                            isAwaitingExploreShareResult = false
+                            if didShare {
+                                showingExploreComposer = false
+                            } else {
+                                showingExploreShareFailure = true
+                            }
+                        }
                     } else {
                         onEditExplorePost?(draft)
                         showingExploreComposer = false
                     }
                 }
             )
-            .interactiveDismissDisabled(isSharingToExplore)
-        }
-        .onChange(of: isSharingToExplore) { wasSharing, isSharing in
-            guard isAwaitingExploreShareResult, wasSharing, !isSharing else { return }
-            isAwaitingExploreShareResult = false
-            showingExploreComposer = false
+            .interactiveDismissDisabled(
+                isSharingToExplore || isAwaitingExploreShareResult
+            )
+            .alert(
+                "Couldn’t share to Explore",
+                isPresented: $showingExploreShareFailure
+            ) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Your draft is still here. Check your connection and try sharing again.")
+            }
         }
         .task(id: scanId) {
             await loadChallengeEventHashtags()

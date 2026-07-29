@@ -138,8 +138,8 @@ migration is not edited.
   the migration source. The migration itself fails closed if the deployed
   routine differs.
 
-Local repository evidence after remediation is 165 passing migration assertions
-across all 25 discovered migration contract files. The next exact-SHA hosted
+Local repository evidence after remediation is 171 passing migration assertions
+across all 26 discovered migration contract files. The next exact-SHA hosted
 catalog run also passed all 30 assertions in the live inline/video fixture on a
 disposable PostgreSQL catalog. That is fresh-catalog evidence for this
 regression, not staging joined-flow or production evidence.

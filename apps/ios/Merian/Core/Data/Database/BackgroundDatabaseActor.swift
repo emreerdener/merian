@@ -642,6 +642,125 @@ actor BackgroundDatabaseActor {
         }
     }
 
+    /// Records a bounded retry when the cloud scan is already complete but its
+    /// owner result could not yet be hydrated locally.
+    ///
+    /// Unlike an inference retry, this keeps the queue row `.inferencing` and
+    /// retains the latest server status. Moving it back to `.staged` would make
+    /// replay eligible to dispatch a second provider request for a scan whose
+    /// durable result already exists.
+    func scheduleServerResultRecoveryRetry(
+        id scanId: String,
+        expectedGeneration: UUID?,
+        code: String,
+        message: String?,
+        delay: TimeInterval
+    ) async -> Int? {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return nil
+        }
+        let attempt = scheduleServerResultRecoveryRetryLocked(
+            id: scanId,
+            expectedGeneration: expectedGeneration,
+            code: code,
+            message: message,
+            delay: delay
+        )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return attempt
+    }
+
+    private func scheduleServerResultRecoveryRetryLocked(
+        id scanId: String,
+        expectedGeneration: UUID?,
+        code: String,
+        message: String?,
+        delay: TimeInterval
+    ) -> Int? {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate {
+                $0.id == scanId && $0.scanStateRaw == inferencingRaw
+            }
+        )
+        scanDescriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(scanDescriptor).first else {
+            return nil
+        }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job: OfflineJobRecord
+        if let expectedGeneration {
+            let expectedMetadata =
+                InferenceGenerationMetadataContract.json(
+                    for: expectedGeneration
+                )
+            var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+                predicate: #Predicate {
+                    $0.id == jobId && $0.metadataJSON == expectedMetadata
+                }
+            )
+            jobDescriptor.fetchLimit = 1
+            guard let ownedJob = try? modelContext.fetch(jobDescriptor).first else {
+                MerianLog.data.debug(
+                    "scheduleServerResultRecoveryRetry: generation mismatch scanId=\(scanId, privacy: .public)"
+                )
+                return nil
+            }
+            job = ownedJob
+        } else if let existingJob = fetchOfflineJob(id: jobId) {
+            job = existingJob
+        } else {
+            let createdJob = OfflineJobRecord(
+                id: jobId,
+                kind: .scanIngestion,
+                subjectId: scanId,
+                status: .running
+            )
+            modelContext.insert(createdJob)
+            job = createdJob
+        }
+
+        let attempt = scan.queueAttemptCount + 1
+        let now = Date()
+        let nextRetryAt = now.addingTimeInterval(max(1, delay))
+        scan.queueAttemptCount = attempt
+        scan.queueLastAttemptAt = now
+        scan.queueNextRetryAt = nextRetryAt
+        scan.queueLastErrorCode = code
+        scan.queueLastErrorMessage = message
+        scan.queueNeedsAttention = false
+        scan.queueUpdatedAt = now
+
+        job.status = .waiting
+        job.updatedAt = now
+        job.lastAttemptAt = now
+        job.nextRunAt = nextRetryAt
+        job.attemptCount = attempt
+        job.lastErrorCode = code
+        job.lastErrorMessage = message
+        modelContext.insert(OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .retryScheduled,
+            message: message,
+            errorCode: code
+        ))
+
+        do {
+            try modelContext.save()
+            return attempt
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "scheduleServerResultRecoveryRetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return nil
+        }
+    }
+
     /// Persists the confirmed R2 object keys on the scan record and transitions it to `.staged`.
     ///
     /// Called once the last image upload for a scan is confirmed (HTTP 200).

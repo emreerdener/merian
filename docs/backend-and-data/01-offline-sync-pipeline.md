@@ -482,6 +482,30 @@ Legacy callbacks recover and validate the key from the signed request path.
 Staged image roles are a signing-time hint; final user-visible media still comes
 from the saved `captured_media` manifest and ready `scan_media_assets` rows.
 
+Upload retry accounting is scan-generation scoped, not file scoped. Each
+successful callback contributes its exact key to the generation accumulator but
+does not clear `queueAttemptCount` or the last durable error. Those fields reset
+only after the accumulator proves the complete expected manifest succeeded and
+the reset itself saves successfully. If the queue row is absent or persistence
+fails, staging fails closed. If one sibling succeeds and another repeatedly
+fails, each new generation therefore advances normal backoff and eventually
+reaches the bounded needs-attention state instead of restarting forever at
+attempt one.
+
+Server completion is also not a retry-reset boundary by itself. Status `found`
+starts exact-owner local hydration and promotion but does not clear attempt
+count, backoff, or last error first. If targeted or full historical sync fails,
+the queue remains server-owned and `.inferencing`; it advances that same durable
+history and schedules local-recovery polling without becoming eligible for
+another provider request. The exact-owner `found` observation is persisted
+before hydration, so a relaunch or later unavailable/inconsistent status probe
+cannot make orphan reconciliation reset the row to `.staged`. The latest server
+status remains intact. The bounded retry limit pauses recovery for explicit user
+retry instead of polling forever. That manual retry preserves the exact-owner
+fence and performs owner-result recovery only; it cannot re-enable provider
+dispatch during a temporary status outage. Successful local recovery deletes the
+queue row.
+
 **`ScanQueueState` enum (SchemaV33)**: `OfflineQueuedScan` uses a single
 `scanStateRaw: Int` column (added in V32→V33 custom migration, replacing the old
 `isUploaded: Bool` + `isDeleted: Bool` pair) to encode all pipeline states:
@@ -898,26 +922,32 @@ the latch without waiting for a URLSession delegate callback.
   scans, `requiredVideoCount` is the count of video entries in the queued
   captured-media timeline, so a frame-only cloud row does not count as
   recovered. When the poll returns `found`, targeted historical sync pulls the
-  server row immediately, `deleteQueuedScan` removes the queue entry, and
-  durable retry metadata is cleared. A scheduled server poll keeps its registry
-  token until this awaited recovery finishes; replacement cancels the old task
-  and all post-await mutations revalidate that exact token. When the row is not
-  found but the job is still `processing`, `finalizing`, or `retrying`, the
-  local row stays `.inferencing` and another server poll is scheduled.
-  `failed_retryable` honors the server `retry_after`. Provider/inference
-  failures return the row to `.staged`; a not-found durability/promotion failure
-  clears consumed `stagedR2Keys`, returns the row to `.pending`, and wakes
-  upload rather than inference. A retry timestamp that is already stale
-  schedules a one-second recheck rather than the maximum five-minute wait, so
-  clock skew or an expired lease cannot stall recovery. HTTP `401`, `408`,
-  `409`, `425`, and `429` are retryable; a safe integer `Retry-After` raises the
-  persisted delay up to the queue maximum. Other handler-owned `4xx` responses
-  preserve local media in `queueNeedsAttention`, while exact
-  `observation_rejected` is terminal. Server-ledger terminal failure marks the
-  queue row as needing attention. Unresolved `not_found` responses or
-  status-probe failures fall back to the same persisted retry budget
+  server row immediately and `deleteQueuedScan` removes the queue entry only
+  after local promotion succeeds. Retry metadata is retained until that
+  deletion; a failed hydration persists a completed-result recovery marker and
+  advances bounded recovery instead of becoming a new inference attempt. A
+  scheduled server poll keeps its registry token until this awaited recovery
+  finishes; replacement cancels the old task and all post-await mutations
+  revalidate that exact token. When the row is not found but the job is still
+  `processing`, `finalizing`, or `retrying`, the local row stays `.inferencing`
+  and another server poll is scheduled. `failed_retryable` honors the server
+  `retry_after`. Provider/inference failures return the row to `.staged`; a
+  not-found durability/promotion failure clears consumed `stagedR2Keys`, returns
+  the row to `.pending`, and wakes upload rather than inference. A retry
+  timestamp that is already stale schedules a one-second recheck rather than the
+  maximum five-minute wait, so clock skew or an expired lease cannot stall
+  recovery. HTTP `401`, `408`, `409`, `425`, and `429` are retryable; a safe
+  integer `Retry-After` raises the persisted delay up to the queue maximum.
+  Other handler-owned `4xx` responses preserve local media in
+  `queueNeedsAttention`, while exact `observation_rejected` is terminal.
+  Server-ledger terminal failure marks the queue row as needing attention.
+  Unresolved `not_found` responses or status-probe failures fall back to the
+  same persisted retry budget
   (`OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`) used by upload
-  staging, rather than a separate process-local attempt counter.
+  staging only when no durable exact-owner result has previously been observed.
+  Once a completed-result recovery marker exists, an unavailable or temporarily
+  inconsistent probe remains `waitForServer` and can never re-enable provider
+  dispatch.
 
   **InferenceEngine hydration (background-wins race)**: After the shared scan
   milestone coordinator task is started, if `processingResult.speciesData` is

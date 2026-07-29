@@ -1563,6 +1563,89 @@ struct BackgroundDatabaseActorTests {
         #expect(persisted?.stagedR2Keys == nil)
     }
 
+    @Test func testServerResultRecoveryRetryPreservesCloudOwnershipEvidence() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([
+                    SerializedMediaItem.image("server-result.webp")
+                ]),
+                encoding: .utf8
+            ),
+            scanState: .staged
+        )
+        let retryAfter = Date().addingTimeInterval(30)
+        scan.queueLastServerStatus = "complete"
+        scan.queueLastServerStage = "media_finalization_complete"
+        scan.queueLastServerRetryAfter = retryAfter
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),
+            kind: .scanIngestion,
+            subjectId: scan.id,
+            status: .running
+        )
+        job.serverStatus = "complete"
+        job.serverStage = "media_finalization_complete"
+        job.serverRetryAfter = retryAfter
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let generation = UUID()
+        #expect(
+            await actor.tryClaimForInference(
+                scanId: scan.id,
+                generation: generation
+            )
+        )
+        #expect(
+            await actor.scheduleServerResultRecoveryRetry(
+                id: scan.id,
+                expectedGeneration: generation,
+                code: "server_result_local_recovery_pending",
+                message: "Local hydration failed.",
+                delay: 30
+            ) == 1
+        )
+
+        let verificationContext = ModelContext(container)
+        let expectedScanId = scan.id
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == expectedScanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        let persistedScan = try verificationContext.fetch(scanDescriptor).first
+        let expectedJobId =
+            OfflineQueueManager.scanIngestionJobId(scanId: scan.id)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == expectedJobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let persistedJob = try verificationContext.fetch(jobDescriptor).first
+
+        #expect(persistedScan?.queueState == .inferencing)
+        #expect(persistedScan?.queueAttemptCount == 1)
+        #expect(
+            persistedScan?.queueLastErrorCode ==
+                "server_result_local_recovery_pending"
+        )
+        #expect(persistedScan?.queueLastServerStatus == "complete")
+        #expect(
+            persistedScan?.queueLastServerStage ==
+                "media_finalization_complete"
+        )
+        #expect(persistedScan?.queueLastServerRetryAfter == retryAfter)
+        #expect(persistedJob?.serverStatus == "complete")
+        #expect(persistedJob?.serverStage == "media_finalization_complete")
+        #expect(persistedJob?.serverRetryAfter == retryAfter)
+        #expect(
+            persistedJob?.lastErrorCode ==
+                "server_result_local_recovery_pending"
+        )
+    }
+
     @Test func testOfflineFinalizationRejectsOlderPersistedGeneration() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)

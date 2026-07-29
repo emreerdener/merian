@@ -3821,6 +3821,20 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`. Cache
   lookup/store failures degrade to live classification rather than approving by
   default.
+- iOS accepts a `200` share response only when `success` is true, `scan_id`
+  exactly echoes the requested scan UUID, `post_id` is a UUID, and
+  `publication_status` explicitly equals `published`. A missing, malformed, or
+  contradictory response is `MerianError.invalidResponse`: the post ID is not
+  cached, the composer remains open with its draft intact, and the user can
+  retry.
+- After media restoration, selection, thumbnail work, and moderation, the Edge
+  route performs exactly one final publication mutation through
+  `publish_scan_to_explore_atomically(...)`. That service-role-only invoker RPC
+  locks and revalidates the owner scan, locks and rechecks community readiness,
+  and replaces post metadata, selected media, hashtags, and resolved-community
+  publication state in one transaction. A transaction-time `needs_id` request
+  returns conflict. A failure in any relational step restores the prior complete
+  snapshot and returns no published response.
 - Clients send one UUID `Idempotency-Key` for the share and preserve it through
   transport/auth/media-restoration retries. Each audible checksum and policy
   version receives a deterministic child reservation ID, allowing multiple clips
@@ -3858,8 +3872,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 - Unsharing also purges any Explore notifications tied to that post so the
   activity feed cannot route into hidden content.
 - `location_sharing` is optional for backward compatibility. If omitted, the
-  share uses the scan's current geoprivacy. Valid values are `open`, `obscured`,
-  and `private`; legacy `hidden` is treated as `private`.
+  atomic publication transaction resolves the share from the scan's current
+  geoprivacy after locking the exact owner row. A concurrent privacy change
+  cannot publish with a stale pre-lock default. Valid values are `open`,
+  `obscured`, and `private`; legacy `hidden` is treated as `private`.
 - The Explore map reads post-owned public coordinates from `explore_posts`. Only
   posts whose saved `location_sharing` is `open` can appear on the map or match
   non-owned Nearby radius queries. Protected-species and uncertainty rules can
@@ -5481,6 +5497,12 @@ identification requests.
 | `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached                 |
 | `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }`   | Shared network minute ceiling reached              |
 | `503`  | `{ "code": "ai_entitlement_unavailable", ... }`  | Entitlement/quota lookup failed closed             |
+
+The iOS client treats `404 scan_not_ready`, action-level `message_not_found` /
+`conversation_not_found`, and a preflight status `not_found` as retryable state.
+None may set scan-scoped permanent unavailability or hide the Field Chat action.
+Only terminal ownership failure, `unsupported_scan`, and unavailable
+Explore-post sources do so.
 
 Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
 `InsightChatRateLimited`, `InsightChatModelError`,

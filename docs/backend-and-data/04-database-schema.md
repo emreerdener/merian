@@ -2026,8 +2026,18 @@ confirmed-missing items are omitted and an all-missing post is reversibly
 quarantined while engagement remains. Scan geoprivacy no longer hides the post
 itself; post-level `location_sharing` controls public location output.
 Share-state reads also require at least one usable `explore_post_media` row
-before returning a post as feed-visible, so partial post rows left by failed
-media writes are hidden until sharing succeeds.
+before returning a post as feed-visible. Migration
+`20260729024157_atomic_explore_scan_publication.sql` goes further for initial
+publication: service-role-only invoker RPC
+`publish_scan_to_explore_atomically(...)` revalidates and locks the exact owner
+scan, then commits the post metadata, complete media snapshot, hashtags, and
+resolved-community publication state together. An existing community request
+is locked before its scan, matching the helper’s request-to-scan order and
+preventing a publication/consensus deadlock cycle. An omitted post privacy
+choice is resolved from the scan after that lock, so a concurrent geoprivacy
+change cannot leave a stale default. Any late failure restores
+the previous post and media snapshot rather than relying on read-time hiding of
+a partial write.
 
 ### `scan_media_assets`
 
@@ -2254,11 +2264,12 @@ without a video badge. Scan media source resolution prefers ready
 display/playback/audio `scan_media_assets` rows, then `captured_media`, and
 finally legacy URL arrays so playback video URLs and poster thumbnails remain
 paired. Audio approval is checked before the Explore post/media write, so the
-database contains no pending audio post: successful rows are normal shared posts
-and rejected/failed attempts do not mutate public state. Spectrogram generation
-is deliberately non-blocking after approval: unsupported legacy codecs or
-thumbnail failures keep the audio post playable with its existing fallback
-instead of weakening moderation or blocking publication.
+database contains no pending audio post. The final post/media/hashtag write is
+one owner-checked transaction, so successful rows are normal shared posts and
+rejected/failed attempts restore prior public state. Spectrogram generation is
+deliberately non-blocking after approval: unsupported legacy codecs or thumbnail
+failures keep the audio post playable with its existing fallback instead of
+weakening moderation or blocking publication.
 `backfill-explore-audio-spectrograms` repairs blank historical WAV thumbnails in
 bounded service-role-only batches.
 
@@ -2669,6 +2680,15 @@ coordinates to the client contract.
   Internal service-role helper used by `/share-scan-to-explore` when the owner
   accepts a resolved Identify request. It materializes the resolved species,
   sets `scans.confirmed_species_id`, and stamps `explore_published_at`.
+- `public.publish_scan_to_explore_atomically(p_scan_id UUID, p_user_id UUID, p_species_common_name TEXT, p_field_notes TEXT, p_location_sharing TEXT, p_media_rows JSONB, p_hashtags TEXT[])`:
+  Service-role-only `SECURITY INVOKER` final-publication boundary. It locks an
+  existing community request before its exact owned, non-tombstoned biological
+  scan; validates bounded media, contiguous order, hashtags, and source-array
+  membership; resolves an omitted location choice from the locked scan; then
+  replaces post metadata, media, hashtags, and
+  resolved-community publication state in one statement transaction. `PUBLIC`,
+  `anon`, and `authenticated` cannot execute it. Any error rolls the prior
+  complete post snapshot back.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`. It
   selects currently visible Explore posts, unnests all non-empty
@@ -3817,7 +3837,10 @@ mirror for migration safety and compatibility.
   `OfflineQueueRetryPolicy` and the scheduler to survive app relaunch without
   losing backoff state.)
 - `queueLastErrorCode`, `queueLastErrorMessage`: String? (Added in V48.
-  User/support-facing last local retry or terminal error.)
+  User/support-facing last local retry, completed-server-result recovery marker,
+  or terminal error. `server_result_local_recovery_pending` durably fences a
+  known owner result from provider redispatch; the matching `_exhausted` code
+  pauses that recovery for explicit user retry.)
 - `queueLastHTTPStatus`: Int? (Added in V48. Last HTTP response status
   associated with upload or inference retry handling.)
 - `queueLastServerStatus`, `queueLastServerStage`: String? (Added in V48.

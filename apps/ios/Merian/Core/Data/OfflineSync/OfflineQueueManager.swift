@@ -287,6 +287,22 @@ import SwiftData
         return state.containsEvery(expectedObjectKeys: expectedObjectKeys)
     }
 
+    @discardableResult
+    func resetUploadRetryAccountingIfManifestComplete(
+        scanId: String,
+        generation: UUID?,
+        expectedObjectKeys: [String]
+    ) -> Bool {
+        guard hasConfirmedSuccessfulUploadManifest(
+            scanId: scanId,
+            generation: generation,
+            expectedObjectKeys: expectedObjectKeys
+        ) else {
+            return false
+        }
+        return clearQueueRetry(scanId: scanId)
+    }
+
     func clearUploadCompletionState(
         scanId: String,
         generation: UUID?

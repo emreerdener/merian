@@ -28,8 +28,8 @@ ordinary comma-separated invocation. In particular, write
 `pg_catalog.SUBSTRING(value FROM pattern)`: the `FROM`, `FOR`, and `SIMILAR`
 forms are unqualified SQL expressions. The migration execution contract scans
 the complete migration fleet for this parser seam, but static checks are not
-deployment evidence. The pinned CLI must still build the disposable database
-and run every `tests/*.sql` catalog fixture before production `db push`.
+deployment evidence. The pinned CLI must still build the disposable database and
+run every `tests/*.sql` catalog fixture before production `db push`.
 
 Catalog fixtures preserve production signup behavior. An `auth.users` insert
 fires `on_auth_user_created` and can create `public.users` synchronously; a
@@ -507,20 +507,31 @@ standalone image count `images - (videos × 5)`, plus every playback video and
 standalone audio. The second validator requires exact owner/job evidence, a
 positive declared frame count, agreement between projected and
 endpoint-normalized standalone-image counts, exact agreement between the
-complete classified-frame set and the declared frame count,
-compatibility-array membership, and exclusion from the canonical image set
-before a promoted image capture can omit a ready display row. Native
-`identify-multimodal` jobs already declare standalone `image_count`;
-compatibility jobs declare all inference images, so the validator subtracts
-their separately validated frame count. Unknown endpoint or malformed count
-contracts fail closed.
-The projection validator also requires its image and video counts to equal the
-job's normalized standalone-image and validated playback-video counts.
-Finalization still requires exact scan/owner/kind/URL ready rows after refresh
-and retains all storage-manifest checks, captured-promotion proof for every
-non-frame item, completion fencing, and complete-last updates. Do not “fix”
-video scans by hydrating inference frames as display images or by skipping image
-checks for all mixed media.
+complete classified-frame set and the declared frame count, compatibility-array
+membership, and exclusion from the canonical image set before a promoted image
+capture can omit a ready display row. Native `identify-multimodal` jobs already
+declare standalone `image_count`; compatibility jobs declare all inference
+images, so the validator subtracts their separately validated frame count.
+Unknown endpoint or malformed count contracts fail closed. The projection
+validator also requires its image and video counts to equal the job's normalized
+standalone-image and validated playback-video counts. Finalization still
+requires exact scan/owner/kind/URL ready rows after refresh and retains all
+storage-manifest checks, captured-promotion proof for every non-frame item,
+completion fencing, and complete-last updates. Do not “fix” video scans by
+hydrating inference frames as display images or by skipping image checks for all
+mixed media.
+
+Initial Explore publication has a matching catalog boundary. Forward migration
+`20260729024157_atomic_explore_scan_publication.sql` installs
+`public.publish_scan_to_explore_atomically(...)` as a service-role-only
+`SECURITY INVOKER` RPC. After restoration, thumbnail generation, and audio
+moderation, `share-scan-to-explore` calls that one final mutation. It locks and
+revalidates the exact owner scan, checks every bounded media URL against the
+scan's durable arrays, and upserts post metadata while replacing media,
+hashtags, and resolved-community publication state in one transaction. An
+omitted privacy default is resolved from the locked scan rather than a stale
+Edge read. Any late constraint or trigger failure restores the prior complete
+snapshot; the Edge route contains no separate table-mutation fallback.
 
 The export route's resource contract follows the current
 [hosted Edge Function limits](https://supabase.com/docs/guides/functions/limits)
@@ -674,11 +685,11 @@ historical audit evidence used by the narrow recovery contract.
 
 The four July 28 incident migrations and the nine affected Edge Functions are
 one ordered release unit. Do not selectively deploy only the multimodal route,
-because older app builds still use compatibility producers. The production
-batch helper extracts selected members of that unit from the graph plan,
-deploys them in compatibility order before unrelated parallel batches, and
-stops on the first exhausted ordered deployment. The normative joined state,
-recovery, security, deployment, monitoring, and test contract is
+because older app builds still use compatibility producers. The production batch
+helper extracts selected members of that unit from the graph plan, deploys them
+in compatibility order before unrelated parallel batches, and stops on the first
+exhausted ordered deployment. The normative joined state, recovery, security,
+deployment, monitoring, and test contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 ### Identification Latency Contract

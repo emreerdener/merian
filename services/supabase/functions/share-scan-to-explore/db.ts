@@ -209,6 +209,9 @@ function makeHttpError(
   return publicHttpError(status, message);
 }
 
+const COMMUNITY_IDENTIFICATION_PENDING_MESSAGE =
+  "Wait for the community to identify this request before sharing it to Explore.";
+
 const SHARE_ELIGIBLE_SCAN_SELECT =
   "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id";
 
@@ -620,46 +623,53 @@ export async function assertCommunityRequestCanPublishToExplore(
   if (row?.status === "needs_id") {
     throw makeHttpError(
       409,
-      "Wait for the community to identify this request before sharing it to Explore.",
+      COMMUNITY_IDENTIFICATION_PENDING_MESSAGE,
     );
   }
 }
 
-export async function markResolvedCommunityRequestPublishedToExplore(
-  postId: string,
-  userId: string,
-  supabaseAdmin: SupabaseClient,
-): Promise<string | null> {
-  const { data, error } = await supabaseAdmin.rpc(
-    "publish_resolved_community_request_to_explore",
-    {
-      target_post_id: postId,
-      self_id: userId,
-    },
-  );
-
-  if (error) {
-    throw new Error(
-      `Failed to publish resolved community request: ${error.message}`,
-    );
-  }
-
-  return typeof data === "string" ? data : null;
+interface AtomicExplorePublicationResult {
+  post_id: string;
+  shared_at: string;
+  location_sharing: "open" | "obscured" | "private";
+  publication_status: "published";
 }
 
-export async function upsertExplorePost(
+function isAtomicExplorePublicationResult(
+  value: unknown,
+): value is AtomicExplorePublicationResult {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const row = value as Record<string, unknown>;
+  return typeof row.post_id === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(row.post_id) &&
+    typeof row.shared_at === "string" &&
+    row.shared_at.length > 0 &&
+    (
+      row.location_sharing === "open" ||
+      row.location_sharing === "obscured" ||
+      row.location_sharing === "private"
+    ) &&
+    row.publication_status === "published";
+}
+
+export async function publishExplorePostAtomically(
   scan: ShareEligibleScanRow,
   userId: string,
   speciesCommonName: string | null,
   fieldNotes: string | null,
-  locationSharing: string,
+  requestedLocationSharing: string | null,
   mediaItems: SelectedExplorePostMediaItem[] | undefined,
+  hashtags: string[],
   supabaseAdmin: SupabaseClient,
   moderationQuota: AudioModerationQuota,
 ): Promise<{
   id: string;
   shared_at: string;
-  publication_status: string;
+  location_sharing: "open" | "obscured" | "private";
+  publication_status: "published";
   media_kinds: string[];
   audio_clip_count: number;
   audible_media_count: number;
@@ -672,42 +682,36 @@ export async function upsertExplorePost(
     supabaseAdmin,
     moderationQuota,
   );
-  const sharedAt = new Date().toISOString();
+  const { data, error } = await supabaseAdmin.rpc(
+    "publish_scan_to_explore_atomically",
+    {
+      p_scan_id: scan.id,
+      p_user_id: userId,
+      p_species_common_name: speciesCommonName,
+      p_field_notes: fieldNotes,
+      p_location_sharing: requestedLocationSharing,
+      p_media_rows: mediaRows,
+      p_hashtags: hashtags,
+    },
+  );
 
-  const { data, error } = await supabaseAdmin
-    .from("explore_posts")
-    .upsert(
-      {
-        scan_id: scan.id,
-        user_id: userId,
-        species_common_name: speciesCommonName,
-        field_notes: fieldNotes,
-        location_sharing: locationSharing,
-        shared_at: sharedAt,
-        unshared_at: null,
-      },
-      {
-        onConflict: "scan_id",
-      },
-    )
-    .select("id,shared_at")
-    .single();
+  if (error?.message === COMMUNITY_IDENTIFICATION_PENDING_MESSAGE) {
+    throw makeHttpError(409, COMMUNITY_IDENTIFICATION_PENDING_MESSAGE);
+  }
 
-  if (error || !data) {
+  if (error || !isAtomicExplorePublicationResult(data)) {
     throw new Error(
-      `Failed to share scan to Explore: ${error?.message ?? "Unknown error"}`,
+      `Failed to publish scan to Explore atomically: ${
+        error?.message ?? "Invalid database response"
+      }`,
     );
   }
 
-  const post = data as {
-    id: string;
-    shared_at: string;
-  };
-  await replaceExplorePostMediaRows(post.id, mediaRows, supabaseAdmin);
-
   return {
-    ...post,
-    publication_status: "published",
+    id: data.post_id,
+    shared_at: data.shared_at,
+    location_sharing: data.location_sharing,
+    publication_status: data.publication_status,
     media_kinds: mediaRows.map((row) => row.kind),
     audio_clip_count: mediaRows.filter((row) => row.kind === "audio").length,
     audible_media_count:
@@ -920,62 +924,4 @@ export function exploreAudioModerationCache(
       }
     },
   };
-}
-
-async function replaceExplorePostMediaRows(
-  postId: string,
-  rows: ReturnType<typeof buildExplorePostMediaRows>,
-  supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error: deleteError } = await supabaseAdmin
-    .from("explore_post_media")
-    .delete()
-    .eq("post_id", postId);
-
-  if (deleteError) {
-    throw new Error(
-      `Failed to clear Explore post media: ${deleteError.message}`,
-    );
-  }
-
-  const { error: insertError } = await supabaseAdmin
-    .from("explore_post_media")
-    .insert(rows.map((row) => ({ ...row, post_id: postId })));
-
-  if (insertError) {
-    throw new Error(
-      `Failed to save Explore post media: ${insertError.message}`,
-    );
-  }
-}
-
-export async function replaceExplorePostHashtags(
-  postId: string,
-  hashtags: string[],
-  supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error: deleteError } = await supabaseAdmin
-    .from("explore_post_hashtags")
-    .delete()
-    .eq("post_id", postId);
-
-  if (deleteError) {
-    throw new Error(
-      `Failed to clear Explore post hashtags: ${deleteError.message}`,
-    );
-  }
-
-  if (hashtags.length === 0) {
-    return;
-  }
-
-  const { error: insertError } = await supabaseAdmin
-    .from("explore_post_hashtags")
-    .insert(hashtags.map((tag) => ({ post_id: postId, tag })));
-
-  if (insertError) {
-    throw new Error(
-      `Failed to save Explore post hashtags: ${insertError.message}`,
-    );
-  }
 }

@@ -143,6 +143,27 @@ generation fencing, server quota/idempotency changes, owner-row durability
 repair, and the strict 2026-07-28 media-finalization migrations. No single
 downstream Field Chat or Explore handler caused all four symptoms.
 
+The same history review identified four independent state-boundary regressions
+that amplified the backend outage:
+
+- `212f9ce91` reset scan-level retry accounting after each successful upload
+  member instead of after the complete required manifest;
+- `db23a1cf1` introduced structured server-status recovery but treated
+  server-`found` plus failed local hydration as unresolved, which could return a
+  known server-owned scan to provider-dispatch eligibility;
+- the Explore-chat extension at `655e89091` retained source-agnostic permanent
+  handling for HTTP 404, so an owned scan that was merely still syncing could
+  hide Field Chat; and
+- `23da15f33` dismissed the Explore composer when the in-flight flag returned to
+  false rather than when publication returned validated success.
+
+Explore post, media, hashtag, and resolved-community writes also remained
+separate PostgREST transactions after the media-snapshot changes in
+`6def1242f`. A late failure could therefore report failure after exposing or
+erasing only part of a post. These regressions explain why earlier
+owner-persistence fixes improved individual layers without restoring the joined
+submission → analysis → chat → publication experience.
+
 ## Resolution
 
 - Foreground inline stills now send `r2ObjectKeys: []`.
@@ -409,8 +430,9 @@ test failures.
 
 Run 1551 stopped before production connection preparation, `db push`, secret
 synchronization, Edge deployment, or smoke testing, so it made no production
-mutation. A new exact-SHA run must repeat fresh-catalog replay, execute all 24
-fixtures, and continue through deployment and production smokes.
+mutation. A new exact-SHA run must repeat fresh-catalog replay, execute all 25
+current fixtures—including the subsequently added atomic Explore rollback
+fixture—and continue through deployment and production smokes.
 
 ## Deployment Follow-up: Workflow Run 1552
 
@@ -476,7 +498,7 @@ This was a fixture defect; the run never invoked
 catalog files complete, before production connection preparation, `db push`,
 secret synchronization, Edge deployment, or smoke testing, and made no
 production mutation. A further exact-SHA run must execute the now-reachable
-identity merge and recovery assertions and pass all 24 files.
+identity merge and recovery assertions and pass all 25 current files.
 
 ## Release Follow-up: iOS Workflow Run 73
 

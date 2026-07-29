@@ -220,6 +220,27 @@ sibling callback can advance an incomplete manifest. Process-relaunch callback
 loss is recovered by resetting a proven upload orphan to pending and immediately
 starting a fresh complete signing generation.
 
+Durable retry accounting resets only at that exact complete-manifest boundary.
+An individual HTTP-successful member contributes evidence but cannot clear the
+scan generation’s attempt count or prior error before every required sibling has
+also succeeded. The complete-manifest path also requires its retry-state reset
+to save; an absent queue row or persistence failure cannot advance the scan to
+staged. This prevents a stable partial-upload failure from looping forever as
+attempt one and preserves the configured backoff and user-attention limit.
+
+Likewise, server status `found` starts local result recovery but does not zero
+the attempt count, backoff, or prior error first. If exact-owner hydration or
+local promotion fails, the queue stays server-owned and `.inferencing`, retains
+the latest server evidence, and advances a dedicated bounded local-recovery
+retry. Every dispatch and orphan-reconciliation caller receives `waitForServer`,
+so the row cannot retreat to `.staged` and issue a second provider request. The
+owner-row observation is marked durably before hydration; the queue stores this
+fence as `server_result_local_recovery_pending`. After relaunch, a failed,
+unavailable, or temporarily inconsistent status probe therefore continues
+completed-result recovery rather than erasing ownership evidence. Exhaustion
+pauses for explicit user retry. That retry retains the same durable fence and
+attempts only owner-result recovery; successful recovery deletes the queue row.
+
 ## Owner Profile Prerequisite
 
 `public.users.public_author_name`, `public_identity_source`, and
@@ -387,6 +408,12 @@ for retry and shows:
 
 It must not cache the scan as permanently unavailable. A current Identify `200`
 followed by `scan_not_ready` is a severity incident, not expected steady state.
+The client therefore sets `unavailableScanId` only for terminal ownership
+failure (`403`), `unsupported_scan`, or an unavailable Explore-post source. An
+owned-scan `scan_not_ready`, `message_not_found`, `conversation_not_found`, or
+plain status `not_found` updates the retryable error message without hiding the
+toolbar action. The former blanket HTTP-404 classification violated this
+contract and could make Field Chat disappear after one transient readiness race.
 
 Explore-post Field Chat is a separate private per-viewer contract. It uses only
 the privacy-filtered public post and Species Dictionary projection and does not
@@ -407,6 +434,21 @@ bounded counts; video accepts one playback item. The server promotes media,
 updates the exact owner scan, refreshes canonical assets, reruns selection and
 moderation, and only then writes the public `explore_post_media` snapshot.
 
+The final relational publication is one
+`publish_scan_to_explore_atomically(...)` transaction. Its service-role-only
+invoker boundary locks and revalidates the exact owned biological scan, rejects
+media URLs outside that scan and non-contiguous selection order, rechecks the
+locked community request, and commits post metadata, the complete media
+snapshot, hashtags, and resolved-community publication state together. An
+omitted `location_sharing` value is resolved from the locked scan, not a stale
+pre-transaction geoprivacy read. A
+transaction-time `needs_id` request fails with conflict and leaves the prior
+publication unchanged. The community request is locked before its scan, matching
+the community helper’s established order and preventing a publication/consensus
+deadlock cycle. Any late insert, constraint, or community failure restores the
+prior post metadata, timestamp, media, and hashtags. Read-time feed filtering is
+defense in depth, not a substitute for atomic publication.
+
 A restored-media update whose response is lost is reconciled against exact
 durable owner URLs. Newly promoted objects are removed only after a returned
 database rejection and a readable owner row prove the expected URLs absent.
@@ -416,6 +458,17 @@ consumes the staging source twice.
 
 An Explore post is feed-visible only with saved eligible `explore_post_media`. A
 partial or media-less publication row is not a successful share.
+
+Publication completion is also the composer dismissal boundary. The client
+requires a true success flag, the exact echoed scan ID, a valid post UUID, an
+authoritative location-sharing value, and a `published` publication status
+before accepting an HTTP-successful response. Missing location or status is not
+rolling-compatibility success because the corrected backend must be released
+before this client. The async create callback returns
+`true` only after that validation and the returned post ID is cached. On
+`false`, the composer remains mounted with the user’s notes, hashtags, location
+choice, and ordered media selection intact and shows a retry alert. Merely
+transitioning `isSharingToExplore` back to `false` is not publication evidence.
 
 ## Owned Scan-Image Repair
 
@@ -492,13 +545,14 @@ migration `20260728035237_harden_dwca_downloads_and_scan_finalization.sql`, and
 idempotent-response migration
 `20260728220000_persist_idempotent_scan_responses.sql` are present.
 
-Then confirm these five incident migrations applied in order:
+Then confirm these six incident migrations applied in order:
 
 1. `20260728230000_recover_inline_scan_ingestion_completions.sql`
 2. `20260728231000_make_staged_scan_media_registration_idempotent.sql`
 3. `20260728232000_ensure_scan_user_profile.sql`
 4. `20260728233000_recover_identity_merge_interrupted_scans.sql`
 5. `20260729012153_fix_video_scan_canonical_finalization.sql`
+6. `20260729024157_atomic_explore_scan_publication.sql`
 
 The first migration must install four bounded routine definitions: three
 no-grant private validators and the service-only public wrapper. Workflow run
@@ -508,52 +562,51 @@ disposable catalog startup. Matching file/blob hashes ruled out truncation. Do
 not treat source-contract success as replay evidence; require the pinned CLI to
 rebuild a fresh PostgreSQL catalog before `db push`.
 
-Workflow run 1550 for commit
-`16397c0cdf79b622dd0072b2fd2432a53ea20b5f` advanced past that bounded
-replacement, then failed before any production mutation while applying the
-fourth migration. Its owner-extraction CTE combined the schema-qualified
-`pg_catalog.SUBSTRING` name with the unqualified
+Workflow run 1550 for commit `16397c0cdf79b622dd0072b2fd2432a53ea20b5f` advanced
+past that bounded replacement, then failed before any production mutation while
+applying the fourth migration. Its owner-extraction CTE combined the
+schema-qualified `pg_catalog.SUBSTRING` name with the unqualified
 `SUBSTRING(value FROM pattern)` expression form. Both key and public-URL
 extractors now use ordinary `pg_catalog.SUBSTRING(value, pattern)` invocation,
 and the migration-fleet contract rejects qualified `FROM`, `FOR`, or `SIMILAR`
 forms. This static correction is not fresh-catalog replay evidence; require a
 new exact-SHA workflow run.
 
-Workflow run 1551 for commit
-`f841a436a87bfafa296f4c0fb89e1d8264192f91` successfully replayed every
-migration on the disposable PostgreSQL catalog. The discovered catalog suite
-then completed 22 of 24 catalog files; the remaining two aborted during setup
-because stale fixtures used overlong usernames and plain `public.users` inserts
-after the Auth signup trigger had already created those profiles. Both fixtures
-now use policy-valid identities and trigger-aware profile upserts, and their
-source contracts pin that setup. The run stopped before production connection
-preparation and made no production mutation. Require the exact corrected SHA to
-repeat all 24 fixtures and continue through deployment and smoke testing.
+Workflow run 1551 for commit `f841a436a87bfafa296f4c0fb89e1d8264192f91`
+successfully replayed every migration on the disposable PostgreSQL catalog. The
+discovered catalog suite then completed 22 of 24 catalog files; the remaining
+two aborted during setup because stale fixtures used overlong usernames and
+plain `public.users` inserts after the Auth signup trigger had already created
+those profiles. Both fixtures now use policy-valid identities and trigger-aware
+profile upserts, and their source contracts pin that setup. The run stopped
+before production connection preparation and made no production mutation.
+Require the exact corrected SHA to repeat all 25 current fixtures, including
+atomic Explore rollback, and continue through deployment and smoke testing.
 
-Workflow run 1552 for commit
-`7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated the full migration replay
-and again completed 22 of 24 catalog files. The inline fixture advanced from
-setup to 15 passing assertions; its next statement, mixed-video recovery, raised
-inside finalization. The strict block required every compatibility image URL as
-a ready display image even though video inference frames are intentionally not
-standalone canonical media. The fifth migration now projects the same
-structured or legacy image/playback/audio set as the canonical refresher,
-requires owner-matched ready rows for that set, and preserves every other
-finalization fence. The identity fixture remained opaque at `planned 1, ran 0`;
-it now emits bounded phase/SQLSTATE/message diagnostics and one TAP result.
-Run 1552 stopped at the disposable catalog gate and made no production
-mutation. Require every fixture to pass on the exact remediated SHA.
+Workflow run 1552 for commit `7e54a1ade9806f40654c937fe9eaf6f7d93439e9` repeated
+the full migration replay and again completed 22 of 24 catalog files. The inline
+fixture advanced from setup to 15 passing assertions; its next statement,
+mixed-video recovery, raised inside finalization. The strict block required
+every compatibility image URL as a ready display image even though video
+inference frames are intentionally not standalone canonical media. The fifth
+migration now projects the same structured or legacy image/playback/audio set as
+the canonical refresher, requires owner-matched ready rows for that set, and
+preserves every other finalization fence. The identity fixture remained opaque
+at `planned 1, ran 0`; it now emits bounded phase/SQLSTATE/message diagnostics
+and one TAP result. Run 1552 stopped at the disposable catalog gate and made no
+production mutation. Require every fixture to pass on the exact remediated SHA.
 
-The next exact-SHA catalog run at
-`50d905f85ac536052abefa63d36c9b45e5e4ec74` passed the complete 30-assertion
-inline/video fixture. The remaining identity fixture emitted SQLSTATE `42702`
-at `ingestion-intent setup`: its synthetic `scan_id` PL/pgSQL variable was
-ambiguous beside `jobs.scan_id`, so neither production identity-merge routine
-had run. The fixture identity is now named `fixture_scan_id`, and its source
-contract rejects the ambiguous declaration. That run completed 23 of 24 catalog
-files and stopped before production preparation, making no production mutation.
-Require one further exact-SHA replay to execute and pass the production merge
-and recovery path.
+The next exact-SHA catalog run at `50d905f85ac536052abefa63d36c9b45e5e4ec74`
+passed the complete 30-assertion inline/video fixture. The remaining identity
+fixture emitted SQLSTATE `42702` at `ingestion-intent setup`: its synthetic
+`scan_id` PL/pgSQL variable was ambiguous beside `jobs.scan_id`, so neither
+production identity-merge routine had run. The fixture identity is now named
+`fixture_scan_id`, and its source contract rejects the ambiguous declaration.
+That run completed 23 of 24 catalog files and stopped before production
+preparation, making no production mutation. The current suite discovers 25 files
+after adding the atomic Explore rollback fixture. Require one further exact-SHA
+replay to execute and pass the production merge and recovery path plus every
+other current catalog file.
 
 Then deploy these Edge Functions from one exact reviewed SHA, in order:
 
@@ -571,12 +624,27 @@ The production deployment helper extracts any selected members of this
 compatibility unit from the graph-derived plan and deploys them sequentially in
 the listed order before unrelated parallel batches. It rejects duplicate plan
 entries and stops immediately when an ordered member exhausts its bounded
-retries. A failed run is never allowed to continue into a knowingly
-incompatible later scan function.
+retries. A failed run is never allowed to continue into a knowingly incompatible
+later scan function.
 
-Release the matching iOS build after the backend. Old clients are compatible
-with the new backend; the new client must not be used to compensate for an old
-false-success function.
+The planner compares the current exact SHA with the most recent successful
+production workflow SHA, not only with the immediately preceding commit. It
+accepts that baseline only when it is a full hexadecimal revision and an
+ancestor of the current SHA; otherwise it selects the full function fleet. This
+ensures the fixture-only follow-up to failed catalog runs still includes every
+undeployed scan and Explore runtime change. The job grants its token read-only
+Actions and contents access so a private-repository workflow history can be
+listed without write authority. The tooling contract pins that permission, the
+cumulative comparison, safe-ancestor check, plan-before-migration order, and
+both full-fleet fallbacks.
+
+Release the matching iOS build after the backend. If the final remediation SHA
+contains only backend, fixture, or documentation changes and the ordinary iOS
+scope job skips macOS work, manually dispatch `iOS Build and Test` on that final
+SHA. Require both the complete unit-test target and current-SHA Release archive
+to pass; a scope-only success is not release evidence. Old clients are
+compatible with the new backend; the new client must not be used to compensate
+for an old false-success function.
 
 Before production promotion, execute the full staging smoke matrix and rollback
 criteria in
@@ -643,6 +711,7 @@ With a disposable local or staging PostgreSQL catalog, additionally run:
 ```bash
 supabase --workdir services db push --local
 supabase --workdir services test db --local \
+  services/supabase/tests/atomic_explore_scan_publication_security.sql \
   services/supabase/tests/inline_scan_manifest_recovery_security.sql \
   services/supabase/tests/scan_user_profile_security.sql \
   services/supabase/tests/identity_merge_scan_recovery_security.sql
@@ -655,9 +724,11 @@ The focused regression inventory includes:
 - `_shared/scanPersistence_test.ts`;
 - `_shared/scanMediaAssets_test.ts`;
 - `generate-upload-urls/assetRegistration_test.ts`;
+- `_tests/atomicExplorePublicationMigrationContract.test.ts`;
+- `share-scan-to-explore/db_test.ts`;
 - `share-scan-to-explore/restoredMediaValidation_test.ts`;
 - the four producer route tests;
-- the four new migration source-contract tests;
+- the five new migration source-contract tests;
 - `repair-scan-image/db_test.ts` and worker tests;
 - `reconcile-scan-media-assets/worker_test.ts`;
 - `OfflineQueueManagerTests`;
@@ -667,32 +738,33 @@ The focused regression inventory includes:
 ## Verification Evidence at Review
 
 This snapshot records the strongest evidence available for the local working
-tree rooted at
-`50d905f85ac536052abefa63d36c9b45e5e4ec74` plus the uncommitted identity
-fixture correction on 2026-07-28. Local working-tree evidence is not immutable
-release evidence. Repeat every applicable gate on one committed SHA before
-deployment or release.
+tree rooted at `fa71395e49e58f4bed2719de0d16e55741cf699a`, which commits the
+identity-fixture correction, plus the uncommitted client, queue, atomic Explore
+backend, and release-contract corrections on 2026-07-28. Local working-tree
+evidence is not immutable release evidence. Repeat every applicable gate on one
+committed SHA before deployment or release.
 
-| Layer | Retained result | Status and meaning |
-| --- | --- | --- |
-| Edge and shared scan logic | Full Deno function suite: 1,347 passed, 0 failed | Verified locally, including all four producers, persistence classification, status recovery, Field Chat, Explore sharing, media registration, and repair workers |
-| Edge static quality | `deno fmt --check` and `deno lint` passed | Verified locally |
-| Migration source contracts | 165 assertions passed across 25 migration contract files | Verified locally, including the video canonical-projection rewrite and identity fixture diagnostic contract; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
-| Supabase release tooling and documentation | 104 tooling assertions and 9 documentation contracts passed | Verified locally |
-| Production function selection and order | Graph simulation across the base commit plus working tree resolved 13 affected functions from 125 changed files, including all nine required scan functions; shuffled-plan and fail-stop fixtures passed | Verified locally; selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward |
-| iOS portable release tooling | Scope, workflow, structured failure extraction, and critical-result contracts passed | Verified locally without invoking a simulator |
-| iOS project/source integrity | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2 | Verified locally |
-| Changed Swift source quality | Strict SwiftLint reported 0 violations and compiler frontend parsing passed | Verified locally |
-| Public web projection | Web unit suite: 56 passed, 0 failed | Verified locally |
-| Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected at the current base SHA | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate |
-| Fresh PostgreSQL catalog replay and pgTAP | The exact-SHA follow-up completed 23 of 24 catalog files and passed all 30 inline/video assertions; identity then reported fixture-only `42702` ambiguity at `ingestion-intent setup`, before production merge/recovery ran | Pending one further exact-SHA replay after the `fixture_scan_id` rename; all 24 files must pass |
-| Staging joined-flow smoke matrix | No retained post-remediation smoke evidence | Pending image, queued image, audio, video, Describe, Field Chat, Explore, ambiguous-response, and partial-upload tests |
-| Production deployment and observation | Runs 1549–1552 and the exact-SHA follow-up stopped before production mutation | Pending ordered migration/function deployment, matching iOS release, and a clean observation window |
+| Layer                                      | Retained result                                                                                                                                                                                                                                                    | Status and meaning                                                                                                                                                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edge and shared scan logic                 | Final Deno discovery run: 1,357 passed, 0 failed; optional PostgreSQL integration bodies self-skipped because this sandbox denied localhost TCP                                                                                                                      | Complete source and mocked assertions passed, including transaction-time community readiness and authoritative privacy output; this is not a PostgreSQL integration gate and cannot replace a fresh exact-SHA replay                              |
+| Edge static quality                        | `deno fmt --check` and `deno lint` passed                                                                                                                                                                                                                          | Verified locally                                                                                                                                                                                                                                   |
+| Migration source contracts                 | 172 assertions passed across 26 migration contract files                                                                                                                                                                                                           | Verified locally, including video canonical projection, identity fixture diagnostics, atomic Explore publication, and request-before-scan lock ordering; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
+| Atomic Explore PostgreSQL fixture          | The preceding 20-assertion revision passed in an outer rollback-only transaction; the revised fixture now has 21 assertions, adding locked-geoprivacy defaulting, but this sandbox denied localhost TCP for the rerun                                                                                                               | Current source contracts verify ACL, owner/media rejection, complete-snapshot rollback, transaction-time `needs_id` rejection, and locked-geoprivacy structure; exact current-source PostgreSQL acceptance remains part of the all-25-catalog hosted replay |
+| Supabase release tooling and documentation | 105 tooling assertions and 9 documentation contracts passed                                                                                                                                                                                                        | Verified locally                                                                                                                                                                                                                                   |
+| Production function selection and order    | Graph simulation across the base commit plus working tree resolved the full 89-function fleet from 144 changed files because the production workflow control path changed, including all nine required scan functions; shuffled-plan and fail-stop fixtures passed | Verified locally; selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward                                                                                                                |
+| iOS portable release tooling               | Scope, workflow, structured failure extraction, and critical-result contracts passed                                                                                                                                                                               | Verified locally without invoking a simulator                                                                                                                                                                                                      |
+| iOS project/source integrity               | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2                                                                                                                                      | Verified locally                                                                                                                                                                                                                                   |
+| Changed Swift source quality               | Strict SwiftLint reported 0 violations and compiler frontend parsing passed                                                                                                                                                                                        | Verified locally                                                                                                                                                                                                                                   |
+| Public web projection                      | Web unit suite: 56 passed, 0 failed                                                                                                                                                                                                                                | Verified locally                                                                                                                                                                                                                                   |
+| Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected at the current base SHA                                                             | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate                                                                                                                                                              |
+| Fresh PostgreSQL catalog replay and pgTAP  | The exact-SHA follow-up completed 23 of the then-current 24 catalog files and passed all 30 inline/video assertions; identity then reported fixture-only `42702` ambiguity at `ingestion-intent setup`, before production merge/recovery ran                       | Pending one further exact-SHA replay after the `fixture_scan_id` rename and atomic Explore fixture addition; all 25 current files must pass                                                                                                        |
+| Staging joined-flow smoke matrix           | No retained post-remediation smoke evidence                                                                                                                                                                                                                        | Pending image, queued image, audio, video, Describe, Field Chat, atomic Explore rollback, malformed publication-response, ambiguous-response, and partial-upload tests                                                                             |
+| Production deployment and observation      | Runs 1549–1552 and the exact-SHA follow-up stopped before production mutation                                                                                                                                                                                      | Pending ordered migration/function deployment, matching iOS release, and a clean observation window                                                                                                                                                |
 
 A local Release archive was also attempted with package, derived-data, module,
 and Foundation cache paths redirected to writable temporary storage. Xcode
-stopped while parsing dependency manifests because its nested
-`sandbox-exec` could not apply inside the workspace sandbox
+stopped while parsing dependency manifests because its nested `sandbox-exec`
+could not apply inside the workspace sandbox
 (`sandbox_apply: Operation not permitted`). It did not compile app source and is
 therefore neither a product failure nor release evidence. The hosted exact-SHA
 workflow remains authoritative for simulator and archive behavior.
@@ -710,6 +782,7 @@ workflow remains authoritative for simulator and archive behavior.
 | Database staging uniqueness/cap       | `migrations/20260728231000_make_staged_scan_media_registration_idempotent.sql` |
 | Identity-merge fence/recovery         | `migrations/20260728233000_recover_identity_merge_interrupted_scans.sql`       |
 | Video canonical finalization          | `migrations/20260729012153_fix_video_scan_canonical_finalization.sql`          |
+| Atomic Explore publication            | `migrations/20260729024157_atomic_explore_scan_publication.sql`                |
 | Offline upload callback accumulator   | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`   |
 | Status and guarded owner recovery     | `functions/check-scan-status/index.ts`                                         |
 | Explore restored-media reconciliation | `functions/share-scan-to-explore/db.ts`                                        |

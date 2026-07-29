@@ -1257,6 +1257,18 @@ has at least one saved `explore_post_media` row; this prevents failed media
 snapshot writes from surfacing as phantom shared posts in the Insight Share
 sheet.
 
+Initial publication additionally uses
+`public.publish_scan_to_explore_atomically(...)` after restoration, thumbnail
+generation, and moderation complete. The invoker-rights, service-role-only RPC
+locks and revalidates the exact owned biological scan, accepts only bounded
+media URLs from that scan, and performs the post upsert, media replacement,
+hashtag replacement, and resolved-community publication in one transaction.
+When backward-compatible clients omit `location_sharing`, the RPC resolves
+geoprivacy from that locked scan.
+An insert, constraint, or late community-publication failure therefore restores
+the entire previous snapshot; it cannot leave a newly visible partial post or
+erase healthy media while returning failure.
+
 The scan finalizer uses that same distinction. Compatibility
 `image_storage_urls` may retain sampled frames used for inference and video
 posters, so those URLs are not individually required as ready standalone image

@@ -202,6 +202,13 @@ pending. A fail-closed scope job starts the macOS work for:
   SwiftLint configuration, or iOS build scripts;
 - every merge-queue commit and every manual dispatch.
 
+For a release candidate whose final commits contain only backend, catalog-test,
+or documentation changes after the last iOS input, manually dispatch this
+workflow against the final exact SHA. Confirm the scope reason records a manual
+dispatch and both macOS jobs run. A successful scope-only result is valid
+changed-file reporting, but it is not compiled iOS release evidence and cannot
+replace the full unit-test plus Release-archive gate.
+
 Do not replace that design with workflow-level pull-request path filters. GitHub
 does not report a completed required check when an entire workflow is skipped by
 path filtering. The in-workflow scope job also avoids GitHub's path-filter
@@ -648,6 +655,25 @@ MerianTests/
   - **Durable retry backoff math**: Asserts `OfflineQueueRetryPolicy` floors
     short retries, clamps long retries to `maximumRetryDelay`, and stops
     scheduling automatic work once `maximumAutomaticRetryAttempts` is exhausted.
+  - **Multi-file generation retry accounting**: A successful upload member must
+    not clear `queueAttemptCount` or the last durable error while sibling
+    outcomes remain unresolved. Retry metadata resets only after exact
+    all-member manifest success and a successful persistence write, so one good
+    file plus one persistently failing file cannot loop forever at attempt one
+    and a missing queue row cannot advance staging.
+  - **Cloud-complete local recovery**: If status is `found` but exact-owner
+    hydration, local promotion, or queue deletion fails, assert the queue first
+    persists its completed-result recovery marker, remains `.inferencing`,
+    preserves server status fields, advances retry accounting, and returns
+    `waitForServer`. Pre-dispatch, watchdog, and relaunch-orphan paths must not
+    move that scan to `.staged` or dispatch another provider request even when
+    the next status probe is unavailable or inconsistent. Exhaustion must pause
+    in needs-attention state, and manual retry must retain the durable
+    owner-result marker while resuming server-result recovery.
+  - **Atomic Explore publication**: Assert the final RPC revalidates exact owner
+    media, preserves request-before-scan lock ordering, rejects a locked
+    `needs_id` community request as conflict, and rolls back the prior post,
+    media, hashtags, timestamp, and community state after a forced late failure.
   - **Durable queue retry policy**: `OfflineQueueRetryPolicy` tests should cover
     transient network/server failures, local-media terminal failures, persisted
     `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. An
@@ -1116,21 +1142,21 @@ migrated database proves live function ACLs, triggers, locking, and transaction
 behavior. Never run these transactional fixtures with `--linked`.
 
 `_tests/migrationExecutionContract.test.ts` also scans every migration for
-schema-qualified `SUBSTRING` calls that incorrectly use PostgreSQL's
-unqualified `FROM`, `FOR`, or `SIMILAR` expression forms. Its depth-aware
-fixtures reject the three keyword forms—including nested argument
-expressions—and accept unqualified expressions plus qualified comma invocation.
-This catches the workflow-run-1550 parser regression before Docker startup; it
-does not replace fresh-catalog replay.
+schema-qualified `SUBSTRING` calls that incorrectly use PostgreSQL's unqualified
+`FROM`, `FOR`, or `SIMILAR` expression forms. Its depth-aware fixtures reject
+the three keyword forms—including nested argument expressions—and accept
+unqualified expressions plus qualified comma invocation. This catches the
+workflow-run-1550 parser regression before Docker startup; it does not replace
+fresh-catalog replay.
 
 Workflow run 1551 supplied that fresh-catalog replay evidence: all migrations
-applied before the catalog runner reached its fixtures. Two fixtures then
-failed during setup because they assumed an `auth.users` insert did not create
-the matching public profile, and one also proposed 26-character usernames
-against the 24-character limit. The recovery fixture source contracts now pin
-policy-valid usernames and a trigger-aware `ON CONFLICT (id) DO UPDATE`.
-Treat a setup exception followed by `Bad plan` as one root failure; the aborted
-pgTAP block did not execute a second independent assertion failure.
+applied before the catalog runner reached its fixtures. Two fixtures then failed
+during setup because they assumed an `auth.users` insert did not create the
+matching public profile, and one also proposed 26-character usernames against
+the 24-character limit. The recovery fixture source contracts now pin
+policy-valid usernames and a trigger-aware `ON CONFLICT (id) DO UPDATE`. Treat a
+setup exception followed by `Bad plan` as one root failure; the aborted pgTAP
+block did not execute a second independent assertion failure.
 
 Workflow run 1552 repeated the full replay at
 `7e54a1ade9806f40654c937fe9eaf6f7d93439e9`, then supplied a more precise
@@ -1144,9 +1170,10 @@ structured media or the exact legacy standalone-image/video/audio set and
 requires owner-matched ready rows for that projection.
 
 `_tests/inlineScanManifestRecoveryMigrationContract.test.ts` statically pins the
-projection and guarded rewrite; the existing recovery case and direct
-six-object production-shape pgTAP case are the authoritative live regressions.
-Source inspection is not PostgreSQL evidence. Run all 24 fixtures on the exact
+projection and guarded rewrite; the existing recovery case and direct six-object
+production-shape pgTAP case are the authoritative live regressions. Source
+inspection is not PostgreSQL evidence. The current suite discovers 25 fixtures
+after adding atomic Explore rollback coverage; run all 25 on the exact
 remediated SHA.
 
 The same run showed that an outer multi-phase `DO` can still hide the useful
@@ -1158,14 +1185,41 @@ assertion. Never put credentials, raw media, provider payloads, or arbitrary
 customer data in this diagnostic.
 
 The next exact-SHA run proved why phase diagnostics matter: it reported `42702`
-at `ingestion-intent setup`, where a synthetic PL/pgSQL variable named
-`scan_id` appeared beside `jobs.scan_id`. The production merge and recovery
-routines had not run. Catalog fixtures must use role-prefixed identities such as
+at `ingestion-intent setup`, where a synthetic PL/pgSQL variable named `scan_id`
+appeared beside `jobs.scan_id`. The production merge and recovery routines had
+not run. Catalog fixtures must use role-prefixed identities such as
 `fixture_scan_id` whenever a statement also references the corresponding column,
 and must qualify every table column. The source contract pins that declaration
 and rejects the ambiguous variable name. A hosted warning is evidence of the
 remaining root failure, not a passing fixture; correct the layer identified by
 the phase and rerun until the assertion passes.
+
+Field Chat regression tests separately enforce that transient owned-scan
+readiness does not become permanent UI state. HTTP `404 scan_not_ready`, missing
+message/conversation actions, and status `not_found` must leave
+`unavailableScanId` unset and preserve a retryable toolbar action. Terminal
+ownership failure, `unsupported_scan`, and unavailable Explore-post sources
+remain deterministic unavailability.
+
+Explore composer regression coverage must distinguish “request stopped” from
+“publication succeeded.” The create callback returns success only after the post
+ID is cached; failure keeps the draft and retry alert mounted. Tests and reviews
+must reject dismissal driven solely by an `isSharingToExplore: true → false`
+transition.
+
+Explore database integration coverage must also inject a failure after the post
+and media writes but before publication returns. The disposable-catalog fixture
+`atomic_explore_scan_publication_security.sql` installs a transaction-local
+failing hashtag trigger, retries an existing post with replacement metadata and
+media, and proves the previous timestamp, metadata, media, and hashtags all
+survive with no duplicate or partial rows. Static contracts separately require
+the Edge route to retain only the one atomic RPC final-mutation path.
+
+Queue recovery review must also reject clearing durable retry metadata merely
+because status returned `found`. Exact-owner hydration, local promotion, and
+queue-row deletion are the success boundary. If either targeted or fallback
+historical sync fails, the next retry must advance the existing attempt history
+instead of beginning from zero.
 
 The normative expected behavior and source inventory are in
 [`16-scan-ingestion-reliability-and-recovery.md`](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#verification-gates).

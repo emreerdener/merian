@@ -27,6 +27,22 @@ Normal publication:
    post as feed-visible; and
 5. persist the returned post ID and authoritative share state locally.
 
+The create callback returns an explicit success result to
+`InsightShareButton`. The composer closes only after publication returns and
+the response confirms success, echoes the requested scan ID, supplies a valid
+post UUID and published status, and the post ID has been cached. A transport,
+readiness, moderation, persistence, or response-integrity failure leaves the
+same draft mounted and presents a retry alert; notes, hashtags, location choice,
+and ordered media selection are not discarded merely because
+`isSharingToExplore` returned to `false`.
+
+The backend corresponding to this client must expose
+`publish_scan_to_explore_atomically(...)`. It commits post metadata, ordered
+selected media, hashtags, and resolved-community publication state together
+after one final owner/eligibility lock. The client does not accept a legacy
+success response with missing `publication_status`; release the corrected
+backend before this app build.
+
 Describe text and private observation context are never copied into public field
 notes, hashtags, captions, or media metadata unless the user explicitly writes
 that text in the composer.

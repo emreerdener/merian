@@ -435,6 +435,51 @@ struct OfflineQueueManagerTests {
         )
     }
 
+    @Test func testFoundServerStatusPersistsOwnershipBeforeLocalHydration() throws {
+        let context = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        defer { manager.modelContext = nil }
+        let scanId = UUID().uuidString
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .inferencing
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        manager.persistServerStatus(
+            scanId: scanId,
+            response: ScanStatusResponse(
+                scanId: scanId,
+                status: .found,
+                jobStatus: nil,
+                jobStage: nil,
+                jobAttemptCount: nil,
+                retryAfter: nil,
+                lastError: nil
+            )
+        )
+
+        #expect(manager.hasDurableCompletedServerResult(scanId: scanId))
+        #expect(
+            scan.queueLastErrorCode ==
+                OfflineQueueManager.completedServerResultRecoveryCode
+        )
+        #expect(
+            job.lastErrorCode ==
+                OfflineQueueManager.completedServerResultRecoveryCode
+        )
+        #expect(scan.queueState == .inferencing)
+    }
+
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 
@@ -921,6 +966,92 @@ struct OfflineQueueManagerTests {
                 scanId: legacyScanId,
                 generation: nil,
                 expectedObjectKeys: [firstKey]
+            )
+        )
+    }
+
+    @Test func testOnlyCompleteUploadManifestResetsGenerationRetryAccounting() throws {
+        let context = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let scanId = UUID().uuidString
+        let generation = UUID()
+        let ownerId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        let firstKey = "staging/\(ownerId)/first.webp"
+        let secondKey = "staging/\(ownerId)/second.webp"
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .uploading
+        )
+        scan.queueAttemptCount = 3
+        scan.queueLastErrorCode = "upload_transport"
+        context.insert(scan)
+        try context.save()
+
+        manager.uploadPreparationGenerations[scanId] = nil
+        manager.latestUploadGenerations[scanId] = generation
+        defer {
+            manager.latestUploadGenerations[scanId] = nil
+            manager.uploadCompletionStates[scanId] = nil
+            manager.modelContext = nil
+        }
+
+        manager.recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: generation,
+            objectKey: firstKey
+        )
+        #expect(
+            !manager.resetUploadRetryAccountingIfManifestComplete(
+                scanId: scanId,
+                generation: generation,
+                expectedObjectKeys: [firstKey, secondKey]
+            )
+        )
+        #expect(scan.queueAttemptCount == 3)
+        #expect(scan.queueLastErrorCode == "upload_transport")
+
+        manager.recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: generation,
+            objectKey: secondKey
+        )
+        #expect(
+            manager.resetUploadRetryAccountingIfManifestComplete(
+                scanId: scanId,
+                generation: generation,
+                expectedObjectKeys: [firstKey, secondKey]
+            )
+        )
+        #expect(scan.queueAttemptCount == 0)
+        #expect(scan.queueLastErrorCode == nil)
+    }
+
+    @Test func testCompleteUploadManifestRequiresDurableRetryReset() throws {
+        _ = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let scanId = UUID().uuidString
+        let generation = UUID()
+        let objectKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/only.webp"
+
+        manager.latestUploadGenerations[scanId] = generation
+        defer {
+            manager.latestUploadGenerations[scanId] = nil
+            manager.uploadCompletionStates[scanId] = nil
+            manager.modelContext = nil
+        }
+
+        manager.recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: generation,
+            objectKey: objectKey
+        )
+
+        #expect(
+            !manager.resetUploadRetryAccountingIfManifestComplete(
+                scanId: scanId,
+                generation: generation,
+                expectedObjectKeys: [objectKey]
             )
         )
     }
@@ -1462,6 +1593,45 @@ struct OfflineQueueManagerTests {
         #expect(fetched.queueNextRetryAt == nil)
         #expect(fetched.queueLastErrorCode == nil)
         #expect(fetched.queueLastErrorMessage == nil)
+        #expect(!fetched.queueNeedsAttention)
+    }
+
+    @Test func testManualRetryResumesCompletedServerResultRecovery() async throws {
+        let ctx = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let originalIsOnline = manager.isOnline
+        defer { manager.isOnline = originalIsOnline }
+        manager.isOnline = false
+
+        let scanId = UUID().uuidString
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .failed,
+            inferenceImagePaths: ["already-analyzed.webp"],
+            queueAttemptCount: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts,
+            queueLastErrorCode: "server_result_local_recovery_exhausted",
+            queueLastErrorMessage: "Local recovery paused.",
+            queueNeedsAttention: true
+        )
+        scan.queueLastServerStatus = "complete"
+        ctx.insert(scan)
+        try ctx.save()
+
+        let didRetry = manager.retryQueuedScanNow(scanId: scanId)
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        #expect(didRetry)
+        #expect(fetched.queueState == .inferencing)
+        #expect(fetched.queueLastServerStatus == "complete")
+        #expect(
+            fetched.queueLastErrorCode
+                == OfflineQueueManager.completedServerResultRecoveryCode
+        )
+        #expect(manager.hasDurableCompletedServerResult(scanId: scanId))
         #expect(!fetched.queueNeedsAttention)
     }
 

@@ -594,15 +594,21 @@ struct InsightChatTests {
         #expect(message == "This scan belongs to another account.")
     }
 
-    @Test func testDeterministicUnavailableErrorsHideChatEntry() {
+    @Test func testOnlyTerminalScanErrorsHideChatEntry() {
         #expect(InsightChatViewModel.isDeterministicallyUnavailable(
             MerianError.httpError(statusCode: 403, message: #"{"error":"Forbidden"}"#)
         ))
-        #expect(InsightChatViewModel.isDeterministicallyUnavailable(
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
             MerianError.httpError(statusCode: 404, message: #"{"code":"scan_not_ready"}"#)
         ))
         #expect(InsightChatViewModel.isDeterministicallyUnavailable(
             MerianError.httpError(statusCode: 400, message: #"{"code":"unsupported_scan"}"#)
+        ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(statusCode: 404, message: #"{"code":"message_not_found"}"#)
+        ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(statusCode: 404, message: #"{"code":"conversation_not_found"}"#)
         ))
         #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
             MerianError.httpError(statusCode: 429, message: #"{"code":"daily_limit_reached"}"#)
@@ -614,6 +620,19 @@ struct InsightChatTests {
             InsightChatViewModel.userFacingMessage(for: MerianError.edgeFunctionUnavailable)
                 == "Chat is unavailable right now."
         )
+    }
+
+    @Test func testTransientOwnedScanReadinessKeepsChatEntryRetryable() {
+        let viewModel = InsightChatViewModel()
+
+        let canPresent = viewModel.applyOwnedScanReadinessStatus(
+            "not_found",
+            scanId: "scan_1"
+        )
+
+        #expect(!canPresent)
+        #expect(!viewModel.isUnavailable(for: "scan_1"))
+        #expect(viewModel.errorMessage == InsightChatViewModel.stillSyncingMessage)
     }
 
     @Test func testMarkUnavailableStoresScanScopedChatUnavailableState() {

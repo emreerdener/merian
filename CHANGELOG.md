@@ -92,11 +92,11 @@ TestFlight, App Store, support, and QA.
 ### Release Assurance
 
 - Fixed the only failing test in iOS workflow run 73 without weakening staging
-  security. The mixed-media upload fixture now uses the same canonical
-  lowercase Auth UUID namespace required of server-issued object keys. Failed
-  iOS jobs now report structured `.xcresult` test names and assertions before
-  consulting raw logs, so deliberately injected reply failures and corrupt-store
-  recovery fixtures cannot mask the actual release blocker.
+  security. The mixed-media upload fixture now uses the same canonical lowercase
+  Auth UUID namespace required of server-issued object keys. Failed iOS jobs now
+  report structured `.xcresult` test names and assertions before consulting raw
+  logs, so deliberately injected reply failures and corrupt-store recovery
+  fixtures cannot mask the actual release blocker.
 - Fixed the critical historical scan recovery migration that blocked fresh
   Supabase catalog replay. Its former 43 KiB routine and nested ledger predicate
   are decomposed into bounded, no-grant private validators behind the unchanged
@@ -108,9 +108,8 @@ TestFlight, App Store, support, and QA.
   1550. Identity-merge scan recovery used a schema-qualified `SUBSTRING` name
   with its unqualified `FROM` expression form; both key and URL extraction calls
   now use ordinary comma-separated `pg_catalog.SUBSTRING` invocation. A
-  depth-aware fleet contract rejects qualified `FROM`, `FOR`, or `SIMILAR`
-  forms in every migration, and copied operator SQL was corrected at the same
-  seam.
+  depth-aware fleet contract rejects qualified `FROM`, `FOR`, or `SIMILAR` forms
+  in every migration, and copied operator SQL was corrected at the same seam.
 - Backend workflow run 1551 proved every migration now parses and applies on a
   fresh PostgreSQL catalog. Its remaining two failures were fixture setup:
   overlong identity-merge usernames and a second plain `public.users` insert
@@ -118,20 +117,66 @@ TestFlight, App Store, support, and QA.
   now use constraint-valid usernames and trigger-aware profile upserts, with
   source contracts preventing either regression.
 - Backend workflow run 1552 proved those setup corrections were only partial
-  closure. Inline recovery passed its first 15 assertions and then raised in
-  the mixed-video finalizer, exposing the compatibility-frame contradiction now
+  closure. Inline recovery passed its first 15 assertions and then raised in the
+  mixed-video finalizer, exposing the compatibility-frame contradiction now
   corrected by a forward migration. The separate identity-merge fixture still
   aborted before TAP; it now emits phase, SQLSTATE, PostgreSQL message, detail,
   and hint and returns one failed assertion instead of another opaque bad plan.
   Run 1552 stopped before production preparation and made no production
   mutation; an exact-remediated-SHA catalog replay remains required.
 - The next exact-SHA catalog run passed the complete 30-assertion inline/video
-  fixture and localized the sole remaining failure to identity fixture setup:
-  a synthetic PL/pgSQL `scan_id` variable was ambiguous beside
-  `jobs.scan_id`. It is now named `fixture_scan_id`; a source contract rejects
-  the old declaration. Production merge/recovery code had not run, so it was
-  not weakened for this fixture-only SQLSTATE `42702`. The run stopped before
-  production preparation and made no production mutation.
+  fixture and localized the sole remaining failure to identity fixture setup: a
+  synthetic PL/pgSQL `scan_id` variable was ambiguous beside `jobs.scan_id`. It
+  is now named `fixture_scan_id`; a source contract rejects the old declaration.
+  Production merge/recovery code had not run, so it was not weakened for this
+  fixture-only SQLSTATE `42702`. The run stopped before production preparation
+  and made no production mutation.
+- Production deploy contracts now pin cumulative Edge Function planning from the
+  most recent successful production workflow SHA rather than only the triggering
+  commit. A safe ancestor check is mandatory; unavailable or unsafe baselines
+  select the full fleet. The job now has the missing read-only Actions
+  permission needed to list successful runs in a private repository. This
+  guarantees a fixture-only follow-up after failed catalog runs still deploys
+  every pending scan and Explore runtime change before production smoke tests.
+- Release guidance now requires a manual `iOS Build and Test` dispatch on the
+  final exact SHA when backend-only follow-up commits cause ordinary iOS scope
+  detection to skip macOS work. Scope-only success cannot replace the full unit
+  target and current-SHA Release archive.
+- Field Chat no longer hides its toolbar action after a transient owned-scan
+  `404 scan_not_ready`, plain status `not_found`, or action-level missing
+  message/conversation response. Only terminal ownership, unsupported-scan, or
+  unavailable Explore-post errors set permanent scan-scoped unavailability; the
+  retry path uses one canonical still-syncing message.
+- Multi-file offline uploads now clear durable retry accounting only after the
+  exact complete manifest succeeds and the reset saves. One successful file, an
+  absent queue row, or a failed persistence write can no longer advance staging
+  or reset the generation count before a failing sibling, preventing partial
+  uploads from looping forever at attempt one.
+- A server-complete queued scan no longer clears retry metadata before
+  exact-owner local hydration, promotion, and queue deletion succeed. Repeated
+  local sync failures now persist the definitive owner-row observation before
+  hydration, retain it across relaunch or a later status-endpoint outage, remain
+  outside provider-dispatch eligibility, retain that fence through an explicit
+  manual retry, and advance dedicated bounded recovery accounting instead of
+  restarting from zero or analyzing the same observation twice.
+- Explore publication now reports actual success back to the composer. The
+  client also validates the success flag, echoed scan ID, post UUID, and
+  authoritative location choice and explicit published status before caching
+  the post. Missing status or location is no longer accepted as
+  rolling-compatibility success. The sheet closes only after that
+  boundary; a failed or malformed response keeps the user’s draft in place and
+  presents a retry message.
+- Explore’s final database publication is now one service-role-only,
+  invoker-rights transaction. It revalidates and locks the owner scan and
+  replaces post metadata, selected media, hashtags, and resolved-community
+  publication state together. It also rechecks the locked community request, so
+  a transaction-time `needs_id` state returns conflict without publishing. A
+  backward-compatible request that omits `location_sharing` now resolves the
+  scan’s current geoprivacy only after taking that same owner-row lock, preventing
+  a concurrent privacy change from publishing with a stale default. A late
+  insert or constraint failure restores the previous complete snapshot
+  instead of leaving a visible partial post or erasing healthy media while
+  reporting failure.
 - Production function deployment now extracts every selected critical scan
   function from the graph plan and deploys the nine-function compatibility unit
   in its required order before unrelated parallel batches. Duplicate plan

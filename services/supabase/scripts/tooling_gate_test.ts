@@ -265,6 +265,47 @@ Deno.test("iOS project guardrail runs the DTO contract gate for all app sources"
   );
 });
 
+Deno.test("production deploy plans every runtime change since the last successful release", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+
+  for (
+    const requiredFragment of [
+      "fetch-depth: 0",
+      "actions: read",
+      "actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=1",
+      'git merge-base --is-ancestor "$last_success_sha" "$HEAD_SHA"',
+      "Planning from last successful production deploy: $last_success_sha",
+      '--base "$last_success_sha"',
+      '--head "$HEAD_SHA"',
+      "Unable to resolve a safe successful deploy baseline; planning a full deployment.",
+    ]
+  ) {
+    assert(
+      workflow.includes(requiredFragment),
+      `Cumulative production deployment contract is missing: ${requiredFragment}`,
+    );
+  }
+
+  const planIndex = workflow.indexOf(
+    "- name: Plan affected Edge Function deployment",
+  );
+  const databasePushIndex = workflow.indexOf(
+    "- name: Push Database Migrations",
+  );
+  assert(
+    planIndex >= 0 &&
+      databasePushIndex > planIndex,
+    "The cumulative function plan must be resolved before production migration begins.",
+  );
+
+  const fullDeployFallbacks =
+    workflow.match(/--all > "\$plan_file"/g)?.length ?? 0;
+  assert(
+    fullDeployFallbacks >= 2,
+    "Manual dispatch and an unsafe or unavailable baseline must both select the full fleet.",
+  );
+});
+
 Deno.test("production deploy reports aggregate Explore publication health", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
   const synchronizeIndex = workflow.indexOf(

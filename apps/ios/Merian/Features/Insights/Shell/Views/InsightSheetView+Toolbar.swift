@@ -103,8 +103,9 @@ extension InsightSheetView {
                                 let isAvailable = try await MerianNetworkClient.shared
                                     .ensureCloudScanAvailableForFieldChat(scan: record)
                                 guard isAvailable else {
-                                    let message = "This observation is still syncing. Please try Field chat again in a moment."
-                                    presentFieldChatUnavailableToast(message)
+                                    presentFieldChatUnavailableToast(
+                                        InsightChatViewModel.stillSyncingMessage
+                                    )
                                     return
                                 }
                                 chatViewModel.markAvailable(scanId: scanId)
@@ -133,9 +134,7 @@ extension InsightSheetView {
             },
             shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
             onShareToExplore: viewModel.canShareToExplore ? { draft in
-                Task {
-                    await viewModel.shareToExplore(draft, modelContext: modelContext)
-                }
+                await viewModel.shareToExplore(draft, modelContext: modelContext)
             } : nil,
             onEditExplorePost: viewModel.state.sharedExplorePostId != nil ? { draft in
                 Task {

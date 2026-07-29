@@ -109,8 +109,16 @@ The workflow performs the following steps:
    `deno task test` with an explicit database URL, so route-local tests cannot
    be omitted by a curated CI list and database-backed tests cannot silently
    skip.
-9. Builds an affected-function deployment plan from the pushed Git diff. Manual
-   dispatch and an unresolvable Git diff safely select the full fleet.
+9. Builds an affected-function deployment plan across the cumulative Git range
+   from the most recent successful production workflow SHA through the current
+   exact SHA—not merely the triggering commit. The baseline must be a 40-character
+   hexadecimal SHA and an ancestor of the current revision. Manual dispatch,
+   an unavailable workflow baseline, or an unsafe Git relationship selects the
+   full fleet. The workflow token has only `actions: read` plus
+   `contents: read`, which is sufficient to list the repository's prior
+   workflow runs without granting write access. Therefore a fixture-only
+   follow-up after one or more failed runs still deploys every pending runtime
+   change.
 10. Prepares a Postgres connection string for database migrations without
     calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
     can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
@@ -3254,7 +3262,7 @@ Treat these components as one compatibility release:
    `public.complete_scan_ingestion_finalization_with_response(uuid,uuid,jsonb,jsonb,text[])`
    for `service_role` in `internal.privileged_routine_grants`; a grant without
    that reviewed row must fail the disposable catalog before `db push`. Also
-   apply the five incident migrations in timestamp order before any
+   apply the six incident migrations in timestamp order before any
    scan-producing bundle:
 
    - `20260728230000_recover_inline_scan_ingestion_completions.sql` installs the
@@ -3279,13 +3287,23 @@ Treat these components as one compatibility release:
      declared frame subset. It preserves frames as non-display thumbnail inputs
      while requiring every standalone image, playback video, and audio item as
      an exact owner-matched ready row.
+   - `20260729024157_atomic_explore_scan_publication.sql` installs the
+     service-role-only invoker transaction used by
+     `share-scan-to-explore`. It revalidates and locks the exact owner scan,
+     accepts only bounded media URLs from that scan, and replaces post metadata,
+     media, hashtags, and resolved-community publication state together. It
+     locks an existing community request before its scan, matching the legacy
+     publisher’s order so concurrent consensus work cannot form a deadlock
+     cycle.
 
    Do not reorder or selectively apply these migrations. The fourth migration
    verifies the current merge routine and fails closed if it cannot install its
    fence at the exact pre-reparent boundary. The fifth obtains the current scan
    finalizer definition twice and aborts unless it can replace each of two known
    blocks exactly once and install exactly one projection and frame-classifier
-   call.
+   call. The sixth must precede the updated Explore function because that bundle
+   removes every separate post/media/hashtag mutation path and invokes only the
+   atomic RPC.
 2. From one exact SHA, run the normal production backend workflow. The
    graph-derived plan for this repair must select `generate-upload-urls`,
    `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
@@ -3362,8 +3380,9 @@ Do not modify or weaken either production routine for this test-only error.
 
 That run stopped after 23 of 24 catalog files, before production connection
 preparation, `db push`, secret synchronization, function deployment, or smoke
-tests. It made no production mutation. Require another exact-SHA run to pass all
-24 files and then continue through the normal ordered deployment.
+tests. It made no production mutation. The current suite discovers 25 files
+after adding the atomic Explore rollback fixture. Require another exact-SHA run
+to pass all 25 and then continue through the normal ordered deployment.
 
 After `db push`, use an owner connection for this bounded catalog check:
 
@@ -3530,6 +3549,16 @@ Use disposable staging identities and media:
     `503 scan_media_restore_unavailable` must preserve all objects. A subsequent
     retry must recognize the canonical durable URLs and publish without
     consuming staging twice.
+18. Publish an eligible scan, then inject a failure after replacement post and
+    media writes but before hashtag completion. The request must fail and the
+    previous post ID, timestamp, metadata, media, and hashtags must remain
+    byte-for-byte equivalent with no duplicate or partial rows. Remove the
+    fault and retry the same scan; the response must explicitly report
+    `publication_status = published`. Separately return a malformed HTTP `200`
+    with false success, a mismatched scan ID, invalid post UUID, missing
+    authoritative location, missing status, and non-published status. The iOS
+    composer must reject every case, retain its draft, and remain available for
+    retry.
 
 ### Monitoring and incident triggers
 
@@ -3561,6 +3590,16 @@ Alert on structured events `explore/restored_media_persistence_unconfirmed` and
 during a bounded transport/database incident; the latter requires immediate
 storage reconciliation. Never respond to either alert by deleting a promoted URL
 until an exact owner-row read proves it is unreferenced.
+
+### Matching iOS exact-SHA gate
+
+The iOS workflow intentionally skips expensive macOS work for an ordinary
+backend-only push. If the final scan remediation SHA has no iOS build input,
+manually dispatch `iOS Build and Test` against that exact revision after the
+backend gate is green. Verify the scope reason identifies manual dispatch, the
+full unit-test target passes, and the validation-only Release archive succeeds
+from the same SHA. A green scope job with skipped macOS jobs proves only that
+changed-file classification worked; it does not satisfy the release gate.
 
 ### Rollback and exit criteria
 
@@ -4581,10 +4620,13 @@ After deployment:
   records tie the deployed versions of `generate-upload-urls`,
   `identify-multimodal`, `identify`, `identify-describe`, `audio-spec`,
   `check-scan-status`, `reconcile-scan-media-assets`, `repair-scan-image`, and
-  `share-scan-to-explore` to the same reviewed SHA. Verify the four timestamped
-  incident migrations through `20260728233000` are present first. Submit a
+  `share-scan-to-explore` to the same reviewed SHA. Verify the six incident
+  migrations through
+  `20260729024157_atomic_explore_scan_publication.sql` are present first. Submit a
   brand-new scan, require immediate owner status `found` after identify `200`,
-  then open Field Chat and publish it to Explore. Run the eligible legacy
+  then open Field Chat and publish it to Explore. Force one late Explore
+  relational failure and prove the previous complete post survives before
+  retrying to an explicit `published` response. Run the eligible legacy
   repair, active/retryable deferral, exact policy-rejection block, cross-owner
   isolation, staged-media restoration, interrupted identity merge, dual-source
   legacy audio, and multi-file generation-fence cases in

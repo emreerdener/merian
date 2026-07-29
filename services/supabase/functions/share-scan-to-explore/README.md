@@ -13,7 +13,17 @@ eligibility to the resulting user ID; the iOS app never receives a service-role
 key.
 
 After those user checks, the server-side admin client refreshes the public
-author projection and invokes other reviewed publication helpers.
+author projection, completes restoration/moderation preparation, and invokes
+`publish_scan_to_explore_atomically`. That `SECURITY INVOKER` RPC revalidates
+and locks the exact owner scan, validates that every bounded media URL belongs
+to it, rechecks any community request after taking its row lock, and replaces
+the post row, media snapshot, hashtag edges, and resolved community-publication
+state in one service-role transaction. A transaction-time `needs_id` request
+returns conflict without changing the prior publication. The request lock
+precedes the scan lock to match the existing community publisher and prevent a
+lock-order cycle. The RPC is revoked from `PUBLIC`, `anon`, and `authenticated`;
+no privileged definer is introduced for ordinary publication.
+
 `refresh_public_author_identity(uuid)` and the other privileged database RPCs
 remain granted only to `service_role`, and each service-exposed definer calls
 `internal.require_service_role()`. Migration
@@ -77,9 +87,11 @@ client or grant the maintenance RPC to users.
 }
 ```
 
-`location_sharing` is optional for backward compatibility. When omitted, the new
-or reactivated post uses the scan's current `geoprivacy` as the initial
-post-owned value.
+`location_sharing` is optional for backward compatibility. When omitted, the
+atomic publication RPC resolves the new or reactivated post's initial post-owned
+value from the scan's current `geoprivacy` after locking the exact owner row. A
+concurrent privacy change therefore cannot publish with a stale Edge-layer
+default.
 
 `recovery_scan` is optional and intended only for an older/interrupted local
 observation whose authenticated owner row is absent. It contains bounded
@@ -180,16 +192,17 @@ Legacy `hidden` input is accepted as `private`.
 }
 ```
 
-All successful shares return `200` with `publication_status = "published"`. For
+All successful shares return `200`; `publication_status` must be exactly
+`published`. A missing or different value is not publication evidence. For
 standalone audio or an audio-bearing video, `_shared/audioModeration.ts` must
 resolve an approved attestation for every audible selected item before the
-post/media upsert runs. A matching attestation can be reused; otherwise Gemini
-evaluates speech and non-speech content live. Flagged content returns `422`;
-provider or configuration failures on a cache miss return `503`. In both cases
-nothing is created, reactivated, or made public. Cache misses reserve the
-database-owned `explore_audio_moderation` quota before provider dispatch. The
-reservation atomically applies the durable entitlement, model policy, daily
-limit, and shared per-user/IP rate limits.
+transactional publication RPC runs. A matching attestation can be reused;
+otherwise Gemini evaluates speech and non-speech content live. Flagged content
+returns `422`; provider or configuration failures on a cache miss return `503`.
+In both cases nothing is created, reactivated, or made public. Cache misses
+reserve the database-owned `explore_audio_moderation` quota before provider
+dispatch. The reservation atomically applies the durable entitlement, model
+policy, daily limit, and shared per-user/IP rate limits.
 
 The same mandatory quota-backed moderation preparation is reused by
 `request-community-identification` and media-bearing
@@ -247,7 +260,11 @@ to historical blank WAV snapshots in bounded service-role-only batches.
   eligibility.
 - Media selections are validated before the post is reported as shared. Public
   feed/share-state visibility requires at least one saved `explore_post_media`
-  row, so a failed media snapshot cannot leave a phantom visible Explore post.
+  row. The final owner check, post upsert, complete media replacement, hashtag
+  replacement, community-readiness recheck, and resolved-community publication
+  are one transaction. A request that is still `needs_id` fails with conflict.
+  Any relational failure rolls back the prior post metadata, timestamp, media,
+  and hashtags rather than exposing a partial publication.
 - Restored video keys are promoted before the public media snapshot is written.
   If promotion fails or selected video media still cannot be resolved, the
   request fails cleanly instead of publishing sampled frames as a video.
@@ -300,9 +317,13 @@ make validate-supabase-migrations
 make test-supabase-privileged-routines
 deno check --config services/supabase/functions/deno.json services/supabase/functions/share-scan-to-explore/index.ts
 deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/_tests/atomicExplorePublicationMigrationContract.test.ts \
   services/supabase/functions/_shared/scanRecovery_test.ts \
   services/supabase/functions/share-scan-to-explore/restoredMediaValidation_test.ts \
   services/supabase/functions/share-scan-to-explore/db_test.ts
+
+supabase --workdir services test db --local \
+  supabase/tests/atomic_explore_scan_publication_security.sql
 ```
 
 DB integration tests require a running local Supabase Postgres instance at the

@@ -369,7 +369,7 @@ extension OfflineQueueManager {
             )
             return
         }
-        guard hasConfirmedSuccessfulUploadManifest(
+        guard resetUploadRetryAccountingIfManifestComplete(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
             expectedObjectKeys: r2Keys
@@ -381,6 +381,16 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "processUploadCompletion: scanId=\(scanId, privacy: .public) waiting for sibling callback outcomes"
             )
+            return
+        }
+        // Retry accounting belongs to the logical scan manifest, not an
+        // individual file. The helper above verifies and resets this boundary
+        // without yielding, so a partial sibling set cannot clear it.
+        guard isUploadCompletionCurrent(
+            scanId: scanId,
+            generation: uploadIdentity.syncGeneration,
+            token: completionToken
+        ) else {
             return
         }
         MerianLog.data.debug(
@@ -551,7 +561,6 @@ extension OfflineQueueManager {
 
         switch disposition {
         case .success:
-            clearQueueRetry(scanId: scanId)
             recordQueueEvent(
                 scanId: scanId,
                 jobId: Self.scanIngestionJobId(scanId: scanId),
@@ -1744,6 +1753,8 @@ extension OfflineQueueManager {
         expectedGeneration: UUID?,
         serverPollToken: UUID? = nil
     ) async -> ScanStatusRecoveryAction {
+        let hadDurableCompletedServerResult =
+            hasDurableCompletedServerResult(scanId: scanId)
         guard !Task.isCancelled,
               isServerIngestionPollCurrent(
                   scanId: scanId,
@@ -1753,7 +1764,9 @@ extension OfflineQueueManager {
                   scanId: scanId,
                   expectedGeneration: expectedGeneration
               ) else {
-            return .unresolved
+            return hadDurableCompletedServerResult
+                ? .waitForServer(1)
+                : .unresolved
         }
         let requiredVideoCount = requiredVideoCountForQueuedScan(scanId: scanId)
         let response: ScanStatusResponse
@@ -1766,6 +1779,13 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "recoverCompletedInferenceFromServer: status check failed scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
+            if hadDurableCompletedServerResult {
+                return await deferCompletedServerResultRecovery(
+                    scanId: scanId,
+                    expectedGeneration: expectedGeneration,
+                    serverPollToken: serverPollToken
+                )
+            }
             return .unresolved
         }
 
@@ -1778,7 +1798,9 @@ extension OfflineQueueManager {
                   scanId: scanId,
                   expectedGeneration: expectedGeneration
               ) else {
-            return .unresolved
+            return response.isFound || hadDurableCompletedServerResult
+                ? .waitForServer(1)
+                : .unresolved
         }
 
         if let jobStatus = response.jobStatus {
@@ -1792,14 +1814,34 @@ extension OfflineQueueManager {
         MerianLog.data.debug(
             "recoverCompletedInferenceFromServer: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) status=\(response.status.rawValue, privacy: .public) jobStatus=\((response.jobStatus?.rawValue ?? "nil"), privacy: .public) jobStage=\((response.jobStage ?? "nil"), privacy: .public) requiredVideos=\(requiredVideoCount, privacy: .public)"
         )
+        if action != .recovered,
+           hasDurableCompletedServerResult(scanId: scanId) {
+            // A prior exact-owner `found` observation is stronger than a later
+            // unavailable or temporarily inconsistent status response. Keep
+            // this row server-owned and bound recovery rather than allowing a
+            // second inference dispatch.
+            return await deferCompletedServerResultRecovery(
+                scanId: scanId,
+                expectedGeneration: expectedGeneration,
+                serverPollToken: serverPollToken
+            )
+        }
         switch action {
         case .recovered:
-            return await recoverFoundScanFromServer(
+            let didRecover = await recoverFoundScanFromServer(
                 scanId: scanId,
                 reason: reason,
                 expectedGeneration: expectedGeneration,
                 serverPollToken: serverPollToken
-            ) ? .recovered : .unresolved
+            )
+            if didRecover {
+                return .recovered
+            }
+            return await deferCompletedServerResultRecovery(
+                scanId: scanId,
+                expectedGeneration: expectedGeneration,
+                serverPollToken: serverPollToken
+            )
         case .waitForServer(let delay):
             scheduleServerIngestionPoll(
                 scanId: scanId,
@@ -1854,11 +1896,11 @@ extension OfflineQueueManager {
               ) else {
             return false
         }
-        clearServerIngestionState(
-            scanId: scanId,
-            preservingPollToken: serverPollToken
-        )
-        clearQueueRetry(scanId: scanId)
+        // A server-side completion is not yet a local recovery success. Keep
+        // both its latest status and persisted retry/backoff history until the
+        // result has been hydrated, promoted, and the queue row has been
+        // deleted. Clearing either here made a failed local sync look like a
+        // fresh attempt and discarded useful recovery state.
         let didSyncTarget: Bool
         if let context = modelContext {
             didSyncTarget = await AppDIContainer.shared.scanRepository.syncHistoricalScanDown(
@@ -1881,26 +1923,31 @@ extension OfflineQueueManager {
             return false
         }
 
-        let recoveredLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
+        var recoveredLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
+        if recoveredLocalRecord == nil,
+           !didSyncTarget,
+           let context = modelContext {
+            await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(
+                modelContext: context
+            )
+            guard !Task.isCancelled,
+                  isServerIngestionPollCurrent(
+                      scanId: scanId,
+                      token: serverPollToken
+                  ),
+                  isInferenceGenerationCurrent(
+                      scanId: scanId,
+                      expectedGeneration: expectedGeneration
+                  ) else {
+                return false
+            }
+            ScanLibraryEvents.postLibraryDidUpdate()
+            recoveredLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
+        }
         guard let recoveredLocalRecord else {
             MerianLog.data.debug(
-                "recoverCompletedInferenceFromServer: server found scan but no local record after sync scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public)"
+                "recoverCompletedInferenceFromServer: server found scan but no local record after targeted/full sync scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public)"
             )
-            if !didSyncTarget, let context = modelContext {
-                await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
-                guard !Task.isCancelled,
-                      isServerIngestionPollCurrent(
-                          scanId: scanId,
-                          token: serverPollToken
-                      ),
-                      isInferenceGenerationCurrent(
-                          scanId: scanId,
-                          expectedGeneration: expectedGeneration
-                      ) else {
-                    return false
-                }
-                ScanLibraryEvents.postLibraryDidUpdate()
-            }
             return false
         }
 
@@ -1960,6 +2007,87 @@ extension OfflineQueueManager {
         )
 
         return true
+    }
+
+    private func deferCompletedServerResultRecovery(
+        scanId: String,
+        expectedGeneration: UUID?,
+        serverPollToken: UUID?
+    ) async -> ScanStatusRecoveryAction {
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
+            // The definitive server result still makes a second provider
+            // dispatch unsafe. A replacement owner will continue recovery.
+            return .waitForServer(1)
+        }
+
+        let currentAttempt = queueAttemptCount(for: scanId)
+        guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(
+            currentAttempt: currentAttempt
+        ) else {
+            let message = [
+                "Naturebook found this completed analysis in the cloud but",
+                "could not restore it on this device after several attempts.",
+                "You can retry manually when the connection is stable."
+            ].joined(separator: " ")
+            markQueuedScanNeedsAttention(
+                scanId: scanId,
+                code: "server_result_local_recovery_exhausted",
+                message: message
+            )
+            return .terminalFailure(message)
+        }
+
+        let delay = OfflineQueueRetryPolicy.jitteredDelay(
+            forAttempt: currentAttempt + 1
+        )
+        let retryMessage =
+            Self.completedServerResultRecoveryMessage
+        if let container = modelContext?.container {
+            let retryActor = resolvedQueueDbActor(container: container)
+            let retries = await retryActor.scheduleServerResultRecoveryRetry(
+                id: scanId,
+                expectedGeneration: expectedGeneration,
+                code: Self.completedServerResultRecoveryCode,
+                message: retryMessage,
+                delay: delay
+            )
+            if let retries {
+                MerianLog.data.debug(
+                    "deferCompletedServerResultRecovery: scheduled scanId=\(scanId, privacy: .public) retry=\(retries, privacy: .public)"
+                )
+                OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
+            } else {
+                MerianLog.data.debug(
+                    "deferCompletedServerResultRecovery: durable owner changed or retry save failed scanId=\(scanId, privacy: .public)"
+                )
+            }
+        }
+
+        guard !Task.isCancelled,
+              isServerIngestionPollCurrent(
+                  scanId: scanId,
+                  token: serverPollToken
+              ),
+              isInferenceGenerationCurrent(
+                  scanId: scanId,
+                  expectedGeneration: expectedGeneration
+              ) else {
+            return .waitForServer(delay)
+        }
+        scheduleServerIngestionPoll(
+            scanId: scanId,
+            delay: delay,
+            reason: "completed cloud result local recovery"
+        )
+        return .waitForServer(delay)
     }
 
     private func requiredVideoCountForQueuedScan(scanId: String) -> Int {
@@ -2084,8 +2212,9 @@ extension OfflineQueueManager {
         )
     }
 
-    /// Records durable retry metadata for a scan and resets it to `.staged` for the next
-    /// sync cycle after the persisted backoff window.
+    /// Records durable retry metadata for a scan after the persisted backoff
+    /// window. Transient inference failures retreat to `.staged`; a definitive
+    /// cloud result stays `.inferencing` and retries only owner-result recovery.
     ///
     /// Before retrying, polls `/check-scan-status` to detect the outbox gap: if the edge
     /// function already persisted the scan but the background download task never delivered

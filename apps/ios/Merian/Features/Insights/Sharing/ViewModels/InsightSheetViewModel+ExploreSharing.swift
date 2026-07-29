@@ -52,10 +52,10 @@ extension InsightSheetViewModel {
     func shareToExplore(
         _ draft: ExplorePostComposerDraft,
         modelContext: ModelContext
-    ) async {
+    ) async -> Bool {
         guard canShareToExplore,
               let record = fetchActiveLocalRecord(modelContext: modelContext),
-              !state.isSharingToExplore else { return }
+              !state.isSharingToExplore else { return false }
 
         state.isSharingToExplore = true
         defer { state.isSharingToExplore = false }
@@ -87,11 +87,13 @@ extension InsightSheetViewModel {
                     self?.state.showExploreSheet = true
                 }
             }
+            return true
         } catch {
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
             }
+            return false
         }
     }
 

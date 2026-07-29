@@ -10,6 +10,7 @@ import {
   buildRestoredAudioCapturedMedia,
   buildRestoredVideoCapturedMedia,
   fetchShareEligibleScan,
+  publishExplorePostAtomically,
   resolveRestoredMediaPersistence,
   restoredMediaPersistenceAllowsRollback,
   scanContainsDurableMediaUrls,
@@ -23,6 +24,12 @@ import type { OwnedScanRecoveryRow } from "../_shared/scanRecovery.ts";
 
 const scanId = "00000000-0000-0000-0000-000000000001";
 const userId = "00000000-0000-0000-0000-000000000002";
+
+const unusedModerationQuota = {
+  beforeProvider() {
+    throw new Error("Image-only publication must not reserve audio moderation");
+  },
+};
 
 function restorationScan(
   overrides: Partial<ShareEligibleScanRow> = {},
@@ -92,6 +99,127 @@ Deno.test("scanContainsDurableMediaUrls requires every exact restored URL", () =
     ]),
     false,
   );
+});
+
+Deno.test("Explore publication sends one complete transactional RPC", async () => {
+  const imageUrl = "https://media.merian.app/public_uploads/free/user/one.webp";
+  const calls: Array<{ name: string; arguments_: unknown }> = [];
+  const supabase = {
+    rpc(name: string, arguments_: unknown) {
+      calls.push({ name, arguments_ });
+      return Promise.resolve({
+        data: {
+          post_id: "00000000-0000-4000-8000-000000000010",
+          shared_at: "2026-07-29T02:45:00Z",
+          location_sharing: "obscured",
+          publication_status: "published",
+        },
+        error: null,
+      });
+    },
+  } as unknown as SupabaseClient;
+  const scan = restorationScan({ image_storage_urls: [imageUrl] });
+
+  const result = await publishExplorePostAtomically(
+    scan,
+    userId,
+    "Monarch",
+    "Observed on milkweed.",
+    null,
+    undefined,
+    ["pollinators"],
+    supabase,
+    unusedModerationQuota,
+  );
+
+  assertEquals(calls, [{
+    name: "publish_scan_to_explore_atomically",
+    arguments_: {
+      p_scan_id: scanId,
+      p_user_id: userId,
+      p_species_common_name: "Monarch",
+      p_field_notes: "Observed on milkweed.",
+      p_location_sharing: null,
+      p_media_rows: [{
+        kind: "image",
+        url: imageUrl,
+        thumbnail_url: imageUrl,
+        order_index: 0,
+        duration_seconds: null,
+        has_audio: false,
+      }],
+      p_hashtags: ["pollinators"],
+    },
+  }]);
+  assertEquals(result.id, "00000000-0000-4000-8000-000000000010");
+  assertEquals(result.location_sharing, "obscured");
+  assertEquals(result.publication_status, "published");
+});
+
+Deno.test("Explore publication rejects an unconfirmed transactional response", async () => {
+  const imageUrl = "https://media.merian.app/public_uploads/free/user/one.webp";
+  const supabase = {
+    rpc() {
+      return Promise.resolve({
+        data: {
+          post_id: "00000000-0000-4000-8000-000000000010",
+          shared_at: "2026-07-29T02:45:00Z",
+          location_sharing: "private",
+          publication_status: "draft",
+        },
+        error: null,
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      publishExplorePostAtomically(
+        restorationScan({ image_storage_urls: [imageUrl] }),
+        userId,
+        null,
+        null,
+        "private",
+        undefined,
+        [],
+        supabase,
+        unusedModerationQuota,
+      ),
+    Error,
+    "Failed to publish scan to Explore atomically: Invalid database response",
+  );
+});
+
+Deno.test("Explore publication maps a transaction-time pending community request to conflict", async () => {
+  const imageUrl = "https://media.merian.app/public_uploads/free/user/one.webp";
+  const message =
+    "Wait for the community to identify this request before sharing it to Explore.";
+  const supabase = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: { message },
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  const error = await assertRejects(
+    () =>
+      publishExplorePostAtomically(
+        restorationScan({ image_storage_urls: [imageUrl] }),
+        userId,
+        null,
+        null,
+        "private",
+        undefined,
+        [],
+        supabase,
+        unusedModerationQuota,
+      ),
+    PublicHttpError,
+    message,
+  );
+  assertEquals((error as PublicHttpError).status, 409);
 });
 
 Deno.test("restored-media persistence accepts an exact direct update response without rereading", async () => {

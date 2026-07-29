@@ -9,7 +9,7 @@ struct InsightBottomToolbar: ToolbarContent {
     let canShowInsightChat: Bool
     let onInsightChat: () -> Void
     let shareExternally: () -> Void
-    let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
+    let onShareToExplore: ((ExplorePostComposerDraft) async -> Bool)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
     let onAskCommunity: (() -> Void)?
     let onEditCommunityRequest: (() -> Void)?

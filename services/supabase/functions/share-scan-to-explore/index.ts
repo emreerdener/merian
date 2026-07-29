@@ -17,9 +17,7 @@ import {
 import {
   assertCommunityRequestCanPublishToExplore,
   fetchShareEligibleScan,
-  markResolvedCommunityRequestPublishedToExplore,
-  replaceExplorePostHashtags,
-  upsertExplorePost,
+  publishExplorePostAtomically,
 } from "./db.ts";
 import type { SelectedExplorePostMediaItem } from "./db.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -260,15 +258,15 @@ Deno.serve((req: Request) =>
         user.id,
         supabaseAdmin,
       );
-      const locationSharing = requestedLocationSharing ?? scan.geoprivacy;
       await syncPublicAuthorIdentity(user.id, supabaseAdmin);
-      const post = await upsertExplorePost(
+      const post = await publishExplorePostAtomically(
         scan,
         user.id,
         speciesCommonName,
         fieldNotes,
-        locationSharing,
+        requestedLocationSharing,
         mediaItems,
+        hashtags,
         supabaseAdmin,
         {
           beforeProvider: async ({ checksumSha256, policyVersion }) => {
@@ -288,26 +286,20 @@ Deno.serve((req: Request) =>
           },
         },
       );
-      await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
-      await markResolvedCommunityRequestPublishedToExplore(
-        post.id,
-        user.id,
-        supabaseAdmin,
-      );
       runBackground(trackPostHogEvent(user.id, "ExplorePostShared", {
         event_source: "supabase_edge",
         has_audio: post.audible_media_count > 0,
         audio_clip_count: post.audio_clip_count,
         is_mixed_media: post.audio_clip_count > 0 &&
           post.media_kinds.some((kind) => kind !== "audio"),
-        location_sharing: locationSharing,
+        location_sharing: post.location_sharing,
       }));
       return jsonResponse({
         success: true,
         post_id: post.id,
         scan_id: scanId,
         shared_at: post.shared_at,
-        location_sharing: locationSharing,
+        location_sharing: post.location_sharing,
         publication_status: post.publication_status,
       });
     } catch (error) {

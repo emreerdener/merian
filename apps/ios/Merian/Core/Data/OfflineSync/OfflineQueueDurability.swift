@@ -248,6 +248,32 @@ extension ModelContext {
 
 @MainActor
 extension OfflineQueueManager {
+    static var completedServerResultRecoveryCode: String {
+        "server_result_local_recovery_pending"
+    }
+
+    static var completedServerResultRecoveryMessage: String {
+        "The completed cloud analysis could not be restored locally yet."
+    }
+
+    static func isCompletedServerResultRecoveryCode(_ code: String?) -> Bool {
+        code?.hasPrefix("server_result_local_recovery") == true
+    }
+
+    func hasDurableCompletedServerResult(scanId: String) -> Bool {
+        guard let context = modelContext else { return false }
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = (try? context.fetch(descriptor))?.first else {
+            return false
+        }
+        return Self.isCompletedServerResultRecoveryCode(
+            scan.queueLastErrorCode
+        )
+    }
+
     nonisolated static func scanIngestionJobId(scanId: String) -> String {
         "scan-ingestion:\(scanId)"
     }
@@ -494,13 +520,16 @@ extension OfflineQueueManager {
         return attempt
     }
 
-    func clearQueueRetry(scanId: String) {
-        guard let context = modelContext else { return }
+    @discardableResult
+    func clearQueueRetry(scanId: String) -> Bool {
+        guard let context = modelContext else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else { return }
+        guard let scan = (try? context.fetch(descriptor))?.first else {
+            return false
+        }
         scan.queueAttemptCount = 0
         scan.queueLastAttemptAt = nil
         scan.queueNextRetryAt = nil
@@ -523,9 +552,11 @@ extension OfflineQueueManager {
         do {
             try context.save()
             OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
+            return true
         } catch {
             context.rollback()
             MerianLog.data.error("clearQueueRetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
         }
     }
 
@@ -548,16 +579,26 @@ extension OfflineQueueManager {
         guard let scan = (try? context.fetch(descriptor))?.first else { return false }
 
         let snapshot = scan.capturedMediaSnapshot
+        let shouldRecoverCompletedServerResult =
+            Self.isCompletedServerResultRecoveryCode(
+                scan.queueLastErrorCode
+            )
         let hasUploadableMedia = !(scan.inferenceImagePaths ?? snapshot.thumbnailImagePaths).isEmpty
             || !snapshot.audioPaths.isEmpty
             || !snapshot.videoPaths.isEmpty
         scan.queueNextRetryAt = nil
         scan.queueNeedsAttention = false
-        scan.queueLastErrorCode = nil
-        scan.queueLastErrorMessage = nil
+        scan.queueLastErrorCode = shouldRecoverCompletedServerResult
+            ? Self.completedServerResultRecoveryCode
+            : nil
+        scan.queueLastErrorMessage = shouldRecoverCompletedServerResult
+            ? Self.completedServerResultRecoveryMessage
+            : nil
         scan.queueUpdatedAt = Date()
         if scan.queueState == .failed {
-            scan.queueState = hasUploadableMedia ? .pending : .staged
+            scan.queueState = shouldRecoverCompletedServerResult
+                ? .inferencing
+                : (hasUploadableMedia ? .pending : .staged)
         }
         if !snapshot.videoPaths.isEmpty {
             userRequestedLargeUploadScanIds.insert(scanId)
@@ -566,6 +607,15 @@ extension OfflineQueueManager {
             job.status = .pending
             job.updatedAt = Date()
             job.nextRunAt = nil
+            if shouldRecoverCompletedServerResult {
+                job.lastErrorCode =
+                    Self.completedServerResultRecoveryCode
+                job.lastErrorMessage =
+                    Self.completedServerResultRecoveryMessage
+            } else {
+                job.lastErrorCode = nil
+                job.lastErrorMessage = nil
+            }
         }
         context.insert(OfflineQueueEvent(
             jobId: Self.scanIngestionJobId(scanId: scanId),
@@ -644,6 +694,9 @@ extension OfflineQueueManager {
         job.status = .complete
         job.updatedAt = Date()
         job.nextRunAt = nil
+        job.lastErrorCode = nil
+        job.lastErrorMessage = nil
+        job.lastHTTPStatus = nil
         do {
             try context.save()
             OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
@@ -664,6 +717,16 @@ extension OfflineQueueManager {
         scan.queueLastServerStage = response.jobStage
         scan.queueLastServerRetryAfter = retryAfterDate
         scan.queueUpdatedAt = Date()
+        if response.isFound {
+            // Persist the owner-row observation before local hydration. If the
+            // app terminates or the next status probe is unavailable, this
+            // marker keeps orphan reconciliation from moving a known-complete
+            // scan back to provider-dispatch eligibility.
+            scan.queueLastErrorCode =
+                Self.completedServerResultRecoveryCode
+            scan.queueLastErrorMessage =
+                Self.completedServerResultRecoveryMessage
+        }
         if let retryAfterDate {
             scan.queueNextRetryAt = retryAfterDate
         }
@@ -672,6 +735,12 @@ extension OfflineQueueManager {
             job.serverStage = response.jobStage
             job.serverRetryAfter = retryAfterDate
             job.updatedAt = Date()
+            if response.isFound {
+                job.lastErrorCode =
+                    Self.completedServerResultRecoveryCode
+                job.lastErrorMessage =
+                    Self.completedServerResultRecoveryMessage
+            }
             if let retryAfterDate {
                 job.nextRunAt = retryAfterDate
                 job.status = .waiting
