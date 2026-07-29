@@ -66,7 +66,8 @@ The workflow performs the following steps:
    `contents: write` to the taxonomy checklist's isolated follow-up job. The
    import job itself remains `contents: read` and passes only a one-day artifact
    to that writer.
-3. Installs the exact reviewed Deno `2.9.2` runtime and Supabase CLI `2.109.1`.
+3. Installs the exact reviewed Deno `2.9.2` runtime and Supabase CLI `2.109.1`,
+   then executes the repository pin guard before any config parse or mutation.
 4. Fails fast if required deployment, RevenueCat, DwC-A pseudonym, or dedicated
    R2 Object Read credentials are missing; if either webhook credential is
    shorter than 32 characters; if the DwC-A key is invalid Base64 or decodes
@@ -170,6 +171,11 @@ history. Top-level timeout guards use session `SET` plus matching `RESET`, not
 `SET LOCAL`, so they remain effective during fresh replay. Historical applied
 files that contain explicit controls remain immutable compatibility artifacts,
 not future examples.
+
+The deploy workflow, database catalog gate, and mutation-capable Supabase Make
+targets run `require_supabase_cli_version.sh` before config parsing or mutation.
+An exact-pin failure is a toolchain failure: install/switch to `2.109.1`; never
+rewrite the checked-in `[local_smtp]` section to accommodate an older parser.
 
 Checked-in migrations may not contain `CREATE INDEX CONCURRENTLY`,
 `DROP INDEX CONCURRENTLY`, or `REINDEX ... CONCURRENTLY`, including executable

@@ -116,9 +116,9 @@ import SwiftData
     /// Successful members observed for the current logical upload manifest.
     ///
     /// URLSession removes a completed task before its asynchronous result
-    /// handler necessarily runs. Requiring every expected object key here
-    /// prevents a successful sibling from advancing a scan while a failed
-    /// sibling's callback is still queued.
+    /// handler necessarily runs. Requiring duplicate-free equality with the
+    /// expected object-key set prevents a successful sibling from advancing a
+    /// scan while a failed or stale sibling's callback is still queued.
     @ObservationIgnored var uploadCompletionStates:
         [String: MediaStagingUploadCompletionState] = [:]
 
@@ -284,7 +284,7 @@ import SwiftData
               state.generation == generation else {
             return false
         }
-        return state.containsEvery(expectedObjectKeys: expectedObjectKeys)
+        return state.matchesExactly(expectedObjectKeys: expectedObjectKeys)
     }
 
     func clearUploadCompletionState(

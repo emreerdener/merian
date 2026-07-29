@@ -38,8 +38,9 @@ steps are tracked in the
 > the required service-role table operations while browser-facing roles retain
 > no writes, and both fixtures assert that boundary. The remediation also
 > preserves offline retry history and requires the durable completed-upload
-> transition to commit before inference starts. These corrections have not been
-> deployed. The release remains held until one reviewed exact SHA passes all 26
+> transition to commit before inference starts. No successful exact-SHA
+> deployment evidence for these corrections has been retained yet. The release
+> remains held until one reviewed exact SHA passes all 26
 > current catalog files, completes the ordered backend deployment, passes the
 > matching hosted iOS gate, and clears joined video, Field Chat, offline, and
 > Explore/Ask the Community staging smokes. See the

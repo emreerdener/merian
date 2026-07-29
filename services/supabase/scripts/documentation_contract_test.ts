@@ -198,6 +198,10 @@ Deno.test("database documentation preserves migration, RLS, and index safety", a
     backend,
     "`pg_catalog.SUBSTRING(value, pattern)`, not `pg_catalog.SUBSTRING(value FROM pattern)`",
   );
+  assertStringIncludes(
+    backend,
+    "mutation-capable Make targets enforce this exact pin before touching a database or deploying a Function",
+  );
 });
 
 Deno.test("operator documentation preserves destructive-queue and evidence rules", async () => {
@@ -273,6 +277,10 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
   assertStringIncludes(
     runbook,
     "If key resolution exhausts its five attempts on a retryable status such as HTTP 502",
+  );
+  assertStringIncludes(
+    runbook,
+    "run `require_supabase_cli_version.sh` before config parsing or mutation",
   );
   assertStringIncludes(runbook, "rerun the same workflow SHA");
   assertStringIncludes(
@@ -837,6 +845,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Inline image bytes are authoritative. A current foreground still sends `imageBase64s` and `r2ObjectKeys: []`.",
       "A malformed or partial signing response starts no upload.",
       "the combined non-superseded capture-key union cannot exceed six",
+      "the accumulator equals the duplicate-free exact complete expected key set",
+      "Sanitized filename/object-key collisions are rejected locally before signing or upload.",
       "`markScanAsStaged` must atomically save the keys, reset upload retry accounting",
       "A retryable fetch/state/manifest/save outcome returns before inference dispatch",
       "Durable retry accounting resets only in the same save that promotes that exact complete manifest to staged.",
@@ -879,7 +889,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
       "authoritative location-sharing value",
       "Local working-tree evidence is not immutable release evidence.",
-      "Final Deno discovery run: 1,366 passed, 0 failed",
+      "`scripts/require_supabase_cli_version.sh`",
+      "Final Deno discovery run: 1,368 passed, 0 failed",
       "optional PostgreSQL integration bodies self-skipped because this sandbox denied localhost TCP",
       "178 assertions passed across 28 migration contract files",
       "The hosted 21-assertion revision completed its first four preflight assertions",
@@ -887,13 +898,15 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "atomic_community_identification_request_security.sql",
       "The hosted 24-assertion revision completed its first five preflight assertions",
       "The revised rollback-only fixture plans 25 assertions",
-      "full 89-function fleet from 150 changed files",
+      "across all 29 dirty paths resolved the full 89-function fleet",
       "including all ten required scan functions",
       "shuffled-plan and fail-stop fixtures passed",
       "The latest hosted run discovered 26 files and completed 24.",
       "Identity merge/recovery and all 30 inline/video assertions passed.",
       "Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501`",
       "both revised 22- and 25-assertion atomic files and all 26 files must pass",
+      "newest supplied Xcode 26.6 log compiled the app but failed test-module emission",
+      "working tree now snapshots the plain identifier",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",
@@ -976,6 +989,14 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     compact(exploreShareSource),
+    "`shared_at` must be a parseable timestamp",
+  );
+  assertStringIncludes(
+    compact(exploreShareSource),
+    "only for the exact PostgreSQL `P0001` code and canonical pending-request message",
+  );
+  assertStringIncludes(
+    compact(exploreShareSource),
     "`20260729044500_grant_atomic_explore_service_privileges.sql` also installs the operation-scoped table privileges",
   );
   assertStringIncludes(
@@ -985,6 +1006,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     compact(coreDataSource),
     "resets upload retry state, updates the queue job, and transitions `.uploading → .staged` in one save",
+  );
+  assertStringIncludes(
+    compact(coreDataSource),
+    "must equal the duplicate-free exact expected key set",
   );
   assertStringIncludes(
     compact(insightChatSource),
@@ -1009,6 +1034,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     compact(sharingClientSource),
     "The composer closes only after publication returns and the response confirms success",
+  );
+  assertStringIncludes(
+    compact(sharingClientSource),
+    "parseable share timestamp",
   );
   assertStringIncludes(
     compact(exploreFeedSource),
@@ -1072,6 +1101,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
     "require the completed upload state to save before analysis starts",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "verify the exact completed media set",
   );
   assertStringIncludes(
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),

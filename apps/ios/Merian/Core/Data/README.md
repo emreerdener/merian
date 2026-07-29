@@ -15,8 +15,10 @@ cards are server-backed and are intentionally not cached in SwiftData.
 ## Offline Scan Durability Boundary
 
 A completed background PUT is evidence for one upload member, not permission to
-start analysis. The generation accumulator must contain the exact expected key
-set. `BackgroundDatabaseActor.markScanAsStaged` then persists those keys,
+start analysis. The generation accumulator must equal the duplicate-free exact
+expected key set; missing, extra, or duplicate manifest members fail closed.
+Sanitized filename and object-key collisions are rejected before signing or
+upload. `BackgroundDatabaseActor.markScanAsStaged` then persists those keys,
 resets upload retry state, updates the queue job, and transitions
 `.uploading → .staged` in one save. Only `.staged` after that commit—or a
 serialized owner with the same staged manifest—may proceed toward an inference

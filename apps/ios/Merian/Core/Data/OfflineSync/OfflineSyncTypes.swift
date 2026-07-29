@@ -111,9 +111,11 @@ struct MediaStagingUploadCompletionState: Sendable, Equatable {
         successfulObjectKeys.insert(objectKey)
     }
 
-    func containsEvery(expectedObjectKeys: [String]) -> Bool {
-        !expectedObjectKeys.isEmpty &&
-            Set(expectedObjectKeys).isSubset(of: successfulObjectKeys)
+    func matchesExactly(expectedObjectKeys: [String]) -> Bool {
+        let expected = Set(expectedObjectKeys)
+        return !expected.isEmpty &&
+            expected.count == expectedObjectKeys.count &&
+            expected == successfulObjectKeys
     }
 }
 
@@ -523,11 +525,17 @@ enum MediaStagingContract {
             throw MerianError.payloadTooLarge
         }
 
+        var fileNames = Set<String>()
+        var objectKeys = Set<String>()
         var totalImageBytes = 0
         var imageItemCount = 0
         var audioItemCount = 0
         var videoItemCount = 0
         for item in items {
+            guard fileNames.insert(item.fileName).inserted,
+                  objectKeys.insert(item.objectKey).inserted else {
+                throw MerianError.invalidResponse
+            }
             let size = try fileSize(at: item.fileURL)
             guard size <= item.mediaKind.maxStagedBytes else {
                 throw MerianError.payloadTooLarge

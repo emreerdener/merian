@@ -647,6 +647,7 @@ function isAtomicExplorePublicationResult(
       .test(row.post_id) &&
     typeof row.shared_at === "string" &&
     row.shared_at.length > 0 &&
+    Number.isFinite(Date.parse(row.shared_at)) &&
     (
       row.location_sharing === "open" ||
       row.location_sharing === "obscured" ||
@@ -695,7 +696,10 @@ export async function publishExplorePostAtomically(
     },
   );
 
-  if (error?.message === COMMUNITY_IDENTIFICATION_PENDING_MESSAGE) {
+  if (
+    error?.code === "P0001" &&
+    error.message === COMMUNITY_IDENTIFICATION_PENDING_MESSAGE
+  ) {
     throw makeHttpError(409, COMMUNITY_IDENTIFICATION_PENDING_MESSAGE);
   }
 

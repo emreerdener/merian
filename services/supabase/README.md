@@ -1577,6 +1577,11 @@ Confirm the local version before database verification:
 supabase --version
 ```
 
+The shared catalog gate and mutation-capable Make targets enforce this exact
+pin before touching a database or deploying a Function. A version mismatch
+fails before config parsing, migration replay, or network mutation; upgrade or
+switch the local CLI instead of rewriting `config.toml` for an older parser.
+
 From the repo root, point the Supabase CLI at the backend service directory:
 
 ```bash

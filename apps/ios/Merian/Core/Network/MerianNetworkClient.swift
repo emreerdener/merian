@@ -3332,6 +3332,12 @@ final class MerianNetworkClient {
         guard decoded.success,
               decoded.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
               UUID(uuidString: decoded.postId) != nil,
+              (
+                DateUtilities.iso8601FractionalFormatter.date(
+                    from: decoded.sharedAt
+                ) ??
+                DateUtilities.iso8601Formatter.date(from: decoded.sharedAt)
+              ) != nil,
               decoded.locationSharing != nil,
               decoded.publicationStatus == "published" else {
             throw MerianError.invalidResponse

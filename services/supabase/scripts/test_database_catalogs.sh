@@ -7,6 +7,8 @@ cd "$catalog_repository_root"
 
 export SUPABASE_TELEMETRY_DISABLED="${SUPABASE_TELEMETRY_DISABLED:-1}"
 
+bash "$catalog_script_dir/require_supabase_cli_version.sh"
+
 shopt -s nullglob
 
 catalog_tests=(services/supabase/tests/*.sql)

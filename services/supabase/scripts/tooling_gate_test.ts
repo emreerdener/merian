@@ -28,6 +28,10 @@ const databaseCatalogGatePath = new URL(
   "test_database_catalogs.sh",
   scriptsDirectory,
 );
+const supabaseCliVersionGatePath = new URL(
+  "require_supabase_cli_version.sh",
+  scriptsDirectory,
+);
 const makefilePath = new URL(
   "../../../Makefile",
   scriptsDirectory,
@@ -185,8 +189,9 @@ Deno.test("GitHub Actions SHA pins receive weekly dependency updates", async () 
 });
 
 Deno.test("database catalog gate discovers every SQL fixture", async () => {
-  const [gate, workflow, makefile] = await Promise.all([
+  const [gate, cliVersionGate, workflow, makefile] = await Promise.all([
     Deno.readTextFile(databaseCatalogGatePath),
+    Deno.readTextFile(supabaseCliVersionGatePath),
     Deno.readTextFile(deployWorkflowPath),
     Deno.readTextFile(makefilePath),
   ]);
@@ -216,6 +221,18 @@ Deno.test("database catalog gate discovers every SQL fixture", async () => {
   assertMatch(gate, /SUPABASE_TELEMETRY_DISABLED/);
   assertMatch(
     gate,
+    /bash "\$catalog_script_dir\/require_supabase_cli_version\.sh"/,
+  );
+  assertMatch(
+    cliVersionGate,
+    /required_supabase_cli_version="2\.109\.1"/,
+  );
+  assertMatch(
+    workflow,
+    /version: 2\.109\.1[\s\S]*run: bash supabase\/scripts\/require_supabase_cli_version\.sh/,
+  );
+  assertMatch(
+    gate,
     /\^Files=\$\{expected_file_count\}, Tests=\[1-9\]\[0-9\]\*,/,
   );
   assertMatch(gate, /\^Result: PASS/);
@@ -235,7 +252,15 @@ Deno.test("database catalog gate discovers every SQL fixture", async () => {
   );
   assertMatch(
     makefile,
-    /test-supabase-privileged-routines:[\s\S]*bash services\/supabase\/scripts\/test_database_catalogs\.sh/,
+    /test-supabase-privileged-routines:[\s\S]*bash services\/supabase\/scripts\/require_supabase_cli_version\.sh[\s\S]*bash services\/supabase\/scripts\/test_database_catalogs\.sh/,
+  );
+  assertMatch(
+    makefile,
+    /db-push:[\s\S]*bash services\/supabase\/scripts\/require_supabase_cli_version\.sh/,
+  );
+  assertMatch(
+    makefile,
+    /functions-deploy:[\s\S]*bash services\/supabase\/scripts\/require_supabase_cli_version\.sh/,
   );
   assert(
     !makefile.includes("services/supabase/tests/account_deletion_security.sql"),

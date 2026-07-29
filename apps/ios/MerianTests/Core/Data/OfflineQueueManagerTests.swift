@@ -703,6 +703,37 @@ struct OfflineQueueManagerTests {
         }
     }
 
+    @Test func testMediaStagingContractRejectsDuplicateSanitizedDestinationsBeforeUpload() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let imageName = "duplicate.webp"
+        try Data(repeating: 0x21, count: 64)
+            .write(to: directory.appendingPathComponent(imageName))
+        let payload = PendingScanPayload(
+            id: "scan-duplicate-media",
+            localImagePaths: [imageName, imageName],
+            localAudioPaths: [],
+            localVideoPaths: []
+        )
+        let items = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "user-a",
+            documentsDirectory: directory
+        )
+
+        #expect(throws: MerianError.invalidResponse) {
+            try MediaStagingContract.validateUploadBudget(items)
+        }
+    }
+
     @Test func testMediaStagingUploadTaskDescriptionPreservesUnderscoredScanIds() {
         let scanId = "queued_nonvisual_audio_only"
         let syncGeneration = UUID()
@@ -935,6 +966,19 @@ struct OfflineQueueManagerTests {
                 generation: generation,
                 expectedObjectKeys: [firstKey, secondKey]
             )
+        )
+        manager.recordSuccessfulUploadMember(
+            scanId: scanId,
+            generation: generation,
+            objectKey: "staging/\(ownerId)/stale.webp"
+        )
+        #expect(
+            !manager.hasConfirmedSuccessfulUploadManifest(
+                scanId: scanId,
+                generation: generation,
+                expectedObjectKeys: [firstKey, secondKey]
+            ),
+            "A successful key outside the current queued manifest must fail closed"
         )
 
         let replacementGeneration = UUID()

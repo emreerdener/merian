@@ -30,7 +30,8 @@ Normal publication:
 The create callback returns an explicit success result to
 `InsightShareButton`. The composer closes only after publication returns and
 the response confirms success, echoes the requested scan ID, supplies a valid
-post UUID and published status, and the post ID has been cached. A transport,
+post UUID, parseable share timestamp, authoritative location choice, and
+published status, and the post ID has been cached. A transport,
 readiness, moderation, persistence, or response-integrity failure leaves the
 same draft mounted and presents a retry alert; notes, hashtags, location choice,
 and ordered media selection are not discarded merely because

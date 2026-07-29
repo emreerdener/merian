@@ -190,6 +190,40 @@ Deno.test("Explore publication rejects an unconfirmed transactional response", a
   );
 });
 
+Deno.test("Explore publication rejects an invalid transactional timestamp", async () => {
+  const imageUrl = "https://media.merian.app/public_uploads/free/user/one.webp";
+  const supabase = {
+    rpc() {
+      return Promise.resolve({
+        data: {
+          post_id: "00000000-0000-4000-8000-000000000010",
+          shared_at: "not-a-timestamp",
+          location_sharing: "private",
+          publication_status: "published",
+        },
+        error: null,
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      publishExplorePostAtomically(
+        restorationScan({ image_storage_urls: [imageUrl] }),
+        userId,
+        null,
+        null,
+        "private",
+        undefined,
+        [],
+        supabase,
+        unusedModerationQuota,
+      ),
+    Error,
+    "Failed to publish scan to Explore atomically: Invalid database response",
+  );
+});
+
 Deno.test("Explore publication maps a transaction-time pending community request to conflict", async () => {
   const imageUrl = "https://media.merian.app/public_uploads/free/user/one.webp";
   const message =
@@ -198,7 +232,7 @@ Deno.test("Explore publication maps a transaction-time pending community request
     rpc() {
       return Promise.resolve({
         data: null,
-        error: { message },
+        error: { code: "P0001", message },
       });
     },
   } as unknown as SupabaseClient;
@@ -220,6 +254,37 @@ Deno.test("Explore publication maps a transaction-time pending community request
     message,
   );
   assertEquals((error as PublicHttpError).status, 409);
+});
+
+Deno.test("Explore publication does not map an unrelated error with matching text to conflict", async () => {
+  const imageUrl = "https://media.merian.app/public_uploads/free/user/one.webp";
+  const message =
+    "Wait for the community to identify this request before sharing it to Explore.";
+  const supabase = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: { code: "42501", message },
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      publishExplorePostAtomically(
+        restorationScan({ image_storage_urls: [imageUrl] }),
+        userId,
+        null,
+        null,
+        "private",
+        undefined,
+        [],
+        supabase,
+        unusedModerationQuota,
+      ),
+    Error,
+    `Failed to publish scan to Explore atomically: ${message}`,
+  );
 });
 
 Deno.test("restored-media persistence accepts an exact direct update response without rereading", async () => {

@@ -216,8 +216,9 @@ and keep transient/unknown state retryable. The joined contract is
 
 An HTTP-successful Explore-share response is not accepted on decoding alone.
 `shareScanToExplore` requires `success: true`, the exact requested scan UUID,
-a valid post UUID, an authoritative location-sharing value, and an explicit
-`published` publication status. Any integrity mismatch becomes
+a valid post UUID, a parseable ISO-8601 share timestamp, an authoritative
+location-sharing value, and an explicit `published` publication status. Any
+integrity mismatch becomes
 `MerianError.invalidResponse`; callers must not cache the post ID or dismiss the
 composer as though publication succeeded.
 

@@ -199,16 +199,20 @@ Legacy `hidden` input is accepted as `private`.
 ```
 
 All successful shares return `200`; `publication_status` must be exactly
-`published`. A missing or different value is not publication evidence. For
-standalone audio or an audio-bearing video, `_shared/audioModeration.ts` must
-resolve an approved attestation for every audible selected item before the
-transactional publication RPC runs. A matching attestation can be reused;
-otherwise Gemini evaluates speech and non-speech content live. Flagged content
-returns `422`; provider or configuration failures on a cache miss return `503`.
-In both cases nothing is created, reactivated, or made public. Cache misses
-reserve the database-owned `explore_audio_moderation` quota before provider
-dispatch. The reservation atomically applies the durable entitlement, model
-policy, daily limit, and shared per-user/IP rate limits.
+`published`, `post_id` must be a UUID, and `shared_at` must be a parseable
+timestamp. A missing, malformed, or different value is not publication evidence.
+The transaction-time Community conflict is mapped to `409` only for the exact
+PostgreSQL `P0001` code and canonical pending-request message; matching text
+from an unrelated database error remains a server failure. For standalone audio
+or an audio-bearing video, `_shared/audioModeration.ts` must resolve an approved
+attestation for every audible selected item before the transactional publication
+RPC runs. A matching attestation can be reused; otherwise Gemini evaluates
+speech and non-speech content live. Flagged content returns `422`; provider or
+configuration failures on a cache miss return `503`. In both cases nothing is
+created, reactivated, or made public. Cache misses reserve the database-owned
+`explore_audio_moderation` quota before provider dispatch. The reservation
+atomically applies the durable entitlement, model policy, daily limit, and
+shared per-user/IP rate limits.
 
 The same mandatory quota-backed moderation preparation is reused by
 `request-community-identification` and media-bearing

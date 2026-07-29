@@ -479,6 +479,8 @@ callback to its originating batch, and carrying the authenticated destination
 through suspension. The parser still accepts the previous three-/four-part forms
 and the legacy underscore form for OS-owned tasks created by an older app build.
 Legacy callbacks recover and validate the key from the signed request path.
+Before signing, local validation rejects duplicate sanitized filenames or
+object keys, including collisions produced by distinct local path spellings.
 Staged image roles are a signing-time hint; final user-visible media still comes
 from the saved `captured_media` manifest and ready `scan_media_assets` rows.
 
@@ -654,9 +656,10 @@ additional callback fence, but they are not the persistence authority:
   suspension before either callback may mutate queue state or dispatch
   inference. Successful callbacks also record their exact canonical
   server-issued key in a generation-scoped accumulator. The scan can become
-  staged only when that set contains every expected manifest key; disappearance
-  from the URLSession task list is never success evidence. Each handler
-  publishes its outcome before its first suspension.
+  staged only when that set equals the duplicate-free expected manifest key set;
+  missing, extra, or duplicate expected members fail closed, and disappearance
+  from the URLSession task list is never success evidence. Each handler publishes
+  its outcome before its first suspension.
 - Inference-driven queue deletion carries either a background
   `InferenceGenerationExpectation` or foreground
   `ForegroundInferenceGenerationExpectation` and revalidates it after awaiting

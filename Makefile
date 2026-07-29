@@ -68,6 +68,7 @@ validate-supabase-migrations:
 	bash services/supabase/scripts/validate_migration_contracts.sh
 
 test-supabase-privileged-routines:
+	bash services/supabase/scripts/require_supabase_cli_version.sh
 	SUPABASE_TELEMETRY_DISABLED=1 supabase --workdir $(SUPABASE_WORKDIR) db start
 	bash services/supabase/scripts/test_database_catalogs.sh
 
@@ -89,6 +90,7 @@ cleanup-ghost-users:
 		services/supabase/scripts/cleanup_ghost_users.ts $(ARGS)
 
 db-push:
+	@bash services/supabase/scripts/require_supabase_cli_version.sh
 	@db_url="$$(bash scripts/supabase-db-url.sh)"; \
 	if [ -n "$$db_url" ]; then \
 		supabase --workdir $(SUPABASE_WORKDIR) db push --db-url "$$db_url"; \
@@ -97,4 +99,5 @@ db-push:
 	fi
 
 functions-deploy:
+	@bash services/supabase/scripts/require_supabase_cli_version.sh
 	supabase --workdir $(SUPABASE_WORKDIR) functions deploy

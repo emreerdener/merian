@@ -1,6 +1,6 @@
 # Scan Ingestion Reliability and Recovery Contract
 
-**Last reviewed:** 2026-07-28\
+**Last reviewed:** 2026-07-29\
 **Scope:** Capture, foreground analysis, offline queue replay, durable scan
 persistence, Field Chat readiness, Explore publication, and owned-media repair\
 **Repository status:** Implemented\
@@ -121,7 +121,10 @@ may patch the same owner row later; they cannot decide whether the capture
 exists.
 
 Background PUT completion is also not inference readiness by itself. The exact
-all-member manifest must first be confirmed, then `markScanAsStaged` must
+duplicate-free all-member manifest must first be confirmed by set equality;
+missing, extra, or duplicate expected members cannot advance. Sanitized
+filename/object-key collisions are rejected locally before signing or upload.
+Then `markScanAsStaged` must
 atomically save the keys, reset upload retry accounting, and return `.staged`,
 or return `.alreadyAdvanced` for the same durable staged manifest or an owner
 already in inference. A retryable fetch/state/manifest/save outcome returns
@@ -227,7 +230,10 @@ extras the narrow historical finalization repair may ignore.
 Task disappearance from `URLSession.allTasks` is not success evidence. Callbacks
 record each HTTP-successful canonical server key in a generation-scoped
 accumulator before their first suspension. A scan advances to staged only when
-the accumulator contains the exact complete expected key set.
+the accumulator equals the duplicate-free exact complete expected key set.
+Missing members wait for their callback or restart through orphan recovery;
+extra or duplicate expected members fail closed. Local budget validation rejects
+sanitized filename and object-key collisions before any signing request.
 
 One failed required PUT fences the generation and cancels every sibling before a
 sibling callback can advance an incomplete manifest. Process-relaunch callback
@@ -774,6 +780,7 @@ deno lint --config services/supabase/functions/deno.json \
   services/supabase/scripts
 make validate-supabase-migrations
 make test-supabase-tooling
+bash services/supabase/scripts/require_supabase_cli_version.sh
 make validate-ios-project
 make validate-ios-migration-guardrails
 git diff --check
@@ -814,37 +821,39 @@ The focused regression inventory includes:
 ## Verification Evidence at Review
 
 This snapshot records the strongest evidence available for the local working
-tree rooted at `2bc87a46b1e94c340f126b7eab888398e744039c`, which commits
+tree rooted at `492094c0ad8914a15e4b4759af394e08d9993077`, which commits
 the client, queue, owner-result recovery, source-aware Field Chat, atomic
-Explore and Ask the Community
-backends, identity-fixture correction, and release-contract corrections, plus
-the uncommitted invoker-privilege and completed-upload durability hardening on
-2026-07-28.
+Explore and Ask the Community backends, identity-fixture correction,
+service-role invoker privileges, completed-upload durability, and release
+contracts. The current working-tree follow-up adds duplicate-free exact upload
+manifest equality, pre-signing collision rejection, parseable publication
+timestamps, exact-code Community conflict mapping, an exact Supabase CLI
+preflight, and the Xcode 26.6 predicate-macro compile correction on 2026-07-29.
 Local working-tree evidence is not immutable release evidence. Repeat every
 applicable gate on one committed SHA before deployment or release.
 
 | Layer                                      | Retained result                                                                                                                                                                                                                                                    | Status and meaning                                                                                                                                                                                                                                 |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Edge and shared scan logic                 | Final Deno discovery run: 1,366 passed, 0 failed; optional PostgreSQL integration bodies self-skipped because this sandbox denied localhost TCP                                                                                                                      | Complete source and mocked assertions passed, including transaction-time community readiness, atomic Community-request structure, invoker privilege allowlisting, fail-closed taxonomy synchronization, concurrent retry, and authoritative privacy output; this is not a PostgreSQL integration gate and cannot replace a fresh exact-SHA replay |
-| Edge static quality                        | `deno fmt --check` and `deno lint` passed                                                                                                                                                                                                                          | Verified locally                                                                                                                                                                                                                                   |
+| Edge and shared scan logic                 | Final Deno discovery run: 1,368 passed, 0 failed; optional PostgreSQL integration bodies self-skipped because this sandbox denied localhost TCP                                                                                                                      | Complete source and mocked assertions passed, including transaction-time community readiness, atomic Community-request structure, invoker privilege allowlisting, exact publication-response validation, fail-closed taxonomy synchronization, concurrent retry, and authoritative privacy output; this is not a PostgreSQL integration gate and cannot replace a fresh exact-SHA replay |
+| Edge static quality                        | `deno fmt --check` passed across 679 files and `deno lint` passed across 523 files                                                                                                                                                                                  | Verified locally                                                                                                                                                                                                                                   |
 | Migration source contracts                 | 178 assertions passed across 28 migration contract files                                                                                                                                                                                                           | Verified locally, including video canonical projection, identity fixture diagnostics, atomic Explore and Community publication, request-before-scan lock ordering, and the service-only invoker privilege allowlist; this proves repository structure and fail-closed ACL contracts, not PostgreSQL acceptance |
-| Atomic Explore PostgreSQL fixture          | The hosted 21-assertion revision completed its first four preflight assertions, then its first service-role publication call stopped at a missing request-table privilege. The revised fixture plans 22 assertions and adds the live least-privilege check; this sandbox denied localhost TCP for the rerun.                          | Current source contracts verify ACL, owner/media rejection, complete-snapshot rollback, transaction-time `needs_id` rejection, locked-geoprivacy structure, and exact service grants; exact current-source PostgreSQL acceptance remains part of the all-26-catalog hosted replay |
-| Atomic Community PostgreSQL fixture        | The hosted 24-assertion revision completed its first five preflight assertions, then its first service-role creation call stopped at the same missing request-table privilege. The revised rollback-only fixture plans 25 assertions and adds the live least-privilege check; this sandbox denied localhost TCP and Docker access. | Source and exact grants are present and automatically discovered, but the corrected fixture is not counted as passed locally; exact-current-source disposable PostgreSQL execution plus staging concurrency tests remain mandatory |
-| Supabase release tooling and documentation | 106 tooling assertions and 9 documentation contracts passed                                                                                                                                                                                                        | Verified locally                                                                                                                                                                                                                                   |
-| Production function selection and order    | Graph simulation across the base commit plus working tree resolved the full 89-function fleet from 150 changed files because the production workflow control path changed, including all ten required scan functions; shuffled-plan and fail-stop fixtures passed | Verified locally; selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward                                                                                                                |
+| Atomic Explore PostgreSQL fixture          | The hosted 21-assertion revision completed its first four preflight assertions, then its first service-role publication call stopped at a missing request-table privilege. The revised fixture plans 22 assertions and adds the live least-privilege check; the local exact-version guard rejected stale CLI 2.101.0 before replay and this sandbox denied the Supabase child process Docker access. | Current source contracts verify ACL, owner/media rejection, complete-snapshot rollback, transaction-time `needs_id` rejection, locked-geoprivacy structure, and exact service grants; exact current-source PostgreSQL acceptance remains part of the all-26-catalog hosted replay |
+| Atomic Community PostgreSQL fixture        | The hosted 24-assertion revision completed its first five preflight assertions, then its first service-role creation call stopped at the same missing request-table privilege. The revised rollback-only fixture plans 25 assertions and adds the live least-privilege check; the same exact-version and nested-Docker boundaries prevented a local fresh replay. | Source and exact grants are present and automatically discovered, but the corrected fixture is not counted as passed locally; exact-current-source disposable PostgreSQL execution plus staging concurrency tests remain mandatory |
+| Supabase release tooling and documentation | 106 tooling assertions and 9 documentation contracts passed; the catalog/Make/workflow pin contract rejects any CLI other than reviewed 2.109.1 before a database or deployment call                                                                                                                                                         | Verified locally                                                                                                                                                                                                                                   |
+| Production function selection and order    | Graph simulation across all 29 dirty paths resolved the full 89-function fleet because the production workflow control path changed, including all ten required scan functions; shuffled-plan and fail-stop fixtures passed                                                                                                           | Verified locally; selected critical members deploy sequentially in compatibility order and unrelated functions batch only afterward                                                                                                                |
 | iOS portable release tooling               | Scope, workflow, structured failure extraction, and critical-result contracts passed                                                                                                                                                                               | Verified locally without invoking a simulator                                                                                                                                                                                                      |
 | iOS project/source integrity               | Generated-project fixture and current-project membership passed: app 406, watch 3, widget 3, messages 4, tests 84, UI tests 2                                                                                                                                      | Verified locally                                                                                                                                                                                                                                   |
-| Changed Swift source quality               | Strict SwiftLint reported 0 violations and compiler frontend parsing passed                                                                                                                                                                                        | Verified locally                                                                                                                                                                                                                                   |
+| Changed Swift source quality               | Strict no-cache SwiftLint reported 0 violations across the four changed application files; Xcode 26.6 compiler frontend parsing passed for those files and four changed test files, and the corrected plain-identifier predicate shape macro-typechecked under the same Swift 6.3.3 compiler with nested sandboxing disabled                         | Verified locally                                                                                                                                                                                                                                   |
 | Public web projection                      | Web unit suite: 56 passed, 0 failed                                                                                                                                                                                                                                | Verified locally                                                                                                                                                                                                                                   |
-| Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes; the contradictory UUID fixture is corrected at the current base SHA                                                             | Pending an exact-remediated-SHA hosted rerun; the prior archive cannot close the gate                                                                                                                                                              |
+| Hosted iOS compile, unit, and archive gate | Workflow run 73 at `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` archived successfully but reported 1 failed test after 1,167 passes. The newest supplied Xcode 26.6 log compiled the app but failed test-module emission because one new SwiftData predicate captured `scan.id`; the working tree now snapshots the plain identifier and no sibling predicate misuse remains. | The correction parses under Xcode 26.6, but only a full exact-remediated-SHA hosted build, unit target, and archive can close this gate |
 | Fresh PostgreSQL catalog replay and pgTAP  | The latest hosted run discovered 26 files and completed 24. Identity merge/recovery and all 30 inline/video assertions passed. Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501` on `explore_community_requests`; their later bad plans were secondary.                         | Pending one exact-SHA replay after the forward service-privilege migration; both revised 22- and 25-assertion atomic files and all 26 files must pass |
 | Staging joined-flow smoke matrix           | No retained post-remediation smoke evidence                                                                                                                                                                                                                        | Pending image, queued image, audio, video, Describe, Field Chat, atomic Explore rollback, atomic Community rollback/reopen/share-race, malformed publication-response, ambiguous-response, and partial-upload tests                                  |
 | Production deployment and observation      | Runs 1549–1552, the identity follow-up, `1a75179dd`, and the latest 26-file catalog run all stopped before production mutation                                                                                                                                        | Pending exact-SHA catalog acceptance, ordered migration/function deployment, matching iOS release, and a clean observation window                                                                                                                  |
 
-A local Release archive was also attempted with package, derived-data, module,
-and Foundation cache paths redirected to writable temporary storage. Xcode
-stopped while parsing dependency manifests because its nested `sandbox-exec`
-could not apply inside the workspace sandbox
+A local Release archive and a compile-only test build were also attempted with
+package, derived-data, module, and Foundation cache paths redirected to writable
+temporary storage. Xcode stopped while parsing dependency manifests because its
+nested `sandbox-exec` could not apply inside the workspace sandbox
 (`sandbox_apply: Operation not permitted`). It did not compile app source and is
 therefore neither a product failure nor release evidence. The hosted exact-SHA
 workflow remains authoritative for simulator and archive behavior.
@@ -865,6 +874,7 @@ workflow remains authoritative for simulator and archive behavior.
 | Atomic Explore publication            | `migrations/20260729024157_atomic_explore_scan_publication.sql`                |
 | Atomic Ask the Community request      | `migrations/20260729033000_atomic_community_identification_requests.sql`       |
 | Atomic invoker table privileges       | `migrations/20260729044500_grant_atomic_explore_service_privileges.sql`        |
+| Exact Supabase CLI preflight          | `scripts/require_supabase_cli_version.sh`                                      |
 | Offline upload callback accumulator   | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`   |
 | Status and guarded owner recovery     | `functions/check-scan-status/index.ts`                                         |
 | Explore restored-media reconciliation | `functions/share-scan-to-explore/db.ts`                                        |

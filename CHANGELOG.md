@@ -70,9 +70,12 @@ TestFlight, App Store, support, and QA.
   Insight, Field Chat, and Explore instead of being deleted after inference.
 - A failed file in a background upload now fences and cancels the entire
   generation before sibling callbacks can advance an incomplete scan manifest.
-  Final staging additionally requires exact success evidence for every expected
-  server-issued key in that generation, so removal of a completed sibling from
-  `URLSession.allTasks` cannot be mistaken for a successful upload. Reattached
+  Final staging additionally requires duplicate-free set equality between
+  successful and expected server-issued keys in that generation; missing,
+  stale-extra, or duplicate expected members cannot be omitted. Sanitized
+  filename/object-key collisions are rejected before signing, and removal of a
+  completed sibling from `URLSession.allTasks` cannot be mistaken for a
+  successful upload. Reattached
   generation-tagged tasks now invoke orphan recovery even though their creating
   process’s global sync latch is gone; a proven `.uploading → .pending` reset
   restarts signing in the same recovery pass.
@@ -97,6 +100,10 @@ TestFlight, App Store, support, and QA.
   report structured `.xcresult` test names and assertions before consulting raw
   logs, so deliberately injected reply failures and corrupt-store recovery
   fixtures cannot mask the actual release blocker.
+- Fixed the subsequent deterministic Xcode 26.6 test-module build failure in the
+  staged-manifest regression. Its SwiftData predicate now compares against a
+  captured plain scan identifier instead of trying to lower a model-to-model
+  key-path comparison through `#Predicate`.
 - Fixed the critical historical scan recovery migration that blocked fresh
   Supabase catalog replay. Its former 43 KiB routine and nested ledger predicate
   are decomposed into bounded, no-grant private validators behind the unchanged
@@ -150,8 +157,8 @@ TestFlight, App Store, support, and QA.
   every pending scan and Explore runtime change before production smoke tests.
 - Production smoke now proves the scan-owner prerequisite, atomic Explore
   publication, and atomic Community-request RPCs are present in the live
-  PostgREST schema cache. Exact
-  SQLSTATE `22023` no-write sentinels validate server execution before any lock
+  PostgREST schema cache. Exact SQLSTATE `22023` no-write sentinels validate
+  server execution before any lock
   or mutation, while every real anon/publishable credential must remain denied;
   arbitrary `400` responses and logged response bodies cannot satisfy the gate.
 - Release guidance now requires a manual `iOS Build and Test` dispatch on the
@@ -185,11 +192,11 @@ TestFlight, App Store, support, and QA.
   manual retry, and advance dedicated bounded recovery accounting instead of
   restarting from zero or analyzing the same observation twice.
 - Explore publication now reports actual success back to the composer. The
-  client also validates the success flag, echoed scan ID, post UUID, and
-  authoritative location choice and explicit published status before caching
-  the post. Missing status or location is no longer accepted as
-  rolling-compatibility success. The sheet closes only after that
-  boundary; a failed or malformed response keeps the user’s draft in place and
+  client also validates the success flag, echoed scan ID, post UUID, parseable
+  share timestamp, authoritative location choice, and explicit published status
+  before caching the post. Missing or malformed publication evidence is no
+  longer accepted as rolling-compatibility success. The sheet closes only after
+  that boundary; a failed or malformed response keeps the user’s draft in place and
   presents a retry message.
 - Explore’s final database publication is now one service-role-only,
   invoker-rights transaction. It revalidates and locks the owner scan and
@@ -202,12 +209,19 @@ TestFlight, App Store, support, and QA.
   insert or constraint failure restores the previous complete snapshot
   instead of leaving a visible partial post or erasing healthy media while
   reporting failure.
+  Transaction-time Community conflicts are recognized only by the exact
+  PostgreSQL code and canonical pending-request message; unrelated database
+  failures with matching text remain server failures.
 - Ask the Community no longer depends on the removed legacy Explore upsert or
   performs post, media, and request writes in separate transactions. Taxonomy
   and moderation complete first, then one owner-checked RPC commits the complete
   hidden `needs_id` snapshot. Reopen resets stale publication/consensus state,
   and a write-time trigger rejects an explicit share that loses a concurrent
   Community-request race.
+- Supabase database and deployment commands now fail before config parsing or
+  mutation unless the installed CLI is the exact reviewed `2.109.1` version.
+  This prevents stale local parsers from producing misleading catalog failures
+  or encouraging incompatible `config.toml` rewrites.
 - Production function deployment now extracts every selected critical scan
   function from the graph plan and deploys the ten-function compatibility unit
   in its required order before unrelated parallel batches. Duplicate plan

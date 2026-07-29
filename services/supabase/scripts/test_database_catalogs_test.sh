@@ -13,6 +13,10 @@ printf '%s\n' \
   '#!/usr/bin/env bash' \
   'set -euo pipefail' \
   'printf "telemetry=%s command=%s\n" "${SUPABASE_TELEMETRY_DISABLED:-}" "$*" >> "$FAKE_SUPABASE_LOG"' \
+  'if [ "$*" = "--version" ]; then' \
+  '  printf "%s\n" "${FAKE_SUPABASE_VERSION:-2.109.1}"' \
+  '  exit 0' \
+  'fi' \
   'if [[ "$*" == *" test db --local "* ]]; then' \
   '  mode="${FAKE_CATALOG_MODE:-pass}"' \
   '  if [ "$mode" = "false_zero" ]; then' \
@@ -39,6 +43,21 @@ PATH="$catalog_test_fake_bin:$PATH" \
 
 if ! grep -q '^telemetry=1 command=' "$catalog_test_fake_log"; then
   echo "Catalog runner must disable Supabase telemetry by default." >&2
+  exit 1
+fi
+
+: > "$catalog_test_fake_log"
+
+if PATH="$catalog_test_fake_bin:$PATH" \
+  FAKE_SUPABASE_LOG="$catalog_test_fake_log" \
+  FAKE_SUPABASE_VERSION=2.110.0 \
+  bash "$catalog_test_script_dir/test_database_catalogs.sh" >/dev/null 2>&1; then
+  echo "Catalog runner accepted an unreviewed Supabase CLI version." >&2
+  exit 1
+fi
+
+if grep -Eq 'command=.*(db push|test db)' "$catalog_test_fake_log"; then
+  echo "Catalog runner reached the database after rejecting the CLI version." >&2
   exit 1
 fi
 

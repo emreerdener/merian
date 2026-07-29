@@ -1863,19 +1863,20 @@ struct BackgroundDatabaseActorTests {
             ),
             scanState: .staged
         )
-        let persistedKeys = ["staging/user/\(scan.id)_persisted.webp"]
+        let scanId = scan.id
+        let persistedKeys = ["staging/user/\(scanId)_persisted.webp"]
         scan.stagedR2Keys = persistedKeys
         context.insert(scan)
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
         let outcome = await actor.markScanAsStaged(
-            scanId: scan.id,
-            r2Keys: ["staging/user/\(scan.id)_stale-callback.webp"]
+            scanId: scanId,
+            r2Keys: ["staging/user/\(scanId)_stale-callback.webp"]
         )
 
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.id == scan.id }
+            predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
         #expect(outcome == .retryRequired)

@@ -620,6 +620,16 @@ struct MerianNetworkClientTests {
               "success": true,
               "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
               "scan_id": "\(scanID)",
+              "shared_at": "not-a-timestamp",
+              "location_sharing": "private",
+              "publication_status": "published"
+            }
+            """.utf8),
+            Data("""
+            {
+              "success": true,
+              "post_id": "019faaac-c229-790a-949e-9aeb6a710f32",
+              "scan_id": "\(scanID)",
               "shared_at": "2026-07-28T23:45:00Z",
               "location_sharing": "private",
               "publication_status": "draft"

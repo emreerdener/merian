@@ -3843,7 +3843,8 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   lookup/store failures degrade to live classification rather than approving by
   default.
 - iOS accepts a `200` share response only when `success` is true, `scan_id`
-  exactly echoes the requested scan UUID, `post_id` is a UUID, and
+  exactly echoes the requested scan UUID, `post_id` is a UUID, `shared_at` is a
+  parseable ISO-8601 timestamp, `location_sharing` is authoritative, and
   `publication_status` explicitly equals `published`. A missing, malformed, or
   contradictory response is `MerianError.invalidResponse`: the post ID is not
   cached, the composer remains open with its draft intact, and the user can
@@ -3854,8 +3855,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   locks and revalidates the owner scan, locks and rechecks community readiness,
   and replaces post metadata, selected media, hashtags, and resolved-community
   publication state in one transaction. A transaction-time `needs_id` request
-  returns conflict. A failure in any relational step restores the prior complete
-  snapshot and returns no published response.
+  returns conflict only when PostgreSQL reports the exact reviewed `P0001`
+  condition and canonical message; matching text on another SQLSTATE is not
+  downgraded to a user conflict. A failure in any relational step restores the
+  prior complete snapshot and returns no published response.
 - Forward migration
   `20260729044500_grant_atomic_explore_service_privileges.sql` provides the
   service role's narrow table-operation allowlist for both atomic invoker RPCs.

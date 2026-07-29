@@ -340,7 +340,7 @@ extension OfflineQueueManager {
                     for scanId in preparation.rejectedScanIds {
                         self.softDeleteQueuedScan(
                             scanId: scanId,
-                            reason: "Queued media is missing or exceeds the upload limit.",
+                            reason: "Queued media is missing, invalid, or exceeds the upload limit.",
                             errorCode: "queued_media_invalid"
                         )
                     }
