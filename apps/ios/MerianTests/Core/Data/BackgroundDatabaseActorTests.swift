@@ -1472,7 +1472,10 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let retryAt = Date().addingTimeInterval(600)
+        // A persisted deadline may remain on a staged row after a relaunch, but
+        // only an elapsed deadline is runnable. Future deadlines are covered by
+        // pausedScansCannotBeClaimedOrReconciled().
+        let retryAt = Date().addingTimeInterval(-600)
         let generation = UUID()
         let scan = OfflineQueuedScan(
             capturedMediaJSON: try! String(
@@ -1501,7 +1504,10 @@ struct BackgroundDatabaseActorTests {
             generation: generation
         )
 
-        #expect(claimed == true, "tryClaimForInference must return true when scan is .staged")
+        #expect(
+            claimed == true,
+            "tryClaimForInference must claim an eligible .staged scan after its retry deadline"
+        )
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
@@ -2207,8 +2213,23 @@ struct BackgroundDatabaseActorTests {
         let driftedScan = try #require(
             driftContext.fetch(driftDescriptor).first
         )
+        let driftedJobId =
+            OfflineQueueManager.scanIngestionJobId(scanId: driftedScanId)
+        var driftedJobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == driftedJobId }
+        )
+        driftedJobDescriptor.fetchLimit = 1
+        let driftedJob = try #require(
+            driftContext.fetch(driftedJobDescriptor).first
+        )
         driftedScan.queueLastErrorCode = nil
         driftedScan.queueAttemptCount = 0
+        // Advance the fixture to the scheduled wake. The transition under test
+        // is preservation of the surviving retry marker during re-upload, not
+        // an attempt to bypass durable backoff.
+        let scheduledWake = Date().addingTimeInterval(-1)
+        driftedScan.queueNextRetryAt = scheduledWake
+        driftedJob.nextRunAt = scheduledWake
         try driftContext.save()
 
         let stagingActor =

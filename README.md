@@ -93,9 +93,15 @@ steps are tracked in the
 > descendant `f292dc48` explicitly types every equivalent snapshot as
 > `Set<String>` and locally passes the complete app/unit/UI
 > `build-for-testing` product graph under the documented CoreSimulator resource
-> bypass. Only a hosted result naming that exact SHA or a committed descendant
-> may satisfy the simulator-test, resource-compilation, and Release-archive
-> gates.
+> bypass. Run 99 on exact descendant `631e123e8` subsequently compiled and
+> executed the complete unit target and produced a verified current-SHA Release
+> archive. Its archive passed, but the unit gate exposed three test-contract
+> failures: two fixtures expected an immediate claim while persisting a future
+> retry deadline, and one repository-source assertion treated indentation as
+> runtime behavior. The current test-only follow-up advances those fixtures to
+> their scheduled wake and normalizes source whitespace without relaxing the
+> production retry fence. A new hosted committed descendant must still pass the
+> complete unit target, queued-scan UI smoke, and current-SHA archive together.
 
 ---
 

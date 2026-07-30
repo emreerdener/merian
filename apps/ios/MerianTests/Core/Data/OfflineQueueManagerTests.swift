@@ -521,6 +521,12 @@ struct OfflineQueueManagerTests {
         throw CocoaError(.fileNoSuchFile)
     }
 
+    private func normalizedRepositorySource(_ source: String) -> String {
+        source
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+    }
+
     @MainActor
     private func createIsolatedContext() throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
@@ -2304,6 +2310,8 @@ struct OfflineQueueManagerTests {
         let urlSessionSource = try loadRepositorySource(
             at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
         )
+        let normalizedURLSessionSource =
+            normalizedRepositorySource(urlSessionSource)
         #expect(syncSource.components(
             separatedBy: "Set<String>(liveTasks.compactMap { task -> String? in"
         ).count == 4)
@@ -2316,31 +2324,15 @@ struct OfflineQueueManagerTests {
         #expect(urlSessionSource.components(
             separatedBy: "allowsAutomaticNetworkWorkOnCurrentPath"
         ).count == 18)
-        #expect(urlSessionSource.contains(
-            """
-            guard !Task.isCancelled,
-                  allowsAutomaticNetworkWorkOnCurrentPath,
-                  isServerIngestionPollCurrent(
-            """
+        #expect(normalizedURLSessionSource.components(
+            separatedBy:
+                "guard !Task.isCancelled, allowsAutomaticNetworkWorkOnCurrentPath, isServerIngestionPollCurrent("
+        ).count == 5)
+        #expect(normalizedURLSessionSource.contains(
+            "guard allowsAutomaticNetworkWorkOnCurrentPath, isServerIngestionPollCurrent("
         ))
-        #expect(urlSessionSource.contains(
-            """
-            guard allowsAutomaticNetworkWorkOnCurrentPath,
-                  isServerIngestionPollCurrent(
-            """
-        ))
-        #expect(urlSessionSource.contains(
-            """
-            let action = Self.scanStatusRecoveryAction(for: response)
-            guard allowsAutomaticNetworkWorkOnCurrentPath else {
-            """
-        ))
-        #expect(urlSessionSource.contains(
-            """
-            guard !Task.isCancelled,
-                  allowsAutomaticNetworkWorkOnCurrentPath,
-                  isServerIngestionPollCurrent(
-            """
+        #expect(normalizedURLSessionSource.contains(
+            "let action = Self.scanStatusRecoveryAction(for: response) guard allowsAutomaticNetworkWorkOnCurrentPath else {"
         ))
     }
 

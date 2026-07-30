@@ -330,6 +330,12 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    local manifest. This transition smoke is required in addition to the
    protected source/test result.
 
+   Repository-source assertions must normalize runs of whitespace before
+   matching control-flow token sequences, then pin both the sequence and its
+   expected occurrence count. Swift indentation is not runtime behavior; an
+   indentation-sensitive multiline literal can fail after formatting while all
+   guarded network boundaries remain present.
+
    The exact protected replay case is
    `inferenceReplayReconciliationCoalescesConcurrentWakeSources()`. It proves
    simultaneous Library, scheduler, reconnect, and URLSession wakes produce one
@@ -2070,6 +2076,14 @@ the maximum copy, while
 `testInferenceRetryCannotOverrideCompletedCloudOwnership` proves a job-only
 cloud-complete marker vetoes a late retry. All four are required named Release
 results, not merely compiled tests.
+
+Fixtures that persist a future queue or job retry deadline must not immediately
+expect upload or inference claim success: that would contradict the production
+backoff contract. Claim-success fixtures must either omit the deadline or
+advance both mirrored deadlines to the scheduled wake before claiming.
+`pausedScansCannotBeClaimedOrReconciled` owns future-deadline rejection, while
+`testTryClaimForInferenceSucceedsOnStagedScan` verifies that an elapsed deadline
+is accepted and cleared atomically from both durable rows.
 
 Field trip capture guidance has focused coverage on both sides of the Edge
 boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private
