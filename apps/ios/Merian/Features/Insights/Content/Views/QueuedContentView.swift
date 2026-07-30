@@ -235,7 +235,13 @@ struct QueuedContentView: View {
             fallbackCondition: queuedContext.weatherCondition,
             fallbackElevation: queuedContext.gpsElevation,
             fallbackLatitude: queuedContext.gpsLatitude,
-            fallbackLongitude: queuedContext.gpsLongitude
+            fallbackLongitude: queuedContext.gpsLongitude,
+            onAnalyzingBadgeTap: {
+                UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded(
+                    scanId: queuedContext.id,
+                    container: modelContext.container
+                )
+            }
         ) {
             if retryDetail != nil || friendlyErrorText != nil || queuedContext.canRetryNow {
                 VStack(spacing: 12) {

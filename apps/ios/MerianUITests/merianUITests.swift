@@ -308,8 +308,9 @@ final class merianUITests: XCTestCase {
             "Queued insight did not open inside the scans navigation stack"
         )
 
+        let scanningStatusBadge = app.buttons["ScanningStatusBadge"]
         XCTAssertTrue(
-            app.buttons["ScanningStatusBadge"].waitForExistence(timeout: 8.0),
+            scanningStatusBadge.waitForExistence(timeout: 8.0),
             "Queued scan did not render the shared scanning status badge"
         )
         XCTAssertTrue(
@@ -325,6 +326,12 @@ final class merianUITests: XCTestCase {
             playbackControl.waitForExistence(timeout: 8.0),
             "Seeded queued audio never became readable and playable"
         )
+
+        XCTAssertTrue(
+            scanningStatusBadge.isHittable,
+            "Shared scanning status badge was not available to trigger the deterministic handoff"
+        )
+        scanningStatusBadge.tap()
 
         XCTAssertTrue(app.staticTexts["Northern Cardinal"].waitForExistence(timeout: 8.0), "Seeded completed record did not take over the queued sheet")
         XCTAssertTrue(audioPage.waitForExistence(timeout: 2.0), "Audio carousel page disappeared after the queued-to-result handoff")

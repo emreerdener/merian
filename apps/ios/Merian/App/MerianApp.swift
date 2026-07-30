@@ -124,37 +124,33 @@ enum UITestSeedCoordinator {
     }
 
     @MainActor
-    static func triggerQueuedAudioHandoffIfNeeded(scanId: String, container: ModelContainer) {
+    static func completeQueuedAudioHandoffIfNeeded(scanId: String, container: ModelContainer) {
         let arguments = ProcessInfo.processInfo.arguments
         guard isEnabled,
               arguments.contains(queuedAudioHandoffArgument),
               scanId == queuedAudioHandoffScanId,
               !triggeredQueuedAudioHandoffs.contains(scanId) else { return }
 
+        let context = container.mainContext
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+
+        guard let queuedScan = try? context.fetch(descriptor).first else { return }
         triggeredQueuedAudioHandoffs.insert(scanId)
+        context.insert(queuedAudioHandoffCompletedRecord())
+        context.delete(queuedScan)
 
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
-
-            let context = container.mainContext
-            var descriptor = FetchDescriptor<OfflineQueuedScan>(
-                predicate: #Predicate { $0.id == scanId }
-            )
-            descriptor.fetchLimit = 1
-
-            guard let queuedScan = try? context.fetch(descriptor).first else { return }
-
-            context.insert(queuedAudioHandoffCompletedRecord())
-            context.delete(queuedScan)
-
-            do {
-                try context.save()
-                OfflineQueueManager.shared.unsyncedItemsCount = 0
-                ScanLibraryEvents.postLibraryDidUpdate()
-                MerianLog.general.debug("UITestSeedCoordinator completed queued audio handoff flow.")
-            } catch {
-                MerianLog.general.error("UITestSeedCoordinator failed completing queued audio handoff flow: \(error.localizedDescription, privacy: .private)")
-            }
+        do {
+            try context.save()
+            OfflineQueueManager.shared.unsyncedItemsCount = 0
+            ScanLibraryEvents.postLibraryDidUpdate()
+            MerianLog.general.debug("UITestSeedCoordinator completed queued audio handoff flow.")
+        } catch {
+            context.rollback()
+            triggeredQueuedAudioHandoffs.remove(scanId)
+            MerianLog.general.error("UITestSeedCoordinator failed completing queued audio handoff flow: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -352,7 +348,7 @@ enum UITestSeedCoordinator {
     static func prepareIfNeeded(container _: ModelContainer) {}
 
     @MainActor
-    static func triggerQueuedAudioHandoffIfNeeded(
+    static func completeQueuedAudioHandoffIfNeeded(
         scanId _: String,
         container _: ModelContainer
     ) {}

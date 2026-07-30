@@ -374,8 +374,13 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    into Documents. The test must observe its filename-scoped playback control,
    which appears only after player creation and spectrogram decoding, both
    before and after completion handoff. The outer carousel-page identifier is
-   insufficient because it also exists while audio is unavailable. After the
-   completed result takes over, the same smoke requires
+   insufficient because it also exists while audio is unavailable. The seed
+   must not advance on a fixed sleep or countdown. After every queued-state
+   assertion passes, the smoke taps `ScanningStatusBadge`; only that explicit
+   app-private Debug handshake may replace the queued fixture with its completed
+   record. This keeps slow hosted accessibility startup from erasing the state
+   the test is required to prove. After the completed result takes over, the
+   same smoke requires
    `FieldChatToolbarButton` and `InsightShareButton`, proving queue promotion
    reconnects the observation to Field Chat and sharing. Seed
    implementation is enclosed by the app target's `DEBUG` compilation
@@ -2196,14 +2201,18 @@ Insight to expose native **Back** in the Scans navigation stack plus
 scanning rather than a nested-sheet variant. It then verifies the same audio
 carousel page exists before and after the seeded **Northern Cardinal** completed
 record replaces queued content in place. Its seed writes a valid PCM WAV to
-   Documents, and the test requires the decoded filename-scoped playback control
-   before and after replacement; a page backed only by a missing filename cannot
-   pass. The completed state must also expose the identifier-scoped Field Chat
-   and Share toolbar buttons. Keep all navigation, shared-scanning,
-   playable-media, downstream-toolbar, and handoff assertions when extending
-   this regression. The exact-SHA hosted `Full iOS unit tests` job executes this
-   case after the complete unit target; compilation alone is not acceptance
-   evidence.
+Documents, and the test requires the decoded filename-scoped playback control
+before and after replacement; a page backed only by a missing filename cannot
+pass. The fixture does not use elapsed wall-clock time to initiate replacement.
+Only after native navigation, shared scanning content, audio-page, and decoded
+playback assertions pass does the smoke tap `ScanningStatusBadge`, which asks
+the exact Debug-only seed to perform the handoff. Production sessions and the
+Release coordinator remain no-ops for that request. The completed state must
+also expose the identifier-scoped Field Chat and Share toolbar buttons. Keep all
+navigation, shared-scanning, playable-media, downstream-toolbar, and handoff
+assertions when extending this regression. The exact-SHA hosted `Full iOS unit
+tests` job executes this case after the complete unit target; compilation alone
+is not acceptance evidence.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

@@ -37,3 +37,11 @@ paragraph, media-kind summary, or file-size label. Retry timing, errors, and
 recovery controls are inserted only when actionable. Keep
 `ScanningStatusBadge` on the shared pill for UI-test and accessibility
 stability.
+
+The deterministic queued-audio UI fixture uses that badge as an explicit
+post-assertion handoff control. It first proves queued navigation, shared
+scanning content, and decoded audio playback, then taps the badge to replace the
+exact seeded row with its completed record. Do not reintroduce a fixed delay:
+hosted simulator accessibility startup can be much slower than local rendering.
+The coordinator is enabled only for the exact Debug UI-test seed; normal app
+sessions and Release builds retain ordinary badge behavior.

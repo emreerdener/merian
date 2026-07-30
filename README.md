@@ -93,15 +93,22 @@ steps are tracked in the
 > descendant `f292dc48` explicitly types every equivalent snapshot as
 > `Set<String>` and locally passes the complete app/unit/UI
 > `build-for-testing` product graph under the documented CoreSimulator resource
-> bypass. Run 99 on exact descendant `631e123e8` subsequently compiled and
-> executed the complete unit target and produced a verified current-SHA Release
-> archive. Its archive passed, but the unit gate exposed three test-contract
-> failures: two fixtures expected an immediate claim while persisting a future
-> retry deadline, and one repository-source assertion treated indentation as
-> runtime behavior. The current test-only follow-up advances those fixtures to
-> their scheduled wake and normalizes source whitespace without relaxing the
-> production retry fence. A new hosted committed descendant must still pass the
-> complete unit target, queued-scan UI smoke, and current-SHA archive together.
+> bypass. Run 99 on exact descendant `631e123e8` subsequently exposed three
+> stale test-contract expectations; their test-only correction is committed in
+> `8642a8c6d`. Run 100 on that exact descendant passed all 1,241 unit tests and
+> every protected critical scan-flow regression. Its current-SHA Release archive
+> also passed at 239,083,520 bytes for `1.0.2 (235)`, fingerprint
+> `73f49a7e73d0432ec57ec1624e5bb53a39cd329efd58e78e28187e8086e04c83`,
+> with verified main dSYM UUIDs and no Debug UI-seed markers. The remaining
+> failure was isolated to the deterministic queued-audio UI fixture: its
+> four-second completion countdown began when the tile was tapped, before the
+> hosted simulator exposed the queued accessibility hierarchy, so the test could
+> no longer observe `ScanningStatusBadge`. The current follow-up removes that
+> countdown and completes the exact Debug-only fixture only when the smoke taps
+> the badge after proving queued navigation, scanning content, and decoded audio.
+> Release retains a no-op coordinator and production queue timing is unchanged.
+> A new hosted committed descendant must still pass the complete unit target,
+> one-case queued-scan UI smoke, and current-SHA archive together.
 
 ---
 

@@ -284,10 +284,6 @@ struct LibraryView: View {
                 "LibraryView.openQueuedScan: opening fresh queued insight scanId=\(snapshot.id, privacy: .private) state=\(queuedScanContext.queueState.rawValue, privacy: .public)"
             )
             onQueuedInsight?(queuedScanContext)
-            UITestSeedCoordinator.triggerQueuedAudioHandoffIfNeeded(
-                scanId: queuedScanContext.id,
-                container: modelContext.container
-            )
             return
         }
 

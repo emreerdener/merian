@@ -722,9 +722,12 @@ the shared scanning status badge and `Did you know?` card, then verifies the
 same audio page remains available before and after the completed result replaces
 the queued presentation. The seed writes a valid Documents PCM WAV, and the
 smoke requires its decoded playback control on both sides of the handoff rather
-than accepting a filename-only page. The exact-SHA hosted iOS gate executes this
-one deterministic regression after the complete unit target; the remaining UI
-tests are compiled but retain their feature-specific runtime gates.
+than accepting a filename-only page. There is no timer-driven replacement:
+after every queued-state assertion passes, the smoke taps the shared status
+badge to request the exact app-private Debug fixture handoff. Release retains a
+no-op coordinator. The exact-SHA hosted iOS gate executes this one deterministic
+regression after the complete unit target; the remaining UI tests are compiled
+but retain their feature-specific runtime gates.
 
 Deno tests live under `services/supabase/functions/_tests/` plus function-local
 `*.test.ts` files. Run from `services/supabase/functions` with:

@@ -13,6 +13,7 @@ struct ConfidenceBadge: View {
     /// When set, the badge shows an analyzing state with this phrase as its label.
     /// The explanation sheet is suppressed while analyzing.
     var analyzingPhrase: String?
+    var onAnalyzingTap: (() -> Void)?
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
     @State private var explanationScanId: String?
@@ -69,8 +70,11 @@ struct ConfidenceBadge: View {
             let presentedGeneration = inferenceEngine.scanPresentationGeneration
             
             Button(action: {
-                guard !isAnalyzing,
-                      let presentedScanId,
+                if isAnalyzing {
+                    onAnalyzingTap?()
+                    return
+                }
+                guard let presentedScanId,
                       inferenceEngine.scanPresentationGeneration == presentedGeneration,
                       inferenceEngine.speciesData?.scanId?
                         .caseInsensitiveCompare(presentedScanId) == .orderedSame else {

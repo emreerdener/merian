@@ -16,9 +16,12 @@ TestFlight, App Store, support, and QA.
   scanning experience, then keeps its audio page when the completed analysis
   replaces it. The seed now writes a valid PCM WAV and the smoke waits for the
   decoded playback control before and after handoff, so a retained filename
-  backed by missing or corrupt media cannot pass. It also requires the completed
-  observation to expose its Field Chat and Share toolbar controls, guarding the
-  downstream connections after queue promotion. Empty, duplicate-suite,
+  backed by missing or corrupt media cannot pass. Completion no longer races a
+  fixed countdown: the exact Debug-only fixture advances only when the smoke
+  taps the shared status badge after all queued-state and playback assertions.
+  It also requires the completed observation to expose its Field Chat and Share
+  toolbar controls, guarding the downstream connections after queue promotion.
+  Empty, duplicate-suite,
   duplicate-case, contradictory-suite, skipped, malformed, or wrong-test result
   evidence fails closed and retains a separate result bundle and log.
   Complete-unit critical evidence now applies the same exact-suite integrity:

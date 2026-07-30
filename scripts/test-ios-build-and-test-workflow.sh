@@ -341,6 +341,16 @@ assert_file_contains "$ui_seed_source" 'appendASCII("RIFF")'
 assert_file_contains "$ui_seed_source" "#if DEBUG"
 assert_file_contains "$ui_seed_source" "#else"
 assert_file_contains "$ui_seed_source" "return TestExecutionCoordinator.isRunningUITests"
+assert_file_count \
+  "$ui_seed_source" \
+  2 \
+  "static func completeQueuedAudioHandoffIfNeeded("
+assert_file_count \
+  "$ui_seed_source" \
+  0 \
+  "static func triggerQueuedAudioHandoffIfNeeded("
+assert_file_count "$ui_seed_source" 0 "4_000_000_000"
+assert_file_contains "$ui_test_source" "scanningStatusBadge.tap()"
 assert_file_contains \
   "$ui_seed_source" \
   "static var isEnabled: Bool { return false }"

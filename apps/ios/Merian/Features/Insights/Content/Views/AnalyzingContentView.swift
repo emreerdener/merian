@@ -77,6 +77,7 @@ struct ScanningExperienceView<SupplementalContent: View>: View {
     let fallbackElevation: Double?
     let fallbackLatitude: Double?
     let fallbackLongitude: Double?
+    let onAnalyzingBadgeTap: (() -> Void)?
     let supplementalContent: SupplementalContent
 
     init(
@@ -90,6 +91,7 @@ struct ScanningExperienceView<SupplementalContent: View>: View {
         fallbackElevation: Double?,
         fallbackLatitude: Double?,
         fallbackLongitude: Double?,
+        onAnalyzingBadgeTap: (() -> Void)? = nil,
         @ViewBuilder supplementalContent: () -> SupplementalContent
     ) {
         self.viewModel = viewModel
@@ -102,6 +104,7 @@ struct ScanningExperienceView<SupplementalContent: View>: View {
         self.fallbackElevation = fallbackElevation
         self.fallbackLatitude = fallbackLatitude
         self.fallbackLongitude = fallbackLongitude
+        self.onAnalyzingBadgeTap = onAnalyzingBadgeTap
         self.supplementalContent = supplementalContent()
     }
 
@@ -114,7 +117,8 @@ struct ScanningExperienceView<SupplementalContent: View>: View {
             ConfidenceBadge(
                 confidenceScore: nil,
                 inferenceTier: nil,
-                analyzingPhrase: analyzingPhrase
+                analyzingPhrase: analyzingPhrase,
+                onAnalyzingTap: onAnalyzingBadgeTap
             )
             .accessibilityIdentifier("ScanningStatusBadge")
 
