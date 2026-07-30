@@ -321,7 +321,17 @@ TestFlight, App Store, support, and QA.
   reject detached, duplicated, replaced, and misordered phases. Source
   fingerprinting also rejects tracked `assume-unchanged` or `skip-worktree`
   index state so a sparse or locally hidden file cannot masquerade as a clean,
-  complete release checkout.
+  complete release checkout. Credentialed App Store Connect build discovery now
+  uses the sortable global build endpoint scoped to the exact app, requests the
+  highest numeric build directly instead of inspecting only the 200 newest
+  uploads, URL-encodes bracketed query names so curl cannot treat them as
+  globs, bounds transport retries/timeouts and response size, and rejects an
+  unknown successful response shape instead of silently selecting a reusable
+  build number. Strict JSON marker parsing and portable link-count inspection
+  keep the hosted generated-project lane on its cheap Ubuntu runner. The
+  portable provenance fixture injects a narrow plist editor, while macOS runs
+  additionally exercise the real Apple `PlistBuddy`; production archives keep
+  the Apple binary as their fail-closed default.
 - The latest supplied hosted iOS run compiled and executed 879 tests but exposed
   three unique release regressions: replay after an already-committed offline
   completion rejected the repeated queue deletion, and two malformed Explore
@@ -1073,7 +1083,9 @@ TestFlight, App Store, support, and QA.
   and Pro identifications at 65%; weaker results remain pending until the user
   confirms the identification or a correction/community resolution confirms a
   species. Earlier weak-match credit is removed, and a later confidence
-  downgrade can reopen goals that no longer have qualifying evidence.
+  downgrade can reopen goals that no longer have qualifying evidence. The
+  repair migration now has bounded lock and statement timeouts, so deployment
+  fails cleanly instead of waiting indefinitely behind live scan traffic.
 - Added a left-aligned, above-title **Private** / **Published** badge to
   standard outing detail. Published is shown only when the owner has an active
   public outing snapshot; completion alone remains Private.

@@ -92,12 +92,45 @@ read_marker_value() {
   local expected_type="$2"
   local file="$3"
 
-  /usr/bin/plutil \
-    -extract "$key" raw \
-    -expect "$expected_type" \
-    -o - \
-    "$file" \
-    2>/dev/null
+  ruby -rjson -e '
+    key, expected_type, path = ARGV
+    document = JSON.parse(File.binread(path))
+    exit(1) unless document.is_a?(Hash) && document.key?(key)
+
+    value = document[key]
+    valid = case expected_type
+            when "string"
+              value.is_a?(String)
+            when "integer"
+              value.is_a?(Integer)
+            when "bool"
+              value.equal?(true) || value.equal?(false)
+            else
+              false
+            end
+    exit(1) unless valid
+    puts(value)
+  ' "$key" "$expected_type" "$file" 2>/dev/null
+}
+
+marker_has_key() {
+  local key="$1"
+  local file="$2"
+
+  ruby -rjson -e '
+    key, path = ARGV
+    document = JSON.parse(File.binread(path))
+    exit(document.is_a?(Hash) && document.key?(key) ? 0 : 1)
+  ' "$key" "$file" 2>/dev/null
+}
+
+validate_marker_json() {
+  local file="$1"
+
+  ruby -rjson -e '
+    document = JSON.parse(File.binread(ARGV.fetch(0)))
+    exit(document.is_a?(Hash) ? 0 : 1)
+  ' "$file" 2>/dev/null
 }
 
 should_enforce="false"
@@ -132,9 +165,9 @@ fi
 
 [[ -f "$project_yml" ]] || fail "missing project.yml at $project_yml."
 [[ -f "$marker_file" ]] || fail "missing release prep marker at $marker_file."
-[[ -x /usr/bin/plutil ]] || fail "plutil is unavailable."
-/usr/bin/plutil -convert json -o - "$marker_file" >/dev/null 2>&1 \
-  || fail "release prep marker is not valid JSON at $marker_file."
+command -v ruby >/dev/null 2>&1 || fail "ruby is unavailable."
+validate_marker_json "$marker_file" \
+  || fail "release prep marker is not a valid JSON object at $marker_file."
 
 project_version="$(extract_project_setting MARKETING_VERSION "$project_yml")" || fail "could not read MARKETING_VERSION from project.yml."
 project_build="$(extract_project_setting CURRENT_PROJECT_VERSION "$project_yml")" || fail "could not read CURRENT_PROJECT_VERSION from project.yml."
@@ -147,7 +180,7 @@ marker_source_fingerprint="$(
   read_marker_value source_fingerprint string "$marker_file"
 )" || fail "release prep marker has no string release-source fingerprint."
 marker_ci_validation_only="false"
-if /usr/bin/plutil -type ci_validation_only "$marker_file" >/dev/null 2>&1; then
+if marker_has_key ci_validation_only "$marker_file"; then
   marker_ci_validation_only="$(
     read_marker_value ci_validation_only bool "$marker_file"
   )" || fail "release prep marker has a malformed ci_validation_only flag."

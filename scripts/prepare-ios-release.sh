@@ -164,18 +164,26 @@ RUBY
 }
 
 parse_latest_build_from_response() {
-  if command -v ruby >/dev/null 2>&1; then
-    ruby -rjson -e '
-      data = JSON.parse(STDIN.read)
-      builds = data.fetch("data", []).map do |build|
-        version = build.dig("attributes", "version").to_s
-        version =~ /\A[1-9][0-9]*\z/ ? version.to_i : nil
-      end.compact
-      puts(builds.max || 0)
-    '
-  else
-    tr ',' '\n' | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([1-9][0-9]*\)".*/\1/p' | sort -n | tail -n 1
-  fi
+  ruby -rjson -e '
+    document = JSON.parse(STDIN.read)
+    builds = document["data"]
+    abort("response data is not an array") unless builds.is_a?(Array)
+
+    versions = builds.map do |build|
+      unless build.is_a?(Hash) && build["type"] == "builds"
+        abort("response contains an invalid build resource")
+      end
+
+      attributes = build["attributes"]
+      version = attributes["version"] if attributes.is_a?(Hash)
+      unless version.is_a?(String) && version.match?(/\A[1-9][0-9]*\z/)
+        abort("response contains an invalid build version")
+      end
+      version.to_i
+    end
+
+    puts(versions.max || 0)
+  '
 }
 
 fetch_latest_app_store_connect_build() {
@@ -184,27 +192,53 @@ fetch_latest_app_store_connect_build() {
 
   local jwt
   local body_file
+  local curl_status
   local http_code
   local latest_build
+  local request_url
 
   jwt="$(make_app_store_connect_jwt)"
   body_file="$(mktemp)"
+  request_url="https://api.appstoreconnect.apple.com/v1/builds"
 
-  http_code="$(
-    curl -sS \
+  if http_code="$(
+    curl --silent --show-error \
+      --proto '=https' \
+      --get \
+      --data-urlencode "filter[app]=${ASC_APP_ID}" \
+      --data-urlencode 'limit=1' \
+      --data-urlencode 'sort=-version' \
+      --data-urlencode 'fields[builds]=version' \
+      --connect-timeout 5 \
+      --max-time 15 \
+      --retry 2 \
+      --retry-delay 1 \
+      --retry-all-errors \
+      --max-filesize 1048576 \
       -o "$body_file" \
       -w "%{http_code}" \
       -H "Authorization: Bearer ${jwt}" \
-      "https://api.appstoreconnect.apple.com/v1/apps/${ASC_APP_ID}/builds?limit=200&sort=-uploadedDate&fields[builds]=version,uploadedDate,processingState"
-  )"
+      "$request_url"
+  )"; then
+    :
+  else
+    curl_status="$?"
+    rm -f "$body_file"
+    fail "App Store Connect build lookup transport failed (curl ${curl_status})"
+  fi
 
-  if [[ ! "$http_code" =~ ^2 ]]; then
+  if [[ ! "$http_code" =~ ^2[0-9]{2}$ ]]; then
     sed 's/^/App Store Connect: /' "$body_file" >&2
     rm -f "$body_file"
     fail "App Store Connect build lookup failed with HTTP ${http_code}"
   fi
 
-  latest_build="$(parse_latest_build_from_response < "$body_file")"
+  if latest_build="$(parse_latest_build_from_response < "$body_file")"; then
+    :
+  else
+    rm -f "$body_file"
+    fail "App Store Connect returned a malformed build-list response"
+  fi
   rm -f "$body_file"
   if [[ -z "$latest_build" ]]; then
     latest_build="0"

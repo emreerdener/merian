@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${MERIAN_PROJECT_ROOT:-${SRCROOT:-$(cd "$script_dir/.." && pwd)}}"
 fingerprint_script="$script_dir/ios-release-source-fingerprint.sh"
+plistbuddy_command="${MERIAN_PLISTBUDDY_COMMAND:-/usr/libexec/PlistBuddy}"
 
 fail() {
   echo "error: Could not embed iOS build provenance: $*" >&2
@@ -15,10 +16,10 @@ set_plist_string() {
   local key="$2"
   local value="$3"
 
-  if /usr/libexec/PlistBuddy -c "Print :${key}" "$plist" >/dev/null 2>&1; then
-    /usr/libexec/PlistBuddy -c "Set :${key} ${value}" "$plist"
+  if "$plistbuddy_command" -c "Print :${key}" "$plist" >/dev/null 2>&1; then
+    "$plistbuddy_command" -c "Set :${key} ${value}" "$plist"
   else
-    /usr/libexec/PlistBuddy -c "Add :${key} string ${value}" "$plist"
+    "$plistbuddy_command" -c "Add :${key} string ${value}" "$plist"
   fi
 }
 
@@ -63,7 +64,13 @@ product_candidate="$target_build_dir/$info_plist_path"
   || fail "product Info.plist must not be a symbolic link."
 [[ -f "$product_candidate" ]] \
   || fail "product Info.plist is missing at $product_candidate."
-product_link_count="$(/usr/bin/stat -f '%l' "$product_candidate")" \
+product_link_count="$(
+  perl -e '
+    my @metadata = lstat($ARGV[0]);
+    die "lstat failed\n" unless @metadata;
+    print $metadata[3];
+  ' "$product_candidate"
+)" \
   || fail "could not inspect the product Info.plist link count."
 [[ "$product_link_count" == "1" ]] \
   || fail "product Info.plist must not have multiple hard links."
@@ -82,7 +89,8 @@ case "$product_plist" in
     ;;
 esac
 
-[[ -x /usr/libexec/PlistBuddy ]] || fail "PlistBuddy is unavailable."
+[[ "$plistbuddy_command" == /* ]] || fail "PlistBuddy command must be an absolute path."
+[[ -x "$plistbuddy_command" ]] || fail "PlistBuddy is unavailable at $plistbuddy_command."
 set_plist_string "$product_plist" "MERIAN_SOURCE_REVISION" "$source_revision"
 set_plist_string "$product_plist" "MERIAN_SOURCE_FINGERPRINT" "$source_fingerprint"
 set_plist_string "$product_plist" "MERIAN_SOURCE_STATE" "$source_state"

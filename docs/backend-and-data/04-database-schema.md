@@ -3062,8 +3062,10 @@ coordinates to the client contract.
   while retaining selected-goal preferences for later confirmation. Future
   confidence, inference-tier, or confirmation downgrades run the same repair
   even after completion: affected standard/Event progress reopens, Event badges
-  are cleared, and completion publications/entries are soft-deleted. Responses
-  preserve current and credited-level counts and may add `removed_item_ids`.
+  are cleared, and completion publications/entries are soft-deleted. Its
+  migration-time repair is bounded by a ten-second lock timeout and five-minute
+  statement timeout. Responses preserve current and credited-level counts and
+  may add `removed_item_ids`.
 - `public.field_trip_scan_identification_is_eligible(ai_confidence_score DOUBLE PRECISION, inference_tier TEXT, confirmed_species_id UUID, user_confirmed_identification BOOLEAN)`:
   Internal immutable evidence-policy helper. It accepts a resolved or explicitly
   confirmed identification, Flash confidence at or above `0.75`, or Pro

@@ -313,12 +313,11 @@ the scan timestamp, not request time, owns the boundary. Eligibility is
 independent of photo/video modality once the biological scan is saved. An
 unreviewed AI identification must meet the inference tier's Possible-match
 boundary (`Flash >= 0.75`, `Pro >= 0.65`); a weaker match remains uncredited
-until explicit user confirmation or a confirmed correction/resolution. One
-scan can complete at most one current-level item per eligible standard outing
-and one per joined live challenge; it may still advance several experiences,
-and every created completion row retains the same scan ID. The optional
-preference is honored only for its owned, active, current, visible, matching
-standard goal.
+until explicit user confirmation or a confirmed correction/resolution. One scan
+can complete at most one current-level item per eligible standard outing and one
+per joined live challenge; it may still advance several experiences, and every
+created completion row retains the same scan ID. The optional preference is
+honored only for its owned, active, current, visible, matching standard goal.
 Otherwise the database ranks exact species, scientific name, taxonomy from genus
 through kingdom, taxonomy with an explicit excluded family, taxonomy combined
 with a required ecology/habitat/semantic signal, semantic tag, ecology, habitat,

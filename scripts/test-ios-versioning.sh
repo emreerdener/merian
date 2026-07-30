@@ -47,7 +47,7 @@ run_prepare() {
 assert_contains() {
   local needle="$1"
   local file="$2"
-  grep -q -- "$needle" "$file" || fail "Expected $file to contain: $needle"
+  grep -Fq -- "$needle" "$file" || fail "Expected $file to contain: $needle"
 }
 
 assert_fails() {
@@ -80,6 +80,44 @@ assert_succeeds_with() {
   fi
 }
 
+set_marker_value() {
+  local key="$1"
+  local type="$2"
+  local value="$3"
+  local file="$4"
+
+  ruby -rjson -e '
+    key, type, raw_value, path = ARGV
+    document = JSON.parse(File.binread(path))
+    abort("marker root must be an object") unless document.is_a?(Hash)
+
+    value = case type
+            when "string"
+              raw_value
+            when "bool"
+              abort("invalid bool fixture value") unless %w[true false].include?(raw_value)
+              raw_value == "true"
+            else
+              abort("unsupported fixture type")
+            end
+    document[key] = value
+    File.binwrite(path, JSON.pretty_generate(document) + "\n")
+  ' "$key" "$type" "$value" "$file"
+}
+
+remove_marker_key() {
+  local key="$1"
+  local file="$2"
+
+  ruby -rjson -e '
+    key, path = ARGV
+    document = JSON.parse(File.binread(path))
+    abort("marker root must be an object") unless document.is_a?(Hash)
+    abort("marker key is missing") unless document.delete(key)
+    File.binwrite(path, JSON.pretty_generate(document) + "\n")
+  ' "$key" "$file"
+}
+
 commit_fixture_source() {
   git -C "$tmp_dir" add -A
   git -C "$tmp_dir" commit --allow-empty -q -m "fixture source"
@@ -106,6 +144,64 @@ mkdir -p "$tmp_dir/fake-bin"
   printf 'exit 99\n'
 } > "$tmp_dir/fake-bin/xcodegen"
 chmod +x "$tmp_dir/fake-bin/xcodegen"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'set -euo pipefail\n'
+  printf 'output=""\n'
+  printf 'printf "%%s\\n" "$@" >> "${FAKE_ASC_CURL_LOG:?}"\n'
+  printf 'while (( $# > 0 )); do\n'
+  printf '  case "$1" in\n'
+  printf '    -o)\n'
+  printf '      output="$2"\n'
+  printf '      shift 2\n'
+  printf '      ;;\n'
+  printf '    *)\n'
+  printf '      shift\n'
+  printf '      ;;\n'
+  printf '  esac\n'
+  printf 'done\n'
+  printf 'if [[ "${FAKE_ASC_CURL_STATUS:-0}" != "0" ]]; then\n'
+  printf '  exit "$FAKE_ASC_CURL_STATUS"\n'
+  printf 'fi\n'
+  printf 'cp "${FAKE_ASC_RESPONSE:?}" "$output"\n'
+  printf 'printf "%%s" "${FAKE_ASC_HTTP_CODE:-200}"\n'
+} > "$tmp_dir/fake-bin/curl"
+chmod +x "$tmp_dir/fake-bin/curl"
+command -v python3 >/dev/null 2>&1 || fail "python3 is required for the portable plist fixture"
+{
+  printf '#!/usr/bin/env python3\n'
+  printf 'import plistlib\n'
+  printf 'import shlex\n'
+  printf 'import sys\n'
+  printf '\n'
+  printf 'if len(sys.argv) != 4 or sys.argv[1] != "-c":\n'
+  printf '    sys.exit(2)\n'
+  printf 'command = shlex.split(sys.argv[2])\n'
+  printf 'path = sys.argv[3]\n'
+  printf 'with open(path, "rb") as handle:\n'
+  printf '    document = plistlib.load(handle)\n'
+  printf 'operation = command[0] if command else ""\n'
+  printf 'key = command[1].lstrip(":") if len(command) > 1 else ""\n'
+  printf 'if operation == "Print" and len(command) == 2:\n'
+  printf '    if key not in document:\n'
+  printf '        sys.exit(1)\n'
+  printf '    print(document[key])\n'
+  printf '    sys.exit(0)\n'
+  printf 'if operation == "Set" and len(command) >= 3:\n'
+  printf '    if key not in document:\n'
+  printf '        sys.exit(1)\n'
+  printf '    value = " ".join(command[2:])\n'
+  printf 'elif operation == "Add" and len(command) >= 4 and command[2] == "string":\n'
+  printf '    if key in document:\n'
+  printf '        sys.exit(1)\n'
+  printf '    value = " ".join(command[3:])\n'
+  printf 'else:\n'
+  printf '    sys.exit(2)\n'
+  printf 'document[key] = value\n'
+  printf 'with open(path, "wb") as handle:\n'
+  printf '    plistlib.dump(document, handle, fmt=plistlib.FMT_XML, sort_keys=True)\n'
+} > "$tmp_dir/fake-bin/PlistBuddy"
+chmod +x "$tmp_dir/fake-bin/PlistBuddy"
 write_project_yml "1.0.0" "39"
 commit_fixture_source
 
@@ -143,7 +239,12 @@ provenance_relative_plist="Merian.app/Info.plist"
 provenance_product_plist="$provenance_product_dir/$provenance_relative_plist"
 provenance_outside_plist="$tmp_dir/build/provenance-outside.plist"
 mkdir -p "$(dirname "$provenance_product_plist")"
-/usr/bin/plutil -create xml1 "$provenance_outside_plist"
+{
+  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+  printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"'
+  printf '%s\n' '  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+  printf '%s\n' '<plist version="1.0"><dict/></plist>'
+} > "$provenance_outside_plist"
 
 ln -s "$provenance_outside_plist" "$provenance_product_plist"
 assert_fails_with "product Info.plist must not be a symbolic link" \
@@ -162,14 +263,36 @@ assert_fails_with "product Info.plist must not have multiple hard links" \
 
 rm -f "$provenance_product_plist"
 cp "$provenance_outside_plist" "$provenance_product_plist"
+assert_fails_with "PlistBuddy command must be an absolute path" \
+  env MERIAN_PROJECT_ROOT="$tmp_dir" \
+  MERIAN_PLISTBUDDY_COMMAND="fake-bin/PlistBuddy" \
+  TARGET_BUILD_DIR="$provenance_product_dir" \
+  INFOPLIST_PATH="$provenance_relative_plist" \
+  "$repo_root/scripts/embed-ios-build-provenance.sh"
 assert_succeeds_with "Embedded iOS build provenance" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
+  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
   TARGET_BUILD_DIR="$provenance_product_dir" \
   INFOPLIST_PATH="$provenance_relative_plist" \
   "$repo_root/scripts/embed-ios-build-provenance.sh"
 assert_contains "MERIAN_SOURCE_REVISION" "$provenance_product_plist"
 assert_contains "MERIAN_SOURCE_FINGERPRINT" "$provenance_product_plist"
 assert_contains "MERIAN_SOURCE_STATE" "$provenance_product_plist"
+
+if [[ -x /usr/libexec/PlistBuddy ]]; then
+  real_provenance_dir="$tmp_dir/build/real-provenance-product"
+  real_provenance_plist="$real_provenance_dir/$provenance_relative_plist"
+  mkdir -p "$(dirname "$real_provenance_plist")"
+  cp "$provenance_outside_plist" "$real_provenance_plist"
+  assert_succeeds_with "Embedded iOS build provenance" \
+    env MERIAN_PROJECT_ROOT="$tmp_dir" \
+    TARGET_BUILD_DIR="$real_provenance_dir" \
+    INFOPLIST_PATH="$provenance_relative_plist" \
+    "$repo_root/scripts/embed-ios-build-provenance.sh"
+  assert_contains "MERIAN_SOURCE_REVISION" "$real_provenance_plist"
+  assert_contains "MERIAN_SOURCE_FINGERPRINT" "$real_provenance_plist"
+  assert_contains "MERIAN_SOURCE_STATE" "$real_provenance_plist"
+fi
 
 assert_fails_with "EXPORT_PATH must be a child of" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
@@ -205,6 +328,71 @@ assert_fails_with "xcodegen 2.45.4 is required for reproducible release generati
   XCODEGEN_COMMAND="$tmp_dir/fake-bin/xcodegen" \
   "$repo_root/scripts/prepare-ios-release.sh"
 assert_contains "MARKETING_VERSION: 1.0.0" "$tmp_dir/project.yml"
+assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
+
+asc_private_key="$tmp_dir/build/asc-private-key.p8"
+asc_response="$tmp_dir/build/asc-response.json"
+asc_curl_log="$tmp_dir/build/asc-curl.log"
+mkdir -p "$tmp_dir/build"
+openssl ecparam -name prime256v1 -genkey -noout -out "$asc_private_key" 2>/dev/null
+
+run_prepare_with_fake_asc() {
+  local http_code="${1:-200}"
+  local curl_status="${2:-0}"
+
+  env \
+    FAKE_ASC_RESPONSE="$asc_response" \
+    FAKE_ASC_CURL_LOG="$asc_curl_log" \
+    FAKE_ASC_HTTP_CODE="$http_code" \
+    FAKE_ASC_CURL_STATUS="$curl_status" \
+    PATH="$tmp_dir/fake-bin:$PATH" \
+    VERSION=1.2.3 \
+    REVENUECAT_API_KEY="$valid_revenuecat_key" \
+    PROJECT_YML="$tmp_dir/project.yml" \
+    PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" \
+    CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" \
+    LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" \
+    IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" \
+    MERIAN_PROJECT_ROOT="$tmp_dir" \
+    RUN_XCODEGEN=0 \
+    ASC_APP_ID=1234567890 \
+    ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000 \
+    ASC_KEY_ID=ABC123DEFG \
+    ASC_PRIVATE_KEY_PATH="$asc_private_key" \
+    "$repo_root/scripts/prepare-ios-release.sh"
+}
+
+printf '%s\n' \
+  '{"data":[{"type":"builds","id":"fixture-build","attributes":{"version":"909"}}]}' \
+  > "$asc_response"
+write_project_yml "1.0.0" "39"
+run_prepare_with_fake_asc >/dev/null
+assert_contains "CURRENT_PROJECT_VERSION: 910" "$tmp_dir/project.yml"
+assert_contains '--get' "$asc_curl_log"
+assert_contains 'filter[app]=1234567890' "$asc_curl_log"
+assert_contains 'limit=1' "$asc_curl_log"
+assert_contains 'sort=-version' "$asc_curl_log"
+assert_contains 'fields[builds]=version' "$asc_curl_log"
+assert_contains '--connect-timeout' "$asc_curl_log"
+assert_contains '--max-time' "$asc_curl_log"
+assert_contains '--retry-all-errors' "$asc_curl_log"
+assert_contains '--max-filesize' "$asc_curl_log"
+
+printf '%s\n' '{"unexpected":"success-shape"}' > "$asc_response"
+write_project_yml "1.0.0" "39"
+assert_fails_with "App Store Connect returned a malformed build-list response" \
+  run_prepare_with_fake_asc
+assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
+
+printf '%s\n' '{"errors":[{"status":"503"}]}' > "$asc_response"
+write_project_yml "1.0.0" "39"
+assert_fails_with "App Store Connect build lookup failed with HTTP 503" \
+  run_prepare_with_fake_asc 503
+assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
+
+write_project_yml "1.0.0" "39"
+assert_fails_with "App Store Connect build lookup transport failed (curl 28)" \
+  run_prepare_with_fake_asc 200 28
 assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
 
 write_project_yml "1.0.0" "39"
@@ -248,51 +436,52 @@ local_marker_backup="$tmp_dir/build/ios-release-prep.local.json"
 cp "$local_marker" "$local_marker_backup"
 current_fixture_sha="$(git -C "$tmp_dir" rev-parse HEAD)"
 current_fixture_tree="$(git -C "$tmp_dir" write-tree)"
+
+set_marker_value build string "42" "$local_marker"
+assert_fails_with "release prep marker has no integer build" \
+  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
+
+cp "$local_marker_backup" "$local_marker"
+set_marker_value ci_validation_only string "true" "$local_marker"
+assert_fails_with "release prep marker has a malformed ci_validation_only flag" \
+  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
+
+printf '[]\n' > "$local_marker"
+assert_fails_with "release prep marker is not a valid JSON object" \
+  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
+
+cp "$local_marker_backup" "$local_marker"
 unrelated_fixture_sha="$(
   printf 'unrelated preparation base\n' \
     | git -C "$tmp_dir" commit-tree "$current_fixture_tree"
 )"
-/usr/bin/plutil \
-  -replace prepared_from_sha \
-  -string "$unrelated_fixture_sha" \
-  "$local_marker"
+set_marker_value prepared_from_sha string "$unrelated_fixture_sha" "$local_marker"
 assert_fails_with "does not descend from preparation base" \
   env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
 
 cp "$local_marker_backup" "$local_marker"
-/usr/bin/plutil \
-  -replace prepared_from_sha \
-  -string "not-a-revision" \
-  "$local_marker"
+set_marker_value prepared_from_sha string "not-a-revision" "$local_marker"
 assert_fails_with "local release marker has no valid preparation-base revision" \
   env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
 
 cp "$local_marker_backup" "$local_marker"
-/usr/bin/plutil -remove prepared_from_sha "$local_marker"
-/usr/bin/plutil \
-  -insert source_sha \
-  -string "$current_fixture_sha" \
-  "$local_marker"
-/usr/bin/plutil \
-  -insert ci_validation_only \
-  -bool YES \
-  "$local_marker"
+remove_marker_key prepared_from_sha "$local_marker"
+set_marker_value source_sha string "$current_fixture_sha" "$local_marker"
+set_marker_value ci_validation_only bool true "$local_marker"
 MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
   MERIAN_PROJECT_ROOT="$tmp_dir" \
   "$repo_root/scripts/check-ios-release-prep.sh" \
   >/dev/null
 
-/usr/bin/plutil \
-  -replace source_sha \
-  -string "0000000000000000000000000000000000000000" \
+set_marker_value \
+  source_sha \
+  string \
+  "0000000000000000000000000000000000000000" \
   "$local_marker"
 assert_fails_with "CI release marker source" \
   env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
 
-/usr/bin/plutil \
-  -replace source_sha \
-  -string "not-a-revision" \
-  "$local_marker"
+set_marker_value source_sha string "not-a-revision" "$local_marker"
 assert_fails_with "CI validation marker has no valid exact source revision" \
   env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
 

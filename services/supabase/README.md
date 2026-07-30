@@ -1596,14 +1596,16 @@ progress credited by the former broader rules.
 unreviewed AI identification to meet its inference tier's Possible-match
 boundary (`Flash >= 0.75`, `Pro >= 0.65`), while explicit confirmations and
 confirmed corrections/resolutions remain eligible. It repairs prior weak-match
-credit without discarding the pending selected-goal preference. Confidence,
-inference tier, confirmation, and the pending preference are carried in the
-atomic receipt revision. A later downgrade to weak unreviewed evidence removes
-standard/Event credit even after completion, reopens progress, clears derived
-Event badges, and soft-deletes invalid completion publications/entries. The
-contract suite verifies caller identity, role grants, ordering/filtering
-clauses, private completion links/status, credited progress in both RPCs, and
-the absence of evidence from public/capture projections.
+credit without discarding the pending selected-goal preference. The forward
+repair has a ten-second lock timeout and five-minute statement timeout; either
+timeout fails deployment and must be investigated rather than weakened.
+Confidence, inference tier, confirmation, and the pending preference are
+carried in the atomic receipt revision. A later downgrade to weak unreviewed
+evidence removes standard/Event credit even after completion, reopens progress,
+clears derived Event badges, and soft-deletes invalid completion
+publications/entries. The contract suite verifies caller identity, role grants,
+ordering/filtering clauses, private completion links/status, credited progress
+in both RPCs, and the absence of evidence from public/capture projections.
 `fieldTripCaptureContextDb.test.ts` additionally executes the
 filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
 standard/challenge credited counts, level advancement, exact tier boundaries,

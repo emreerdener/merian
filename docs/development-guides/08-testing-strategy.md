@@ -361,8 +361,13 @@ main-target-only preflight/provenance phase attachment, generated-phase
 cardinality and ordering, canonical shell commands, critical-result
 validation, structured failure-diagnostic extraction, and the unconditional
 final decision. Its generated-project fixtures explicitly detach, duplicate,
-reorder, and replace the release phases. It does not replace the macOS compile
-or simulator execution.
+reorder, and replace the release phases. The hosted project-guardrail lane runs
+this target on Ubuntu without booting a simulator. JSON release-marker
+validation uses the same strict Ruby parser on Linux and macOS. The portable
+provenance fixture injects a narrow `plistlib` editor; macOS runs additionally
+exercise the real Apple tool. Production archives retain
+`/usr/libexec/PlistBuddy` as the fail-closed default. This lane does not replace
+compilation or simulator execution.
 
 The membership implementation and its adversarial missing, unexpected, and
 orphan-source fixtures run in the macOS unit job. They can also be run locally

@@ -7,6 +7,9 @@
 -- The canonical UI constants are FLASH_POSSIBLE = 0.75 and
 -- PRO_POSSIBLE = 0.65 in functions/_shared/identify/thresholds.ts.
 
+SET lock_timeout = '10s';
+SET statement_timeout = '5min';
+
 CREATE OR REPLACE FUNCTION public.field_trip_scan_identification_is_eligible(
     ai_confidence_score DOUBLE PRECISION,
     inference_tier TEXT,
@@ -822,3 +825,6 @@ BEGIN
     END IF;
 END;
 $verify$;
+
+RESET statement_timeout;
+RESET lock_timeout;

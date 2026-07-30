@@ -75,6 +75,8 @@ Deno.test("Field Trip confidence policy blocks weak matches and repairs prior cr
 
   for (
     const fragment of [
+      "SET lock_timeout = '10s'",
+      "SET statement_timeout = '5min'",
       "CREATE OR REPLACE FUNCTION public.field_trip_scan_identification_is_eligible",
       "confirmed_species_id IS NOT NULL OR COALESCE(user_confirmed_identification, FALSE)",
       "WHEN LOWER(BTRIM(COALESCE(inference_tier, ''))) = 'pro' THEN 0.65 ELSE 0.75",
@@ -101,6 +103,8 @@ Deno.test("Field Trip confidence policy blocks weak matches and repairs prior cr
       "UPDATE public.field_trip_challenge_entries",
       "PERFORM public.apply_field_trip_scan_progress_atomic",
       "Weak, unreviewed Field Trip progress remains after confidence repair",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
     ]
   ) {
     assertStringIncludes(sql, fragment);

@@ -57,8 +57,17 @@ Placeholder values such as the literal `appl_...` are blocked. If no production
 key is configured yet, release prep and Xcode Archive warn but continue; app
 export/upload should use the production key.
 
-With App Store Connect credentials present, the script looks up the latest
-uploaded build and writes the next higher number:
+With App Store Connect credentials present, the script asks the sortable global
+build-list endpoint, scoped by the exact app resource ID, for the numerically
+highest uploaded build and writes the next higher number. The app relationship
+endpoint is not used because it does not support sorting. Query names such as
+`filter[app]` and `fields[builds]` are URL-encoded instead of being placed
+literally in a curl URL, where brackets would be interpreted as URL globbing.
+The lookup is sorted by build version rather than upload date, so an older,
+out-of-order upload cannot be missed behind the endpoint's 200-item page limit.
+Transport retries and timeouts are bounded, response size is capped, and an
+unknown successful response shape fails closed instead of being treated as an
+empty account:
 
 ```bash
 export ASC_APP_ID=1234567890
@@ -200,6 +209,13 @@ traversal-free, every parent resolves inside the canonical
 file. Symbolic links and multiple hard links are rejected before `PlistBuddy`
 can write through them. The release-tooling fixture proves both escapes fail
 and an ordinary product plist receives all three provenance keys.
+
+Release-preparation markers are JSON and are validated with the same strict,
+typed Ruby parser on Ubuntu and macOS. Production provenance embedding defaults
+to the absolute Apple `/usr/libexec/PlistBuddy` path. The portable test fixture
+explicitly injects a narrow Python `plistlib` editor because the Apple binary is
+not present on Ubuntu; macOS runs additionally test the real default tool. The
+override is for fixture execution, not release configuration.
 
 Generated-project validation binds both release scripts to the main `Merian`
 target rather than accepting a matching phase elsewhere in the project. The

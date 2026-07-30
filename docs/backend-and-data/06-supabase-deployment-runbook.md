@@ -2980,8 +2980,11 @@ fallback behavior.
 
 The confidence migration performs a forward-only data repair. Retain a
 production backup and record the expected repair scope before applying it. This
-pre-migration query uses the policy expression directly because the helper does
-not exist yet:
+repair uses a ten-second lock timeout and a five-minute statement timeout. A
+timeout is a failed deployment, not permission to bypass the gate: inspect live
+Field Trip/scan activity, let the blocking transaction finish, and rerun the
+unchanged migration. The pre-migration query uses the policy expression
+directly because the helper does not exist yet:
 
 ```sql
 WITH invalid_standard AS (
