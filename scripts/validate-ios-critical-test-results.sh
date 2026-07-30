@@ -281,6 +281,31 @@ assert_suite_has_passed_test_case \
   "Insight Sheet View Model Tests" \
   "testFieldNotesRejectChangedPresentationIdentity"
 assert_suite_has_passed_test_case \
+  "Strong noncompetitive candidate toolbar policy" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates"
+assert_suite_has_passed_test_case \
+  "Competitive candidate toolbar policy" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates"
+assert_suite_has_passed_test_case \
+  "Published Explore Field Notes promotion" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty"
+assert_suite_has_passed_test_case \
+  "Private local Field Notes preservation" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes"
+assert_suite_has_passed_test_case \
+  "Explore composer Field Notes synchronization" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testShareComposerFieldNotesSyncImmediatelyIntoInsightState"
+assert_suite_has_passed_test_case \
   "Preferred-name presentation-generation identity" \
   "InsightSheetViewModelTests" \
   "Insight Sheet View Model Tests" \

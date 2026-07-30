@@ -2350,7 +2350,7 @@ struct MerianNetworkClientTests {
                 url: URL(string: "https://example.com")!,
                 statusCode: 404,
                 httpVersion: nil,
-                headerFields: nil
+                headerFields: ["X-Merian-Handler": "1"]
             )
         )
         MockURLProtocol.mockEndpoints[

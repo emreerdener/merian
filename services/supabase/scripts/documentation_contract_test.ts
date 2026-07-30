@@ -1505,11 +1505,19 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "critical-result validator with 53 protected exact cases total, including all 19 added by the joined follow-up",
+    "critical-result validator with 58 protected exact cases total, including all 19 added by the joined follow-up and five menu/Field Notes regressions exposed by the newly supplied 917-test hosted run",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 53 exact cases; 19 were added by the joined scan-reliability follow-up",
+    "The current validator protects 58 exact cases; 19 were added by the joined scan-reliability follow-up, and five menu/Field Notes regressions exposed by the newly supplied 917-test hosted run are individually protected",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "the inference engine's completed `SpeciesData.scanId`, `activeLocalRecord`, `activeLocalRecordId`, and `toolbarRecordSnapshot` must identify the same scan",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "an Edge mock that represents a handler-owned `404` must include `X-Merian-Handler: 1`",
   );
   assertStringIncludes(
     compact(shareIncidentSource),
@@ -1948,10 +1956,13 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Identity merge/recovery and all 30 inline/video assertions passed.",
       "Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501`",
       "the 16-assertion Field Chat file, and all 27 files must pass",
-      "The latest supplied hosted run compiled and executed 879 tests in 67 suites",
-      "`completedInferenceAndQueueDeletionCommitTogether()` rejected `repeatedDelete`",
-      "malformed Explore share and share-state responses leaked `DecodingError`",
-      "Exact committed joined source `cc664a20d` addresses all three",
+      "The newly supplied hosted run compiled and executed 917 tests in 67 suites",
+      "reported 16 issues across six unique cases",
+      "omitted `X-Merian-Handler: 1`",
+      "expands the critical-result gate from 53 to 58 exact cases",
+      "all 58 protected case names resolve to maintained tests",
+      "The supplied run remains failed evidence",
+      "The rerun must report all six named cases as passed",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",

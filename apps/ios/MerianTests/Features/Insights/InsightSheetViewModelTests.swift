@@ -65,6 +65,22 @@ struct InsightSheetViewModelTests {
         return engine
     }
 
+    private func bindToolbarPresentation(
+        _ viewModel: InsightSheetViewModel,
+        scanId: String
+    ) {
+        let record = LocalScanRecord(
+            id: scanId,
+            speciesId: "toolbar_candidate_species",
+            scientificName: "Uresiphita reversalis",
+            commonName: "Genista Broom Moth"
+        )
+        viewModel.activeLocalRecord = record
+        viewModel.activeLocalRecordId = record.id
+        viewModel.toolbarRecordSnapshot =
+            InsightToolbarRecordSnapshot(record: record)
+    }
+
     @Test func testEvaluateScrollOffset() {
         let viewModel = InsightSheetViewModel()
         #expect(viewModel.state.isCommonNameScrolledPast == false)
@@ -653,7 +669,10 @@ struct InsightSheetViewModelTests {
             ]
         )
         viewModel.inferenceEngine = engine
-        viewModel.activeLocalRecordId = "strong_hidden_candidates"
+        bindToolbarPresentation(
+            viewModel,
+            scanId: "strong_hidden_candidates"
+        )
 
         #expect(viewModel.canConfirm == false)
         #expect(viewModel.canReviewAlternatives == false)
@@ -683,7 +702,10 @@ struct InsightSheetViewModelTests {
             ]
         )
         viewModel.inferenceEngine = engine
-        viewModel.activeLocalRecordId = "strong_hidden_candidates"
+        bindToolbarPresentation(
+            viewModel,
+            scanId: "strong_hidden_candidates"
+        )
 
         #expect(viewModel.canReviewAlternatives == false)
         #expect(viewModel.canReviewIdentificationConcernCandidates == true)
@@ -721,7 +743,10 @@ struct InsightSheetViewModelTests {
             ]
         )
         viewModel.inferenceEngine = engine
-        viewModel.activeLocalRecordId = "strong_competitive_candidates"
+        bindToolbarPresentation(
+            viewModel,
+            scanId: "strong_competitive_candidates"
+        )
 
         #expect(viewModel.canConfirm == true)
         #expect(viewModel.canReviewAlternatives == true)
@@ -1254,6 +1279,7 @@ struct InsightSheetViewModelTests {
         FieldNotesStore.setFieldNotes(nil, for: record.id)
         defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
 
+        viewModel.inferenceEngine = biologicalEngine(scanId: record.id)
         viewModel.bindPresentedRecord(record, modelContext: ctx)
         #expect(viewModel.fieldNotesText.isEmpty)
 
@@ -1282,6 +1308,7 @@ struct InsightSheetViewModelTests {
         FieldNotesStore.setFieldNotes(nil, for: record.id)
         defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
 
+        viewModel.inferenceEngine = biologicalEngine(scanId: record.id)
         viewModel.bindPresentedRecord(record, modelContext: ctx)
         viewModel.promotePublishedExploreFieldNotesIfLocalMissing(
             "Published Explore note",
@@ -1308,6 +1335,7 @@ struct InsightSheetViewModelTests {
         FieldNotesStore.setFieldNotes(nil, for: record.id)
         defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
 
+        viewModel.inferenceEngine = biologicalEngine(scanId: record.id)
         viewModel.bindPresentedRecord(record, modelContext: ctx)
         viewModel.state.dismissedFieldNotesCardScanId = record.id
 

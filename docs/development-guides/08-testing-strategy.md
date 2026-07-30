@@ -237,8 +237,9 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    reports every named scan-flow regression as `Passed`. The current validator
-   protects 53 exact cases; 19 were added by the joined scan-reliability
-   follow-up:
+   protects 58 exact cases; 19 were added by the joined scan-reliability
+   follow-up, and five menu/Field Notes regressions exposed by the newly
+   supplied 917-test hosted run are individually protected:
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
@@ -388,6 +389,15 @@ injected contexts, and explicitly select the durable-context or `UserDefaults`
 fallback path it intends to verify. View-model fixtures must also set routing
 identifiers and active media rather than relying on presentation side effects
 that are absent in a unit test.
+
+Scan-bound Insight fixtures must reproduce the production identity topology:
+the inference engine's completed `SpeciesData.scanId`, `activeLocalRecord`,
+`activeLocalRecordId`, and `toolbarRecordSnapshot` must identify the same scan
+before a toolbar or persisted Field Notes assertion is meaningful. Do not make
+the runtime identity guard permissive to accommodate a fixture that binds only
+an ID. Similarly, an Edge mock that represents a handler-owned `404` must
+include `X-Merian-Handler: 1`; omit that marker only when testing the platform
+route-unavailable path, which deliberately retains optimistic local state.
 
 ## Core Suites
 

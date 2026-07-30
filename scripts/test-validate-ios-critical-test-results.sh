@@ -122,6 +122,11 @@ write_test_tree() {
               "testRecordSwitchInvalidatesPriorActionGeneration",
               "testResetMonotonicallyInvalidatesScanBoundRequests",
               "testFieldNotesRejectChangedPresentationIdentity",
+              "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates",
+              "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates",
+              "testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty",
+              "testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes",
+              "testShareComposerFieldNotesSyncImmediatelyIntoInsightState",
               "testPreferredNameRejectsStalePresentationGeneration",
               "testQueuedRefreshRejectsChangedPresentationIdentity",
               "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity",
@@ -212,6 +217,11 @@ required_cases=(
   "testRecordSwitchInvalidatesPriorActionGeneration"
   "testResetMonotonicallyInvalidatesScanBoundRequests"
   "testFieldNotesRejectChangedPresentationIdentity"
+  "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates"
+  "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates"
+  "testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty"
+  "testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes"
+  "testShareComposerFieldNotesSyncImmediatelyIntoInsightState"
   "testPreferredNameRejectsStalePresentationGeneration"
   "testQueuedRefreshRejectsChangedPresentationIdentity"
   "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity"
