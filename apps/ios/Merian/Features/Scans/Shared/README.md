@@ -9,3 +9,9 @@ The `Shared` directory contains logic, UI components, and modifiers utilized acr
 
 ## Purpose
 Following the Merian iOS architecture, code is placed in `<Feature>/Shared` when it is reused by multiple product areas inside this specific feature (such as `Library`, `Collections`, and `NonBiological`) but does not represent app-wide infrastructure that would belong in `Core`.
+
+`QueuedScanSnapshot` is the detached value boundary for queued grid rows. Its
+automatic-recovery eligibility distinguishes durable queue state from live
+network policy: offline/constrained rows and pending playback video blocked by
+the large-upload policy cannot drive Library polling, while an explicit video
+retry and already-staged lightweight recovery remain eligible.

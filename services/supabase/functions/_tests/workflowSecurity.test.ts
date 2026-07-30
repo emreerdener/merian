@@ -9,6 +9,7 @@ const workflowsDirectory = new URL(
   "../../../../.github/workflows/",
   import.meta.url,
 );
+const functionsDenoConfig = new URL("../deno.json", import.meta.url);
 const REMOTE_ACTION_PATTERN =
   /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}(?:\s+#\s+v?\S+)?$/;
 
@@ -166,6 +167,11 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
 
   assertMatch(
     deployWorkflow,
+    /- name: Checkout repository[\s\S]*?fetch-depth: 0\n\s+persist-credentials: false/,
+    "Production deploy must not persist its repository token into Git config.",
+  );
+  assertMatch(
+    deployWorkflow,
     /- "apps\/ios\/Merian\/Core\/AI\/InferenceEdgeDTOs\.swift"/,
     "Swift DTO changes must trigger the contract gate.",
   );
@@ -183,6 +189,65 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
     deployWorkflow,
     /- name: Test complete Supabase tooling suite\n\s+run: bash supabase\/scripts\/test_supabase_tooling\.sh/,
     "Production deploy must invoke the discovery-based tooling test gate.",
+  );
+});
+
+Deno.test("production deploy runs the discovery-based complete Edge suite before mutation", async () => {
+  const [deployWorkflow, denoConfigSource] = await Promise.all([
+    Deno.readTextFile(new URL("deploy.yml", workflowsDirectory)),
+    Deno.readTextFile(functionsDenoConfig),
+  ]);
+  const denoConfig = JSON.parse(denoConfigSource) as {
+    tasks?: Record<string, unknown>;
+  };
+  const completeTestTask = denoConfig.tasks?.test;
+
+  assertEquals(typeof completeTestTask, "string");
+  assertMatch(
+    completeTestTask as string,
+    /^deno test --frozen [^\n]* \.$/,
+    "The complete Edge task must discover tests from the whole Function tree.",
+  );
+  assert(
+    !(completeTestTask as string).includes("--filter"),
+    "The complete Edge task must not filter out runtime tests.",
+  );
+
+  const databaseStart = deployWorkflow.indexOf(
+    "- name: Start disposable database for privileged-routine validation",
+  );
+  const catalogValidation = deployWorkflow.indexOf(
+    "- name: Validate database security catalogs",
+  );
+  const completeEdgeSuite = deployWorkflow.indexOf(
+    "- name: Test complete Edge Function suite",
+  );
+  const deploymentPlan = deployWorkflow.indexOf(
+    "- name: Plan affected Edge Function deployment",
+  );
+  const compatibilityPredeploy = deployWorkflow.indexOf(
+    "- name: Deploy fail-closed recovery consumers before compatibility migrations",
+  );
+  const migrationPush = deployWorkflow.indexOf(
+    "- name: Push Database Migrations",
+  );
+  const functionDeploy = deployWorkflow.indexOf(
+    "- name: Deploy affected Edge Functions",
+  );
+
+  assertMatch(
+    deployWorkflow,
+    /- name: Test complete Edge Function suite\n\s+env:\n\s+SUPABASE_DB_TEST_URL:[^\n]+\n\s+run: deno task --config supabase\/functions\/deno\.json test/,
+  );
+  assert(
+    databaseStart >= 0 &&
+      databaseStart < catalogValidation &&
+      catalogValidation < completeEdgeSuite &&
+      completeEdgeSuite < deploymentPlan &&
+      deploymentPlan < compatibilityPredeploy &&
+      compatibilityPredeploy < migrationPush &&
+      migrationPush < functionDeploy,
+    "Disposable-database catalogs and the complete Edge suite must pass before the compatibility predeploy, the first possible production mutation.",
   );
 });
 

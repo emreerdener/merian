@@ -1,7 +1,8 @@
-import Testing
-@testable import Merian
-import SwiftData
 import Foundation
+import SwiftData
+import Testing
+
+@testable import Merian
 
 @MainActor
 struct CompositeLibraryTests {
@@ -17,8 +18,10 @@ struct CompositeLibraryTests {
 
     private func makeCapturedMediaJSON(_ items: [SerializedMediaItem]) throws -> String {
         let data = try JSONEncoder().encode(items)
-        #expect(String(data: data, encoding: .utf8) != nil, "Captured media JSON must encode as UTF-8 text")
-        return String(decoding: data, as: UTF8.self)
+        return try #require(
+            String(bytes: data, encoding: .utf8),
+            "Captured media JSON must encode as UTF-8 text"
+        )
     }
 
     // MARK: - Test 1: OfflineQueuedScan IDs are unique across multiple inserts
@@ -54,28 +57,141 @@ struct CompositeLibraryTests {
         #expect(scan.coverImagePath == nil, "coverImagePath must default to nil so ScanThumbnail receives nil gracefully")
     }
 
-    // MARK: - Test 3: scanStateRaw < 5 predicate excludes tombstoned (.failed) scans
+    // MARK: - Queue visibility and recovery eligibility
 
-    @Test func testFailedScansExcludedByPredicate() throws {
+    @Test func testQueueVisibilitySeparatesRunnableAndUserRecoveryRows() throws {
         let context = try makeContext()
 
-        // Mirror the exact predicate used in ScansSheetView's refreshQueuedScans() (scanStateRaw < 5)
-        let active  = OfflineQueuedScan(scanState: .pending)
-        let failed  = OfflineQueuedScan(scanState: .failed)
+        // Mirror the exact predicate used in ScansSheetView.refreshQueuedScans().
+        let active = OfflineQueuedScan(scanState: .pending)
+        let legacyImport = OfflineQueuedScan(scanState: .externalImport)
+        let purgeableFailure = OfflineQueuedScan(scanState: .failed)
+        let recoverableFailure = OfflineQueuedScan(
+            scanState: .failed,
+            queueNeedsAttention: true
+        )
 
         context.insert(active)
-        context.insert(failed)
+        context.insert(legacyImport)
+        context.insert(purgeableFailure)
+        context.insert(recoverableFailure)
         try context.save()
 
-        let failedRaw = ScanQueueState.failed.rawValue
+        let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw < failedRaw }
+            predicate: #Predicate {
+                $0.scanStateRaw < firstNonRunnableRaw || $0.queueNeedsAttention
+            }
         )
         descriptor.sortBy = [SortDescriptor(\.timestamp, order: .reverse)]
         let results = try context.fetch(descriptor)
+        let resultIds = Set(results.map(\.id))
 
-        #expect(results.count == 1, "Predicate must exclude .failed (tombstoned) records")
-        #expect(results.first?.id == active.id, "Only the active scan should be returned")
+        #expect(resultIds == Set([active.id, recoverableFailure.id]))
+        #expect(!resultIds.contains(legacyImport.id))
+        #expect(!resultIds.contains(purgeableFailure.id))
+    }
+
+    @Test func testVisibleNeedsAttentionRowsDoNotDriveAutomaticRecovery() {
+        let attention = QueuedScanSnapshot(
+            id: "needs-attention",
+            imagePath: nil,
+            capturedMediaJSON: nil,
+            queueState: .failed,
+            timestamp: Date(),
+            queueNextRetryAt: nil,
+            queueLastErrorMessage: "Restore or delete this scan.",
+            queueNeedsAttention: true,
+            approximateQueuedBytes: 0
+        )
+        let staged = QueuedScanSnapshot(
+            id: "staged",
+            imagePath: nil,
+            capturedMediaJSON: nil,
+            queueState: .staged,
+            timestamp: Date(),
+            queueNextRetryAt: nil,
+            queueLastErrorMessage: nil,
+            queueNeedsAttention: false,
+            approximateQueuedBytes: 0
+        )
+        let legacyImport = QueuedScanSnapshot(
+            id: "legacy-import",
+            imagePath: nil,
+            capturedMediaJSON: nil,
+            queueState: .externalImport,
+            timestamp: Date(),
+            queueNextRetryAt: nil,
+            queueLastErrorMessage: nil,
+            queueNeedsAttention: true,
+            approximateQueuedBytes: 0
+        )
+        let pendingVideo = QueuedScanSnapshot(
+            id: "pending-video",
+            imagePath: nil,
+            capturedMediaJSON: CapturedMediaSnapshot(items: [
+                .video(StoredVideoMediaReference(
+                    .documents("queued-video.mp4")
+                ))
+            ]).jsonString,
+            queueState: .pending,
+            timestamp: Date(),
+            queueNextRetryAt: nil,
+            queueLastErrorMessage: nil,
+            queueNeedsAttention: false,
+            approximateQueuedBytes: 1
+        )
+
+        #expect(!attention.isAutomaticRecoveryEligible)
+        #expect(attention.canRetryNow)
+        #expect(staged.isAutomaticRecoveryEligible)
+        #expect(!legacyImport.isAutomaticRecoveryEligible)
+        #expect(!legacyImport.canRetryNow)
+        #expect(!pendingVideo.isAutomaticRecoveryEligibleForCurrentNetwork(
+            isOnline: false,
+            isConstrained: false,
+            allowsVideoUploads: true,
+            isForcedVideoUpload: false
+        ))
+        #expect(!pendingVideo.isAutomaticRecoveryEligibleForCurrentNetwork(
+            isOnline: true,
+            isConstrained: true,
+            allowsVideoUploads: true,
+            isForcedVideoUpload: true
+        ))
+        #expect(!pendingVideo.isAutomaticRecoveryEligibleForCurrentNetwork(
+            isOnline: true,
+            isConstrained: false,
+            allowsVideoUploads: false,
+            isForcedVideoUpload: false
+        ))
+        #expect(pendingVideo.isAutomaticRecoveryEligibleForCurrentNetwork(
+            isOnline: true,
+            isConstrained: false,
+            allowsVideoUploads: false,
+            isForcedVideoUpload: true
+        ))
+        #expect(pendingVideo.isAutomaticRecoveryEligibleForCurrentNetwork(
+            isOnline: true,
+            isConstrained: false,
+            allowsVideoUploads: true,
+            isForcedVideoUpload: false
+        ))
+        #expect(staged.isAutomaticRecoveryEligibleForCurrentNetwork(
+            isOnline: true,
+            isConstrained: false,
+            allowsVideoUploads: false,
+            isForcedVideoUpload: false
+        ))
+        #expect(
+            !QueuedScanContext(
+                id: "legacy-import",
+                capturedMediaItems: [],
+                queueState: .externalImport,
+                timestamp: Date(),
+                queueNeedsAttention: true
+            ).canRetryNow
+        )
     }
 
     // MARK: - Test 4: getSelectedLocalRecords() never returns entries for OfflineQueuedScan IDs

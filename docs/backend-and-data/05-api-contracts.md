@@ -1083,8 +1083,9 @@ promotion or cleanup. Image roles may be `display`, `thumbnail`, or
 `inference_frame`; video uses `playback`; audio uses `audio`. The Edge parser
 rejects unsanitized filenames, duplicate filenames (including legacy names that
 sanitize to one key), invalid `mediaKind` values, invalid role/kind
-combinations, content-type/kind mismatches, and oversized media before signing.
-Structured manifests require `sizeBytes`; the legacy `fileNames` array remains
+combinations, content-type/kind mismatches, empty media, and oversized media
+before signing. Structured manifests require a positive integer `sizeBytes`;
+the legacy `fileNames` array remains
 accepted for older clients but is compatibility-only and cannot express byte
 budgets or media asset sessions. Pre-signed `PUT` URLs include an
 `X-Amz-Expires=86400` parameter (24 hours). This extended window gives iOS
@@ -3864,6 +3865,9 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   non-media `recovery_scan` object. The handler derives and verifies the owner,
   inserts with duplicate protection, reloads by both scan and owner, and then
   follows the normal eligibility and media-promotion path. The server refuses
+  media-less owner recovery with `409 scan_restore_media_required` before the
+  recovery RPC is invoked, and proves every supplied key's exact
+  scan/kind/role upload-ledger binding before that mutation. It also refuses
   this repair while richer ingestion is active or retryable and after a known
   terminal moderation or provider safety-policy rejection.
 - Sharing snapshots image, video, and standalone-audio URLs into
@@ -5677,6 +5681,19 @@ same-UUID send replay in staging, and only then ship the hardened iOS validator.
 Existing iOS versions ignore the additive response fields; the corrected version
 deliberately fails closed against an older anonymous-success envelope or a send
 that cannot prove its persisted pair.
+
+Before release acceptance, also apply
+`20260730180000_bind_field_chat_rows_to_subjects.sql`. It is compatible with
+both old and corrected chat functions: impossible historical cross-bound
+private rows are removed first, then deferred composite foreign keys require
+every retained Insight conversation to match its exact scan owner and every
+retained message and rating to match its exact conversation, scan-or-post, and
+viewer identity at commit. Conversation-optional feature feedback also matches
+its exact scan owner without relying on a parent thread. Insight answer and
+feature feedback lose their legacy direct authenticated Data API writes and
+remain available only through the authenticated action envelopes above. This
+structural boundary prevents one malformed persisted row from making every
+future strict load of that thread fail.
 
 ### Safety and Errors
 

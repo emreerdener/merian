@@ -7,6 +7,10 @@ const migrationUrl = new URL(
   "../../migrations/20260729163616_reserve_field_chat_sends_atomically.sql",
   import.meta.url,
 );
+const bindingMigrationUrl = new URL(
+  "../../migrations/20260730180000_bind_field_chat_rows_to_subjects.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -156,4 +160,87 @@ Deno.test("both Field Chat routes use atomic admission and stale quota rescue", 
     assertStringIncludes(source, "admission.sendsToday");
     assertStringIncludes(source, "admission.isReplay");
   }
+});
+
+Deno.test("Field Chat binding migration removes untrusted drift before structural validation", async () => {
+  const sql = normalized(await Deno.readTextFile(bindingMigrationUrl));
+
+  for (
+    const fragment of [
+      "DELETE FROM public.insight_chat_conversations AS conversation WHERE NOT EXISTS",
+      "scan.id = conversation.scan_id AND scan.user_id = conversation.user_id",
+      "DELETE FROM public.insight_chat_messages AS message WHERE NOT EXISTS",
+      "conversation.id = message.conversation_id AND conversation.scan_id = message.scan_id AND conversation.user_id = message.user_id",
+      "DELETE FROM public.explore_post_chat_messages AS message WHERE NOT EXISTS",
+      "conversation.post_id = message.post_id",
+      "DELETE FROM public.insight_chat_message_feedback AS feedback WHERE NOT EXISTS",
+      "DELETE FROM public.explore_post_chat_message_feedback AS feedback WHERE NOT EXISTS",
+      "message.role = 'assistant'",
+      "DELETE FROM public.insight_chat_feature_feedback AS feedback WHERE NOT EXISTS",
+      "scan.id = feedback.scan_id AND scan.user_id = feedback.user_id",
+      "UPDATE public.insight_chat_feature_feedback AS feedback SET conversation_id = NULL",
+      "ADD CONSTRAINT scans_bound_owner_identity_key UNIQUE (id, user_id)",
+      "ADD CONSTRAINT insight_chat_conversations_bound_scan_owner_fk FOREIGN KEY (scan_id, user_id)",
+      "ADD CONSTRAINT insight_chat_feature_feedback_bound_scan_owner_fk FOREIGN KEY (scan_id, user_id)",
+      "REFERENCES public.scans (id, user_id)",
+      "ADD CONSTRAINT insight_chat_messages_bound_conversation_fk FOREIGN KEY (conversation_id, scan_id, user_id)",
+      "ADD CONSTRAINT explore_post_chat_messages_bound_conversation_fk FOREIGN KEY (conversation_id, post_id, user_id)",
+      "ADD CONSTRAINT insight_chat_message_feedback_bound_message_fk FOREIGN KEY (message_id, conversation_id, scan_id, user_id)",
+      "ADD CONSTRAINT explore_post_chat_message_feedback_bound_message_fk FOREIGN KEY (message_id, conversation_id, post_id, user_id)",
+      "ADD CONSTRAINT insight_chat_feature_feedback_bound_conversation_fk FOREIGN KEY (conversation_id, scan_id, user_id)",
+      "DEFERRABLE INITIALLY DEFERRED",
+      "NOTIFY pgrst, 'reload schema'",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const firstCleanup = sql.indexOf(
+    "DELETE FROM public.insight_chat_conversations AS conversation",
+  );
+  const firstConstraint = sql.indexOf(
+    "ADD CONSTRAINT insight_chat_conversations_bound_identity_key",
+  );
+  assert(
+    firstCleanup >= 0 && firstConstraint > firstCleanup,
+    "Untrusted historical bindings must be removed before constraints validate.",
+  );
+});
+
+Deno.test("Field Chat binding migration closes feedback Data API writes with exact RLS defense", async () => {
+  const sql = normalized(await Deno.readTextFile(bindingMigrationUrl));
+
+  for (
+    const fragment of [
+      "REVOKE ALL PRIVILEGES ON TABLE public.insight_chat_message_feedback, public.insight_chat_feature_feedback, public.explore_post_chat_message_feedback FROM PUBLIC, anon, authenticated, service_role",
+      "GRANT SELECT, INSERT, UPDATE ON TABLE public.insight_chat_message_feedback, public.explore_post_chat_message_feedback TO service_role",
+      "GRANT SELECT, INSERT ON TABLE public.insight_chat_feature_feedback TO service_role",
+      'CREATE POLICY "Users can insert their own insight chat conversations"',
+      "scan.id = insight_chat_conversations.scan_id",
+      'CREATE POLICY "Users can insert their own insight chat messages"',
+      "conversation.id = insight_chat_messages.conversation_id",
+      'CREATE POLICY "Users access exact insight chat feedback"',
+      "message.id = insight_chat_message_feedback.message_id",
+      'CREATE POLICY "Users access exact insight chat feature feedback"',
+      "conversation.id = insight_chat_feature_feedback.conversation_id",
+      'CREATE POLICY "Viewers manage their Explore chat feedback"',
+      "message.id = explore_post_chat_message_feedback.message_id",
+      "message.role = 'assistant'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(
+      "GRANT SELECT, INSERT, UPDATE ON TABLE public.insight_chat_message_feedback, public.explore_post_chat_message_feedback TO authenticated",
+    ),
+  );
+  assert(
+    !sql.includes(
+      "GRANT SELECT, INSERT ON TABLE public.insight_chat_feature_feedback TO authenticated",
+    ),
+  );
 });

@@ -18,7 +18,9 @@ A completed background PUT is evidence for one upload member, not permission to
 start analysis. The generation accumulator must equal the duplicate-free exact
 expected key set; missing, extra, or duplicate manifest members fail closed.
 Sanitized filename and object-key collisions are rejected before signing or
-upload. `BackgroundDatabaseActor.markScanAsStaged` then persists those keys,
+upload. Every structured media file must also have a positive nonzero size on
+both iOS and Edge before signing. `BackgroundDatabaseActor.markScanAsStaged`
+then persists those keys,
 normally resets upload retry state, updates the queue job, and transitions
 `.uploading → .staged` in one save. Only `.staged` after that commit—or a
 serialized owner with the same staged manifest—may proceed toward an inference
@@ -38,11 +40,56 @@ orphan reconciliation restarts signing for a still-uploading row; a staged row
 replays only its persisted keys. A missing, failed, or external-import row is
 discarded and never resurrected.
 
+Upload policy is checked both before and immediately after the serialized
+`.pending → .uploading` claim. If connectivity, Low Data Mode, live ownership,
+or video cellular eligibility changed during the actor suspension, the exact
+scan claim and its durable running job return to runnable state atomically
+without spending retry budget. Signed members for one scan are preflighted as a
+complete manifest and all resumed in one main-actor turn or not at all; any
+no-task claim is released through the same timestamp- and URLSession-fenced
+recovery.
+
 The replay/orphan driver is process-local single-flight. Library, scheduler,
 reconnect, and URLSession completion wakes share one active reconciliation.
 Wakes received while it is running coalesce into at most one trailing pass, so
 state changes are not dropped without allowing duplicate status probes, orphan
 transitions, retry-budget inflation, or Library log storms.
+Upload/inference claims revalidate `queueNeedsAttention` and the persisted
+retry deadline inside the serialized actor immediately before mutation.
+Orphan reconciliation excludes needs-attention rows entirely; only explicit
+retry may clear that fence and return them to automatic work.
+Pending selection is ordered by timestamp and stable ID and pages through
+future-dated retries, process-local live-upload deferrals, videos blocked on
+the current network, and media-less legacy rows until it either fills the
+runnable-media limit or exhausts the eligible set. Media-less rows consume a
+separate bounded quarantine budget, so old locally blocked or malformed rows
+cannot starve newer runnable work; an explicit user-forced video remains
+eligible. The worker rechecks those process-local inputs after the actor read
+and refetches if they changed. Global server-ownership probes likewise exclude
+needs-attention inferencing rows through the serialized queue actor, so a
+cached main-context fault or unrelated recovery wake cannot resume their
+polling.
+Network monitoring treats constrained/expensive policy changes as first-class
+transitions even while reachability stays satisfied. Low Data Mode disarms
+automatic drains and constrained background-session access; returning to an
+eligible path wakes durable work. The uploader repeats its policy check after
+Auth/filesystem preparation and immediately before the actor claim, preventing
+a stale WiFi snapshot from dispatching video after a cellular handoff. These
+path values are observable: the Scan Library includes them in its refresh-task
+identity and applies the same online/constrained/large-upload rules before
+polling or kicking workers. Offline, constrained, and cellular-blocked pending
+video rows therefore stay visible without producing a refresh/log loop. Final
+background PUT requests always reject constrained transport; non-forced video
+scans reject expensive transport for every manifest member, and dispatch
+repeats the live-policy check immediately before resume. A WiFi-started
+mixed-media video scan therefore cannot partially continue over cellular unless
+the user explicitly authorized that scan.
+The upload packer scans the full bounded candidate window rather than only its
+first batch-size rows, continues past a non-fitting row when later work can
+fit, and quarantines a malformed `.pending` row with no upload media as
+visible needs-attention. The quarantine rechecks state, attention, and all
+canonical upload paths in the serialized actor before committing the failed
+state and job/event ledger together.
 
 The first `failed_retryable` status observation writes that marker and
 increments retry accounting atomically. After its persisted delay, only that

@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(16);
+SELECT extensions.plan(19);
 
 SELECT extensions.ok(
     pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -168,6 +168,120 @@ SELECT extensions.ok(
         'DELETE'
     ),
     'service-role Field Chat table ACLs are explicit and least privilege'
+);
+
+SELECT extensions.ok(
+    (
+        SELECT pg_catalog.COUNT(*) = 7
+        FROM pg_catalog.pg_constraint AS constraint_row
+        WHERE constraint_row.conname IN (
+            'insight_chat_conversations_bound_scan_owner_fk',
+            'insight_chat_feature_feedback_bound_scan_owner_fk',
+            'insight_chat_messages_bound_conversation_fk',
+            'explore_post_chat_messages_bound_conversation_fk',
+            'insight_chat_message_feedback_bound_message_fk',
+            'explore_post_chat_message_feedback_bound_message_fk',
+            'insight_chat_feature_feedback_bound_conversation_fk'
+        )
+          AND constraint_row.contype = 'f'
+          AND constraint_row.convalidated
+          AND constraint_row.condeferrable
+          AND constraint_row.condeferred
+    ),
+    'Field Chat parent ownership and child identities have validated deferred structural bindings'
+);
+
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.insight_chat_message_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.insight_chat_message_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.insight_chat_feature_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.insight_chat_feature_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.explore_post_chat_message_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.explore_post_chat_message_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    ),
+    'unprivileged API roles cannot write or read private Field Chat feedback'
+);
+
+SELECT extensions.ok(
+    pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.insight_chat_message_feedback',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.insight_chat_message_feedback',
+        'INSERT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.insight_chat_message_feedback',
+        'UPDATE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.insight_chat_message_feedback',
+        'DELETE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.insight_chat_feature_feedback',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.insight_chat_feature_feedback',
+        'INSERT'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.insight_chat_feature_feedback',
+        'UPDATE, DELETE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_chat_message_feedback',
+        'SELECT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_chat_message_feedback',
+        'INSERT'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_chat_message_feedback',
+        'UPDATE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.explore_post_chat_message_feedback',
+        'DELETE'
+    ),
+    'backend feedback privileges are explicit and least privilege'
 );
 
 INSERT INTO auth.users (

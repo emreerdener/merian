@@ -142,6 +142,7 @@ struct FieldChatToolbarButton: View {
                 .opacity(reduceMotion ? 0 : 1)
         }
         .accessibilityLabel("Open Field chat")
+        .accessibilityIdentifier("FieldChatToolbarButton")
         .task(id: reduceMotion) {
             guard !reduceMotion else {
                 shimmerPhase = -1.0

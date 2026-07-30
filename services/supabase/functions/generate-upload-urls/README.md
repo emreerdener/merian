@@ -55,8 +55,9 @@ receives durable lifecycle registration before any URL is returned.
 normally omitted. `scan_share_restore` is reserved for re-staging surviving
 local media bound to an exact scan during explicit Explore or Community repair,
 including guarded missing-owner-row recovery. Every structured entry requires a
-non-negative integer `sizeBytes`. The filename must already be sanitized, flat,
-and unique within the request. Role/kind combinations are strict:
+positive integer `sizeBytes`; empty media is rejected before signing. The
+filename must already be sanitized, flat, and unique within the request.
+Role/kind combinations are strict:
 
 If both spellings of a compatibility field are present, their values must be
 identical. Conflicting aliases are rejected rather than choosing one silently.

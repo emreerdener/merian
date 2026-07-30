@@ -259,15 +259,20 @@ through the atomic Explore transaction.
 
 ### iOS sequencing
 
-New iOS code asks `/check-scan-status` to commit the guarded non-media owner-row
-repair before signing surviving local media. This matches Field Chat and Ask the
-Community, avoids uploading when database recovery will defer, and lets the
-signer validate a completed active owner row.
+New iOS code first resolves a read-only local restore plan and rejects missing,
+empty, or over-budget surviving media before any owner-row mutation. It then
+asks `/check-scan-status` to commit the guarded non-media owner-row repair before
+signing that exact plan. This matches Field Chat and Ask the Community, avoids
+uploading when database recovery will defer, and lets the signer validate a
+completed active owner row.
 
 The Edge signer and inline share repair also retain the older released-client
 sequence—stage exact local media first, then attach `recovery_scan` to Share.
 This compatibility is necessary to repair the current TestFlight cohort before
-the next iOS build reaches testers.
+the next iOS build reaches testers. If the owner row is absent, Share requires
+at least one validated restored staging key and returns
+`409 scan_restore_media_required` before invoking owner recovery for a
+media-less request.
 
 The reconciler now refuses to invoke terminal marking for an already complete or
 terminal job. Its database update independently excludes both states. This

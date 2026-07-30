@@ -67,6 +67,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
+#if DEBUG
 enum UITestSeedCoordinator {
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
@@ -76,7 +77,7 @@ enum UITestSeedCoordinator {
     @MainActor private static var triggeredQueuedAudioHandoffs: Set<String> = []
 
     static var isEnabled: Bool {
-        TestExecutionCoordinator.isRunningUITests
+        return TestExecutionCoordinator.isRunningUITests
     }
 
     @MainActor
@@ -343,6 +344,20 @@ enum UITestSeedCoordinator {
         )
     }
 }
+#else
+enum UITestSeedCoordinator {
+    static var isEnabled: Bool { return false }
+
+    @MainActor
+    static func prepareIfNeeded(container _: ModelContainer) {}
+
+    @MainActor
+    static func triggerQueuedAudioHandoffIfNeeded(
+        scanId _: String,
+        container _: ModelContainer
+    ) {}
+}
+#endif
 
 enum TestExecutionCoordinator {
     static var isRunningUITests: Bool {

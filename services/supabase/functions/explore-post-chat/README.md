@@ -54,10 +54,16 @@ truncating a species name into a misleading label.
 
 Apply `20260729163616_reserve_field_chat_sends_atomically.sql`, then deploy this
 additive response expansion and request-pair projection together with
-`insight-chat` before shipping the hardened iOS validator. Old clients safely
-ignore `subject_id` and the additive assistant request projection; the corrected
-client intentionally fails closed when an old function response omits the
-subject or cannot confirm its current send pair.
+`insight-chat`. Apply the compatible
+`20260730180000_bind_field_chat_rows_to_subjects.sql` before release acceptance;
+it cleans impossible historical cross-bound private rows, binds retained Insight
+conversations to their exact scan owners, enforces exact
+conversation/post/viewer and copied-feedback identity with deferred composite
+foreign keys, independently binds conversation-optional Insight feature feedback
+to its scan owner, and keeps feedback on the Edge-only API boundary. Old clients
+safely ignore `subject_id` and the additive assistant request projection; the
+corrected client intentionally fails closed when an old function response omits
+the subject or cannot confirm its current send pair.
 
 ## Verification
 

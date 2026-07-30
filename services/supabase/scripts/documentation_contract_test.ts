@@ -290,6 +290,34 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
     runbook,
     "run `require_supabase_cli_version.sh` before config parsing or mutation",
   );
+  assertStringIncludes(
+    runbook,
+    "sets `persist-credentials: false`, leaving Git credential-free",
+  );
+  assertStringIncludes(
+    runbook,
+    "rejects a filtered or non-recursive complete task",
+  );
+  assertStringIncludes(
+    runbook,
+    "finish before deployment planning, migration push, or Function deployment",
+  );
+  assertStringIncludes(
+    runbook,
+    "explicit connect, whole-request, response-size, retry-count, and retry-delay bounds",
+  );
+  assertStringIncludes(
+    runbook,
+    "falls back to a full-fleet plan",
+  );
+  assertStringIncludes(
+    runbook,
+    "Every production smoke `curl` has explicit connect and whole-request timeouts plus `--max-filesize 1048576`",
+  );
+  assertStringIncludes(
+    runbook,
+    "an oversized response fails closed without printing its body",
+  );
   assertStringIncludes(runbook, "rerun the same workflow SHA");
   assertStringIncludes(
     runbook,
@@ -1029,6 +1057,10 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(retryIncidentSource),
+    "`29324d5d7ec55b7e4dc658c1e8300ea31361db66`",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
     "disabled both Wi-Fi and cellular data",
   );
   assertStringIncludes(
@@ -1378,6 +1410,9 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   const localShare = compact(
     networkClientImplementationSource.slice(localShareStart, localShareEnd),
   );
+  const restorePlanIndex = localShare.indexOf(
+    "let restorePlan = try makeExploreRestoreMediaPlan(",
+  );
   const recoveryPayloadIndex = localShare.indexOf(
     "let recoveryScan = try await makeOwnedScanRecoveryPayload(",
   );
@@ -1388,10 +1423,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "let restoredObjectKeys = try await restoreExploreMediaObjectKeys(",
   );
   assert(
-    recoveryPayloadIndex >= 0 &&
+    restorePlanIndex >= 0 &&
+      recoveryPayloadIndex > restorePlanIndex &&
       ownerRecoveryIndex > recoveryPayloadIndex &&
       restoreSigningIndex > ownerRecoveryIndex,
-    "Current iOS must build recovery evidence and repair the missing owner row before requesting restore upload URLs.",
+    "Current iOS must validate a surviving local-media plan, build recovery evidence, and repair the missing owner row before requesting restore upload URLs.",
+  );
+  assertStringIncludes(
+    localShare,
+    "refusing owner-row reconstruction.",
   );
   assertStringIncludes(localShare, "recoveryScan: recoveryScan");
   assertStringIncludes(
@@ -1735,11 +1775,19 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "critical-result validator with 61 protected exact cases total, including all 19 added by the joined follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run, the two bounded/redacted queue-diagnostic cases, and the actual network-boundary media-incident compatibility case",
+    "the exact scan and durable ingestion job return to runnable state atomically without spending retry budget",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "resumed as one complete main-actor manifest or not started",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
+    "critical-result validator with 71 protected exact cases total, including all 27 added by the joined follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run, the two bounded/redacted queue-diagnostic cases, and the actual network-boundary media-incident compatibility case",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 61 exact cases; 19 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, and the media-incident compatibility case exercises the actual network-client boundary",
+    "The current validator protects 71 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, and the media-incident compatibility case exercises the actual network-client boundary",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -1756,6 +1804,34 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   assertStringIncludes(
     compact(testingStrategySource),
     "never use substring or suite-only matching as a workaround",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "Release QA must therefore queue a playback-video scan, keep reachability satisfied while moving cellular → WiFi and Low Data Mode → normal",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "extracts all 71 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "A duplicate matching suite, duplicate protected case, or failed-suite/passed-child contradiction is invalid evidence.",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "Release retains only signature-compatible no-ops with `UITestSeedCoordinator.isEnabled == false`; it does not compile fixture arguments, deterministic media, or local data-replacement logic",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "The current-SHA Release archive then extracts the main binary's strings and fails if any achievement/queued-audio seed argument or queued-audio fixture filename is present",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "It records `ui_test_seed_markers_absent: true` only after the binary-string audit above passes",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "After the completed result takes over, the same smoke requires `FieldChatToolbarButton` and `InsightShareButton`, proving queue promotion reconnects the observation to Field Chat and sharing",
   );
   assertStringIncludes(
     compact(shareIncidentSource),
@@ -2158,6 +2234,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "The planner compares the current exact SHA with the most recent successful production workflow SHA",
       "fixture-only follow-up to failed catalog runs still includes every undeployed scan and Explore runtime change",
       "Production smoke must prove database readiness as well as Edge route liveness.",
+      "Every production-smoke response is capped at 1 MiB",
       "requires each routine's exact SQLSTATE `22023` message",
       "a public `400` would prove the service-only body was reached and fails closed",
       "Race a direct Explore share against request creation",
@@ -2169,6 +2246,20 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
       "a valid Documents PCM WAV",
       "preventing filename-only media evidence",
+      "must additionally expose identifier-scoped Field Chat and Share toolbar controls",
+      "proving queue promotion reconnects both downstream features",
+      "requires each allowlist name to resolve to one unique `@Test` declaration and binds each explicit display alias to that declaration",
+      "prevent visible needs-attention rows from driving periodic Scan Library polling or automatic worker kicks",
+      "keep Library polling dormant while offline, constrained, or blocked by the current large-upload policy",
+      "all PUT requests for a non-forced playback-video scan also reject expensive transport",
+      "fence those rows from serialized upload/inference claims, actor-owned global status selection, and orphan reconciliation",
+      "observable unsynced count includes only automatically runnable, non-attention rows",
+      "resolves and byte-validates surviving local observation media before reconstructing the cloud row",
+      "reject manual retry of a legacy non-runnable import",
+      "rejects failed-suite/passed-child contradictions, duplicate matching suites, and duplicate protected cases",
+      "Release compiles only a false-returning no-op coordinator",
+      "The archive gate scans the main binary and rejects any retained achievement/queued-audio seed argument or queued-audio fixture filename",
+      "duplicate-suite, duplicate-case, and contradictory-suite evidence",
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
       "authoritative known location-sharing value",
       "At the retained parser evidence review, `HEAD` and `origin/main` both resolved to `bdf84b52`",
@@ -2176,12 +2267,12 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "`bdf84b52` adds the exact display-name evidence parser",
       "`scripts/require_supabase_cli_version.sh`",
       "Current deterministic non-PostgreSQL Deno discovery run: 1,338 passed, 0 failed",
-      "The current configured broad task reported 1,421 passed",
+      "The current configured broad task reported 1,430 passed",
       "the latest focused recovery/runtime/documentation suite reported 148 passed",
       "A prior unrestricted run connected to a stale local Docker schema",
       "1,386 passed and the two affected author-profile integration cases failed",
       "Localhost early returns and stale-listener failures are retained as environment evidence",
-      "191 assertions passed across 30 migration contract files",
+      "193 assertions passed across 30 migration contract files",
       "110 tooling assertions and 12 documentation contracts passed",
       "`migrations/20260729173000_recover_media_abandoned_owned_scans.sql`",
       "`migrations/20260729200000_harden_media_abandoned_scan_recovery_proof.sql`",
@@ -2202,7 +2293,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "The latest hosted run discovered 26 files and completed 24.",
       "Identity merge/recovery and all 30 inline/video assertions passed.",
       "Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501`",
-      "the 16-assertion Field Chat file, and all 27 files must pass",
+      "the 19-assertion Field Chat admission/binding file, and all 27 files must pass",
       "Run 91 on exact SHA `21df28d6b` compiled and executed the complete target",
       "structured summary reported 1,226 passed tests with zero failed or skipped",
       "the Swift Testing subrun reported 917 tests in 67 suites passed",
@@ -2221,6 +2312,10 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "All 89 isolated entrypoints type-check locally",
       "Workflow run 1551 for commit",
       "Workflow run 1552 for commit",
+      "Workflow run 1569 for commit",
+      "`58b5c3e2684d334be7db02812738e52d8973a4fa`",
+      "`c30ad1a46a0c286e49cc37a1faad9006c6e96344` applied the canonical formatter output",
+      "passes that exact check across 689 files locally",
       "22 of 24 catalog files",
       "the latest 26-file catalog run all stopped before production mutation",
       "trigger-aware profile upserts",
@@ -2291,6 +2386,22 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   assertStringIncludes(
     compact(generateUploadSource),
     "A partial, extra, malformed, cross-owner, or media-incompatible response starts no upload.",
+  );
+  assertStringIncludes(
+    compact(generateUploadSource),
+    "positive integer `sizeBytes`; empty media is rejected before signing",
+  );
+  assertStringIncludes(
+    joined,
+    "build a read-only local restore plan before submitting `recovery_scan`",
+  );
+  assertStringIncludes(
+    joined,
+    "`409 scan_restore_media_required` before invoking owner recovery",
+  );
+  assertStringIncludes(
+    joined,
+    "exact scan/kind/role upload-ledger binding before invoking owner recovery",
   );
   assertStringIncludes(
     compact(incidentSource),
@@ -2532,6 +2643,22 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "Damaged legacy queue entries now pause visibly for attention",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "upload signing rejects empty image, audio, and video files",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "database-bound to one exact observation or Explore post and viewer",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
+    "Low Data Mode or cellular changes back to an eligible Wi-Fi path",
+  );
+  assertStringIncludes(
+    reliabilityEntry.sections.flatMap((section) => section.items).join(" "),
     "A failed Explore share now keeps your post draft open",
   );
   assertStringIncludes(
@@ -2607,6 +2734,27 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
   }
 
   for (
+    const source of [
+      schemaSource,
+      apiSource,
+      reliabilitySource,
+      backendSource,
+      insightSource,
+      exploreSource,
+      testingSource,
+      aiSource,
+      codebaseSource,
+      clientSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "`20260730180000_bind_field_chat_rows_to_subjects.sql`",
+    );
+  }
+
+  for (
     const fragment of [
       "`reserve_field_chat_send(...)`",
       "`recover_stale_field_chat_quota(...)`",
@@ -2617,14 +2765,39 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
     assertStringIncludes(compact(reliabilitySource), fragment);
     assertStringIncludes(compact(backendSource), fragment);
   }
+  for (
+    const fragment of [
+      "deferred composite",
+      "cross-bound",
+      "feedback",
+    ]
+  ) {
+    assertStringIncludes(compact(reliabilitySource), fragment);
+    assertStringIncludes(compact(backendSource), fragment);
+  }
+
+  for (
+    const source of [
+      schemaSource,
+      apiSource,
+      reliabilitySource,
+      backendSource,
+      insightSource,
+      aiSource,
+      clientSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "exact scan owner");
+  }
 
   assertStringIncludes(
     compact(reliabilitySource),
-    "A separately focused frozen Field Chat run passed 30 tests with 0 failures across nine",
+    "A separately focused frozen Field Chat run passed 32 tests with 0 failures across nine",
   );
   assertStringIncludes(
     compact(testingSource),
-    "30 passed and 0 failed across nine files with a frozen dependency graph",
+    "2026-07-30 exact-source rerun passed 32 tests and 0 failed across the same nine files",
   );
   for (const source of [insightSource, exploreSource]) {
     assertStringIncludes(

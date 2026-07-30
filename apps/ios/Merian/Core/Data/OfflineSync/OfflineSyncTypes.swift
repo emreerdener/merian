@@ -546,7 +546,8 @@ enum MediaStagingContract {
                 throw MerianError.invalidResponse
             }
             let size = try fileSize(at: item.fileURL)
-            guard size <= item.mediaKind.maxStagedBytes else {
+            guard size > 0,
+                  size <= item.mediaKind.maxStagedBytes else {
                 throw MerianError.payloadTooLarge
             }
 

@@ -166,9 +166,20 @@ Deno.test("Explore Edge code uses only the atomic final publication mutation", a
     compact(routeSource),
     "normalizeRestoredMediaObjectKeys(body, user.id)",
   );
+  const compactDbSource = compact(dbSource);
   assertStringIncludes(
-    compact(dbSource),
-    "await requireRestoredMediaLedgerBinding( scanId, userId, { restoredObjectKeys, restoredVideoObjectKeys, restoredAudioObjectKeys, }, supabaseAdmin, )",
+    compactDbSource,
+    "const restoredMediaKeys = { restoredObjectKeys, restoredVideoObjectKeys, restoredAudioObjectKeys, }",
+  );
+  const bindingIndex = compactDbSource.indexOf(
+    "await requireRestoredMediaLedgerBinding( scanId, userId, restoredMediaKeys, supabaseAdmin, )",
+  );
+  const ownerRecoveryIndex = compactDbSource.indexOf(
+    "await recoverMissingOwnedScan(recoveryScan, supabaseAdmin)",
+  );
+  assert(
+    bindingIndex >= 0 && ownerRecoveryIndex > bindingIndex,
+    "Restore media must have exact ledger binding before owner-row recovery mutates relational state.",
   );
   for (
     const obsoleteMutation of [

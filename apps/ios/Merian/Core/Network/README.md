@@ -24,6 +24,9 @@ session from creating an anonymous production user.
 
 - Builds authenticated requests to Supabase Edge Functions and retains the
   existing response/request DTO contracts.
+- Rejects an existing but zero-byte foreground playback-video file before
+  requesting an upload signature, matching the durable queue and Edge
+  positive-size contract.
 - Uses one pinned `URLSession` for both inference and connection prewarming.
   `prewarmInferenceEndpoint()` sends `OPTIONS` to `/identify-multimodal`; an
   auth SDK request is not considered a prewarm because it uses another
@@ -39,8 +42,12 @@ session from creating an anonymous production user.
   creation, and owner-scoped read-back have completed.
 - Builds `OwnedScanRecoveryPayload` only from an owned local record. Single
   `/check-scan-status` can repair eligible non-media state; record-based Explore
-  sharing, Ask the Community, and Field Chat repair status first. Explore can
-  then combine the repaired row with owner-staged local image/video/audio;
+  sharing and Ask the Community first resolve and byte-validate a complete
+  surviving local-media restore plan, then repair status, and only then request
+  signing URLs and upload. They refuse owner-row reconstruction when no
+  observation media survives. Field Chat may repair non-media status because it
+  does not publish media. Explore can then combine the repaired row with
+  owner-staged local image/video/audio;
   guarded inline repair remains compatible with an older released client that
   stages before Share. Recovery admits only a completed-but-missing job or exact
   authenticated-owner `replay_exhausted` reason, or

@@ -49,18 +49,19 @@ assert_suite_has_passed_test() {
         | select(
             ([$primary, $alternate] | index($suite.name)) != null
           )
-        | [
-            $suite
-            | ..
-            | objects
-            | select(
-                .nodeType? == "Test Case"
-                and .result? == "Passed"
-              )
-          ]
-        | length
-      ]
-      | any(. > 0)
+      ] as $required_suites
+      | [
+          $required_suites[]
+          | ..
+          | objects
+          | select(
+              .nodeType? == "Test Case"
+              and .result? == "Passed"
+            )
+        ] as $passed_cases
+      | ($required_suites | length) == 1
+        and ($required_suites[0].result? == "Passed")
+        and ($passed_cases | length) > 0
     ' "$test_tree_path" >/dev/null; then
     echo "$suite_label did not report a passed test case." >&2
     exit 1
@@ -88,26 +89,27 @@ assert_suite_has_passed_test_case() {
         | select(
             ([$primary_suite, $alternate_suite] | index($suite.name)) != null
           )
-        | [
-            $suite
-            | ..
-            | objects
-            | select(
-                .nodeType? == "Test Case"
-                and .result? == "Passed"
-                and (
-                  .name? == $required_case
-                  or .name? == ($required_case + "()")
-                  or (
-                    $alternate_case != ""
-                    and .name? == $alternate_case
-                  )
+      ] as $required_suites
+      | [
+          $required_suites[]
+          | ..
+          | objects
+          | select(
+              .nodeType? == "Test Case"
+              and (
+                .name? == $required_case
+                or .name? == ($required_case + "()")
+                or (
+                  $alternate_case != ""
+                  and .name? == $alternate_case
                 )
               )
-          ]
-        | length
-      ]
-      | any(. > 0)
+            )
+        ] as $required_cases
+      | ($required_suites | length) == 1
+        and ($required_suites[0].result? == "Passed")
+        and ($required_cases | length) == 1
+        and ($required_cases[0].result? == "Passed")
     ' "$test_tree_path" >/dev/null; then
     echo "$case_label did not report a passed test case." >&2
     exit 1
@@ -221,6 +223,51 @@ assert_suite_has_passed_test_case \
   "OfflineQueuedScanDeletionTests" \
   "Offline Queued Scan Deletion Tests" \
   "completedInferenceAndQueueDeletionCommitTogether"
+assert_suite_has_passed_test_case \
+  "Needs-attention library recovery quieting" \
+  "CompositeLibraryTests" \
+  "Composite Library Tests" \
+  "testVisibleNeedsAttentionRowsDoNotDriveAutomaticRecovery"
+assert_suite_has_passed_test_case \
+  "Paused queue atomic claim and reconciliation fence" \
+  "BackgroundDatabaseActorTests" \
+  "Background Database Actor Tests" \
+  "pausedScansCannotBeClaimedOrReconciled"
+assert_suite_has_passed_test_case \
+  "Orphaned upload scan and durable-job atomic release" \
+  "BackgroundDatabaseActorTests" \
+  "Background Database Actor Tests" \
+  "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive"
+assert_suite_has_passed_test_case \
+  "Pending queue retry-deadline starvation fence" \
+  "BackgroundDatabaseActorTests" \
+  "Background Database Actor Tests" \
+  "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork"
+assert_suite_has_passed_test_case \
+  "Empty pending queue atomic quarantine fence" \
+  "BackgroundDatabaseActorTests" \
+  "Background Database Actor Tests" \
+  "emptyPendingQuarantineIsAtomicAndStateBound"
+assert_suite_has_passed_test_case \
+  "Runnable offline queue count" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "unsyncedCountIncludesOnlyAutomaticallyRunnableScans"
+assert_suite_has_passed_test_case \
+  "Offline upload batch head-of-line starvation fence" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork"
+assert_suite_has_passed_test_case \
+  "Empty staged-media rejection" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "testMediaStagingContractRejectsEmptyFilesBeforeUpload"
+assert_suite_has_passed_test_case \
+  "Legacy import manual-retry rejection" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "testRetryQueuedScanNowRejectsLegacyExternalImport"
 assert_suite_has_passed_test_case \
   "Cloud deletion positive confirmation" \
   "OfflineQueueManagerTests" \
@@ -376,6 +423,11 @@ assert_suite_has_passed_test_case \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
   "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"
+assert_suite_has_passed_test_case \
+  "Foreground video empty-file rejection" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning"
 assert_suite_has_passed_test_case \
   "Community all-media recovery" \
   "MerianNetworkClientTests" \

@@ -137,12 +137,15 @@ stable code), the network client:
 1. polls `/check-scan-status`;
 2. leaves active or retryable richer ingestion authoritative;
 3. refuses policy rejection, deletion, and ambiguous/unknown state;
-4. resolves a server species UUID from the local scientific name;
-5. builds bounded non-media `OwnedScanRecoveryPayload` using the authenticated
+4. resolves every surviving local observation-media path and validates the
+   complete mixed-media count and byte budget, refusing owner-row
+   reconstruction when no eligible bytes survive;
+5. resolves a server species UUID from the local scientific name;
+6. builds bounded non-media `OwnedScanRecoveryPayload` using the authenticated
    persisted Auth owner;
-6. asks single-scan status recovery to commit the guarded owner row and requires
+7. asks single-scan status recovery to commit the guarded owner row and requires
    an authoritative `found` response; and
-7. uploads only surviving local user media through the normal
+8. uploads only the prevalidated local user-media plan through the normal
    owner-authoritative staging signer.
 
 A handler-owned `503 service_unavailable` on the recovery-capable status call
@@ -150,6 +153,11 @@ occurs before restore signing or media PUT. The client preserves the local
 record/media and presents retry; it does not treat that response as owner-row
 creation. Production must first prove both service-only recovery RPCs reach
 their exact no-write validation boundaries.
+
+The local plan is read-only and requests no signing URL. This fail-before-
+mutation boundary prevents a 404 durable URL, missing local file, empty file, or
+over-budget legacy snapshot from creating an empty completed cloud observation
+that cannot subsequently publish.
 
 The retried repair-capable share may idempotently combine `recovery_scan` with:
 
@@ -193,8 +201,9 @@ never overwrites an existing row, and commits the owner row plus completed
 ledger together. Historical promoted capture rows do not consume this repair's
 active six-item staging budget. Every current key must also match an
 authoritative capture-upload ledger row for the exact authenticated owner, scan
-ID, media kind, and role before the server promotes any object. This prevents an
-owner key from another scan or a signed audio/video key relabeled as an image
+ID, media kind, and role before the server reconstructs the owner row or
+promotes any object. This prevents an owner key from another scan or a signed
+audio/video key relabeled as an image
 from crossing into publication. Compatibility with released clients that signed
 before ledger registration is limited to their exact deterministic scan/category
 filename and legacy extension-derived kind.

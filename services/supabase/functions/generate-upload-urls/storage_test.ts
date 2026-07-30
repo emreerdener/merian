@@ -20,6 +20,7 @@ interface MediaStagingUploadManifestContract {
   schemaVersion: number;
   endpoint: string;
   maxFilesPerRequest: number;
+  minFileBytes: number;
   maxImageBytes: number;
   maxImageFiles: number;
   maxAudioBytes: number;
@@ -46,7 +47,8 @@ Deno.test("media staging constants match the documented cross-language contract"
   const contract = mediaStagingContract as MediaStagingUploadManifestContract;
 
   assertEquals(contract.endpoint, "/generate-upload-urls");
-  assertEquals(contract.schemaVersion, 3);
+  assertEquals(contract.schemaVersion, 4);
+  assertEquals(contract.minFileBytes, 1);
   assertEquals(MAX_STAGING_FILES, contract.maxFilesPerRequest);
   assertEquals(MAX_STAGED_IMAGE_BYTES, contract.maxImageBytes);
   assertEquals(MAX_STAGED_IMAGE_FILES, contract.maxImageFiles);
@@ -359,6 +361,25 @@ Deno.test("parseStagingUploadFiles rejects duplicate structured storage keys", (
   assertEquals(
     parsed.error,
     "Bad Request: fileName values must be unique.",
+  );
+});
+
+Deno.test("parseStagingUploadFiles rejects empty structured media before signing", () => {
+  const parsed = parseStagingUploadFiles({
+    files: [
+      {
+        fileName: "empty.webp",
+        mediaKind: "image",
+        contentType: "image/webp",
+        sizeBytes: 0,
+      },
+    ],
+  });
+
+  assertEquals(parsed.status, 400);
+  assertEquals(
+    parsed.error,
+    "Bad Request: sizeBytes must be a positive integer.",
   );
 });
 

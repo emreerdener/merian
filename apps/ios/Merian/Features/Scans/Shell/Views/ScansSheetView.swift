@@ -244,7 +244,7 @@ struct ScansSheetView: View {
     private func handleAppear() {
         searchManager.bindSettings(appSettings)
         refreshLibraryAndQueue()
-        if !queuedScans.isEmpty {
+        if hasAutomaticQueuedRecoveryWork {
             kickQueuedScanPipeline(reason: "onAppear")
         }
         appSettings.hasUnseenScan = false
@@ -272,7 +272,7 @@ struct ScansSheetView: View {
         guard newPhase == .active else { return }
         refreshLibraryAndQueue()
         Task { await refreshExploreMediaIncidents() }
-        if !queuedScans.isEmpty {
+        if hasAutomaticQueuedRecoveryWork {
             kickQueuedScanPipeline(reason: "scenePhase")
         }
     }
@@ -280,18 +280,19 @@ struct ScansSheetView: View {
     private func handleLibraryDidUpdate() {
         refreshLibraryAndQueue()
         Task { await refreshExploreMediaIncidents() }
-        if !queuedScans.isEmpty {
+        if hasAutomaticQueuedRecoveryWork {
             kickQueuedScanPipeline(reason: "libraryDidUpdate")
         }
     }
 
     @MainActor
     private func refreshQueuedScansUntilCancelled() async {
-        guard !queuedScans.isEmpty else { return }
+        guard hasAutomaticQueuedRecoveryWork else { return }
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(1_500))
             guard !Task.isCancelled else { return }
             refreshQueuedScans()
+            guard hasAutomaticQueuedRecoveryWork else { return }
         }
     }
 
@@ -397,7 +398,46 @@ struct ScansSheetView: View {
     }
 
     private var queuedRefreshTaskID: String {
-        queuedScans.map(\.id).sorted().joined(separator: "|")
+        let queueIdentity = queuedScans.map {
+            [
+                $0.id,
+                String($0.queueState.rawValue),
+                String($0.queueNeedsAttention),
+                $0.queueNextRetryAt.map {
+                    String($0.timeIntervalSinceReferenceDate)
+                } ?? "none"
+            ].joined(separator: ":")
+        }
+        .sorted()
+        .joined(separator: "|")
+        let forcedLargeUploadIdentity = offlineQueueManager
+            .userRequestedLargeUploadScanIds
+            .sorted()
+            .joined(separator: ",")
+        return [
+            queueIdentity,
+            "online:\(offlineQueueManager.isOnline)",
+            "constrained:\(offlineQueueManager.isCurrentNetworkConstrained)",
+            "large:\(offlineQueueManager.allowsLargeQueuedUploadsOnCurrentNetwork)",
+            "forced:\(forcedLargeUploadIdentity)"
+        ].joined(separator: "#")
+    }
+
+    private var hasAutomaticQueuedRecoveryWork: Bool {
+        queuedScans.contains { queuedScan in
+            queuedScan.isAutomaticRecoveryEligibleForCurrentNetwork(
+                isOnline: offlineQueueManager.isOnline,
+                isConstrained:
+                    offlineQueueManager.isCurrentNetworkConstrained,
+                allowsVideoUploads:
+                    offlineQueueManager
+                        .allowsLargeQueuedUploadsOnCurrentNetwork,
+                isForcedVideoUpload:
+                    offlineQueueManager
+                        .userRequestedLargeUploadScanIds
+                        .contains(queuedScan.id)
+            )
+        }
     }
 
     private var exploreMediaIncidentRefreshID: String {
@@ -526,19 +566,23 @@ struct ScansSheetView: View {
             completedIds = Set(((try? readContext.fetch(recordDescriptor)) ?? []).map(\.id))
         }
         let visibleQueued = fetched.filter { !completedIds.contains($0.id) }
-        let snapshots = visibleQueued.map {
-            QueuedScanSnapshot(
-                id: $0.id,
-                imagePath: $0.coverImagePath,
-                capturedMediaJSON: $0.capturedMediaJSON,
-                queueState: $0.queueState,
-                timestamp: $0.timestamp,
-                queueNextRetryAt: $0.queueNextRetryAt,
-                queueLastErrorMessage: $0.queueLastErrorMessage,
-                queueNeedsAttention: $0.queueNeedsAttention,
+        let snapshots = visibleQueued.map { queuedScan in
+            let capturedMediaItems =
+                queuedScan.serializedCapturedMediaItems
+            return QueuedScanSnapshot(
+                id: queuedScan.id,
+                imagePath: queuedScan.coverImagePath,
+                capturedMediaJSON:
+                    CapturedMediaSnapshot(items: capturedMediaItems)
+                        .jsonString,
+                queueState: queuedScan.queueState,
+                timestamp: queuedScan.timestamp,
+                queueNextRetryAt: queuedScan.queueNextRetryAt,
+                queueLastErrorMessage: queuedScan.queueLastErrorMessage,
+                queueNeedsAttention: queuedScan.queueNeedsAttention,
                 approximateQueuedBytes: QueuedScanContext.approximateQueuedBytes(
-                    mediaItems: $0.serializedCapturedMediaItems,
-                    inferenceImagePaths: $0.inferenceImagePaths
+                    mediaItems: capturedMediaItems,
+                    inferenceImagePaths: queuedScan.inferenceImagePaths
                 )
             )
         }

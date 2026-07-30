@@ -106,6 +106,10 @@ write_test_tree() {
               "cloudDeletionRequiresExplicitNetworkConfirmation",
               "cloudDeletionRetriesNeverEnterAnUnrecoverableState",
               "cloudDeletionDrainIsProcessSingleFlight",
+              "unsyncedCountIncludesOnlyAutomaticallyRunnableScans",
+              "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork",
+              "testMediaStagingContractRejectsEmptyFilesBeforeUpload",
+              "testRetryQueuedScanNowRejectsLegacyExternalImport",
               "testManualRetryResetsBudgetForDescriptionOnlyScan",
               "queueDiagnosticsExportOmitsPrivateAndFreeFormValues",
               "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred",
@@ -117,12 +121,19 @@ write_test_tree() {
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
               "generatedConfidenceZeroBackgroundResultIsTerminal",
+              "pausedScansCannotBeClaimedOrReconciled",
+              "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive",
+              "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork",
+              "emptyPendingQuarantineIsAtomicAndStateBound",
               "testMarkScanAsStagedPreservesScheduledServerFailureRetry",
               "testScheduleInferenceRetryUsesMonotonicMirroredAttempt",
               "testInferenceRetryCannotOverrideCompletedCloudOwnership"
             ]),
             suite("Offline Queued Scan Deletion Tests"; [
               "completedInferenceAndQueueDeletionCommitTogether"
+            ]),
+            suite("CompositeLibraryTests"; [
+              "testVisibleNeedsAttentionRowsDoNotDriveAutomaticRecovery"
             ]),
             suite("Network Client Tests"; [
               "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON",
@@ -139,6 +150,7 @@ write_test_tree() {
               "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary",
               "testExploreMediaIncidentsRejectsUnknownSuccessShape",
               "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload",
+              "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning",
               "testCommunityRequestSendsStableAIIdempotencyKey",
               "testCommunityRequestRejectsUnconfirmedSuccessResponse",
               "testGetExploreShareStateRejectsUnconfirmedState",
@@ -191,6 +203,48 @@ write_test_tree
 bash "$validator" "$summary_path" "$test_tree_path" >/dev/null \
   || fail "A valid critical-suite result was rejected."
 
+write_test_tree
+jq \
+  '(.testNodes[] | select(.name == "CameraManagerTests") | .result) = "Failed"' \
+  "$test_tree_path" > "$tmp_dir/failed-suite.json"
+mv "$tmp_dir/failed-suite.json" "$test_tree_path"
+assert_rejected "A failed required suite containing a passed test"
+
+write_test_tree
+jq \
+  '(.testNodes[] | select(.name == "Network Client Tests") | .result) = "Failed"' \
+  "$test_tree_path" > "$tmp_dir/failed-suite.json"
+mv "$tmp_dir/failed-suite.json" "$test_tree_path"
+assert_rejected "A passed exact case inside a failed suite"
+
+write_test_tree
+jq \
+  '.testNodes += [(.testNodes[] | select(.name == "CameraManagerTests"))]' \
+  "$test_tree_path" > "$tmp_dir/duplicated-suite.json"
+mv "$tmp_dir/duplicated-suite.json" "$test_tree_path"
+assert_rejected "A duplicated required suite"
+
+write_test_tree
+jq '
+  (
+    .testNodes[]
+    | select(.name == "Network Client Tests")
+    | .children
+  ) += [
+    (
+      .testNodes[]
+      | select(.name == "Network Client Tests")
+      | .children[]
+      | select(
+          .name ==
+            "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON()"
+        )
+    )
+  ]
+' "$test_tree_path" > "$tmp_dir/duplicated-case.json"
+mv "$tmp_dir/duplicated-case.json" "$test_tree_path"
+assert_rejected "A duplicated exact protected case"
+
 write_summary "Failed" 4 3 1
 assert_rejected "A failed result"
 
@@ -232,6 +286,15 @@ required_cases=(
   "queueDiagnosticsExportOmitsPrivateAndFreeFormValues"
   "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred"
   "completedInferenceAndQueueDeletionCommitTogether"
+  "testVisibleNeedsAttentionRowsDoNotDriveAutomaticRecovery"
+  "pausedScansCannotBeClaimedOrReconciled"
+  "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive"
+  "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork"
+  "emptyPendingQuarantineIsAtomicAndStateBound"
+  "unsyncedCountIncludesOnlyAutomaticallyRunnableScans"
+  "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork"
+  "testMediaStagingContractRejectsEmptyFilesBeforeUpload"
+  "testRetryQueuedScanNowRejectsLegacyExternalImport"
   "cloudDeletionRequiresExplicitNetworkConfirmation"
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
   "cloudDeletionDrainIsProcessSingleFlight"
@@ -263,6 +326,7 @@ required_cases=(
   "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary"
   "testExploreMediaIncidentsRejectsUnknownSuccessShape"
   "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"
+  "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning"
   "testCommunityRequestSendsStableAIIdempotencyKey"
   "testCommunityRequestRejectsUnconfirmedSuccessResponse"
   "testGetExploreShareStateRejectsUnconfirmedState"

@@ -679,7 +679,14 @@ provider dispatch:
   which locks per user before conversation, inserts the user row in the same
   transaction as cross-table 20/day accounting and 30-row capacity checks, and
   blocks a second unanswered UUID in the same conversation. Browser roles have
-  no direct chat-table privileges, so they cannot bypass admission.
+  no direct chat-table or feedback privileges, so they cannot bypass admission
+  or forge a copied rating target. Deferred composite foreign keys bind every
+  retained Insight conversation to its exact scan owner, each retained message
+  to its exact conversation/scan-or-post/viewer, and each rating to the exact
+  copied message identity. Conversation-optional feature feedback has its own
+  exact scan-owner binding; impossible historical cross-bound private rows are
+  removed before those constraints validate
+  (`20260730180000_bind_field_chat_rows_to_subjects.sql`).
   Deterministic assistant UUIDv8 rows and read-after-write reconciliation make
   answer persistence idempotent, including concurrent local refusals. In-flight
   replay polling is bounded, failed provider or persistence attempts resume

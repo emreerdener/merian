@@ -130,6 +130,22 @@ write_test_tree "$suite_name" "$case_name" Skipped
 assert_rejected "A passing summary contradicted by a skipped test tree"
 
 write_summary
+write_test_tree
+jq \
+  '(.testNodes[0].result) = "Failed"' \
+  "$test_tree_path" > "$tmp_dir/failed-suite.json"
+mv "$tmp_dir/failed-suite.json" "$test_tree_path"
+assert_rejected "A passing case inside a failed exact suite"
+
+write_summary
+write_test_tree
+jq \
+  '.testNodes += [(.testNodes[0] | .children = [])]' \
+  "$test_tree_path" > "$tmp_dir/duplicated-suite.json"
+mv "$tmp_dir/duplicated-suite.json" "$test_tree_path"
+assert_rejected "A duplicated exact suite"
+
+write_summary
 write_test_tree "DifferentUITests"
 assert_rejected "A different suite"
 

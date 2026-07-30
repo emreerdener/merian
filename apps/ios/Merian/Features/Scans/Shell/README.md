@@ -18,3 +18,9 @@ compares and hashes by that ID. This value snapshot lets the destination stay
 open through SwiftData queue deletion and transition in place when the
 completed local record appears. Both routes use native Back behavior; the
 Scans shell must not layer another sheet over its library.
+
+`ScansSheetView` owns the bounded queued-row refresh task. Its identity contains
+both durable row state and live path policy, and it starts only when at least
+one visible row can make progress under the queue worker's current
+online/constrained/large-upload rules. Path-ineligible rows stay visible but
+quiet instead of producing a periodic Library kick/log loop.

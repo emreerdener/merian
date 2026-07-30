@@ -138,15 +138,23 @@ extension OfflineQueueManager {
     }
 
     /// Refreshes `unsyncedItemsCount` from the count of locally runnable queue records.
+    ///
+    /// Queue transitions are also committed by `BackgroundDatabaseActor`. Use a
+    /// fresh read context so a cached main-context fault cannot retain an
+    /// attention-only row or hide newly persisted automatic work.
     func updateUnsyncedItemCount() {
         guard let context = modelContext else { return }
+        let readContext = ModelContext(context.container)
         let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw < firstNonRunnableRaw }
+            predicate: #Predicate {
+                $0.scanStateRaw < firstNonRunnableRaw
+                    && !$0.queueNeedsAttention
+            }
         )
         let count: Int
         do {
-            count = try context.fetchCount(descriptor)
+            count = try readContext.fetchCount(descriptor)
         } catch {
             MerianLog.data.debug("updateUnsyncedItemCount: fetchCount failed: \(error, privacy: .private)")
             return
@@ -704,6 +712,12 @@ extension OfflineQueueManager {
     func replayInferenceForUploadedScans() {
         guard isOnline else {
             MerianLog.data.debug("replayInferenceForUploadedScans: skipped because network is offline")
+            return
+        }
+        guard !isCurrentNetworkConstrained else {
+            MerianLog.data.debug(
+                "replayInferenceForUploadedScans: skipped because network is constrained"
+            )
             return
         }
         guard let context = modelContext else {

@@ -65,6 +65,16 @@ public post metadata, or Darwin Core export payloads to the prompt.
   without its subject or current send pair. Verify empty `load`, every action,
   same-UUID ambiguous replay, same-conversation different-key concurrency, cap
   boundaries, and stale recovery before lifting the iOS release hold.
+- Apply the compatible follow-up
+  `20260730180000_bind_field_chat_rows_to_subjects.sql` before release
+  acceptance. It removes only impossible historical cross-bound private rows,
+  binds every retained Insight conversation to its exact scan owner, then
+  enforces exact conversation/scan-or-post/user and copied-feedback identity
+  with validated deferred composite foreign keys. Conversation-optional feature
+  feedback is independently bound to its exact scan owner. The migration also
+  revokes the legacy authenticated Data API surface from Insight answer and
+  feature feedback; all current writes remain through these authenticated Edge
+  routes.
 - Requires durable effective Pro entitlement. Model replies, prompt suggestions,
   and field-note summaries reserve separate database quota operations before
   provider dispatch; active trials use the `pro_trial` policy.

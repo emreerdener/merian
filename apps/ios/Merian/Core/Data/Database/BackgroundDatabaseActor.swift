@@ -173,40 +173,227 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Pending Scan Fetching
 
-    /// Returns up to `limit` `.pending` (state 0) `OfflineQueuedScan` records sorted oldest-first.
+    /// Returns up to `limit` runnable-media `.pending` (state 0)
+    /// `OfflineQueuedScan` records sorted oldest-first, plus at most `limit`
+    /// media-less candidates for state-bound quarantine.
     ///
     /// Scans in `.uploading`, `.staged`, `.inferencing`, or `.failed` states are excluded —
     /// they are either already in flight or terminal, and handled by separate recovery paths.
-    func fetchPendingScans(limit: Int) -> [PendingScanPayload] {
+    /// The caller also supplies process-local live-upload deferrals and current
+    /// video-network eligibility so a page full of locally blocked rows cannot
+    /// hide newer work.
+    func fetchPendingScans(
+        limit: Int,
+        excludingScanIds: Set<String> = [],
+        allowsVideoUploads: Bool = true,
+        forcedVideoUploadScanIds: Set<String> = []
+    ) -> [PendingScanPayload] {
+        guard limit > 0 else { return [] }
         let pendingRaw = ScanQueueState.pending.rawValue
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == pendingRaw }
-        )
-        descriptor.sortBy = [SortDescriptor(\.timestamp)]
-        descriptor.fetchLimit = max(limit, limit * 3)
+        let now = Date()
+        let pageSize = max(50, limit * 3)
+        var fetchOffset = 0
+        var inspectedCount = 0
+        var runnableMediaCount = 0
+        var emptyCandidateCount = 0
+        var payloads: [PendingScanPayload] = []
 
-        let pending: [OfflineQueuedScan]
+        // Retry deadlines are filtered in memory for SwiftData compatibility.
+        // Page through the complete runnable-state set so an old page full of
+        // delayed, locally blocked, or media-less rows cannot permanently hide
+        // newer work. Media-less candidates are bounded independently so they
+        // can be quarantined without consuming the runnable-media limit.
+        while runnableMediaCount < limit {
+            var descriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate {
+                    $0.scanStateRaw == pendingRaw
+                        && !$0.queueNeedsAttention
+                },
+                sortBy: [
+                    SortDescriptor(\OfflineQueuedScan.timestamp),
+                    SortDescriptor(\OfflineQueuedScan.id)
+                ]
+            )
+            descriptor.fetchLimit = pageSize
+            descriptor.fetchOffset = fetchOffset
+
+            let page: [OfflineQueuedScan]
+            do {
+                page = try modelContext.fetch(descriptor)
+            } catch {
+                MerianLog.data.error(
+                    "fetchPendingScans: fetch failed offset=\(fetchOffset, privacy: .public) error=\(error, privacy: .private)"
+                )
+                return []
+            }
+            guard !page.isEmpty else { break }
+
+            inspectedCount += page.count
+            for scan in page {
+                guard scan.queueNextRetryAt == nil
+                        || (scan.queueNextRetryAt ?? now) <= now,
+                      !excludingScanIds.contains(scan.id) else {
+                    continue
+                }
+                let snapshot = scan.capturedMediaSnapshot
+                guard allowsVideoUploads
+                        || snapshot.videoPaths.isEmpty
+                        || forcedVideoUploadScanIds.contains(scan.id) else {
+                    continue
+                }
+                let payload = PendingScanPayload(
+                    id: scan.id,
+                    localImagePaths: scan.inferenceImagePaths?.isEmpty == false
+                        ? scan.inferenceImagePaths ?? []
+                        : snapshot.thumbnailImagePaths,
+                    localAudioPaths: snapshot.audioPaths,
+                    localVideoPaths: snapshot.videoPaths
+                )
+                if payload.localUploadPaths.isEmpty {
+                    if emptyCandidateCount < limit {
+                        payloads.append(payload)
+                        emptyCandidateCount += 1
+                    }
+                    continue
+                }
+                payloads.append(payload)
+                runnableMediaCount += 1
+                if runnableMediaCount == limit {
+                    break
+                }
+            }
+            fetchOffset += page.count
+            if page.count < pageSize {
+                break
+            }
+        }
+
+        MerianLog.data.debug(
+            "fetchPendingScans: inspected \(inspectedCount, privacy: .public) eligible pending scans runnableMedia=\(runnableMediaCount, privacy: .public) emptyCandidates=\(emptyCandidateCount, privacy: .public)"
+        )
+        return payloads
+    }
+
+    /// Moves only still-pending rows with no uploadable local media to a
+    /// visible needs-attention state. The state/media recheck and mutation
+    /// share this actor context, so a stale payload cannot tombstone work that
+    /// another path already advanced.
+    func quarantineEmptyPendingScans(
+        scanIds: [String]
+    ) -> Set<String> {
+        guard !scanIds.isEmpty else { return [] }
+        let pendingRaw = ScanQueueState.pending.rawValue
+        let failedRaw = ScanQueueState.failed.rawValue
+        var quarantined = Set<String>()
+
+        for index in stride(from: 0, to: scanIds.count, by: 50) {
+            let end = min(index + 50, scanIds.count)
+            let chunk = Array(scanIds[index..<end])
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate {
+                    chunk.contains($0.id)
+                        && $0.scanStateRaw == pendingRaw
+                        && !$0.queueNeedsAttention
+                }
+            )
+            let scans: [OfflineQueuedScan]
+            do {
+                scans = try modelContext.fetch(descriptor)
+            } catch {
+                modelContext.rollback()
+                MerianLog.data.error(
+                    "quarantineEmptyPendingScans: fetch failed error=\(error, privacy: .private)"
+                )
+                return []
+            }
+
+            let now = Date()
+            for scan in scans {
+                let snapshot = scan.capturedMediaSnapshot
+                let imagePaths = scan.inferenceImagePaths?.isEmpty == false
+                    ? scan.inferenceImagePaths ?? []
+                    : snapshot.thumbnailImagePaths
+                guard imagePaths.isEmpty,
+                      snapshot.audioPaths.isEmpty,
+                      snapshot.videoPaths.isEmpty else {
+                    continue
+                }
+                scan.scanStateRaw = failedRaw
+                scan.queueLastAttemptAt = now
+                scan.queueNextRetryAt = nil
+                scan.queueLastErrorCode = "queued_media_missing"
+                scan.queueLastErrorMessage =
+                    "The queued scan has no local media to upload."
+                scan.queueNeedsAttention = true
+                scan.queueUpdatedAt = now
+                if let job = fetchOfflineJob(
+                    id: OfflineQueueManager.scanIngestionJobId(
+                        scanId: scan.id
+                    )
+                ) {
+                    job.status = .needsAttention
+                    job.updatedAt = now
+                    job.nextRunAt = nil
+                    job.lastErrorCode = "queued_media_missing"
+                    job.lastErrorMessage =
+                        "The queued scan has no local media to upload."
+                }
+                modelContext.insert(OfflineQueueEvent(
+                    jobId: OfflineQueueManager.scanIngestionJobId(
+                        scanId: scan.id
+                    ),
+                    scanId: scan.id,
+                    kind: .needsAttention,
+                    message: "Queued scan has no local upload media.",
+                    errorCode: "queued_media_missing"
+                ))
+                quarantined.insert(scan.id)
+            }
+        }
+
+        guard !quarantined.isEmpty else { return [] }
         do {
-            pending = try modelContext.fetch(descriptor)
+            try modelContext.save()
+            return quarantined
         } catch {
-            MerianLog.data.error("fetchPendingScans: fetch failed: \(error, privacy: .private)")
+            modelContext.rollback()
+            MerianLog.data.error(
+                "quarantineEmptyPendingScans: save failed error=\(error, privacy: .private)"
+            )
             return []
         }
-        let now = Date()
-        let runnable = pending.filter { scan in
-            !scan.queueNeedsAttention && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
-        }
-        MerianLog.data.debug("fetchPendingScans: fetched \(pending.count, privacy: .public) pending scans runnable=\(runnable.count, privacy: .public)")
-        return runnable.prefix(limit).map { scan in
-            let snapshot = scan.capturedMediaSnapshot
-            return PendingScanPayload(
-                id: scan.id,
-                localImagePaths: scan.inferenceImagePaths?.isEmpty == false
-                    ? scan.inferenceImagePaths ?? []
-                    : snapshot.thumbnailImagePaths,
-                localAudioPaths: snapshot.audioPaths,
-                localVideoPaths: snapshot.videoPaths
+    }
+
+    /// Returns inferencing rows that still permit automatic server ownership
+    /// reconciliation. Reading through the queue actor keeps a main-context
+    /// cached fault from bypassing a background-committed attention fence.
+    func fetchServerOwnedInferencingScanIds(
+        excludingScanIds: Set<String>,
+        observedThrough: Date
+    ) -> [String] {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate {
+                $0.scanStateRaw == inferencingRaw
+                    && !$0.queueNeedsAttention
+            },
+            sortBy: [
+                SortDescriptor(\OfflineQueuedScan.timestamp),
+                SortDescriptor(\OfflineQueuedScan.id)
+            ]
+        )
+        do {
+            return try modelContext.fetch(descriptor)
+                .filter {
+                    $0.queueUpdatedAt <= observedThrough
+                        && !excludingScanIds.contains($0.id)
+                }
+                .map(\.id)
+        } catch {
+            MerianLog.data.error(
+                "fetchServerOwnedInferencingScanIds: durable eligibility read failed error=\(error, privacy: .private)"
             )
+            return []
         }
     }
 
@@ -278,8 +465,9 @@ actor BackgroundDatabaseActor {
 
     /// Atomically transitions a scan from `.staged` to `.inferencing`.
     ///
-    /// Returns `true` if the claim succeeded (scan was in `.staged` state and is now `.inferencing`).
-    /// Returns `false` if the scan was already `.inferencing` or not found — caller must skip.
+    /// Returns `true` if the claim succeeded (the scan was runnable in `.staged`
+    /// state and is now `.inferencing`). Returns `false` if it was paused,
+    /// delayed, already `.inferencing`, or not found — caller must skip.
     ///
     /// This is the distributed lock that prevents two concurrent inference pipelines
     /// from running for the same scan: only one actor can win the `.staged → .inferencing`
@@ -320,6 +508,13 @@ actor BackgroundDatabaseActor {
             return false
         }
         let now = Date()
+        guard !scan.queueNeedsAttention,
+              scan.queueNextRetryAt.map({ $0 <= now }) ?? true else {
+            MerianLog.data.debug(
+                "tryClaimForInference: scan is paused scanId=\(scanId, privacy: .public)"
+            )
+            return false
+        }
         scan.scanStateRaw = inferencingRaw
         scan.queueLastAttemptAt = now
         scan.queueNextRetryAt = nil
@@ -1032,12 +1227,15 @@ actor BackgroundDatabaseActor {
     @discardableResult
     func reconcileOrphanedUploadingScans(
         activeScanIds: Set<String>,
+        candidateScanIds: Set<String>? = nil,
         observedThrough: Date = Date()
     ) -> Bool {
         let uploadingRaw = ScanQueueState.uploading.rawValue
         let pendingRaw   = ScanQueueState.pending.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == uploadingRaw }
+            predicate: #Predicate {
+                $0.scanStateRaw == uploadingRaw && !$0.queueNeedsAttention
+            }
         )
         let scans: [OfflineQueuedScan]
         do {
@@ -1048,11 +1246,28 @@ actor BackgroundDatabaseActor {
         }
         var changed = false
         var resetIds: [String] = []
+        let now = Date()
         for scan in scans
         where scan.queueUpdatedAt <= observedThrough
-            && !activeScanIds.contains(scan.id) {
+            && !activeScanIds.contains(scan.id)
+            && (candidateScanIds?.contains(scan.id) ?? true) {
             scan.scanStateRaw = pendingRaw
-            scan.queueUpdatedAt = Date()
+            scan.queueUpdatedAt = now
+            if let job = fetchOfflineJob(
+                id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id)
+            ) {
+                job.status = scan.queueNextRetryAt.map {
+                    $0 > now ? .waiting : .pending
+                } ?? .pending
+                job.updatedAt = now
+                job.nextRunAt = scan.queueNextRetryAt
+            }
+            modelContext.insert(OfflineQueueEvent(
+                jobId: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),
+                scanId: scan.id,
+                kind: .retryScheduled,
+                message: "Recovered an upload claim without an active task."
+            ))
             changed = true
             resetIds.append(scan.id)
         }
@@ -1086,7 +1301,9 @@ actor BackgroundDatabaseActor {
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         let stagedRaw      = ScanQueueState.staged.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
+            predicate: #Predicate {
+                $0.scanStateRaw == inferencingRaw && !$0.queueNeedsAttention
+            }
         )
         let scans: [OfflineQueuedScan]
         do {
@@ -1096,11 +1313,27 @@ actor BackgroundDatabaseActor {
             return
         }
         var changed = false
+        let now = Date()
         for scan in scans
         where scan.queueUpdatedAt <= observedThrough
             && !activeInferenceScanIds.contains(scan.id) {
             scan.scanStateRaw = stagedRaw
-            scan.queueUpdatedAt = Date()
+            scan.queueUpdatedAt = now
+            if let job = fetchOfflineJob(
+                id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id)
+            ) {
+                job.status = scan.queueNextRetryAt.map {
+                    $0 > now ? .waiting : .pending
+                } ?? .pending
+                job.updatedAt = now
+                job.nextRunAt = scan.queueNextRetryAt
+            }
+            modelContext.insert(OfflineQueueEvent(
+                jobId: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),
+                scanId: scan.id,
+                kind: .retryScheduled,
+                message: "Recovered an inference claim without an active task."
+            ))
             changed = true
         }
         if changed {
@@ -1139,8 +1372,10 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    /// Transitions scans to `.uploading` state and persists, preventing `syncPendingScans`
-    /// from re-dispatching upload tasks for these scans after an app restart.
+    /// Transitions runnable `.pending` scans to `.uploading` and persists,
+    /// preventing `syncPendingScans` from re-dispatching upload tasks for these
+    /// scans after an app restart. Attention and future-retry rows cannot be
+    /// claimed from a stale candidate snapshot.
     func markScansAsUploading(scanIds: [String]) -> Set<String> {
         guard !scanIds.isEmpty else { return [] }
         let pendingRaw   = ScanQueueState.pending.rawValue
@@ -1155,21 +1390,29 @@ actor BackgroundDatabaseActor {
 
             // SwiftData safely supports array.contains in #Predicate for bounded chunks
             let descriptor = FetchDescriptor<OfflineQueuedScan>(
-                predicate: #Predicate { chunk.contains($0.id) && $0.scanStateRaw == pendingRaw }
+                predicate: #Predicate {
+                    chunk.contains($0.id)
+                        && $0.scanStateRaw == pendingRaw
+                        && !$0.queueNeedsAttention
+                }
             )
 
             do {
                 let scans = try modelContext.fetch(descriptor)
+                let now = Date()
                 for scan in scans {
+                    guard scan.queueNextRetryAt.map({ $0 <= now }) ?? true else {
+                        continue
+                    }
                     scan.scanStateRaw = uploadingRaw
-                    scan.queueLastAttemptAt = Date()
+                    scan.queueLastAttemptAt = now
                     scan.queueNextRetryAt = nil
-                    scan.queueUpdatedAt = Date()
+                    scan.queueUpdatedAt = now
                     if let job = fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id)) {
                         reconcileMirroredInferenceState(scan: scan, job: job)
                         job.status = .running
-                        job.updatedAt = Date()
-                        job.lastAttemptAt = Date()
+                        job.updatedAt = now
+                        job.lastAttemptAt = now
                         job.nextRunAt = nil
                         job.attemptCount = scan.queueAttemptCount
                     }

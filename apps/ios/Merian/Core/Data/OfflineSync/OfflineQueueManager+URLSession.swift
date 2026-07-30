@@ -2196,9 +2196,10 @@ extension OfflineQueueManager {
 
     private func requiredVideoCountForQueuedScan(scanId: String) -> Int {
         guard let context = modelContext else { return 0 }
+        let readContext = ModelContext(context.container)
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else { return 0 }
+        guard let scan = (try? readContext.fetch(descriptor))?.first else { return 0 }
         return scan.capturedMediaSnapshot.videoPaths.count
     }
 
@@ -2208,16 +2209,11 @@ extension OfflineQueueManager {
         observedThrough: Date
     ) async -> Set<String> {
         guard isOnline, let context = modelContext else { return [] }
-        let inferencingRaw = ScanQueueState.inferencing.rawValue
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
+        let dbActor = resolvedQueueDbActor(container: context.container)
+        let candidateIds = await dbActor.fetchServerOwnedInferencingScanIds(
+            excludingScanIds: locallyActiveScanIds,
+            observedThrough: observedThrough
         )
-        let candidateIds = ((try? context.fetch(descriptor)) ?? [])
-            .filter {
-                $0.queueUpdatedAt <= observedThrough
-                    && !locallyActiveScanIds.contains($0.id)
-            }
-            .map(\.id)
 
         var retained = Set<String>()
         for scanId in candidateIds {

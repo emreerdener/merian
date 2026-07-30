@@ -303,11 +303,11 @@ function validateStructuredUploadFiles(
     if (
       typeof sizeBytes !== "number" ||
       !Number.isInteger(sizeBytes) ||
-      sizeBytes < 0
+      sizeBytes <= 0
     ) {
       return error(
         400,
-        "Bad Request: sizeBytes must be a non-negative integer.",
+        "Bad Request: sizeBytes must be a positive integer.",
       );
     }
 

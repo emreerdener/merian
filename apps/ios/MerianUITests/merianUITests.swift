@@ -332,6 +332,14 @@ final class merianUITests: XCTestCase {
             playbackControl.waitForExistence(timeout: 8.0),
             "Readable audio did not survive the queued-to-result handoff"
         )
+        XCTAssertTrue(
+            app.buttons["FieldChatToolbarButton"].waitForExistence(timeout: 8.0),
+            "Completed queued scan did not expose Field chat after handoff"
+        )
+        XCTAssertTrue(
+            app.buttons["InsightShareButton"].waitForExistence(timeout: 8.0),
+            "Completed queued scan did not expose sharing after handoff"
+        )
     }
 
     @MainActor

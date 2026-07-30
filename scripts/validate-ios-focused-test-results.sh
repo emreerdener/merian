@@ -54,6 +54,9 @@ if ! jq -e \
             .nodeType? == "Test Suite"
             and .name? == $required_suite
           )
+      ] as $required_suites
+    | [
+        $required_suites[]
         | ..
         | objects
         | select(
@@ -65,7 +68,9 @@ if ! jq -e \
             )
           )
       ] as $required_cases
-    | ($all_cases | length) == 1
+    | ($required_suites | length) == 1
+      and ($required_suites[0].result? == "Passed")
+      and ($all_cases | length) == 1
       and ($required_cases | length) == 1
       and ($all_cases[0].result? == "Passed")
   ' "$test_tree_path" >/dev/null; then

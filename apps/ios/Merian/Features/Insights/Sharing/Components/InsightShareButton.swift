@@ -181,6 +181,7 @@ struct InsightShareButton: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(primaryBlue)
+        .accessibilityIdentifier("InsightShareButton")
         .sheet(
             isPresented: optionsPresentedBinding(
                 expectedScanId: expectedActionScanId,

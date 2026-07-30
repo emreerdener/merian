@@ -109,6 +109,14 @@ polling and reloads by both scan and owner before continuing. A raced existing
 row is never overwritten, and a cross-owner UUID remains indistinguishable from
 a missing scan.
 
+When the owner row is actually absent, at least one validated restored image,
+video, or audio staging key is required in the same Share request. A media-less
+`recovery_scan` returns `409 scan_restore_media_required`. Every supplied key
+must then prove its exact scan/kind/role upload-ledger binding before owner
+recovery is invoked. This server backstop protects older released clients and
+malformed direct requests from creating an empty completed scan—or mutating one
+from an unrelated staging key—that cannot publish.
+
 The database reads the owner-scoped ingestion job under the claim's generation
 lock. Processing, finalizing, retrying, retryable, policy, unproven
 media-abandonment, legacy-unknown, and arbitrary terminal reasons defer to the
@@ -194,14 +202,15 @@ This mirrors the canonical signing ledger and rejects contradictory repair
 payloads before promotion.
 
 Current restore keys are also bound to the authoritative capture-upload ledger
-before the first promotion. Each row must match the authenticated owner, exact
-client scan ID, media kind, and canonical role. Therefore an owner-scoped key
-registered to another scan, an inference-only frame, or a signed audio/video key
-relabeled into an image field cannot become public through repair. If a ledger
-row exists but conflicts, it always wins and the request is rejected. For
-compatibility with released clients that signed restore media before ledger
-registration, a missing row is accepted only when the key matches their exact
-deterministic scan/category filename and legacy extension-derived kind.
+before owner reconstruction or the first promotion. Each row must match the
+authenticated owner, exact client scan ID, media kind, and canonical role.
+Therefore an owner-scoped key registered to another scan, an inference-only
+frame, or a signed audio/video key relabeled into an image field cannot become
+public through repair. If a ledger row exists but conflicts, it always wins and
+the request is rejected. For compatibility with released clients that signed
+restore media before ledger registration, a missing row is accepted only when
+the key matches their exact deterministic scan/category filename and legacy
+extension-derived kind.
 
 Valid location values:
 

@@ -1,5 +1,6 @@
 import {
   assert,
+  assertEquals,
   assertMatch,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
@@ -314,14 +315,35 @@ Deno.test("production deploy plans every runtime change since the last successfu
   const planIndex = workflow.indexOf(
     "- name: Plan affected Edge Function deployment",
   );
+  const planEndIndex = workflow.indexOf(
+    "- name: Prepare database connection URL",
+    planIndex,
+  );
   const databasePushIndex = workflow.indexOf(
     "- name: Push Database Migrations",
   );
   assert(
     planIndex >= 0 &&
+      planEndIndex > planIndex &&
       databasePushIndex > planIndex,
     "The cumulative function plan must be resolved before production migration begins.",
   );
+  const planStep = workflow.slice(planIndex, planEndIndex);
+  for (
+    const requiredTransportBound of [
+      "--connect-timeout 10",
+      "--max-time 30",
+      "--max-filesize 1048576",
+      "--retry 3",
+      "--retry-all-errors",
+      "--retry-delay 2",
+    ]
+  ) {
+    assert(
+      planStep.includes(requiredTransportBound),
+      `Production deploy baseline lookup is missing: ${requiredTransportBound}`,
+    );
+  }
 
   const fullDeployFallbacks =
     workflow.match(/--all > "\$plan_file"/g)?.length ?? 0;
@@ -545,6 +567,23 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
       publicDenialIndex > rpcProbeIndex &&
       credentialedBusinessSmokeIndex > publicDenialIndex,
     "No-write RPC readiness and public-denial probes must precede credentialed production business smokes.",
+  );
+  const productionSmokeIndex = workflow.indexOf(
+    "- name: Smoke test production backend endpoints",
+  );
+  assert(
+    productionSmokeIndex >= 0,
+    "Production smoke step must remain present.",
+  );
+  const productionSmoke = workflow.slice(productionSmokeIndex);
+  const smokeCurlCount = productionSmoke.match(/curl -sS/g)?.length ?? 0;
+  const boundedSmokeCurlCount =
+    productionSmoke.match(/--max-filesize 1048576/g)?.length ?? 0;
+  assertEquals(smokeCurlCount, 8);
+  assertEquals(
+    boundedSmokeCurlCount,
+    smokeCurlCount,
+    "Every production smoke response must have a fixed download-size ceiling.",
   );
   assert(
     !workflow.includes('cat "$rpc_validation_response_file"'),

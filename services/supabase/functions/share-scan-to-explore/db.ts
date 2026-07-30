@@ -401,9 +401,36 @@ export async function fetchShareEligibleScan(
     userTierPromise ??= getTierForUser(userId, supabaseAdmin);
     return userTierPromise;
   };
+  const restoredMediaKeys = {
+    restoredObjectKeys,
+    restoredVideoObjectKeys,
+    restoredAudioObjectKeys,
+  };
+  let restoredMediaBindingVerified = false;
 
   let row = await loadShareEligibleScan(scanId, userId, supabaseAdmin);
   if (!row && recoveryScan) {
+    const hasRestoredMedia = restoredObjectKeys.length > 0 ||
+      restoredVideoObjectKeys.length > 0 ||
+      restoredAudioObjectKeys.length > 0;
+    if (!hasRestoredMedia) {
+      throw publicHttpError(
+        409,
+        "Restore media is required before a missing scan can be shared.",
+        "scan_restore_media_required",
+      );
+    }
+    // Staged assets are allowed to exist before their owner scan row. Prove
+    // every key belongs to this exact scan, user, kind, and role before the
+    // recovery RPC can create relational state. A merely nonempty attacker-
+    // supplied key must never be enough to mutate the owner row.
+    await requireRestoredMediaLedgerBinding(
+      scanId,
+      userId,
+      restoredMediaKeys,
+      supabaseAdmin,
+    );
+    restoredMediaBindingVerified = true;
     try {
       await recoverMissingOwnedScan(recoveryScan, supabaseAdmin);
     } catch (error) {
@@ -430,16 +457,14 @@ export async function fetchShareEligibleScan(
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
 
-  await requireRestoredMediaLedgerBinding(
-    scanId,
-    userId,
-    {
-      restoredObjectKeys,
-      restoredVideoObjectKeys,
-      restoredAudioObjectKeys,
-    },
-    supabaseAdmin,
-  );
+  if (!restoredMediaBindingVerified) {
+    await requireRestoredMediaLedgerBinding(
+      scanId,
+      userId,
+      restoredMediaKeys,
+      supabaseAdmin,
+    );
+  }
 
   if (
     (row.image_storage_urls?.length ?? 0) === 0 && restoredObjectKeys.length > 0

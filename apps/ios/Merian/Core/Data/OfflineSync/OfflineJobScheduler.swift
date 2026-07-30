@@ -21,7 +21,8 @@ final class OfflineJobScheduler {
     private init() {}
 
     func drainRunnableJobs(using manager: OfflineQueueManager) async {
-        guard manager.isOnline else {
+        guard manager.isOnline,
+              !manager.isCurrentNetworkConstrained else {
             cancelScheduledWake(using: manager)
             return
         }
@@ -52,7 +53,8 @@ final class OfflineJobScheduler {
         using manager: OfflineQueueManager,
         now: Date = Date()
     ) {
-        guard manager.isOnline else {
+        guard manager.isOnline,
+              !manager.isCurrentNetworkConstrained else {
             cancelScheduledWake(using: manager)
             return
         }

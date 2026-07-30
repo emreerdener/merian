@@ -1213,7 +1213,8 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
 - `insight_chat_conversations.id` (UUID): Primary key.
 - `scan_id` (UUID FK -> `scans.id`, cascade delete): The owned scan this chat is
   attached to. `scan_id` and `user_id` are unique together so each user has one
-  saved Field chat per scan.
+  saved Field chat per scan. A deferred composite foreign key requires every
+  retained conversation to match the exact scan owner before commit.
 - `user_id` (UUID FK -> `users.id`, cascade delete): Owner. RLS allows users to
   access only rows where `auth.uid() = user_id` if a future reviewed grant
   exposes the table. Direct `anon` and `authenticated` table privileges are
@@ -1226,7 +1227,9 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
   delete): Parent conversation. Deleting a scan deletes its conversation and
   messages.
 - `scan_id`, `user_id`: Denormalized owner bounds for indexes, RLS, analytics,
-  and daily send limits.
+  and daily send limits. A deferred composite foreign key requires
+  `(conversation_id, scan_id, user_id)` to match the exact parent conversation
+  before commit.
 - `role`: CHECK-constrained to `user` or `assistant`.
 - `message_text`: Plain text message content. User messages are capped by the
   Edge Function at 600 characters.
@@ -1241,7 +1244,9 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
   feedback.
 - `message_id`, `conversation_id`, `scan_id`, `user_id`: Owner and
   cascade-delete bounds. Feedback is unique per `(message_id, user_id)` and
-  deletes with the assistant message, conversation, scan, or user.
+  deletes with the assistant message, conversation, scan, or user. A deferred
+  composite foreign key requires all four copied identities to match the rated
+  message.
 - `rating`: CHECK-constrained to `helpful`, `not_helpful`, `wrong`, `unsafe`, or
   `other`.
 - `note`: Optional short private feedback note, capped at 1000 characters.
@@ -1249,9 +1254,12 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
 - `insight_chat_feature_feedback.id` (UUID): Primary key for private feedback on
   the Field chat experience itself.
 - `conversation_id` (UUID FK -> `insight_chat_conversations.id`, set null):
-  Optional chat thread context. The row remains useful if the thread is deleted.
-- `scan_id`, `user_id`: Owner bounds. Feature feedback deletes with the scan or
-  user and is RLS owner-only.
+  Optional chat thread context. The row remains useful if the thread is deleted;
+  while present, a deferred composite foreign key requires its conversation,
+  scan, and owner identities to agree.
+- `scan_id`, `user_id`: Owner bounds. A deferred composite foreign key binds
+  feature feedback to the exact scan owner even without conversation context.
+  Feedback deletes with the scan or user and is RLS owner-only.
 - `sentiment`: Optional CHECK-constrained `positive` / `negative` rating from
   the sheet-level feedback modal.
 - `note`: Optional short private feature-feedback note, capped at 1000
@@ -1273,9 +1281,12 @@ including their own, added in `20260721141655_add_explore_post_chat.sql`.
   A context change causes the Edge Function to replace the stale conversation.
 - `explore_post_chat_messages` stores owner-bound user and assistant messages,
   optional idempotent `client_message_id` values, refusal metadata, and Gemini
-  token telemetry.
+  token telemetry. A deferred composite foreign key binds every row to its exact
+  `(conversation_id, post_id, user_id)`.
 - `explore_post_chat_message_feedback` stores one private rating per viewer and
-  assistant message, with an optional note capped at 500 characters.
+  assistant message, with an optional note capped at 500 characters. Its copied
+  message/conversation/post/viewer identity is a deferred composite child of the
+  exact rated row.
 - All three tables enable RLS with `auth.uid() = user_id` ownership checks and
   revoke direct `anon` and `authenticated` table privileges. Only the
   authenticated Edge Function uses service-role access. No other viewer can load
@@ -1307,6 +1318,19 @@ exact subject-bound user row exists and its UUID-bound assistant does not. This
 closes the otherwise permanent crash window after quota commit while preserving
 the generic quota ledger's fail-closed semantics and charging any subsequent
 provider attempt as a new metered attempt.
+
+Migration `20260730180000_bind_field_chat_rows_to_subjects.sql` removes
+impossible historical cross-owner Insight conversations and cross-bound
+message/feedback rows before validating the composite identity constraints
+described above. Every retained Insight conversation is structurally bound to
+its exact scan owner, and each child remains bound to that exact conversation.
+Conversation-optional feature feedback is independently bound to its exact scan
+owner; the migration deletes only impossible cross-owner feedback and clears
+only an unprovable optional conversation reference from otherwise valid scan
+feedback. It also removes direct `anon` and `authenticated` privileges from all
+private Field Chat feedback tables and grants the backend only the
+select/insert/update operations its routes use. Exact relationship-based RLS
+policies remain as defense in depth.
 
 ### `flagged_reviews`
 

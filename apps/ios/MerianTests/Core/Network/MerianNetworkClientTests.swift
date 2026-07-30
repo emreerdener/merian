@@ -1235,14 +1235,29 @@ struct MerianNetworkClientTests {
                 audio: [Int]()
             ),
             (
+                images: [0],
+                videos: [Int](),
+                audio: [Int]()
+            ),
+            (
                 images: [MerianConfig.stagedImagePayloadMaxBytes, 1],
                 videos: [Int](),
                 audio: [Int]()
             ),
             (
                 images: [Int](),
+                videos: [0],
+                audio: [Int]()
+            ),
+            (
+                images: [Int](),
                 videos: [MerianConfig.videoPayloadMaxBytes + 1],
                 audio: [Int]()
+            ),
+            (
+                images: [Int](),
+                videos: [Int](),
+                audio: [0]
             ),
             (
                 images: [Int](),
@@ -4015,6 +4030,37 @@ struct MerianNetworkClientTests {
             Issue.record("Expected missing video upload to throw")
         } catch {
             #expect((error as NSError).domain == NSCocoaErrorDomain)
+        }
+    }
+
+    @Test func testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning() async throws {
+        let fileName = "empty_video_playback.mp4"
+        let fileURL = URL.documentsDirectory.appendingPathComponent(fileName)
+        try FileManager.default.createDirectory(
+            at: URL.documentsDirectory,
+            withIntermediateDirectories: true
+        )
+        try Data().write(to: fileURL, options: .atomic)
+        defer {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+
+        MockURLProtocol.mockEndpoints["/generate-upload-urls"] = { _ in
+            Issue.record("Empty video should fail before requesting upload URLs")
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{}".utf8))
+        }
+
+        await #expect(throws: MerianError.payloadTooLarge) {
+            _ = try await MerianNetworkClient.shared.uploadStagedVideoFiles(
+                videoFilePaths: [fileURL.path],
+                scanId: "scan-video-empty"
+            )
         }
     }
 

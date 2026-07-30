@@ -107,6 +107,42 @@ synchronously, gives optional context enrichment 150 ms only after queue
 acceptance, and late-merges completed context without resubmitting media.
 Gallery-specific behavior remains unchanged.
 
+The Scan Library projects two different queue concepts. Runnable
+`pending`/`uploading`/`staged`/`inferencing` rows without
+`queueNeedsAttention` drive its bounded periodic refresh and automatic recovery
+kicks only while the device is online and unconstrained. A pending playback
+video also requires the current large-upload allowance or an explicit
+user-forced retry. Uploaded/staged video remains eligible for lightweight
+status and inference work on an expensive but unconstrained path.
+Needs-attention and path-ineligible rows remain visible for explicit retry or
+deletion but must not keep polling or wake workers that cannot advance them.
+The refresh task identity includes online, constrained, expensive/large-upload,
+and explicit-override policy, so a satisfied-path policy transition cancels or
+restarts monitoring without requiring a false offline edge. The observable
+`unsyncedItemsCount` applies the same state-and-attention predicate and
+therefore counts automatically runnable work, not every visible queue record.
+It reads through a fresh SwiftData context so a background-actor commit cannot
+remain hidden behind a cached main-context fault. Explicit retry clears the
+attention fence, posts `libraryDidUpdate`, and restarts monitoring through a
+state-bearing task identity. The legacy `externalImport` state is non-runnable,
+never offers an ingestion Retry action in either queue surface, and is rejected
+by the retry mutation before durable state can change.
+The serialized database actor enforces the same boundary after candidate
+selection: upload and inference claims recheck `queueNeedsAttention` plus the
+persisted retry deadline immediately before mutation, and orphan reconciliation
+does not reset attention rows. A stale Library or worker snapshot therefore
+cannot bypass the explicit-retry fence. Pending selection uses deterministic
+timestamp/ID ordering and pages through future-dated retries, deferred live
+uploads, videos blocked on the current network, and media-less legacy rows
+until the runnable-media limit is filled or the eligible set is exhausted.
+Media-less rows use a separate bounded quarantine budget, so older locally
+blocked or malformed rows cannot starve newer ready work, while explicit
+user-forced video upload remains eligible. The worker rechecks and, when
+needed, refetches after a process-local policy change. Global server-owner
+reconciliation reads through the serialized queue actor and excludes
+attention-paused inference rows; a cached main-context fault cannot bypass that
+fence.
+
 An eligible live visual Capture can also supply a selected standard-outing goal
 as `preferredGoal`. V50 stores the two goal IDs in the scan-keyed companion
 model `OfflineQueuedScanGoalHint`, leaving the released V49 `OfflineQueuedScan`
@@ -346,15 +382,35 @@ inference settings.
 
 ### 3. Network Awakening (`NWPathMonitor`)
 
-The `NWPathMonitor` instance listens to the cellular stack continuously. When a
-connection flips `.satisfied`, the manager debounces for **3,000 ms** to let the
-OS networking stack fully settle before starting processing. The 3-second window
-covers the typical WiFi → cellular → WiFi handoff sequence, which fires 3–4
+The `NWPathMonitor` instance listens to the network stack continuously. The
+manager records satisfied, constrained, and expensive state on the main actor;
+a change to any of those values is meaningful even when connectivity remains
+`.satisfied`. Eligible changes debounce for **3,000 ms** to let the OS
+networking stack fully settle before processing. The 3-second window covers the
+typical WiFi → cellular → WiFi handoff sequence, which fires 3–4
 `NWPathMonitor` events within ~2 seconds — the 1-second window previously fired
 sync on the first cellular `satisfied` event before the preferred interface was
-fully associated. After the debounce resolves, sync is additionally skipped when
-`monitor.currentPath.isConstrained` is `true` (iOS Low Data Mode), preventing
-aggressive batch uploads on metered connections.
+fully associated.
+
+Low Data Mode cancels the process-local persisted wake, all automatic drains
+refuse a constrained path, and the background URLSession disallows constrained
+network access. A later constrained → unconstrained change creates a new drain
+even though the path stayed satisfied. Expensive but unconstrained paths may
+continue eligible small image/audio work; playback-video rows remain pending
+unless explicitly user-forced. An expensive → unmetered WiFi change likewise
+wakes those blocked video rows. The same live values stop the Scan Library's
+periodic refresh while all visible rows are path-ineligible and restart it when
+work becomes eligible. The worker rechecks path policy after every actor
+fetch/refetch and once more after Auth/filesystem preparation immediately before
+its atomic pending → uploading claim, so an async suspension cannot dispatch a
+video from a stale permissive snapshot. Immediately before each background task
+resumes, dispatch rechecks online, constrained, expensive, and
+explicit-override state. Every final PUT request disallows constrained access;
+every request belonging to a non-forced playback-video scan also disallows
+expensive access at the transport layer. This prevents an already-created
+mixed-media WiFi manifest from partially continuing over cellular after a later
+handoff. Standalone image/audio requests may still use an expensive
+unconstrained path.
 
 Connectivity restore now enters through `OfflineJobScheduler`. The scheduler is
 the durable control-plane facade; it delegates scan ingestion to
@@ -399,10 +455,18 @@ that batch.
 
 Batch sizing is governed by `MerianConfig`:
 
-- **`pendingScanFetchLimit`** (50): maximum `OfflineQueuedScan` records fetched
-  per cycle via `BackgroundDatabaseActor.fetchPendingScans(limit:)`.
+- **`pendingScanFetchLimit`** (50): maximum runnable `OfflineQueuedScan`
+  records returned per cycle by
+  `BackgroundDatabaseActor.fetchPendingScans(limit:)`. The actor may inspect
+  additional deterministic pages to move past future-dated retries, deferred
+  live uploads, and network-blocked videos.
 - **`uploadBatchSize`** (5): maximum scans considered for R2 staging per cycle.
-  The selected scan batch is additionally capped by
+  Selection scans the full bounded runnable window, skips empty rows and
+  non-fitting combinations, and admits later work that still fits. A malformed
+  empty `.pending` row becomes needs-attention rather than remaining an
+  invisible queue blocker; its serialized quarantine rechecks state and media
+  before committing queue/job/event state. The selected scan batch is
+  additionally capped by
   `MediaStagingContract.maxUploadItemsPerRequest` /
   `MerianConfig.mediaStagingMaxFilesPerRequest` to the `generate-upload-urls`
   limit of 6 media files total. This covers the canonical Pro video shape (five
@@ -489,8 +553,9 @@ pre-signed URL by the `generate-upload-urls` Edge function. The Edge function
 now consumes the full `files` manifest (`fileName`, `mediaKind`, `contentType`,
 `sizeBytes`, `clientScanId`, `mediaRole`) instead of inferring type from
 extensions, creates staged `scan_media_assets` rows for scan media, and
-validates the manifest before signing. The OS background session owns byte
-transmission from here, handling interruption and resume transparently. The
+validates the manifest—including a positive, nonzero size for every structured
+file—before signing. The OS background session owns byte transmission from
+here, handling interruption and resume transparently. The
 scheduled `replay-scan-ingestion` worker can later retry staged
 media/audio/video or description-only scans whose `scan_ingestion_intents` are
 resumable, so an app exit after successful upload does not leave the phone as
@@ -538,6 +603,24 @@ Before signing, local validation rejects duplicate sanitized filenames or object
 keys, including collisions produced by distinct local path spellings. Staged
 image roles are a signing-time hint; final user-visible media still comes from
 the saved `captured_media` manifest and ready `scan_media_assets` rows.
+
+Connectivity, constrained-path policy, live-upload ownership, and playback-video
+cellular eligibility are rechecked immediately after the serialized database
+claim as well as before it. A claim invalidated while the actor was suspended is
+returned to `.pending` together with its durable ingestion job in one save,
+without incrementing retry budget or recording a transport failure. The same
+exact-claim release runs if signing fails after a connectivity/policy handoff or
+if no upload task was created. Claims from a newer timestamp-fenced generation
+and scans with a live URLSession task remain untouched.
+
+Dispatch treats one scan manifest as one logical transport unit. All signed
+destinations and local sources for that scan are validated first; then every
+member task is created and resumed in one main-actor turn, or none are. A path
+update cannot therefore interleave task creation and leave a generation waiting
+forever for a sibling callback from a PUT that never existed. Once resumed,
+transport-level constrained/expensive flags stop a later handoff, and the exact
+successful-key accumulator still prevents partial completion from advancing to
+analysis.
 
 Upload retry accounting is scan-generation scoped, not file scoped. Each
 successful callback contributes its exact key to the generation accumulator but
@@ -743,7 +826,9 @@ only rows whose `queueUpdatedAt` is not newer than that cutoff. Upload claims,
 reconciliation, inference claims, and retries all use the same cached queue
 actor, so a replacement claim that reaches the actor before an older reconcile
 is ordered first and excluded by the cutoff. This closes the snapshot/actor
-queue ABA window without relying on task cancellation.
+queue ABA window without relying on task cancellation. Both orphan reconcilers
+also exclude `queueNeedsAttention` rows before reset; paused work retains its
+exact durable state until explicit retry.
 
 The replay/orphan driver also has a process-local single-flight boundary.
 Library presentation, scheduler, reconnect, and URLSession completion wakes

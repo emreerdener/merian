@@ -60,7 +60,8 @@ struct QueuedScanContext: Identifiable, Equatable {
     }
 
     var canRetryNow: Bool {
-        queueState == .failed ||
+        guard queueState != .externalImport else { return false }
+        return queueState == .failed ||
             queueNeedsAttention ||
             (
                 queueNextRetryAt != nil &&

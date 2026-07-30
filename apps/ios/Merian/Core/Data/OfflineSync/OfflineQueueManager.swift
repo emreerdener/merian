@@ -42,6 +42,7 @@ import SwiftData
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
         #endif
+        config.allowsConstrainedNetworkAccess = false
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
@@ -49,6 +50,11 @@ import SwiftData
 
     /// Whether the device currently has a satisfied network path.
     var isOnline: Bool = false
+    /// Live path policy is observable so views that own automatic-recovery
+    /// tasks can stop or restart them when Wi-Fi, cellular, or Low Data Mode
+    /// changes without a connectivity-status transition.
+    private var currentPathIsConstrained = false
+    private var currentPathIsExpensive = false
     /// Number of `OfflineQueuedScan` records that have not yet been uploaded.
     var unsyncedItemsCount: Int = 0
     /// Stored by the app delegate when iOS wakes the app for a background session event.
@@ -369,29 +375,46 @@ import SwiftData
     // MARK: - Network Monitoring
 
     var isCurrentNetworkConstrained: Bool {
-        monitor.currentPath.isConstrained
+        currentPathIsConstrained
     }
 
     var allowsLargeQueuedUploadsOnCurrentNetwork: Bool {
-        let path = monitor.currentPath
-        return !path.isConstrained && !path.isExpensive
+        !currentPathIsConstrained && !currentPathIsExpensive
     }
 
     private func startMonitoring() {
         monitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                let newStatus = path.status == .satisfied
-                guard newStatus != self?.isOnline else { return }
+            let newStatus = path.status == .satisfied
+            let newIsConstrained = path.isConstrained
+            let newIsExpensive = path.isExpensive
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let connectivityChanged = newStatus != self.isOnline
+                let policyChanged =
+                    newIsConstrained != self.currentPathIsConstrained
+                    || newIsExpensive != self.currentPathIsExpensive
+                guard connectivityChanged || policyChanged else { return }
 
-                self?.isOnline = newStatus
-                MerianLog.data.debug("Network: \(newStatus ? "Online" : "Offline", privacy: .public)")
+                self.isOnline = newStatus
+                self.currentPathIsConstrained = newIsConstrained
+                self.currentPathIsExpensive = newIsExpensive
+                MerianLog.data.debug(
+                    "Network: \(newStatus ? "Online" : "Offline", privacy: .public) constrained=\(newIsConstrained, privacy: .public) expensive=\(newIsExpensive, privacy: .public)"
+                )
 
                 if newStatus {
                     // Cancel any pending debounce before rescheduling to prevent stacked sync
                     // calls when the OS path monitor fires multiple times in quick succession
                     // (e.g. WiFi → cellular → WiFi within a single second).
-                    self?.reconnectDebounceTask?.cancel()
-                    self?.reconnectDebounceTask = Task { [weak self] in
+                    self.reconnectDebounceTask?.cancel()
+                    self.reconnectDebounceTask = nil
+                    guard !newIsConstrained else {
+                        OfflineJobScheduler.shared.cancelScheduledWake(
+                            using: self
+                        )
+                        return
+                    }
+                    self.reconnectDebounceTask = Task { [weak self] in
                         guard let self else { return }
                         // Debounce 3s to let the OS networking stack fully settle before syncing.
                         try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -401,7 +424,6 @@ import SwiftData
                         await OfflineJobScheduler.shared.drainRunnableJobs(using: self)
                     }
                 } else {
-                    guard let self else { return }
                     OfflineJobScheduler.shared.cancelScheduledWake(using: self)
                     self.releaseAllDeferredLiveUploads(reason: "connectivity_lost")
                     self.releaseAllForegroundInferenceClaims(reason: "connectivity_lost")

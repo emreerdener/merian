@@ -1,6 +1,12 @@
 import Foundation
 import SwiftData
 
+private struct UploadDispatchEntry {
+    let item: ScanUploadItem
+    let presignedURL: PreSignedURL
+    let remoteURL: URL
+}
+
 // MARK: - Sync Operations
 
 extension OfflineQueueManager {
@@ -323,7 +329,21 @@ extension OfflineQueueManager {
             let dbActor = await MainActor.run {
                 self.resolvedQueueDbActor(container: container)
             }
-            let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
+            let initialAllowsLargeUploads = await MainActor.run {
+                self.allowsLargeQueuedUploadsOnCurrentNetwork
+            }
+            let initialForcedLargeUploadIds = await MainActor.run {
+                self.userRequestedLargeUploadScanIds
+            }
+            let initialDeferredLiveUploadIds = await MainActor.run {
+                self.deferredLiveUploadScanIds
+            }
+            var scanData = await dbActor.fetchPendingScans(
+                limit: MerianConfig.pendingScanFetchLimit,
+                excludingScanIds: initialDeferredLiveUploadIds,
+                allowsVideoUploads: initialAllowsLargeUploads,
+                forcedVideoUploadScanIds: initialForcedLargeUploadIds
+            )
             guard await MainActor.run(body: {
                 self.isCurrentUploadSync(generation)
             }) else { return }
@@ -331,14 +351,51 @@ extension OfflineQueueManager {
             let allowsLargeUploads = await MainActor.run { self.allowsLargeQueuedUploadsOnCurrentNetwork }
             let forcedLargeUploadIds = await MainActor.run { self.userRequestedLargeUploadScanIds }
             let deferredLiveUploadIds = await MainActor.run { self.deferredLiveUploadScanIds }
+            if allowsLargeUploads != initialAllowsLargeUploads
+                || forcedLargeUploadIds != initialForcedLargeUploadIds
+                || deferredLiveUploadIds != initialDeferredLiveUploadIds {
+                scanData = await dbActor.fetchPendingScans(
+                    limit: MerianConfig.pendingScanFetchLimit,
+                    excludingScanIds: deferredLiveUploadIds,
+                    allowsVideoUploads: allowsLargeUploads,
+                    forcedVideoUploadScanIds: forcedLargeUploadIds
+                )
+                guard await MainActor.run(body: {
+                    self.isCurrentUploadSync(generation)
+                }) else { return }
+            }
+            // Recheck process-local eligibility after the actor read. The
+            // paged actor inputs prevent starvation; this latest snapshot
+            // prevents a changed live/network state from dispatching stale
+            // candidates.
             let eligibleScanData = scanData.filter { scan in
                 !deferredLiveUploadIds.contains(scan.id) &&
                     (allowsLargeUploads || scan.localVideoPaths.isEmpty || forcedLargeUploadIds.contains(scan.id))
             }
 
-            let filteredScans = self.selectUploadBatch(from: eligibleScanData)
+            let emptyPendingScanIds = eligibleScanData
+                .filter { $0.localUploadPaths.isEmpty }
+                .map(\.id)
+            if !emptyPendingScanIds.isEmpty {
+                let quarantinedScanIds =
+                    await dbActor.quarantineEmptyPendingScans(
+                        scanIds: emptyPendingScanIds
+                    )
+                await MainActor.run {
+                    guard self.isCurrentUploadSync(generation),
+                          !quarantinedScanIds.isEmpty else {
+                        return
+                    }
+                    self.updateUnsyncedItemCount()
+                    ScanLibraryEvents.postLibraryDidUpdate()
+                }
+            }
+            let uploadCandidates = eligibleScanData.filter {
+                !$0.localUploadPaths.isEmpty
+            }
+            let filteredScans = self.selectUploadBatch(from: uploadCandidates)
             MerianLog.data.debug(
-                "syncPendingScans: fetched pending=\(scanData.count, privacy: .public) eligible=\(eligibleScanData.count, privacy: .public) selected=\(filteredScans.count, privacy: .public) largeUploads=\(allowsLargeUploads, privacy: .public)"
+                "syncPendingScans: fetched pending=\(scanData.count, privacy: .public) eligible=\(eligibleScanData.count, privacy: .public) empty=\(emptyPendingScanIds.count, privacy: .public) selected=\(filteredScans.count, privacy: .public) largeUploads=\(allowsLargeUploads, privacy: .public)"
             )
 
             guard !filteredScans.isEmpty else {
@@ -375,9 +432,45 @@ extension OfflineQueueManager {
                 }
             }
 
-            let uploadItems = preparation.uploadItems
+            // Auth/session lookup and filesystem validation above may suspend.
+            // Recheck live/network policy immediately before the database
+            // claim so a path that became constrained or expensive cannot
+            // dispatch a stale video candidate.
+            let finalPolicy = await MainActor.run {
+                (
+                    isOnline: self.isOnline,
+                    isConstrained: self.isCurrentNetworkConstrained,
+                    allowsLargeUploads:
+                        self.allowsLargeQueuedUploadsOnCurrentNetwork,
+                    forcedLargeUploadIds:
+                        self.userRequestedLargeUploadScanIds,
+                    deferredLiveUploadIds:
+                        self.deferredLiveUploadScanIds
+                )
+            }
+            guard await MainActor.run(body: {
+                self.isCurrentUploadSync(generation)
+            }) else { return }
+            let finallyEligibleScanIds = Set(filteredScans.lazy.filter {
+                finalPolicy.isOnline
+                    && !finalPolicy.isConstrained
+                    && !finalPolicy.deferredLiveUploadIds.contains($0.id)
+                    && (
+                        finalPolicy.allowsLargeUploads
+                            || $0.localVideoPaths.isEmpty
+                            || finalPolicy.forcedLargeUploadIds.contains($0.id)
+                    )
+            }.map(\.id))
+            let finallyEligiblePreparation = zip(
+                preparation.uploadItems,
+                preparation.uploadFiles
+            ).filter {
+                finallyEligibleScanIds.contains($0.0.scanId)
+            }
+            let uploadItems = finallyEligiblePreparation.map { $0.0 }
+            let uploadFiles = finallyEligiblePreparation.map { $0.1 }
             MerianLog.data.debug(
-                "syncPendingScans: prepared uploadItems=\(uploadItems.count, privacy: .public) rejected=\(preparation.rejectedScanIds.count, privacy: .public)"
+                "syncPendingScans: prepared uploadItems=\(uploadItems.count, privacy: .public) rejected=\(preparation.rejectedScanIds.count, privacy: .public) finalEligibleScans=\(finallyEligibleScanIds.count, privacy: .public)"
             )
 
             guard !uploadItems.isEmpty else {
@@ -403,18 +496,80 @@ extension OfflineQueueManager {
                 self.isCurrentUploadSync(generation)
             }) else { return }
             let claimedScanIds = await dbActor.markScansAsUploading(scanIds: Array(candidateUploadScanIds))
-            guard await MainActor.run(body: {
-                self.isCurrentUploadSync(generation)
-            }) else { return }
+            let claimObservedThrough = Date()
+            let playbackVideoCandidateIds = Set(uploadItems.lazy.filter {
+                $0.mediaKind == .video
+            }.map(\.scanId))
+            let postClaimPolicy = await MainActor.run {
+                (
+                    isCurrent: self.isCurrentUploadSync(generation),
+                    isOnline: self.isOnline,
+                    isConstrained: self.isCurrentNetworkConstrained,
+                    allowsLargeUploads:
+                        self.allowsLargeQueuedUploadsOnCurrentNetwork,
+                    forcedLargeUploadIds:
+                        self.userRequestedLargeUploadScanIds,
+                    deferredLiveUploadIds:
+                        self.deferredLiveUploadScanIds
+                )
+            }
+            let dispatchableClaimedScanIds = Set(claimedScanIds.lazy.filter {
+                postClaimPolicy.isCurrent
+                    && postClaimPolicy.isOnline
+                    && !postClaimPolicy.isConstrained
+                    && !postClaimPolicy.deferredLiveUploadIds.contains($0)
+                    && (
+                        postClaimPolicy.allowsLargeUploads
+                            || !playbackVideoCandidateIds.contains($0)
+                            || postClaimPolicy.forcedLargeUploadIds.contains($0)
+                    )
+            })
+            let undispatchedClaimedScanIds =
+                claimedScanIds.subtracting(dispatchableClaimedScanIds)
+            if !undispatchedClaimedScanIds.isEmpty {
+                // Connectivity and path policy can change while the serialized
+                // actor claim is awaiting execution. No task from this
+                // generation exists yet, so release only exact claims that are
+                // still absent from the live URLSession snapshot. This is a
+                // policy handoff, not a failed attempt: retry budget and error
+                // metadata remain untouched.
+                let liveTasks = await session.allTasks
+                let activeUploadIds = Set(liveTasks.compactMap { task in
+                    guard task.state != .canceling,
+                          task.state != .completed else {
+                        return nil
+                    }
+                    return MediaStagingContract.parseUploadTaskDescription(
+                        task.taskDescription
+                    )?.scanId
+                })
+                _ = await dbActor.reconcileOrphanedUploadingScans(
+                    activeScanIds: activeUploadIds,
+                    candidateScanIds: undispatchedClaimedScanIds,
+                    observedThrough: claimObservedThrough
+                )
+                await MainActor.run {
+                    self.clearUploadPreparation(
+                        scanIds: undispatchedClaimedScanIds,
+                        generation: generation
+                    )
+                }
+            }
+            guard postClaimPolicy.isCurrent else { return }
             await MainActor.run {
-                for scanId in claimedScanIds {
+                for scanId in dispatchableClaimedScanIds {
                     self.uploadCompletionStates[scanId] = nil
                     self.latestUploadGenerations[scanId] = generation
                 }
-                self.userRequestedLargeUploadScanIds.subtract(claimedScanIds)
+                self.userRequestedLargeUploadScanIds.subtract(
+                    dispatchableClaimedScanIds
+                )
             }
+            let forcedExpensiveVideoUploadScanIds =
+                postClaimPolicy.forcedLargeUploadIds
+                    .intersection(dispatchableClaimedScanIds)
             MerianLog.data.debug(
-                "syncPendingScans: claimed scans=\(claimedScanIds.count, privacy: .public) ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .private)"
+                "syncPendingScans: claimed scans=\(claimedScanIds.count, privacy: .public) dispatchable=\(dispatchableClaimedScanIds.count, privacy: .public) ids=\(dispatchableClaimedScanIds.sorted().joined(separator: ","), privacy: .private)"
             )
             let unclaimedScanIds = candidateUploadScanIds.subtracting(claimedScanIds)
             if !unclaimedScanIds.isEmpty {
@@ -425,7 +580,9 @@ extension OfflineQueueManager {
                     )
                 }
             }
-            let claimedUploadPairs = zip(uploadItems, preparation.uploadFiles).filter { claimedScanIds.contains($0.0.scanId) }
+            let claimedUploadPairs = zip(uploadItems, uploadFiles).filter {
+                dispatchableClaimedScanIds.contains($0.0.scanId)
+            }
             let claimedUploadItems = claimedUploadPairs.map { $0.0 }
             let claimedUploadFiles = claimedUploadPairs.map { $0.1 }
 
@@ -464,16 +621,38 @@ extension OfflineQueueManager {
                     session: session,
                     uploadItems: claimedUploadItems,
                     presignedUrls: presignedUrls,
-                    syncGeneration: generation
+                    syncGeneration: generation,
+                    forcedExpensiveVideoUploadScanIds:
+                        forcedExpensiveVideoUploadScanIds
                 )
+                let undispatchedScanIDs =
+                    dispatchableClaimedScanIds.subtracting(dispatchedScanIDs)
+                if !undispatchedScanIDs.isEmpty {
+                    let observedThrough = Date()
+                    let liveTasks = await session.allTasks
+                    let activeUploadIds = Set(liveTasks.compactMap { task in
+                        guard task.state != .canceling,
+                              task.state != .completed else {
+                            return nil
+                        }
+                        return MediaStagingContract.parseUploadTaskDescription(
+                            task.taskDescription
+                        )?.scanId
+                    })
+                    _ = await dbActor.reconcileOrphanedUploadingScans(
+                        activeScanIds: activeUploadIds,
+                        candidateScanIds: undispatchedScanIDs,
+                        observedThrough: observedThrough
+                    )
+                }
                 await MainActor.run {
                     guard self.isCurrentUploadSync(generation) else { return }
                     self.clearUploadPreparation(
-                        scanIds: claimedScanIds,
+                        scanIds: dispatchableClaimedScanIds,
                         generation: generation
                     )
                     MerianLog.data.debug(
-                        "syncPendingScans: cleared upload preparation ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .private) dispatched=\(dispatchedScanIDs.sorted().joined(separator: ","), privacy: .private)"
+                        "syncPendingScans: cleared upload preparation ids=\(dispatchableClaimedScanIds.sorted().joined(separator: ","), privacy: .private) dispatched=\(dispatchedScanIDs.sorted().joined(separator: ","), privacy: .private)"
                     )
                 }
 
@@ -493,18 +672,23 @@ extension OfflineQueueManager {
                 }
             } catch {
                 await MainActor.run {
-                    guard self.isCurrentUploadSync(generation) else { return }
                     self.clearUploadPreparation(
-                        scanIds: claimedScanIds,
+                        scanIds: dispatchableClaimedScanIds,
                         generation: generation
                     )
                 }
                 await self.handleSyncNetworkFailure(
                     error: error,
-                    affectedScanIds: claimedScanIds,
+                    affectedScanIds: dispatchableClaimedScanIds,
                     session: session,
                     dbActor: dbActor,
-                    syncGeneration: generation
+                    syncGeneration: generation,
+                    playbackVideoScanIds:
+                        playbackVideoCandidateIds.intersection(
+                            dispatchableClaimedScanIds
+                        ),
+                    forcedExpensiveVideoUploadScanIds:
+                        forcedExpensiveVideoUploadScanIds
                 )
                 return
             }
@@ -650,17 +834,27 @@ extension OfflineQueueManager {
         )
     }
 
-    nonisolated private func selectUploadBatch(from scans: [PendingScanPayload]) -> [PendingScanPayload] {
+    nonisolated func selectUploadBatch(
+        from scans: [PendingScanPayload]
+    ) -> [PendingScanPayload] {
         let maxPresignedURLsPerRequest = MediaStagingContract.maxUploadItemsPerRequest
         var selected: [PendingScanPayload] = []
         selected.reserveCapacity(MerianConfig.uploadBatchSize)
         var uploadItemCount = 0
 
-        for scan in scans.prefix(MerianConfig.uploadBatchSize) {
+        for scan in scans {
+            guard selected.count < MerianConfig.uploadBatchSize else { break }
             let scanUploadCount = scan.localUploadPaths.count
             guard scanUploadCount > 0 else { continue }
-            if !selected.isEmpty, uploadItemCount + scanUploadCount > maxPresignedURLsPerRequest {
-                break
+            if uploadItemCount + scanUploadCount > maxPresignedURLsPerRequest {
+                // Let the normal media-contract validator quarantine one
+                // oversized head row, but do not let a later non-fitting row
+                // prevent still-smaller work from filling the batch.
+                if selected.isEmpty {
+                    selected.append(scan)
+                    break
+                }
+                continue
             }
             selected.append(scan)
             uploadItemCount += scanUploadCount
@@ -676,92 +870,146 @@ extension OfflineQueueManager {
         session: URLSession,
         uploadItems: [ScanUploadItem],
         presignedUrls: [PreSignedURL],
-        syncGeneration: UUID
+        syncGeneration: UUID,
+        forcedExpensiveVideoUploadScanIds: Set<String>
     ) async -> Set<String> {
-        return await withTaskGroup(of: String?.self) { group in
-            for (index, presignedURL) in presignedUrls.enumerated() {
-                guard !Task.isCancelled else { break }
-                guard index < uploadItems.count else {
-                    MerianLog.data.debug("dispatchUploadTasks: index \(index) out of bounds — skipping")
-                    continue
-                }
-                guard let remoteUrl = URL(string: presignedURL.signedUrl) else {
-                    MerianLog.data.debug("dispatchUploadTasks: invalid signed URL at index \(index) — skipping")
-                    continue
-                }
+        let playbackVideoScanIds = Set(uploadItems.lazy.filter {
+            $0.mediaKind == .video
+        }.map(\.scanId))
+        var entriesByScanId: [String: [UploadDispatchEntry]] = [:]
+        var scanOrder: [String] = []
+        var rejectedScanIds = Set<String>()
 
-                let item = uploadItems[index]
-
-                guard presignedURL.fileName == item.fileName,
-                      MediaStagingContract.isCanonicalObjectKey(
-                        presignedURL.objectKey,
-                        fileName: item.fileName
-                      ),
-                      MediaStagingContract.objectKey(
-                        fromPresignedURLPath: remoteUrl.path
-                      ) == presignedURL.objectKey else {
-                    MerianLog.data.error("dispatchUploadTasks: staging contract mismatch for \(item.scanId, privacy: .private)")
-                    guard isCurrentUploadSync(syncGeneration),
-                          latestUploadGenerations[item.scanId] == syncGeneration else {
-                        continue
-                    }
-                    softDeleteQueuedScan(
-                        scanId: item.scanId,
-                        reason: "The upload destination could not be verified.",
-                        errorCode: "staging_contract_mismatch"
-                    )
-                    continue
-                }
-
-                guard FileManager.default.fileExists(atPath: item.fileURL.path) else {
-                    MerianLog.data.debug("dispatchUploadTasks: source missing for \(item.fileURL.lastPathComponent, privacy: .private)")
-                    guard isCurrentUploadSync(syncGeneration),
-                          latestUploadGenerations[item.scanId] == syncGeneration else {
-                        continue
-                    }
-                    softDeleteQueuedScan(
-                        scanId: item.scanId,
-                        reason: "The queued media file is no longer available.",
-                        errorCode: "queued_media_missing"
-                    )
-                    continue
-                }
-
-                group.addTask { () -> String? in
-                    guard !Task.isCancelled else { return nil }
-                    guard await MainActor.run(body: {
-                        self.isCurrentUploadSync(syncGeneration)
-                    }) else { return nil }
-                    var request = URLRequest(url: remoteUrl)
-                    request.httpMethod = "PUT"
-                    request.setValue(item.contentType, forHTTPHeaderField: "Content-Type")
-                    let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
-                    uploadTask.taskDescription = MediaStagingContract.uploadTaskDescription(
-                        scanId: item.scanId,
-                        uploadIndex: item.uploadIndex,
-                        syncGeneration: syncGeneration,
-                        objectKey: presignedURL.objectKey
-                    )
-                    let didResume = await MainActor.run {
-                        guard self.isCurrentUploadSync(syncGeneration) else {
-                            uploadTask.cancel()
-                            return false
-                        }
-                        uploadTask.resume()
-                        return true
-                    }
-                    guard didResume else { return nil }
-                    MerianLog.data.debug("🚀 BACKGROUND UPLOAD: Dispatched upload task for \(item.scanId, privacy: .private)")
-                    return item.scanId
-                }
+        // Validate the complete signed manifest and every local source before
+        // creating any task. A scan is one logical upload unit: either all of
+        // its members are resumed in one main-actor turn or none are.
+        for (index, item) in uploadItems.enumerated() {
+            guard !Task.isCancelled else { return [] }
+            guard index < presignedUrls.count,
+                  let remoteURL = URL(
+                    string: presignedUrls[index].signedUrl
+                  ) else {
+                rejectedScanIds.insert(item.scanId)
+                continue
             }
-
-            var dispatchedIds = Set<String>()
-            for await successfulScanId in group {
-                if let id = successfulScanId { dispatchedIds.insert(id) }
+            let presignedURL = presignedUrls[index]
+            guard presignedURL.fileName == item.fileName,
+                  MediaStagingContract.isCanonicalObjectKey(
+                    presignedURL.objectKey,
+                    fileName: item.fileName
+                  ),
+                  MediaStagingContract.objectKey(
+                    fromPresignedURLPath: remoteURL.path
+                  ) == presignedURL.objectKey else {
+                MerianLog.data.error(
+                    "dispatchUploadTasks: staging contract mismatch for \(item.scanId, privacy: .private)"
+                )
+                rejectedScanIds.insert(item.scanId)
+                continue
             }
-            return dispatchedIds
+            guard FileManager.default.fileExists(
+                atPath: item.fileURL.path
+            ) else {
+                MerianLog.data.debug(
+                    "dispatchUploadTasks: source missing for \(item.fileURL.lastPathComponent, privacy: .private)"
+                )
+                rejectedScanIds.insert(item.scanId)
+                continue
+            }
+            if entriesByScanId[item.scanId] == nil {
+                scanOrder.append(item.scanId)
+            }
+            entriesByScanId[item.scanId, default: []].append(
+                UploadDispatchEntry(
+                item: item,
+                presignedURL: presignedURL,
+                remoteURL: remoteURL
+                )
+            )
         }
+
+        for scanId in rejectedScanIds {
+            guard isCurrentUploadSync(syncGeneration),
+                  latestUploadGenerations[scanId] == syncGeneration else {
+                continue
+            }
+            softDeleteQueuedScan(
+                scanId: scanId,
+                reason: "Queued media or its upload destination could not be verified.",
+                errorCode: "queued_upload_manifest_invalid"
+            )
+        }
+
+        var dispatchedScanIds = Set<String>()
+        for scanId in scanOrder where !rejectedScanIds.contains(scanId) {
+            let pathAllowsScan =
+                !playbackVideoScanIds.contains(scanId)
+                    || allowsLargeQueuedUploadsOnCurrentNetwork
+                    || forcedExpensiveVideoUploadScanIds.contains(scanId)
+            guard !Task.isCancelled,
+                  isOnline,
+                  !isCurrentNetworkConstrained,
+                  isCurrentUploadSync(syncGeneration),
+                  latestUploadGenerations[scanId] == syncGeneration,
+                  pathAllowsScan,
+                  let entries = entriesByScanId[scanId],
+                  !entries.isEmpty else {
+                continue
+            }
+
+            let uploadTasks = entries.map { entry in
+                let request = queuedUploadRequest(
+                    remoteURL: entry.remoteURL,
+                    item: entry.item,
+                    scanContainsPlaybackVideo:
+                        playbackVideoScanIds.contains(scanId),
+                    allowsExpensiveVideoUpload:
+                        forcedExpensiveVideoUploadScanIds.contains(scanId)
+                )
+                let task = session.uploadTask(
+                    with: request,
+                    fromFile: entry.item.fileURL
+                )
+                task.taskDescription =
+                    MediaStagingContract.uploadTaskDescription(
+                        scanId: scanId,
+                        uploadIndex: entry.item.uploadIndex,
+                        syncGeneration: syncGeneration,
+                        objectKey: entry.presignedURL.objectKey
+                    )
+                return task
+            }
+            for uploadTask in uploadTasks {
+                uploadTask.resume()
+            }
+            dispatchedScanIds.insert(scanId)
+            MerianLog.data.debug(
+                "🚀 BACKGROUND UPLOAD: Dispatched complete manifest for \(scanId, privacy: .private) members=\(uploadTasks.count, privacy: .public)"
+            )
+        }
+        return dispatchedScanIds
+    }
+
+    /// Builds the final R2 PUT request with transport-level enforcement of the
+    /// queue's path policy. A scan containing non-forced playback video cannot
+    /// partially continue over cellular after a Wi-Fi handoff; standalone small
+    /// image/audio work may.
+    nonisolated func queuedUploadRequest(
+        remoteURL: URL,
+        item: ScanUploadItem,
+        scanContainsPlaybackVideo: Bool,
+        allowsExpensiveVideoUpload: Bool
+    ) -> URLRequest {
+        var request = URLRequest(url: remoteURL)
+        request.httpMethod = "PUT"
+        request.setValue(
+            item.contentType,
+            forHTTPHeaderField: "Content-Type"
+        )
+        request.allowsConstrainedNetworkAccess = false
+        request.allowsExpensiveNetworkAccess =
+            !scanContainsPlaybackVideo || allowsExpensiveVideoUpload
+        return request
     }
 
     private func handleSyncNetworkFailure(
@@ -769,23 +1017,45 @@ extension OfflineQueueManager {
         affectedScanIds: Set<String>,
         session: URLSession,
         dbActor: BackgroundDatabaseActor,
-        syncGeneration: UUID
+        syncGeneration: UUID,
+        playbackVideoScanIds: Set<String>,
+        forcedExpensiveVideoUploadScanIds: Set<String>
     ) async {
-        guard isCurrentUploadSync(syncGeneration) else { return }
         MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
 
-        // Reset orphaned uploads
+        // A signing request can fail after connectivity or path policy
+        // invalidates the process-local generation. Always release its exact
+        // no-task claims first; a path handoff is not a failed queue attempt.
         let observedThrough = Date()
         let liveTasks = await session.allTasks
-        guard isCurrentUploadSync(syncGeneration) else { return }
         let activeUploadIds = Set(liveTasks.compactMap { task in
-            MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
+            guard task.state != .canceling,
+                  task.state != .completed else {
+                return nil
+            }
+            return MediaStagingContract.parseUploadTaskDescription(
+                task.taskDescription
+            )?.scanId
         })
-        await dbActor.reconcileOrphanedUploadingScans(
+        _ = await dbActor.reconcileOrphanedUploadingScans(
             activeScanIds: activeUploadIds,
+            candidateScanIds: affectedScanIds,
             observedThrough: observedThrough
         )
-        guard isCurrentUploadSync(syncGeneration) else { return }
+        let networkPolicyStillAllowsRetry =
+            isCurrentUploadSync(syncGeneration)
+                && isOnline
+                && !isCurrentNetworkConstrained
+                && (
+                    allowsLargeQueuedUploadsOnCurrentNetwork
+                        || playbackVideoScanIds.isSubset(
+                            of: forcedExpensiveVideoUploadScanIds
+                        )
+                )
+        guard networkPolicyStillAllowsRetry else {
+            _ = finishUploadSync(generation: syncGeneration)
+            return
+        }
 
         var retryDelays: [TimeInterval] = []
         for scanId in affectedScanIds {

@@ -140,6 +140,18 @@ clear the pending bubble or create a replacement UUID. A quota-committed
 unanswered request can be reopened only by exact server proof after ten minutes;
 iOS does not calculate or assume that state.
 
+Migration `20260730180000_bind_field_chat_rows_to_subjects.sql` makes the same
+identity rule structural for retained server data. Every retained Insight
+conversation is a deferred composite child of its exact scan owner, each
+message is a child of its exact `(conversation, scan/post, user)`, and each
+answer rating is a child of its exact copied message identity. Sheet-level
+feature feedback remains independently bound to its exact scan owner even when
+it has no conversation context. This remains compatible with the transactional
+anonymous-account merge while preventing a malformed historical or future
+service write from poisoning the whole strictly decoded thread. Insight
+answer/feature-feedback tables are Edge-only as well; iOS must never bypass the
+chat endpoint with direct Data API writes.
+
 On load, `reconcileThread` distinguishes a completed historical user/assistant
 turn from the latest unanswered UUID-bound user row whose answer never
 persisted, even if a filtered orphan assistant follows it. That unanswered row

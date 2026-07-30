@@ -1076,6 +1076,18 @@ re-reads the pair and makes any retry newly metered. Validate runtime behavior
 with `tests/field_chat_reservation_security.sql`; source-contract success alone
 does not prove PostgreSQL execution.
 
+Migration `20260730180000_bind_field_chat_rows_to_subjects.sql` is a
+compatibility-safe structural follow-up. It removes only impossible
+cross-conversation private rows, binds every retained Insight conversation to
+its exact scan owner, then makes message and copied-feedback identity a
+validated deferred composite foreign key for both chat families. Deferred
+checks preserve the existing all-in-one anonymous-account merge while requiring
+every conversation, scan/post, user, message, and feedback identity to agree at
+commit. Conversation-optional Insight feature feedback is independently bound
+to its exact scan owner. The migration also revokes the legacy authenticated
+Data API privileges from Insight answer/feature feedback and retains exact RLS
+joins as defense in depth.
+
 Executable security fixtures insert test profiles directly instead of running
 the Auth signup trigger. Any such owner-only fixture must first insert the
 matching transactional `auth.users` row, then insert `public.users` with a
@@ -1771,12 +1783,14 @@ an Edge region without the documented A/B evidence.
 
 For Field Chat reliability releases, apply
 `20260729163616_reserve_field_chat_sends_atomically.sql` before either chat
-function. Deploy `insight-chat` and `explore-post-chat` from the same exact SHA,
-then stage same-key replay/conflict, different-key concurrency in one
-conversation, 28/29/30-row boundaries, a 19-to-20 send transition split across
-both chat families, and the ten-minute stale-quota path before releasing iOS. An
-RPC timeout, malformed admission row, or missing migration must remain a
-retryable `503` without provider dispatch.
+function and include
+`20260730180000_bind_field_chat_rows_to_subjects.sql` before release acceptance.
+Deploy `insight-chat` and `explore-post-chat` from the same exact SHA, then stage
+same-key replay/conflict, different-key concurrency in one conversation,
+28/29/30-row boundaries, a 19-to-20 send transition split across both chat
+families, cross-bound-row rejection, feedback ACLs, and the ten-minute
+stale-quota path before releasing iOS. An RPC timeout, malformed admission row,
+or missing migration must remain a retryable `503` without provider dispatch.
 
 For the Field trip Scan indicator, apply the contextual-guide, active-field trip
 capture-context, and standard-field trip preservation migrations before

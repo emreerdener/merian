@@ -12,6 +12,16 @@ failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagn
 ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
 ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
 audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
+field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift"
+insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift"
+scans_sheet_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/Views/ScansSheetView.swift"
+scans_grid_source="$repo_root/apps/ios/Merian/Features/Scans/Shared/Components/ScansGrid.swift"
+queued_context_source="$repo_root/apps/ios/Merian/Models/QueuedScanContext.swift"
+queue_durability_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift"
+queue_manager_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
+queue_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Sync.swift"
+background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
+ios_test_sources="$repo_root/apps/ios/MerianTests"
 
 fail() {
   echo "error: $*" >&2
@@ -29,6 +39,17 @@ assert_file_contains() {
   local expected="$2"
   grep -Fq -- "$expected" "$checked_file" \
     || fail "$checked_file is missing: $expected"
+}
+
+assert_file_count() {
+  local checked_file="$1"
+  local expected_count="$2"
+  local text="$3"
+  local actual_count
+  actual_count="$(grep -Fc -- "$text" "$checked_file" || true)"
+  [[ "$actual_count" == "$expected_count" ]] \
+    || fail \
+      "Expected $expected_count occurrence(s) of '$text' in $checked_file; found $actual_count."
 }
 
 assert_count() {
@@ -167,6 +188,13 @@ assert_no_runner_context_in_job_env() {
 [[ -f "$ui_test_source" ]] || fail "Missing iOS UI-test source: $ui_test_source"
 [[ -f "$ui_seed_source" ]] || fail "Missing iOS UI seed source: $ui_seed_source"
 [[ -f "$audio_page_source" ]] || fail "Missing Insight audio page: $audio_page_source"
+[[ -f "$field_chat_toolbar_source" ]] \
+  || fail "Missing Field Chat toolbar source: $field_chat_toolbar_source"
+[[ -f "$insight_share_button_source" ]] \
+  || fail "Missing Insight share-button source: $insight_share_button_source"
+[[ -f "$scans_sheet_source" ]] || fail "Missing Scans sheet source: $scans_sheet_source"
+[[ -f "$scans_grid_source" ]] || fail "Missing Scans grid source: $scans_grid_source"
+[[ -d "$ios_test_sources" ]] || fail "Missing iOS unit-test sources: $ios_test_sources"
 
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
@@ -225,6 +253,14 @@ assert_contains "dwarfdump --uuid"
 assert_contains 'main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"'
 assert_contains 'if [ ! -s "$app_uuids" ] || [ ! -s "$dsym_uuids" ]'
 assert_contains "dsym_uuid_match: true"
+assert_contains 'LC_ALL=C /usr/bin/strings -a "$main_binary"'
+assert_contains '"-seedAchievementDetailFlow"'
+assert_contains '"-seedAchievementDeletionRefreshFlow"'
+assert_contains '"-seedQueuedAudioHandoffFlow"'
+assert_contains '"ui_test_queued_audio_handoff.wav"'
+assert_count 1 "ios-release-main-binary-strings.txt"
+assert_contains "ui_test_seed_markers_absent: true"
+assert_contains "Debug-only UI-test seed markers: absent"
 assert_contains "production-readiness:"
 assert_contains "if: always()"
 assert_contains 'UNIT_TEST_RESULT" != "success'
@@ -295,13 +331,170 @@ assert_file_contains "$critical_results_check" "OfflineQueueManagerTests"
 assert_file_contains "$critical_results_check" "SyncStateManagerTests"
 assert_file_contains "$focused_results_check" '.totalTestCount == 1'
 assert_file_contains "$focused_results_check" '.skippedTests == 0'
+assert_file_contains "$focused_results_check" '($required_suites | length) == 1'
+assert_file_contains "$focused_results_check" '$required_suites[0].result? == "Passed"'
 assert_file_contains "$focused_results_check" '($all_cases | length) == 1'
 assert_file_contains "$ui_seed_source" "try prepareQueuedAudioHandoffMedia()"
 assert_file_contains "$ui_seed_source" 'appendASCII("RIFF")'
+assert_file_contains "$ui_seed_source" "#if DEBUG"
+assert_file_contains "$ui_seed_source" "#else"
+assert_file_contains "$ui_seed_source" "return TestExecutionCoordinator.isRunningUITests"
+assert_file_contains \
+  "$ui_seed_source" \
+  "static var isEnabled: Bool { return false }"
+assert_file_count "$ui_seed_source" 2 "enum UITestSeedCoordinator {"
+assert_file_contains \
+  "$ui_seed_source" \
+  "static func prepareIfNeeded(container _: ModelContainer) {}"
 assert_file_contains "$audio_page_source" '"AudioPlaybackControl_'
+assert_file_contains \
+  "$field_chat_toolbar_source" \
+  '.accessibilityIdentifier("FieldChatToolbarButton")'
+assert_file_contains \
+  "$insight_share_button_source" \
+  '.accessibilityIdentifier("InsightShareButton")'
+assert_file_count "$scans_sheet_source" 3 "if hasAutomaticQueuedRecoveryWork {"
+assert_file_count "$scans_sheet_source" 2 "guard hasAutomaticQueuedRecoveryWork else { return }"
+assert_file_contains \
+  "$scans_sheet_source" \
+  "queuedScan.isAutomaticRecoveryEligibleForCurrentNetwork("
+assert_file_contains "$scans_sheet_source" 'String($0.queueState.rawValue)'
+assert_file_contains \
+  "$scans_sheet_source" \
+  '"constrained:\(offlineQueueManager.isCurrentNetworkConstrained)"'
+assert_file_contains \
+  "$scans_sheet_source" \
+  "CapturedMediaSnapshot(items: capturedMediaItems)"
+assert_file_contains \
+  "$scans_sheet_source" \
+  "let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue"
+assert_file_contains \
+  "$scans_sheet_source" \
+  '$0.scanStateRaw < firstNonRunnableRaw || $0.queueNeedsAttention'
+assert_file_contains "$scans_grid_source" "var isAutomaticRecoveryEligible: Bool"
+assert_file_contains \
+  "$scans_grid_source" \
+  "func isAutomaticRecoveryEligibleForCurrentNetwork("
+assert_file_contains "$scans_grid_source" "guard isOnline,"
+assert_file_contains \
+  "$queue_manager_source" \
+  "private var currentPathIsConstrained = false"
+assert_file_contains \
+  "$queue_manager_source" \
+  "private var currentPathIsExpensive = false"
+assert_file_contains \
+  "$queue_sync_source" \
+  "func queuedUploadRequest("
+assert_file_contains \
+  "$queue_sync_source" \
+  "request.allowsConstrainedNetworkAccess = false"
+assert_file_contains \
+  "$queue_sync_source" \
+  "request.allowsExpensiveNetworkAccess ="
+assert_file_contains "$queue_sync_source" "finalPolicy.isOnline"
+assert_file_contains \
+  "$queue_sync_source" \
+  "var entriesByScanId: [String: [UploadDispatchEntry]]"
+assert_file_contains "$queue_sync_source" "let uploadTasks = entries.map"
+assert_file_contains "$queue_sync_source" "for uploadTask in uploadTasks"
+assert_file_contains \
+  "$queue_sync_source" \
+  "candidateScanIds: undispatchedScanIDs"
+assert_file_contains \
+  "$background_database_actor_source" \
+  'message: "Recovered an upload claim without an active task."'
+assert_file_contains \
+  "$background_database_actor_source" \
+  'message: "Recovered an inference claim without an active task."'
+assert_file_contains \
+  "$scans_grid_source" \
+  "guard queueState != .externalImport else { return false }"
+assert_file_contains \
+  "$queued_context_source" \
+  "guard queueState != .externalImport else { return false }"
+assert_file_contains \
+  "$queue_durability_source" \
+  "guard scan.queueState != .externalImport else { return false }"
 assert_file_contains \
   "$ui_test_source" \
   'app.buttons["AudioPlaybackControl_ui_test_queued_audio_handoff.wav"]'
+assert_file_contains "$ui_test_source" 'app.buttons["FieldChatToolbarButton"]'
+assert_file_contains "$ui_test_source" 'app.buttons["InsightShareButton"]'
+
+protected_case_count=0
+while IFS="|" read -r protected_case_name protected_display_name; do
+  [[ -n "$protected_case_name" ]] \
+    || fail "Critical-result validator emitted an empty protected test-case name."
+
+  protected_declarations="$(
+    grep -REn \
+      --include='*.swift' \
+      "^[[:space:]]*(@Test(\\([^)]*\\))?[[:space:]]+)?func[[:space:]]+${protected_case_name}[[:space:]]*\\(" \
+      "$ios_test_sources" \
+      || true
+  )"
+  protected_declaration_count="$(
+    printf '%s\n' "$protected_declarations" \
+      | awk 'NF { count += 1 } END { print count + 0 }'
+  )"
+  if [[ "$protected_declaration_count" != "1" ]]; then
+    fail \
+      "Critical-result validator requires exactly one Swift declaration for $protected_case_name; found $protected_declaration_count."
+  fi
+
+  protected_declaration_file="${protected_declarations%%:*}"
+  protected_declaration_tail="${protected_declarations#*:}"
+  protected_declaration_line="${protected_declaration_tail%%:*}"
+  protected_annotation_start="$protected_declaration_line"
+  if (( protected_annotation_start > 1 )); then
+    protected_annotation_start=$((protected_annotation_start - 1))
+  fi
+  protected_annotation="$(
+    sed -n \
+      "${protected_annotation_start},${protected_declaration_line}p" \
+      "$protected_declaration_file"
+  )"
+  if ! grep -Eq \
+    '^[[:space:]]*@Test([[:space:](]|$)' \
+    <<<"$protected_annotation"; then
+    fail \
+      "Critical-result validator references a declaration that is not bound to @Test: $protected_case_name"
+  fi
+  if [[ -n "$protected_display_name" ]] \
+    && ! grep -Fq \
+      "@Test(\"${protected_display_name}\"" \
+      <<<"$protected_annotation"; then
+    fail \
+      "Critical-result validator display name is not bound to $protected_case_name: $protected_display_name"
+  fi
+  protected_case_count=$((protected_case_count + 1))
+done < <(
+  awk '
+    /assert_suite_has_passed_test_case \\/ {
+      in_call = 1
+      quoted_count = 0
+      required_case = ""
+      alternate_case = ""
+      next
+    }
+    in_call && match($0, /"[^"]+"/) {
+      value = substr($0, RSTART + 1, RLENGTH - 2)
+      quoted_count += 1
+      if (quoted_count == 4) {
+        required_case = value
+      } else if (quoted_count == 5) {
+        alternate_case = value
+      }
+    }
+    in_call && $0 !~ /\\[[:space:]]*$/ {
+      printf "%s|%s\n", required_case, alternate_case
+      in_call = 0
+    }
+  ' "$critical_results_check"
+)
+[[ "$protected_case_count" == "71" ]] \
+  || fail \
+    "Expected 71 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \
@@ -310,6 +503,14 @@ for exact_scan_regression in \
   "testScheduleInferenceRetryUsesMonotonicMirroredAttempt" \
   "testInferenceRetryCannotOverrideCompletedCloudOwnership" \
   "testManualRetryResetsBudgetForDescriptionOnlyScan" \
+  "pausedScansCannotBeClaimedOrReconciled" \
+  "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive" \
+  "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork" \
+  "emptyPendingQuarantineIsAtomicAndStateBound" \
+  "unsyncedCountIncludesOnlyAutomaticallyRunnableScans" \
+  "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork" \
+  "testMediaStagingContractRejectsEmptyFilesBeforeUpload" \
+  "testRetryQueuedScanNowRejectsLegacyExternalImport" \
   "cloudDeletionRequiresExplicitNetworkConfirmation" \
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState" \
   "cloudDeletionDrainIsProcessSingleFlight" \
@@ -317,6 +518,7 @@ for exact_scan_regression in \
   "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion" \
   "testExploreMediaIncidentsAndLifecycleNotificationsDecode" \
   "testExploreMediaIncidentsRejectsUnknownSuccessShape" \
+  "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning" \
   "testDeleteScanRejectsUnconfirmedSuccessResponse"; do
   assert_file_contains "$critical_results_check" "$exact_scan_regression"
 done

@@ -16,9 +16,86 @@ TestFlight, App Store, support, and QA.
   scanning experience, then keeps its audio page when the completed analysis
   replaces it. The seed now writes a valid PCM WAV and the smoke waits for the
   decoded playback control before and after handoff, so a retained filename
-  backed by missing or corrupt media cannot pass. Empty, duplicate, skipped,
-  malformed, or wrong-test result evidence fails closed and retains a separate
-  result bundle and log.
+  backed by missing or corrupt media cannot pass. It also requires the completed
+  observation to expose its Field Chat and Share toolbar controls, guarding the
+  downstream connections after queue promotion. Empty, duplicate-suite,
+  duplicate-case, contradictory-suite, skipped, malformed, or wrong-test result
+  evidence fails closed and retains a separate result bundle and log.
+  Complete-unit critical evidence now applies the same exact-suite integrity:
+  every protected case must appear exactly once under exactly one passed suite,
+  and every allowlisted source name must resolve to one unique `@Test`
+  declaration with any explicit display-name alias bound to that declaration.
+  The deterministic UI seed implementation is now excluded from non-Debug
+  compilation; Release retains only signature-compatible no-ops. The Release
+  archive gate also scans the main binary and rejects any retained seed launch
+  argument or queued-audio fixture marker, so TestFlight/App Store launch state
+  cannot activate or contain its local data replacement path.
+- Scan Library recovery now distinguishes visible needs-attention rows from
+  automatic queue work. Stable damaged/beta rows no longer keep the 1.5-second
+  queue poll alive or repeatedly wake upload/inference reconciliation, while
+  Retry immediately re-enables monitoring for a recoverable failed row. Legacy
+  non-runnable import rows no longer offer Retry in either queue surface, and
+  the retry mutation API rejects them before changing durable state. The
+  observable unsynced count now includes only automatically runnable rows, so
+  an attention-only staged record cannot indirectly retrigger queue work. Its
+  count is read through a fresh SwiftData context so background-committed
+  attention transitions cannot remain hidden behind a cached main-context
+  fault. The serialized database actor independently rechecks attention and
+  retry timing at upload/inference claim time and excludes paused rows from
+  orphan reconciliation, so a stale candidate snapshot cannot mutate or launch
+  work the user must explicitly retry. Pending selection now pages past older
+  future-dated retry, deferred-live-upload, network-blocked video, and
+  media-less legacy rows instead of letting them hide newer runnable scans.
+  Media-less rows use a separate bounded quarantine budget, while the explicit
+  user-forced video override remains eligible. Global status reconciliation
+  now reads through the serialized queue actor and excludes attention-paused
+  inference rows, preventing a stale main-context fault from reviving their
+  status probes. Satisfied-path policy changes now count as recovery wakes:
+  cellular-to-WiFi and Low Data Mode-to-normal transitions resume newly
+  eligible work even when reachability never went offline, constrained drains
+  stay disarmed, and a final pre-claim policy check prevents a stale WiFi
+  snapshot from dispatching video after an async handoff. Upload batch packing
+  now scans the full bounded candidate window, skips non-fitting rows in favor
+  of later work that fits, and moves a malformed empty pending row to visible
+  needs-attention instead of letting it block the queue indefinitely. Library
+  polling now applies those same live online/constrained/large-upload rules:
+  offline, Low Data Mode, and cellular-blocked pending-video rows remain visible
+  without a periodic refresh/kick log loop, and satisfied-path policy changes
+  restart the task only when work becomes eligible. Dispatch rechecks policy at
+  task resume, every final PUT disallows constrained transport, and every
+  manifest PUT for a non-forced video scan disallows expensive transport so an
+  in-flight mixed-media WiFi handoff cannot partially consume cellular data.
+  Connectivity and upload policy are now also rechecked immediately after the
+  durable claim. A handoff while claiming or signing atomically returns both
+  scan and job to runnable state without consuming retry budget, and all signed
+  members for one scan start together or not at all, eliminating a partial
+  dispatch that could wait forever for a callback from a task never created.
+  That quarantine rechecks both state and media in the serialized actor, so a
+  stale candidate cannot tombstone work another path already advanced.
+- Missing-owner Explore and Ask the Community recovery now resolves and
+  byte-validates surviving local observation media before reconstructing the
+  cloud row. A beta record whose durable URL is 404 and whose local file is
+  gone can no longer create an empty completed cloud scan before recovery
+  discovers that it has nothing safe to publish. Share Edge also rejects a
+  media-less `recovery_scan` and proves every supplied staging key's exact
+  scan/kind/role ledger binding before invoking owner recovery, protecting
+  older clients and malformed direct requests. Field Chat keeps its intentional
+  metadata-only recovery path.
+- Field Chat now binds every retained Insight conversation to its exact scan
+  owner and enforces conversation, scan/post, viewer, message, and feedback
+  identity in deferred composite database constraints instead of relying only
+  on Edge arguments. Untrusted historical cross-bound private rows are removed
+  before validation so one damaged row cannot make the strict client reject an
+  otherwise healthy thread forever. The remaining Insight feedback Data API
+  grants are also closed, and conversation-optional feature feedback is
+  independently bound to its exact scan owner. Chat and feedback writes now
+  share the authenticated Edge-only boundary, with exact RLS joins retained as
+  defense in depth.
+- Structured scan upload signing now rejects zero-byte files on both iOS and
+  Edge before a background transfer starts. The shared media-staging contract
+  is version 4 and records a one-byte minimum. Foreground playback-video
+  staging applies the same positive-size rule before requesting a signed URL,
+  rather than treating an existing but empty filesystem path as uploadable.
 - Queued and staged captures now open as pushed destinations inside the Scans
   library navigation stack instead of layering another sheet over the library.
   Their waiting state now matches foreground scanning with the same dynamic
@@ -421,7 +498,10 @@ TestFlight, App Store, support, and QA.
   present in the live PostgREST schema cache. Exact SQLSTATE `22023` no-write
   sentinels validate server execution before any lock or mutation, while every
   real anon/publishable credential must remain denied; arbitrary `400` responses
-  and logged response bodies cannot satisfy the gate.
+  and logged response bodies cannot satisfy the gate. Every production smoke
+  transfer now has a 1 MiB response ceiling in addition to its connect and
+  whole-request timeout, so an oversized gateway or handler response fails
+  closed without being copied into Actions logs.
 - Release guidance now requires a manual `iOS Build and Test` dispatch on the
   final exact SHA when backend-only follow-up commits cause ordinary iOS scope
   detection to skip macOS work. Scope-only success cannot replace the full unit

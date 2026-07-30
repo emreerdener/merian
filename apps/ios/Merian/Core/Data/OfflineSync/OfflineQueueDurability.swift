@@ -694,6 +694,7 @@ extension OfflineQueueManager {
         )
         descriptor.fetchLimit = 1
         guard let scan = (try? context.fetch(descriptor))?.first else { return false }
+        guard scan.queueState != .externalImport else { return false }
 
         let snapshot = scan.capturedMediaSnapshot
         let shouldRecoverCompletedServerResult =

@@ -61,6 +61,10 @@ The workflow performs the following steps:
    test.
 2. Uses every third-party action by an immutable reviewed 40-character commit
    SHA, under explicit workflow-level `contents: read` permission.
+   Checkout retains the full history required by cumulative deployment planning
+   but sets `persist-credentials: false`, leaving Git credential-free; the
+   later GitHub API lookup receives its read token only through that step's
+   explicit `GH_TOKEN`.
    `_tests/workflowSecurity.test.ts` enforces those pins and permissions across
    every checked-in workflow, rejects job-scoped secret references, and limits
    `contents: write` to the taxonomy checklist's isolated follow-up job. The
@@ -109,7 +113,10 @@ The workflow performs the following steps:
    new security contract is added. It then invokes the checked-in recursive
    `deno task test` with an explicit database URL, so route-local tests cannot
    be omitted by a curated CI list and database-backed tests cannot silently
-   skip.
+   skip. The workflow-security contract reads the exact Deno task definition,
+   rejects a filtered or non-recursive complete task, and requires disposable
+   database startup, all discovered catalogs, and that complete Edge suite to
+   finish before deployment planning, migration push, or Function deployment.
 9. Builds an affected-function deployment plan across the cumulative Git range
    from the most recent successful production workflow SHA through the current
    exact SHA—not merely the triggering commit. The baseline must be a
@@ -117,8 +124,11 @@ The workflow performs the following steps:
    dispatch, an unavailable workflow baseline, or an unsafe Git relationship
    selects the full fleet. The workflow token has only `actions: read` plus
    `contents: read`, which is sufficient to list the repository's prior workflow
-   runs without granting write access. Therefore a fixture-only follow-up after
-   one or more failed runs still deploys every pending runtime change.
+   runs without granting write access. The lookup has explicit connect,
+   whole-request, response-size, retry-count, and retry-delay bounds; any
+   unavailable, oversized, malformed, non-ancestor, or missing result falls
+   back to a full-fleet plan. Therefore a fixture-only follow-up after one or
+   more failed runs still deploys every pending runtime change.
 10. Prepares a Postgres connection string for database migrations without
     calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
     can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
@@ -158,7 +168,9 @@ The workflow performs the following steps:
     the fixed `X-Merian-Handler: 1` marker was present. Final Data API failures
     are classified separately as PostgREST/RPC diagnostics and do not expect a
     Function marker. Response bodies and request-ID values remain withheld; no
-    variable header value is printed.
+    variable header value is printed. Every production smoke `curl` has explicit
+    connect and whole-request timeouts plus `--max-filesize 1048576`; an
+    oversized response fails closed without printing its body.
 
 Local and CI database rebuilds use the exact reviewed Supabase CLI `2.109.1`.
 The CLI owns migration transaction and history boundaries. Its normal apply path
@@ -3508,6 +3520,12 @@ Treat these components as one compatibility release:
      DDL while retaining a pre-cutoff transaction timestamp. Its bounded
      service-only proof RPC gives restore signing and owner reconstruction one
      database authority.
+   - `20260730180000_bind_field_chat_rows_to_subjects.sql` removes only
+     impossible historical cross-bound private chat rows, binds every retained
+     Insight conversation to its exact scan owner, validates deferred composite
+     message/feedback identity for both chat families, independently binds
+     conversation-optional feature feedback to its exact scan owner, and closes
+     the remaining authenticated Insight-feedback Data API grants.
 
    Do not reorder or selectively apply these migrations. Identity-merge fencing
    must be installed at the exact pre-reparent boundary. The video migration
@@ -3524,7 +3542,9 @@ Treat these components as one compatibility release:
    automatic recovery authority. Restoring direct-mutation fallbacks, changing
    the RPCs to broader definer rights, or trusting a terminal label or dead
    letter without composite quota/media proof is not an acceptable compatibility
-   repair.
+   repair. The later Field Chat row-binding migration is compatible with both
+   chat-function generations and needs no pre-migration consumer deploy, but it
+   must pass the disposable catalog before production mutation.
 
    These are separate migration-file transactions. The pinned Supabase CLI
    applies each pending migration file through its own implicitly transactional
@@ -3671,6 +3691,21 @@ It made no production mutation. Require another reviewed exact SHA to pass all
 27 current files before allowing the normal deployment to continue. The 27th,
 `field_chat_reservation_security.sql`, was added after that hosted result and
 must execute with the other 26.
+
+### Workflow run 1569 formatter-failure interpretation
+
+Run 1569 at `58b5c3e2684d334be7db02812738e52d8973a4fa` stopped at the
+deployment-configured formatter gate. `deno fmt --check supabase/functions
+supabase/scripts` rejected only the paragraph wrapping in
+`functions/field-trips/README.md`; the job did not start the disposable
+database, prepare a production connection, push migrations, deploy Functions,
+or make any production mutation.
+
+Descendant `c30ad1a46a0c286e49cc37a1faad9006c6e96344` contains the canonical
+formatter output. The current joined source passes the same check across 689
+files locally. Treat that as closure for the formatting defect only. The final
+committed exact SHA must still pass the hosted formatter, all 27 disposable
+catalog files, ordered deployment, and production smokes.
 
 After `db push`, use an owner connection for this bounded catalog check:
 
@@ -5162,13 +5197,17 @@ After deployment:
   `action:
   "suggest_prompts"` against an owned completed biological scan.
 - For a Field Chat admission release, first prove
-  `20260729163616_reserve_field_chat_sends_atomically.sql` is present. In
-  staging, replay one exact UUID/text pair, reject contradictory text under that
-  UUID, race different UUIDs in one conversation, cross 28/29/30 rows, and cross
-  19/20 daily sends split between Insight and Explore. Terminate after quota
-  commit, require in-progress before ten minutes, then prove exact stale-row
-  recovery starts one newly metered retry. Admission/recovery timeout must
-  return retryable `503` without provider dispatch.
+  `20260729163616_reserve_field_chat_sends_atomically.sql` and
+  `20260730180000_bind_field_chat_rows_to_subjects.sql` are present. In staging,
+  replay one exact UUID/text pair, reject contradictory text under that UUID,
+  race different UUIDs in one conversation, cross 28/29/30 rows, and cross
+  19/20 daily sends split between Insight and Explore. Prove direct browser
+  roles cannot access feedback, cross-bound message/feedback inserts fail, and
+  the anonymous-account merge still commits with all deferred identities
+  exact. Terminate after quota commit, require in-progress before ten minutes,
+  then prove exact stale-row recovery starts one newly metered retry.
+  Admission/recovery timeout must return retryable `503` without provider
+  dispatch.
 - For an admin release, complete the authentication/role, security-header,
   grouped-review, hidden-content projection, feedback/user audit, and AI-ledger
   smoke matrices in `11-internal-admin-operations.md`. Confirm the deployment

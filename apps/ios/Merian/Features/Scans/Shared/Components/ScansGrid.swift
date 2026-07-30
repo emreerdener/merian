@@ -39,8 +39,56 @@ struct QueuedScanSnapshot: Identifiable, Equatable {
     /// queued-scan keys disjoint from the completed-scan keys.
     var gridId: String { "q_\(id)" }
 
+    /// Whether this visible row can participate in automatic upload, orphan
+    /// reconciliation, or inference replay.
+    ///
+    /// Needs-attention rows remain visible for explicit retry/deletion, but
+    /// repeatedly waking workers cannot advance them and creates noisy,
+    /// battery-expensive library loops. Legacy imports and tombstones are also
+    /// deliberately outside the scan-ingestion workers.
+    var isAutomaticRecoveryEligible: Bool {
+        guard !queueNeedsAttention else { return false }
+        switch queueState {
+        case .pending, .uploading, .staged, .inferencing:
+            return true
+        case .externalImport, .failed:
+            return false
+        }
+    }
+
+    /// Whether automatic recovery can make progress under the current path
+    /// policy. The Library uses the same rules as the workers so an offline,
+    /// constrained, or cellular-blocked row cannot drive a polling/log loop.
+    ///
+    /// Only `.pending` playback video requires the large-upload allowance.
+    /// Uploaded/staged video still needs lightweight status or inference work
+    /// and remains eligible on an expensive, unconstrained path.
+    func isAutomaticRecoveryEligibleForCurrentNetwork(
+        isOnline: Bool,
+        isConstrained: Bool,
+        allowsVideoUploads: Bool,
+        isForcedVideoUpload: Bool
+    ) -> Bool {
+        guard isOnline,
+              !isConstrained,
+              isAutomaticRecoveryEligible else {
+            return false
+        }
+        guard queueState == .pending,
+              capturedMediaItems.contains(where: { item in
+                  if case .video = item {
+                      return true
+                  }
+                  return false
+              }) else {
+            return true
+        }
+        return allowsVideoUploads || isForcedVideoUpload
+    }
+
     var canRetryNow: Bool {
-        queueState == .failed ||
+        guard queueState != .externalImport else { return false }
+        return queueState == .failed ||
             queueNeedsAttention ||
             (
                 queueNextRetryAt != nil &&

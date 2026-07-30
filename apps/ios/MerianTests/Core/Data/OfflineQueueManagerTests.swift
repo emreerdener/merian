@@ -462,6 +462,7 @@ struct OfflineQueueManagerTests {
         let schemaVersion: Int
         let endpoint: String
         let maxFilesPerRequest: Int
+        let minFileBytes: Int
         let maxImageBytes: Int
         let maxImageFiles: Int
         let maxAudioBytes: Int
@@ -493,6 +494,26 @@ struct OfflineQueueManagerTests {
             if FileManager.default.fileExists(atPath: contractURL.path) {
                 let data = try Data(contentsOf: contractURL)
                 return try JSONDecoder().decode(MediaStagingUploadManifestContract.self, from: data)
+            }
+            searchURL.deleteLastPathComponent()
+        }
+
+        throw CocoaError(.fileNoSuchFile)
+    }
+
+    private func loadRepositorySource(
+        at relativePath: String
+    ) throws -> String {
+        var searchURL = URL(
+            fileURLWithPath: #filePath
+        ).deletingLastPathComponent()
+        for _ in 0..<8 {
+            let sourceURL = searchURL.appendingPathComponent(relativePath)
+            if FileManager.default.fileExists(atPath: sourceURL.path) {
+                return try String(
+                    contentsOf: sourceURL,
+                    encoding: .utf8
+                )
             }
             searchURL.deleteLastPathComponent()
         }
@@ -948,9 +969,10 @@ struct OfflineQueueManagerTests {
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 
-        #expect(contract.schemaVersion == 3)
+        #expect(contract.schemaVersion == 4)
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
+        #expect(contract.minFileBytes == 1)
         #expect(MerianConfig.mediaStagingMaxImageFilesPerRequest == contract.maxImageFiles)
         #expect(MerianConfig.mediaStagingMaxAudioFilesPerRequest == contract.maxAudioFiles)
         #expect(MerianConfig.mediaStagingMaxVideoFilesPerRequest == contract.maxVideoFiles)
@@ -1672,6 +1694,34 @@ struct OfflineQueueManagerTests {
         }
     }
 
+    @Test func testMediaStagingContractRejectsEmptyFilesBeforeUpload() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let imageName = "empty.webp"
+        try Data().write(to: directory.appendingPathComponent(imageName))
+        let payload = PendingScanPayload(
+            id: "scan-empty-media",
+            localImagePaths: [imageName],
+            localAudioPaths: [],
+            localVideoPaths: []
+        )
+        let items = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "user-a",
+            documentsDirectory: directory
+        )
+
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MediaStagingContract.validateUploadBudget(items)
+        }
+    }
+
     @Test func testMediaStagingContractRejectsTooManyAudioFilesBeforeUpload() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -2087,6 +2137,165 @@ struct OfflineQueueManagerTests {
         #expect(fetched?.queueState == .failed, "Scan must transition to failed state")
     }
 
+    @Test func unsyncedCountIncludesOnlyAutomaticallyRunnableScans() throws {
+        let context = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+
+        let runnableScan = OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            scanState: .pending
+        )
+        context.insert(runnableScan)
+        context.insert(OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            scanState: .staged,
+            queueNeedsAttention: true
+        ))
+        context.insert(OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            scanState: .failed
+        ))
+        context.insert(OfflineQueuedScan(
+            id: UUID().uuidString.lowercased(),
+            scanState: .externalImport
+        ))
+        try context.save()
+
+        manager.updateUnsyncedItemCount()
+
+        #expect(
+            manager.unsyncedItemsCount == 1,
+            "Attention-only, failed, and legacy rows must not keep automatic queue work active"
+        )
+
+        // Background sync writes through a separate model actor/context. The
+        // observable badge must read the committed store rather than retaining
+        // the main context's cached runnable copy.
+        let backgroundContext = ModelContext(context.container)
+        let runnableId = runnableScan.id
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == runnableId }
+        )
+        let backgroundScan = try #require(backgroundContext.fetch(descriptor).first)
+        backgroundScan.queueNeedsAttention = true
+        try backgroundContext.save()
+
+        manager.updateUnsyncedItemCount()
+
+        #expect(
+            manager.unsyncedItemsCount == 0,
+            "A background-committed attention transition must quiet automatic queue work"
+        )
+    }
+
+    @Test func uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork() throws {
+        let emptyRows = (0..<5).map { index in
+            PendingScanPayload(
+                id: "empty-\(index)",
+                localImagePaths: [],
+                localAudioPaths: [],
+                localVideoPaths: []
+            )
+        }
+        let fiveItems = PendingScanPayload(
+            id: "five-items",
+            localImagePaths: (0..<5).map { "image-\($0).webp" },
+            localAudioPaths: [],
+            localVideoPaths: []
+        )
+        let twoItems = PendingScanPayload(
+            id: "two-items",
+            localImagePaths: ["later-a.webp", "later-b.webp"],
+            localAudioPaths: [],
+            localVideoPaths: []
+        )
+        let oneItem = PendingScanPayload(
+            id: "one-item",
+            localImagePaths: ["later-fit.webp"],
+            localAudioPaths: [],
+            localVideoPaths: []
+        )
+
+        let selected = OfflineQueueManager.shared.selectUploadBatch(
+            from: emptyRows + [fiveItems, twoItems, oneItem]
+        )
+
+        #expect(selected.map(\.id) == [fiveItems.id, oneItem.id])
+        #expect(selected.flatMap(\.localUploadPaths).count == 6)
+
+        let remoteURL = URL(string: "https://r2.invalid/upload")!
+        let videoItem = ScanUploadItem(
+            scanId: "video-policy",
+            uploadIndex: 0,
+            mediaKind: .video,
+            localPath: "video.mp4",
+            fileName: "video.mp4",
+            fileURL: URL(fileURLWithPath: "/tmp/video.mp4"),
+            contentType: "video/mp4",
+            objectKey: "staging/owner/video.mp4"
+        )
+        let imageItem = ScanUploadItem(
+            scanId: "image-policy",
+            uploadIndex: 0,
+            mediaKind: .image,
+            localPath: "image.webp",
+            fileName: "image.webp",
+            fileURL: URL(fileURLWithPath: "/tmp/image.webp"),
+            contentType: "image/webp",
+            objectKey: "staging/owner/image.webp"
+        )
+        let deferredVideoRequest =
+            OfflineQueueManager.shared.queuedUploadRequest(
+                remoteURL: remoteURL,
+                item: videoItem,
+                scanContainsPlaybackVideo: true,
+                allowsExpensiveVideoUpload: false
+            )
+        let forcedVideoRequest =
+            OfflineQueueManager.shared.queuedUploadRequest(
+                remoteURL: remoteURL,
+                item: videoItem,
+                scanContainsPlaybackVideo: true,
+                allowsExpensiveVideoUpload: true
+            )
+        let videoSiblingImageRequest =
+            OfflineQueueManager.shared.queuedUploadRequest(
+                remoteURL: remoteURL,
+                item: imageItem,
+                scanContainsPlaybackVideo: true,
+                allowsExpensiveVideoUpload: false
+            )
+        let imageRequest =
+            OfflineQueueManager.shared.queuedUploadRequest(
+                remoteURL: remoteURL,
+                item: imageItem,
+                scanContainsPlaybackVideo: false,
+                allowsExpensiveVideoUpload: false
+            )
+
+        #expect(!deferredVideoRequest.allowsConstrainedNetworkAccess)
+        #expect(!deferredVideoRequest.allowsExpensiveNetworkAccess)
+        #expect(!forcedVideoRequest.allowsConstrainedNetworkAccess)
+        #expect(forcedVideoRequest.allowsExpensiveNetworkAccess)
+        #expect(!videoSiblingImageRequest.allowsConstrainedNetworkAccess)
+        #expect(!videoSiblingImageRequest.allowsExpensiveNetworkAccess)
+        #expect(!imageRequest.allowsConstrainedNetworkAccess)
+        #expect(imageRequest.allowsExpensiveNetworkAccess)
+
+        let syncSource = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Sync.swift"
+        )
+        #expect(syncSource.contains(
+            "var entriesByScanId: [String: [UploadDispatchEntry]]"
+        ))
+        #expect(syncSource.contains("let uploadTasks = entries.map"))
+        #expect(syncSource.contains("for uploadTask in uploadTasks"))
+        #expect(syncSource.contains(
+            "candidateScanIds: undispatchedScanIDs"
+        ))
+        #expect(syncSource.contains("finalPolicy.isOnline"))
+    }
+
     @Test func testRetryQueuedScanNow_MakesFailedVisualScanRunnable() async throws {
         let ctx = try createIsolatedContext()
         let manager = OfflineQueueManager.shared
@@ -2120,6 +2329,38 @@ struct OfflineQueueManagerTests {
         #expect(fetched.queueLastErrorMessage == nil)
         #expect(fetched.queueAttemptCount == 0)
         #expect(!fetched.queueNeedsAttention)
+    }
+
+    @Test func testRetryQueuedScanNowRejectsLegacyExternalImport() throws {
+        let ctx = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let scanId = UUID().uuidString.lowercased()
+        let retryAt = Date().addingTimeInterval(600)
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .externalImport,
+            queueAttemptCount: 2,
+            queueNextRetryAt: retryAt,
+            queueLastErrorCode: "legacy_external_import",
+            queueLastErrorMessage: "This legacy row cannot be replayed.",
+            queueNeedsAttention: true
+        )
+        ctx.insert(scan)
+        try ctx.save()
+
+        let didRetry = manager.retryQueuedScanNow(scanId: scanId)
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        #expect(!didRetry)
+        #expect(fetched.queueState == .externalImport)
+        #expect(fetched.queueAttemptCount == 2)
+        #expect(fetched.queueNextRetryAt == retryAt)
+        #expect(fetched.queueLastErrorCode == "legacy_external_import")
+        #expect(fetched.queueNeedsAttention)
     }
 
     @Test func testManualRetryResetsBudgetForDescriptionOnlyScan() async throws {

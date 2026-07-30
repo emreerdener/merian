@@ -500,6 +500,13 @@ atomically, blocks a second unanswered UUID in that conversation, and revokes
 direct browser-role chat-table access. Its narrow stale-quota routine can reopen
 only a ten-minute-stale exact request whose user row exists and assistant is
 absent; the subsequent provider attempt is newly metered.
+`20260730180000_bind_field_chat_rows_to_subjects.sql` then makes retained
+Insight conversations structurally match their exact scan owners and makes
+conversation/scan-or-post/user and copied-feedback identity structural through
+validated deferred composite foreign keys. It cleans only impossible historical
+private bindings, independently binds conversation-optional feature feedback to
+its exact scan owner, and closes the remaining direct Insight-feedback Data API
+surface.
 
 Data lifecycle, identity, and exports:
 

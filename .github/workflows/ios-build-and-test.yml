@@ -714,6 +714,19 @@ jobs:
             exit 1
           fi
 
+          release_strings_file="${RUNNER_TEMP}/ios-release-main-binary-strings.txt"
+          LC_ALL=C /usr/bin/strings -a "$main_binary" > "$release_strings_file"
+          for forbidden_ui_seed_marker in \
+            "-seedAchievementDetailFlow" \
+            "-seedAchievementDeletionRefreshFlow" \
+            "-seedQueuedAudioHandoffFlow" \
+            "ui_test_queued_audio_handoff.wav"; do
+            if grep -Fq -- "$forbidden_ui_seed_marker" "$release_strings_file"; then
+              echo "Release binary contains Debug-only UI-test seed marker: $forbidden_ui_seed_marker" >&2
+              exit 1
+            fi
+          done
+
           archive_kib="$(du -sk "$XCODE_ARCHIVE" | awk '{ print $1 }')"
           main_binary_sha256="$(shasum -a 256 "$main_binary" | awk '{ print $1 }')"
           jq -n \
@@ -742,7 +755,8 @@ jobs:
                 "MerianMessagesExtension.appex",
                 "MerianWatch.app"
               ],
-              dsym_uuid_match: true
+              dsym_uuid_match: true,
+              ui_test_seed_markers_absent: true
             }' > "$XCODE_EVIDENCE"
 
           {
@@ -754,6 +768,7 @@ jobs:
             echo "- Version/build: \`${archive_version} (${archive_build})\`"
             echo "- Archive size: \`$((archive_kib * 1024)) bytes\`"
             echo "- Main dSYM UUIDs: verified"
+            echo "- Debug-only UI-test seed markers: absent"
             echo "- Signing: disabled (compile/archive validation only)"
           } >> "$GITHUB_STEP_SUMMARY"
           df -h "$RUNNER_TEMP"

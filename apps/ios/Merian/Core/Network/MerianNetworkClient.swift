@@ -265,6 +265,20 @@ private struct ExploreRestoreMediaObjectKeys {
     }
 }
 
+private struct ExploreRestoreMediaPlan {
+    let imagePaths: [String]
+    let videoPaths: [String]
+    let audioPaths: [String]
+    let usesFallbackImageData: Bool
+
+    var isEmpty: Bool {
+        imagePaths.isEmpty
+            && videoPaths.isEmpty
+            && audioPaths.isEmpty
+            && !usesFallbackImageData
+    }
+}
+
 func validateExploreRestoreMediaBudget(
     imageCount: Int,
     videoCount: Int,
@@ -296,7 +310,7 @@ func validateExploreRestoreMediaPayload(
     var totalImageBytes = 0
     for sizeBytes in imageSizes {
         let addition = totalImageBytes.addingReportingOverflow(sizeBytes)
-        guard sizeBytes >= 0,
+        guard sizeBytes > 0,
               !addition.overflow,
               addition.partialValue <= MerianConfig.stagedImagePayloadMaxBytes else {
             throw MerianError.payloadTooLarge
@@ -304,10 +318,10 @@ func validateExploreRestoreMediaPayload(
         totalImageBytes = addition.partialValue
     }
     guard videoSizes.allSatisfy({
-        $0 >= 0 && $0 <= MerianConfig.videoPayloadMaxBytes
+        $0 > 0 && $0 <= MerianConfig.videoPayloadMaxBytes
     }),
     audioSizes.allSatisfy({
-        $0 >= 0 && $0 <= MerianConfig.audioPayloadMaxBytes
+        $0 > 0 && $0 <= MerianConfig.audioPayloadMaxBytes
     }) else {
         throw MerianError.payloadTooLarge
     }
@@ -2158,8 +2172,9 @@ final class MerianNetworkClient {
             throw MerianError.payloadTooLarge
         }
         for uploadFile in uploadFiles {
-            if let sizeBytes = uploadFile.sizeBytes,
-               sizeBytes > MerianConfig.videoPayloadMaxBytes {
+            guard let sizeBytes = uploadFile.sizeBytes,
+                  sizeBytes > 0,
+                  sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
                 throw MerianError.payloadTooLarge
             }
         }
@@ -3878,6 +3893,14 @@ final class MerianNetworkClient {
                     break
                 }
 
+                let restorePlan = try makeExploreRestoreMediaPlan(
+                    for: mediaSnapshot,
+                    includeAudio: true
+                )
+                guard !restorePlan.isEmpty else {
+                    MerianLog.network.debug("Explore share cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private); refusing owner-row reconstruction.")
+                    throw error
+                }
                 let recoveryScan = try await makeOwnedScanRecoveryPayload(
                     for: mediaSnapshot,
                     locationSharing: locationSharing
@@ -3892,12 +3915,8 @@ final class MerianNetworkClient {
                 }
                 let restoredObjectKeys = try await restoreExploreMediaObjectKeys(
                     for: mediaSnapshot,
-                    includeAudio: true
+                    plan: restorePlan
                 )
-                guard !restoredObjectKeys.isEmpty else {
-                    MerianLog.network.debug("Explore share cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private).")
-                    throw error
-                }
 
                 MerianLog.network.debug("Explore share cloud scan recovery uploaded \(restoredObjectKeys.imageObjectKeys.count + restoredObjectKeys.videoObjectKeys.count + restoredObjectKeys.audioObjectKeys.count, privacy: .public) media item(s); retrying.")
                 return try await shareScanToExplore(
@@ -4055,6 +4074,14 @@ final class MerianNetworkClient {
                     break
                 }
 
+                let restorePlan = try makeExploreRestoreMediaPlan(
+                    for: mediaSnapshot,
+                    includeAudio: true
+                )
+                guard !restorePlan.isEmpty else {
+                    MerianLog.network.debug("Community request cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private); refusing owner-row reconstruction.")
+                    throw error
+                }
                 let recovered = try await recoverMissingOwnedCloudScan(
                     for: mediaSnapshot,
                     locationSharing: locationSharing
@@ -4064,12 +4091,8 @@ final class MerianNetworkClient {
                 }
                 let restoredObjectKeys = try await restoreExploreMediaObjectKeys(
                     for: mediaSnapshot,
-                    includeAudio: true
+                    plan: restorePlan
                 )
-                guard !restoredObjectKeys.isEmpty else {
-                    MerianLog.network.debug("Community request cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private).")
-                    throw error
-                }
 
                 MerianLog.network.debug("Community request cloud scan recovery uploaded \(restoredObjectKeys.imageObjectKeys.count + restoredObjectKeys.videoObjectKeys.count + restoredObjectKeys.audioObjectKeys.count, privacy: .public) media item(s); retrying.")
                 return try await requestCommunityIdentification(
@@ -4844,6 +4867,19 @@ final class MerianNetworkClient {
         includeImages: Bool = true,
         includeAudio: Bool = false
     ) async throws -> ExploreRestoreMediaObjectKeys {
+        let plan = try makeExploreRestoreMediaPlan(
+            for: scan,
+            includeImages: includeImages,
+            includeAudio: includeAudio
+        )
+        return try await restoreExploreMediaObjectKeys(for: scan, plan: plan)
+    }
+
+    private func makeExploreRestoreMediaPlan(
+        for scan: ExploreShareMediaSnapshot,
+        includeImages: Bool = true,
+        includeAudio: Bool = false
+    ) throws -> ExploreRestoreMediaPlan {
         let restorableImagePaths = includeImages
             ? resolveRestorableImagePaths(for: scan)
             : []
@@ -4879,20 +4915,44 @@ final class MerianNetworkClient {
             audioSizes: audioSizes
         )
 
-        let imageObjectKeys = includeImages
+        return ExploreRestoreMediaPlan(
+            imagePaths: restorableImagePaths,
+            videoPaths: restorableVideoPaths,
+            audioPaths: restorableAudioPaths,
+            usesFallbackImageData:
+                restorableImagePaths.isEmpty
+                    && includeImages
+                    && scan.fallbackImageData?.isEmpty == false
+        )
+    }
+
+    private func restoreExploreMediaObjectKeys(
+        for scan: ExploreShareMediaSnapshot,
+        plan: ExploreRestoreMediaPlan
+    ) async throws -> ExploreRestoreMediaObjectKeys {
+        guard !plan.isEmpty else {
+            return ExploreRestoreMediaObjectKeys(
+                imageObjectKeys: [],
+                videoObjectKeys: [],
+                audioObjectKeys: []
+            )
+        }
+
+        let imageObjectKeys = !plan.imagePaths.isEmpty
+            || plan.usesFallbackImageData
             ? try await restoreExploreImageObjectKeys(
                 for: scan,
-                localImagePaths: restorableImagePaths
+                localImagePaths: plan.imagePaths
             )
             : []
         let videoObjectKeys = try await restoreExploreVideoObjectKeys(
             for: scan,
-            localVideoPaths: restorableVideoPaths
+            localVideoPaths: plan.videoPaths
         )
-        let audioObjectKeys = includeAudio
+        let audioObjectKeys = !plan.audioPaths.isEmpty
             ? try await restoreExploreAudioObjectKeys(
                 for: scan,
-                localAudioPaths: restorableAudioPaths
+                localAudioPaths: plan.audioPaths
             )
             : []
         return ExploreRestoreMediaObjectKeys(

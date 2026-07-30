@@ -756,16 +756,12 @@ Deno.test("fetchShareEligibleScan returns a 404 only for an absent scan", async 
   assertEquals((error as PublicHttpError).status, 404);
 });
 
-Deno.test("fetchShareEligibleScan maps recovery-boundary failures to retryable 503", async () => {
-  let reads = 0;
-  const rpcCalls: string[] = [];
+Deno.test("fetchShareEligibleScan refuses media-less owner recovery before mutation", async () => {
+  let recoveryCalls = 0;
   const supabase = {
-    rpc(name: string) {
-      rpcCalls.push(name);
-      return Promise.resolve({
-        data: null,
-        error: { message: "proof RPC is not visible" },
-      });
+    rpc() {
+      recoveryCalls += 1;
+      throw new Error("Owner recovery must not run without restore media");
     },
     from(table: string) {
       assertEquals(table, "scans");
@@ -776,7 +772,6 @@ Deno.test("fetchShareEligibleScan maps recovery-boundary failures to retryable 5
               return this;
             },
             maybeSingle() {
-              reads += 1;
               return Promise.resolve({ data: null, error: null });
             },
           };
@@ -802,6 +797,145 @@ Deno.test("fetchShareEligibleScan maps recovery-boundary failures to retryable 5
   );
 
   assertEquals(error instanceof PublicHttpError, true);
+  assertEquals((error as PublicHttpError).status, 409);
+  assertEquals(
+    (error as PublicHttpError).code,
+    "scan_restore_media_required",
+  );
+  assertEquals(recoveryCalls, 0);
+});
+
+Deno.test("fetchShareEligibleScan refuses unbound restore media before owner recovery mutation", async () => {
+  let recoveryCalls = 0;
+  const restoredImageKey = `staging/${userId}/unbound.webp`;
+  const supabase = {
+    rpc() {
+      recoveryCalls += 1;
+      throw new Error("Owner recovery must not run with unbound restore media");
+    },
+    from(table: string) {
+      if (table === "scans") {
+        return {
+          select() {
+            return {
+              eq() {
+                return this;
+              },
+              maybeSingle() {
+                return Promise.resolve({ data: null, error: null });
+              },
+            };
+          },
+        };
+      }
+      assertEquals(table, "scan_media_assets");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        in() {
+          return Promise.resolve({ data: [], error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const recoveryScan = {
+    id: scanId,
+    user_id: userId,
+  } as OwnedScanRecoveryRow;
+
+  const error = await assertRejects(() =>
+    fetchShareEligibleScan(
+      scanId,
+      userId,
+      [restoredImageKey],
+      [],
+      [],
+      supabase,
+      recoveryScan,
+    )
+  );
+
+  assertEquals(error instanceof PublicHttpError, true);
+  assertEquals((error as PublicHttpError).status, 409);
+  assertEquals(
+    (error as PublicHttpError).code,
+    "restored_media_not_registered",
+  );
+  assertEquals(recoveryCalls, 0);
+});
+
+Deno.test("fetchShareEligibleScan maps recovery-boundary failures to retryable 503", async () => {
+  let reads = 0;
+  const rpcCalls: string[] = [];
+  const restoredImageKey = `staging/${userId}/recovered.webp`;
+  const supabase = {
+    rpc(name: string) {
+      rpcCalls.push(name);
+      return Promise.resolve({
+        data: null,
+        error: { message: "proof RPC is not visible" },
+      });
+    },
+    from(table: string) {
+      if (table === "scan_media_assets") {
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          in() {
+            return Promise.resolve({
+              data: [{
+                client_scan_id: scanId,
+                kind: "image",
+                role: "display",
+                storage_key: restoredImageKey,
+              }],
+              error: null,
+            });
+          },
+        };
+      }
+      assertEquals(table, "scans");
+      return {
+        select() {
+          return {
+            eq() {
+              return this;
+            },
+            maybeSingle() {
+              reads += 1;
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const recoveryScan = {
+    id: scanId,
+    user_id: userId,
+  } as OwnedScanRecoveryRow;
+
+  const error = await assertRejects(() =>
+    fetchShareEligibleScan(
+      scanId,
+      userId,
+      [restoredImageKey],
+      [],
+      [],
+      supabase,
+      recoveryScan,
+    )
+  );
+
+  assertEquals(error instanceof PublicHttpError, true);
   assertEquals((error as PublicHttpError).status, 503);
   assertEquals((error as PublicHttpError).code, "service_unavailable");
   assertEquals((error as PublicHttpError).retryAfterSeconds, 30);
@@ -811,11 +945,14 @@ Deno.test("fetchShareEligibleScan maps recovery-boundary failures to retryable 5
 
 Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing", async () => {
   const userId = "00000000-0000-0000-0000-000000000002";
+  const restoredImageKey = `staging/${userId}/recovered.webp`;
   const recoveredRow: ShareEligibleScanRow = {
     id: scanId,
     user_id: userId,
     geoprivacy: "private",
-    image_storage_urls: ["https://media.merian.app/recovered.webp"],
+    image_storage_urls: [
+      `https://media.merian.app/public_uploads/free/${userId}/recovered.webp`,
+    ],
     video_storage_urls: [],
     audio_storage_urls: [],
     captured_media: null,
@@ -840,17 +977,38 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
       throw new Error(`Unexpected RPC: ${name}`);
     },
     from(table: string) {
-      assertEquals(table, "scans");
+      if (table === "scans") {
+        return {
+          select() {
+            return {
+              eq() {
+                return this;
+              },
+              maybeSingle() {
+                return Promise.resolve(reads.shift());
+              },
+            };
+          },
+        };
+      }
+      assertEquals(table, "scan_media_assets");
       return {
         select() {
-          return {
-            eq() {
-              return this;
-            },
-            maybeSingle() {
-              return Promise.resolve(reads.shift());
-            },
-          };
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        in() {
+          return Promise.resolve({
+            data: [{
+              client_scan_id: scanId,
+              kind: "image",
+              role: "display",
+              storage_key: restoredImageKey,
+            }],
+            error: null,
+          });
         },
       };
     },
@@ -863,7 +1021,7 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
   const result = await fetchShareEligibleScan(
     scanId,
     userId,
-    [],
+    [restoredImageKey],
     [],
     [],
     supabase,

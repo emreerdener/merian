@@ -1287,6 +1287,139 @@ struct BackgroundDatabaseActorTests {
         #expect(payloads.first?.id == pending.id, "Only the .pending scan must be returned")
     }
 
+    @Test func pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let baseDate = Date().addingTimeInterval(-3_600)
+        let retryAt = Date().addingTimeInterval(600)
+
+        // More than one fetch page of older pending rows is delayed. A bounded
+        // fetch followed by in-memory filtering would never see the ready row.
+        for index in 0..<51 {
+            context.insert(OfflineQueuedScan(
+                id: String(format: "delayed-%03d", index),
+                timestamp: baseDate.addingTimeInterval(Double(index)),
+                scanState: .pending,
+                queueNextRetryAt: retryAt
+            ))
+        }
+        let deferred = OfflineQueuedScan(
+            id: "deferred-behind-delayed-page",
+            timestamp: baseDate.addingTimeInterval(52),
+            scanState: .pending
+        )
+        let blockedVideo = OfflineQueuedScan(
+            id: "video-behind-delayed-page",
+            timestamp: baseDate.addingTimeInterval(53),
+            capturedMediaJSON: CapturedMediaSnapshot(items: [
+                .video(StoredVideoMediaReference(
+                    .documents("blocked-video.mp4")
+                ))
+            ]).jsonString,
+            scanState: .pending
+        )
+        // Media-less legacy rows are quarantine candidates, not runnable upload
+        // work. More than the fetch limit must not let them consume the result
+        // budget and hide a valid row behind them.
+        for index in 0..<51 {
+            context.insert(OfflineQueuedScan(
+                id: String(format: "empty-%03d", index),
+                timestamp: baseDate.addingTimeInterval(54 + Double(index)),
+                scanState: .pending
+            ))
+        }
+        let ready = OfflineQueuedScan(
+            id: "ready-behind-delayed-page",
+            timestamp: baseDate.addingTimeInterval(106),
+            capturedMediaJSON: CapturedMediaSnapshot(items: [
+                .image(.documents("ready-image.webp"))
+            ]).jsonString,
+            scanState: .pending
+        )
+        context.insert(deferred)
+        context.insert(blockedVideo)
+        context.insert(ready)
+        context.insert(OfflineQueuedScan(
+            id: "attention-row",
+            timestamp: baseDate.addingTimeInterval(-1),
+            scanState: .pending,
+            queueNeedsAttention: true
+        ))
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let payloads = await actor.fetchPendingScans(
+            limit: 2,
+            excludingScanIds: [deferred.id],
+            allowsVideoUploads: false
+        )
+        let forcedPayloads = await actor.fetchPendingScans(
+            limit: 2,
+            excludingScanIds: [deferred.id],
+            allowsVideoUploads: false,
+            forcedVideoUploadScanIds: [blockedVideo.id]
+        )
+
+        #expect(
+            payloads.filter { !$0.localUploadPaths.isEmpty }.map(\.id)
+                == [ready.id]
+        )
+        #expect(
+            forcedPayloads.filter { !$0.localUploadPaths.isEmpty }.map(\.id)
+                == [blockedVideo.id, ready.id]
+        )
+        #expect(payloads.filter { $0.localUploadPaths.isEmpty }.count == 2)
+        #expect(forcedPayloads.filter { $0.localUploadPaths.isEmpty }.count == 2)
+    }
+
+    @Test func emptyPendingQuarantineIsAtomicAndStateBound() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let emptyPending = OfflineQueuedScan(scanState: .pending)
+        let mediaPending = OfflineQueuedScan(
+            capturedMediaJSON: CapturedMediaSnapshot(items: [
+                .image(.documents("retained-image.webp"))
+            ]).jsonString,
+            scanState: .pending
+        )
+        let advancedEmpty = OfflineQueuedScan(scanState: .staged)
+        let attentionEmpty = OfflineQueuedScan(
+            scanState: .pending,
+            queueNeedsAttention: true
+        )
+        for scan in [
+            emptyPending,
+            mediaPending,
+            advancedEmpty,
+            attentionEmpty
+        ] {
+            context.insert(scan)
+        }
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let quarantined = await actor.quarantineEmptyPendingScans(
+            scanIds: [
+                emptyPending.id,
+                mediaPending.id,
+                advancedEmpty.id,
+                attentionEmpty.id
+            ]
+        )
+
+        let readContext = ModelContext(container)
+        let rows = try readContext.fetch(FetchDescriptor<OfflineQueuedScan>())
+        let stateById = Dictionary(uniqueKeysWithValues: rows.map {
+            ($0.id, ($0.queueState, $0.queueNeedsAttention))
+        })
+        #expect(quarantined == Set([emptyPending.id]))
+        #expect(stateById[emptyPending.id]?.0 == .failed)
+        #expect(stateById[emptyPending.id]?.1 == true)
+        #expect(stateById[mediaPending.id]?.0 == .pending)
+        #expect(stateById[advancedEmpty.id]?.0 == .staged)
+        #expect(stateById[attentionEmpty.id]?.0 == .pending)
+    }
+
     // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence
 
     @Test func testUpdateScanAsFlaggedSetsFlag() async throws {
@@ -2262,6 +2395,87 @@ struct BackgroundDatabaseActorTests {
 
     // MARK: - reconcileOrphanedUploadingScans: startup recovery (V33)
 
+    @Test func pausedScansCannotBeClaimedOrReconciled() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let retryAt = Date().addingTimeInterval(600)
+        let pending = OfflineQueuedScan(
+            scanState: .pending,
+            queueNeedsAttention: true
+        )
+        let uploading = OfflineQueuedScan(
+            scanState: .uploading,
+            queueNeedsAttention: true
+        )
+        let staged = OfflineQueuedScan(
+            scanState: .staged,
+            queueNeedsAttention: true
+        )
+        let inferencing = OfflineQueuedScan(
+            scanState: .inferencing,
+            queueNeedsAttention: true
+        )
+        let delayedPending = OfflineQueuedScan(
+            scanState: .pending,
+            queueNextRetryAt: retryAt
+        )
+        let delayedStaged = OfflineQueuedScan(
+            scanState: .staged,
+            queueNextRetryAt: retryAt
+        )
+        for scan in [
+            pending,
+            uploading,
+            staged,
+            inferencing,
+            delayedPending,
+            delayedStaged
+        ] {
+            context.insert(scan)
+        }
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let claimedUploads = await actor.markScansAsUploading(
+            scanIds: [pending.id, delayedPending.id]
+        )
+        let claimedAttentionInference = await actor.tryClaimForInference(
+            scanId: staged.id
+        )
+        let claimedDelayedInference = await actor.tryClaimForInference(
+            scanId: delayedStaged.id
+        )
+        let resetUploads = await actor.reconcileOrphanedUploadingScans(
+            activeScanIds: []
+        )
+        await actor.reconcileOrphanedInferencingScans(
+            activeInferenceScanIds: []
+        )
+        let serverOwnedInferenceIds =
+            await actor.fetchServerOwnedInferencingScanIds(
+                excludingScanIds: [],
+                observedThrough: Date().addingTimeInterval(1)
+            )
+
+        let readContext = ModelContext(container)
+        let rows = try readContext.fetch(FetchDescriptor<OfflineQueuedScan>())
+        let stateById = Dictionary(uniqueKeysWithValues: rows.map {
+            ($0.id, $0.queueState)
+        })
+
+        #expect(claimedUploads.isEmpty)
+        #expect(!claimedAttentionInference)
+        #expect(!claimedDelayedInference)
+        #expect(!resetUploads)
+        #expect(serverOwnedInferenceIds.isEmpty)
+        #expect(stateById[pending.id] == .pending)
+        #expect(stateById[uploading.id] == .uploading)
+        #expect(stateById[staged.id] == .staged)
+        #expect(stateById[inferencing.id] == .inferencing)
+        #expect(stateById[delayedPending.id] == .pending)
+        #expect(stateById[delayedStaged.id] == .staged)
+    }
+
     @Test func testReconcileOrphanedUploadingScansResetsOrphansKeepsActive() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
@@ -2269,8 +2483,22 @@ struct BackgroundDatabaseActorTests {
         let orphan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("orphan.webp")]), encoding: .utf8), scanState: .uploading)
         let active = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("active.webp")]), encoding: .utf8), scanState: .uploading)
         let pending = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8), scanState: .pending)
+        let orphanJob = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: orphan.id),
+            kind: .scanIngestion,
+            subjectId: orphan.id,
+            status: .running
+        )
+        let activeJob = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: active.id),
+            kind: .scanIngestion,
+            subjectId: active.id,
+            status: .running
+        )
 
         for scan in [orphan, active, pending] { context.insert(scan) }
+        context.insert(orphanJob)
+        context.insert(activeJob)
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
@@ -2287,6 +2515,22 @@ struct BackgroundDatabaseActorTests {
         #expect(byId[active.id]  == ScanQueueState.uploading.rawValue, ".uploading scan with active task must stay .uploading")
         #expect(byId[pending.id] == ScanQueueState.pending.rawValue, ".pending scan must be unaffected")
         #expect(hadOrphans, "callers must be told to restart signing after a reset")
+
+        let jobReadContext = ModelContext(container)
+        let jobs = try jobReadContext.fetch(
+            FetchDescriptor<OfflineJobRecord>()
+        )
+        let jobStatusById = Dictionary(uniqueKeysWithValues: jobs.map {
+            ($0.id, $0.status)
+        })
+        #expect(
+            jobStatusById[orphanJob.id] == .pending,
+            "orphan recovery must atomically release the durable running job"
+        )
+        #expect(
+            jobStatusById[activeJob.id] == .running,
+            "a live task must retain its durable running job"
+        )
     }
 
     @Test func testReconcileOrphanedUploadingScansWithEmptyActiveSet() async throws {
@@ -2335,13 +2579,23 @@ struct BackgroundDatabaseActorTests {
             scanState: .uploading,
             queueUpdatedAt: observedThrough.addingTimeInterval(10)
         )
+        let unrelatedScan = OfflineQueuedScan(
+            capturedMediaJSON: try! String(
+                data: JSONEncoder().encode([SerializedMediaItem.image("unrelated.webp")]),
+                encoding: .utf8
+            ),
+            scanState: .uploading,
+            queueUpdatedAt: observedThrough.addingTimeInterval(-10)
+        )
         context.insert(oldScan)
         context.insert(replacementScan)
+        context.insert(unrelatedScan)
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
         await actor.reconcileOrphanedUploadingScans(
             activeScanIds: [],
+            candidateScanIds: Set([oldScan.id, replacementScan.id]),
             observedThrough: observedThrough
         )
 
@@ -2349,6 +2603,10 @@ struct BackgroundDatabaseActorTests {
         let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
         #expect(byId[oldScan.id] == ScanQueueState.pending.rawValue)
         #expect(byId[replacementScan.id] == ScanQueueState.uploading.rawValue)
+        #expect(
+            byId[unrelatedScan.id] == ScanQueueState.uploading.rawValue,
+            "an exact post-claim release must not reset unrelated work"
+        )
     }
 
     // MARK: - reconcileOrphanedInferencingScans
@@ -2361,8 +2619,22 @@ struct BackgroundDatabaseActorTests {
         let inf2   = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("i2.webp")]), encoding: .utf8), scanState: .inferencing)
         let staged = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("s.webp")]), encoding: .utf8), scanState: .staged)
         let failed = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("f.webp")]), encoding: .utf8), scanState: .failed)
+        let inferenceJob1 = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: inf1.id),
+            kind: .scanIngestion,
+            subjectId: inf1.id,
+            status: .running
+        )
+        let inferenceJob2 = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: inf2.id),
+            kind: .scanIngestion,
+            subjectId: inf2.id,
+            status: .running
+        )
 
         for scan in [inf1, inf2, staged, failed] { context.insert(scan) }
+        context.insert(inferenceJob1)
+        context.insert(inferenceJob2)
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
@@ -2376,6 +2648,16 @@ struct BackgroundDatabaseActorTests {
         #expect(byId[inf2.id]   == ScanQueueState.staged.rawValue, "all .inferencing scans must reset")
         #expect(byId[staged.id] == ScanQueueState.staged.rawValue, ".staged must be unaffected")
         #expect(byId[failed.id] == ScanQueueState.failed.rawValue, ".failed tombstone must be unaffected")
+
+        let jobReadContext = ModelContext(container)
+        let jobs = try jobReadContext.fetch(
+            FetchDescriptor<OfflineJobRecord>()
+        )
+        let jobStatusById = Dictionary(uniqueKeysWithValues: jobs.map {
+            ($0.id, $0.status)
+        })
+        #expect(jobStatusById[inferenceJob1.id] == .pending)
+        #expect(jobStatusById[inferenceJob2.id] == .pending)
     }
 
     @Test func testInferenceReconciliationDoesNotResetWorkNewerThanSnapshot() async throws {
