@@ -34,6 +34,7 @@ struct CaptureControlBar: View {
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var audioRecordingStartTask: Task<Void, Never>?
 
@@ -142,11 +143,18 @@ struct CaptureControlBar: View {
                                 audioRecordingStartTask = Task {
                                     defer { audioRecordingStartTask = nil }
                                     do {
+                                        // Ask immediately while the red-button action is still
+                                        // visible and before camera shutdown can introduce delay.
+                                        guard scenePhase == .active else { return }
+                                        try await audioCaptureManager.requestMicrophonePermissionForRecording()
+                                        try Task.checkCancellation()
+
                                         // Mode changes request camera shutdown asynchronously. Await
                                         // the hardware handoff here so a fast tap cannot start the
                                         // audio engine while AVCaptureSession is still releasing it.
                                         await cameraManager.stopSessionAndWait()
                                         try Task.checkCancellation()
+                                        guard scenePhase == .active else { return }
                                         try await audioCaptureManager.startRecording(
                                             autoSubmitOnMaxDuration: !appSettings.requiresScanConfirmation
                                         )

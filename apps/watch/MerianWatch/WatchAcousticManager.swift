@@ -21,12 +21,12 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
     private var currentWeather: Weather?
     private var recordingURL: URL?
     private var session: WCSession?
+    private var isRequestingRecordPermission: Bool = false
     
     override init() {
         super.init()
         locationManager.delegate = self
         setupWatchConnectivity()
-        requestPermissions()
     }
     
     private func setupWatchConnectivity() {
@@ -39,13 +39,6 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
     
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         print("WCSession globally active: \(activationState.rawValue)")
-    }
-    
-    private func requestPermissions() {
-        AVAudioApplication.requestRecordPermission { granted in
-            print("Microphone access granted: \(granted)")
-        }
-        locationManager.requestWhenInUseAuthorization()
     }
     
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -71,7 +64,23 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
     }
     
     func startAcousticCapture() {
+        guard !isRecording, !isProcessing, !isRequestingRecordPermission else { return }
+        isRequestingRecordPermission = true
+
+        // Keep the system prompt attached to the explicit Capture Acoustics action.
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isRequestingRecordPermission = false
+                guard granted else { return }
+                self.beginAcousticCapture()
+            }
+        }
+    }
+
+    private func beginAcousticCapture() {
         // Fetch fresh coordinates & weather for the payload
+        locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
         
         let session = AVAudioSession.sharedInstance()

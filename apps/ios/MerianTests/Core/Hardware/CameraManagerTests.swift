@@ -55,6 +55,19 @@ final class CameraManagerTests: XCTestCase {
         XCTAssertFalse(cameraManager.isZoomSupported)
     }
 
+    func testVideoAudioOnlyUsesPreviouslyGrantedMicrophoneAccess() {
+        XCTAssertFalse(
+            CameraVideoAudioPermissionPolicy.shouldIncludeAudio(for: .undetermined),
+            "Video capture must not trigger the first microphone permission request"
+        )
+        XCTAssertFalse(
+            CameraVideoAudioPermissionPolicy.shouldIncludeAudio(for: .denied)
+        )
+        XCTAssertTrue(
+            CameraVideoAudioPermissionPolicy.shouldIncludeAudio(for: .granted)
+        )
+    }
+
     // MARK: - Target FPS Debounce
 
     func testTargetFPSDebouncerReadsCurrentTargetAfterDelay() async {

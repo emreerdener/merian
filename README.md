@@ -87,7 +87,15 @@ steps are tracked in the
 > restored. This positively exercises ordinary offline replay, but build `235`
 > predates the remediation and its retained console lacks the transaction-level
 > sequence, so a fresh globally higher exact-source TestFlight build remains a
-> release requirement.
+> release requirement. Hosted iOS Runs 97 and 153 are stale failure evidence for
+> parent SHA `0aa170fa`: both stopped on two ambiguous offline-sync
+> `Set(compactMap:)` expressions before test or archive execution. Pushed
+> descendant `f292dc48` explicitly types every equivalent snapshot as
+> `Set<String>` and locally passes the complete app/unit/UI
+> `build-for-testing` product graph under the documented CoreSimulator resource
+> bypass. Only a hosted result naming that exact SHA or a committed descendant
+> may satisfy the simulator-test, resource-compilation, and Release-archive
+> gates.
 
 ---
 

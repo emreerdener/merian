@@ -105,7 +105,10 @@ final class AudioCaptureManager {
 
     // MARK: Private
 
-    private let audioEngine = AVAudioEngine()
+    /// Created only after a user-initiated recording request has received microphone
+    /// authorization. In particular, lifecycle cleanup must not access `inputNode` on a
+    /// fresh install because doing so can cause iOS to present the permission alert.
+    private var audioEngine: AVAudioEngine?
     private let spectrogram = SpectrogramActor()
     private var pendingFileName: String?
     private var recordingTask: Task<Void, Never>?
@@ -154,6 +157,15 @@ final class AudioCaptureManager {
 
     // MARK: - Recording
 
+    /// Called directly from the Record section's red button so the system prompt is
+    /// presented in the context of the user action, before any hardware handoff delay.
+    func requestMicrophonePermissionForRecording() async throws {
+        let granted = await AVAudioApplication.requestRecordPermission()
+        guard granted else {
+            throw AudioCaptureError.microphonePermissionDenied
+        }
+    }
+
     func startRecording(autoSubmitOnMaxDuration: Bool = false) async throws {
         guard !isRecording, !isStartingRecording else { return }
         isStartingRecording = true
@@ -162,8 +174,9 @@ final class AudioCaptureManager {
         // Clear any leftover review state before a fresh recording session.
         discardPending()
 
-        let granted = await AVAudioApplication.requestRecordPermission()
-        guard granted else {
+        // Fail closed without prompting. Permission requests belong exclusively to the
+        // explicit user-action method above.
+        guard AVAudioApplication.shared.recordPermission == .granted else {
             self.autoSubmitOnMaxDuration = false
             throw AudioCaptureError.microphonePermissionDenied
         }
@@ -173,12 +186,13 @@ final class AudioCaptureManager {
         }
 
         teardownEngine()
+        let engine = AVAudioEngine()
+        audioEngine = engine
 
         let fileName = "\(UUID().uuidString).wav"
         pendingFileName = fileName
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
 
-        let engine = audioEngine
         let actor = spectrogram
         let manager = self
 
@@ -332,7 +346,7 @@ final class AudioCaptureManager {
 
     /// Pauses an active recording without discarding audio. Engine tap stays installed.
     func pauseRecording() {
-        guard isRecording, !isPaused else { return }
+        guard isRecording, !isPaused, let audioEngine else { return }
         recordingTask?.cancel()
         recordingTask = nil
         audioEngine.pause()
@@ -343,7 +357,7 @@ final class AudioCaptureManager {
 
     /// Resumes a paused recording, rebuilding the countdown from current progress.
     func resumeRecording() {
-        guard isRecording, isPaused else { return }
+        guard isRecording, isPaused, let audioEngine else { return }
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -544,10 +558,14 @@ final class AudioCaptureManager {
     private func teardownEngine() {
         spectrogramContinuation?.finish()
         spectrogramContinuation = nil
-        // Remove tap before stopping — prevents the audio thread from writing into a
-        // stopped engine and avoids AVAudioEngine assertion failures on some iOS builds.
-        audioEngine.inputNode.removeTap(onBus: 0)
-        audioEngine.stop()
+        if let audioEngine {
+            // Remove tap before stopping — prevents the audio thread from writing into a
+            // stopped engine and avoids AVAudioEngine assertion failures on some iOS builds.
+            // The optional also ensures fresh-install cleanup never initializes inputNode.
+            audioEngine.inputNode.removeTap(onBus: 0)
+            audioEngine.stop()
+            self.audioEngine = nil
+        }
         dspTask?.cancel()
         dspTask = nil
         releaseAudioSessionLease()
@@ -598,6 +616,7 @@ final class AudioCaptureManager {
 
     var debugHasDSPTask: Bool { dspTask != nil }
     var debugPendingFileName: String? { pendingFileName }
+    var debugHasAudioEngine: Bool { audioEngine != nil }
 
     func debugStageRecordingForFinish(fileName: String, autoSubmitOnMaxDuration: Bool) {
         pendingFileName = fileName

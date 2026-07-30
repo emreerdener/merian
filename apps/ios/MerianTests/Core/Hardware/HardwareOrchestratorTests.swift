@@ -143,6 +143,17 @@ struct HardwareOrchestratorTests {
 
 @MainActor
 struct AudioCaptureManagerLifecycleTests {
+    @Test func testFreshInstallCleanupDoesNotInitializeMicrophoneInput() {
+        let manager = AudioCaptureManager()
+
+        #expect(manager.debugHasAudioEngine == false)
+        manager.reset()
+        #expect(
+            manager.debugHasAudioEngine == false,
+            "Lifecycle cleanup before the first recording must not initialize AVAudioEngine input"
+        )
+    }
+
     @Test func testCancelledStartupCleansPendingRecordingResources() async throws {
         let manager = AudioCaptureManager()
         let fileName = "\(UUID().uuidString).wav"
@@ -265,6 +276,17 @@ struct SpectrogramRendererTests {
 
 @MainActor
 struct SpeechManagerLifecycleTests {
+    @Test func testStoppingBeforeFirstDictationDoesNotInitializeMicrophoneInput() {
+        let manager = SpeechManager()
+
+        #expect(manager.debugHasAudioEngine == false)
+        manager.stopDictation()
+        #expect(
+            manager.debugHasAudioEngine == false,
+            "Dictation cleanup before the first user action must not initialize AVAudioEngine input"
+        )
+    }
+
     @Test func testCancelledStartupResetsDictationState() {
         let manager = SpeechManager()
         manager.audioLevel = 0.75

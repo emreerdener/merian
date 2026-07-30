@@ -20,6 +20,16 @@ struct CameraVideoRecording: Sendable {
     let duration: TimeInterval
 }
 
+/// Video capture may reuse microphone access the user already granted while recording
+/// audio or dictating, but it must never be the feature that asks for that permission.
+enum CameraVideoAudioPermissionPolicy {
+    static func shouldIncludeAudio(
+        for permission: AVAudioApplication.recordPermission
+    ) -> Bool {
+        permission == .granted
+    }
+}
+
 /// Stable identity for one logical recording and its AVFoundation callback URL.
 struct CameraVideoRecordingGeneration: Equatable, Sendable {
     let id: UUID
@@ -231,6 +241,7 @@ final class CameraTargetFPSDebouncer {
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
     @ObservationIgnored nonisolated(unsafe) private var activeVideoRecording: ActiveCameraVideoRecording?
     @ObservationIgnored private var movieRecordingPreparationTask: Task<Bool, Error>?
+    @ObservationIgnored private var movieRecordingPreparationIncludesAudio: Bool?
     @ObservationIgnored private var videoRecordingPresentationGeneration: UUID?
     @ObservationIgnored private let targetFPSDebouncer = CameraTargetFPSDebouncer()
 
@@ -1117,21 +1128,27 @@ final class CameraTargetFPSDebouncer {
     }
 
     private func preparedVideoRecordingAudioAllowed() async throws -> Bool {
-        if let movieRecordingPreparationTask {
+        let includeAudio = CameraVideoAudioPermissionPolicy.shouldIncludeAudio(
+            for: AVAudioApplication.shared.recordPermission
+        )
+
+        if movieRecordingPreparationIncludesAudio == includeAudio,
+           let movieRecordingPreparationTask {
             return try await movieRecordingPreparationTask.value
         }
 
         let task = Task<Bool, Error> {
-            let microphoneAllowed = await AVAudioApplication.requestRecordPermission()
-            try await self.configureMovieRecording(includeAudio: microphoneAllowed)
-            return microphoneAllowed
+            try await self.configureMovieRecording(includeAudio: includeAudio)
+            return includeAudio
         }
         movieRecordingPreparationTask = task
+        movieRecordingPreparationIncludesAudio = includeAudio
 
         do {
             return try await task.value
         } catch {
             movieRecordingPreparationTask = nil
+            movieRecordingPreparationIncludesAudio = nil
             throw error
         }
     }
@@ -1156,8 +1173,15 @@ final class CameraTargetFPSDebouncer {
 
                 self.configureMovieOutputConnection(maxDuration: 5)
 
-                if includeAudio,
-                   !self.session.inputs.contains(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.audio) == true }),
+                let audioInputs = self.session.inputs.filter {
+                    ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.audio) == true
+                }
+
+                if !includeAudio {
+                    for audioInput in audioInputs {
+                        self.session.removeInput(audioInput)
+                    }
+                } else if audioInputs.isEmpty,
                    let audioDevice = AVCaptureDevice.default(for: .audio),
                    let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
                    self.session.canAddInput(audioInput) {

@@ -848,9 +848,8 @@ private struct InsightChatAnswerControls: View {
     private var feedbackControls: some View {
         if let feedbackRating {
             Label(feedbackRating == .helpful ? "Helpful" : "Feedback sent", systemImage: "checkmark.circle")
-                .font(.caption2.weight(.semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
                 .padding(.vertical, 6)
         } else {
             HStack(spacing: 14) {

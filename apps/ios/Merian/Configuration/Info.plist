@@ -67,9 +67,9 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Naturebook requires your location to determine regional ecological context and coordinate mapping.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Naturebook needs microphone access for aviary and insect sound classification.</string>
+	<string>Naturebook uses the microphone when you record wildlife sounds or dictate text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Naturebook uses speech recognition to quickly search your Scans using voice dictation.</string>
+	<string>Naturebook uses speech recognition when you dictate descriptions or field notes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Naturebook saves new scan photos to your library when you turn on Save to camera roll.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

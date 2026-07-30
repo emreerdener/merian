@@ -21,7 +21,9 @@ final class SpeechManager {
     var isStarting: Bool = false
     var audioLevel: CGFloat = 0.0
     
-    private let audioEngine = AVAudioEngine()
+    /// Lazily created after an explicit dictation action receives microphone permission.
+    /// Calling stop/cleanup before first use must not initialize the system audio input.
+    private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var audioSessionLease: AudioSessionCoordinator.Lease?
@@ -36,6 +38,15 @@ final class SpeechManager {
         guard !isStarting, !isRecording else { return }
         isStarting = true
         defer { isStarting = false }
+
+        // Ask first so the microphone prompt remains directly attached to the user's
+        // dictation-button tap rather than appearing after speech-service startup delay.
+        let micStatus = await AVAudioApplication.requestRecordPermission()
+        guard micStatus else {
+            throw PermissionError()
+        }
+
+        if Task.isCancelled { return }
 
         let speechStatus = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
@@ -52,17 +63,13 @@ final class SpeechManager {
             throw DictationUnavailableError()
         }
         
-        let micStatus = await AVAudioApplication.requestRecordPermission()
-        guard micStatus else {
-            throw PermissionError()
-        }
-        
         if Task.isCancelled { return }
         
         teardownAudioEngine()
+        let engine = AVAudioEngine()
+        audioEngine = engine
         
         // on the iOS Simulator's HALC_ShellPlugIn.
-        let engine = audioEngine
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         recognitionRequest = request
@@ -160,8 +167,11 @@ final class SpeechManager {
     }
     
     private func teardownAudioEngine() {
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        if let audioEngine {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+            self.audioEngine = nil
+        }
 
         recognitionRequest?.endAudio()
         recognitionTask?.finish()
@@ -185,5 +195,7 @@ final class SpeechManager {
     func debugHandleStartupCancellation() {
         handleCancelledStartup()
     }
+
+    var debugHasAudioEngine: Bool { audioEngine != nil }
 #endif
 }

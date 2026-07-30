@@ -1019,6 +1019,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "2026-07-media-abandoned-explore-share-recovery.md",
     );
   }
+  for (
+    const fragment of [
+      "Hosted iOS Runs 97 and 153 are stale failure evidence for",
+      "descendant `f292dc48` explicitly types every equivalent snapshot",
+      "Only a hosted result naming that exact SHA or a committed descendant",
+    ]
+  ) {
+    assertStringIncludes(rootSource, fragment);
+  }
 
   for (
     const source of [
@@ -2303,13 +2312,17 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501`",
       "the 19-assertion Field Chat admission/binding file, and all 27 files must pass",
       "Hosted iOS Runs 97 and 153 exposed one project-level type-inference error",
-      "The present worktree explicitly types every equivalent offline task-snapshot set as `Set<String>`",
-      "A direct Xcode 26.6 `swiftc -typecheck` of the current 406-source app module",
+      "`f292dc4849e29c54587b6ee77f27b74a3971e878`",
+      "Exact descendant `f292dc48` supplies explicit `Set<String>` element and closure return types",
+      "A direct Xcode 26.6 `swiftc -typecheck` of its 406-source app module",
       "completed with zero diagnostics, including SwiftData macro expansion and cross-file actor/generic checking",
-      "all 84 current unit-test sources type-checked against that module with Swift Testing macro expansion and zero errors",
-      "both current UI-test sources type-checked with zero diagnostics",
+      "all 84 unit-test sources type-checked against that module with Swift Testing macro expansion and zero errors",
+      "both UI-test sources type-checked with zero diagnostics",
       "an optimized whole-module Release/device type-check of all 406 app sources",
-      "do not emit or link the app/test products, execute either protected test lane, or package and inspect a Release archive",
+      "clean `f292dc48` passed the complete 67-target generic iOS Simulator `build-for-testing` graph",
+      "excluded only through command-line build settings because this desktop sandbox cannot connect to CoreSimulator",
+      "proves app/test source emission and linking, but not resource compilation",
+      "Only a hosted exact-SHA run can execute both protected test lanes",
       "Physical beta testing already supplies two narrow behavioral observations",
       "one scan submitted with WiFi and cellular data disabled remained queued and completed after connectivity was restored",
       "Run 91 on exact SHA `21df28d6b` compiled and executed the complete target",
@@ -2323,8 +2336,11 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "all 58 protected case names resolve to maintained tests",
       "the configured Edge suite reports 1,421 passed with zero failed",
       "all 89 isolated dependency graphs across 292 runtime files",
-      "the workflow's overall result remains failed infrastructure evidence",
-      "One fresh full gate identifying `bdf84b52` or a documented descendant",
+      "but that run did not execute the queued-scan UI smoke and predates the joined runtime",
+      "One fresh full hosted gate identifying `f292dc48` or a documented committed descendant",
+      "The 2026-07-30 current-worktree rerun passed the complete Supabase tooling gate",
+      "`b7be23f4e211b75c00a3df5fcd1f96f3905983c74ff3189bfc69ad5b0f7132c4`",
+      "the desktop sandbox is denied access to Docker's Unix socket",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",
@@ -2339,6 +2355,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "trigger-aware profile upserts",
       "owner-matched ready rows",
       "`sandbox_apply: Operation not permitted`",
+      "the provenance script correctly embedded `MERIAN_SOURCE_STATE=dirty`",
+      "therefore rejected as exact-SHA and distributable evidence",
     ]
   ) {
     assertStringIncludes(joined, fragment);
