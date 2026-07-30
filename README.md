@@ -54,30 +54,29 @@ steps are tracked in the
 > while a drifted queued-scan snapshot restarted at attempt one. Retry authority
 > now reconciles both copies and advances from their monotonic maximum. A
 > separate same-session smoke proved new Identify and Explore publication
-> healthy while an eligible older
-> `media_reconciliation_abandoned` record was rejected by the terminal repair
-> signer. The tree now preserves one exact retry latch through re-stage, permits
-> its generation-fenced Identify dispatch, bounds automatic churn, and allows
-> only authenticated tombstone-free `replay_exhausted` repair, or
-> `media_reconciliation_abandoned` repair backed by composite service proof:
-> a post-result dead letter no earlier than the latest charged normal/replay
-> attempt, evidence shaped for its producer generation, no active reservation
-> or corrupt timestamp lineage, and no moderation-rejected or
-> moderation-infrastructure-failed capture lifecycle row. Pre-rollout evidence
-> narrowly supports the vulnerable producer’s first committed normal attempt;
-> it must also belong to the immutable exact dead-letter-ID snapshot captured
-> by the migration, predate the private cutoff, and match the audited multimodal
-> post-safety error path. The exact snapshot prevents a producer blocked behind
-> migration DDL from gaining legacy authority through its earlier
-> transaction-start timestamp. Post-rollout evidence must bind the exact quota
-> IDs, validated provider result, and completed Identify safety evaluation.
-> Because the rollout uses two separate migration-file transactions,
-> production now predeploys fail-closed signing, status, and share consumers
-> before either file, then deploys the schema-dependent Identify producer only
-> after proof hardening and service-only readiness checks succeed. Library,
-> scheduler, reconnect, and URLSession replay wakes now share one process-local
-> driver plus at most one trailing pass, preventing overlapping status probes,
-> orphan transitions, retry inflation, and start-log storms. See
+> healthy while an eligible older `media_reconciliation_abandoned` record was
+> rejected by the terminal repair signer. The tree now preserves one exact retry
+> latch through re-stage, permits its generation-fenced Identify dispatch,
+> bounds automatic churn, and allows only authenticated tombstone-free
+> `replay_exhausted` repair, or `media_reconciliation_abandoned` repair backed
+> by composite service proof: a post-result dead letter no earlier than the
+> latest charged normal/replay attempt, evidence shaped for its producer
+> generation, no active reservation or corrupt timestamp lineage, and no
+> moderation-rejected or moderation-infrastructure-failed capture lifecycle row.
+> Pre-rollout evidence narrowly supports the vulnerable producer’s first
+> committed normal attempt; it must also belong to the immutable exact
+> dead-letter-ID snapshot captured by the migration, predate the private cutoff,
+> and match the audited multimodal post-safety error path. The exact snapshot
+> prevents a producer blocked behind migration DDL from gaining legacy authority
+> through its earlier transaction-start timestamp. Post-rollout evidence must
+> bind the exact quota IDs, validated provider result, and completed Identify
+> safety evaluation. Because the rollout uses two separate migration-file
+> transactions, production now predeploys fail-closed signing, status, and share
+> consumers before either file, then deploys the schema-dependent Identify
+> producer only after proof hardening and service-only readiness checks succeed.
+> Library, scheduler, reconnect, and URLSession replay wakes now share one
+> process-local driver plus at most one trailing pass, preventing overlapping
+> status probes, orphan transitions, retry inflation, and start-log storms. See
 > the
 > [retry deadlock incident](docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md)
 > and
@@ -91,24 +90,30 @@ steps are tracked in the
 > parent SHA `0aa170fa`: both stopped on two ambiguous offline-sync
 > `Set(compactMap:)` expressions before test or archive execution. Pushed
 > descendant `f292dc48` explicitly types every equivalent snapshot as
-> `Set<String>` and locally passes the complete app/unit/UI
-> `build-for-testing` product graph under the documented CoreSimulator resource
-> bypass. Run 99 on exact descendant `631e123e8` subsequently exposed three
-> stale test-contract expectations; their test-only correction is committed in
-> `8642a8c6d`. Run 100 on that exact descendant passed all 1,241 unit tests and
-> every protected critical scan-flow regression. Its current-SHA Release archive
-> also passed at 239,083,520 bytes for `1.0.2 (235)`, fingerprint
-> `73f49a7e73d0432ec57ec1624e5bb53a39cd329efd58e78e28187e8086e04c83`,
-> with verified main dSYM UUIDs and no Debug UI-seed markers. The remaining
-> failure was isolated to the deterministic queued-audio UI fixture: its
-> four-second completion countdown began when the tile was tapped, before the
-> hosted simulator exposed the queued accessibility hierarchy, so the test could
-> no longer observe `ScanningStatusBadge`. The current follow-up removes that
-> countdown and completes the exact Debug-only fixture only when the smoke taps
-> the badge after proving queued navigation, scanning content, and decoded audio.
-> Release retains a no-op coordinator and production queue timing is unchanged.
-> A new hosted committed descendant must still pass the complete unit target,
-> one-case queued-scan UI smoke, and current-SHA archive together.
+> `Set<String>` and locally passes the complete app/unit/UI `build-for-testing`
+> product graph under the documented CoreSimulator resource bypass. Run 99 on
+> exact descendant `631e123e8` subsequently exposed three stale test-contract
+> expectations; their test-only correction is committed in `8642a8c6d`. Run 100
+> on that exact descendant passed all 1,241 unit tests and every protected
+> critical scan-flow regression, while exposing a fixed four-second
+> Debug-fixture race before the hosted accessibility hierarchy could observe
+> `ScanningStatusBadge`. The timer-free handshake is committed as
+> `399482b649363c820b59fee1967bf94e35a5c0e7`. Run 101 on that exact SHA again
+> passed all 1,241 unit tests and protected regressions, and its current-SHA
+> Release archive passed at 239,079,424 bytes for `1.0.2 (235)`, fingerprint
+> `989544a7bbb531c91673c1949ed676497c6cd08a2028375fc5fc3a73ca7b100c`, with
+> verified main dSYM UUIDs and no Debug UI-seed markers. The UI smoke now proved
+> queued navigation, shared scanning content, decoded audio playback, and the
+> explicit badge tap; it failed only when the seeded completed record did not
+> take over the already-open sheet. That late Debug transaction used the
+> container main context while the sheet was bound to its environment
+> `ModelContext`, then relied on an asynchronous library event to merge the
+> insert. The current follow-up performs the transaction in that exact bound
+> context and immediately calls the existing production queue-promotion path;
+> the library event remains for parent-library refresh. Release retains a no-op
+> coordinator, and production queue timing is unchanged. A new hosted committed
+> descendant must still pass the complete unit target, one-case queued-scan UI
+> smoke, and current-SHA archive together.
 
 ---
 
@@ -210,21 +215,20 @@ steps are tracked in the
   abandonment, unknown, and no-ledger state fails closed. A retryable scanless
   generation writes one durable client retry latch mirrored across its queued
   scan and durable job. Fresh reads consult both copies, serialized transitions
-  repair drift before mutation, and retry accounting advances from the
-  monotonic maximum. That exact latch survives any required fresh upload and
-  lets the delayed preflight send Identify instead of repeatedly classifying
-  its own retry as server-owned. A known cloud-complete result has higher
-  authority than either retry copy. Explicit retry starts a fresh bounded
-  automatic budget under the same scan UUID, including for description-only
-  work with no upload-reset boundary. Owner deletion takes the same lock and
-  writes a private UUID tombstone before storage erasure, permanently fencing
-  delayed inference, replay, and cross-device recovery for the deleted
-  generation.
-  Storage deletion accepts only flat free/Pro object keys containing that
-  canonical owner UUID, so a poisoned row cannot nominate another user's object.
-  A leased server reaper independently completes interrupted media erasure and
-  scheduled monitoring alerts on deletion backlog/SLA health. The full joined
-  success, retry, recovery, Field Chat, and Explore contract is documented in
+  repair drift before mutation, and retry accounting advances from the monotonic
+  maximum. That exact latch survives any required fresh upload and lets the
+  delayed preflight send Identify instead of repeatedly classifying its own
+  retry as server-owned. A known cloud-complete result has higher authority than
+  either retry copy. Explicit retry starts a fresh bounded automatic budget
+  under the same scan UUID, including for description-only work with no
+  upload-reset boundary. Owner deletion takes the same lock and writes a private
+  UUID tombstone before storage erasure, permanently fencing delayed inference,
+  replay, and cross-device recovery for the deleted generation. Storage deletion
+  accepts only flat free/Pro object keys containing that canonical owner UUID,
+  so a poisoned row cannot nominate another user's object. A leased server
+  reaper independently completes interrupted media erasure and scheduled
+  monitoring alerts on deletion backlog/SLA health. The full joined success,
+  retry, recovery, Field Chat, and Explore contract is documented in
   [`16-scan-ingestion-reliability-and-recovery.md`](docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
 ### Scans Library
@@ -291,24 +295,22 @@ steps are tracked in the
   explicit start and Events require join; a scan may advance several active
   experiences but credits at most one goal in each. Unreviewed AI evidence must
   be at least a tier-specific **Possible match** (75% Flash / 65% Pro); a weaker
-  match remains pending until confirmation or correction. Scan ingestion
-  applies standard/Event progress and first-outing achievement state atomically,
-  retains a private idempotency receipt for recovery after termination, and
-  keeps the durable Capture goal hint until acknowledgement. Field trip database
-  entry points are service-role-only behind the authenticated Edge API, while
-  trigger and reconciliation helpers remain database-only; direct client roles
-  cannot call ownership-bearing RPCs. Saved scans still show
-  contextual progress toasts with a credited ring and tap-through navigation
-  before any achievement or New to Naturebook notification from the same scan.
-  Publication storage
-  stays separate from Explore posts; typed Field trip cards can appear in
-  unfiltered Recent and Following, but not in Explore maps or the other
-  post-only surfaces. Events remain a client-gated preview for
-  `erdener.emre@gmail.com` and simulator builds; the preview includes curated
-  seasonal challenges, completion badges, published entries, and optional
-  challenge hashtag suggestions. DEBUG startup logs
-  `TODO(field-trip-events-release)` while this state remains; the public Events
-  checklist is in
+  match remains pending until confirmation or correction. Scan ingestion applies
+  standard/Event progress and first-outing achievement state atomically, retains
+  a private idempotency receipt for recovery after termination, and keeps the
+  durable Capture goal hint until acknowledgement. Field trip database entry
+  points are service-role-only behind the authenticated Edge API, while trigger
+  and reconciliation helpers remain database-only; direct client roles cannot
+  call ownership-bearing RPCs. Saved scans still show contextual progress toasts
+  with a credited ring and tap-through navigation before any achievement or New
+  to Naturebook notification from the same scan. Publication storage stays
+  separate from Explore posts; typed Field trip cards can appear in unfiltered
+  Recent and Following, but not in Explore maps or the other post-only surfaces.
+  Events remain a client-gated preview for `erdener.emre@gmail.com` and
+  simulator builds; the preview includes curated seasonal challenges, completion
+  badges, published entries, and optional challenge hashtag suggestions. DEBUG
+  startup logs `TODO(field-trip-events-release)` while this state remains; the
+  public Events checklist is in
   [`25-field-trips.md`](docs/features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
 - Explore cards and public share text can show confident dog/cat pet labels
   without replacing the stored species common/scientific names used for

@@ -15,7 +15,10 @@ async function read(relativePath: string): Promise<string> {
 }
 
 function compact(value: string): string {
-  return value.replaceAll(/\s+/g, " ").trim();
+  return value
+    .replaceAll(/^\s*>\s?/gm, "")
+    .replaceAll(/\s+/g, " ")
+    .trim();
 }
 
 async function unresolvedLocalMarkdownLinks(
@@ -1023,12 +1026,17 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     const fragment of [
       "Hosted iOS Runs 97 and 153 are stale failure evidence for",
       "descendant `f292dc48` explicitly types every equivalent snapshot",
-      "Run 99 on exact descendant `631e123e8`",
-      "Run 100 on that exact descendant passed all 1,241 unit tests",
-      "four-second completion countdown began when the tile was tapped",
-      "The current follow-up removes",
-      "countdown and completes the exact Debug-only fixture",
-      "A new hosted committed descendant must still pass",
+      "exact descendant `631e123e8`",
+      "timer-free handshake is committed as",
+      "Run 101 on that exact SHA again",
+      "passed all 1,241 unit tests and protected regressions",
+      "`989544a7bbb531c91673c1949ed676497c6cd08a2028375fc5fc3a73ca7b100c`",
+      "it failed only when the seeded completed record",
+      "container main context while the sheet was bound to its environment",
+      "performs the transaction in that exact bound",
+      "immediately calls the existing production queue-promotion path",
+      "A new hosted committed",
+      "descendant must still pass the complete unit target",
     ]
   ) {
     assertStringIncludes(compact(rootSource), compact(fragment));
@@ -1091,7 +1099,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(rootSource),
-    "preserves one exact retry latch through re-stage",
+    "The tree now preserves one exact retry",
+  );
+  assertStringIncludes(
+    compact(rootSource),
+    "latch through re-stage, permits its generation-fenced Identify dispatch",
   );
   assertStringIncludes(
     compact(changelogSource),
@@ -1864,6 +1876,18 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "After every queued-state assertion passes, the smoke taps `ScanningStatusBadge`",
   );
   assertStringIncludes(
+    compact(testingStrategySource),
+    "The fixture transaction must use the exact environment `ModelContext` bound to the open Insight sheet",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "directly invoke the existing production `promoteQueuedScanIfLocalRecordExists` path with that same context",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`ScanLibraryEvents` remains responsible for parent-library refresh, but a cross-context event merge must not control the deterministic handoff",
+  );
+  assertStringIncludes(
     compact(shareIncidentSource),
     "A same-account legacy-record smoke test is also mandatory.",
   );
@@ -2353,12 +2377,20 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "fixed four-second completion countdown as soon as the queued tile was tapped",
       "roughly 74 seconds later",
       "That is a deterministic-fixture race, not evidence of a production queue failure",
-      "The current follow-up removes the countdown",
-      "The smoke must first observe native Back navigation",
-      "it then taps that exact status badge",
       "Release still compiles only the false/no-op coordinator",
       "complete generic iOS Simulator `build-for-testing` app/unit/UI graph pass",
       "A new hosted committed descendant must execute the complete unit target",
+      "`399482b649363c820b59fee1967bf94e35a5c0e7`",
+      "Hosted Build/Test Run 101 on that exact SHA passed all 1,241 unit tests",
+      "current-SHA Release archive independently passed at 239,079,424 bytes",
+      "`989544a7bbb531c91673c1949ed676497c6cd08a2028375fc5fc3a73ca7b100c`",
+      "the explicit badge tap",
+      "seeded **Northern Cardinal** record did not take over",
+      "late-write SwiftData visibility boundary",
+      "container's main context after the queued Insight had bound its environment `ModelContext`",
+      "immediately invokes the existing production `promoteQueuedScanIfLocalRecordExists` handoff",
+      "library event remains for parent-library refresh",
+      "cannot connect Xcode to CoreSimulatorService",
       "every one of the 71 allowlist names",
       "Physical beta testing already supplies two narrow behavioral observations",
       "one scan submitted with WiFi and cellular data disabled remained queued and completed after connectivity was restored",
@@ -2368,8 +2400,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "all 58 protected case names resolve to maintained tests",
       "the configured Edge suite reports 1,421 passed with zero failed",
       "all 89 isolated dependency graphs across 292 runtime files",
-      "The one-case queued-audio UI smoke failed because the fixture's fixed four-second completion countdown",
-      "only after queued navigation, scanning-content, audio-page, and decoded-playback assertions pass does the smoke tap `ScanningStatusBadge`",
+      "The queued-audio smoke passed navigation, shared scanning-content, audio-page, decoded-playback, and badge-tap assertions",
+      "performs the exact Debug-only transaction on the sheet's bound environment `ModelContext`",
       "The 2026-07-30 current-worktree rerun passed the complete Supabase tooling gate",
       "`b7be23f4e211b75c00a3df5fcd1f96f3905983c74ff3189bfc69ad5b0f7132c4`",
       "the desktop sandbox is denied access to Docker's Unix socket",

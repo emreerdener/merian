@@ -232,70 +232,68 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    because several hardware, networking, and persistence suites exercise shared
    singletons. The result gate fails if Xcode returns success without a `Passed`
    result, a non-empty test run, zero skipped tests, an exact passed/total count
-   match, and at least one passed test case from each critical concurrency boundary:
-   `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
-   `SyncStateManagerTests`. It also fails closed unless the structured test tree
-   contains exactly one matching passed suite for each critical boundary and
-   reports every named scan-flow regression exactly once under exactly one
-   matching passed suite as `Passed`. A duplicate matching suite, duplicate
-   protected case, or failed-suite/passed-child contradiction is invalid
-   evidence. The current validator protects 71 exact cases; 27 were added by
-   the joined scan-reliability follow-up, five menu/Field Notes regressions
-   exposed by the prior failed hosted run are individually protected, two
-   require the bounded/redacted offline-queue support artifact, one prevents
-   needs-attention and live-path-ineligible rows from driving the Scan Library
-   recovery loop while preserving staged and explicit-video-override
-   eligibility, one fences attention rows from serialized claims, actor-owned
-   global status selection, and orphan reconciliation, one proves the pending
-   selector pages beyond delayed, locally blocked, and media-less rows instead
-   of starving ready work or spending runnable capacity on quarantine
-   candidates, one proves empty pending quarantine is state/media bound and
-   cannot touch advanced work, one proves upload packing scans beyond
-   empty/non-fitting head rows, admits later work that fits, and locks final
-   constrained/expensive request policy for normal video, its mixed-media
-   siblings, forced video, and standalone image transport, one proves the
-   unsynced count excludes attention-only and non-runnable rows, one rejects
-   empty queued staged media before upload signing, one rejects an empty
-   foreground playback video before signing, one rejects manual retry of a
-   legacy non-runnable import, and the media-incident compatibility case
-   exercises the actual network-client boundary:
+   match, and at least one passed test case from each critical concurrency
+   boundary: `CameraManagerTests`, `InferenceEngineTests`,
+   `OfflineQueueManagerTests`, and `SyncStateManagerTests`. It also fails closed
+   unless the structured test tree contains exactly one matching passed suite
+   for each critical boundary and reports every named scan-flow regression
+   exactly once under exactly one matching passed suite as `Passed`. A duplicate
+   matching suite, duplicate protected case, or failed-suite/passed-child
+   contradiction is invalid evidence. The current validator protects 71 exact
+   cases; 27 were added by the joined scan-reliability follow-up, five
+   menu/Field Notes regressions exposed by the prior failed hosted run are
+   individually protected, two require the bounded/redacted offline-queue
+   support artifact, one prevents needs-attention and live-path-ineligible rows
+   from driving the Scan Library recovery loop while preserving staged and
+   explicit-video-override eligibility, one fences attention rows from
+   serialized claims, actor-owned global status selection, and orphan
+   reconciliation, one proves the pending selector pages beyond delayed, locally
+   blocked, and media-less rows instead of starving ready work or spending
+   runnable capacity on quarantine candidates, one proves empty pending
+   quarantine is state/media bound and cannot touch advanced work, one proves
+   upload packing scans beyond empty/non-fitting head rows, admits later work
+   that fits, and locks final constrained/expensive request policy for normal
+   video, its mixed-media siblings, forced video, and standalone image
+   transport, one proves the unsynced count excludes attention-only and
+   non-runnable rows, one rejects empty queued staged media before upload
+   signing, one rejects an empty foreground playback video before signing, one
+   rejects manual retry of a legacy non-runnable import, and the media-incident
+   compatibility case exercises the actual network-client boundary:
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
      process-single-flight inference replay wake coalescing, exact
      retryable-status dispatch, dual-copy durable retry-latch visibility,
      bounded inference metadata-write backlog, retry preservation through media
-     re-staging, monotonic mirrored retry accounting,
-     cloud-complete precedence, durable offline enqueue, bounded/redacted queue
-     diagnostics, atomic queue/job completion, needs-attention library recovery
-     quieting, serialized attention claim/status/reconciliation fencing,
+     re-staging, monotonic mirrored retry accounting, cloud-complete precedence,
+     durable offline enqueue, bounded/redacted queue diagnostics, atomic
+     queue/job completion, needs-attention library recovery quieting, serialized
+     attention claim/status/reconciliation fencing,
      retry-deadline/deferred/network/media-less starvation prevention with the
      forced video override and an independent quarantine budget, atomic
      empty-pending quarantine, bounded upload-packer head-of-line starvation
      prevention with final constrained/expensive transport enforcement,
-     runnable-only unsynced counting, empty queued staged-media rejection,
-     empty foreground-video rejection,
-     legacy-import retry rejection, and indefinite privacy-erasure retry under
-     positive server confirmation;
+     runnable-only unsynced counting, empty queued staged-media rejection, empty
+     foreground-video rejection, legacy-import retry rejection, and indefinite
+     privacy-erasure retry under positive server confirmation;
    - foreground request construction, Explore idempotency and contradictory
      response rejection, existing-scan recovery-payload encoding, rejection of
      recovery races with active/retryable ingestion, stable-code-first
      missing-scan classification, exact local/cloud Field Chat identity, stale
      presented-record invalidation, presentation-generation invalidation,
-     monotonic reset-time request invalidation,
-     identification-confirmation and override subject identity, Field Notes and
-     preferred-name presentation identity, queued refresh, direct
-     parent-presentation replacement, and completion-promotion identity,
-     exact engine/record/snapshot Explore identity, post/request publication
-     target capture, target-scoped sheet dismissal, changed-scan and stale
-     same-scan-generation issue-report rejection, missing-owner stale
-     publication reset, exact single and bulk scan-status response
-     cardinality/identity validation, validated deletion confirmation,
-     pre-upload restored-media budget validation, Community all-media recovery
-     and response validation, and exact Explore reconciliation validation, plus
-     current/defensive-direct-array media-health incident decoding, actual
-     network-boundary empty-array acceptance, and unknown-success-shape
-     rejection; and
+     monotonic reset-time request invalidation, identification-confirmation and
+     override subject identity, Field Notes and preferred-name presentation
+     identity, queued refresh, direct parent-presentation replacement, and
+     completion-promotion identity, exact engine/record/snapshot Explore
+     identity, post/request publication target capture, target-scoped sheet
+     dismissal, changed-scan and stale same-scan-generation issue-report
+     rejection, missing-owner stale publication reset, exact single and bulk
+     scan-status response cardinality/identity validation, validated deletion
+     confirmation, pre-upload restored-media budget validation, Community
+     all-media recovery and response validation, and exact Explore
+     reconciliation validation, plus current/defensive-direct-array media-health
+     incident decoding, actual network-boundary empty-array acceptance, and
+     unknown-success-shape rejection; and
    - Explore-post identifier routing plus retryable, single-flight, and
      cross-subject-replacement Field Chat preparation, and rejection of stale
      chat-subject completions.
@@ -315,20 +313,20 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    suspension points.
 
    The actor-level starvation regression supplies deterministic expensive-path
-   eligibility inputs, but it does not drive a physical `NWPathMonitor`.
-   Release QA must therefore queue a playback-video scan, keep reachability
-   satisfied while moving cellular → WiFi and Low Data Mode → normal, and prove
-   each newly eligible transition wakes and completes the same scan UUID.
-   While the path is constrained, automatic scheduler and Library wakes must
-   make no status, signing, upload, or inference request; opening the Library
-   must not keep a periodic refresh/kick log loop alive. During WiFi → cellular,
-   every PUT for a non-forced mixed-media video scan must stop rather than
-   transferring only part of its manifest on the expensive path; an explicit
-   retry may proceed. A path loss while the serialized upload claim or signer is
-   suspended must return both the scan and durable job to runnable state without
-   increasing attempt count, and a scan must never start only a subset of its
-   local manifest. This transition smoke is required in addition to the
-   protected source/test result.
+   eligibility inputs, but it does not drive a physical `NWPathMonitor`. Release
+   QA must therefore queue a playback-video scan, keep reachability satisfied
+   while moving cellular → WiFi and Low Data Mode → normal, and prove each newly
+   eligible transition wakes and completes the same scan UUID. While the path is
+   constrained, automatic scheduler and Library wakes must make no status,
+   signing, upload, or inference request; opening the Library must not keep a
+   periodic refresh/kick log loop alive. During WiFi → cellular, every PUT for a
+   non-forced mixed-media video scan must stop rather than transferring only
+   part of its manifest on the expensive path; an explicit retry may proceed. A
+   path loss while the serialized upload claim or signer is suspended must
+   return both the scan and durable job to runnable state without increasing
+   attempt count, and a scan must never start only a subset of its local
+   manifest. This transition smoke is required in addition to the protected
+   source/test result.
 
    Repository-source assertions must normalize runs of whitespace before
    matching control-flow token sequences, then pin both the sequence and its
@@ -352,12 +350,12 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
    declarations. This prevents a duplicate declaration, helper method, or stale
-   evidence name from surviving portable checks.
-   The exact-case allowlist validates evidence after the complete target runs;
-   it must never replace the complete-target selector with a focused test
-   invocation. A successful validation is recorded as
-   `Critical scan-flow regressions:
-   passed` in the hosted job summary.
+   evidence name from surviving portable checks. The exact-case allowlist
+   validates evidence after the complete target runs; it must never replace the
+   complete-target selector with a focused test invocation. A successful
+   validation is recorded as `Critical scan-flow regressions:
+   passed` in the
+   hosted job summary.
 
    After the complete unit target passes, the same checkout, simulator
    destination, locked packages, and `build-for-testing` output execute one
@@ -374,22 +372,27 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    into Documents. The test must observe its filename-scoped playback control,
    which appears only after player creation and spectrogram decoding, both
    before and after completion handoff. The outer carousel-page identifier is
-   insufficient because it also exists while audio is unavailable. The seed
-   must not advance on a fixed sleep or countdown. After every queued-state
-   assertion passes, the smoke taps `ScanningStatusBadge`; only that explicit
-   app-private Debug handshake may replace the queued fixture with its completed
-   record. This keeps slow hosted accessibility startup from erasing the state
-   the test is required to prove. After the completed result takes over, the
-   same smoke requires
-   `FieldChatToolbarButton` and `InsightShareButton`, proving queue promotion
-   reconnects the observation to Field Chat and sharing. Seed
-   implementation is enclosed by the app target's `DEBUG` compilation
-   condition. Release retains only signature-compatible no-ops with
-   `UITestSeedCoordinator.isEnabled == false`; it does not compile fixture
-   arguments, deterministic media, or local data-replacement logic. The portable
-   workflow contract pins both branches. The current-SHA Release archive then
-   extracts the main binary's strings and fails if any achievement/queued-audio
-   seed argument or queued-audio fixture filename is present.
+   insufficient because it also exists while audio is unavailable. The seed must
+   not advance on a fixed sleep or countdown. After every queued-state assertion
+   passes, the smoke taps `ScanningStatusBadge`; only that explicit app-private
+   Debug handshake may replace the queued fixture with its completed record. The
+   fixture transaction must use the exact environment `ModelContext` bound to
+   the open Insight sheet and, after saving, directly invoke the existing
+   production `promoteQueuedScanIfLocalRecordExists` path with that same
+   context. `ScanLibraryEvents` remains responsible for parent-library refresh,
+   but a cross-context event merge must not control the deterministic handoff.
+   This keeps slow hosted accessibility startup or a stale open context from
+   erasing the state the test is required to prove. After the completed result
+   takes over, the same smoke requires `FieldChatToolbarButton` and
+   `InsightShareButton`, proving queue promotion reconnects the observation to
+   Field Chat and sharing. Seed implementation is enclosed by the app target's
+   `DEBUG` compilation condition. Release retains only signature-compatible
+   no-ops with `UITestSeedCoordinator.isEnabled == false`; it does not compile
+   fixture arguments, deterministic media, or local data-replacement logic. The
+   portable workflow contract pins both branches. The current-SHA Release
+   archive then extracts the main binary's strings and fails if any
+   achievement/queued-audio seed argument or queued-audio fixture filename is
+   present.
 
 2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
@@ -442,17 +445,16 @@ make test-ios-ci-tooling
 That portable target tests the fail-closed scope detector, immutable action
 pins, exact-SHA checkout, workflow invocation of generated-project source
 membership, full-target unit-test selectors, merge-queue trigger, Release
-archive, embedded source-provenance and product/dSYM checks, stale release-marker
-rejection after tracked-source changes, typed local-marker preparation ancestry,
-typed CI-marker exact-SHA enforcement, malformed identity rejection,
-rejection of hidden `assume-unchanged`/`skip-worktree` source state,
+archive, embedded source-provenance and product/dSYM checks, stale
+release-marker rejection after tracked-source changes, typed local-marker
+preparation ancestry, typed CI-marker exact-SHA enforcement, malformed identity
+rejection, rejection of hidden `assume-unchanged`/`skip-worktree` source state,
 main-target-only preflight/provenance phase attachment, generated-phase
 cardinality and ordering, canonical shell commands, complete-unit and exact
-focused-UI result validation, structured failure-diagnostic extraction, and
-the unconditional final decision. Its generated-project fixtures explicitly
-detach, duplicate,
-reorder, and replace the release phases. The hosted project-guardrail lane runs
-this target on Ubuntu without booting a simulator. JSON release-marker
+focused-UI result validation, structured failure-diagnostic extraction, and the
+unconditional final decision. Its generated-project fixtures explicitly detach,
+duplicate, reorder, and replace the release phases. The hosted project-guardrail
+lane runs this target on Ubuntu without booting a simulator. JSON release-marker
 validation uses the same strict Ruby parser on Linux and macOS. The portable
 provenance fixture injects a narrow `plistlib` editor; macOS runs additionally
 exercise the real Apple tool. Production archives retain
@@ -477,13 +479,13 @@ generated project changes.
 Start with the job summary, then use the retained artifact that matches the
 failure:
 
-| Failure                                                               | Artifact or local action                                                                                                                   |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.           |
-| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.        |
+| Failure                                                               | Artifact or local action                                                                                                                                |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                        |
+| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                     |
 | Queued-scan UI smoke or focused-result validation                     | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require exactly one protected case. |
-| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`. |
-| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                              |
+| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.              |
+| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                                           |
 
 For an executed test failure, the summary prints `testFailures` from Xcode's
 structured result summary. If that is unavailable, it prints failed test cases
@@ -506,8 +508,8 @@ fallback path it intends to verify. View-model fixtures must also set routing
 identifiers and active media rather than relying on presentation side effects
 that are absent in a unit test.
 
-Scan-bound Insight fixtures must reproduce the production identity topology:
-the inference engine's completed `SpeciesData.scanId`, `activeLocalRecord`,
+Scan-bound Insight fixtures must reproduce the production identity topology: the
+inference engine's completed `SpeciesData.scanId`, `activeLocalRecord`,
 `activeLocalRecordId`, and `toolbarRecordSnapshot` must identify the same scan
 before a toolbar or persisted Field Notes assertion is meaningful. Do not make
 the runtime identity guard permissive to accommodate a fixture that binds only
@@ -756,11 +758,11 @@ MerianTests/
   cannot combine mismatched engine, local-record, and toolbar-snapshot IDs. A
   direct record switch also proves the prior action generation and all
   scan-bound busy/editor state—including exact post/request, Safari, candidate,
-  and delayed-toolbar presentation targets—is invalidated. Queued presentation regressions
-  prove a delayed scan-A poll cannot replace scan B's context and completion
-  promotion requires the exact queued subject before releasing queued routing.
-  Field Notes tests cover the same ID-plus-generation boundary while preserving
-  editing for queued/offline scans.
+  and delayed-toolbar presentation targets—is invalidated. Queued presentation
+  regressions prove a delayed scan-A poll cannot replace scan B's context and
+  completion promotion requires the exact queued subject before releasing queued
+  routing. Field Notes tests cover the same ID-plus-generation boundary while
+  preserving editing for queued/offline scans.
 - **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
@@ -1300,15 +1302,14 @@ message/feedback identity, exact RLS joins, and feedback Data API revocation in
 runtime transaction, 19 admission/binding/ACL assertions, replay/conflict,
 capacity, daily-limit, and stale recovery behavior.
 
-The focused portable Field Chat selection uses the two shared tests,
-the migration contract, and the Insight/Explore guard, eligibility, prompt,
-and prompt-suggestion tests. The 2026-07-29 baseline passed 30 tests; the
-2026-07-30 exact-source rerun passed 32 tests and 0 failed across the same nine
-files after adding structural binding and feedback-ACL contracts, with a frozen
-dependency graph. This is deterministic runtime and source-contract evidence;
-it does not replace execution of
-`field_chat_reservation_security.sql` against the exact deployed PostgreSQL
-catalog or the joined physical-device chat smoke.
+The focused portable Field Chat selection uses the two shared tests, the
+migration contract, and the Insight/Explore guard, eligibility, prompt, and
+prompt-suggestion tests. The 2026-07-29 baseline passed 30 tests; the 2026-07-30
+exact-source rerun passed 32 tests and 0 failed across the same nine files after
+adding structural binding and feedback-ACL contracts, with a frozen dependency
+graph. This is deterministic runtime and source-contract evidence; it does not
+replace execution of `field_chat_reservation_security.sql` against the exact
+deployed PostgreSQL catalog or the joined physical-device chat smoke.
 
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
@@ -1395,8 +1396,8 @@ iOS regression coverage is intentionally joined as well:
   raw metadata, and arbitrary persisted messages, then proves the shared JSON
   excludes every value while retaining lifecycle/error/status evidence and
   binary-provenance fields. It also plants arbitrary values in retained
-  machine-token fields and proves they are omitted. A second fixture inserts
-  510 jobs, scans, and events; it proves all sections cap at 500 while zero and
+  machine-token fields and proves they are omitted. A second fixture inserts 510
+  jobs, scans, and events; it proves all sections cap at 500 while zero and
   `Int.max` event requests serialize exactly one and 500 event rows.
 - `OfflineSyncTests` validates queue state/backoff decisions against the
   owner-safe server ledger.
@@ -2104,11 +2105,11 @@ one-credit uniqueness and scan-first indexes, preferred-goal validation/ranking,
 correction invalidation, service-role-only contribution RPC, and
 evidence-minimal projection. The atomic-hardening contract locks the
 receipt/trigger/transactional entry point, publication-ID repair, empty
-security-definer search paths, and global Field trip/Event ACL revocation.
-The confidence-policy contract locks the tier-specific Possible-match
-boundaries, explicit-review overrides, receipt revision/preference carryover,
-the evidence-update trigger, private downgrade-reconciliation helpers,
-prior-credit repair, and preservation of pending selected-goal preferences.
+security-definer search paths, and global Field trip/Event ACL revocation. The
+confidence-policy contract locks the tier-specific Possible-match boundaries,
+explicit-review overrides, receipt revision/preference carryover, the
+evidence-update trigger, private downgrade-reconciliation helpers, prior-credit
+repair, and preservation of pending selected-goal preferences.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
@@ -2121,8 +2122,7 @@ completion, ownership isolation, concurrency, exact confidence boundaries,
 weak-match confirmation, pending-preference retention, evidence-downgrade
 removal/reopening after completion, and idempotent reapplication under the same
 local-stack requirement. Its active-catalog matrix also locks the narrow goal
-boundaries
-introduced by `20260722211636_tighten_field_trip_goal_matching.sql`:
+boundaries introduced by `20260722211636_tighten_field_trip_goal_matching.sql`:
 butterfly versus moth, spider versus tick/scorpion, bee/wasp versus ant/sawfly,
 animal versus plant for ecology goals, flowering/fruiting plant kingdom gates,
 and meadow plant versus meadow animal. Every narrowed rule has representative
@@ -2206,13 +2206,17 @@ before and after replacement; a page backed only by a missing filename cannot
 pass. The fixture does not use elapsed wall-clock time to initiate replacement.
 Only after native navigation, shared scanning content, audio-page, and decoded
 playback assertions pass does the smoke tap `ScanningStatusBadge`, which asks
-the exact Debug-only seed to perform the handoff. Production sessions and the
-Release coordinator remain no-ops for that request. The completed state must
-also expose the identifier-scoped Field Chat and Share toolbar buttons. Keep all
-navigation, shared-scanning, playable-media, downstream-toolbar, and handoff
-assertions when extending this regression. The exact-SHA hosted `Full iOS unit
-tests` job executes this case after the complete unit target; compilation alone
-is not acceptance evidence.
+the exact Debug-only seed to perform the handoff. That transaction writes
+through the same environment `ModelContext` already bound to the open sheet and
+immediately calls the production queue-promotion method with that context;
+library-update notification remains for the parent Scans surface, not as the
+fixture's visibility mechanism. Production sessions and the Release coordinator
+remain no-ops for that request. The completed state must also expose the
+identifier-scoped Field Chat and Share toolbar buttons. Keep all navigation,
+shared-scanning, playable-media, downstream-toolbar, and handoff assertions when
+extending this regression. The exact-SHA hosted `Full iOS unit tests` job
+executes this case after the complete unit target; compilation alone is not
+acceptance evidence.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

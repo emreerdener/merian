@@ -1,8 +1,10 @@
 # Insight Content
 
-The `Content` directory handles the display of the core ecological data within an Insight sheet.
+The `Content` directory handles the display of the core ecological data within
+an Insight sheet.
 
 ## Purpose
+
 This area is responsible for rendering the detailed biological text, including
 the primary ecological description, toxicity warnings, conservation statuses
 (IUCN Red List), and the diagnostic visual comparison against confusing
@@ -12,14 +14,14 @@ lookalike species.
 after toxicity and identification-review content and before Field notes and
 educational cards when the view model has server-backed contribution rows. The
 card shows every credited outing/Event under the visible **Field trips** header.
-While eligible contribution rows are loading, the same position is reserved by
-a card-shaped, motion-aware skeleton so later content does not jump when the
-server response arrives; empty and failed responses still hide silently.
-The heading reuses `InsightCardHeader`; its undivided rows use an uppercase
-**GOAL COMPLETE** eyebrow, headline-sized goal name, enlarged objective
-artwork/check badge, experience-only subtitle, and a prominent trailing
-`GoalProgressRing`. The full row is tappable without a redundant chevron and
-forwards a card-specific overview destination that deliberately omits Capture's
+While eligible contribution rows are loading, the same position is reserved by a
+card-shaped, motion-aware skeleton so later content does not jump when the
+server response arrives; empty and failed responses still hide silently. The
+heading reuses `InsightCardHeader`; its undivided rows use an uppercase **GOAL
+COMPLETE** eyebrow, headline-sized goal name, enlarged objective artwork/check
+badge, experience-only subtitle, and a prominent trailing `GoalProgressRing`.
+The full row is tappable without a redundant chevron and forwards a
+card-specific overview destination that deliberately omits Capture's
 checklist-item focus. The card does not load data, cache contribution rows, or
 trigger celebration effects.
 
@@ -34,14 +36,18 @@ inference.
 
 Queued scans supply snapshot telemetry but do not add a separate title, helper
 paragraph, media-kind summary, or file-size label. Retry timing, errors, and
-recovery controls are inserted only when actionable. Keep
-`ScanningStatusBadge` on the shared pill for UI-test and accessibility
-stability.
+recovery controls are inserted only when actionable. Keep `ScanningStatusBadge`
+on the shared pill for UI-test and accessibility stability.
 
 The deterministic queued-audio UI fixture uses that badge as an explicit
 post-assertion handoff control. It first proves queued navigation, shared
 scanning content, and decoded audio playback, then taps the badge to replace the
 exact seeded row with its completed record. Do not reintroduce a fixed delay:
 hosted simulator accessibility startup can be much slower than local rendering.
-The coordinator is enabled only for the exact Debug UI-test seed; normal app
-sessions and Release builds retain ordinary badge behavior.
+The coordinator performs that transaction on the exact environment
+`ModelContext` bound to the open Insight sheet and immediately invokes the
+existing production queue-promotion path with the same context. The library
+event still refreshes the parent Scans surface; the deterministic transition
+does not depend on a cross-context merge. The coordinator is enabled only for
+the exact Debug UI-test seed; normal app sessions and Release builds retain
+ordinary badge behavior.

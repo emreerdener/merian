@@ -123,34 +123,41 @@ enum UITestSeedCoordinator {
         }
     }
 
+    @discardableResult
     @MainActor
-    static func completeQueuedAudioHandoffIfNeeded(scanId: String, container: ModelContainer) {
+    static func completeQueuedAudioHandoffIfNeeded(
+        scanId: String,
+        modelContext: ModelContext
+    ) -> Bool {
         let arguments = ProcessInfo.processInfo.arguments
         guard isEnabled,
               arguments.contains(queuedAudioHandoffArgument),
               scanId == queuedAudioHandoffScanId,
-              !triggeredQueuedAudioHandoffs.contains(scanId) else { return }
+              !triggeredQueuedAudioHandoffs.contains(scanId) else { return false }
 
-        let context = container.mainContext
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
 
-        guard let queuedScan = try? context.fetch(descriptor).first else { return }
+        guard let queuedScan = try? modelContext.fetch(descriptor).first else {
+            return false
+        }
         triggeredQueuedAudioHandoffs.insert(scanId)
-        context.insert(queuedAudioHandoffCompletedRecord())
-        context.delete(queuedScan)
+        modelContext.insert(queuedAudioHandoffCompletedRecord())
+        modelContext.delete(queuedScan)
 
         do {
-            try context.save()
+            try modelContext.save()
             OfflineQueueManager.shared.unsyncedItemsCount = 0
             ScanLibraryEvents.postLibraryDidUpdate()
             MerianLog.general.debug("UITestSeedCoordinator completed queued audio handoff flow.")
+            return true
         } catch {
-            context.rollback()
+            modelContext.rollback()
             triggeredQueuedAudioHandoffs.remove(scanId)
             MerianLog.general.error("UITestSeedCoordinator failed completing queued audio handoff flow: \(error.localizedDescription, privacy: .private)")
+            return false
         }
     }
 
@@ -347,11 +354,14 @@ enum UITestSeedCoordinator {
     @MainActor
     static func prepareIfNeeded(container _: ModelContainer) {}
 
+    @discardableResult
     @MainActor
     static func completeQueuedAudioHandoffIfNeeded(
         scanId _: String,
-        container _: ModelContainer
-    ) {}
+        modelContext _: ModelContext
+    ) -> Bool {
+        false
+    }
 }
 #endif
 

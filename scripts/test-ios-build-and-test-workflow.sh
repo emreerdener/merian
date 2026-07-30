@@ -11,6 +11,7 @@ focused_results_check="$repo_root/scripts/validate-ios-focused-test-results.sh"
 failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagnostics.sh"
 ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
 ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
+queued_content_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift"
 audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
 field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift"
 insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift"
@@ -350,7 +351,18 @@ assert_file_count \
   0 \
   "static func triggerQueuedAudioHandoffIfNeeded("
 assert_file_count "$ui_seed_source" 0 "4_000_000_000"
+assert_file_contains "$ui_seed_source" "modelContext: ModelContext"
+assert_file_contains "$ui_seed_source" "modelContext _: ModelContext"
+assert_file_contains "$ui_seed_source" "try modelContext.save()"
 assert_file_contains "$ui_test_source" "scanningStatusBadge.tap()"
+assert_file_contains \
+  "$queued_content_source" \
+  "UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded("
+assert_file_contains "$queued_content_source" "modelContext: modelContext"
+assert_file_count "$queued_content_source" 0 "container: modelContext.container"
+assert_file_contains \
+  "$queued_content_source" \
+  "viewModel.promoteQueuedScanIfLocalRecordExists("
 assert_file_contains \
   "$ui_seed_source" \
   "static var isEnabled: Bool { return false }"

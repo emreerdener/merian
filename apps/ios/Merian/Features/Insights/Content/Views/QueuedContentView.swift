@@ -92,6 +92,7 @@ private extension QueuedScanContext {
 /// experience is shared with foreground analysis through `ScanningExperienceView`.
 struct QueuedContentView: View {
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: InsightSheetViewModel
 
@@ -237,10 +238,22 @@ struct QueuedContentView: View {
             fallbackLatitude: queuedContext.gpsLatitude,
             fallbackLongitude: queuedContext.gpsLongitude,
             onAnalyzingBadgeTap: {
-                UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded(
+                guard UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded(
                     scanId: queuedContext.id,
-                    container: modelContext.container
-                )
+                    modelContext: modelContext
+                ) else {
+                    return
+                }
+                guard viewModel.promoteQueuedScanIfLocalRecordExists(
+                    scanId: queuedContext.id,
+                    modelContext: modelContext,
+                    inferenceEngine: inferenceEngine
+                ) else {
+                    MerianLog.data.error(
+                        "QueuedContentView: seeded completed record was not visible for deterministic handoff scanId=\(queuedContext.id, privacy: .private)"
+                    )
+                    return
+                }
             }
         ) {
             if retryDetail != nil || friendlyErrorText != nil || queuedContext.canRetryNow {
