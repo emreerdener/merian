@@ -227,12 +227,12 @@ TestFlight, App Store, support, and QA.
   callbacks even under the same UUID, and a new completion handoff replaces an
   obsolete poller instead of being dropped. Rebinding an obsolete same-ID queued
   route after completion now preserves the active result generation and controls
-  instead of resetting them. The shared animated scanning badge now clips
-  translated decorative renderers to its visible bounds and retains intrinsic
-  accessibility size instead of exposing an oversized off-window activation
-  frame. Best-effort Wikipedia, GBIF, and enrichment persistence now has a hard
-  eight-active/eight-pending ceiling, so rapid queue replay cannot build an
-  unbounded retained-closure backlog.
+  instead of resetting them. The shared animated scanning badge now draws its
+  glare inside a fixed Canvas and fades text changes without translated mask
+  views, instead of exposing invisible animation geometry as an oversized
+  off-window activation frame. Best-effort Wikipedia, GBIF, and enrichment
+  persistence now has a hard eight-active/eight-pending ceiling, so rapid queue
+  replay cannot build an unbounded retained-closure backlog.
 - Fixed the release-blocking scan failure that let Gemini finish but rejected
   the observation while saving it. Inline camera bytes no longer advertise a
   synthetic staging object, and the strict media finalizer now receives only

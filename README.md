@@ -141,13 +141,20 @@ steps are tracked in the
 > controls. A later verbose exact-case rerun exposed an independent
 > test-interaction defect: the animated scanning badge advertised a 703-point
 > accessibility frame beginning at x=-384.7 in a 402-point window, so XCTest
-> rejected the rectangle and tapped its x=5 fallback sliver. The translated
-> decorative glare and text-reveal mask are now clipped to their owning bounds,
-> excluded from interaction semantics where decorative, and the shared badge is
-> fixed to its intrinsic size. The smoke rejects any off-window frame before
-> initiating handoff. A new hosted committed descendant must compile current
-> source, pass all 1,243 unit tests, the exact one-case queued-scan UI smoke,
-> and its current-SHA archive together. See the
+> rejected the rectangle and tapped its x=5 fallback sliver. Commit
+> `2ca985f6079c41c45c6a6e78d382c8283eb0db3b` proved that visually clipping those
+> translated descendants was insufficient: Run 104 compiled both test bundles,
+> passed all 1,243 unit tests and the 239,112,192-byte Release archive
+> (fingerprint
+> `145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`), then
+> failed the explicit containment assertion before tapping because the badge
+> still exposed an off-window accessibility frame. The current worktree removes
+> translated SwiftUI geometry from the control. Completed-state glare is drawn
+> inside a fixed Canvas, label changes use a bounded opacity transition, and the
+> Button exposes one explicit accessibility element and label. The smoke reports
+> both app and badge rectangles if containment ever fails again. A new hosted
+> committed descendant must pass the exact one-case queued-scan UI smoke and its
+> current-SHA archive together. See the
 > [queued Insight same-ID handoff incident](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md).
 
 ---

@@ -141,45 +141,24 @@ struct ConfidenceBadge: View {
                     Capsule()
                         .strokeBorder(isAnalyzing ? Color.primary.opacity(0.2) : data.color.opacity(0.2), lineWidth: 1)
                 )
-                // Animated Holographic Glare Sweep
-                .overlay(
-                    GeometryReader { geo in
-                        let sweepColor = isAnalyzing ? Color.primary : Color.white
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    stops: [
-                                        .init(color: .clear, location: 0.0),
-                                        .init(color: sweepColor.opacity(isAnalyzing ? 0.3 : 0.8), location: 0.45),
-                                        // Solid, stark highlight that ignores background saturation
-                                        .init(color: sweepColor, location: 0.5),
-                                        .init(color: sweepColor.opacity(isAnalyzing ? 0.3 : 0.8), location: 0.55),
-                                        .init(color: .clear, location: 1.0)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: max(geo.size.width, 1))
-                            .offset(x: shimmerPhase * max(geo.size.width, 1) * 2)
-                            .mask(
-                                Capsule()
-                                    .strokeBorder(lineWidth: 1.5)
-                            )
+                // Canvas keeps the animated glare inside one fixed render surface. A translated
+                // SwiftUI child can enlarge its ancestor's accessibility frame even when clipped.
+                .overlay {
+                    if !isAnalyzing {
+                        BadgeGlareSweep(phase: shimmerPhase)
                     }
-                    // The translated glare is decorative and can travel several badge widths.
-                    // Keep its render and semantic bounds inside the capsule; otherwise AppKit
-                    // can union the off-screen rectangle into the Button accessibility frame.
-                    .clipped()
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .opacity(isAnalyzing ? 0 : 1)
-                )
+                }
                 // Smoothly animate the fill transition when analysis finishes
                 .animation(.easeInOut(duration: 0.4), value: isAnalyzing)
             }
             .buttonStyle(.plain)
-            .task {
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(data.label))
+            .task(id: isAnalyzing) {
+                guard !isAnalyzing else {
+                    shimmerPhase = -1.0
+                    return
+                }
                 while !Task.isCancelled {
                     let randomSleepSeconds = Double.random(in: 4.0...10.0)
                     try? await Task.sleep(for: .seconds(randomSleepSeconds))
@@ -280,62 +259,58 @@ struct ConfidenceBadge: View {
     }
 }
 
-// MARK: - Left-to-Right Text Reveal
+// MARK: - Bounded Holographic Glare
 
-/// Reveals its text with a left-to-right fluid mask sweep on each string change.
-/// Because it maintains view identity (no `.id()`), the parent container can smoothly
-/// interpolate and "hug" the bounds of the new characters while they softly fade in.
+/// Draws rather than lays out the moving highlight. Canvas commands never contribute translated
+/// child frames to the surrounding Button's hit-testing or accessibility geometry.
+private struct BadgeGlareSweep: View {
+    let phase: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+
+            let bounds = CGRect(origin: .zero, size: size)
+                .insetBy(dx: 0.75, dy: 0.75)
+            let capsule = Path(
+                roundedRect: bounds,
+                cornerRadius: max(bounds.height / 2, 0)
+            )
+            let travelX = phase * size.width * 2
+            let gradient = Gradient(stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .white.opacity(0.8), location: 0.45),
+                .init(color: .white, location: 0.5),
+                .init(color: .white.opacity(0.8), location: 0.55),
+                .init(color: .clear, location: 1.0)
+            ])
+
+            context.stroke(
+                capsule,
+                with: .linearGradient(
+                    gradient,
+                    startPoint: CGPoint(x: travelX, y: size.height),
+                    endPoint: CGPoint(x: travelX + size.width, y: 0)
+                ),
+                lineWidth: 1.5
+            )
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Bounded Text Transition
+
+/// Retains text identity while fading label changes without translated mask geometry.
 private struct RevealText: View {
     let text: String
-    @State private var revealProgress: CGFloat = 0.0
 
     var body: some View {
         Text(text)
             .lineLimit(1)
             .truncationMode(.tail)
-            // A dynamic soft-gradient mask to reveal left-to-right
-            .mask(alignment: .leading) {
-                GeometryReader { geo in
-                    let maskWidth = geo.size.width * 1.5
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .black, location: 0.0),
-                                    .init(color: .black, location: 0.75),
-                                    .init(color: .clear, location: 1.0)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        // A generous width to ensure the gradient fully clears the text
-                        .frame(width: max(maskWidth, 50))
-                        .offset(x: (revealProgress - 1.0) * max(maskWidth, 50))
-                }
-                // The reveal rectangle intentionally begins outside the text. Its drawing must
-                // remain clipped to the text bounds so it cannot enlarge an ancestor's
-                // accessibility activation frame while the animation is in flight.
-                .clipped()
-            }
-            .onAppear {
-                revealProgress = 0.0
-                withAnimation(.easeOut(duration: 0.6)) {
-                    revealProgress = 1.0
-                }
-            }
-            .onChange(of: text) {
-                // 1. Instantly snap mask back to hidden without a reverse spring transition
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    revealProgress = 0.0
-                }
-                
-                // 2. Execute smooth soft-fade forward across the new text
-                withAnimation(.easeOut(duration: 0.6)) {
-                    revealProgress = 1.0
-                }
-            }
+            .contentTransition(.opacity)
+            .animation(.easeOut(duration: 0.35), value: text)
     }
 }

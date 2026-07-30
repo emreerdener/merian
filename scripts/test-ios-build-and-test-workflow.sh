@@ -383,13 +383,25 @@ assert_file_count "$ui_seed_source" 0 "ScanLibraryEvents.postLibraryDidUpdate()"
 assert_file_contains "$ui_test_source" "scanningStatusBadge.tap()"
 assert_file_contains \
   "$ui_test_source" \
-  "app.frame.contains(scanningStatusBadge.frame)"
+  "applicationFrame.contains(scanningStatusBadgeFrame)"
+assert_file_contains "$ui_test_source" "appFrame=\\(applicationFrame)"
+assert_file_contains "$ui_test_source" "badgeFrame=\\(scanningStatusBadgeFrame)"
 assert_file_contains \
   "$scanning_experience_source" \
   ".fixedSize(horizontal: true, vertical: true)"
-assert_file_count "$confidence_badge_source" 2 ".clipped()"
+assert_file_contains "$confidence_badge_source" "private struct BadgeGlareSweep: View"
+assert_file_contains "$confidence_badge_source" "Canvas { context, size in"
+assert_file_count "$confidence_badge_source" 0 "GeometryReader"
+assert_file_count "$confidence_badge_source" 0 ".offset(x:"
 assert_file_contains "$confidence_badge_source" ".allowsHitTesting(false)"
 assert_file_contains "$confidence_badge_source" ".accessibilityHidden(true)"
+assert_file_contains \
+  "$confidence_badge_source" \
+  ".accessibilityElement(children: .ignore)"
+assert_file_contains \
+  "$confidence_badge_source" \
+  ".accessibilityLabel(Text(data.label))"
+assert_file_contains "$confidence_badge_source" ".contentTransition(.opacity)"
 assert_file_contains \
   "$queued_content_source" \
   "UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded("

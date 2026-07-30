@@ -202,12 +202,13 @@ The Scans tab is the user's primary offline biological journal.
   advances a monotonic presentation generation even though the UUID stays fixed;
   result toolbar reveal and Field Notes tasks use that generation so Field Chat,
   Share, and notes restart immediately after promotion. The shared animated
-  scanning badge clips its translated decorative renderers, excludes the glare
-  from interaction semantics, and is fixed to intrinsic size before exposing its
-  accessibility identifier, preventing an oversized off-window activation frame
-  from swallowing the deterministic completion handshake. A fallback context can
-  be built from `QueuedScanSnapshot` if the live queue row vanishes between tap
-  and fetch.
+  scanning badge contains no translated child views: completed-state glare is
+  painted inside a fixed Canvas, text changes use an opacity transition, and the
+  Button combines its children into one explicitly labeled accessibility
+  element. It is fixed to intrinsic size before exposing its accessibility
+  identifier, preventing invisible animation geometry from swallowing the
+  deterministic completion handshake. A fallback context can be built from
+  `QueuedScanSnapshot` if the live queue row vanishes between tap and fetch.
 - **Unified Empty States (`EmptyStateView`)**: Monolithic `VStack` geometries
   for 0-result states inside library and selection flows were replaced with a
   reusable `EmptyStateView` component mapping to strongly typed dynamic message
@@ -763,8 +764,8 @@ an Edge API response or opened offline via the Scans library.
   their content, preventing `maxWidth: .infinity` stretching from parent frames.
   The `ConfidenceBadge` formats mathematical floats into hybrid semantic strings
   (`85% - 100% • Strong match`), generates Emerald and Red `.sparkles.2`
-  iconography, and overlays a holographic foil sweep tracking a
-  `.linear(duration: 4.5)` offset. Tapping the badge triggers a
+  iconography, and paints a phase-driven holographic foil sweep inside a bounded
+  Canvas rather than translating a SwiftUI overlay. Tapping the badge triggers a
   `ConfidenceExplanationSheet` with `.presentationDragIndicator(.visible)`,
   rendering a Continuous Spectrum Timeline using `Rectangle` scaling with a
   connecting gradient pipeline. An AI Acknowledgment Banner is integrated

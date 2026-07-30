@@ -331,9 +331,14 @@ final class merianUITests: XCTestCase {
             scanningStatusBadge.isHittable,
             "Shared scanning status badge was not available to trigger the deterministic handoff"
         )
+        let applicationFrame = app.frame
+        let scanningStatusBadgeFrame = scanningStatusBadge.frame
         XCTAssertTrue(
-            app.frame.contains(scanningStatusBadge.frame),
-            "Shared scanning status badge exposed an off-window accessibility frame"
+            applicationFrame.contains(scanningStatusBadgeFrame),
+            """
+            Shared scanning status badge exposed an off-window accessibility frame. \
+            appFrame=\(applicationFrame) badgeFrame=\(scanningStatusBadgeFrame)
+            """
         )
         scanningStatusBadge.tap()
 

@@ -1055,10 +1055,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "idempotent no-op that preserves the result generation and controls",
       "keys result-toolbar plus Field Notes tasks to that generation",
       "animated scanning badge advertised a 703-point accessibility frame",
-      "translated decorative glare and text-reveal mask are now clipped to their owning bounds",
-      "excluded from interaction semantics where decorative",
-      "smoke rejects any off-window frame",
-      "pass all 1,243 unit tests",
+      "`2ca985f6079c41c45c6a6e78d382c8283eb0db3b`",
+      "visually clipping those translated descendants was insufficient",
+      "passed all 1,243 unit tests and the 239,112,192-byte Release archive",
+      "`145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`",
+      "Completed-state glare is drawn inside a fixed Canvas",
+      "label changes use a bounded opacity transition",
+      "one explicit accessibility element and label",
+      "reports both app and badge rectangles",
       "queued Insight same-ID handoff incident",
     ]
   ) {
@@ -1688,6 +1692,30 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "inferenceEngine.scanPresentationGeneration == expectedGeneration",
   );
   assertStringIncludes(
+    compact(confidenceBadgeImplementationSource),
+    "private struct BadgeGlareSweep: View",
+  );
+  assertStringIncludes(
+    compact(confidenceBadgeImplementationSource),
+    "Canvas { context, size in",
+  );
+  assertStringIncludes(
+    compact(confidenceBadgeImplementationSource),
+    ".accessibilityElement(children: .ignore)",
+  );
+  assertStringIncludes(
+    compact(confidenceBadgeImplementationSource),
+    ".contentTransition(.opacity)",
+  );
+  assert(
+    !confidenceBadgeImplementationSource.includes("GeometryReader"),
+    "ConfidenceBadge must not restore translated GeometryReader animation geometry.",
+  );
+  assert(
+    !confidenceBadgeImplementationSource.includes(".offset(x:"),
+    "ConfidenceBadge must not restore horizontal child-view animation offsets.",
+  );
+  assertStringIncludes(
     compact(confidenceExplanationImplementationSource),
     "private var isSubjectPresentationCurrent: Bool",
   );
@@ -1920,11 +1948,19 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The analyzing badge clips its translated decorative glare and text-reveal mask to their owning geometry",
+    "The badge must not contain translated SwiftUI child geometry",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The smoke requires the Button's accessibility frame to be fully contained by the application frame before tapping",
+    "completed-state glare is painted inside a fixed Canvas",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "Hosted Run 104 proved that visually clipping translated descendants was not sufficient to constrain the semantic frame",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "The smoke requires the Button's accessibility frame to be fully contained by the application frame before tapping and prints both rectangles on failure",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2463,11 +2499,18 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "`2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`",
       "animated `ScanningStatusBadge` Button exposed an invalid accessibility frame beginning at x=-384.7 with width 703",
       "retained hierarchy also captured width 1,406 at the glare's opposite translation phase",
-      "`ConfidenceBadge` now clips that glare to its `GeometryReader`, excludes it from hit testing and accessibility",
-      "clips the translated text-reveal mask to the source text",
-      "`ScanningExperienceView` fixes the composed badge to its intrinsic size",
-      "smoke explicitly requires the resulting Button frame to be contained by the app window",
-      "current extended source passes frontend parse across all nine changed Swift files, strict focused SwiftLint with zero violations, portable workflow contracts, and critical/focused result fixtures",
+      "`2ca985f6079c41c45c6a6e78d382c8283eb0db3b` added intrinsic sizing",
+      "Hosted Build/Test Run 104 proved that correction was insufficient",
+      "all 1,243 unit tests and all 73 protected cases passed",
+      "current-SHA Release archive passed at 239,112,192 bytes",
+      "`145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`",
+      "SwiftUI clipping constrained pixels but did not remove the descendants' transformed semantic geometry",
+      "`ConfidenceBadge` paints completed-state glare inside a fixed Canvas",
+      "translated text-reveal mask with an opacity-only content transition",
+      "one explicitly labeled accessibility element",
+      "does not instantiate the glare Canvas or run its shimmer task",
+      "failure message now includes both the application and badge rectangles",
+      "rejects a return to either `GeometryReader` or horizontal-offset animation",
       "110 deployment-tooling and 12 documentation contracts",
       "complete 67-target generic iOS Simulator `build-for-testing` graph",
       "large network test file retains the same 32 whole-file baseline violations",
@@ -2490,6 +2533,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "`scanBoundActionGeneration`",
       "Two new exact protected unit regressions cover completed-record precedence",
       "all 1,243 unit tests, exactly one queued-scan UI smoke",
+      "Run 104 supplies current cross-file compilation, complete-unit runtime, and Release evidence through `2ca985f607`",
       "2026-07-queued-insight-same-id-handoff-regression.md",
       "The 2026-07-30 current-worktree rerun passed the complete Supabase tooling gate",
       "`b7be23f4e211b75c00a3df5fcd1f96f3905983c74ff3189bfc69ad5b0f7132c4`",
