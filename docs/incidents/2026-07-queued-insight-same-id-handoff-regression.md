@@ -4,8 +4,8 @@
 **Severity:** Release-blocking\
 **Affected flow:** Offline queue / staged scan → completed Insight → Field Chat
 / Share / Explore\
-**Repository status:** Remediated in the current worktree; hosted acceptance
-pending\
+**Repository status:** Remediated on `main` at
+`c7eac9c8f3124437712ee72eeff49d09e6ea55b1`; hosted acceptance pending\
 **Production status:** Open until a matching iOS build satisfies the closure
 gates below
 
@@ -75,7 +75,8 @@ Run 105's retained archive evidence is version/build `1.0.2 (235)`, size
 239,095,808 bytes, source fingerprint
 `6141847844d37a450109e7d2ef2e7bd42512c1fc68991f5b7ef497a9625b2e7c`, verified
 main dSYM UUIDs, and no Debug-only seed markers. This evidence applies only to
-`6ed0f557b3`; it is not acceptance for the current native-control correction.
+`6ed0f557b3`; it is not acceptance for the native-control correction committed
+at `c7eac9c8f3`.
 
 ## Root Cause
 
@@ -162,24 +163,30 @@ The portable workflow contract also pins child-promotion-before-event ordering,
 completed-wins destination binding, generation-keyed toolbar/Field Notes tasks,
 the centralized reveal fence, Canvas/opacity-only badge animation, absence of
 `GeometryReader`/horizontal offset geometry, absence of synthetic native-Button
-recomposition, an explicit accessibility label, intrinsic scanning-badge bounds,
-and the diagnostic window-frame assertion. The exact XCUI smoke still requires
-native Back, queued badge and fact card, decoded audio before and after
-completion, Northern Cardinal takeover, Field Chat, and Share under exactly one
-passed, unskipped result.
+recomposition, an explicit accessibility label, exactly one
+`ScanningStatusBadge` identifier occurrence bound to
+`let scanningStatusBadge = app.buttons["ScanningStatusBadge"]`, intrinsic
+scanning-badge bounds, and the diagnostic window-frame assertion. The exact
+XCUI smoke still requires native Back, queued badge and fact card, decoded audio
+before and after completion, Northern Cardinal takeover, Field Chat, and Share
+under exactly one passed, unskipped result.
 
 Hosted Run 105 passed the complete 1,243-unit target and all protected routing
 cases on Xcode 26.6, then failed before the frame assertion because the
-synthetically re-composed badge was absent from `app.buttons`. The current
-native-Button correction retains the Canvas/opacity geometry fix and passes the
-portable workflow contract and diff validation. Workspace sandbox policy still
-denies CoreSimulator user cache/device access and SwiftPM manifest diagnostics,
-so the newest correction is not represented as locally runtime-accepted.
+synthetically re-composed badge was absent from `app.buttons`. Commit
+`c7eac9c8f3124437712ee72eeff49d09e6ea55b1` preserves the native Button while
+retaining the Canvas/opacity geometry fix and passes the portable workflow
+contract and diff validation. A local exact-SHA Xcode 26.6 generic-Simulator
+`build-for-testing` compiled and linked the app, complete unit bundle, and UI
+bundle for arm64 and x86_64. Asset-catalog/storyboard compilation was excluded
+only because workspace sandbox policy denies CoreSimulator user-cache/device
+access, so this is source/link evidence rather than local XCUI runtime
+acceptance.
 
 ## Closure Gates
 
-This incident is closed only when one committed descendant supplies all of the
-following:
+This incident is closed only when one hosted run on `c7eac9c8f3` or a committed
+descendant supplies all of the following:
 
 1. hosted Xcode 26.6 compilation of the app, complete unit bundle, and UI
    bundle;

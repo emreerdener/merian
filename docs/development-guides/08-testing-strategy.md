@@ -2238,18 +2238,26 @@ frame. Hosted Run 105 passed all 1,243 units and its exact-SHA Release archive
 but proved that synthetic recomposition also prevents the caller's
 `ScanningStatusBadge` identifier from being found as a Button. The portable
 contract therefore rejects both animation patterns and that accessibility
-modifier. The smoke requires the native Button's accessibility frame to be fully
-contained by the application frame before tapping and prints both rectangles on
-failure. This prevents XCTest from silently substituting an edge-of-window
-activation point for an invalid off-window rectangle and reporting the resulting
-no-op as a promotion failure. The completed state must also expose the
-identifier-scoped Field Chat and Share toolbar buttons. Their delayed reveal and
-Field Notes synchronization are keyed to the monotonic presentation generation,
-not the unchanged scan ID, ensuring both tasks restart after promotion. Keep all
-navigation, shared-scanning, playable-media, downstream-toolbar, and handoff
-assertions when extending this regression. The exact-SHA hosted
-`Full iOS unit tests` job executes this case after the complete unit target;
-compilation alone is not acceptance evidence.
+modifier. It requires exactly one `ScanningStatusBadge` identifier occurrence
+and binds that occurrence to
+`let scanningStatusBadge = app.buttons["ScanningStatusBadge"]`, so the test
+cannot retain dead native-query text while silently falling back to weaker
+element-class semantics. The smoke requires the native Button's accessibility
+frame to be fully contained by the application frame before tapping and prints
+both rectangles on failure. This prevents XCTest from silently substituting an
+edge-of-window activation point for an invalid off-window rectangle and
+reporting the resulting no-op as a promotion failure.
+The completed state must also expose the identifier-scoped Field Chat and Share
+toolbar buttons. Their delayed reveal and Field Notes synchronization are keyed
+to the monotonic presentation generation, not the unchanged scan ID, ensuring
+both tasks restart after promotion. Keep all navigation, shared-scanning,
+playable-media, downstream-toolbar, and handoff assertions when extending this
+regression. The exact-SHA hosted `Full iOS unit tests` job executes this case
+after the complete unit target; compilation alone is not acceptance evidence.
+The native-control correction is committed at
+`c7eac9c8f3124437712ee72eeff49d09e6ea55b1`; a local exact-SHA generic-Simulator
+`build-for-testing` compiled and linked the app, unit bundle, and UI bundle for
+arm64 and x86_64, but a hosted XCUI result is still required.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

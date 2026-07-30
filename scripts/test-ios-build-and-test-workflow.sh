@@ -380,6 +380,11 @@ assert_file_contains "$ui_seed_source" "modelContext: ModelContext"
 assert_file_contains "$ui_seed_source" "modelContext _: ModelContext"
 assert_file_contains "$ui_seed_source" "try modelContext.save()"
 assert_file_count "$ui_seed_source" 0 "ScanLibraryEvents.postLibraryDidUpdate()"
+assert_file_count \
+  "$ui_test_source" \
+  1 \
+  'let scanningStatusBadge = app.buttons["ScanningStatusBadge"]'
+assert_file_count "$ui_test_source" 1 '"ScanningStatusBadge"'
 assert_file_contains "$ui_test_source" "scanningStatusBadge.tap()"
 assert_file_contains \
   "$ui_test_source" \

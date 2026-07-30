@@ -134,11 +134,12 @@ steps are tracked in the
 > Cardinal** and retained decoded audio, then proved the bottom toolbar was
 > absent: queued and completed states share one UUID, so a toolbar task keyed to
 > that ID did not restart after promotion advanced the presentation generation.
-> The current worktree makes a persisted completion authoritative over stale
-> same-ID queued routes and keys result-toolbar plus Field Notes tasks to that
-> generation. Rebinding that stale route after the exact completion is already
-> visible is an idempotent no-op that preserves the result generation and
-> controls. A later verbose exact-case rerun exposed an independent
+> Commit `2ca985f6079c41c45c6a6e78d382c8283eb0db3b` makes a persisted
+> completion authoritative over stale same-ID queued routes and keys
+> result-toolbar plus Field Notes tasks to that generation. Rebinding that stale
+> route after the exact completion is already visible is an idempotent no-op
+> that preserves the result generation and controls. A later verbose exact-case
+> rerun exposed an independent
 > test-interaction defect: the animated scanning badge advertised a 703-point
 > accessibility frame beginning at x=-384.7 in a 402-point window, so XCTest
 > rejected the rectangle and tapped its x=5 fallback sliver. Commit
@@ -159,12 +160,16 @@ steps are tracked in the
 > discoverable through `app.buttons`. The queued Insight and native Back control
 > were present. Re-composing the native Button with
 > `.accessibilityElement(children: .ignore)` had changed where the caller's
-> identifier was exposed. The current worktree removes that recomposition,
-> retains the explicit label on the native Button, and adds a source guard
-> rejecting its return. The smoke still reports both app and badge rectangles if
-> containment ever fails again. A new hosted committed descendant must pass the
-> exact one-case queued-scan UI smoke and its current-SHA archive together. See
-> the
+> identifier was exposed. Commit `c7eac9c8f3124437712ee72eeff49d09e6ea55b1`
+> removes that recomposition, retains the explicit label on the native Button,
+> and adds a source guard rejecting its return. On that exact SHA, a local Xcode
+> 26.6 generic-Simulator `build-for-testing` compiled and linked the app,
+> complete unit bundle, and UI bundle for both simulator architectures; local
+> resource compilation and XCUI execution remain unavailable in the desktop
+> sandbox. The smoke still reports both app and badge rectangles if containment
+> ever fails again. A hosted run on `c7eac9c8f3` or a committed descendant must
+> pass the exact one-case queued-scan UI smoke and its current-SHA archive
+> together. See the
 > [queued Insight same-ID handoff incident](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md).
 
 ---

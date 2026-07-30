@@ -45,7 +45,11 @@ TestFlight, App Store, support, and QA.
   compilation; Release retains only signature-compatible no-ops. The Release
   archive gate also scans the main binary and rejects any retained seed launch
   argument or queued-audio fixture marker, so TestFlight/App Store launch state
-  cannot activate or contain its local data replacement path.
+  cannot activate or contain its local data replacement path. The shared
+  scanning badge now paints animated decoration inside fixed Canvas geometry,
+  uses an opacity-only label transition, and preserves its native Button
+  accessibility node. This keeps the queued completion handshake discoverable as
+  `ScanningStatusBadge` while retaining the strict in-window frame assertion.
 - Scan Library recovery now distinguishes visible needs-attention rows from
   automatic queue work. Stable damaged/beta rows no longer keep the 1.5-second
   queue poll alive or repeatedly wake upload/inference reconciliation, while

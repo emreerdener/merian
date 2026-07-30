@@ -74,13 +74,14 @@ for the remediated retryable-generation path.
 
 The history audit was repeated over the latest 100 first-parent commits through
 current committed baseline
-`29324d5d7ec55b7e4dc658c1e8300ea31361db66`. This repository had zero merge
+`c7eac9c8f3124437712ee72eeff49d09e6ea55b1`. This repository had zero merge
 commits in that window, so the requested “last 100 merges” review was performed
 against its linear/squash first-parent history and each relevant scan-path
 change. The original deadlock was isolated before `b2c7a241a`; the later
 recovery-proof hardening at `a21155a32`, joined runtime remediation at
 `cc664a20d6212299966b4579f733e612ed836514`, and queued-audio evidence wiring at
-`29324d5d7` do not alter this client scheduler root cause.
+`29324d5d7` through native queued-control correction `c7eac9c8f3` do not alter
+this client scheduler root cause.
 
 Commit `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` joined three individually
 reasonable recovery changes into a closed state machine:
