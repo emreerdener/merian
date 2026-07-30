@@ -440,14 +440,20 @@ jobs:
             echo "Could not resolve the checked-in iOS version/build." >&2
             exit 1
           fi
+          source_fingerprint="$(
+            MERIAN_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+              bash scripts/ios-release-source-fingerprint.sh
+          )"
           jq -n \
             --arg version "$project_version" \
             --argjson build "$project_build" \
             --arg source_sha "$GITHUB_SHA" \
+            --arg source_fingerprint "$source_fingerprint" \
             '{
               version: $version,
               build: $build,
               source_sha: $source_sha,
+              source_fingerprint: $source_fingerprint,
               ci_validation_only: true
             }' > "$IOS_RELEASE_PREP_MARKER"
 
@@ -479,6 +485,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
+            MERIAN_EXPECTED_SOURCE_REVISION="$GITHUB_SHA" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             2>&1 | tee "$XCODE_BUILD_LOG"
 
@@ -526,9 +533,34 @@ jobs:
           archive_build="$(
             /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$app_info"
           )"
+          archive_source_revision="$(
+            /usr/libexec/PlistBuddy -c "Print :MERIAN_SOURCE_REVISION" "$app_info"
+          )"
+          archive_source_fingerprint="$(
+            /usr/libexec/PlistBuddy -c "Print :MERIAN_SOURCE_FINGERPRINT" "$app_info"
+          )"
+          archive_source_state="$(
+            /usr/libexec/PlistBuddy -c "Print :MERIAN_SOURCE_STATE" "$app_info"
+          )"
           if [ "$archive_version" != "$project_version" ] \
             || [ "$archive_build" != "$project_build" ]; then
             echo "Archive is ${archive_version} (${archive_build}); project.yml is ${project_version} (${project_build})." >&2
+            exit 1
+          fi
+          expected_source_fingerprint="$(
+            MERIAN_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+              bash scripts/ios-release-source-fingerprint.sh
+          )"
+          if [ "$archive_source_revision" != "$GITHUB_SHA" ]; then
+            echo "Archive source ${archive_source_revision} does not match workflow source ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+          if [ "$archive_source_fingerprint" != "$expected_source_fingerprint" ]; then
+            echo "Archive source fingerprint does not match the checked-out source." >&2
+            exit 1
+          fi
+          if [ "$archive_source_state" != "clean" ]; then
+            echo "Archive source state is ${archive_source_state}; expected clean." >&2
             exit 1
           fi
 
@@ -553,6 +585,7 @@ jobs:
           main_binary_sha256="$(shasum -a 256 "$main_binary" | awk '{ print $1 }')"
           jq -n \
             --arg source_sha "$GITHUB_SHA" \
+            --arg source_fingerprint "$archive_source_fingerprint" \
             --arg version "$archive_version" \
             --arg build "$archive_build" \
             --arg application_path "$application_path" \
@@ -561,6 +594,8 @@ jobs:
             --argjson archive_bytes "$((archive_kib * 1024))" \
             '{
               source_sha: $source_sha,
+              source_fingerprint: $source_fingerprint,
+              source_state: "clean",
               version: $version,
               build: $build,
               configuration: "Release",
@@ -582,6 +617,7 @@ jobs:
             echo "### Current-SHA iOS Release archive"
             echo ""
             echo "- Source SHA: \`$GITHUB_SHA\`"
+            echo "- Source fingerprint: \`$archive_source_fingerprint\`"
             echo "- Version/build: \`${archive_version} (${archive_build})\`"
             echo "- Archive size: \`$((archive_kib * 1024)) bytes\`"
             echo "- Main dSYM UUIDs: verified"

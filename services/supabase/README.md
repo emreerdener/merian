@@ -1239,18 +1239,18 @@ in-handler auth boundary or provide a replacement short-lived user smoke
 identity. Final Function failures report only HTTP status plus handler-marker
 presence; Data API failures instead identify the PostgREST/RPC diagnostic path
 without expecting a Function header. The production gate additionally calls
-all ten customer-critical scan, signing, share-state, Explore, Field Chat,
+all eleven customer-critical scan, signing, share-state, Explore, Field Chat,
 Community, and deletion routes without Authorization until each returns
 fail-closed `401` with the fixed handler marker:
 `generate-upload-urls`, `identify-multimodal`, `check-scan-status`,
 `share-scan-to-explore`, `get-scan-explore-share-state`,
-`get-explore-composer-media`, `insight-chat`, `explore-post-chat`,
-`request-community-identification`, and `delete-scan`. A platform `404`
-therefore cannot be mistaken for an application-level missing scan or a
-successful rollout. The RevenueCat reconciliation-health monitor uses that
-resolver and transport too. Do not replace the resolver with the CLI API-key
-listing: its hidden secret-key representation cannot pass the exact request
-boundary. Migration
+`get-explore-composer-media`, `get-explore-media-incidents`, `insight-chat`,
+`explore-post-chat`, `request-community-identification`, and `delete-scan`. A
+platform `404` therefore cannot be mistaken for an application-level missing
+scan or a successful rollout. The RevenueCat reconciliation-health monitor uses
+that resolver and transport too. Do not replace the resolver with the CLI
+API-key listing: its hidden secret-key representation cannot pass the exact
+request boundary. Migration
 `20260726212549_harden_service_role_request_authentication.sql` separately
 revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
 `authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
@@ -1591,14 +1591,25 @@ ant-backed progress. `20260722211636_tighten_field_trip_goal_matching.sql` adds
 conjunctive taxonomy-plus-signal matching, finalizes **Bee or wasp** as
 Hymenoptera plus `bee|wasp`, narrows active Spider/Butterfly/plant/animal goals,
 aligns unverifiable Park prompt copy with saved-scan evidence, and repairs
-progress credited by the former broader rules. The contract suite verifies
-caller identity, role grants, ordering/filtering clauses, private completion
-links/status, credited progress in both RPCs, and the absence of evidence from
-public/capture projections. `fieldTripCaptureContextDb.test.ts` additionally
-executes the filtering/order/privacy contract, while
-`fieldTripProgressDb.test.ts` exercises standard/challenge credited counts,
-level advancement, re-identification, idempotent reapplication, and
-representative positive/negative cases for every narrowed active goal.
+progress credited by the former broader rules.
+`20260730023042_gate_field_trip_progress_by_confidence.sql` then requires an
+unreviewed AI identification to meet its inference tier's Possible-match
+boundary (`Flash >= 0.75`, `Pro >= 0.65`), while explicit confirmations and
+confirmed corrections/resolutions remain eligible. It repairs prior weak-match
+credit without discarding the pending selected-goal preference. Confidence,
+inference tier, confirmation, and the pending preference are carried in the
+atomic receipt revision. A later downgrade to weak unreviewed evidence removes
+standard/Event credit even after completion, reopens progress, clears derived
+Event badges, and soft-deletes invalid completion publications/entries. The
+contract suite verifies caller identity, role grants, ordering/filtering
+clauses, private completion links/status, credited progress in both RPCs, and
+the absence of evidence from public/capture projections.
+`fieldTripCaptureContextDb.test.ts` additionally executes the
+filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
+standard/challenge credited counts, level advancement, exact tier boundaries,
+pending-preference retention, weak-match confirmation, evidence-downgrade
+reopening, re-identification, idempotent reapplication, and representative
+positive/negative cases for every narrowed active goal.
 `fieldTripAtomicProgressDb.test.ts` proves rollback when the Event half fails,
 `fieldTripSecurityDb.test.ts` enumerates runtime execute privileges, and
 `fieldTripPublicationDb.test.ts` executes publication materialization. These
@@ -1733,8 +1744,9 @@ explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
 imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for ten customer-critical
-scan, signing, share-state, Explore, Field Chat, Community, and deletion routes.
+followed by stricter fail-closed authorization probes for eleven
+customer-critical scan, signing, share-state, Explore media-incident, Field
+Chat, Community, and deletion routes.
 It then reaches the exact no-write SQLSTATE `22023` boundary in
 `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
 `request_community_identification_atomically`, `recover_missing_owned_scan`,
@@ -1802,12 +1814,15 @@ For persistent Insight contribution cards and selected-goal preference, apply
 `20260722025411_persistent_field_trip_scan_contributions.sql`,
 `20260722064704_harden_atomic_field_trip_progress.sql`,
 `20260722195453_exclude_ants_from_bee_wasp_goal.sql`, and
-`20260722211636_tighten_field_trip_goal_matching.sql` in order. Then deploy the
-scan-ingestion functions and `field-trips` before the iOS client. Smoke-test
-optional `preferred_goal`, one credit per outing/Event, deterministic fallback,
-correction removal/move, bee/wasp acceptance with ant and sawfly rejection, the
-representative negative-match matrix, transactional rollback, receipt replay,
-publication, and `scan_contributions`. Direct client roles must not read either
-private progress table or execute any Field trip/Event `SECURITY DEFINER` RPC;
-contribution payloads must contain no media, coordinates, place labels, notes,
-or public evidence. Older clients omit the preference and remain compatible.
+`20260722211636_tighten_field_trip_goal_matching.sql`, followed by
+`20260730023042_gate_field_trip_progress_by_confidence.sql`, in order. Then
+deploy the scan-ingestion functions and `field-trips` before the iOS client.
+Smoke-test optional `preferred_goal`, Possible-match boundaries, weak-match
+confirmation and downgrade reopening, pending-hint retention, one credit per
+outing/Event, deterministic fallback, correction removal/move, bee/wasp
+acceptance with ant and sawfly rejection, the representative negative-match
+matrix, transactional rollback, receipt replay, publication, and
+`scan_contributions`. Direct client roles must not read either private progress
+table or execute any Field trip/Event `SECURITY DEFINER` RPC; contribution
+payloads must contain no media, coordinates, place labels, notes, or public
+evidence. Older clients omit the preference and remain compatible.

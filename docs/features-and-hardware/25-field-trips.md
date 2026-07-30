@@ -395,8 +395,12 @@ remains optional for ordinary outing navigation.
 - Matching is limited to the current unlocked level. Later levels cannot fill
   early.
 - Eligibility is media-kind agnostic after a scan is saved and has a resolved
-  biological identification. A qualifying photo or video can count; the
-  camera-only active-target capsule does not restrict progress eligibility.
+  biological identification. An unreviewed AI identification must be at least a
+  `Possible match` for the exact inference tier (`Flash >= 0.75`,
+  `Pro >= 0.65`). A weaker identification remains uncredited until the user
+  confirms it or a correction/community resolution supplies a confirmed
+  species. A qualifying photo or video can count; the camera-only active-target
+  capsule does not restrict progress eligibility.
 - One scan is evaluated against every eligible active standard outing, but it
   receives at most one checklist credit per outing. It may still advance
   several deliberately active outings and a joined live Event.
@@ -421,7 +425,40 @@ remains optional for ordinary outing navigation.
   relaunch. Catalog reloads remain a read-side reconciliation path.
 - Corrections may move or remove the scan's credit within its original credited
   level while the outing remains unfinished, then reset the outing to its
-  earliest incomplete level. Completed outings are immutable.
+  earliest incomplete level. Completed outings are immutable for normal
+  identification corrections. Evidence-policy invalidation is stricter: if a
+  confidence, inference-tier, or review revision makes the contributing scan
+  weak and unconfirmed, its credit is removed even from a completed outing.
+
+### Identification Evidence Policy
+
+The database applies this policy before standard-outing or Event goal matching.
+The boundaries are inclusive and mirror the tier-specific **Possible match**
+presentation thresholds:
+
+| Inference tier | Automatic-credit minimum | Below the boundary |
+| --- | ---: | --- |
+| Flash | `0.75` (75%) | Pending review; no automatic credit |
+| Pro | `0.65` (65%) | Pending review; no automatic credit |
+| Missing or unknown | `0.75` (75%) | Fail closed to the stricter Flash rule |
+
+A null or out-of-range model score never auto-qualifies. The score is bypassed
+only when `user_confirmed_identification` is true or
+`confirmed_species_id` is populated by a correction or community resolution.
+The scan must still be caller-owned, saved, biological, not tombstoned, and
+match all timing, current-level, and checklist criteria.
+
+`preferred_goal` is only a ranking hint. For a weak unreviewed scan, the atomic
+receipt retains the complete hint but returns empty standard/Event updates. A
+later confirmation changes the scan revision, validates the pending hint, and
+can credit the original selected goal without another model request.
+
+If qualifying evidence is later downgraded below the boundary and has no
+confirmation/resolution override, the evidence-change trigger removes its
+standard and Event completions, reopens the earliest incomplete level, clears
+derived Event badges, and soft-deletes completion publications/entries. The
+selected-goal preference remains pending. This reconciliation returns no
+`newly_completed_items`, so it cannot produce a progress celebration.
 
 ### Active Objective Matching Contract
 
@@ -606,6 +643,13 @@ adds conjunctive taxonomy-plus-signal rules for active objectives, requires
 `Araneae` for Spider goals and a butterfly tag for Backyard Butterfly, aligns
 contextual Park labels with evidence the scan contract can verify, and repairs
 credit that no longer matches.
+`services/supabase/migrations/20260730023042_gate_field_trip_progress_by_confidence.sql`
+adds the tier-specific Possible-match evidence policy to standard outings and
+Events, includes confidence/confirmation fields in scan receipt revisions,
+re-evaluates confirmation-only updates, removes credit previously issued to
+weak unreviewed identifications, and reconciles future confidence downgrades
+even after completion. Selected Capture-goal preferences remain pending so
+later confirmation can still honor the user's intent.
 
 Core tables:
 
@@ -971,14 +1015,15 @@ Deploy in this order:
 17. `20260722064704_harden_atomic_field_trip_progress.sql`
 18. `20260722195453_exclude_ants_from_bee_wasp_goal.sql`
 19. `20260722211636_tighten_field_trip_goal_matching.sql`
-20. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
+20. `20260730023042_gate_field_trip_progress_by_confidence.sql`
+21. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
    `identify-describe`, `audio-spec`, and `replay-scan-ingestion`)
-21. `field-trips` Edge Function
-22. `get-explore-author-profile` so public profiles include Field trip
+22. `field-trips` Edge Function
+23. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-23. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+24. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-24. iOS client update
+25. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
@@ -1011,6 +1056,14 @@ exist. The forward migration is transactional and intentionally aborts before
 changing data when completed trips, publications, Event badges, or entries are
 present; treat that guard as a release blocker requiring product/data review,
 not something to bypass in production.
+
+The confidence-gate migration is forward-only because its repair deletes
+invalid completion rows and Event badges and soft-deletes invalid completion
+publications or entries. Retain a production backup and record the affected-row
+counts before deployment. During an incident, roll back the client or Edge
+surface, or ship a forward database fix, while leaving the evidence gate and
+repaired data in place. Do not recreate weak credit or restore direct client
+execution of the private progress RPCs.
 
 ## Verification
 
@@ -1051,8 +1104,9 @@ report a skip when `127.0.0.1:54322` is unavailable; a skip is not production
 database validation. The progress test covers standard and challenge level
 advancement, explicit eligibility, one credit per experience, multi-experience
 credit, selected-goal and fallback ranking, delayed upload, correction
-move/removal, completed-state freezing, ownership, concurrency, and idempotent
-reapplication.
+move/removal, confidence boundaries, weak-match confirmation, normal correction
+freeze, confidence-downgrade reopening, pending-goal retention, ownership,
+concurrency, and idempotent reapplication.
 The atomic test injects an Event-side exception and proves standard progress,
 preference, achievement/receipt state, and Event progress all roll back. The
 security test enumerates every matching `SECURITY DEFINER` function and requires
@@ -1061,8 +1115,10 @@ true. The publication test executes the completed-outing publish path and
 asserts that snapshot items use the created publication ID.
 
 For progress-toast QA, cover partial progress, level advancement, final
-completion, multiple standard/challenge experiences, re-identification after level
-advancement, and idempotent reapplication.
+completion, multiple standard/challenge experiences, re-identification after
+level advancement, the Flash `0.75` and Pro `0.65` inclusive boundaries, a weak
+scan that becomes eligible through confirmation, a confirmed weak scan
+downgraded back to unreviewed evidence, and idempotent reapplication.
 Confirm the response exposes credited counts for the changed level and that
 legacy responses still decode through the current-count fallback. For one scan,
 verify the visible order is standard outings, Events-visible Seasonal
@@ -1079,7 +1135,7 @@ shows the **Field trips** header, an uppercase **GOAL COMPLETE** eyebrow above
 the headline-sized goal name, enlarged objective art/check badge, an
 experience-only subtitle with no level, and a prominent credited-level ring
 without separators or chevrons. Confirm the heading matches other Insight card
-headers and the card reloads after that scan's progress/correction invalidation.
+headers and the card reloads after that scan's progress/evidence invalidation.
 Every standard row must open at the top of Goals with no focused item; every
 Event row must open challenge overview. Root modal, Scans-embedded,
 Explore-embedded, and modal-from-Explore paths must retain the originating

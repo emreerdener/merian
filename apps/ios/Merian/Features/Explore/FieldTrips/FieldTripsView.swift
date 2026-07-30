@@ -2047,13 +2047,26 @@ private struct FieldTripLevelsSection: View {
     }
 
     private func progress(for level: FieldTripLevel) -> FieldTripLevelProgressPresentation? {
-        guard level.levelNumber == currentLevelNumber else { return nil }
-        if let progress {
+        let presentationState = FieldTripLevelPresentationState.resolve(
+            levelNumber: level.levelNumber,
+            currentLevelNumber: currentLevelNumber,
+            isTripComplete: isTripComplete
+        )
+
+        if presentationState == .current, let progress {
             return progress
         }
-        guard progressPlacement == .headerRing else { return nil }
+
+        guard progressPlacement == .headerRing, presentationState != .locked else {
+            return nil
+        }
+
+        let completedCount = presentationState == .completed
+            ? level.items.count
+            : level.items.filter(\.isCompleted).count
+
         return FieldTripLevelProgressPresentation(
-            completedCount: level.items.filter(\.isCompleted).count,
+            completedCount: completedCount,
             targetCount: level.items.count
         )
     }
@@ -2681,24 +2694,16 @@ private struct FieldTripLevelSection: View {
                 switch presentationState {
                 case .current:
                     if progressPlacement == .headerRing, let progress {
-                        GoalProgressRing(
-                            completedCount: progress.completedCount,
-                            targetCount: progress.targetCount,
-                            lineWidth: 4.5,
-                            labelFontSize: 11,
-                            tint: .accentColor
-                        )
-                        .frame(width: 52, height: 52)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Level progress")
-                        .accessibilityValue(
-                            "\(progress.completedCount) of \(progress.targetCount) goals complete"
-                        )
+                        progressRing(progress)
                     }
                 case .completed:
-                    Text("Completed")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    if progressPlacement == .headerRing, let progress {
+                        progressRing(progress)
+                    } else {
+                        Text("Completed")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 case .locked:
                     Image(systemName: "lock")
                         .font(.title3.weight(.bold))
@@ -2749,6 +2754,22 @@ private struct FieldTripLevelSection: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func progressRing(_ progress: FieldTripLevelProgressPresentation) -> some View {
+        GoalProgressRing(
+            completedCount: progress.completedCount,
+            targetCount: progress.targetCount,
+            lineWidth: 4.5,
+            labelFontSize: 11,
+            tint: .accentColor
+        )
+        .frame(width: 52, height: 52)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Level progress")
+        .accessibilityValue(
+            "\(progress.completedCount) of \(progress.targetCount) goals complete"
         )
     }
 

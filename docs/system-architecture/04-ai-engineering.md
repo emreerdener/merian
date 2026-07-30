@@ -707,6 +707,14 @@ provider dispatch:
   `PRO_DIAGNOSTIC_TRIGGER = 0.99`, and `diagnosticTriggerForTier(tier)`. The iOS
   client mirrors the strong/possible thresholds in
   `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`. The
+  Possible thresholds are also the automatic evidence boundary for Field trip
+  progress. An unreviewed score below the applicable boundary must not receive
+  standard outing or Event credit; explicit confirmation or a confirmed
+  correction/community resolution can qualify it later. Any threshold change
+  must update the database evidence helper, migration contract, Field trip
+  behavior tests, and
+  [canonical progress policy](../features-and-hardware/25-field-trips.md#identification-evidence-policy)
+  together. The
   diagnostic trigger (0.99 for both tiers) is intentionally above the `strong`
   threshold — candidates are stripped only when the model is effectively
   certain, so Possible, Weak, and Strong scans below `0.99` can still persist
@@ -994,7 +1002,15 @@ lookups (e.g. "Checking eBird records", "Checking herpetology records").
 `startPhaseRotation` owns a cancellable `phaseRotationTask`. Generic phrases are
 shuffled on each scan (with "Scanning subject..." anchored first) so frequent
 users do not memorise the sequence, and subject-specific phrases take over only
-when Vision produced a confident category.
+when Vision produced a confident category. Phrases advance every 2.3 seconds
+through `MerianConfig.scanningPhaseRotationIntervalNs`.
+
+`InferenceEngine.genericScanningPhasePhrases` exposes the same generic deck as
+a read-only `nonisolated` value for queued Insights. `QueuedContentView` reuses
+that vocabulary while the server is actively processing, while preserving
+queue-specific phrases for upload, retry, finalization, offline, and
+needs-attention states. Both paths render through `ScanningExperienceView`, so
+phrase-source differences do not create a second scanning layout.
 
 ### Haptics & Debug Simulation
 
@@ -1146,12 +1162,16 @@ and server boundaries:
 [⏱ BENCH] tap→durable queue: 0.041s
 [⏱ BENCH] context grace: 0.150s timed_out=true
 [⏱ BENCH] URLSession request_upload=0.082s ttfb_after_upload=4.101s response_transfer=0.022s
-[⏱ BENCH] HTTP identify-multimodal auth=0.006s transfer+server=4.205s bytes=183424
+[⏱ BENCH] HTTP identify-multimodal auth=0.006s transfer+server=4.205s status=200 requestBytes=183424 responseBytes=7824
 [⏱ BENCH] Response parsing: 0.009s bytes=7824
 [⏱ BENCH] Result persistence: 0.061s
 [⏱ BENCH] response→first-result state: 0.082s
 [⏱ BENCH] tap→first rendered frame: 4.478s
 ```
+
+`requestBytes` and `responseBytes` are deliberately separate. Older clients
+logged the request body count under an ambiguous `bytes` label, so that legacy
+field is not evidence about response size or JSON topology.
 
 **Edge Function (`console.log`)** — visible in Supabase Dashboard → Edge
 Functions → identify-multimodal → Logs:

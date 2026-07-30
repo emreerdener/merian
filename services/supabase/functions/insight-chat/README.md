@@ -142,18 +142,18 @@ scan—or an incomplete replay—from becoming a false local success.
 ## Verification
 
 ```bash
-deno test --config services/supabase/functions/deno.json \
+deno test --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/fieldChatReservation_test.ts \
   services/supabase/functions/_shared/fieldChatResponse_test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
   services/supabase/functions/insight-chat/promptSuggestions_test.ts
 
-deno test --config services/supabase/functions/deno.json \
+deno test --frozen --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/migrations \
   services/supabase/functions/_tests/fieldChatReservationMigrationContract.test.ts
 
-deno check --config services/supabase/functions/deno.json \
+deno check --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/insight-chat/index.ts
 ```
 

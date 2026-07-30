@@ -857,6 +857,13 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     imagePipelineSource,
     supabaseReadmeSource,
     testingStrategySource,
+    releaseVersioningSource,
+    releasePreflightImplementationSource,
+    releaseExportImplementationSource,
+    queueDurabilityImplementationSource,
+    settingsImplementationSource,
+    settingsReadmeSource,
+    offlineQueueTestsSource,
   ] = await Promise.all([
     read("README.md"),
     read("docs/README.md"),
@@ -961,6 +968,17 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read("docs/system-architecture/03-image-pipeline.md"),
     read("services/supabase/README.md"),
     read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/development-guides/14-ios-release-versioning.md"),
+    read("scripts/check-ios-release-prep.sh"),
+    read("scripts/export-ios-release.sh"),
+    read(
+      "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Profile/Settings/Views/SettingsTabView.swift",
+    ),
+    read("apps/ios/Merian/Features/Profile/Settings/README.md"),
+    read("apps/ios/MerianTests/Core/Data/OfflineQueueManagerTests.swift"),
   ]);
 
   for (const source of [rootSource, documentationSource]) {
@@ -995,7 +1013,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(retryIncidentSource),
-    "`/get-explore-media-incidents` returned a two-byte empty `[]`",
+    "the ambiguous field measured the two-byte `{}` request body, not the response",
   );
   assertStringIncludes(
     compact(retryIncidentSource),
@@ -1008,6 +1026,18 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   assertStringIncludes(
     compact(retryIncidentSource),
     "`cc664a20d6212299966b4579f733e612ed836514`",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "disabled both Wi-Fi and cellular data",
+  );
+  assertStringIncludes(
+    compact(retryIncidentSource),
+    "not exact-source structured closure evidence",
+  );
+  assertStringIncludes(
+    compact(shareIncidentSource),
+    "positive tester-observed offline-queue evidence",
   );
   assertStringIncludes(
     compact(retryIncidentSource),
@@ -1097,15 +1127,207 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(loggingSource),
-    "`/get-explore-media-incidents` reports `bytes=2`",
+    "`status`, `requestBytes`, and `responseBytes` as distinct fields",
+  );
+  for (
+    const benchmarkField of [
+      "status=\\(httpResponse.statusCode",
+      "requestBytes=\\(body?.count ?? 0",
+      "responseBytes=\\(data.count",
+    ]
+  ) {
+    assertStringIncludes(
+      networkClientImplementationSource,
+      benchmarkField,
+    );
+  }
+  assert(
+    !networkClientImplementationSource.includes(
+      'transfer+server=\\(String(format: "%.3f", responseCompletedAt - authCompletedAt), privacy: .public)s bytes=\\(body?.count ?? 0',
+    ),
+    "The ambiguous request-body `bytes` benchmark must not return.",
   );
   assertStringIncludes(
     compact(networkSource),
-    "current `{data:[...]}` envelope and the exact older direct-array response",
+    "canonical `{data:[...]}` envelope and one exact direct-array compatibility shape retained defensively",
+  );
+  assertStringIncludes(
+    testingStrategySource,
+    "`MerianNetworkClientTests.testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary`",
   );
   assertStringIncludes(
     compact(changelogSource),
-    "A deployed empty `[]` no longer produces a false decode error",
+    "the former ambiguous `bytes` field measured the request",
+  );
+  for (
+    const source of [
+      changelogSource,
+      offlineSource,
+      loggingSource,
+      settingsReadmeSource,
+    ]
+  ) {
+    const canonicalSource = compact(source);
+    assertStringIncludes(canonicalSource, "Beta Diagnostics");
+    assertStringIncludes(canonicalSource, "source revision/fingerprint/state");
+    assertStringIncludes(canonicalSource, "arbitrary");
+  }
+  for (
+    const implementationFragment of [
+      "let formatVersion: Int",
+      "static let maximumRowsPerSection = 500",
+      "min(max(1, requestedLimit), maximumRowsPerSection)",
+      "jobDescriptor.fetchLimit =",
+      "scanDescriptor.fetchLimit =",
+      "eventDescriptor.fetchLimit = boundedEventLimit",
+      "canonicalMachineToken(",
+      "lastErrorMessage: nil",
+      "message: nil",
+      ".completeFileProtection",
+      'forInfoDictionaryKey: "MERIAN_SOURCE_REVISION"',
+      'forInfoDictionaryKey: "MERIAN_SOURCE_FINGERPRINT"',
+      'forInfoDictionaryKey: "MERIAN_SOURCE_STATE"',
+      "formatVersion: 1",
+    ]
+  ) {
+    assertStringIncludes(
+      queueDurabilityImplementationSource,
+      implementationFragment,
+    );
+  }
+  for (
+    const settingsFragment of [
+      "if Self.shouldShowQueueDiagnostics",
+      "Share offline queue diagnostics",
+      ".writeQueueDiagnosticsExport()",
+      '"sandboxReceipt"',
+    ]
+  ) {
+    assertStringIncludes(settingsImplementationSource, settingsFragment);
+  }
+  for (
+    const testFragment of [
+      "queueDiagnosticsExportOmitsPrivateAndFreeFormValues",
+      "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred",
+      "PRIVATE-MEDIA-PATH",
+      "PRIVATE-DESCRIPTION",
+      "PRIVATE-FIELD-NOTES",
+      "PRIVATE-LOCATION",
+      "PRIVATE-ERROR-MESSAGE",
+      "PRIVATE-METADATA",
+      "PRIVATE-MACHINE-FIELD",
+      "for index in 0..<510",
+      "eventLimit: .max",
+      "writeQueueDiagnosticsExport(eventLimit: 0)",
+      "maximumJobs.count == 500",
+      "maximumScans.count == 500",
+    ]
+  ) {
+    assertStringIncludes(offlineQueueTestsSource, testFragment);
+  }
+  for (
+    const provenanceKey of [
+      "`MERIAN_SOURCE_REVISION`",
+      "`MERIAN_SOURCE_FINGERPRINT`",
+      "`MERIAN_SOURCE_STATE`",
+    ]
+  ) {
+    assertStringIncludes(releaseVersioningSource, provenanceKey);
+  }
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "the final `Info.plist` must be a single-link regular file",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "Symbolic links and multiple hard links are rejected before `PlistBuddy` can write through them",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "A marker from an earlier source tree cannot authorize an archive",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "`prepared_from_sha`, the exact commit on which release preparation began",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "valid commit and an ancestor of the final clean checkout",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "parses the marker as typed JSON",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "CI-only marker instead requires `ci_validation_only: true` and an exact `source_sha`",
+  );
+  for (
+    const implementationFragment of [
+      "read_marker_value prepared_from_sha string",
+      "read_marker_value source_sha string",
+      '--is-ancestor "$marker_prepared_from_sha" "$source_revision"',
+      '"$marker_ci_validation_only" == "true"',
+    ]
+  ) {
+    assertStringIncludes(
+      releasePreflightImplementationSource,
+      implementationFragment,
+    );
+  }
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "sourceState=clean",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "globally higher App Store Connect build number",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "`EXPORT_PATH` must resolve to a child of this repository's `build/` directory",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "`EXPORT_OPTIONS_PLIST` must resolve inside that export directory",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "lexical `.`/`..` components—including traversal hidden behind a not-yet-created directory—are rejected",
+  );
+  for (
+    const exportImplementationFragment of [
+      'reject_dot_path_components "EXPORT_PATH" "$export_path_input"',
+      'reject_dot_path_components "EXPORT_OPTIONS_PLIST" "$export_options_input"',
+    ]
+  ) {
+    assertStringIncludes(
+      releaseExportImplementationSource,
+      exportImplementationFragment,
+    );
+  }
+  for (const source of [releaseVersioningSource, shareIncidentSource]) {
+    const canonicalSource = compact(source);
+    assertStringIncludes(
+      canonicalSource,
+      "all 417 retained local",
+    );
+    assertStringIncludes(
+      canonicalSource,
+      "zero archives contained",
+    );
+  }
+  assertStringIncludes(
+    compact(loggingSource),
+    "`source=unavailable` identifies a build made before provenance embedding",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "stale release-marker rejection after tracked-source changes",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "typed local-marker preparation ancestry, typed CI-marker exact-SHA enforcement, malformed identity rejection",
   );
   for (
     const source of [
@@ -1513,11 +1735,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "critical-result validator with 58 protected exact cases total, including all 19 added by the joined follow-up and five menu/Field Notes regressions exposed by the prior failed hosted run",
+    "critical-result validator with 61 protected exact cases total, including all 19 added by the joined follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run, the two bounded/redacted queue-diagnostic cases, and the actual network-boundary media-incident compatibility case",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 58 exact cases; 19 were added by the joined scan-reliability follow-up, and five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected",
+    "The current validator protects 61 exact cases; 19 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, and the media-incident compatibility case exercises the actual network-client boundary",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -1953,8 +2175,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "A prior unrestricted run connected to a stale local Docker schema",
       "1,386 passed and the two affected author-profile integration cases failed",
       "Localhost early returns and stale-listener failures are retained as environment evidence",
-      "190 assertions passed across 30 migration contract files",
-      "109 tooling assertions and 11 documentation contracts passed",
+      "191 assertions passed across 30 migration contract files",
+      "110 tooling assertions and 12 documentation contracts passed",
       "`migrations/20260729173000_recover_media_abandoned_owned_scans.sql`",
       "`migrations/20260729200000_harden_media_abandoned_scan_recovery_proof.sql`",
       "The hosted 21-assertion revision completed its first four preflight assertions",
@@ -2391,6 +2613,21 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
   }
 
   assertStringIncludes(
+    compact(reliabilitySource),
+    "A separately focused frozen Field Chat run passed 30 tests with 0 failures across nine",
+  );
+  assertStringIncludes(
+    compact(testingSource),
+    "30 passed and 0 failed across nine files with a frozen dependency graph",
+  );
+  for (const source of [insightSource, exploreSource]) {
+    assertStringIncludes(
+      compact(source),
+      "deno test --frozen --config services/supabase/functions/deno.json",
+    );
+  }
+
+  assertStringIncludes(
     compact(sharedSource),
     "The database transaction—not an Edge count-then-insert read—owns",
   );
@@ -2478,6 +2715,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       "`share-scan-to-explore`",
       "`get-scan-explore-share-state`",
       "`get-explore-composer-media`",
+      "`get-explore-media-incidents`",
       "`insight-chat`",
       "`explore-post-chat`",
       "`request-community-identification`",
@@ -2514,6 +2752,18 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
     "Each critical route must return `401` with the marker",
   );
   assertStringIncludes(
+    runbook,
+    "separately probes eleven customer-critical routes",
+  );
+  assertStringIncludes(
+    backend,
+    "all eleven customer-critical scan, signing, share-state, Explore, Field Chat, Community, and deletion routes",
+  );
+  assertStringIncludes(
+    incident,
+    "The following eleven customer-critical routes",
+  );
+  assertStringIncludes(
     backend,
     "A platform `404` therefore cannot be mistaken for an application-level missing scan",
   );
@@ -2529,6 +2779,151 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
     incident,
     "Field Chat does not cache the scan as deterministically unavailable.",
   );
+});
+
+Deno.test("Field Trip documentation preserves the confidence evidence policy", async () => {
+  const [
+    featureSource,
+    insightSource,
+    gamificationSource,
+    authorProfileSource,
+    aiReadmeSource,
+    networkReadmeSource,
+    offlineSource,
+    backendSource,
+    schemaSource,
+    apiSource,
+    runbookSource,
+    productSource,
+    functionReadmeSource,
+    rfcSource,
+    changelogSource,
+    appChangelogSource,
+  ] = await Promise.all([
+    read("docs/features-and-hardware/25-field-trips.md"),
+    read("docs/features-and-hardware/05-insight-sheet.md"),
+    read("docs/features-and-hardware/06-profile-and-gamification.md"),
+    read("docs/features-and-hardware/14-explore-author-profiles.md"),
+    read("apps/ios/Merian/Core/AI/README.md"),
+    read("apps/ios/Merian/Core/Network/README.md"),
+    read("docs/backend-and-data/01-offline-sync-pipeline.md"),
+    read("docs/backend-and-data/02-supabase-edge-and-database.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("docs/product/01-master-product-document.md"),
+    read("services/supabase/functions/field-trips/README.md"),
+    read("docs/rfcs/active-capture-goal-context.md"),
+    read("CHANGELOG.md"),
+    read("apps/ios/Merian/Resources/Changelog/changelog.json"),
+  ]);
+  const feature = compact(featureSource);
+  const insight = compact(insightSource);
+  const gamification = compact(gamificationSource);
+  const authorProfile = compact(authorProfileSource);
+  const aiReadme = compact(aiReadmeSource);
+  const networkReadme = compact(networkReadmeSource);
+  const offline = compact(offlineSource);
+  const backend = compact(backendSource);
+  const schema = compact(schemaSource);
+  const api = compact(apiSource);
+  const runbook = compact(runbookSource);
+  const product = compact(productSource);
+  const functionReadme = compact(functionReadmeSource);
+  const rfc = compact(rfcSource);
+  const changelog = compact(changelogSource);
+
+  assertStringIncludes(feature, "Flash | `0.75` (75%)");
+  assertStringIncludes(feature, "Pro | `0.65` (65%)");
+  assertStringIncludes(feature, "Missing or unknown | `0.75` (75%)");
+  assertStringIncludes(feature, "`user_confirmed_identification` is true");
+  assertStringIncludes(feature, "`confirmed_species_id` is populated");
+  assertStringIncludes(feature, "selected-goal preference remains pending");
+  assertStringIncludes(feature, "soft-deletes completion publications/entries");
+  assertStringIncludes(
+    insight,
+    "automatic evidence gate for Field trip goals: `0.75` for Flash and `0.65` for Pro",
+  );
+  assertStringIncludes(
+    product,
+    "Evidence-policy invalidation is the exception",
+  );
+  assertStringIncludes(
+    gamification,
+    "A later downgrade to weak unreviewed evidence removes the contribution",
+  );
+  assertStringIncludes(
+    authorProfile,
+    "apply the complete ordered migration chain through",
+  );
+  assertStringIncludes(
+    aiReadme,
+    "The server receipt is also the evidence authority",
+  );
+  assertStringIncludes(
+    networkReadme,
+    "Possible-match boundary (`Flash >= 0.75`, `Pro >= 0.65`)",
+  );
+  assertStringIncludes(
+    offline,
+    "included in the scan-ingestion request so the insert trigger can apply the atomic preference/progress contract",
+  );
+  assertStringIncludes(
+    rfc,
+    "confidence-gate release pending the normal Supabase deployment process",
+  );
+  assertStringIncludes(
+    api,
+    "evidence-policy invalidation is the exception",
+  );
+  assertStringIncludes(
+    runbook,
+    "The confidence migration performs a forward-only data repair.",
+  );
+  assertStringIncludes(
+    schema,
+    "`public.field_trip_scan_identification_is_eligible",
+  );
+
+  for (
+    const policyDocument of [
+      feature,
+      backend,
+      schema,
+      api,
+      runbook,
+      functionReadme,
+      authorProfile,
+      rfc,
+    ]
+  ) {
+    assertStringIncludes(
+      policyDocument,
+      "`20260730023042_gate_field_trip_progress_by_confidence.sql`",
+    );
+  }
+
+  assertStringIncludes(
+    changelog,
+    "Prevented unreviewed **Weak match** identifications from counting toward Field trip goals.",
+  );
+
+  const appChangelog = JSON.parse(appChangelogSource) as {
+    entries?: Array<{
+      id?: string;
+      date?: string;
+      title?: string;
+      sections?: Array<{ title?: string; items?: string[] }>;
+    }>;
+  };
+  const releaseEntry = appChangelog.entries?.find((entry) =>
+    entry.id === "2026-07-29-field-trip-confidence"
+  );
+  assert(releaseEntry, "Field Trip confidence release note is missing");
+  assertEquals(releaseEntry.date, "2026-07-29");
+  const releaseCopy = compact(JSON.stringify(releaseEntry));
+  assertStringIncludes(releaseCopy, "Possible match");
+  assertStringIncludes(releaseCopy, "A Weak match stays pending");
 });
 
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {
@@ -2565,6 +2960,8 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/features-and-hardware/05-insight-sheet.md",
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
+    "docs/features-and-hardware/14-explore-author-profiles.md",
+    "docs/features-and-hardware/25-field-trips.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
     "docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md",
     "docs/incidents/2026-07-identify-idempotency-conflict.md",
@@ -2575,6 +2972,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/incidents/2026-07-supabase-edge-route-not-found.md",
     "docs/incidents/2026-07-video-scan-canonical-finalization-regression.md",
     "docs/product/01-master-product-document.md",
+    "docs/rfcs/active-capture-goal-context.md",
     "docs/system-architecture/01-system-architecture.md",
     "docs/system-architecture/02-zero-oom-and-concurrency.md",
     "docs/system-architecture/03-image-pipeline.md",
@@ -2587,6 +2985,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/download-dwca/README.md",
     "services/supabase/functions/export-dwca/README.md",
     "services/supabase/functions/audio-spec/README.md",
+    "services/supabase/functions/field-trips/README.md",
     "services/supabase/functions/generate-upload-urls/README.md",
     "services/supabase/functions/identify/README.md",
     "services/supabase/functions/identify-describe/README.md",

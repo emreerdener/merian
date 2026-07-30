@@ -2520,15 +2520,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
         speciesData?.userConfirmedIdentification = true
 
-        var activeSpeciesId: String?
-        var container: ModelContainer?
+        let container = modelContext?.container
+        let confirmedSpeciesId: String?
         if let context = modelContext {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-            activeSpeciesId = (try? context.fetch(descriptor))?.first?.speciesId
-            container = context.container
+            confirmedSpeciesId = (try? context.fetch(descriptor))?.first?.speciesId
+        } else {
+            confirmedSpeciesId = nil
         }
 
-        let confirmedSpeciesId = activeSpeciesId
         enqueueIdentificationReviewWrite(
             scanId: scanId,
             actionGeneration: reviewActionGeneration
@@ -3387,6 +3387,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         "Checking habitat context",
         "Identifying species..."
     ]
+
+    /// Generic scanning phases shared with queued scans when local classification
+    /// context is unavailable.
+    nonisolated static var genericScanningPhasePhrases: [String] {
+        genericFallbackPhrases
+    }
 
     private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
         guard let top = observations.first, top.confidence >= MerianConfig.visionConfidenceThreshold else { return nil }

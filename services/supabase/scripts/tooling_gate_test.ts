@@ -103,7 +103,7 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   );
   assertMatch(
     gate,
-    /--allow-read=services\/supabase,\.github\/workflows,\.github\/dependabot\.yml,Makefile,README\.md,CHANGELOG\.md,docs,apps/,
+    /--allow-read=services\/supabase,\.github\/workflows,\.github\/dependabot\.yml,Makefile,README\.md,CHANGELOG\.md,docs,apps,scripts\/check-ios-release-prep\.sh,scripts\/export-ios-release\.sh/,
   );
   assertMatch(gate, /--allow-run=bash/);
 });
@@ -406,6 +406,10 @@ Deno.test("production deploy fences the separate scan-recovery migration transac
     !predeployBlock.includes("identify-multimodal"),
     "The structured-proof producer is not compatible until its schema migration commits.",
   );
+  assert(
+    !predeployBlock.includes("request-community-identification"),
+    "Community identification imports Explore publication helpers but does not accept recovery_scan or invoke owner-row recovery; it belongs only in the final cumulative deployment.",
+  );
 });
 
 Deno.test("production deploy reports aggregate Explore publication health", async () => {
@@ -514,6 +518,7 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
       "share-scan-to-explore",
       "get-scan-explore-share-state",
       "get-explore-composer-media",
+      "get-explore-media-incidents",
       "insight-chat",
       "explore-post-chat",
       "request-community-identification",

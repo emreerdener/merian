@@ -2,7 +2,8 @@
 
 Status: Accepted and implemented  
 Decision date: 2026-07-17  
-Backend status: capture-context migration and `field-trips` action deployed  
+Backend status: capture-context migration and `field-trips` action deployed;
+confidence-gate release pending the normal Supabase deployment process<br>
 Client status: implemented; release remains gated on the normal iOS release
 process
 
@@ -107,6 +108,8 @@ Primary implementation files:
 - `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`
 - `services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`
 - `services/supabase/migrations/20260722025411_persistent_field_trip_scan_contributions.sql`
+- `services/supabase/migrations/20260722064704_harden_atomic_field_trip_progress.sql`
+- `services/supabase/migrations/20260730023042_gate_field_trip_progress_by_confidence.sql`
 
 ## Capture-facing domain contract
 
@@ -175,6 +178,12 @@ scan can still advance one goal in every eligible standard outing and one goal
 in every joined live Event. Within each experience the server credits at most
 one goal.
 
+Automatic AI evidence is eligible only at the exact inference tier's
+Possible-match boundary (75% Flash / 65% Pro). A weaker unreviewed match receives
+no credit regardless of the visible selection. The complete preference remains
+pending in the atomic receipt until explicit confirmation or a confirmed
+correction/community resolution makes the identification eligible.
+
 Capture may attach `preferred_goal: { user_field_trip_id, item_id }` only when:
 
 - the **Field trip goals** setting and Field trips feature are enabled;
@@ -190,8 +199,9 @@ camera-still submission all use the same policy. Gallery, Describe, Record,
 hidden-goal UI, missing selections, mixed camera/gallery trays, and any audio or
 video discard the preference and use deterministic server ranking.
 
-The Edge action validates the preference against ownership, visibility, the
-scan timestamp's active period, the current unlocked level, and identification
+Once the identification satisfies the evidence policy, the Edge/database
+boundary validates the preference against ownership, visibility, the scan
+timestamp's active period, the current unlocked level, and identification
 matching. Invalid, stale, unauthorized, completed, or nonmatching preferences
 are ignored. Fallback order is exact species, scientific name, taxonomy from
 genus through kingdom, semantic tag, ecology, habitat, then curated checklist
@@ -342,11 +352,13 @@ The response and cache must never include:
 
 The scan-submission preference is a separate write contract, not part of the
 capture-context response or its `UserDefaults` cache. V50 persists its two IDs
-beside an accepted queued scan in `OfflineQueuedScanGoalHint`, and the backend
-copies a validated hint into the private
-`field_trip_scan_goal_preferences` table. Both rows are owner-scoped control
-data; neither contains media, coordinates, notes, identification evidence, or a
-public route. Queue success/deletion removes the local companion row.
+beside an accepted queued scan in `OfflineQueuedScanGoalHint`. The backend
+retains the complete hint in the private atomic receipt, then copies it into
+`field_trip_scan_goal_preferences` only after the identification qualifies and
+the goal passes owner/current-level/match validation. These rows are
+owner-scoped control data; none contains media, coordinates, notes,
+identification evidence, or a public route. Queue success/deletion removes the
+local companion row.
 
 The locally cached prompt, outing title, and aggregate progress are
 account-related but deliberately low-sensitivity. If a future source needs
@@ -440,13 +452,17 @@ Adding Seasonal presentation is not a data-filter toggle.
 
 Release order is mandatory:
 
-1. apply `20260717150222_contextual_outing_objective_guides.sql`;
-2. apply `20260717195751_active_outing_capture_context.sql`;
-3. apply `20260717213641_preserve_standard_outings_in_capture_context.sql`;
-4. deploy the updated `field-trips` Edge Function;
-5. verify authenticated success, unauthenticated `401`, filtering, order, and
-   absence of private evidence; and
-6. release the indicator-enabled iOS client.
+1. Apply the complete ordered Field Trip migration chain through
+   `20260730023042_gate_field_trip_progress_by_confidence.sql`; the canonical
+   sequence lives in
+   [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#deployment-notes).
+2. Deploy the scan-ingestion Edge Functions so ingestion intents and
+   scan/evidence triggers use the atomic receipt contract.
+3. Deploy the updated `field-trips` Edge Function.
+4. Verify authenticated success, unauthenticated `401`, filtering, order,
+   absence of private evidence, confidence boundaries, pending weak-match
+   behavior, confirmation replay, and evidence-downgrade reopening.
+5. Release the indicator-enabled iOS client.
 
 Existing clients remain compatible because the action and RPC are additive.
 
@@ -455,6 +471,10 @@ gate or ship a client rollback first. Leaving the additive endpoint and RPC in
 place is safer than dropping database objects during an incident. If the
 backend contract itself must be disabled, undeploy or reject only
 `capture_context`; do not delete Field trip progress or publication data.
+The confidence migration's repair is forward-only: do not recreate deleted weak
+completion rows or derived artifacts. Retain a pre-deploy backup and use a
+client/Edge rollback or a forward database fix while leaving the evidence gate
+in place.
 
 ## Verification
 
@@ -463,7 +483,9 @@ Required automated coverage:
 - migration contract tests for privileges, verified-user forwarding, filters,
   order, and evidence-free projection;
 - local database integration tests for access, level, completion, Seasonal
-  Challenge exclusion, stable order, and empty results;
+  Challenge exclusion, stable order, empty results, Flash/Pro confidence
+  boundaries, pending-goal retention, weak-match confirmation, and downgrade
+  removal/reopening;
 - Swift decode and provider-mapping tests;
 - store tests for order, wraparound, completion advancement, account isolation,
   versioned cache persistence, refresh coalescing, and stale retention;
@@ -480,7 +502,9 @@ Required manual coverage:
 - vertical camera gestures and horizontal capture-mode paging near the pill;
 - staged image/video, refinement, and active-recording suppression;
 - account switching and sign-out; and
-- tap-through to the correct field trip and target.
+- tap-through to the correct field trip and target; and
+- a weak pending scan, explicit confirmation, and subsequent unreviewed
+  downgrade without a duplicate progress celebration.
 
 The exact commands and current test inventory live in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md) and

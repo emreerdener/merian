@@ -62,15 +62,17 @@ subject or cannot confirm its current send pair.
 ## Verification
 
 ```bash
-deno test --config services/supabase/functions/deno.json \
+deno test --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/fieldChatReservation_test.ts \
   services/supabase/functions/_shared/fieldChatResponse_test.ts \
+  services/supabase/functions/explore-post-chat/eligibility_test.ts \
+  services/supabase/functions/explore-post-chat/prompt_test.ts \
   services/supabase/functions/explore-post-chat/promptSuggestions_test.ts
 
-deno test --config services/supabase/functions/deno.json \
+deno test --frozen --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/migrations \
   services/supabase/functions/_tests/fieldChatReservationMigrationContract.test.ts
 
-deno check --config services/supabase/functions/deno.json \
+deno check --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/explore-post-chat/index.ts
 ```

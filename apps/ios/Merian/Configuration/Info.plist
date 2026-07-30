@@ -50,6 +50,12 @@
 	<false/>
 	<key>MERIAN_APP_IDENTIFIER_PREFIX</key>
 	<string>$(AppIdentifierPrefix)</string>
+	<key>MERIAN_SOURCE_FINGERPRINT</key>
+	<string>unavailable</string>
+	<key>MERIAN_SOURCE_REVISION</key>
+	<string>unavailable</string>
+	<key>MERIAN_SOURCE_STATE</key>
+	<string>unavailable</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>LSApplicationCategoryType</key>

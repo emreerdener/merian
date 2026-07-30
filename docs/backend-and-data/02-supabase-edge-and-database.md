@@ -1168,7 +1168,8 @@ verified owner and scan-time activity window, and ignored when stale, hidden,
 completed, unauthorized, noncurrent, or nonmatching. Without a valid preference,
 the database uses deterministic specificity and checklist ranking. Unfinished
 identification corrections can move or remove credit in the original credited
-level; completed experiences are immutable.
+level; completed experiences are immutable for normal identification
+corrections. Evidence-policy invalidation is the exception described below.
 
 The same migration adds private
 `public.get_field_trip_scan_contributions(self_id, target_scan_id)`, with
@@ -1222,6 +1223,21 @@ previously credited rows that no longer satisfy the corrected rules and repairs
 derived progress, receipts, badges, and publications. The exact active catalog
 is maintained in the
 [Field Trips matching contract](../features-and-hardware/25-field-trips.md#active-objective-matching-contract).
+
+`20260730023042_gate_field_trip_progress_by_confidence.sql` adds the evidence
+policy ahead of both standard and Event matching. Unreviewed AI identification
+must meet the exact inference tier's Possible-match boundary
+(`Flash >= 0.75`, `Pro >= 0.65`); explicit confirmation or a confirmed
+correction/community resolution can qualify below it. Confidence,
+inference-tier, and confirmation fields participate in receipt revisions, and
+the correction trigger re-enters the atomic boundary when those fields change.
+The migration also removes prior weak-unreviewed credit and repairs derived
+completion artifacts while retaining the selected Capture-goal preference as a
+pending hint. The same reconciliation applies to future evidence downgrades,
+including scans credited before an experience completed: it removes standard
+and Event credit, reopens progress, clears derived Event badges, and
+soft-deletes invalid completion publications or entries without announcing a
+new completion.
 
 These Seasonal Challenge contracts are already deployed while Events remain a
 client-staged iOS surface. Standard Outings are public; iOS requests and renders

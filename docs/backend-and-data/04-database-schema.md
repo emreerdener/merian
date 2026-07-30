@@ -3032,19 +3032,23 @@ coordinates to the client contract.
 - `public.apply_field_trip_scan_progress_v2(self_id UUID, target_scan_id UUID, preferred_user_field_trip_id UUID, preferred_item_id UUID)`:
   Applies server-authoritative progress for one caller-owned saved biological
   scan. Standard outings must already exist and the scan timestamp must belong
-  to an activity period; joined Events use `joined_at` through `ends_at`.
-  Exactly one current-level match can be credited per outing/Event. A valid
-  visible Capture preference wins inside its own standard outing. Otherwise the
-  matcher ranks exact species, scientific name, taxonomy from genus through
-  kingdom (including excluded-family and taxonomy-plus-signal variants),
-  semantic tag, ecology, habitat, curated checklist order, then item ID. The
-  exact active objective criteria are maintained in the
+  to an activity period; joined Events use `joined_at` through `ends_at`. An
+  unreviewed AI identification must meet its inference tier's Possible-match
+  boundary (`Flash >= 0.75`, `Pro >= 0.65`), while an explicit confirmation or
+  confirmed correction/resolution overrides the original model score. Exactly
+  one current-level match can be credited per outing/Event. A valid visible
+  Capture preference wins inside its own standard outing. Otherwise the matcher
+  ranks exact species, scientific name, taxonomy from genus through kingdom
+  (including excluded-family and taxonomy-plus-signal variants), semantic tag,
+  ecology, habitat, curated checklist order, then item ID. The exact active
+  objective criteria are maintained in the
   [Field Trips matching contract](../features-and-hardware/25-field-trips.md#active-objective-matching-contract).
   The same scan may still advance several eligible experiences. Reapplication is
   idempotent. While an experience remains unfinished, identification correction
   can move or remove credit in the original credited level and recompute the
-  earliest incomplete level; completed experiences are immutable during normal
-  progress application. Migration
+  earliest incomplete level; completed experiences are immutable for normal
+  identification corrections. Evidence-policy invalidation is the exception.
+  Migration
   `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a one-time
   correction of ant-backed **Bee or wasp** completions, reopens affected
   standard/Event progress, clears derived receipts/preferences and badges, and
@@ -3052,8 +3056,28 @@ coordinates to the client contract.
   completed again. `20260722211636_tighten_field_trip_goal_matching.sql`
   performs the equivalent repair for other corrected active goals, including
   Butterfly, Spider, flowering/fruiting plants, animal ecology goals, wild
-  plants, and Meadow plant. Responses preserve current and credited-level counts
-  and may add `removed_item_ids`.
+  plants, and Meadow plant.
+  `20260730023042_gate_field_trip_progress_by_confidence.sql` removes prior
+  weak-unreviewed credit and repairs its derived progress/publication state
+  while retaining selected-goal preferences for later confirmation. Future
+  confidence, inference-tier, or confirmation downgrades run the same repair
+  even after completion: affected standard/Event progress reopens, Event badges
+  are cleared, and completion publications/entries are soft-deleted. Responses
+  preserve current and credited-level counts and may add `removed_item_ids`.
+- `public.field_trip_scan_identification_is_eligible(ai_confidence_score DOUBLE PRECISION, inference_tier TEXT, confirmed_species_id UUID, user_confirmed_identification BOOLEAN)`:
+  Internal immutable evidence-policy helper. It accepts a resolved or explicitly
+  confirmed identification, Flash confidence at or above `0.75`, or Pro
+  confidence at or above `0.65`; a missing/unknown tier uses the stricter Flash
+  boundary. Null and out-of-range scores fail unless confirmation overrides
+  them. Execute is denied to `PUBLIC`, `anon`, `authenticated`, and
+  `service_role`.
+- `public.remove_ineligible_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`
+  and
+  `public.remove_ineligible_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
+  Internal reconciliation helpers called only from the database-owned progress
+  wrappers. They delete ineligible completion rows, reopen the earliest
+  incomplete level, and withdraw completion-derived publication/Event
+  artifacts. Execute is denied to every API role, including `service_role`.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
   Compatibility wrapper that calls V2 without a preference, preserving older
   Edge/client behavior.
@@ -3062,8 +3086,9 @@ coordinates to the client contract.
   a matching scan-revision receipt when available, otherwise applies standard
   outing and joined Event progress, persists the validated preference, evaluates
   the first Field trip achievement, and writes the receipt in the same
-  transaction. Any error rolls back every component. Scan-ingestion and
-  identification-correction triggers call this function; the Edge progress
+  transaction. Confidence, inference tier, and explicit confirmation are part
+  of the scan revision. Any error rolls back every component. Scan-ingestion and
+  evidence-changing correction triggers call this function; the Edge progress
   action calls it again to retrieve the response for notifications.
 - `public.get_first_field_trip_achievement_progress(self_id UUID)`: Private
   `SECURITY INVOKER` achievement projection executable only by `service_role`.

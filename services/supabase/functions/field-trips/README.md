@@ -24,6 +24,7 @@ The backing SQL lives in this ordered migration chain:
 17. `20260722064704_harden_atomic_field_trip_progress.sql`
 18. `20260722195453_exclude_ants_from_bee_wasp_goal.sql`
 19. `20260722211636_tighten_field_trip_goal_matching.sql`
+20. `20260730023042_gate_field_trip_progress_by_confidence.sql`
 
 Deploy the migrations, updated scan-ingestion functions, and then this function
 before the iOS client begins sending preferred-goal hints or requesting
@@ -309,11 +310,15 @@ scans captured during a stopped gap. V4 also updates joined live challenge
 progress for the same scan when the scan was created after `joined_at` and
 before `ends_at`; upload after the period/Event closes remains eligible because
 the scan timestamp, not request time, owns the boundary. Eligibility is
-independent of photo/video modality once the biological scan is saved. One scan
-can complete at most one current-level item per eligible standard outing and one
-per joined live challenge; it may still advance several experiences, and every
-created completion row retains the same scan ID. The optional preference is
-honored only for its owned, active, current, visible, matching standard goal.
+independent of photo/video modality once the biological scan is saved. An
+unreviewed AI identification must meet the inference tier's Possible-match
+boundary (`Flash >= 0.75`, `Pro >= 0.65`); a weaker match remains uncredited
+until explicit user confirmation or a confirmed correction/resolution. One
+scan can complete at most one current-level item per eligible standard outing
+and one per joined live challenge; it may still advance several experiences,
+and every created completion row retains the same scan ID. The optional
+preference is honored only for its owned, active, current, visible, matching
+standard goal.
 Otherwise the database ranks exact species, scientific name, taxonomy from genus
 through kingdom, taxonomy with an explicit excluded family, taxonomy combined
 with a required ecology/habitat/semantic signal, semantic tag, ecology, habitat,
@@ -381,8 +386,11 @@ progress update as newly credited only when `newly_completed_items` is nonempty.
 An unchanged reapplication returns the scan-revision receipt so a client that
 terminated after ingestion can recover the original notification; iOS owns
 acknowledgement and scan-ID milestone deduplication. `removed_item_ids`
-identifies prior unfinished credit invalidated by an identification correction.
-Completed outings and Events are immutable.
+identifies credit invalidated by an identification or evidence correction.
+Completed outings and Events stay immutable for normal identification
+corrections. A confidence, inference-tier, or confirmation downgrade that makes
+the evidence weak and unconfirmed removes its credit and can reopen a completed
+experience.
 
 The two `first_field_trip_achievement*` response fields are additive and may be
 absent when the caller has no completed outing or challenge. The payload always
@@ -555,14 +563,15 @@ ingestion retry remains authoritative.
 17. Apply `20260722064704_harden_atomic_field_trip_progress.sql`.
 18. Apply `20260722195453_exclude_ants_from_bee_wasp_goal.sql`.
 19. Apply `20260722211636_tighten_field_trip_goal_matching.sql`.
-20. Deploy the scan-ingestion functions.
-21. Deploy this function.
-22. Deploy `get-explore-author-profile` so profile responses include
+20. Apply `20260730023042_gate_field_trip_progress_by_confidence.sql`.
+21. Deploy the scan-ingestion functions.
+22. Deploy this function.
+23. Deploy `get-explore-author-profile` so profile responses include
     `field_trips`.
-23. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+24. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-24. Ship the iOS client.
+25. Ship the iOS client.
 
 ## Verification
 
@@ -589,13 +598,21 @@ goals; a fern does not satisfy Flowering plant; and a fruit fly, deer, or
 meadowlark does not satisfy the corresponding fruiting-, wild-, or meadow-plant
 goal.
 
+The same suite must cover the identification-evidence policy: Flash `0.749`
+fails and `0.75` qualifies; Pro `0.649` fails and `0.65` qualifies; a weak
+unconfirmed scan such as `0.25` retains its selected-goal hint without earning
+credit; confirmation earns the credit exactly once; and a later downgrade back
+to weak unreviewed evidence removes the standard/Event credit, repairs derived
+artifacts, and reopens completed progress while retaining the pending hint.
+
 The capture-context, progress, lifecycle, atomic, security, and publication
 database integration tests require a running local Supabase/Postgres stack. A
 reported skip because port `54322` is unavailable is not a successful database
 execution and must be covered before release or by the linked deployment
 validation path. The progress test re-identifies one scan after standard and
-challenge level advancement and asserts that only rows inserted by the current
-attempt appear in the response.
+challenge level advancement, exercises weak-to-confirmed-to-downgraded evidence,
+and asserts that only rows inserted by the current attempt appear in the
+response.
 
 The static migration contract also verifies that both private checklist RPCs
 project `completed_scan_id` and grant execution only to `service_role`. Release

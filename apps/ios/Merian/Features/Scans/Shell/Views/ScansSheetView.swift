@@ -49,7 +49,6 @@ struct ScansSheetView: View {
     
     // MARK: - Navigation Control
     @State private var navigationPath = NavigationPath()
-    @State private var selectedQueuedScanForInsight: QueuedScanContext?
     @State private var activeTab: ScansTab = .library
     
     // MARK: - Component State
@@ -79,9 +78,6 @@ struct ScansSheetView: View {
     // MARK: - Core View Builder
     var body: some View {
         navigationStack
-        .sheet(item: $selectedQueuedScanForInsight) { queuedScan in
-            queuedInsightSheet(for: queuedScan)
-        }
         .onReceive(AppEventPublisher.shared.publisher) { event in
             handleAppEvent(event)
         }
@@ -143,6 +139,9 @@ struct ScansSheetView: View {
             .navigationDestination(for: ScanInsightRoute.self) { route in
                 localInsightDestination(for: route)
             }
+            .navigationDestination(for: QueuedScanInsightRoute.self) { route in
+                queuedInsightDestination(for: route)
+            }
             .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
                 SpeciesDictionaryPageContentView(
                     scientificName: route.scientificName,
@@ -169,7 +168,9 @@ struct ScansSheetView: View {
                     onScanSelected: { record in
                         navigationPath.append(ScanInsightRoute(scanId: record.id))
                     },
-                    selectedQueuedScanForInsight: $selectedQueuedScanForInsight,
+                    onQueuedScanSelected: { queuedScan in
+                        navigationPath.append(QueuedScanInsightRoute(queuedScan: queuedScan))
+                    },
                     showSelectionLimitAlert: $showSelectionLimitAlert,
                     scanToDelete: $scanToDelete,
                     showDeleteConfirmation: $showDeleteConfirmation
@@ -210,15 +211,19 @@ struct ScansSheetView: View {
         )
     }
 
-    private func queuedInsightSheet(for queuedScan: QueuedScanContext) -> some View {
+    private func queuedInsightDestination(for route: QueuedScanInsightRoute) -> some View {
         InsightSheetView(
             isPresented: Binding(
-                get: { selectedQueuedScanForInsight != nil },
-                set: { if !$0 { selectedQueuedScanForInsight = nil } }
+                get: { true },
+                set: { isPresented in
+                    if !isPresented, !navigationPath.isEmpty {
+                        navigationPath.removeLast()
+                    }
+                }
             ),
-            queuedScan: queuedScan,
+            queuedScan: route.queuedScan,
             inferenceEngine: inferenceEngine,
-            presentationStyle: .sheet
+            presentationStyle: .embeddedInScansLibrary
         )
     }
 
@@ -601,6 +606,18 @@ struct ScansSheetView: View {
 
 // MARK: - Private Structs
 
+private struct QueuedScanInsightRoute: Hashable {
+    let queuedScan: QueuedScanContext
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.queuedScan.id == rhs.queuedScan.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(queuedScan.id)
+    }
+}
+
 private struct LibraryTabContent: View {
     @Bindable var searchManager: ScansManager
     let filterCategories: [String]
@@ -608,7 +625,7 @@ private struct LibraryTabContent: View {
     let exploreMediaIncidents: [ExploreMediaIncident]
     @Binding var isSearchFocused: Bool
     let onScanSelected: (LocalScanRecord) -> Void
-    @Binding var selectedQueuedScanForInsight: QueuedScanContext?
+    let onQueuedScanSelected: (QueuedScanContext) -> Void
     @Binding var showSelectionLimitAlert: Bool
     @Binding var scanToDelete: String?
     @Binding var showDeleteConfirmation: Bool
@@ -651,9 +668,9 @@ private struct LibraryTabContent: View {
             },
             onQueuedInsight: { queuedContext in
                 MerianLog.data.debug(
-                    "ScansSheetView: presenting queued insight scanId=\(queuedContext.id, privacy: .private) state=\(queuedContext.queueState.rawValue, privacy: .public)"
+                    "ScansSheetView: pushing queued insight scanId=\(queuedContext.id, privacy: .private) state=\(queuedContext.queueState.rawValue, privacy: .public)"
                 )
-                selectedQueuedScanForInsight = queuedContext
+                onQueuedScanSelected(queuedContext)
             }
         )
     }

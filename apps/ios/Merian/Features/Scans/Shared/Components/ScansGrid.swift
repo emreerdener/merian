@@ -85,8 +85,8 @@ struct ScansGrid<MenuContent: View>: View {
 
         LazyVGrid(columns: columns, spacing: 2) {
             // Offline-queued scans render first — they have no completed AI analysis yet and
-            // are excluded from selection mode. Tapping them opens the queued insight sheet,
-            // or the completed scan if the upload finished between render and tap.
+            // are excluded from selection mode. Tapping routes a queued value snapshot into
+            // the Scans stack, or opens the completed scan if it won the render-to-tap race.
             ForEach(visibleQueuedScans, id: \.gridId) { queued in
                 Button(action: {
                     HapticManager.shared.triggerMediumPulse()

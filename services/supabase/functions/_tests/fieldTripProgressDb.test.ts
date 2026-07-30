@@ -58,6 +58,408 @@ type CatalogGoalMatchInput = {
   groupTags?: string[];
 };
 
+Deno.test("Field trip evidence uses Possible-match tier boundaries and review overrides", async () => {
+  await withExploreDbTest(
+    "fieldTripConfidencePolicyDb.test",
+    async (client: Client) => {
+      const correctedSpeciesId = crypto.randomUUID();
+      const result = await client.queryObject<{
+        weak_flash: boolean;
+        possible_flash: boolean;
+        weak_pro: boolean;
+        possible_pro: boolean;
+        unknown_tier_uses_flash: boolean;
+        ai_confirmation_overrides_score: boolean;
+        correction_overrides_score: boolean;
+      }>(
+        `
+          SELECT
+            public.field_trip_scan_identification_is_eligible(
+              0.749::DOUBLE PRECISION, 'flash', NULL, FALSE
+            ) AS weak_flash,
+            public.field_trip_scan_identification_is_eligible(
+              0.75::DOUBLE PRECISION, 'flash', NULL, FALSE
+            ) AS possible_flash,
+            public.field_trip_scan_identification_is_eligible(
+              0.649::DOUBLE PRECISION, 'pro', NULL, FALSE
+            ) AS weak_pro,
+            public.field_trip_scan_identification_is_eligible(
+              0.65::DOUBLE PRECISION, 'pro', NULL, FALSE
+            ) AS possible_pro,
+            public.field_trip_scan_identification_is_eligible(
+              0.70::DOUBLE PRECISION, 'future-tier', NULL, FALSE
+            ) AS unknown_tier_uses_flash,
+            public.field_trip_scan_identification_is_eligible(
+              0.25::DOUBLE PRECISION, 'flash', NULL, TRUE
+            ) AS ai_confirmation_overrides_score,
+            public.field_trip_scan_identification_is_eligible(
+              0.25::DOUBLE PRECISION, 'flash', $1::UUID, FALSE
+            ) AS correction_overrides_score
+        `,
+        [correctedSpeciesId],
+      );
+
+      assertEquals(result.rows[0], {
+        weak_flash: false,
+        possible_flash: true,
+        weak_pro: false,
+        possible_pro: true,
+        unknown_tier_uses_flash: false,
+        ai_confirmation_overrides_score: true,
+        correction_overrides_score: true,
+      });
+    },
+  );
+});
+
+Deno.test("Weak Field trip matches wait for explicit identification confirmation", async () => {
+  await withExploreDbTest(
+    "fieldTripWeakMatchConfirmationDb.test",
+    async (client: Client) => {
+      const userId = crypto.randomUUID();
+      const speciesId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+      const templateId = crypto.randomUUID();
+      const levelId = crypto.randomUUID();
+      const itemId = crypto.randomUUID();
+      const userFieldTripId = crypto.randomUUID();
+      const challengeId = crypto.randomUUID();
+      const participationId = crypto.randomUUID();
+      const suffix = templateId.slice(0, 8);
+
+      await insertUser(client, userId, "Weak Match Viewer");
+      await insertSpecies(
+        client,
+        speciesId,
+        `Testus weakmatchus ${suffix}`,
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.field_trip_templates (
+            id, slug, title, difficulty, is_pro_only, is_rotating_free,
+            is_active, sort_order
+          )
+          VALUES (
+            $1, $2, 'Weak match fixture', 'starter',
+            FALSE, FALSE, TRUE, 997
+          )
+        `,
+        [templateId, `weak_match_${suffix}`],
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.field_trip_levels (
+            id, template_id, level_number, title
+          )
+          VALUES ($1, $2, 1, 'Weak match level')
+        `,
+        [levelId, templateId],
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.field_trip_checklist_items (
+            id, level_id, prompt, match_type, species_id, sort_order
+          )
+          VALUES ($1, $2, 'Weak match species', 'species', $3, 1)
+        `,
+        [itemId, levelId, speciesId],
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.user_field_trips (
+            id, user_id, template_id, started_at, current_level_number,
+            is_profile_visible
+          )
+          VALUES (
+            $1, $2, $3, NOW() - INTERVAL '1 hour', 1, TRUE
+          )
+        `,
+        [userFieldTripId, userId, templateId],
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.user_field_trip_active_periods (
+            user_field_trip_id, started_at
+          )
+          VALUES ($1, NOW() - INTERVAL '1 hour')
+        `,
+        [userFieldTripId],
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.field_trip_challenges (
+            id, template_id, slug, title, starts_at, ends_at, is_active
+          )
+          VALUES (
+            $1, $2, $3, 'Weak match Event',
+            NOW() - INTERVAL '1 day',
+            NOW() + INTERVAL '1 day',
+            TRUE
+          )
+        `,
+        [challengeId, templateId, `weak_match_event_${suffix}`],
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.field_trip_challenge_participants (
+            id, challenge_id, user_id, user_field_trip_id, joined_at,
+            current_level_number
+          )
+          VALUES (
+            $1, $2, $3, $4, NOW() - INTERVAL '1 hour', 1
+          )
+        `,
+        [
+          participationId,
+          challengeId,
+          userId,
+          userFieldTripId,
+        ],
+      );
+      await client.queryArray(
+        `
+          INSERT INTO public.scan_ingestion_intents (
+            scan_id, user_id, endpoint, request_payload
+          )
+          VALUES (
+            $1,
+            $2,
+            'identify-multimodal',
+            JSONB_BUILD_OBJECT(
+              'preferred_goal',
+              JSONB_BUILD_OBJECT(
+                'user_field_trip_id', $3::TEXT,
+                'item_id', $4::TEXT
+              )
+            )
+          )
+        `,
+        [scanId, userId, userFieldTripId, itemId],
+      );
+
+      await insertScan(client, {
+        id: scanId,
+        userId,
+        speciesId,
+        aiConfidenceScore: 0.25,
+        inferenceTier: "flash",
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "private",
+      });
+
+      const beforeConfirmation = await client.queryObject<{
+        field_trip_updates: StandardProgressUpdate[];
+        challenge_updates: ChallengeProgressUpdate[];
+        scan_revision: {
+          ai_confidence_score: number;
+          inference_tier: string;
+          user_confirmed_identification: boolean;
+        };
+        preferred_user_field_trip_id: string;
+        preferred_item_id: string;
+        standard_count: number;
+        challenge_count: number;
+      }>(
+        `
+          SELECT
+            receipt.result -> 'field_trip_updates'
+              AS field_trip_updates,
+            receipt.result -> 'challenge_updates'
+              AS challenge_updates,
+            receipt.scan_revision,
+            receipt.preferred_user_field_trip_id,
+            receipt.preferred_item_id,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.user_field_trip_item_completions
+              WHERE scan_id = $1
+            ) AS standard_count,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.field_trip_challenge_item_completions
+              WHERE scan_id = $1
+            ) AS challenge_count
+          FROM public.field_trip_scan_progress_receipts AS receipt
+          WHERE receipt.scan_id = $1
+        `,
+        [scanId],
+      );
+      assertEquals(beforeConfirmation.rows[0].field_trip_updates, []);
+      assertEquals(beforeConfirmation.rows[0].challenge_updates, []);
+      assertEquals(beforeConfirmation.rows[0].standard_count, 0);
+      assertEquals(beforeConfirmation.rows[0].challenge_count, 0);
+      assertEquals(
+        beforeConfirmation.rows[0].preferred_user_field_trip_id,
+        userFieldTripId,
+      );
+      assertEquals(beforeConfirmation.rows[0].preferred_item_id, itemId);
+      assertEquals(
+        beforeConfirmation.rows[0].scan_revision.ai_confidence_score,
+        0.25,
+      );
+      assertEquals(
+        beforeConfirmation.rows[0].scan_revision.inference_tier,
+        "flash",
+      );
+      assertEquals(
+        beforeConfirmation.rows[0].scan_revision
+          .user_confirmed_identification,
+        false,
+      );
+
+      await client.queryArray(
+        `
+          UPDATE public.scan_ingestion_intents
+          SET request_payload = '{}'::JSONB
+          WHERE scan_id = $1
+            AND user_id = $2
+        `,
+        [scanId, userId],
+      );
+      await client.queryArray(
+        `
+          UPDATE public.scans
+          SET user_confirmed_identification = TRUE,
+              user_review_state = 'ai_confirmed'
+          WHERE id = $1
+        `,
+        [scanId],
+      );
+
+      const afterConfirmation = await client.queryObject<{
+        field_trip_updates: StandardProgressUpdate[];
+        challenge_updates: ChallengeProgressUpdate[];
+        user_confirmed_identification: boolean;
+        preferred_user_field_trip_id: string;
+        preferred_item_id: string;
+        standard_count: number;
+        challenge_count: number;
+      }>(
+        `
+          SELECT
+            receipt.result -> 'field_trip_updates'
+              AS field_trip_updates,
+            receipt.result -> 'challenge_updates'
+              AS challenge_updates,
+            (
+              receipt.scan_revision
+                ->> 'user_confirmed_identification'
+            )::BOOLEAN AS user_confirmed_identification,
+            receipt.preferred_user_field_trip_id,
+            receipt.preferred_item_id,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.user_field_trip_item_completions
+              WHERE scan_id = $1
+            ) AS standard_count,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.field_trip_challenge_item_completions
+              WHERE scan_id = $1
+            ) AS challenge_count
+          FROM public.field_trip_scan_progress_receipts AS receipt
+          WHERE receipt.scan_id = $1
+        `,
+        [scanId],
+      );
+      const confirmed = afterConfirmation.rows[0];
+      assertEquals(
+        confirmed.field_trip_updates[0].newly_completed_items.map((item) =>
+          item.item_id
+        ),
+        [itemId],
+      );
+      assertEquals(
+        confirmed.challenge_updates[0].newly_completed_items.map((item) =>
+          item.item_id
+        ),
+        [itemId],
+      );
+      assertEquals(confirmed.user_confirmed_identification, true);
+      assertEquals(
+        confirmed.preferred_user_field_trip_id,
+        userFieldTripId,
+      );
+      assertEquals(confirmed.preferred_item_id, itemId);
+      assertEquals(confirmed.standard_count, 1);
+      assertEquals(confirmed.challenge_count, 1);
+
+      await client.queryArray(
+        `
+          UPDATE public.scans
+          SET user_confirmed_identification = FALSE,
+              confirmed_species_id = NULL,
+              user_review_state = 'unreviewed'
+          WHERE id = $1
+        `,
+        [scanId],
+      );
+
+      const afterDowngrade = await client.queryObject<{
+        field_trip_updates: StandardProgressUpdate[];
+        challenge_updates: ChallengeProgressUpdate[];
+        standard_count: number;
+        challenge_count: number;
+        standard_completed_at: Date | null;
+        challenge_completed_at: Date | null;
+        badge_count: number;
+        preference_count: number;
+      }>(
+        `
+          SELECT
+            receipt.result -> 'field_trip_updates'
+              AS field_trip_updates,
+            receipt.result -> 'challenge_updates'
+              AS challenge_updates,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.user_field_trip_item_completions
+              WHERE scan_id = $1
+            ) AS standard_count,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.field_trip_challenge_item_completions
+              WHERE scan_id = $1
+            ) AS challenge_count,
+            (
+              SELECT completed_at
+              FROM public.user_field_trips
+              WHERE id = $2
+            ) AS standard_completed_at,
+            (
+              SELECT completed_at
+              FROM public.field_trip_challenge_participants
+              WHERE id = $3
+            ) AS challenge_completed_at,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.field_trip_challenge_badges
+              WHERE participation_id = $3
+            ) AS badge_count,
+            (
+              SELECT COUNT(*)::INTEGER
+              FROM public.field_trip_scan_goal_preferences
+              WHERE scan_id = $1
+                AND user_id = $4
+            ) AS preference_count
+          FROM public.field_trip_scan_progress_receipts AS receipt
+          WHERE receipt.scan_id = $1
+        `,
+        [scanId, userFieldTripId, participationId, userId],
+      );
+      assertEquals(afterDowngrade.rows[0].field_trip_updates, []);
+      assertEquals(afterDowngrade.rows[0].challenge_updates, []);
+      assertEquals(afterDowngrade.rows[0].standard_count, 0);
+      assertEquals(afterDowngrade.rows[0].challenge_count, 0);
+      assertEquals(afterDowngrade.rows[0].standard_completed_at, null);
+      assertEquals(afterDowngrade.rows[0].challenge_completed_at, null);
+      assertEquals(afterDowngrade.rows[0].badge_count, 0);
+      assertEquals(afterDowngrade.rows[0].preference_count, 1);
+    },
+  );
+});
+
 Deno.test("Field trip progress requires starts and corrections remove original-level credit", async () => {
   await withExploreDbTest(
     "fieldTripProgressDb.test",

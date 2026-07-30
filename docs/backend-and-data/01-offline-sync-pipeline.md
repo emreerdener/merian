@@ -112,11 +112,21 @@ as `preferredGoal`. V50 stores the two goal IDs in the scan-keyed companion
 model `OfflineQueuedScanGoalHint`, leaving the released V49 `OfflineQueuedScan`
 entity byte-for-byte stable. The companion row is inserted in the same
 model-context transaction as the queued scan, read by foreground and background
-completion paths, and forwarded only to the later `apply_scan_progress` call. It
-is not inference input and never changes upload eligibility. Camera-only still
-evidence may retain the hint; gallery, audio, video, Describe, Record,
-refinement, and mixed camera/gallery evidence must discard it before queue
-insertion.
+completion paths, included in the scan-ingestion request so the insert trigger
+can apply the atomic preference/progress contract, and repeated by the later
+`apply_scan_progress` call when it retrieves the durable receipt. It is not
+inference input and never changes upload eligibility. Camera-only still evidence
+may retain the hint; gallery, audio, video, Describe, Record, refinement, and
+mixed camera/gallery evidence must discard it before queue insertion.
+
+The goal hint is a ranking preference, never an evidence override. If the saved
+identification is below the applicable Possible-match boundary (75% Flash /
+65% Pro) and is not confirmed, the atomic progress receipt retains the complete
+hint but issues no credit. A later confirmation or confirmed correction changes
+the receipt revision, revalidates the hint, and can apply the pending goal
+without resubmitting media or invoking the model again. A later confidence
+downgrade follows the same trigger path and removes credit that no longer has
+qualifying evidence.
 
 For an eligible live-camera still, the live inference path owns the uplink
 initially. The durable background path is handed off as soon as the inline
@@ -249,27 +259,38 @@ copied onto completed scan records.
 **UI Surface**: While a scan awaits network transit, its `OfflineQueuedScan`
 record is rendered at the **top** of the Scans Library grid (`ScansGrid`) with a
 dark overlay that reflects online, retry-wait, and needs-attention states.
-Tapping a queued tile opens `InsightSheetView` in analyzing mode via
-`LibraryView`. Queued scans are excluded from batch-selection mode; their IDs
-cannot enter the `Share` / `Download` / `Delete` pipeline. `QueuedScanSnapshot`
-and `QueuedScanContext` carry copied retry metadata (`queueNextRetryAt`,
-friendly last error, media kinds, retry availability, and approximate queued
-bytes) so the sheet can render after SwiftData rows are updated or deleted.
-While the sheet is visible and at least one queued tile exists, it reads rows
-through a fresh `ModelContext` every 1.5 seconds. This is a presentation-only
-fallback for dropped presented-sheet SwiftData notifications, not a retry wake
-or pipeline authority. It updates the snapshot and emits diagnostics only when
-the visible queue value actually changes; unchanged local record lists and
-throttled duplicate kicks remain silent. Future deadlines render as a live
-relative countdown, an elapsed deadline renders `Automatic retry is starting`,
-and offline rows render `Retry when connection returns`. A pending or staged row
-with scheduled backoff also exposes `Retry now`; this clears the deadline and
-resets the bounded automatic attempt counter under the same scan UUID, then
-enters the same atomic upload/inference claim path rather than creating a
-parallel pipeline. Description-only staged work receives the same fresh budget
-even though it has no upload-success transition. A known cloud-complete result
-instead preserves its owner-result recovery marker and never re-enables
-provider dispatch.
+Tapping a queued tile calls `LibraryView.openQueuedScan`. It first checks for a
+completed local record to resolve the render-to-tap race; otherwise it emits a
+fresh `QueuedScanContext` to `ScansSheetView`, which pushes
+`InsightSheetView(presentationStyle: .embeddedInScansLibrary)` on the Scans
+sheet's existing navigation path. No nested sheet is created. Queued scans are
+excluded from batch-selection mode, so their IDs cannot enter the Share,
+Download, or Delete pipeline.
+
+The queued destination shares the foreground scanning layout: dynamic status
+pill, `DidYouKnowCard`, Field notes, and scan information. Its phrase deck is
+derived from exact queue/server state and uses the engine's generic phrases
+during active inference. Only actionable queue status is added. It does not
+show a separate heading, upload explainer, media-kind summary, or approximate
+file size. `QueuedScanSnapshot` and `QueuedScanContext` still copy retry
+metadata, captured media, telemetry, and approximate bytes so routing,
+recovery, and diagnostics remain safe after SwiftData rows are updated or
+deleted.
+
+Two presentation refresh loops have different scopes. While queued tiles exist,
+`ScansSheetView` reads fresh value snapshots every 1.5 seconds to work around
+dropped presented-sheet SwiftData notifications. While a queued Insight is
+visible, `QueuedContentView` reads the exact row through a fresh `ModelContext`
+every second to update queue state and retry presentation. Neither loop owns
+retry scheduling or pipeline dispatch, and unchanged values remain silent.
+Future deadlines render `Automatic retry in N sec/min`, elapsed deadlines
+render `Automatic retry is starting`, and offline rows render
+`Retry when connection returns`. Eligible pending/staged rows expose
+`Retry now`; this clears persisted backoff and resets the bounded automatic
+attempt counter under the same scan UUID before entering the same atomic claim
+path. Description-only staged work receives the same fresh budget. A known
+cloud-complete result preserves its owner-result recovery marker and never
+re-enables provider dispatch.
 
 **Value-Type Snapshot Pattern** — `ScansGrid` never holds a live
 `OfflineQueuedScan @Model` reference. When `ScansSheetView.refreshQueuedScans()`
@@ -278,10 +299,11 @@ value-type structs while the objects are live. `LazyVGrid` renders tiles from
 this snapshot array — after `context.delete(scan)` fires, no grid tile can
 access a zombie `@Model` attribute. When the user taps a queued tile, a fresh
 `OfflineQueuedScan` is fetched and snapshotted into `QueuedScanContext` (a
-richer value type with all telemetry and queue fields) before the
-`InsightSheetView` is presented. `QueuedScanSnapshot.gridId` returns `"q_\(id)"`
-to prevent duplicate `ForEach` keys against `LocalScanRecord` tiles that share
-the same UUID.
+richer value type with all telemetry and queue fields) before the queued route
+is appended. That route retains the value snapshot through queue deletion and
+completed-result handoff. `QueuedScanSnapshot.gridId` returns `"q_\(id)"` to
+prevent duplicate `ForEach` keys against `LocalScanRecord` tiles that share the
+same UUID.
 
 **Failed-row retention (`purgeSoftDeletedRecords`)**: Terminal `.failed` (raw
 value 5) rows are not all disposable. Rows marked `queueNeedsAttention == true`
@@ -483,8 +505,18 @@ structured terminal reason for status polling. Inline foreground requests still
 depend on the iOS queue because raw media bytes are not stored in replay
 intents. Queue diagnostics can be exported through
 `OfflineQueueManager.writeQueueDiagnosticsExport(eventLimit:)`; the JSON
-contains jobs, redacted scan queue metadata, and bounded event rows only, never
-raw media paths or private media bytes.
+contains jobs, redacted scan queue metadata, and bounded event rows only.
+Debug/TestFlight testers can generate and share it from Settings → Beta
+Diagnostics immediately after a smoke test. The artifact binds that evidence to
+the app version/build and embedded source revision/fingerprint/state. It never
+contains raw media paths or payload contents, descriptions, Field notes,
+location/GPS, raw metadata, or arbitrary free-form error/event messages.
+Retained error codes and server status/stage values must match the canonical
+lowercase machine-token grammar or they are omitted.
+The support schema currently declares `formatVersion: 1`. Jobs, scans, and
+events are each capped at 500 rows, and event requests are clamped to 1...500
+even when an internal caller supplies zero or an unbounded integer. The export
+uses complete data protection at rest.
 
 **`MediaStagingContract` + `ScanUploadItem`** (defined in
 `OfflineSyncTypes.swift`): The flat arrays previously used to pass per-image

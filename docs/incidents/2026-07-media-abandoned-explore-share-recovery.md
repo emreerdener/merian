@@ -61,6 +61,55 @@ the legacy-record smoke test.
 
 Identifiers from the retained device trace are intentionally omitted.
 
+## Beta Cohort Disposition
+
+A later `1.0.2 (235)` beta trace found exactly two tested observations that
+could not use the cloud-backed actions. Both resolved to the same owner-scoped
+terminal ledger state:
+
+```text
+job_status = failed
+job_stage = media_reconciliation_abandoned
+```
+
+The same session reported zero pending, runnable, staged, uploading, polling,
+or server-owned offline-queue work. Observations captured before and after this
+pair continued to work, including a newer Explore share, and Field Chat
+requests for working observations completed normally. One of the two stranded
+observations was then deleted successfully through `/delete-scan`; the visible
+library count fell by one and Edge confirmed deletion.
+
+This is consistent with a bounded historical ingestion cohort, not corruption
+of the SwiftData store or a currently looping offline queue. Because these are
+disposable beta-test observations, deleting the remaining stranded record with
+the tester's consent and recapturing it is an acceptable data disposition. It
+is not justification for weakening the composite-proof boundary, manually
+inserting an owner row, bulk-deleting terminal records, or classifying an
+arbitrary terminal state as recoverable.
+
+This evidence also does not close the incident. Build `235` was already
+distributed through TestFlight before the remediation; a later archive that
+still reports `235` cannot replace that successfully uploaded TestFlight
+binary. The repository also still declared build `235` when this trace was
+reviewed. A fresh, globally higher build number is therefore required before
+the iOS remediation can be tested through TestFlight. The session's adjacent
+Explore media-health response drift is further evidence that the running binary
+does not prove the current compatibility decoder. A later manual build-`235`
+smoke did successfully retain an ordinary scan while Wi-Fi and cellular were
+disabled and complete it after connectivity returned. That is positive
+tester-observed offline-queue evidence, but its attached console did not capture
+the exact transaction and it did not exercise legacy
+`media_reconciliation_abandoned` repair or the later iOS source. The ordered
+deployment evidence, eligible legacy-recovery smoke test, and exact-build
+online/offline production verification below remain required.
+
+The release archive inventory confirms the same boundary. At
+`2026-07-30T02:13:13Z`, all 417 retained local archives were inspected. Forty-one
+reported `1.0.2 (235)`, while zero archives contained the embedded source
+revision, fingerprint, or clean/dirty state introduced by the remediation.
+There is no provenance-bearing local candidate that can substitute for a fresh
+higher build.
+
 ## Root Cause
 
 Two fail-closed controls disagreed with the product recovery contract:
@@ -316,6 +365,10 @@ public API key is denied.
    the hardening migration's proof RPC before any legacy owner recovery or
    restore signing, and must preserve local media behind retryable `503` while
    it is unavailable. Do not predeploy the structured Identify producer.
+   Keep `request-community-identification` in the final cumulative exact-SHA
+   plan as well. Although it imports Explore publication helpers, it neither
+   accepts `recovery_scan` nor invokes owner-row recovery, so it is not a
+   migration-gap consumer.
 2. Apply, in order, `20260729173000_recover_media_abandoned_owned_scans.sql` and
    `20260729200000_harden_media_abandoned_scan_recovery_proof.sql`. The pinned
    CLI executes them as separate migration-file transactions, so even one
@@ -368,4 +421,8 @@ Do not close this incident until:
    `media_reconciliation_abandoned` repair; and
 8. rapid scan A → B and A → B → A switches while chat, candidate hydration,
    queued refresh/promotion, editors, onboarding, collection, deletion, and
-   sharing callbacks are suspended produce no cross-scan state or mutation.
+   sharing callbacks are suspended produce no cross-scan state or mutation; and
+9. the exact higher-build offline/reconnect smoke retains its Settings → Beta
+   Diagnostics artifact before observation deletion, binding the bounded
+   queue/upload/staging/inference/completion sequence to the embedded clean
+   source revision/fingerprint without private content.

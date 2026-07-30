@@ -88,16 +88,26 @@ private extension QueuedScanContext {
 /// Shown inside `InsightSheetView` when the sheet is presenting an `OfflineQueuedScan`
 /// resting in the background-upload batch queue.
 ///
-/// This view is intentionally isolated from `AnalyzingContentView` so the UI clearly
-/// distinguishes a scan purposefully waiting in queue from one actively under edge resolution.
+/// Queue lifecycle and recovery remain isolated here, while the visible scanning
+/// experience is shared with foreground analysis through `ScanningExperienceView`.
 struct QueuedContentView: View {
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: InsightSheetViewModel
 
     let queuedContext: QueuedScanContext
+    @State private var phaseIndex = 0
     @State private var retryingScanId: String?
     @State private var retryReferenceDate = Date()
+
+    private struct PhaseRotationID: Hashable {
+        let scanId: String
+        let queueStateRawValue: Int
+        let isOnline: Bool
+        let serverJobStatus: String?
+        let needsAttention: Bool
+        let hasScheduledRetry: Bool
+    }
 
     private var serverJobStatus: ScanIngestionJobStatus? {
         offlineQueueManager.scanIngestionJobStates[queuedContext.id]
@@ -107,110 +117,80 @@ struct QueuedContentView: View {
         !queuedContext.capturedMediaSnapshot.videoPaths.isEmpty
     }
 
-    /// The phrase displayed inside `ConfidenceBadge`'s analyzing capsule.
-    /// Live system/connectivity status shown in the small `ConfidenceBadge` capsule.
-    /// Always distinct from `displayTitle` so the two never duplicate each other:
-    /// offline → "No connection" | online waiting → "In queue" | syncing → "Uploading..."
-    private var badgePhrase: String {
-        guard offlineQueueManager.isOnline else { return "No connection" }
-        switch queuedContext.queueState {
-        case .pending:
-            return "In queue"
-        case .uploading:
-            return "Uploading..."
-        case .staged:
-            return "Preparing analysis"
-        case .inferencing:
-            switch serverJobStatus {
-            case .finalizing:
-                return "Finishing..."
-            case .retrying, .failedRetryable:
-                return "Retrying..."
-            case .failed:
-                return "Needs attention"
-            case .processing, .complete, nil:
-                break
-            }
-            return "Analyzing..."
-        case .externalImport:
-            return "Waiting..."
-        case .failed:
-            return "Needs attention"
-        }
+    private var phaseRotationID: PhaseRotationID {
+        PhaseRotationID(
+            scanId: queuedContext.id,
+            queueStateRawValue: queuedContext.queueState.rawValue,
+            isOnline: offlineQueueManager.isOnline,
+            serverJobStatus: serverJobStatus?.rawValue,
+            needsAttention: queuedContext.queueNeedsAttention,
+            hasScheduledRetry: queuedContext.queueNextRetryAt != nil
+        )
     }
 
-    /// The large serif title describes what this scan *is*, not the network state.
-    /// Stable noun phrase so the badge above can report live status independently.
-    private var displayTitle: String {
+    /// Honest queue-aware phases presented through the same rotating badge used
+    /// by foreground analysis.
+    private var scanningPhasePhrases: [String] {
+        guard offlineQueueManager.isOnline else {
+            return ["Waiting for connection"]
+        }
+        guard !queuedContext.queueNeedsAttention,
+              queuedContext.queueState != .failed else {
+            return ["Scan needs attention"]
+        }
+
         switch queuedContext.queueState {
         case .pending:
-            return "Queued for upload"
+            return [
+                "Preparing scan",
+                "Securing media",
+                "Preparing upload"
+            ]
         case .uploading:
-            return "Uploading"
-        case .staged:
-            return "Queued for analysis"
-        case .inferencing:
-            switch serverJobStatus {
-            case .finalizing:
-                return queuedScanHasVideo ? "Finishing video scan" : "Finishing scan"
-            case .retrying, .failedRetryable:
-                return queuedScanHasVideo ? "Retrying video save" : "Retrying scan"
-            case .processing, .complete, .failed, nil:
-                break
-            }
-            return "Analyzing"
-        case .externalImport:
-            return "Waiting"
-        case .failed:
-            return "Upload paused"
-        }
-    }
-
-    private var helperText: String {
-        switch queuedContext.queueState {
-        case .pending, .uploading:
-            return "This scan is saved locally and will be uploaded to Naturebook in the background."
+            return [
+                "Uploading media",
+                "Securing scan",
+                "Preparing analysis"
+            ]
         case .staged:
             if queuedContext.queueNextRetryAt != nil {
-                return offlineQueueManager.isOnline
-                    ? "This scan is safely queued. Naturebook will start another identification attempt automatically."
-                    : "This scan is safely queued and will retry after your connection returns."
+                return [
+                    "Scan safely queued",
+                    "Waiting to retry"
+                ]
             }
-            return "The scan media has uploaded and is waiting for identification."
+            return [
+                "Preparing analysis",
+                "Checking uploaded media",
+                "Starting identification"
+            ]
         case .inferencing:
             switch serverJobStatus {
             case .finalizing:
                 return queuedScanHasVideo
-                    ? "Naturebook is saving the playable video and will show results automatically."
-                    : "Naturebook is finishing this scan and will show results automatically."
+                    ? ["Finalizing video scan", "Saving video", "Preparing results"]
+                    : ["Finalizing scan", "Saving scan", "Preparing results"]
             case .retrying, .failedRetryable:
-                return "Naturebook is waiting for the server retry window before trying this scan again."
-            case .processing, .complete, .failed, nil:
-                break
+                return ["Retrying analysis", "Reconnecting to analysis"]
+            case .failed:
+                return ["Scan needs attention"]
+            case .complete:
+                return ["Preparing results", "Finishing scan"]
+            case .processing, nil:
+                return InferenceEngine.genericScanningPhasePhrases
             }
-            return "Naturebook is identifying this scan. Results will appear here automatically."
         case .externalImport:
-            return "This scan is waiting for local recovery."
+            return ["Recovering scan"]
         case .failed:
-            return "Naturebook could not finish processing this scan."
+            return ["Scan needs attention"]
         }
     }
 
-    private var queueDetails: [String] {
-        var details: [String] = []
-        if !queuedContext.mediaKinds.isEmpty {
-            details.append(queuedContext.mediaKinds.joined(separator: " + "))
+    private var badgePhrase: String {
+        guard !scanningPhasePhrases.isEmpty else {
+            return "Scanning subject"
         }
-        if let retryDetail {
-            details.append(retryDetail)
-        }
-        if queuedContext.approximateQueuedBytes > 0 {
-            details.append(ByteCountFormatter.string(
-                fromByteCount: queuedContext.approximateQueuedBytes,
-                countStyle: .file
-            ))
-        }
-        return details
+        return scanningPhasePhrases[phaseIndex % scanningPhasePhrases.count]
     }
 
     private var retryDetail: String? {
@@ -243,39 +223,24 @@ struct QueuedContentView: View {
     }
 
     var body: some View {
-        let fieldNotesScanId = viewModel.currentFieldNotesScanId
-        let fieldNotesGeneration = viewModel.scanBoundActionGeneration
         let queuedGeneration = viewModel.scanBoundActionGeneration
 
-        VStack(alignment: .center, spacing: 24) {
-
-            // Queue-state badge — driven by live OfflineQueueManager connectivity
-            ConfidenceBadge(
-                confidenceScore: nil,
-                inferenceTier: nil,
-                analyzingPhrase: badgePhrase
-            )
-
-            // MARK: - Title
-            Text(displayTitle)
-                .font(.system(.largeTitle, design: .serif).weight(.bold))
-                .foregroundColor(.primary)
-                .multilineTextAlignment(.center)
-                .accessibilityAddTraits(.isHeader)
-                .contentTransition(.numericText())
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: displayTitle)
-
-            // MARK: - Helper Text
-            Text(helperText)
-                .font(.system(.subheadline))
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
-
-            if !queueDetails.isEmpty || friendlyErrorText != nil || queuedContext.canRetryNow {
+        ScanningExperienceView(
+            viewModel: viewModel,
+            analyzingPhrase: badgePhrase,
+            fieldNotesPromptContext: viewModel.fieldNotesPromptContext,
+            timestamp: queuedContext.timestamp,
+            fallbackLocationName: queuedContext.locationName,
+            fallbackTemperature: queuedContext.weatherTemperatureF,
+            fallbackCondition: queuedContext.weatherCondition,
+            fallbackElevation: queuedContext.gpsElevation,
+            fallbackLatitude: queuedContext.gpsLatitude,
+            fallbackLongitude: queuedContext.gpsLongitude
+        ) {
+            if retryDetail != nil || friendlyErrorText != nil || queuedContext.canRetryNow {
                 VStack(spacing: 12) {
-                    if !queueDetails.isEmpty {
-                        Text(queueDetails.joined(separator: " • "))
+                    if let retryDetail {
+                        Text(retryDetail)
                             .font(.footnote)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -301,44 +266,7 @@ struct QueuedContentView: View {
                 }
                 .padding(.horizontal, 8)
             }
-
-            if viewModel.shouldShowFieldNotesCard {
-                FieldNotesCard(
-                    previewText: viewModel.fieldNotesText,
-                    promptContext: viewModel.fieldNotesPromptContext,
-                    onDismiss: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            viewModel.dismissFieldNotesCard(
-                                expectedScanId: fieldNotesScanId,
-                                expectedGeneration: fieldNotesGeneration
-                            )
-                        }
-                    },
-                    action: {
-                        viewModel.presentFieldNotes(
-                            expectedScanId: fieldNotesScanId,
-                            expectedGeneration: fieldNotesGeneration
-                        )
-                    }
-                )
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-
-            // Scan telemetry from the queued context snapshot
-            ScanInformationCard(
-                speciesData: nil,
-                timestamp: queuedContext.timestamp,
-                fallbackLocationName: queuedContext.locationName,
-                fallbackTemperature: queuedContext.weatherTemperatureF,
-                fallbackCondition: queuedContext.weatherCondition,
-                fallbackElevation: queuedContext.gpsElevation,
-                fallbackLatitude: queuedContext.gpsLatitude,
-                fallbackLongitude: queuedContext.gpsLongitude
-            )
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal)
         .task(id: queuedContext.id) {
             OfflineJobScheduler.shared.scheduleNextPersistedWake(
                 using: offlineQueueManager
@@ -350,6 +278,25 @@ struct QueuedContentView: View {
                     try await Task.sleep(for: .seconds(1))
                 } catch {
                     return
+                }
+            }
+        }
+        .task(id: phaseRotationID) {
+            phaseIndex = 0
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(
+                        nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs
+                    )
+                } catch {
+                    return
+                }
+                let phraseCount = scanningPhasePhrases.count
+                guard phraseCount > 1 else {
+                    continue
+                }
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                    phaseIndex = (phaseIndex + 1) % phraseCount
                 }
             }
         }

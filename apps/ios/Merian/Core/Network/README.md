@@ -64,10 +64,12 @@ session from creating an anonymous production user.
   replaced by retry state.
 - Translates known technical Explore failures at the UI boundary so database
   authorization and missing-row implementation detail are not customer-facing.
-- Decodes Explore media-health incidents from the current `{data:[...]}`
-  envelope and the exact older direct-array response. A deployed empty `[]` is
-  therefore a valid no-incidents result instead of a Scan Library decode error;
-  any other malformed success shape becomes `MerianError.invalidResponse`.
+- Decodes Explore media-health incidents from the canonical `{data:[...]}`
+  envelope and one exact direct-array compatibility shape retained
+  defensively. An empty `[]` is therefore a valid no-incidents result instead
+  of a Scan Library decode error; retained traces do not prove that this shape
+  was deployed, and any other malformed success shape becomes
+  `MerianError.invalidResponse`.
   Scan Library coalesces rapid queue-event refreshes of this independent
   read-only endpoint, preserves one trailing refresh requested during an
   in-flight call, and revalidates the authenticated owner before projecting the
@@ -106,20 +108,34 @@ backend/client rollout.
 `applyFieldTripProgress(scanId:preferredGoal:)` posts
 `{"action":"apply_scan_progress","scan_id":"..."}` and may add an optional
 `preferred_goal` object containing `user_field_trip_id` and `item_id`. The hint
-is best effort and server-validated; older callers omit it. The client decodes
-standard updates from `data` plus Seasonal Challenge updates from
-`challenge_updates`. Both update models optionally decode `creditedLevelNumber`,
-`creditedLevelTitle`, `creditedCompletedCount`, and `creditedTargetCount`, plus
-removed-item metadata used when a correction invalidates earlier unfinished
-credit. These fields describe the level changed by the scan; when a completion
-advances immediately, current counts describe the next level while credited
-counts preserve the just-completed full ring. Toast accessors fall back to
-current counts against the legacy response shape.
+is best effort and server-validated; older callers omit it. Eligible Capture
+submissions also include the same object in the identification-ingestion
+payload, allowing the scan-insert trigger to apply progress atomically. The
+later Field trips call repeats the hint and retrieves the authoritative receipt
+rather than creating a second mutation.
+
+An unreviewed identification earns automatic credit only at the applicable
+Possible-match boundary (`Flash >= 0.75`, `Pro >= 0.65`). A weaker result keeps
+the preference pending until explicit confirmation or a confirmed
+correction/community resolution. A later confidence, inference-tier, or
+confirmation downgrade can remove that scan's credit and reopen completed
+progress.
+
+The client decodes standard updates from `data` plus Seasonal Challenge updates
+from `challenge_updates`. Both update models optionally decode
+`creditedLevelNumber`, `creditedLevelTitle`, `creditedCompletedCount`, and
+`creditedTargetCount`, plus removed-item metadata used when an identification or
+evidence correction invalidates credit. These fields describe the level changed
+by the scan; when a completion advances immediately, current counts describe
+the next level while credited counts preserve the just-completed full ring.
+Toast accessors fall back to current counts against the legacy response shape.
 
 Only updates with nonempty `newlyCompletedItems` represent a new credit. The
 first item is in server checklist order and supplies the toast label/focus
 target, with its prompt as the common-name fallback. Reapplying an already
-credited scan is idempotent and yields no progress toast.
+credited scan is idempotent and yields no progress toast. Weak pending receipts
+and downgrade reconciliation also return no newly completed items and must not
+produce a progress toast.
 
 `getFieldTripScanContributions(scanId:)` posts
 `{"action":"scan_contributions","scan_id":"..."}` and decodes one

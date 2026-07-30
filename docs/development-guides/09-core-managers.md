@@ -494,7 +494,7 @@ triggering excessive SwiftUI view rebuilds.
   user-attention state. A persisted deadline is not itself a timer:
   `OfflineJobScheduler` selects the earliest active scan/job deadline and owns
   one token-fenced wake, rebuilt after retry persistence, foreground activation,
-  connectivity restoration, or queued-sheet presentation. Connectivity loss
+  connectivity restoration, or queued-Insight presentation. Connectivity loss
   cancels the ephemeral task but not its durable source date. Stale dates use a
   bounded one-second wake; needs-attention rows are excluded; an atomic claim
   clears both scan and job deadlines. Automatic scan upload, inference, cloud
@@ -635,8 +635,16 @@ triggering excessive SwiftUI view rebuilds.
   pipeline progresses.
 - **Diagnostics export**: `writeQueueDiagnosticsExport(eventLimit:)` writes
   support JSON containing job rows, redacted queued-scan metadata, and queue
-  events only. It intentionally omits raw media paths, descriptions, GPS, and
-  private media bytes.
+  events only. Debug/TestFlight Settings expose the explicit generate/share
+  control. App version/build and embedded source revision/fingerprint/state bind
+  the artifact to its exact binary. It intentionally omits raw media paths and
+  payload contents, descriptions, Field notes, location/GPS, raw metadata, and
+  arbitrary persisted error/event messages. Retained error/status/stage fields
+  accept canonical lowercase machine tokens only.
+  The versioned export caps jobs, scans, and events at 500 rows each and clamps
+  all requested event limits to 1...500; zero never falls through to a
+  persistence API's “no limit” behavior. The temporary JSON uses complete data
+  protection.
 
 ### `MessageScanShareCacheWriter`
 

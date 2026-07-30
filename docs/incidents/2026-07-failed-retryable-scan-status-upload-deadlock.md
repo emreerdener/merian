@@ -60,6 +60,16 @@ One retained TestFlight trace contained:
 This is a definitive negative signal: every prerequisite before Identify was
 healthy, while no scan-producing request left the device.
 
+A later physical-device beta smoke staged a new scan, disabled both Wi-Fi and
+cellular data, submitted it, observed the retained queued state, then restored
+connectivity. The same scan resumed and completed analysis successfully. This
+is positive tester-observed evidence for the ordinary offline enqueue/reconnect
+path against the deployed backend. The attached console bundle did not retain
+the queue insertion, reconnect dispatch, Identify response, and atomic queue
+deletion sequence for that transaction, and the installed app still identified
+as build `235`; it is therefore not exact-source structured closure evidence
+for the remediated retryable-generation path.
+
 ## Root Cause
 
 The history audit was repeated over the latest 100 first-parent commits through
@@ -167,20 +177,27 @@ generation mismatch remains diagnostic.
 
 ### Adjacent media-health response drift
 
-The same retained session showed four library refresh failures immediately
-after `/get-explore-media-incidents` returned a two-byte empty `[]`. The current
-handler contract is `{ "data": [] }`, but an older deployed handler returned
-the array directly. This did not cause the status/upload deadlock, but
-library-update events repeated the false decode error on the same screen.
+The same retained session showed four library refresh failures after successful
+`/get-explore-media-incidents` HTTP calls. Those old benchmark lines reported
+`bytes=2`, but code review proved that the ambiguous field measured the
+two-byte `{}` request body, not the response. The trace therefore does not prove
+that the handler returned an empty `[]`, and repository history shows the route
+was introduced with the current `{ "data": [] }` envelope. This adjacent
+invalid response did not cause the status/upload deadlock, but library-update
+events repeated the false decode error on the same screen.
 
 iOS now accepts only those two exact response topologies and treats an empty
-legacy array as no incidents. Incident entries still pass through the same
+direct array as no incidents as a defensive rollout compatibility boundary;
+the retained session is not evidence that this topology was deployed. Incident
+entries still pass through the same
 typed decoder, while any other malformed success body becomes
 `MerianError.invalidResponse`. Rapid queue/library updates also coalesce this
 independent read-only refresh without dropping one trailing trigger received
 during an in-flight call. The expected account is revalidated before private
 incidents enter view state. The backend continues to emit the canonical wrapped
-envelope.
+envelope. New HTTP benchmarks expose `status`, `requestBytes`, and
+`responseBytes` separately so future incident analysis cannot confuse request
+payload size with response evidence.
 
 ## Locked Invariants
 
@@ -238,4 +255,8 @@ Do not close this incident until all of the following are retained:
 6. opening and leaving the library open produces no unchanged-state diagnostic
    storm; and
 7. the restored observation opens Insight and Field Chat and can publish to
-   Explore.
+   Explore; and
+8. the same Debug/TestFlight transaction's Settings → Beta Diagnostics export
+   identifies the exact app revision/fingerprint/state and retains its bounded
+   queue/upload/staging/inference/completion lifecycle plus exact error/status
+   evidence without private paths, content, location, or arbitrary messages.

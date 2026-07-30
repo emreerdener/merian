@@ -1,4 +1,4 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-versioning test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-project-resources test-ios-versioning test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -9,6 +9,7 @@ help:
 	@printf "  make export-ios-release               Export the latest prepared archive for App Store Connect\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
+	@printf "  make test-ios-project-resources       Test adversarial generated-project phase fixtures\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make test-ios-ci-tooling              Test portable iOS CI workflow/result invariants\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
@@ -38,10 +39,15 @@ validate-ios-project:
 validate-ios-versioning:
 	bash scripts/validate-ios-versioning.sh
 
+test-ios-project-resources:
+	bash scripts/test-check-ios-project-resources.sh
+
 test-ios-versioning:
 	bash scripts/test-ios-versioning.sh
 
 test-ios-ci-tooling:
+	bash scripts/test-check-ios-project-resources.sh
+	bash scripts/test-ios-versioning.sh
 	bash scripts/test-ci-detect-ios-build-source-changes.sh
 	bash scripts/test-ios-build-and-test-workflow.sh
 	bash scripts/test-extract-ios-test-failure-diagnostics.sh

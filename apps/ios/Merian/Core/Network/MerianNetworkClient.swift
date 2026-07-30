@@ -1626,7 +1626,7 @@ final class MerianNetworkClient {
 
         let responseCompletedAt = CFAbsoluteTimeGetCurrent()
         MerianLog.network.debug(
-            "[⏱ BENCH] HTTP \(url.lastPathComponent, privacy: .public) auth=\(String(format: "%.3f", authCompletedAt - requestStart), privacy: .public)s transfer+server=\(String(format: "%.3f", responseCompletedAt - authCompletedAt), privacy: .public)s bytes=\(body?.count ?? 0, privacy: .public)"
+            "[⏱ BENCH] HTTP \(url.lastPathComponent, privacy: .public) auth=\(String(format: "%.3f", authCompletedAt - requestStart), privacy: .public)s transfer+server=\(String(format: "%.3f", responseCompletedAt - authCompletedAt), privacy: .public)s status=\(httpResponse.statusCode, privacy: .public) requestBytes=\(body?.count ?? 0, privacy: .public) responseBytes=\(data.count, privacy: .public)"
         )
         if let serverTiming = httpResponse.value(forHTTPHeaderField: "Server-Timing") {
             MerianLog.network.debug(

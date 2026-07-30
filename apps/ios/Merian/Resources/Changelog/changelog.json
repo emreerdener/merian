@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-29-field-trip-confidence",
+      "date": "2026-07-29",
+      "title": "Fairer Field trip progress",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Field trip goals now count an AI identification only when it is at least a Possible match for your scan tier. A Weak match stays pending until you confirm or correct it, so uncertain identifications no longer complete goals automatically."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-28-critical-scan-reliability",
       "date": "2026-07-28",
       "title": "Reliable scans from capture to sharing",
@@ -749,7 +762,7 @@
           "title": "Improved",
           "items": [
             "Queued image, video, audio, and description scans now keep retry state across app restarts, show clearer retry or needs-attention status, and preserve user media during transient failures.",
-            "Support diagnostics can now export redacted offline queue metadata and recent queue events without including private media."
+            "Debug and TestFlight Settings can now share provenance-bound, row-capped offline queue diagnostics without media paths or payload contents, descriptions, Field notes, location, GPS, raw metadata, or free-form error messages."
           ]
         }
       ]

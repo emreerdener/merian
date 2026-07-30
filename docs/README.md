@@ -442,7 +442,8 @@ as their permanent engineering identity.
   target indicator on visual Scan, focused Tips/Goals routing, active-level
   progress ring, private completed-scan thumbnails and embedded Insight
   navigation, persistent scan contribution cards, one credit per experience with
-  multi-experience eligibility, seasonal challenges, challenge badges,
+  multi-experience eligibility, tier-specific Possible-match evidence gating,
+  weak-match confirmation and repair, seasonal challenges, challenge badges,
   publication snapshots, profile pins, access gating, in-app activity, and
   deferred leaderboard/prize scope.
 - **[`/features-and-hardware/26-photos-share-import.md`](./features-and-hardware/26-photos-share-import.md)**
@@ -505,8 +506,9 @@ as their permanent engineering identity.
   — Asset catalog grouping and naming rules for reusable 3D graphics, app
   assets, brand marks, and personas.
 - **[`/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md)**
-  — Semantic app versions, TestFlight build-number prep, and Xcode archive
-  preflight rules.
+  — Semantic app versions, TestFlight build-number prep, exact-source
+  fingerprints, embedded binary provenance, and Xcode archive/export preflight
+  rules.
 - **[`/development-guides/15-naturebook-rebrand-rollout.md`](./development-guides/15-naturebook-rebrand-rollout.md)**
   — Ordered domain, AASA, email, Supabase, App Store, update-continuity, link,
   verification, rollback, and completion checklist for the public rebrand.

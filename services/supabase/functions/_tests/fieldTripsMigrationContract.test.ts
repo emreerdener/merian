@@ -66,6 +66,54 @@ Deno.test("Field Trip hardening makes progress transactional and RPCs service-ro
   }
 });
 
+Deno.test("Field Trip confidence policy blocks weak matches and repairs prior credit", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260730023042_gate_field_trip_progress_by_confidence.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.field_trip_scan_identification_is_eligible",
+      "confirmed_species_id IS NOT NULL OR COALESCE(user_confirmed_identification, FALSE)",
+      "WHEN LOWER(BTRIM(COALESCE(inference_tier, ''))) = 'pro' THEN 0.65 ELSE 0.75",
+      "CREATE OR REPLACE FUNCTION public.remove_ineligible_field_trip_scan_progress",
+      "CREATE OR REPLACE FUNCTION public.remove_ineligible_field_trip_challenge_scan_progress",
+      "RENAME TO apply_field_trip_scan_progress_v2_unchecked",
+      "RENAME TO apply_field_trip_challenge_scan_progress_unchecked",
+      "IF identification_is_eligible IS NOT TRUE THEN RETURN public.remove_ineligible_field_trip_scan_progress",
+      "IF identification_is_eligible IS NOT TRUE THEN RETURN public.remove_ineligible_field_trip_challenge_scan_progress",
+      "'ai_confidence_score', scan.ai_confidence_score",
+      "'inference_tier', scan.inference_tier",
+      "'user_confirmed_identification', scan.user_confirmed_identification",
+      "effective_preferred_user_field_trip_id := existing_receipt.preferred_user_field_trip_id",
+      "PERFORM internal.require_service_role()",
+      "GRANT EXECUTE ON FUNCTION public.apply_field_trip_scan_progress_atomic",
+      "AFTER UPDATE OF species_id, confirmed_species_id, ai_confidence_score, inference_tier, user_confirmed_identification",
+      "CREATE TEMP TABLE invalid_confidence_standard_completions",
+      "CREATE TEMP TABLE invalid_confidence_challenge_completions",
+      "DELETE FROM public.user_field_trip_item_completions",
+      "DELETE FROM public.field_trip_challenge_item_completions",
+      "completed_at = NULL",
+      "badge_awarded_at = NULL",
+      "UPDATE public.field_trip_publications",
+      "UPDATE public.field_trip_challenge_entries",
+      "PERFORM public.apply_field_trip_scan_progress_atomic",
+      "Weak, unreviewed Field Trip progress remains after confidence repair",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(
+      "DELETE FROM public.field_trip_scan_goal_preferences",
+    ),
+    "Weak scans must retain their selected Capture goal for later confirmation",
+  );
+});
+
 Deno.test("Park Pollinators excludes ants from the Bee or wasp goal and repairs prior credit", async () => {
   const sql = normalized(
     await migrationSql("20260722195453_exclude_ants_from_bee_wasp_goal.sql"),

@@ -2900,16 +2900,18 @@ before `20260708042713_field_trips_v3_community.sql` before
 `20260722025411_persistent_field_trip_scan_contributions.sql` before
 `20260722064704_harden_atomic_field_trip_progress.sql` before
 `20260722195453_exclude_ants_from_bee_wasp_goal.sql` before
-`20260722211636_tighten_field_trip_goal_matching.sql`, then deploy the updated
-scan-ingestion functions, `field-trips`, and the Explore/profile activity
-bundles together. V1 creates the Field trip tables, progress/publication/comment
-storage, profile visibility helpers, and publication snapshots. V2 adds guided
-template detail, explicit starts, Recent compatibility pagination, and profile
-pins. V3 adds the Community publication RPC, Field trip in-app activity storage,
-and Explore activity union/read/count RPC updates. V4 adds curated seasonal
-challenge storage, explicit joins, challenge-specific item completions,
-completion badges, challenge entry snapshots, challenge entry comments/likes,
-and scan-scoped hashtag suggestion helpers. The contextual-guide migration
+`20260722211636_tighten_field_trip_goal_matching.sql` before
+`20260730023042_gate_field_trip_progress_by_confidence.sql`, then deploy the
+updated scan-ingestion functions, `field-trips`, and the Explore/profile
+activity bundles together. V1 creates the Field trip tables,
+progress/publication/comment storage, profile visibility helpers, and
+publication snapshots. V2 adds guided template detail, explicit starts, Recent
+compatibility pagination, and profile pins. V3 adds the Community publication
+RPC, Field trip in-app activity storage, and Explore activity union/read/count
+RPC updates. V4 adds curated seasonal challenge storage, explicit joins,
+challenge-specific item completions, completion badges, challenge entry
+snapshots, challenge entry comments/likes, and scan-scoped hashtag suggestion
+helpers. The contextual-guide migration
 supplies the structured Tips content used by focused target navigation. The
 capture-context migration adds the private service-role RPC and its active-field
 trip/challenge lookup indexes consumed by the Scan indicator. The preservation
@@ -2963,11 +2965,122 @@ its optional fields render Private against the older payload. Deploy both
 credited-progress migrations, in order, before the progress-toast iOS client.
 The client can decode the legacy shape and fall back to current counts during a
 staged rollout. All Field Trip migrations through
-`20260722211636_tighten_field_trip_goal_matching.sql`, updated ingestion
-functions, and updated `field-trips` must precede the Insight-card iOS client
-because that client may send optional `preferred_goal`, retain it until
-acknowledgement, and request `scan_contributions`. Older clients omit the hint
-and continue to receive deterministic fallback behavior.
+`20260730023042_gate_field_trip_progress_by_confidence.sql`, updated ingestion
+functions, and updated `field-trips` must precede the Insight-card iOS client.
+The confidence migration applies the tier-specific Possible-match boundary
+(`Flash >= 0.75`, `Pro >= 0.65`), repairs prior weak unreviewed credit, and
+preserves selected-goal hints pending explicit confirmation or correction.
+Confidence, inference tier, confirmation, and the pending hint participate in
+the durable receipt revision. Future evidence downgrades run the same
+reconciliation even after completion: they remove standard/Event credit, reopen
+the earliest incomplete level, clear derived Event badges, and soft-delete
+invalid completion publications or entries without producing a new completion
+toast. Older clients omit the hint and continue to receive deterministic
+fallback behavior.
+
+The confidence migration performs a forward-only data repair. Retain a
+production backup and record the expected repair scope before applying it. This
+pre-migration query uses the policy expression directly because the helper does
+not exist yet:
+
+```sql
+WITH invalid_standard AS (
+  SELECT completion.id
+  FROM public.user_field_trip_item_completions AS completion
+  JOIN public.scans AS scan ON scan.id = completion.scan_id
+  WHERE (
+    scan.confirmed_species_id IS NOT NULL
+    OR COALESCE(scan.user_confirmed_identification, FALSE)
+    OR (
+      COALESCE(scan.ai_confidence_score BETWEEN 0.0 AND 1.0, FALSE)
+      AND scan.ai_confidence_score >= CASE
+        WHEN LOWER(BTRIM(COALESCE(scan.inference_tier, ''))) = 'pro'
+          THEN 0.65
+        ELSE 0.75
+      END
+    )
+  ) IS NOT TRUE
+),
+invalid_event AS (
+  SELECT completion.id
+  FROM public.field_trip_challenge_item_completions AS completion
+  JOIN public.scans AS scan ON scan.id = completion.scan_id
+  WHERE (
+    scan.confirmed_species_id IS NOT NULL
+    OR COALESCE(scan.user_confirmed_identification, FALSE)
+    OR (
+      COALESCE(scan.ai_confidence_score BETWEEN 0.0 AND 1.0, FALSE)
+      AND scan.ai_confidence_score >= CASE
+        WHEN LOWER(BTRIM(COALESCE(scan.inference_tier, ''))) = 'pro'
+          THEN 0.65
+        ELSE 0.75
+      END
+    )
+  ) IS NOT TRUE
+)
+SELECT
+  (SELECT COUNT(*) FROM invalid_standard) AS invalid_standard_completions,
+  (SELECT COUNT(*) FROM invalid_event) AS invalid_event_completions;
+```
+
+After migration, run the following from the migration-owner/admin SQL session.
+Both counts must be zero:
+
+```sql
+SELECT
+  'standard' AS completion_kind,
+  COUNT(*) AS invalid_completion_count
+FROM public.user_field_trip_item_completions AS completion
+JOIN public.scans AS scan ON scan.id = completion.scan_id
+WHERE public.field_trip_scan_identification_is_eligible(
+  scan.ai_confidence_score,
+  scan.inference_tier,
+  scan.confirmed_species_id,
+  scan.user_confirmed_identification
+) IS NOT TRUE
+UNION ALL
+SELECT
+  'event' AS completion_kind,
+  COUNT(*) AS invalid_completion_count
+FROM public.field_trip_challenge_item_completions AS completion
+JOIN public.scans AS scan ON scan.id = completion.scan_id
+WHERE public.field_trip_scan_identification_is_eligible(
+  scan.ai_confidence_score,
+  scan.inference_tier,
+  scan.confirmed_species_id,
+  scan.user_confirmed_identification
+) IS NOT TRUE;
+```
+
+The migration-owner/admin boundary check must return `TRUE` for every column:
+
+```sql
+SELECT
+  NOT public.field_trip_scan_identification_is_eligible(
+    0.749, 'flash', NULL, FALSE
+  ) AS flash_below_blocked,
+  public.field_trip_scan_identification_is_eligible(
+    0.75, 'flash', NULL, FALSE
+  ) AS flash_boundary_accepted,
+  NOT public.field_trip_scan_identification_is_eligible(
+    0.649, 'pro', NULL, FALSE
+  ) AS pro_below_blocked,
+  public.field_trip_scan_identification_is_eligible(
+    0.65, 'pro', NULL, FALSE
+  ) AS pro_boundary_accepted,
+  NOT public.field_trip_scan_identification_is_eligible(
+    0.749, NULL, NULL, FALSE
+  ) AS unknown_tier_uses_flash_boundary,
+  public.field_trip_scan_identification_is_eligible(
+    0.25, 'flash', NULL, TRUE
+  ) AS explicit_confirmation_overrides_score;
+```
+
+Do not reverse this migration by recreating deleted weak completion rows,
+badges, publications, or entries. During an incident, roll back the client or
+Edge surface, or deploy a forward database fix, while leaving the gate and
+repaired data in place. Keep the internal eligibility and reconciliation
+helpers denied to `PUBLIC`, `anon`, `authenticated`, and `service_role`.
 
 Current client rollout (2026-07-22): standard Field trips/Outings are public,
 while Seasonal Challenge Events remain staged through the `.fieldTripEvents`
@@ -3314,6 +3427,10 @@ Treat these components as one compatibility release:
    schema cache, repair returns retryable `503 service_unavailable` without
    signing, restoring, or publishing anything. Do not predeploy
    `identify-multimodal`: its structured proof writes require the new columns.
+   Do not predeploy `request-community-identification` either. It imports the
+   Explore publication helpers and therefore belongs in the final cumulative
+   exact-SHA plan, but it does not accept `recovery_scan` or invoke owner-row
+   recovery and is not a migration-gap consumer.
 2. Apply the repository's current migration set. In particular, verify
    `20260727010340_fix_service_role_authorization_guard.sql` and
    `20260727013416_future_proof_server_key_boundaries.sql` before testing
@@ -4243,15 +4360,16 @@ such a route but the legacy JWT is unavailable, the workflow fails closed before
 route probing. Before deactivating the legacy anon key, migrate every remaining
 gateway-verified route to the reviewed in-handler auth boundary or provision a
 replacement short-lived user smoke identity; do not weaken this probe to accept
-an unmarked gateway response. The workflow then separately probes ten
+an unmarked gateway response. The workflow then separately probes eleven
 customer-critical routes without Authorization: `generate-upload-urls`,
 `identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
-`get-scan-explore-share-state`, `get-explore-composer-media`, `insight-chat`,
-`explore-post-chat`, `request-community-identification`, and `delete-scan`. Each
-critical route must return `401` with the marker, additionally proving
-user-scoped access fails closed. A gateway `404` with no handler marker never
-counts as a missing scan and never permits the production workflow to report
-success. Do not run the matching iOS smoke while either gate is still retrying.
+`get-scan-explore-share-state`, `get-explore-composer-media`,
+`get-explore-media-incidents`, `insight-chat`, `explore-post-chat`,
+`request-community-identification`, and `delete-scan`. Each critical route must
+return `401` with the marker, additionally proving user-scoped access fails
+closed. A gateway `404` with no handler marker never counts as a missing scan
+and never permits the production workflow to report success. Do not run the
+matching iOS smoke while either gate is still retrying.
 
 The workflow next proves seven critical database boundaries are present in the
 production PostgREST schema cache and executable only with server authority. It
@@ -4866,7 +4984,8 @@ After deployment:
   after the V1, V2, V3, V4, contextual-guide, and capture-context migrations
   plus the standard-preservation, Forest-retirement, completion-evidence,
   publication-status, credited-progress, first-achievement, lifecycle,
-  persistent-contribution, and atomic-hardening follow-ups. Verify
+  persistent-contribution, atomic-hardening, ant-exclusion, goal-hardening, and
+  confidence-gate follow-ups. Verify
   `capture_context` returns only accessible incomplete standard field trips and
   current-level unfinished targets, orders field trips by recent engagement,
   ignores Seasonal Challenge-specific completions without hiding the shared
@@ -4888,15 +5007,29 @@ After deployment:
   experience. Verify a valid visible `preferred_goal` wins inside its standard
   outing, while missing/stale/foreign/ nonmatching hints fall back
   deterministically. Confirm a delayed upload uses the scan timestamp even after
-  the activity period or Event ends. Correct the identification and verify
-  unfinished credit moves or disappears, while a completed experience remains
-  unchanged. Reapply the same scan concurrently and confirm the scan-first
+  the activity period or Event ends. Verify Flash `0.749` is blocked and `0.75`
+  is credited, while Pro `0.649` is blocked and `0.65` is credited. Submit a
+  weak unconfirmed `0.25` scan with a valid preferred goal: its hint must remain
+  pending in the receipt, but it must earn no standard/Event credit. Confirm the
+  identification and verify the scan earns credit exactly once. Downgrade that
+  scan to weak unreviewed evidence and verify its standard/Event credit is
+  removed even from completed experiences, the earliest incomplete level
+  reopens, derived Event badges disappear, completion publications/entries are
+  hidden, the pending hint remains, and no new progress toast is announced.
+  Separately correct an identification without weakening its evidence and
+  verify unfinished credit moves or disappears while a completed experience
+  remains frozen. Reapply the same scan concurrently and confirm the scan-first
   uniqueness constraints remain idempotent. `scan_contributions` must return
   every owned standard/Event credit with typed routing and credited-level
   counts, but no media, storage URL, coordinates, place labels, or notes.
   Confirm `PUBLIC`, `anon`, and `authenticated` cannot read
   `field_trip_scan_goal_preferences` or execute
   `public.get_field_trip_scan_contributions(uuid, uuid)`; `service_role` can.
+  Confirm `PUBLIC`, `anon`, `authenticated`, and `service_role` cannot directly
+  execute `field_trip_scan_identification_is_eligible(...)`,
+  `remove_ineligible_field_trip_scan_progress(...)`, or
+  `remove_ineligible_field_trip_challenge_scan_progress(...)`; only the
+  database-owned progress wrappers may call those helpers.
   Enumerate every public-schema `SECURITY DEFINER` function whose name contains
   `field_trip` or `challenge`: `PUBLIC`, `anon`, and `authenticated` must have
   no execute privilege, while effective `service_role` execution must match the

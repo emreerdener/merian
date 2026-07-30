@@ -8,9 +8,8 @@ struct InsightContentView: View {
     @Environment(\.modelContext) var modelContext
 
     @Bindable var viewModel: InsightSheetViewModel
-    /// Passed directly from `InsightSheetView` as a plain stored property so it reflects
-    /// the current struct value — unaffected by the `@State` initialization timing issue
-    /// where `.sheet(isPresented:)` pre-evaluates the body with `scanToManage = nil`.
+    /// Passed directly from `InsightSheetView` as a plain stored value so the router can use
+    /// the queued snapshot during the brief window before `viewModel.queuedContext` is bound.
     var queuedScan: QueuedScanContext?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
 

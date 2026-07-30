@@ -203,6 +203,7 @@ Deno.test("production smoke proves critical user Edge routes reach Merian handle
       "check-scan-status",
       "share-scan-to-explore",
       "get-explore-composer-media",
+      "get-explore-media-incidents",
       "insight-chat",
     ]
   ) {
@@ -259,6 +260,7 @@ Deno.test("production smoke proves every Edge route reaches a Merian handler", a
       "check-scan-status",
       "share-scan-to-explore",
       "get-explore-composer-media",
+      "get-explore-media-incidents",
       "insight-chat",
       "request-community-identification",
     ]

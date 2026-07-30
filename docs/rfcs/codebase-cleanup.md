@@ -99,7 +99,10 @@ formatting, and feed view-model extensions. Map and Community ID logic should
 not be placed there.
 
 When working on the Scans private library, start in `Scans/Library/`; that folder
-owns individual scan browsing, search/index state, and queued scan snapshots.
+owns individual scan browsing, search/index state, queued scan snapshots, and
+fresh `QueuedScanContext` hydration. Completed and queued Insight destinations
+are pushed by `Scans/Shell/` in the existing Scans navigation stack; Library
+emits route values and does not present its own sheet.
 Collection grids, smart collections, and collection detail/editing belong in
 `Scans/Collections/`. Cross-surface Scans-only UI belongs in `Scans/Shared/`,
 while controls reused outside Scans, such as `CategoryFilterBar`, belong in

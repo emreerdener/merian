@@ -301,9 +301,21 @@ final class merianUITests: XCTestCase {
         queuedTile.tap()
 
         let insightSheet = app.otherElements["InsightSheetView"]
-        XCTAssertTrue(insightSheet.waitForExistence(timeout: 8.0), "Queued insight sheet failed to present")
+        XCTAssertTrue(insightSheet.waitForExistence(timeout: 8.0), "Queued insight failed to open")
 
-        XCTAssertTrue(app.staticTexts["Queued for upload"].waitForExistence(timeout: 8.0), "Queued-state title did not render before the handoff")
+        XCTAssertTrue(
+            app.buttons["Back"].waitForExistence(timeout: 8.0),
+            "Queued insight did not open inside the scans navigation stack"
+        )
+
+        XCTAssertTrue(
+            app.buttons["ScanningStatusBadge"].waitForExistence(timeout: 8.0),
+            "Queued scan did not render the shared scanning status badge"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Did you know?"].waitForExistence(timeout: 8.0),
+            "Queued scan did not render the shared scanning fact card"
+        )
 
         let audioPage = app.otherElements["AudioPlaybackCarouselPage_ui_test_queued_audio_handoff.wav"]
         XCTAssertTrue(audioPage.waitForExistence(timeout: 8.0), "Audio carousel page was missing before the queued-to-result handoff")

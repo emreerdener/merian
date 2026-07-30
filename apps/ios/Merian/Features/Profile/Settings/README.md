@@ -117,3 +117,19 @@ Reduced Motion, to verify wrapping, ring readability, timeout, manual dismissal,
 haptics, and the tap target. Preview payloads bypass RPCs, progress mutation,
 achievement persistence, dictionary mutation, analytics, and local push
 delivery.
+
+## Beta offline-queue diagnostics
+
+Debug and TestFlight builds expose **Beta Diagnostics** in Settings. Generate
+the artifact after an offline/reconnect smoke, then use **Share offline queue
+diagnostics** before deleting the tested observation. The bounded JSON contains
+app version/build, embedded source revision/fingerprint/state, queue/job
+identifiers, lifecycle kinds, timestamps, retry/error codes, HTTP status, and
+server status/stage. Only canonical lowercase machine tokens survive in the
+retained error/status/stage fields. It never exports media paths or payload
+contents, descriptions, Field notes, location/GPS, raw metadata, or arbitrary
+persisted error/event messages. App Store builds do not expose this control.
+The artifact declares `formatVersion: 1`; jobs, scans, and events are each
+capped at 500 rows, and caller-supplied event limits are clamped to 1...500 so
+zero cannot accidentally mean “unlimited.” The temporary file uses complete
+data protection; refreshing the artifact removes the previous Settings export.

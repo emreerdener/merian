@@ -253,9 +253,9 @@ final class InsightSheetViewModel {
     var inferenceEngine: InferenceEngine?
 
     // MARK: - Queued Scan Context
-    /// Non-nil when the sheet is presenting a queued scan from `LibraryView` rather than a
-    /// live inference result. Stored as a value-type `QueuedScanContext` — never a live
-    /// `OfflineQueuedScan` reference — so computed properties cannot access a zombie `@Model`
-    /// during SwiftUI's sheet dismissal animation after `context.delete()` fires.
+    /// Non-nil when Insight is presenting a queued scan from `LibraryView` rather than a live
+    /// foreground inference result. Stored as a value-type `QueuedScanContext` — never a live
+    /// `OfflineQueuedScan` reference — so queue deletion and in-place result handoff cannot
+    /// detach data still needed by computed properties.
     var queuedContext: QueuedScanContext?
 }

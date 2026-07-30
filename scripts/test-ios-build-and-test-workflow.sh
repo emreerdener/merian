@@ -161,6 +161,15 @@ assert_action_release "actions/upload-artifact" 5 7
 assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
+assert_contains "bash scripts/ios-release-source-fingerprint.sh"
+assert_contains "source_fingerprint: \$source_fingerprint"
+assert_contains 'MERIAN_EXPECTED_SOURCE_REVISION="$GITHUB_SHA"'
+assert_contains "Print :MERIAN_SOURCE_REVISION"
+assert_contains "Print :MERIAN_SOURCE_FINGERPRINT"
+assert_contains "Print :MERIAN_SOURCE_STATE"
+assert_contains 'archive_source_revision" != "$GITHUB_SHA'
+assert_contains 'archive_source_state" != "clean'
+assert_contains 'source_state: "clean"'
 assert_contains "Compile app and shared test targets"
 assert_contains "xcodebuild build-for-testing"
 assert_contains "xcodebuild test-without-building"

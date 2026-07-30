@@ -36,6 +36,10 @@ early, evaluates the `New to Naturebook` eligibility flag, and batches standard
 outing progress, Seasonal Challenge progress, achievements, then the dictionary
 milestone. The background completion path uses the same coordinator; scan-ID
 deduplication prevents a live/background race from presenting the batch twice.
+The server receipt is also the evidence authority: a weak unconfirmed
+identification returns no Field trip credit, and evidence-downgrade
+reconciliation returns no new milestone. The coordinator must not infer credit
+from the local confidence badge or fabricate a toast for either case.
 Primary cache-miss Wikipedia/GBIF resolution may occur before the server
 response as part of durable success; follow-up reference hydration remains
 outside response-to-first-render.

@@ -207,6 +207,16 @@ assert_suite_has_passed_test_case \
   "Offline Queue Manager Tests" \
   "testManualRetryResetsBudgetForDescriptionOnlyScan"
 assert_suite_has_passed_test_case \
+  "Offline queue diagnostics privacy boundary" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "queueDiagnosticsExportOmitsPrivateAndFreeFormValues"
+assert_suite_has_passed_test_case \
+  "Offline queue diagnostics row bound" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred"
+assert_suite_has_passed_test_case \
   "Atomic offline completion" \
   "OfflineQueuedScanDeletionTests" \
   "Offline Queued Scan Deletion Tests" \
@@ -351,6 +361,11 @@ assert_suite_has_passed_test_case \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
   "testExploreMediaIncidentsAndLifecycleNotificationsDecode"
+assert_suite_has_passed_test_case \
+  "Explore media-health legacy network compatibility" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary"
 assert_suite_has_passed_test_case \
   "Explore media-health response integrity" \
   "MerianNetworkClientTests" \

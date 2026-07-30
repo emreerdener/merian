@@ -226,20 +226,47 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
   create a stale page indicator.
 - **`LiveCapturePageView`**: Asynchronously downsamples live capture `Data` in `DetachedWork.value(category: .imagePreparation)` and commits only the final `UIImage` to `@State`. It remains backed by `NSCache<NSNumber, UIImage>` keyed by `data.hashValue`, but ImageIO decode no longer runs from `body` layout evaluation.
 
-## 18. Analyzing Content View: `AnalyzingContentView`
-**Location**: `Features/Insights/Content/Views/AnalyzingContentView.swift`
+## 18. Shared Scanning Experience: `ScanningExperienceView`
 
-The analyzing state rendered inside `InsightSheetView` when `viewModel.contentMode == .analyzing`. `contentMode` is `.analyzing` while `InferenceEngine.isProcessing == true`, `speciesData == nil`, **or** a `queuedContext` is set. The insight sheet opens immediately on scan submission — no fullscreen overlay is used. When `contentMode` transitions away from `.analyzing`, the view cross-fades out via `.easeInOut(duration: 0.35)` and `BiologicalView` or `NonBiologicalView` fades in. `InsightContentView` switches on `viewModel.contentMode` — not `inferenceEngine.isProcessing` directly — keeping the routing extensible without modifying the view.
+**Locations**:
 
-`AnalyzingContentView` accepts an optional `queuedContext: QueuedScanContext? = nil` value-type parameter (**not** a live `OfflineQueuedScan @Model` reference). This is essential for crash safety: `LazyVGrid` accesses view properties lazily, and after `context.delete(scan)` fires during sheet dismissal, accessing any unfaulted `@Model` attribute causes a fatal "backing data detached from context" error. The `QueuedScanContext` value type copies all needed data at fetch time — before any deletion — so `AnalyzingContentView` can render safely regardless of the underlying object's lifecycle. Two distinct paths:
+- `Features/Insights/Content/Views/AnalyzingContentView.swift`
+- `Features/Insights/Content/Views/QueuedContentView.swift`
 
-- **Live scan path** (`queuedContext == nil`): The `analyzingPhrase` computed property returns `inferenceEngine.scanningPhaseText` (the engine's rotating phase label). `ScanInformationCard` reads telemetry from `InferenceEngine` state directly, then gates location, elevation, weather, and map visibility through `ProfileViewModel.defaultGeoprivacy`.
-- **Queued-scan path** (`queuedContext != nil`): `analyzingPhrase` derives from `OfflineQueueManager.isOnline` and `OfflineQueueManager.isSyncing` — "Waiting for connection" when offline; "Uploading..." when syncing; "Processing..." otherwise. Manager-level flags are used rather than per-scan `queueState` to avoid any live `@Model` access on a potentially deleted object. `ScanInformationCard` is populated from `QueuedScanContext` value fields (`timestamp`, `locationName`, `weatherTemperatureF`, `weatherCondition`, `gpsElevation`, `gpsLatitude`, `gpsLongitude`) with live engine values as `??` fallbacks, then applies the same geoprivacy gates before rendering.
+`InsightContentRouterView` owns the mode split. `.analyzing` renders
+`AnalyzingContentView` for foreground work unless a queued presentation value is
+still being bound; `.queued` and the queued first-open guard render
+`QueuedContentView`. Neither path retains a live `OfflineQueuedScan @Model`.
 
-- **Confidence Badge slot**: Renders `ConfidenceBadge` with `analyzingPhrase: analyzingPhrase`. The badge operates in analyzing mode — transparent capsule, `sparkles.2` icon, `Color.primary` text — and cycles through phrase changes with a left-to-right `RevealText` sweep on each change.
-- **`DidYouKnowCard`**: A rotating biology fact card inserted between the badge and the telemetry card. Backed by `FactManager`, which loads a shuffled deck of 70+ facts from `FactLibrary` upon initialization and stores the user's `currentPosition` in `AppStorage` to prevent repeats across app sessions. Re-initialization overhead is mitigated by deferring parsing logic out of the main constructor via an asynchronous `prepareIfNeeded` background invocation inside `.task()`. Auto-advances every 8.5 seconds using a strict iOS 16 `Clock` `.task(id: factManager.currentIndex)` binding—which elegantly cancels and restarts the active countdown upon any horizontal tapped or drag gestures for manual left/right navigation (`advance()` / `retreat()`). The card body uses an invisible `Text` pre-seeded with the longest fact (`FactLibrary.longestFact`) as a height anchor. Footer layout features an 8x8 dot pagination strip matched to a monospaced `#CATEGORY` string.
-- **Eager telemetry via `ScanInformationCard`**: The scan's timestamp and any privacy-visible location, weather, altitude, or map context can render immediately regardless of whether the scan is live or queued.
-- **No internal spacer**: `AnalyzingContentView` intentionally omits a trailing `Spacer` — `InsightContentView.contentCards` provides the universal `Spacer(minLength: 40)` outside the routing block, preventing double-spacing.
+Both paths delegate their visible layout to generic
+`ScanningExperienceView<SupplementalContent>`, which renders this stable order:
+
+1. `ConfidenceBadge` with accessibility identifier `ScanningStatusBadge`.
+2. `DidYouKnowCard`.
+3. Optional queue-only actionable status/recovery content.
+4. `FieldNotesCard`, when enabled for the presented scan.
+5. `ScanInformationCard`.
+
+The foreground wrapper supplies `InferenceEngine.scanningPhaseText`, live
+location/weather telemetry, and the `.analyzing` Field-notes prompt. The queued
+wrapper supplies exact snapshot telemetry and rotates honest phrases keyed by
+scan ID, queue state, connectivity, server job status, attention state, and
+retry state. Active `.inferencing` work reuses
+`InferenceEngine.genericScanningPhasePhrases`; offline and needs-attention
+states remain static. Phrase rotation uses
+`MerianConfig.scanningPhaseRotationIntervalNs`.
+
+Queued lifecycle polling, retry scheduling, friendly errors, countdowns, and
+`Retry now` remain in `QueuedContentView`. Only actionable queue content is
+inserted into the shared body. It does not render a separate heading, sync
+explanation, media-kind summary, or approximate file size. Those copied fields
+can remain available for internal routing and diagnostics without becoming
+customer-facing UI.
+
+`QueuedScanContext` is copied while the SwiftData row is live, so queue deletion
+and completed-result handoff cannot detach data still needed by the view. The
+shared component intentionally omits a trailing `Spacer`;
+`InsightContentRouterView` provides the universal bottom spacing.
 
 ## 19. Drag-to-Confirm Pill: `SlideToConfirm`
 **Location**: `Core/UI/Components/SlideToConfirm.swift`

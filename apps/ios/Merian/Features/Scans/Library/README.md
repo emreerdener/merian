@@ -16,6 +16,20 @@ The `Library` directory handles the primary grid view of all personal biological
 ## Purpose
 This is the core browsing experience for a user's identified biological scans. It includes the semantic search engine that can resolve plain-English queries against taxonomy, as well as handling the presentation of pending queued captures that haven't yet finished inference or upload.
 
+## Queued scan routing contract
+
+- Queued value snapshots render above completed scans and remain outside
+  selection mode.
+- `LibraryView.openQueuedScan` first checks for a completed local record,
+  resolving a queue-completion race between grid render and tap.
+- Otherwise the library reads the queue row through a fresh `ModelContext`,
+  copies it into `QueuedScanContext`, and emits `onQueuedInsight`. If the row
+  disappeared, it builds a safe fallback context from `QueuedScanSnapshot`.
+- The library does not present an Insight sheet or retain a live queued
+  SwiftData model. `ScansSheetView` owns the pushed navigation destination.
+- Media kinds and approximate queued bytes remain copied internal metadata.
+  The scanning UI does not expose a media/file-size summary.
+
 ## Performance and concurrency contract
 
 - SwiftData `LocalScanRecord` instances never cross actor boundaries.

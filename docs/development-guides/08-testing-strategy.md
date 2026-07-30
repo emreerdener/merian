@@ -237,9 +237,11 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    reports every named scan-flow regression as `Passed`. The current validator
-   protects 58 exact cases; 19 were added by the joined scan-reliability
-   follow-up, and five menu/Field Notes regressions exposed by the prior failed
-   hosted run are individually protected:
+   protects 61 exact cases; 19 were added by the joined scan-reliability
+   follow-up, five menu/Field Notes regressions exposed by the prior failed
+   hosted run are individually protected, two require the bounded/redacted
+   offline-queue support artifact, and the media-incident compatibility case
+   exercises the actual network-client boundary:
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
@@ -247,9 +249,9 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
      retryable-status dispatch, dual-copy durable retry-latch visibility,
      bounded inference metadata-write backlog, retry preservation through media
      re-staging, monotonic mirrored retry accounting,
-     cloud-complete precedence, durable offline enqueue, atomic queue/job
-     completion, and indefinite privacy-erasure retry under positive server
-     confirmation;
+     cloud-complete precedence, durable offline enqueue, bounded/redacted queue
+     diagnostics, atomic queue/job completion, and indefinite privacy-erasure
+     retry under positive server confirmation;
    - foreground request construction, Explore idempotency and contradictory
      response rejection, existing-scan recovery-payload encoding, rejection of
      recovery races with active/retryable ingestion, stable-code-first
@@ -266,8 +268,9 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
      cardinality/identity validation, validated deletion confirmation,
      pre-upload restored-media budget validation, Community all-media recovery
      and response validation, and exact Explore reconciliation validation, plus
-     current/legacy media-health incident envelope compatibility and
-     unknown-success-shape rejection; and
+     current/defensive-direct-array media-health incident decoding, actual
+     network-boundary empty-array acceptance, and unknown-success-shape
+     rejection; and
    - Explore-post identifier routing plus retryable, single-flight, and
      cross-subject-replacement Field Chat preparation, and rejection of stale
      chat-subject completions.
@@ -304,10 +307,12 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    resolves the same lockfile, and runs a generic-device Release archive with
    signing disabled. It requires production-shaped RevenueCat client
    configuration, verifies app/widget/Messages/watch embedding, checks the
-   version and build against `project.yml`, and requires the main app dSYM UUID
-   to match the compiled binary. Signing is disabled only because hosted CI has
-   no distribution identity; this is compile, link, archive, and dSYM
-   validation—not a distributable App Store artifact.
+   version and build against `project.yml`, requires the embedded source
+   revision/fingerprint/state to match the exact clean workflow checkout, and
+   requires the main app dSYM UUID to match the compiled binary. Signing is
+   disabled only because hosted CI has no distribution identity; this is
+   compile, link, archive, provenance, and dSYM validation—not a distributable
+   App Store artifact.
 
 The final Production readiness job uses `if: always()` and requires both macOS
 jobs to succeed whenever scope says the build is relevant. For an unrelated
@@ -348,9 +353,16 @@ make test-ios-ci-tooling
 That portable target tests the fail-closed scope detector, immutable action
 pins, exact-SHA checkout, workflow invocation of generated-project source
 membership, full-target unit-test selectors, merge-queue trigger, Release
-archive, embedded-product/dSYM checks, critical-result validation, structured
-failure-diagnostic extraction, and the unconditional final decision. It does not
-replace the macOS compile or simulator execution.
+archive, embedded source-provenance and product/dSYM checks, stale release-marker
+rejection after tracked-source changes, typed local-marker preparation ancestry,
+typed CI-marker exact-SHA enforcement, malformed identity rejection,
+rejection of hidden `assume-unchanged`/`skip-worktree` source state,
+main-target-only preflight/provenance phase attachment, generated-phase
+cardinality and ordering, canonical shell commands, critical-result
+validation, structured failure-diagnostic extraction, and the unconditional
+final decision. Its generated-project fixtures explicitly detach, duplicate,
+reorder, and replace the release phases. It does not replace the macOS compile
+or simulator execution.
 
 The membership implementation and its adversarial missing, unexpected, and
 orphan-source fixtures run in the macOS unit job. They can also be run locally
@@ -709,9 +721,9 @@ MerianTests/
   high-confidence timestamp groups, Explore fallback rendering from Documents,
   and rejection of unrelated/unsafe URLs.
 - **`OfflineQueueManagerTests.swift`**: Mocks queue payload insertions.
-  - **In-Memory Isolation**: Spins up a `@MainActor ModelContext` with
-    `.isStoredInMemoryOnly = true` to isolate test data from the user's real
-    offline queue.
+  - **Temporary-store isolation**: Spins up a `@MainActor ModelContext` on a
+    unique test-store URL to isolate test data from the user's real offline
+    queue while preserving save/context behavior.
   - **Core Lifecycles**: Exercises `.enqueueCapture` / non-visual queue
     insertion (asserting SwiftData record counts increment correctly), canonical
     mixed-media serialization, and `.purgeSoftDeletedRecords()` (asserting
@@ -1188,6 +1200,14 @@ revocations, and exact stale-quota recovery in
 runtime transaction, ACL, replay/conflict, capacity, daily-limit, and stale
 recovery behavior.
 
+The 2026-07-29 focused portable Field Chat run selected the two shared tests,
+the migration contract, and the Insight/Explore guard, eligibility, prompt,
+and prompt-suggestion tests: 30 passed and 0 failed across nine files with a
+frozen dependency graph. This is deterministic runtime and source-contract
+evidence; it does not replace execution of
+`field_chat_reservation_security.sql` against the exact deployed PostgreSQL
+catalog or the joined physical-device chat smoke.
+
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
 the deterministic manifest checksum; `_shared/scanIngestionIntents_test.ts`
@@ -1268,7 +1288,14 @@ iOS regression coverage is intentionally joined as well:
   signing-response validation, persisted-session owner preference, whole-batch
   sibling failure fencing, exact all-member success accumulation, relaunch
   orphan recovery, fresh staging after consumed-key failure, and that retry
-  updates report an attempt only after persistence commits.
+  updates report an attempt only after persistence commits. Its diagnostics
+  fixture plants private media paths, description, Field notes, location/GPS,
+  raw metadata, and arbitrary persisted messages, then proves the shared JSON
+  excludes every value while retaining lifecycle/error/status evidence and
+  binary-provenance fields. It also plants arbitrary values in retained
+  machine-token fields and proves they are omitted. A second fixture inserts
+  510 jobs, scans, and events; it proves all sections cap at 500 while zero and
+  `Int.max` event requests serialize exactly one and 500 event rows.
 - `OfflineSyncTests` validates queue state/backoff decisions against the
   owner-safe server ledger.
 - `BackgroundDatabaseActorTests` validates immediate non-visual durability and
@@ -1577,7 +1604,7 @@ production checks:
   bounded propagation window. It uses only a validated legacy anon JWT to cross
   any intentional gateway `verify_jwt = true` boundary and fails closed if that
   execution credential is unavailable; a publishable key is never sent in Bearer
-  authorization. Ten customer-critical scan, signing, share-state, Explore,
+  authorization. Eleven customer-critical scan, signing, share-state, Explore,
   Field Chat, Community, and deletion routes additionally return marked
   fail-closed `401` responses without user Authorization. Final Function
   failures classify only whether the fixed `X-Merian-Handler: 1` marker was
@@ -1700,6 +1727,11 @@ Explore media quarantine has four complementary boundaries:
 - `reconcile-explore-media-health/worker_test.ts` proves direct primary `404`,
   retryable `5xx`, distinct auxiliary poster checking without hiding a healthy
   video, and one recorded result per live lease.
+- `MerianNetworkClientTests.testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary`
+  proves the actual iOS network method maps the older deployed direct `[]`
+  response to a valid empty incident list. The hosted critical-result validator
+  requires this exact case in addition to typed canonical/legacy decoding and
+  malformed-success rejection.
 - `_tests/exploreMediaQuarantineMigrationContract.test.ts` locks independent
   author/system state, canonical projection gates, two spaced confirmations,
   service/owner ACLs, notification lifecycle, in-app-only restoration, repair
@@ -1963,6 +1995,10 @@ correction invalidation, service-role-only contribution RPC, and
 evidence-minimal projection. The atomic-hardening contract locks the
 receipt/trigger/transactional entry point, publication-ID repair, empty
 security-definer search paths, and global Field trip/Event ACL revocation.
+The confidence-policy contract locks the tier-specific Possible-match
+boundaries, explicit-review overrides, receipt revision/preference carryover,
+the evidence-update trigger, private downgrade-reconciliation helpers,
+prior-credit repair, and preservation of pending selected-goal preferences.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including empty results; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
@@ -1970,10 +2006,13 @@ available, and that skip must not be counted as database validation.
 credited-level responses across explicit-start/join eligibility, one credit per
 experience, several active experiences, delayed upload after an outing/Event
 ends, preferred-goal priority, deterministic fallback, advancement, unfinished
-correction removal/move after deactivation, completed-experience immutability,
-ownership isolation, concurrency, and idempotent reapplication under the same
+correction removal/move after deactivation, normal correction freeze after
+completion, ownership isolation, concurrency, exact confidence boundaries,
+weak-match confirmation, pending-preference retention, evidence-downgrade
+removal/reopening after completion, and idempotent reapplication under the same
 local-stack requirement. Its active-catalog matrix also locks the narrow goal
-boundaries introduced by `20260722211636_tighten_field_trip_goal_matching.sql`:
+boundaries
+introduced by `20260722211636_tighten_field_trip_goal_matching.sql`:
 butterfly versus moth, spider versus tick/scorpion, bee/wasp versus ant/sawfly,
 animal versus plant for ecology goals, flowering/fruiting plant kingdom gates,
 and meadow plant versus meadow animal. Every narrowed rule has representative
@@ -2044,6 +2083,15 @@ of leaving a blank band above the controls. The question navigation must also
 begin 8...32 pt below the mode selector; this upper bound catches a duplicated
 top-safe-area reservation. Strict cycle tracing remains a separate diagnostic
 requirement.
+
+`testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` launches the seeded
+queued-audio flow, opens Scans, and taps the staged tile. It requires the queued
+Insight to expose native **Back** in the Scans navigation stack plus
+`ScanningStatusBadge` and **Did you know?**, locking parity with foreground
+scanning rather than a nested-sheet variant. It then verifies the same audio
+carousel page exists before and after the seeded **Northern Cardinal** completed
+record replaces queued content in place. Keep all navigation, shared-scanning,
+and media-handoff assertions when extending this regression.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

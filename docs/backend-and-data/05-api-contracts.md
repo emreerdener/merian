@@ -435,16 +435,19 @@ Response:
 
 The backing atomic RPC counts only scans owned by the caller, only after the
 Field Trip starts, and only against the current unlocked level. Matching accepts
-AI identifications and later user-confirmed/corrected identifications through
-the same scan row, then writes idempotent item completions. Eligibility is based
-on the saved biological scan, not its capture modality, so qualifying photos and
-videos can count. Upload/request time does not replace the scan timestamp, so a
-scan captured inside a now-closed outing period or Event window can receive
-delayed first credit. A single scan is evaluated against every matching current-
-level item in every eligible active standard outing, but receives at most one
-credit per outing and one per joined live challenge. It may still advance
-several deliberately active experiences, with every completion row pointing to
-the same scan.
+unreviewed AI identifications only at the inference tier's Possible-match
+boundary (`Flash >= 0.75`, `Pro >= 0.65`). A weaker match remains uncredited
+until the user confirms it or a correction/community resolution supplies a
+confirmed species. Those paths use the same scan row and write the same
+idempotent item completions. Eligibility is based on the saved biological scan,
+not its capture modality, so qualifying photos and videos can count.
+Upload/request time does not replace the scan timestamp, so a scan captured
+inside a now-closed outing period or Event window can receive delayed first
+credit. A single scan is evaluated against every matching current-level item in
+every eligible active standard outing, but receives at most one credit per
+outing and one per joined live challenge. It may still advance several
+deliberately active experiences, with every completion row pointing to the same
+scan.
 
 The optional `preferred_goal` is accepted only for an owned standard outing that
 was active at the scan timestamp and whose current visible item matches the
@@ -468,8 +471,13 @@ the scan-insert trigger invokes the same atomic RPC before scan persistence
 commits. Standard progress, Event progress, preference persistence, first Field
 trip achievement evaluation, and a private scan-revision receipt therefore
 commit or roll back together. `apply_scan_progress` retrieves that receipt for
-notification delivery. Relevant identification corrections create a new scan
-revision and re-evaluate unfinished experiences through the same transaction.
+notification delivery. Relevant identification, confidence, inference-tier, or
+explicit-confirmation changes create a new scan revision and re-evaluate
+progress through the same transaction. Normal identification corrections only
+move or remove credit while an experience is unfinished. Confidence,
+inference-tier, or confirmation changes can also remove credit from a completed
+experience when the scan becomes weak and unconfirmed, reopening its earliest
+incomplete level.
 
 V4 clients should continue reading `data` for normal Field trip progress and may
 read `challenge_updates` for joined live challenge progress. Older clients can
@@ -492,7 +500,8 @@ level's ring.
 Both update kinds may also include `removed_item_ids`. While an experience is
 unfinished, an identification correction can move or remove this scan's credit
 within its original credited level and reset progress to the earliest incomplete
-level. Completed outings and challenges are immutable.
+level. Completed outings and challenges are immutable for normal identification
+corrections; evidence-policy invalidation is the exception.
 
 Migration `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a
 one-time repair for ant scans credited before that family exclusion existed. It
@@ -505,6 +514,16 @@ signal rule was broader than its label. Park's unverifiable **Spider near
 flowers** and **Bird near flowers** prompts become **Spider** and **Bird**; the
 former **Pollinator habitat** scene prompt becomes the verifiable
 plant-plus-meadow **Meadow plant** goal.
+Migration
+`20260730023042_gate_field_trip_progress_by_confidence.sql` removes standard and
+Event credit backed by weak unreviewed identifications, reopens affected
+progress, clears derived badges, and withdraws completion publications/entries.
+It retains the private selected-goal preference and writes an empty durable
+receipt so later confirmation can re-evaluate the pending scan. The same
+reconciliation runs on future evidence downgrades, including after completion:
+it removes standard/Event credit, reopens progress, clears the Event badge, and
+soft-deletes invalid completion publications or entries. Its empty
+`newly_completed_items` result cannot generate a completion toast.
 
 Only updates with a nonempty `newly_completed_items` array are eligible for a
 scan progress toast. Reapplying an unchanged scan is idempotent and returns its
@@ -649,9 +668,10 @@ idempotent for repeated joins.
 
 Challenge progress is updated through `apply_scan_progress`. A scan counts only
 when it is owned by the caller, created at or after `joined_at`, created at or
-before `ends_at`, and matches the participant's current challenge level.
-Challenge completions are separate from normal Field trip completions and are
-limited to one credited item per participation and scan.
+before `ends_at`, satisfies the same Possible-match-or-confirmed evidence
+policy, and matches the participant's current challenge level. Challenge
+completions are separate from normal Field trip completions and are limited to
+one credited item per participation and scan.
 
 Challenge hashtag request:
 

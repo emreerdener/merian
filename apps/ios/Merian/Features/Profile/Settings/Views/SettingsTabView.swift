@@ -22,6 +22,7 @@ struct SettingsTabView: View {
     @State private var showTestExploreOnboarding = false
     @State private var showPaywall = false
     @State private var showFeedbackSurvey = false
+    @State private var queueDiagnosticsURL: URL?
     @State private var toastMessage: String?
     @State private var milestoneToastPresenter = MilestoneToastPresenter.shared
     @State private var selectedAchievementToastAward: AwardPayload?
@@ -52,6 +53,38 @@ struct SettingsTabView: View {
                             }
                         }
                     )
+                }
+
+                if Self.shouldShowQueueDiagnostics {
+                    Section {
+                        if let queueDiagnosticsURL {
+                            ShareLink(item: queueDiagnosticsURL) {
+                                Label(
+                                    "Share offline queue diagnostics",
+                                    systemImage: "square.and.arrow.up"
+                                )
+                            }
+                        }
+
+                        Button {
+                            generateQueueDiagnostics()
+                        } label: {
+                            Label(
+                                queueDiagnosticsURL == nil
+                                    ? "Generate offline queue diagnostics"
+                                    : "Refresh offline queue diagnostics",
+                                systemImage: "waveform.path.ecg"
+                            )
+                        }
+                    } header: {
+                        Text("Beta Diagnostics")
+                    } footer: {
+                        Text(
+                            "Includes bounded queue states and lifecycle events. "
+                            + "It excludes media paths, descriptions, field notes, "
+                            + "location, GPS, and private media."
+                        )
+                    }
                 }
 
                 Community(
@@ -163,4 +196,41 @@ struct SettingsTabView: View {
         }
     }
 
+    private func generateQueueDiagnostics() {
+        do {
+            let previousURL = queueDiagnosticsURL
+            let generatedURL = try OfflineQueueManager.shared
+                .writeQueueDiagnosticsExport()
+            queueDiagnosticsURL = generatedURL
+            if let previousURL, previousURL != generatedURL {
+                try? FileManager.default.removeItem(at: previousURL)
+            }
+            showTemporaryToast("Offline queue diagnostics ready to share")
+        } catch {
+            MerianLog.data.error(
+                "Offline queue diagnostics export failed: \(error, privacy: .private)"
+            )
+            showTemporaryToast("Could not generate offline queue diagnostics")
+        }
+    }
+
+    private func showTemporaryToast(_ message: String) {
+        withAnimation {
+            toastMessage = message
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            guard toastMessage == message else { return }
+            withAnimation {
+                toastMessage = nil
+            }
+        }
+    }
+
+    private static var shouldShowQueueDiagnostics: Bool {
+        #if DEBUG
+        true
+        #else
+        Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+        #endif
+    }
 }

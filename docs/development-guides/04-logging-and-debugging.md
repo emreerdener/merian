@@ -191,8 +191,18 @@ configuration rather than Merian application faults:
 | Scan Library/Insight sharing fails and Edge logs contain `Failed to sync public author identity: service_role authorization required`                         | The signed-in user reached the share route, but the database defense-in-depth helper did not recognize the active server-key role path. This is a server migration/key compatibility failure, not user or scan authorization.                                                                                                                                                                                           | Confirm both `20260727010340_fix_service_role_authorization_guard.sql` and `20260727013416_future_proof_server_key_boundaries.sql` are applied, run the immediate and broader read-only checks in the [privileged-routine release gate](../backend-and-data/06-supabase-deployment-runbook.md#privileged-routine-acl-release-gate), and retry both share paths. Never grant the RPC to `authenticated` or add a service key to iOS.                                              |
 | Identify returns `200`, iOS saves locally, then immediate owner status is `not_found`; Explore reports `Scan not found` and Insight Field Chat is unavailable | The shared `public.scans` owner row is missing. For a brand-new scan this is a stale/incorrect `identify-multimodal` durability deployment or a new severity regression, not scan age.                                                                                                                                                                                                                                  | Verify production deployment records tie `identify-multimodal`, `check-scan-status`, and `share-scan-to-explore` to the reviewed SHA; inspect the owner-scoped ingestion job under restricted access; then run the [owner-row rollout smoke matrix](../backend-and-data/06-supabase-deployment-runbook.md#scan-owner-row-durability-and-recovery-rollout). Do not ask the customer to rescan as remediation, grant direct scan writes, or manually insert a row.                 |
 | Opening Scan Library repeats signing, successful R2 PUTs, `failed_retryable / background_ingestion_failed` status, and one-second wakes without any Identify request | Build 1.0.2 (235)'s upload/status deadlock erased retry authority on upload success, then treated the same failed generation as permanently server-owned. The migrated-store variant lost the queued-scan copy while the durable-job copy survived, causing every cycle to persist retry one. Overlapping Library/scheduler/reconnect/URLSession replay wakes compounded the probes and logs; presentation refresh itself is not retry authority. | Require the `server_retryable_failure` latch/count to reconcile both durable copies, advance from their monotonic maximum, and survive re-stage; require the replay/orphan driver to be process-local single-flight with at most one trailing pass; then verify one delayed preflight sends Identify. Release the corrected iOS state machine; do not clear queue rows, rotate UUIDs, or make the presentation refresh loop dispatch work. |
-| `/get-explore-media-incidents` reports `bytes=2`, followed by “data couldn’t be read because it is missing” while opening Scan Library | An older deployed route returned direct empty `[]`, while that iOS build expected only the current `{data:[]}` envelope. This is alert-response rollout drift, not evidence that a scan or post is missing. | Confirm the handler SHA and canonical wrapped response. Corrected iOS accepts only the exact wrapped or legacy direct-array topology and maps every other malformed 2xx body to `invalidResponse`; do not synthesize an incident or retry scan analysis. |
+| An older build logs `/get-explore-media-incidents … bytes=2`, followed by an invalid-response error while opening Scan Library | The old ambiguous `bytes` field measured the two-byte `{}` request, not the response. It cannot prove that the handler returned `[]` or identify the malformed response topology. This is media-alert contract drift, not evidence that a scan or post is missing. | Confirm the handler SHA and canonical `{data:[]}` response. In a corrected build, use `status`, `requestBytes`, and `responseBytes` as distinct fields. Corrected iOS also accepts a defensively retained exact direct-array topology and maps every other malformed 2xx body to `invalidResponse`; do not synthesize an incident or retry scan analysis. |
 | A new scan shares successfully but an existing missing row reports `media_reconciliation_abandoned`, then recovery-capable `/check-scan-status` returns generic 503 | The primary Explore route is healthy; the legacy record failed at the guarded owner-recovery database boundary before restore signing or PUT. The reason is eligible only with matching composite dead-letter/quota/media-lifecycle proof. | Under restricted access, inspect all exact normal/replay reservation states and ordered commit/fail timestamps, the latest-authority/dead-letter chronology, producer-generation evidence fields, immutable migration-time legacy dead-letter-ID snapshot, private rollout cutoff, and both moderation failure reasons. Verify migrations `20260729173000_recover_media_abandoned_owned_scans.sql` and `20260729200000_harden_media_abandoned_scan_recovery_proof.sql`, privileged grants, quota-authority retention, both exact no-write RPC readiness probes, and matching Identify/signer/status/share versions. Unproven abandonment, active attempts, unsnapshotted or post-cutoff unstructured evidence, incomplete safety evidence, and current/later policy authority must remain closed. |
+
+For a Debug/TestFlight offline smoke, use Settings → Beta Diagnostics →
+**Generate offline queue diagnostics** after the scan completes and share the
+artifact before deleting the observation. Prefer this bounded durable ledger
+over retaining a high-volume console stream. It supplies app version/build,
+embedded source revision/fingerprint/state, lifecycle kinds, timestamps,
+retry/error codes, HTTP status, and server status/stage while excluding media
+paths/payload contents, descriptions, Field notes, location/GPS, raw metadata,
+and arbitrary free-form messages. Every row section is capped at 500; retained
+error/status/stage strings must be canonical lowercase machine tokens.
 | `explore_media_health_reconciliation_failed`                                                                                                                  | The scheduled worker could not claim/check its batch or required R2 read configuration is unavailable. No client/CDN failure is converted into missing state.                                                                                                                                                                                                                                                           | Verify the dedicated bucket-scoped Object Read credentials, Supabase/Vault dispatch, and provider health. Review recent aggregate reconciliation-run rows; never bulk-mark media healthy or missing.                                                                                                                                                                                                                                                                             |
 | `explore_media_health_reconciliation_runs.status = partial_failure`                                                                                           | One or more leased origin checks or result writes failed while the bounded run continued.                                                                                                                                                                                                                                                                                                                               | Correlate the sanitized per-row reasons with lease expiry, R2 status, and database health. Let retry scheduling recover dependency failures; sample object state directly before operator repair.                                                                                                                                                                                                                                                                                |
 | `LocalImageLoader: remote media HTTP failure host=media.merian.app status=404`                                                                                | The CDN/R2 path answered successfully but the referenced object is absent. This is different from an offline/transport failure. Repeated 404s for one owner's images across Scan Library and Explore indicate shared object loss, even when Postgres rows still exist.                                                                                                                                                  | Inspect owner-scoped URL/key samples and compare another owner's media without logging complete URLs. Run the storage-claim invariant and incident procedure; do not “fix” rows by hiding posts or marking scans archived.                                                                                                                                                                                                                                                       |
@@ -217,6 +227,12 @@ rerun the same SHA. Never disable the independent monitor to clear this signal.
 Use nearby application logs to decide whether a framework warning is paired with
 a real failure:
 
+- `ModelContainer bootstrap diagnostics` identifies the installed binary with
+  `app`, `source`, `sourceFingerprint`, and `sourceState`. TestFlight/release
+  evidence must match the intended Git revision and release-source fingerprint
+  and report `sourceState=clean`. A familiar app/build number with another
+  source value is another binary; `source=unavailable` identifies a build made
+  before provenance embedding and cannot verify later remediation.
 - `PostHog initialized` followed by `AppTelemetry initialized with PostHog`
   confirms telemetry setup. Identification may happen later after Supabase
   restores the session.
@@ -245,10 +261,11 @@ a real failure:
   timing before assigning endpoint work, and correlate latency with a failed
   status or visible delay.
 
-When reviewing a log bundle, record the app version/build, simulator versus
-physical device, OS version, screen/action, and whether the user observed a
-failure. Absence from one bundle means only “not reproduced in this run”; it
-does not prove an APNs, signing, or production configuration issue is fixed.
+When reviewing a log bundle, record the app version/build, embedded source
+revision/fingerprint/state, simulator versus physical device, OS version,
+screen/action, and whether the user observed a failure. Absence from one bundle
+means only “not reproduced in this run”; it does not prove an APNs, signing, or
+production configuration issue is fixed.
 
 ---
 
@@ -427,7 +444,7 @@ Xcode console: `⏱ BENCH`):
 [⏱ BENCH] context grace: 0.150s timed_out=true
 [⏱ BENCH] non-visual context wait: 0.482s
 [⏱ BENCH] URLSession request_upload=0.082s ttfb_after_upload=4.101s response_transfer=0.022s
-[⏱ BENCH] HTTP identify-multimodal auth=0.006s transfer+server=4.205s bytes=183424
+[⏱ BENCH] HTTP identify-multimodal auth=0.006s transfer+server=4.205s status=200 requestBytes=183424 responseBytes=7824
 [⏱ BENCH] Server-Timing auth;dur=3.1, body_read;dur=11.8, tier;dur=0.4, pre_gemini_db;dur=7.2, gemini;dur=4189.0, dictionary;dur=5.6, post_gemini;dur=8.1, edge_total;dur=4223.4 region=...
 [⏱ BENCH] Response parsing: 0.009s bytes=7824
 [⏱ BENCH] Result persistence: 0.061s
@@ -442,6 +459,9 @@ Trips are intentionally outside that boundary. URLSession task metrics separate
 request upload, time to first byte, and response transfer.
 `X-Merian-Constrained-Network` tags the Edge request, and the response exposes
 the privacy-safe `Server-Timing` breakdown plus `X-Merian-Edge-Region`.
+The HTTP marker reports request and response byte counts separately. Builds
+before this correction emitted one ambiguous `bytes` value that was the request
+body size; never use that legacy field as response-shape evidence.
 
 **Edge Function — `identify-multimodal/index.ts`** (Supabase Dashboard → Edge
 Functions → identify-multimodal → Logs):

@@ -8,6 +8,25 @@ TestFlight, App Store, support, and QA.
 
 ### Critical Scan Reliability
 
+- Queued and staged captures now open as pushed destinations inside the Scans
+  library navigation stack instead of layering another sheet over the library.
+  Their waiting state now matches foreground scanning with the same dynamic
+  status pill, rotating **Did you know?** card, Field notes, and scan
+  information. The redundant queued heading, upload explainer, and
+  media/file-size summary have been removed; actionable retry timing and errors
+  remain available.
+- Debug and TestFlight Settings → Beta Diagnostics can now generate and share
+  the bounded durable offline-queue ledger after a reconnect smoke instead of
+  depending on an incomplete high-volume console capture. The support JSON
+  retains lifecycle kinds, timestamps, retry/error codes, HTTP status, server
+  status/stage, and embedded source revision/fingerprint/state while excluding
+  media paths and payload contents, descriptions, Field notes, location/GPS,
+  raw metadata, and arbitrary free-form messages. Retained error/status/stage
+  values must be canonical lowercase machine tokens. Its versioned schema caps
+  jobs, scans, and events at 500 rows each and clamps internal event-limit
+  requests to 1...500, preventing zero from becoming an accidental unlimited
+  fetch. Export files use complete data protection, and refreshing Settings
+  removes the previous temporary artifact.
 - Fixed a TestFlight-confirmed queued-scan deadlock after a retryable cloud
   ingestion failure. The app now preserves one exact retry through any required
   media re-upload and lets that delayed generation send its Identify request
@@ -24,8 +43,8 @@ TestFlight, App Store, support, and QA.
   reconnect, and URLSession replay wakes share one active reconciliation plus at
   most one trailing pass. Hosted iOS result validation now requires the exact
   replay single-flight, retry-dispatch, dual-copy durable-latch,
-  re-stage-survival, and description-only manual-retry regressions to execute
-  and pass.
+  re-stage-survival, description-only manual-retry, and bounded/redacted
+  diagnostic-export regressions to execute and pass.
 - Restored Explore sharing for eligible older observations whose cloud media
   reconciler had abandoned a missing owner row even though the device retained
   the completed result and original media. Repair is limited to the
@@ -52,11 +71,17 @@ TestFlight, App Store, support, and QA.
   disappearing silently. New iOS builds commit owner repair before uploading;
   the guarded Edge path also supports the current released-client sequence.
 - The Scan Library now accepts both the current wrapped and exact legacy
-  direct-array Explore media-health response. A deployed empty `[]` no longer
+  direct-array Explore media-health response. A defensive empty `[]` no longer
   produces a false decode error merely from opening the library, rapid queue
   updates coalesce the independent read-only alert refresh without dropping a
   trailing repair/foreground request, account identity is revalidated after an
-  in-flight call, and unknown success shapes still fail closed.
+  in-flight call, and unknown success shapes still fail closed. HTTP benchmark
+  logs now distinguish status, request bytes, and response bytes; the former
+  ambiguous `bytes` field measured the request and is no longer mistaken for
+  response-shape evidence. Production deployment now includes this owner-only
+  route in the strict unauthenticated `401 + X-Merian-Handler` critical-path
+  probe instead of relying only on broad route existence and its underlying
+  RPC.
 - Fenced Field Chat and Explore actions to one exact presented scan. A delayed
   SwiftData lookup can no longer retain the previous observation's post,
   Community, notes, media, or action state; Field Chat proves and presents the
@@ -272,6 +297,31 @@ TestFlight, App Store, support, and QA.
 
 ### Release Assurance
 
+- Release preparation is now bound to the exact release-source snapshot instead
+  of only a version and build number. Archive preflight rejects dirty or changed
+  source, every built app embeds its Git revision, source fingerprint, and
+  clean/dirty state, hosted archive verification and local export require those
+  values to match, and startup diagnostics expose them for TestFlight support.
+  Release prep also rejects semantic-version downgrades, pins reproducible
+  project generation to XcodeGen 2.45.4, and runs the focused stale-marker tests
+  in the portable hosted guardrail target. Export output is canonicalized
+  beneath the repository's `build/` directory before previous artifacts can be
+  removed, and export-options paths cannot escape that directory. Provenance
+  embedding rejects traversal plus final-component symbolic or multiple hard
+  links before modifying the processed product plist. Marker parsing is now
+  typed and fail-closed: local release commits must descend from the exact
+  preparation-base revision, while CI validation markers must carry an exact
+  matching workflow SHA; malformed identity fields cannot disable either
+  boundary. Export paths also reject lexical dot components before
+  canonicalizing missing descendants, preventing `mkdir -p` from resolving a
+  hidden traversal outside the scoped build directory. Generated-project
+  validation now proves the release preflight and provenance phases belong
+  exactly once to the main app, invoke only their canonical scripts, and run in
+  the required first/last product-mutating positions; adversarial fixtures
+  reject detached, duplicated, replaced, and misordered phases. Source
+  fingerprinting also rejects tracked `assume-unchanged` or `skip-worktree`
+  index state so a sparse or locally hidden file cannot masquerade as a clean,
+  complete release checkout.
 - The latest supplied hosted iOS run compiled and executed 879 tests but exposed
   three unique release regressions: replay after an already-committed offline
   completion rejected the repeated queue deletion, and two malformed Explore
@@ -1018,6 +1068,12 @@ TestFlight, App Store, support, and QA.
   **Bird**, and the scene-based **Pollinator habitat** target is now the
   verifiable **Meadow plant** target. Earlier credit that fails the corrected
   rules is removed from active progress.
+- Prevented unreviewed **Weak match** identifications from counting toward
+  Field trip goals. Flash identifications now auto-qualify at 75% confidence
+  and Pro identifications at 65%; weaker results remain pending until the user
+  confirms the identification or a correction/community resolution confirms a
+  species. Earlier weak-match credit is removed, and a later confidence
+  downgrade can reopen goals that no longer have qualifying evidence.
 - Added a left-aligned, above-title **Private** / **Published** badge to
   standard outing detail. Published is shown only when the owner has an active
   public outing snapshot; completion alone remains Private.
@@ -1409,7 +1465,10 @@ TestFlight, App Store, support, and QA.
   attention, and repeated server replay failures turn terminal, instead of
   retrying indefinitely.
 - Added redacted offline queue diagnostics for support, including queued job
-  state and recent queue events without private media.
+  state and recent queue events. Debug/TestFlight Settings now expose the
+  explicit generate/share control, and the artifact excludes media paths and
+  payload contents, descriptions, Field notes, location/GPS, raw metadata, and
+  arbitrary free-form error/event messages.
 - Added Image and Video media filters to the Scans filter sheet.
 - Restored the Explore posts scan filter so the Scans library can show scans
   that have already been shared to Explore.

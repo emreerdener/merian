@@ -44,6 +44,68 @@ struct AnalyzingContentView: View {
     @Bindable var viewModel: InsightSheetViewModel
 
     var body: some View {
+        ScanningExperienceView(
+            viewModel: viewModel,
+            analyzingPhrase: inferenceEngine.scanningPhaseText,
+            fieldNotesPromptContext: .analyzing,
+            timestamp: Date(),
+            fallbackLocationName: inferenceEngine.activeLocationName,
+            fallbackTemperature: inferenceEngine.activeTemperatureF,
+            fallbackCondition: inferenceEngine.activeWeatherCondition,
+            fallbackElevation: inferenceEngine.activeElevation,
+            fallbackLatitude: inferenceEngine.activeLatitude,
+            fallbackLongitude: inferenceEngine.activeLongitude
+        ) {
+            EmptyView()
+        }
+    }
+}
+
+/// Shared foreground and queued scanning presentation.
+///
+/// Keeping the badge, rotating fact, Field notes, and telemetry in one component
+/// prevents the background-upload path from drifting away from the main scanner.
+struct ScanningExperienceView<SupplementalContent: View>: View {
+    @Bindable var viewModel: InsightSheetViewModel
+
+    let analyzingPhrase: String
+    let fieldNotesPromptContext: FieldNotesPromptContext
+    let timestamp: Date
+    let fallbackLocationName: String?
+    let fallbackTemperature: Double?
+    let fallbackCondition: String?
+    let fallbackElevation: Double?
+    let fallbackLatitude: Double?
+    let fallbackLongitude: Double?
+    let supplementalContent: SupplementalContent
+
+    init(
+        viewModel: InsightSheetViewModel,
+        analyzingPhrase: String,
+        fieldNotesPromptContext: FieldNotesPromptContext,
+        timestamp: Date,
+        fallbackLocationName: String?,
+        fallbackTemperature: Double?,
+        fallbackCondition: String?,
+        fallbackElevation: Double?,
+        fallbackLatitude: Double?,
+        fallbackLongitude: Double?,
+        @ViewBuilder supplementalContent: () -> SupplementalContent
+    ) {
+        self.viewModel = viewModel
+        self.analyzingPhrase = analyzingPhrase
+        self.fieldNotesPromptContext = fieldNotesPromptContext
+        self.timestamp = timestamp
+        self.fallbackLocationName = fallbackLocationName
+        self.fallbackTemperature = fallbackTemperature
+        self.fallbackCondition = fallbackCondition
+        self.fallbackElevation = fallbackElevation
+        self.fallbackLatitude = fallbackLatitude
+        self.fallbackLongitude = fallbackLongitude
+        self.supplementalContent = supplementalContent()
+    }
+
+    var body: some View {
         let fieldNotesScanId = viewModel.currentFieldNotesScanId
         let fieldNotesGeneration = viewModel.scanBoundActionGeneration
 
@@ -52,16 +114,19 @@ struct AnalyzingContentView: View {
             ConfidenceBadge(
                 confidenceScore: nil,
                 inferenceTier: nil,
-                analyzingPhrase: inferenceEngine.scanningPhaseText
+                analyzingPhrase: analyzingPhrase
             )
+            .accessibilityIdentifier("ScanningStatusBadge")
 
             DidYouKnowCard()
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
 
+            supplementalContent
+
             if viewModel.shouldShowFieldNotesCard {
                 FieldNotesCard(
                     previewText: viewModel.fieldNotesText,
-                    promptContext: .analyzing,
+                    promptContext: fieldNotesPromptContext,
                     onDismiss: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                             viewModel.dismissFieldNotesCard(
@@ -82,13 +147,13 @@ struct AnalyzingContentView: View {
 
             ScanInformationCard(
                 speciesData: nil,
-                timestamp: Date(),
-                fallbackLocationName: inferenceEngine.activeLocationName,
-                fallbackTemperature: inferenceEngine.activeTemperatureF,
-                fallbackCondition: inferenceEngine.activeWeatherCondition,
-                fallbackElevation: inferenceEngine.activeElevation,
-                fallbackLatitude: inferenceEngine.activeLatitude,
-                fallbackLongitude: inferenceEngine.activeLongitude
+                timestamp: timestamp,
+                fallbackLocationName: fallbackLocationName,
+                fallbackTemperature: fallbackTemperature,
+                fallbackCondition: fallbackCondition,
+                fallbackElevation: fallbackElevation,
+                fallbackLatitude: fallbackLatitude,
+                fallbackLongitude: fallbackLongitude
             )
             .transition(.opacity.combined(with: .move(edge: .bottom)))
         }

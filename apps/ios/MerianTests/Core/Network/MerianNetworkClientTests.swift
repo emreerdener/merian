@@ -2978,6 +2978,23 @@ struct MerianNetworkClientTests {
         }
     }
 
+    @Test func testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary() async throws {
+        let response = HTTPURLResponse(
+            url: try #require(URL(string: "https://example.com")),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        MockURLProtocol.mockEndpoints["/get-explore-media-incidents"] = { _ in
+            (response, Data([0x5B, 0x5D]))
+        }
+
+        let incidents = try await MerianNetworkClient.shared
+            .getExploreMediaIncidents()
+
+        #expect(incidents.isEmpty)
+    }
+
     @Test func testExploreMapResponseToleratesMediaOnlyPostsWithoutHeroImages() throws {
         let data = """
         {

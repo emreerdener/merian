@@ -1032,7 +1032,7 @@ fault on the already-deleted object — which crashes immediately.
 
 The same crash path applies anywhere a deleted `@Model` reference can be
 re-evaluated: inside `InsightSheetViewModel` computed properties that branch on
-queued scan media, or inside `AnalyzingContentView` views that read the queued
+queued scan media, or inside `QueuedContentView` views that read the queued
 scan's telemetry fields.
 
 ### ❌ The Anti-Pattern
@@ -1062,8 +1062,13 @@ survives the boundary.
 // QueuedScanSnapshot — for grid tiles
 struct QueuedScanSnapshot: Identifiable, Equatable {
     let id: String
-    let imagePath: String?    // capturedMediaSnapshot.primaryImagePath, resolved at fetch time
+    let imagePath: String?
+    let capturedMediaJSON: String?
+    let queueState: ScanQueueState
     let timestamp: Date
+    let queueNextRetryAt: Date?
+    let queueNeedsAttention: Bool
+    let approximateQueuedBytes: Int64  // internal diagnostics, not user-facing
     var gridId: String { "q_\(id)" }  // namespace against LocalScanRecord IDs
 }
 
@@ -1071,6 +1076,7 @@ struct QueuedScanSnapshot: Identifiable, Equatable {
 struct QueuedScanContext: Identifiable {
     let id: String
     let capturedMediaItems: [SerializedMediaItem]
+    let queueState: ScanQueueState
     let timestamp: Date
     let locationName: String?
     let weatherTemperatureF: Double?
@@ -1090,10 +1096,16 @@ queuedScans = fetched.map {
     )
 }
 
-// In LibraryView — snapshot before presenting the insight sheet
-if let scan = (try? modelContext.fetch(descriptor))?.first {
-    scanToManage = QueuedScanContext(from: scan)  // all fields resolved NOW
-    isQueuedSheetPresented = true
+// In LibraryView — resolve the completion race, then snapshot before routing
+if let completedRecord = localScanRecord(id: snapshot.id) {
+    onSelect(completedRecord)
+} else if let queuedContext = queuedScanContext(id: snapshot.id) {
+    onQueuedInsight?(queuedContext)  // helper copied all live fields NOW
+}
+
+// In ScansSheetView — the shell owns navigation, not LibraryView
+onQueuedScanSelected: { context in
+    navigationPath.append(QueuedScanInsightRoute(queuedScan: context))
 }
 ```
 
@@ -1105,10 +1117,12 @@ queued-scan tile.
 
 **`InsightSheetViewModel.queuedContext: QueuedScanContext?`**: All computed
 properties that previously switched on a live `OfflineQueuedScan?` now switch on
-`queuedContext == nil`. `AnalyzingContentView` receives
-`queuedContext: QueuedScanContext?` rather than a `@Model` reference, and the
-queued media path is always rebuilt from `queuedContext.capturedMediaSnapshot`
-instead of faulting properties off the deleted model.
+`queuedContext == nil`. `QueuedContentView` receives
+`QueuedScanContext` rather than a `@Model` reference, and the queued media path
+is always rebuilt from `queuedContext.capturedMediaSnapshot` instead of faulting
+properties off the deleted model. `ScansSheetView` retains that context in its
+private pushed route while hashing and comparing by scan ID, so the destination
+survives queue deletion and completed-result handoff without a nested sheet.
 
 ---
 

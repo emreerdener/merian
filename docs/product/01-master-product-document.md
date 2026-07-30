@@ -405,9 +405,15 @@ lists every outing or joined Event credited by that scan.
 A scan can advance several deliberately active experiences, but it receives at
 most one goal credit per standard outing and one per joined Event. A visibly
 selected eligible camera goal wins inside its own outing; deterministic
-specificity and checklist ranking handles all other cases. Identification
-corrections may move or remove credit while an experience is unfinished.
-Completed experiences remain immutable.
+specificity and checklist ranking handles all other cases. An unreviewed AI
+identification auto-qualifies only at the tier-specific Possible-match boundary
+(75% Flash / 65% Pro); weaker matches remain pending until confirmation or a
+confirmed correction/community resolution. Normal identification corrections
+may move or remove credit while an experience is unfinished, and otherwise
+leave completed experiences immutable. Evidence-policy invalidation is the
+exception: if a confidence or review revision makes a contributing scan weak
+and unconfirmed, the server removes that contribution and can reopen a completed
+experience.
 
 Seasonal Challenges and Events are separate concepts. Their current access is
 preview-gated for designated testers and simulator conditions, and that gate is

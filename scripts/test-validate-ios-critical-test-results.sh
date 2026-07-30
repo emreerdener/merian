@@ -107,6 +107,8 @@ write_test_tree() {
               "cloudDeletionRetriesNeverEnterAnUnrecoverableState",
               "cloudDeletionDrainIsProcessSingleFlight",
               "testManualRetryResetsBudgetForDescriptionOnlyScan",
+              "queueDiagnosticsExportOmitsPrivateAndFreeFormValues",
+              "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred",
               "testEnqueueCapture_WithValidData_PersistsQueuedScan"
             ]),
             suite("SyncStateManagerTests"; [
@@ -134,6 +136,7 @@ write_test_tree() {
               "testCheckScanStatusRejectsMalformedOrMismatchedSuccess",
               "testBulkScanStatusRejectsDuplicateMissingOrForeignRows",
               "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
+              "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary",
               "testExploreMediaIncidentsRejectsUnknownSuccessShape",
               "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload",
               "testCommunityRequestSendsStableAIIdempotencyKey",
@@ -226,6 +229,8 @@ required_cases=(
   "testInferenceRetryCannotOverrideCompletedCloudOwnership"
   "testEnqueueCapture_WithValidData_PersistsQueuedScan"
   "testManualRetryResetsBudgetForDescriptionOnlyScan"
+  "queueDiagnosticsExportOmitsPrivateAndFreeFormValues"
+  "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred"
   "completedInferenceAndQueueDeletionCommitTogether"
   "cloudDeletionRequiresExplicitNetworkConfirmation"
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
@@ -255,6 +260,7 @@ required_cases=(
   "testCheckScanStatusRejectsMalformedOrMismatchedSuccess"
   "testBulkScanStatusRejectsDuplicateMissingOrForeignRows"
   "testExploreMediaIncidentsAndLifecycleNotificationsDecode"
+  "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary"
   "testExploreMediaIncidentsRejectsUnknownSuccessShape"
   "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"
   "testCommunityRequestSendsStableAIIdempotencyKey"

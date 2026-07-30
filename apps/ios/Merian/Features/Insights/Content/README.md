@@ -22,3 +22,18 @@ artwork/check badge, experience-only subtitle, and a prominent trailing
 forwards a card-specific overview destination that deliberately omits Capture's
 checklist-item focus. The card does not load data, cache contribution rows, or
 trigger celebration effects.
+
+## Scanning presentation
+
+Foreground and queued scans share `ScanningExperienceView`, which owns the
+status pill, **Did you know?** card, optional actionable supplemental content,
+Field notes, and scan telemetry in that order. Foreground analysis supplies
+`InferenceEngine.scanningPhaseText`. Queued scans rotate phrases from their
+exact queue/server state and reuse generic engine phrases during active
+inference.
+
+Queued scans supply snapshot telemetry but do not add a separate title, helper
+paragraph, media-kind summary, or file-size label. Retry timing, errors, and
+recovery controls are inserted only when actionable. Keep
+`ScanningStatusBadge` on the shared pill for UI-test and accessibility
+stability.

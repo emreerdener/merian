@@ -390,14 +390,17 @@ or the iOS report action. Reverify author-profile visibility after the migration
 because moderated posts must no longer make a profile reportable/public unless
 another visible profile surface remains.
 
-For Field trips, deploy `20260708021110_field_trips_v1.sql`,
-`20260708033451_field_trips_v2.sql`, and
-`20260708042713_field_trips_v3_community.sql`, then
-`20260708051414_field_trips_v4_challenges.sql` before deploying `field-trips`,
-`get-explore-author-profile`, and the Explore activity functions. The profile
-endpoint depends on the Field trip summary RPC when returning `field_trips`,
-and the Field trips endpoint depends on the V4 challenge RPCs when returning
-profile challenge badges.
+For Field trips, apply the complete ordered migration chain through
+`20260730023042_gate_field_trip_progress_by_confidence.sql`; the canonical
+sequence is maintained in
+[`25-field-trips.md`](25-field-trips.md#deployment-notes). Then deploy the
+scan-ingestion functions, `field-trips`, `get-explore-author-profile`, and the
+Explore activity functions in that order. The profile endpoint depends on the
+Field trip summary RPC when returning `field_trips`, and the Field trips
+endpoint depends on the challenge and confidence-policy RPCs when returning
+profile challenge badges. Evidence repair can reopen a completed experience,
+remove its badge, and hide an invalid publication or entry, so refresh both
+owner and public profile modules during release smoke testing.
 
 All identify paths now persist `device_time_zone` when the client sends a valid IANA timezone. Existing scans without a timezone continue to compute public profile streaks and heatmaps in UTC.
 

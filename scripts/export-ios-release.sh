@@ -22,6 +22,37 @@ resolve_repo_path() {
   fi
 }
 
+canonicalize_maybe_missing_path() {
+  local path="$1"
+  perl -MCwd=abs_path -MFile::Basename=basename,dirname -MFile::Spec -e '
+    my $path = File::Spec->rel2abs($ARGV[0]);
+    my @missing;
+
+    while (!-e $path) {
+      my $name = basename($path);
+      my $parent = dirname($path);
+      die "could not resolve path\n" if $parent eq $path;
+      unshift @missing, $name;
+      $path = $parent;
+    }
+
+    my $resolved = abs_path($path);
+    die "could not canonicalize path\n" unless defined $resolved;
+    print File::Spec->catfile($resolved, @missing);
+  ' "$path"
+}
+
+reject_dot_path_components() {
+  local label="$1"
+  local path="$2"
+
+  case "/$path/" in
+    */../* | */./*)
+      fail "$label must not contain . or .. path components: $path"
+      ;;
+  esac
+}
+
 extract_project_setting() {
   local key="$1"
   local file="$2"
@@ -117,9 +148,42 @@ explain_export_failure() {
 }
 
 cd "$repo_root"
+repo_root="$(pwd -P)"
 
 project_yml="${PROJECT_YML:-project.yml}"
 [[ -f "$project_yml" ]] || fail "Missing project.yml at $repo_root/$project_yml"
+
+mkdir -p "$repo_root/build"
+build_root="$(cd "$repo_root/build" && pwd -P)"
+export_path_input="$(
+  resolve_repo_path "${EXPORT_PATH:-build/ios-export}"
+)"
+reject_dot_path_components "EXPORT_PATH" "$export_path_input"
+export_path="$(
+  canonicalize_maybe_missing_path "$export_path_input"
+)" || fail "Could not canonicalize EXPORT_PATH."
+case "$export_path" in
+  "$build_root"/*)
+    ;;
+  *)
+    fail "EXPORT_PATH must be a child of $build_root; resolved: $export_path"
+    ;;
+esac
+
+export_options_input="$(
+  resolve_repo_path "${EXPORT_OPTIONS_PLIST:-$export_path/exportOptions.plist}"
+)"
+reject_dot_path_components "EXPORT_OPTIONS_PLIST" "$export_options_input"
+export_options="$(
+  canonicalize_maybe_missing_path "$export_options_input"
+)" || fail "Could not canonicalize EXPORT_OPTIONS_PLIST."
+case "$export_options" in
+  "$export_path"/*)
+    ;;
+  *)
+    fail "EXPORT_OPTIONS_PLIST must be inside EXPORT_PATH; resolved: $export_options"
+    ;;
+esac
 
 if [[ "${IOS_EXPORT_SKIP_PREP_CHECK:-0}" != "1" ]]; then
   CONFIGURATION=Release MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$repo_root" "$script_dir/check-ios-release-prep.sh"
@@ -149,23 +213,36 @@ if [[ "$archive_version" != "$project_version" || "$archive_build" != "$project_
   fail "Archive is Merian ${archive_version} (${archive_build}) but release prep is ${project_version} (${project_build}). Archive again before exporting."
 fi
 
+archive_source_revision="$(read_plist_value "$app_info" "MERIAN_SOURCE_REVISION")" \
+  || fail "Archive has no embedded source revision. Archive again before exporting."
+archive_source_fingerprint="$(read_plist_value "$app_info" "MERIAN_SOURCE_FINGERPRINT")" \
+  || fail "Archive has no embedded source fingerprint. Archive again before exporting."
+archive_source_state="$(read_plist_value "$app_info" "MERIAN_SOURCE_STATE")" \
+  || fail "Archive has no embedded source state. Archive again before exporting."
+
+current_source_revision="$(git -C "$repo_root" rev-parse HEAD)"
+current_source_fingerprint="$(
+  MERIAN_PROJECT_ROOT="$repo_root" bash "$script_dir/ios-release-source-fingerprint.sh"
+)"
+
+[[ "$archive_source_revision" == "$current_source_revision" ]] \
+  || fail "Archive source ${archive_source_revision} does not match checked-out source ${current_source_revision}. Archive again before exporting."
+[[ "$archive_source_fingerprint" == "$current_source_fingerprint" ]] \
+  || fail "Archive source fingerprint does not match the release-prepared source. Archive again before exporting."
+[[ "$archive_source_state" == "clean" ]] \
+  || fail "Archive reports source state ${archive_source_state}; only a clean source archive can be exported."
+
 team_id="${TEAM_ID:-${ASC_TEAM_ID:-}}"
 if [[ -z "$team_id" ]]; then
   team_id="$(read_plist_value "$archive_info" "ApplicationProperties:Team")" || true
 fi
 [[ -n "$team_id" ]] || fail "Could not determine Apple team ID from archive. Pass TEAM_ID=..."
-
-export_path="$(resolve_repo_path "${EXPORT_PATH:-build/ios-export}")"
-case "$export_path" in
-  "/"|"$repo_root")
-    fail "Refusing to use unsafe EXPORT_PATH: $export_path"
-    ;;
-esac
+[[ "$team_id" =~ ^[A-Z0-9]{10}$ ]] \
+  || fail "Apple team ID must be 10 uppercase letters or digits, got: $team_id"
 
 rm -rf "$export_path"
 mkdir -p "$export_path"
 
-export_options="${EXPORT_OPTIONS_PLIST:-$export_path/exportOptions.plist}"
 write_export_options "$export_options" "$team_id"
 
 cmd=(
@@ -192,6 +269,8 @@ fi
 log_file="$export_path/export.log"
 note "Exporting Merian ${archive_version} (${archive_build}) from:"
 note "$archive_path"
+note "Embedded source revision: ${archive_source_revision}"
+note "Embedded source fingerprint: ${archive_source_fingerprint}"
 note "Export path:"
 note "$export_path"
 

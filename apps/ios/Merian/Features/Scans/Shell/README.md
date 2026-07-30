@@ -9,3 +9,12 @@ The `Shell` directory acts as the root container and routing layer for the entir
 
 ## Purpose
 Following the Merian iOS architecture guidelines, the `Shell` isolates routing, layout chrome, and tab-level coordination. It seamlessly switches between the `Library`, `Collections`, and `NonBiological` areas, keeping those individual product areas focused strictly on their respective domain logic and UI.
+
+Completed and queued scans both open as pushed Insight destinations in the
+Scans sheet's existing navigation stack with
+`.embeddedInScansLibrary`. Completed scans use `ScanInsightRoute`, carrying only
+the stable scan ID. The private queued route carries `QueuedScanContext` but
+compares and hashes by that ID. This value snapshot lets the destination stay
+open through SwiftData queue deletion and transition in place when the
+completed local record appears. Both routes use native Back behavior; the
+Scans shell must not layer another sheet over its library.

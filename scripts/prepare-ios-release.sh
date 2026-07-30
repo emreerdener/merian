@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="${MERIAN_PROJECT_ROOT:-$(cd "$script_dir/.." && pwd)}"
+fingerprint_script="$script_dir/ios-release-source-fingerprint.sh"
+
 PROJECT_YML="${PROJECT_YML:-project.yml}"
 PROJECT_FILE="${PROJECT_FILE:-Merian.xcodeproj/project.pbxproj}"
 MARKER_FILE="${IOS_RELEASE_PREP_MARKER:-build/ios-release-prep.json}"
 RUN_XCODEGEN="${RUN_XCODEGEN:-1}"
+REQUIRED_XCODEGEN_VERSION="${REQUIRED_XCODEGEN_VERSION:-2.45.4}"
+XCODEGEN_COMMAND="${XCODEGEN_COMMAND:-xcodegen}"
 CONFIG_XCCONFIG="${CONFIG_XCCONFIG:-Config.xcconfig}"
 LOCAL_CONFIG_FILE="${LOCAL_CONFIG_FILE:-Config.local.xcconfig}"
 
@@ -70,6 +76,30 @@ is_positive_int() {
 
 is_semantic_version() {
   [[ "$1" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]]
+}
+
+semantic_version_is_at_least() {
+  local candidate="$1"
+  local baseline="$2"
+  local candidate_major
+  local candidate_minor
+  local candidate_patch
+  local baseline_major
+  local baseline_minor
+  local baseline_patch
+
+  IFS=. read -r candidate_major candidate_minor candidate_patch <<<"$candidate"
+  IFS=. read -r baseline_major baseline_minor baseline_patch <<<"$baseline"
+
+  if (( 10#$candidate_major != 10#$baseline_major )); then
+    (( 10#$candidate_major > 10#$baseline_major ))
+    return
+  fi
+  if (( 10#$candidate_minor != 10#$baseline_minor )); then
+    (( 10#$candidate_minor > 10#$baseline_minor ))
+    return
+  fi
+  (( 10#$candidate_patch >= 10#$baseline_patch ))
 }
 
 max_int() {
@@ -219,7 +249,15 @@ write_release_marker() {
   local version="$1"
   local build="$2"
   local anchor_source="$3"
-  local marker="$4"
+  local anchor_build="$4"
+  local source_fingerprint="$5"
+  local prepared_from_sha="$6"
+  local marker="$7"
+  local anchor_build_json="null"
+
+  if [[ -n "$anchor_build" ]]; then
+    anchor_build_json="$anchor_build"
+  fi
 
   mkdir -p "$(dirname "$marker")"
   {
@@ -227,6 +265,9 @@ write_release_marker() {
     printf '  "version": "%s",\n' "$version"
     printf '  "build": %s,\n' "$build"
     printf '  "anchor_source": "%s",\n' "$anchor_source"
+    printf '  "anchor_build": %s,\n' "$anchor_build_json"
+    printf '  "source_fingerprint": "%s",\n' "$source_fingerprint"
+    printf '  "prepared_from_sha": "%s",\n' "$prepared_from_sha"
     printf '  "generated_at": "%s"\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     printf '}\n'
   } > "$marker"
@@ -368,14 +409,34 @@ prepare_release_revenuecat_key() {
   fi
 }
 
+require_release_xcodegen() {
+  if [[ "$RUN_XCODEGEN" == "0" ]]; then
+    return 0
+  fi
+
+  command -v "$XCODEGEN_COMMAND" >/dev/null 2>&1 \
+    || fail "xcodegen is required. Install with: brew install xcodegen"
+
+  local installed_xcodegen_version
+  installed_xcodegen_version="$("$XCODEGEN_COMMAND" --version | awk '{ print $NF }')"
+  if [[ "$installed_xcodegen_version" != "$REQUIRED_XCODEGEN_VERSION" ]]; then
+    fail "xcodegen ${REQUIRED_XCODEGEN_VERSION} is required for reproducible release generation; found ${installed_xcodegen_version}"
+  fi
+}
+
+cd "$repo_root" || fail "Could not enter project root: $repo_root"
 [[ -f "$PROJECT_YML" ]] || fail "Missing project.yml at $PROJECT_YML"
+require_release_xcodegen
 
 target_version="${VERSION:-}"
-[[ -n "$target_version" ]] || fail "VERSION is required. Example: make prepare-ios-release VERSION=1.0.1"
+[[ -n "$target_version" ]] || fail "VERSION is required. Example: make prepare-ios-release VERSION=1.0.2"
 is_semantic_version "$target_version" || fail "VERSION must be semantic x.y.z with a positive major version, got: $target_version"
 
 repo_version="$(extract_project_setting MARKETING_VERSION "$PROJECT_YML")" || fail "Could not read MARKETING_VERSION from $PROJECT_YML"
 repo_build="$(extract_project_setting CURRENT_PROJECT_VERSION "$PROJECT_YML")" || fail "Could not read CURRENT_PROJECT_VERSION from $PROJECT_YML"
+is_semantic_version "$repo_version" || fail "MARKETING_VERSION must be semantic x.y.z in $PROJECT_YML, got: $repo_version"
+semantic_version_is_at_least "$target_version" "$repo_version" \
+  || fail "VERSION $target_version must not be lower than repo version $repo_version"
 is_positive_int "$repo_build" || fail "CURRENT_PROJECT_VERSION must be a positive integer in $PROJECT_YML, got: $repo_build"
 
 anchor_build=""
@@ -425,15 +486,33 @@ prepare_release_revenuecat_key
 write_project_versions "$target_version" "$target_build" "$PROJECT_YML"
 
 if [[ "$RUN_XCODEGEN" != "0" ]]; then
-  command -v xcodegen >/dev/null 2>&1 || fail "xcodegen is required. Install with: brew install xcodegen"
-  xcodegen generate
+  "$XCODEGEN_COMMAND" generate
 fi
 
 if [[ "$RUN_XCODEGEN" != "0" && -n "$PROJECT_FILE" && ! -f "$PROJECT_FILE" ]]; then
   fail "Expected generated Xcode project file after xcodegen: $PROJECT_FILE"
 fi
 
-write_release_marker "$target_version" "$target_build" "$anchor_source" "$MARKER_FILE"
+[[ -f "$fingerprint_script" ]] || fail "Missing source fingerprint script: $fingerprint_script"
+source_fingerprint="$(
+  MERIAN_PROJECT_ROOT="$repo_root" bash "$fingerprint_script"
+)"
+[[ "$source_fingerprint" =~ ^[0-9a-f]{64}$ ]] \
+  || fail "Source fingerprint is malformed: $source_fingerprint"
+
+prepared_from_sha="$(git -C "$repo_root" rev-parse HEAD)"
+[[ "$prepared_from_sha" =~ ^[0-9a-f]{40,64}$ ]] \
+  || fail "Git returned an invalid source revision: $prepared_from_sha"
+
+write_release_marker \
+  "$target_version" \
+  "$target_build" \
+  "$anchor_source" \
+  "$anchor_build" \
+  "$source_fingerprint" \
+  "$prepared_from_sha" \
+  "$MARKER_FILE"
 
 note "Prepared Merian ${target_version} (${target_build}) for TestFlight."
+note "Release source fingerprint: ${source_fingerprint}"
 note "Release prep marker: ${MARKER_FILE}"

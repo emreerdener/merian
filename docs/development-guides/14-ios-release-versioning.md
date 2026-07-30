@@ -39,15 +39,18 @@ Before archiving for TestFlight, choose the next semantic version and prepare a
 fresh build number from the repo root:
 
 ```bash
-make prepare-ios-release VERSION=1.0.1
+make prepare-ios-release VERSION=1.0.2
 ```
+
+Release prep permits the checked-in semantic version or a higher one and
+rejects a downgrade.
 
 The RevenueCat key is a public iOS SDK key, not a backend-only secret. If you
 are ready to use production RevenueCat, pass the real production key to release
 prep to write or update the ignored `Config.local.xcconfig` override:
 
 ```bash
-REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=1.0.1
+REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=1.0.2
 ```
 
 Placeholder values such as the literal `appl_...` are blocked. If no production
@@ -62,13 +65,13 @@ export ASC_APP_ID=1234567890
 export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
 export ASC_KEY_ID=ABC123DEFG
 export ASC_PRIVATE_KEY_PATH=/path/to/AuthKey_ABC123DEFG.p8
-make prepare-ios-release VERSION=1.0.1
+make prepare-ios-release VERSION=1.0.2
 ```
 
 If credentials are not available, provide a one-time App Store Connect anchor:
 
 ```bash
-LATEST_ASC_BUILD=421 make prepare-ios-release VERSION=1.0.1
+LATEST_ASC_BUILD=421 make prepare-ios-release VERSION=1.0.2
 ```
 
 For an emergency manual override, provide the exact build number. The script
@@ -76,19 +79,57 @@ still refuses values that are not higher than the checked-in repo build, and it
 checks against App Store Connect when credentials are present:
 
 ```bash
-BUILD=422 make prepare-ios-release VERSION=1.0.1
+BUILD=422 make prepare-ios-release VERSION=1.0.2
 ```
 
 The command warns when the resolved RevenueCat key is still development-only,
 then updates `project.yml`, regenerates `Merian.xcodeproj`, and writes
 `build/ios-release-prep.json`. The marker is intentionally ignored by git and
-exists only to prove that the local archive was deliberately prepared.
+exists only to prove that the local archive was deliberately prepared. It
+records a SHA-256 fingerprint of every tracked or nonignored source file and
+file mode present after preparation. This makes the snapshot stable when an
+intended new file or deletion is committed. Commit the complete prepared tree
+before archiving: the archive preflight requires a clean checkout and requires
+its current fingerprint to match the marker. A marker from an earlier source
+tree cannot authorize an archive after code changes, even when the version and
+build settings are unchanged.
+
+Fingerprinting also requires a complete, ordinary Git index. Any tracked path
+marked `assume-unchanged` or `skip-worktree` is rejected before hashing. Clear
+those flags and disable sparse checkout before release preparation; otherwise
+Git can conceal local or omitted source from its normal clean-checkout report.
+
+The local marker also records `prepared_from_sha`, the exact commit on which
+release preparation began. It intentionally differs from the final release
+commit because the version, generated project, and any other prepared changes
+must be committed afterward. Archive preflight requires this field to be a
+valid commit and an ancestor of the final clean checkout. Rebasing, amending,
+or transplanting the prepared tree onto unrelated history requires a fresh
+release-prep marker; matching bytes alone do not preserve its preparation
+lineage.
+
+Release preparation requires XcodeGen `2.45.4`, matching the exact version
+declared in `project.yml`; using another generator version is blocked to prevent
+silent generated-project or scheme drift. Upgrade the script pin, project
+metadata, and generated project together in a reviewed change.
 
 Commit the tracked `project.yml` and generated-project changes, push them, and
 wait for `iOS Build and Test / Production readiness` to pass on that exact
 commit before creating the signed distribution archive. A green run for an
 earlier commit, even with the same semantic version, is not release evidence.
 The repository ruleset and merge queue should require that final check.
+
+Build `1.0.2 (235)` was already successfully distributed to beta testers. Any
+binary containing later remediation must use a globally higher App Store
+Connect build number; another local archive labeled `235` does not replace or
+verify the previously uploaded TestFlight binary.
+
+A local archive audit at `2026-07-30T02:13:13Z` inspected all 417 retained local
+`.xcarchive` bundles. Forty-one were labeled `1.0.2 (235)`, and zero archives
+contained `MERIAN_SOURCE_REVISION`, `MERIAN_SOURCE_FINGERPRINT`, or
+`MERIAN_SOURCE_STATE`. No retained local archive can therefore prove or export
+the current remediated source; `scripts/export-ios-release.sh` rejects each one
+before signing because the embedded provenance is absent.
 
 RevenueCat product configuration is a separate release gate. Open the paywall
 with the production SDK key and confirm the dashboard-selected current offering
@@ -126,12 +167,49 @@ one-scan product cap but still has server-side fair-use/rate ceilings.
 
 Xcode calls `scripts/check-ios-release-prep.sh` during Release archives. The
 check is quiet for normal Debug builds and non-archive Release builds. During an
-archive, it blocks if the prep marker is missing or if the marker version/build
-does not match `project.yml`. It warns, but does not block, if the resolved
-`REVENUECAT_API_KEY` is missing, still begins with RevenueCat's `test_` Test
-Store prefix, or does not look like an iOS production SDK key beginning with
-`appl_`. Set `MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1` for export/release
-checks that should fail on non-production RevenueCat config.
+archive, it parses the marker as typed JSON and blocks if the marker is missing,
+if its version/build does not match `project.yml`, if its local preparation base
+is malformed or outside the final commit's ancestry, if the checkout is dirty,
+or if the exact tracked source fingerprint no longer matches the marker. The
+CI-only marker instead requires `ci_validation_only: true` and an exact
+`source_sha` matching the checked-out workflow revision. A malformed identity
+field cannot silently disable either check. Preflight warns, but does not block,
+if the resolved `REVENUECAT_API_KEY` is missing, still begins with RevenueCat's
+`test_` Test Store prefix, or does not look like an iOS production SDK key
+beginning with `appl_`. Set
+`MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1` for export/release checks that
+should fail on non-production RevenueCat config.
+
+Every built app embeds three support-safe provenance values in its processed
+`Info.plist`:
+
+- `MERIAN_SOURCE_REVISION`: exact Git revision;
+- `MERIAN_SOURCE_FINGERPRINT`: exact release-source snapshot fingerprint; and
+- `MERIAN_SOURCE_STATE`: `clean` or `dirty` at build time.
+
+The startup `ModelContainer bootstrap diagnostics` notice exposes the same
+values as `source`, `sourceFingerprint`, and `sourceState`. Record them with
+every TestFlight trace. A release candidate must report the intended revision
+and fingerprint with `sourceState=clean`; version/build alone is not sufficient
+binary provenance.
+
+The embed phase treats the processed product plist as a scoped build artifact,
+not an arbitrary write target. `INFOPLIST_PATH` must be relative and
+traversal-free, every parent resolves inside the canonical
+`TARGET_BUILD_DIR`, and the final `Info.plist` must be a single-link regular
+file. Symbolic links and multiple hard links are rejected before `PlistBuddy`
+can write through them. The release-tooling fixture proves both escapes fail
+and an ordinary product plist receives all three provenance keys.
+
+Generated-project validation binds both release scripts to the main `Merian`
+target rather than accepting a matching phase elsewhere in the project. The
+preflight must be attached exactly once as the target's first build phase.
+Provenance embedding must also be attached exactly once, run after sources,
+resources, frameworks, app extensions, and watch content, and remain the last
+product-mutating phase immediately before SwiftLint. Both shell definitions
+must be always out of date and invoke only their canonical checked-in script.
+Run `make test-ios-project-resources` to exercise detached, duplicated,
+misordered, and wrong-command adversarial project fixtures.
 
 ### Current-SHA CI Archive Gate
 
@@ -141,11 +219,15 @@ It uses Xcode 26.6, resolves only the checked-in `Package.resolved` versions,
 and disables signing because distribution credentials do not belong on
 untrusted pull-request runners. The job verifies the app version/build,
 embedded widget, Messages extension, watch app, main binary, and matching dSYM
-UUIDs. Its evidence JSON records the source SHA and binary hash.
+UUIDs. It also requires the archive's embedded revision to equal `GITHUB_SHA`,
+the embedded release-source fingerprint to equal the checked-out source, and the
+embedded source state to be `clean`. Its evidence JSON records the source SHA,
+source fingerprint, source state, and binary hash.
 
 CI creates an ephemeral version/build marker solely to exercise the same
 archive preflight. That marker has `ci_validation_only: true`, is stored as
-workflow evidence, and does not satisfy the ignored local
+workflow evidence, and contains an exact `source_sha` that preflight requires
+to match `GITHUB_SHA`. It does not satisfy the ignored local
 `build/ios-release-prep.json` requirement. The unsigned CI archive is retained
 for seven days after successful `main` and manual runs for inspection only. It
 cannot prove distribution signing, provisioning, APNs entitlements, StoreKit,
@@ -242,11 +324,11 @@ make export-ios-release
 ```
 
 The export step validates that the newest archive matches the prepared
-version/build and then runs App Store Connect export signing. By default it uses
-the Apple account state in Xcode. If Xcode reports `No Accounts`, an invalid
-keychain credential, or a missing `iOS Distribution` certificate, fix Xcode >
-Settings > Accounts for the team or provide App Store Connect API key
-authentication:
+version/build, checked-out revision, release-source fingerprint, and clean build
+state, then runs App Store Connect export signing. By default it uses the Apple
+account state in Xcode. If Xcode reports `No Accounts`, an invalid keychain
+credential, or a missing `iOS Distribution` certificate, fix Xcode > Settings >
+Accounts for the team or provide App Store Connect API key authentication:
 
 ```bash
 export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
@@ -257,6 +339,13 @@ make export-ios-release
 
 The exported `.ipa`, `exportOptions.plist`, and Xcode export log are written to
 `build/ios-export/`.
+
+The helper canonicalizes its output paths before deleting any previous export.
+`EXPORT_PATH` must resolve to a child of this repository's `build/` directory,
+and `EXPORT_OPTIONS_PLIST` must resolve inside that export directory. Symlink
+escapes and lexical `.`/`..` components—including traversal hidden behind a
+not-yet-created directory—are rejected before prep validation, archive
+selection, directory creation, or file removal.
 
 After uploading, confirm App Store Connect places the processed build under the
 expected semantic version and build number.

@@ -832,12 +832,15 @@ struct MerianApp: App {
     private static func logModelContainerBootstrapDiagnostics() {
         let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
         let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        let sourceRevision = Bundle.main.object(forInfoDictionaryKey: "MERIAN_SOURCE_REVISION") as? String ?? "unavailable"
+        let sourceFingerprint = Bundle.main.object(forInfoDictionaryKey: "MERIAN_SOURCE_FINGERPRINT") as? String ?? "unavailable"
+        let sourceState = Bundle.main.object(forInfoDictionaryKey: "MERIAN_SOURCE_STATE") as? String ?? "unavailable"
         let currentSchema = CurrentSchema.versionIdentifier.major
         let schemas = migrationSchemaVersionSummary()
         let stages = migrationStageVersionSummary()
 
         MerianLog.general.notice(
-            "ModelContainer bootstrap diagnostics: app=\(appVersion, privacy: .public)(\(buildNumber, privacy: .public)) currentSchema=V\(currentSchema, privacy: .public) migrationSchemas=[\(schemas, privacy: .public)] migrationStages=[\(stages, privacy: .public)]"
+            "ModelContainer bootstrap diagnostics: app=\(appVersion, privacy: .public)(\(buildNumber, privacy: .public)) source=\(sourceRevision, privacy: .public) sourceFingerprint=\(sourceFingerprint, privacy: .public) sourceState=\(sourceState, privacy: .public) currentSchema=V\(currentSchema, privacy: .public) migrationSchemas=[\(schemas, privacy: .public)] migrationStages=[\(stages, privacy: .public)]"
         )
     }
 

@@ -191,6 +191,11 @@ participation tables. Challenge badges can appear near Field trip profile
 modules as lightweight public reward cards, but they do not expose scan IDs,
 media, exact locations, notes, or private evidence, and they are not prizes,
 rankings, or contest eligibility markers.
+Only scans that satisfy the
+[Field Trip identification-evidence policy](25-field-trips.md#identification-evidence-policy)
+count. A later downgrade to weak unreviewed evidence removes the contribution,
+reopens affected challenge progress, and clears a badge that is no longer
+earned.
 
 ---
 

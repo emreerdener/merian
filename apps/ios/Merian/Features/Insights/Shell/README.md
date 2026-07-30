@@ -13,6 +13,11 @@ inside an existing navigation stack and owns its back arrow/back-swipe behavior.
 `ScanInsightRoute` carries only the stable scan ID; the presenting shell must
 resolve and load the caller's local scan before pushing it.
 
+The Scans library also uses the embedded mode for queued and staged scans.
+Their private navigation route retains `QueuedScanContext`, a value snapshot
+that remains safe after the backing queue model is deleted, allowing upload,
+analysis, and completed results to transition within one pushed destination.
+
 Explore uses the embedded mode when a user taps a completed Field-trip goal in
 either the catalog card or outing detail. This keeps the Insight view inside the
 current Explore sheet and returns to the outing on back. Missing local records

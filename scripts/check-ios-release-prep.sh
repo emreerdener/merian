@@ -87,6 +87,19 @@ extract_project_setting() {
   awk -v key="$key" '$1 == key ":" { print $2; found = 1; exit } END { if (!found) exit 1 }' "$file"
 }
 
+read_marker_value() {
+  local key="$1"
+  local expected_type="$2"
+  local file="$3"
+
+  /usr/bin/plutil \
+    -extract "$key" raw \
+    -expect "$expected_type" \
+    -o - \
+    "$file" \
+    2>/dev/null
+}
+
 should_enforce="false"
 if [[ "${CONFIGURATION:-}" == "Release" ]]; then
   if [[ "${ACTION:-}" == "install" || "${DEPLOYMENT_LOCATION:-}" == "YES" || -n "${ARCHIVE_PRODUCTS_PATH:-}" ]]; then
@@ -103,6 +116,8 @@ fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${MERIAN_PROJECT_ROOT:-${SRCROOT:-$(cd "$script_dir/.." && pwd)}}"
+repo_root="$(cd "$repo_root" && pwd -P)" \
+  || fail "could not canonicalize project root $repo_root."
 project_yml="$repo_root/project.yml"
 
 if [[ -n "${IOS_RELEASE_PREP_MARKER:-}" ]]; then
@@ -117,16 +132,73 @@ fi
 
 [[ -f "$project_yml" ]] || fail "missing project.yml at $project_yml."
 [[ -f "$marker_file" ]] || fail "missing release prep marker at $marker_file."
+[[ -x /usr/bin/plutil ]] || fail "plutil is unavailable."
+/usr/bin/plutil -convert json -o - "$marker_file" >/dev/null 2>&1 \
+  || fail "release prep marker is not valid JSON at $marker_file."
 
 project_version="$(extract_project_setting MARKETING_VERSION "$project_yml")" || fail "could not read MARKETING_VERSION from project.yml."
 project_build="$(extract_project_setting CURRENT_PROJECT_VERSION "$project_yml")" || fail "could not read CURRENT_PROJECT_VERSION from project.yml."
 
-marker_version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$marker_file" | head -n 1)"
-marker_build="$(sed -n 's/.*"build"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$marker_file" | head -n 1)"
+marker_version="$(read_marker_value version string "$marker_file")" \
+  || fail "release prep marker has no string version."
+marker_build="$(read_marker_value build integer "$marker_file")" \
+  || fail "release prep marker has no integer build."
+marker_source_fingerprint="$(
+  read_marker_value source_fingerprint string "$marker_file"
+)" || fail "release prep marker has no string release-source fingerprint."
+marker_ci_validation_only="false"
+if /usr/bin/plutil -type ci_validation_only "$marker_file" >/dev/null 2>&1; then
+  marker_ci_validation_only="$(
+    read_marker_value ci_validation_only bool "$marker_file"
+  )" || fail "release prep marker has a malformed ci_validation_only flag."
+fi
 
-[[ -n "$marker_version" && -n "$marker_build" ]] || fail "release prep marker is malformed at $marker_file."
 [[ "$marker_version" == "$project_version" ]] || fail "release prep marker version $marker_version does not match project version $project_version."
 [[ "$marker_build" == "$project_build" ]] || fail "release prep marker build $marker_build does not match project build $project_build."
+[[ "$marker_source_fingerprint" =~ ^[0-9a-f]{64}$ ]] \
+  || fail "release prep marker has no valid release-source fingerprint."
+
+fingerprint_script="$repo_root/scripts/ios-release-source-fingerprint.sh"
+[[ -f "$fingerprint_script" ]] || fail "missing source fingerprint script at $fingerprint_script."
+
+source_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal)"
+if [[ -n "$source_status" ]]; then
+  echo "Current source changes:" >&2
+  printf '%s\n' "$source_status" >&2
+  fail "source checkout is dirty; commit the prepared source before archiving."
+fi
+
+source_fingerprint="$(
+  MERIAN_PROJECT_ROOT="$repo_root" bash "$fingerprint_script"
+)"
+[[ "$source_fingerprint" == "$marker_source_fingerprint" ]] \
+  || fail "tracked source changed after release prep; prepare a fresh, higher TestFlight build."
+
+source_revision="$(git -C "$repo_root" rev-parse HEAD)"
+[[ "$source_revision" =~ ^[0-9a-f]{40,64}$ ]] \
+  || fail "git returned an invalid source revision."
+
+if [[ "$marker_ci_validation_only" == "true" ]]; then
+  marker_source_sha="$(
+    read_marker_value source_sha string "$marker_file"
+  )" || fail "CI validation marker has no string exact source revision."
+  [[ "$marker_source_sha" =~ ^[0-9a-f]{40,64}$ ]] \
+    || fail "CI validation marker has no valid exact source revision."
+  [[ "$marker_source_sha" == "$source_revision" ]] \
+    || fail "CI release marker source $marker_source_sha does not match checked-out source $source_revision."
+else
+  marker_prepared_from_sha="$(
+    read_marker_value prepared_from_sha string "$marker_file"
+  )" || fail "local release marker has no string preparation-base revision."
+  [[ "$marker_prepared_from_sha" =~ ^[0-9a-f]{40,64}$ ]] \
+    || fail "local release marker has no valid preparation-base revision."
+  git -C "$repo_root" cat-file -e "${marker_prepared_from_sha}^{commit}" \
+    >/dev/null 2>&1 \
+    || fail "local release marker preparation base $marker_prepared_from_sha is not a commit."
+  git -C "$repo_root" merge-base \
+    --is-ancestor "$marker_prepared_from_sha" "$source_revision" \
+    || fail "release commit $source_revision does not descend from preparation base $marker_prepared_from_sha."
+fi
 
 if [[ -n "${MARKETING_VERSION:-}" && "$MARKETING_VERSION" != "$project_version" ]]; then
   fail "Xcode resolved MARKETING_VERSION=$MARKETING_VERSION but project.yml says $project_version."
@@ -156,4 +228,5 @@ if [[ "${CONFIGURATION:-}" == "Release" ]]; then
   fi
 fi
 
-echo "Release prep marker verified for Merian ${project_version} (${project_build})."
+echo "Release prep marker verified for Merian ${project_version} (${project_build}) at ${source_revision}."
+echo "Release source fingerprint: ${source_fingerprint}"

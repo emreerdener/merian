@@ -97,6 +97,181 @@ struct OfflineQueueManagerTests {
         #expect(manager.isCloudDeletionSyncing)
     }
 
+    @Test func queueDiagnosticsExportOmitsPrivateAndFreeFormValues() throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        defer {
+            manager.modelContext = originalContext
+        }
+
+        let context = try createIsolatedContext()
+        let scanId = UUID().uuidString.lowercased()
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let privatePath = "PRIVATE-MEDIA-PATH-\(UUID().uuidString).webp"
+        let privateDescription = "PRIVATE-DESCRIPTION-\(UUID().uuidString)"
+        let privateNotes = "PRIVATE-FIELD-NOTES-\(UUID().uuidString)"
+        let privateLocation = "PRIVATE-LOCATION-\(UUID().uuidString)"
+        let privateMessage = "PRIVATE-ERROR-MESSAGE-\(UUID().uuidString)"
+        let privateMetadata = "PRIVATE-METADATA-\(UUID().uuidString)"
+        let privateMachineField =
+            "PRIVATE-MACHINE-FIELD-\(UUID().uuidString) / raw"
+        let mediaJSON = CapturedMediaSnapshot(items: [
+            .image(.documents(privatePath)),
+            .description(ObservationContext(
+                freeText: privateDescription,
+                addedAt: Date()
+            ))
+        ]).jsonString
+
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            capturedMediaJSON: mediaJSON,
+            coverImagePath: privatePath,
+            gpsLatitude: 39.781721,
+            gpsLongitude: -89.650148,
+            locationName: privateLocation,
+            fieldNotes: privateNotes,
+            queueLastErrorCode: "upload_http_503",
+            queueLastErrorMessage: privateMessage,
+            queueLastHTTPStatus: 503,
+            queueLastServerStatus: "failed_retryable",
+            queueLastServerStage: "background_ingestion_failed"
+        )
+        let job = OfflineJobRecord(
+            id: jobId,
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .waiting,
+            lastErrorCode: "upload_http_503",
+            lastErrorMessage: privateMessage,
+            lastHTTPStatus: 503,
+            serverStatus: privateMachineField,
+            serverStage: privateMachineField,
+            metadataJSON: #"{"private":"\#(privateMetadata)"}"#
+        )
+        let event = OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .retryScheduled,
+            message: privateMessage,
+            errorCode: privateMachineField,
+            httpStatus: 503,
+            metadataJSON: #"{"private":"\#(privateMetadata)"}"#
+        )
+        context.insert(scan)
+        context.insert(job)
+        context.insert(event)
+        try context.save()
+
+        let exportURL = try manager.writeQueueDiagnosticsExport()
+        defer {
+            try? FileManager.default.removeItem(at: exportURL)
+        }
+        let exportData = try Data(contentsOf: exportURL)
+        let exportText = try #require(String(
+            data: exportData,
+            encoding: .utf8
+        ))
+        let exportObject = try #require(
+            JSONSerialization.jsonObject(with: exportData) as? [String: Any]
+        )
+
+        for privateValue in [
+            privatePath,
+            privateDescription,
+            privateNotes,
+            privateLocation,
+            privateMessage,
+            privateMetadata,
+            privateMachineField,
+            "39.781721",
+            "-89.650148"
+        ] {
+            #expect(!exportText.contains(privateValue))
+        }
+        #expect(exportText.contains(scanId))
+        #expect(exportObject["formatVersion"] as? Int == 1)
+        #expect(exportText.contains("upload_http_503"))
+        #expect(exportText.contains("failed_retryable"))
+        #expect(exportText.contains("background_ingestion_failed"))
+        #expect(exportText.contains(OfflineQueueEventKind.retryScheduled.rawValue))
+        for provenanceKey in [
+            "version",
+            "build",
+            "sourceRevision",
+            "sourceFingerprint",
+            "sourceState"
+        ] {
+            #expect(exportText.contains(#""\#(provenanceKey)""#))
+        }
+    }
+
+    @Test func queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred() throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        defer {
+            manager.modelContext = originalContext
+        }
+
+        let context = try createIsolatedContext()
+        for index in 0..<510 {
+            context.insert(OfflineJobRecord(
+                id: "diagnostics-job-\(index)",
+                kind: .future,
+                updatedAt: Date(
+                    timeIntervalSince1970: TimeInterval(index)
+                )
+            ))
+            context.insert(OfflineQueuedScan(
+                id: UUID().uuidString.lowercased(),
+                timestamp: Date(
+                    timeIntervalSince1970: TimeInterval(index)
+                )
+            ))
+            context.insert(OfflineQueueEvent(
+                kind: .diagnostics,
+                createdAt: Date(timeIntervalSince1970: TimeInterval(index))
+            ))
+        }
+        try context.save()
+
+        let maximumURL = try manager.writeQueueDiagnosticsExport(
+            eventLimit: .max
+        )
+        defer {
+            try? FileManager.default.removeItem(at: maximumURL)
+        }
+        let maximumData = try Data(contentsOf: maximumURL)
+        let maximumObject = try #require(
+            JSONSerialization.jsonObject(with: maximumData) as? [String: Any]
+        )
+        let maximumEvents = try #require(
+            maximumObject["events"] as? [[String: Any]]
+        )
+        let maximumJobs = try #require(
+            maximumObject["jobs"] as? [[String: Any]]
+        )
+        let maximumScans = try #require(
+            maximumObject["scans"] as? [[String: Any]]
+        )
+        #expect(maximumEvents.count == 500)
+        #expect(maximumJobs.count == 500)
+        #expect(maximumScans.count == 500)
+
+        let minimumURL = try manager.writeQueueDiagnosticsExport(eventLimit: 0)
+        defer {
+            try? FileManager.default.removeItem(at: minimumURL)
+        }
+        let minimumData = try Data(contentsOf: minimumURL)
+        let minimumObject = try #require(
+            JSONSerialization.jsonObject(with: minimumData) as? [String: Any]
+        )
+        let minimumEvents = try #require(
+            minimumObject["events"] as? [[String: Any]]
+        )
+        #expect(minimumEvents.count == 1)
+    }
+
     @Test func inferenceReplayReconciliationCoalescesConcurrentWakeSources() {
         let manager = OfflineQueueManager.shared
         let originalIsReconciling = manager.isInferenceReplayReconciling

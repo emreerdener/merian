@@ -82,6 +82,12 @@ steps are tracked in the
 > [retry deadlock incident](docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md)
 > and
 > [legacy share incident](docs/incidents/2026-07-media-abandoned-explore-share-recovery.md).
+> A later physical-device smoke also staged and submitted a scan with Wi-Fi and
+> cellular disabled; it remained queued and completed after connectivity was
+> restored. This positively exercises ordinary offline replay, but build `235`
+> predates the remediation and its retained console lacks the transaction-level
+> sequence, so a fresh globally higher exact-source TestFlight build remains a
+> release requirement.
 
 ---
 
@@ -262,14 +268,18 @@ steps are tracked in the
   redundant level label and open the owning Goals overview in the current
   navigation stack, with Back returning to the Insight. Standard outings require
   explicit start and Events require join; a scan may advance several active
-  experiences but credits at most one goal in each. Scan ingestion applies
-  standard/Event progress and first-outing achievement state atomically, retains
-  a private idempotency receipt for recovery after termination, and keeps the
-  durable Capture goal hint until acknowledgement. Field trip database routines
-  are service-role-only behind the authenticated Edge API; direct client roles
-  cannot call ownership-bearing RPCs. Saved scans still show contextual progress
-  toasts with a credited ring and tap-through navigation before any achievement
-  or New to Naturebook notification from the same scan. Publication storage
+  experiences but credits at most one goal in each. Unreviewed AI evidence must
+  be at least a tier-specific **Possible match** (75% Flash / 65% Pro); a weaker
+  match remains pending until confirmation or correction. Scan ingestion
+  applies standard/Event progress and first-outing achievement state atomically,
+  retains a private idempotency receipt for recovery after termination, and
+  keeps the durable Capture goal hint until acknowledgement. Field trip database
+  entry points are service-role-only behind the authenticated Edge API, while
+  trigger and reconciliation helpers remain database-only; direct client roles
+  cannot call ownership-bearing RPCs. Saved scans still show
+  contextual progress toasts with a credited ring and tap-through navigation
+  before any achievement or New to Naturebook notification from the same scan.
+  Publication storage
   stays separate from Explore posts; typed Field trip cards can appear in
   unfiltered Recent and Following, but not in Explore maps or the other
   post-only surfaces. Events remain a client-gated preview for
@@ -586,7 +596,7 @@ From the repo root:
 
 ```bash
 make xcodegen
-make prepare-ios-release VERSION=1.0.1
+make prepare-ios-release VERSION=1.0.2
 make db-push
 make functions-deploy
 ```

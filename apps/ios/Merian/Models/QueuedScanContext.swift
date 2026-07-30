@@ -2,12 +2,11 @@ import Foundation
 
 /// A value-type snapshot of all data the insight sheet chain needs from an `OfflineQueuedScan`.
 ///
-/// **Why this exists**: Every view in the queued-scan path (`LibraryView`, `InsightSheetView`,
-/// `InsightSheetViewModel`, `AnalyzingContentView`) previously held a live `OfflineQueuedScan`
-/// reference. When the queued scan is deleted, SwiftData tears down
-/// the object's backing store. During SwiftUI's subsequent dismissal animation (~300ms), the
-/// view hierarchy is still active and re-evaluates computed properties — accessing ANY
-/// unfaulted SwiftData attribute on the zombie causes the fatal "backing data detached" crash.
+/// **Why this exists**: Every view in the queued-scan path (`LibraryView`,
+/// `InsightSheetView`, `InsightSheetViewModel`, `QueuedContentView`) previously held a live
+/// `OfflineQueuedScan` reference. When the queued scan is deleted, SwiftData tears down its
+/// backing store. The pushed destination remains active while the completed result replaces
+/// queued content, so accessing ANY unfaulted attribute on that detached model would crash.
 ///
 /// Snapshotting all needed data into this value type at tap time (while the object is live)
 /// breaks the direct observation dependency. SwiftUI never registers a tracking dependency on

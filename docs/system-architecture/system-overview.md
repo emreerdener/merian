@@ -97,10 +97,14 @@ A structured schema built on native SwiftData migrations:
   **New to Naturebook** in that order. This prevents the live inference task and
   background URLSession completion from presenting duplicate notifications.
 - *Durable Field Trip Progress*: the ingestion intent retains the optional live
-  Capture preference, and a scan insert/correction trigger atomically applies
-  standard outings, joined Events, preference state, and first-outing
-  achievement state. A private scan-revision receipt makes retries idempotent.
-  The local SwiftData hint remains an outbox until the server acknowledges the
+  Capture preference, and a scan insert/evidence-change trigger atomically
+  applies standard outings, joined Events, preference state, and first-outing
+  achievement state. Automatic AI evidence must meet the tier-specific
+  Possible-match boundary (75% Flash / 65% Pro); weaker evidence remains pending
+  until confirmed or corrected. Confidence, inference tier, and confirmation
+  state participate in the private scan-revision receipt, making retries
+  idempotent and allowing a later review change to add or revoke credit. The
+  local SwiftData hint remains an outbox until the server acknowledges the
   result and is replayed after relaunch if queue cleanup finished first.
 - *Persistent Field Trip Attribution*: after progress settles, saved biological
   Insights query the private scan-contribution projection and render every

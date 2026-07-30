@@ -77,7 +77,7 @@ uses the validated legacy anon JWT only where the two intentional gateway
 never sends a publishable key as Bearer and fails closed if the required
 execution credential is unavailable.
 
-The following ten customer-critical routes receive an additional semantic
+The following eleven customer-critical routes receive an additional semantic
 authorization probe:
 
 1. `generate-upload-urls`;
@@ -86,10 +86,11 @@ authorization probe:
 4. `share-scan-to-explore`;
 5. `get-scan-explore-share-state`;
 6. `get-explore-composer-media`;
-7. `insight-chat`;
-8. `explore-post-chat`;
-9. `request-community-identification`; and
-10. `delete-scan`.
+7. `get-explore-media-incidents`;
+8. `insight-chat`;
+9. `explore-post-chat`;
+10. `request-community-identification`; and
+11. `delete-scan`.
 
 Each unauthenticated critical-route probe must return fail-closed `401` with the
 marker.
@@ -135,7 +136,7 @@ Do not close this incident until:
 1. the repository changes pass production CI and are promoted in the matching
    iOS release;
 2. the deployment record shows the complete graph-derived route inventory
-   reaching marked handlers and all ten critical routes failing closed;
+   reaching marked handlers and all eleven critical routes failing closed;
 3. an authenticated post-release scan immediately reports owner status `found`,
    opens Field Chat, and publishes to Explore;
 4. an eligible older local observation repairs through the owner-row recovery
