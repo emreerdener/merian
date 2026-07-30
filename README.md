@@ -108,25 +108,47 @@ steps are tracked in the
 > take over the already-open sheet. That late Debug transaction used the
 > container main context while the sheet was bound to its environment
 > `ModelContext`, then relied on an asynchronous library event to merge the
-> insert. The current follow-up performs the transaction in that exact bound
-> context and immediately calls the existing production queue-promotion path;
-> the library event remains for parent-library refresh. Release retains a no-op
-> coordinator, and production queue timing is unchanged. That context-bound
-> follow-up is committed as `838533e98589f4fca89643e966864a7d59adca05`. Run 102
-> on that exact SHA did not reach the queued UI smoke because its complete unit
-> target reported 1,240 passed and one failed:
+> insert. The context-bound follow-up performs the transaction in that exact
+> context and immediately calls the existing production queue-promotion path.
+> Release retains a no-op coordinator, and production queue timing is unchanged.
+> That portion is committed as `838533e98589f4fca89643e966864a7d59adca05`. Run
+> 102 on that exact SHA did not reach the queued UI smoke because its complete
+> unit target reported 1,240 passed and one failed:
 > `testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay` observed
 > zero requests while expecting the first request. Its fixed loop of 100
 > executor yields did not provide a time-bounded rendezvous with URLSession on
-> the loaded hosted simulator. The current test-only follow-up waits up to five
-> monotonic seconds for that observable first dispatch, then preserves both
-> exact assertions: one request before cancellation and still one after
-> cancellation. Run 102's current-SHA Release archive independently passed at
-> 239,083,520 bytes for `1.0.2 (235)`, fingerprint
+> the loaded hosted simulator. Commit `4f68e68913fca6276458cd093ad167c9bc7d5d9e`
+> replaces that loop with a wait of up to five monotonic seconds for the
+> observable first dispatch, then preserves both exact assertions: one request
+> before cancellation and still one after cancellation. Run 102's current-SHA
+> Release archive independently passed at 239,083,520 bytes for `1.0.2 (235)`,
+> fingerprint
 > `2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`, with
-> verified main dSYM UUIDs and no Debug UI-seed markers. A new hosted committed
-> descendant must still pass the complete unit target, one-case queued-scan UI
-> smoke, and current-SHA archive together.
+> verified main dSYM UUIDs and no Debug UI-seed markers. Run 103 on exact SHA
+> `4f68e68913` passed all 1,241 unit tests, every protected critical case, and
+> its 239,083,520-byte current-SHA archive with fingerprint
+> `99c82c4e68eceb39c0d29db26bfe57236105de25c499dcd1a9acbe3c82e25c0e`. The queued
+> UI smoke still failed after its explicit badge tap because the seeded
+> completed record did not take over the queued sheet. A local result-bundle run
+> after correcting child-before-parent event ordering reached **Northern
+> Cardinal** and retained decoded audio, then proved the bottom toolbar was
+> absent: queued and completed states share one UUID, so a toolbar task keyed to
+> that ID did not restart after promotion advanced the presentation generation.
+> The current worktree makes a persisted completion authoritative over stale
+> same-ID queued routes and keys result-toolbar plus Field Notes tasks to that
+> generation. Rebinding that stale route after the exact completion is already
+> visible is an idempotent no-op that preserves the result generation and
+> controls. A later verbose exact-case rerun exposed an independent
+> test-interaction defect: the animated scanning badge advertised a 703-point
+> accessibility frame beginning at x=-384.7 in a 402-point window, so XCTest
+> rejected the rectangle and tapped its x=5 fallback sliver. The translated
+> decorative glare and text-reveal mask are now clipped to their owning bounds,
+> excluded from interaction semantics where decorative, and the shared badge is
+> fixed to its intrinsic size. The smoke rejects any off-window frame before
+> initiating handoff. A new hosted committed descendant must compile current
+> source, pass all 1,243 unit tests, the exact one-case queued-scan UI smoke,
+> and its current-SHA archive together. See the
+> [queued Insight same-ID handoff incident](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md).
 
 ---
 

@@ -306,6 +306,27 @@ extension InsightSheetViewModel {
             .caseInsensitiveCompare(scanId) == .orderedSame
     }
 
+    /// Reveals result-only actions after their presentation has settled.
+    /// A completed record may reuse the queued row's scan ID, so callers must
+    /// provide the monotonic presentation generation as the identity fence.
+    @discardableResult
+    func revealBottomBarTools(
+        expectedScanId scanId: String,
+        expectedGeneration generation: UInt64
+    ) -> Bool {
+        guard queuedContext == nil,
+              isPresentingLocalRecord(
+                  scanId: scanId,
+                  generation: generation
+              ),
+              toolbarRecordSnapshot?.scanId
+                .caseInsensitiveCompare(scanId) == .orderedSame else {
+            return false
+        }
+        state.showBottomBarTools = true
+        return true
+    }
+
     var fieldNotesText: String {
         if queuedContext == nil,
            inferenceEngine?.speciesData?.scanId != nil,

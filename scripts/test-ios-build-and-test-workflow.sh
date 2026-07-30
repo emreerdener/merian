@@ -11,7 +11,12 @@ focused_results_check="$repo_root/scripts/validate-ios-focused-test-results.sh"
 failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagnostics.sh"
 ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
 ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
+scanning_experience_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/AnalyzingContentView.swift"
+confidence_badge_source="$repo_root/apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceBadge.swift"
 queued_content_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift"
+insight_sheet_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift"
+insight_records_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Records.swift"
+insight_display_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Display.swift"
 audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
 field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift"
 insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift"
@@ -81,6 +86,25 @@ assert_before() {
     || fail "Cannot verify workflow ordering for '$first' before '$second'."
   (( first_line < second_line )) \
     || fail "Workflow must place '$first' before '$second'."
+}
+
+assert_file_before() {
+  local checked_file="$1"
+  local first="$2"
+  local second="$3"
+  local first_line
+  local second_line
+
+  first_line="$(
+    grep -Fn -- "$first" "$checked_file" | head -n 1 | cut -d: -f1 || true
+  )"
+  second_line="$(
+    grep -Fn -- "$second" "$checked_file" | head -n 1 | cut -d: -f1 || true
+  )"
+  [[ -n "$first_line" && -n "$second_line" ]] \
+    || fail "Cannot verify ordering in $checked_file for '$first' before '$second'."
+  (( first_line < second_line )) \
+    || fail "$checked_file must place '$first' before '$second'."
 }
 
 assert_action_release() {
@@ -355,7 +379,17 @@ assert_file_count "$ui_seed_source" 0 "4_000_000_000"
 assert_file_contains "$ui_seed_source" "modelContext: ModelContext"
 assert_file_contains "$ui_seed_source" "modelContext _: ModelContext"
 assert_file_contains "$ui_seed_source" "try modelContext.save()"
+assert_file_count "$ui_seed_source" 0 "ScanLibraryEvents.postLibraryDidUpdate()"
 assert_file_contains "$ui_test_source" "scanningStatusBadge.tap()"
+assert_file_contains \
+  "$ui_test_source" \
+  "app.frame.contains(scanningStatusBadge.frame)"
+assert_file_contains \
+  "$scanning_experience_source" \
+  ".fixedSize(horizontal: true, vertical: true)"
+assert_file_count "$confidence_badge_source" 2 ".clipped()"
+assert_file_contains "$confidence_badge_source" ".allowsHitTesting(false)"
+assert_file_contains "$confidence_badge_source" ".accessibilityHidden(true)"
 assert_file_contains \
   "$queued_content_source" \
   "UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded("
@@ -364,6 +398,45 @@ assert_file_count "$queued_content_source" 0 "container: modelContext.container"
 assert_file_contains \
   "$queued_content_source" \
   "viewModel.promoteQueuedScanIfLocalRecordExists("
+assert_file_count \
+  "$queued_content_source" \
+  1 \
+  "ScanLibraryEvents.postLibraryDidUpdate()"
+assert_file_before \
+  "$queued_content_source" \
+  "let didPromoteQueuedScan = viewModel.promoteQueuedScanIfLocalRecordExists(" \
+  "ScanLibraryEvents.postLibraryDidUpdate()"
+assert_file_before \
+  "$queued_content_source" \
+  "guard didPromoteQueuedScan else {" \
+  "ScanLibraryEvents.postLibraryDidUpdate()"
+assert_file_contains \
+  "$insight_records_source" \
+  "func bindQueuedPresentationPreferringCompletedRecord("
+assert_file_contains \
+  "$insight_records_source" \
+  "isPresentingLocalRecord(scanId: queuedScan.id)"
+assert_file_before \
+  "$insight_records_source" \
+  "isPresentingLocalRecord(scanId: queuedScan.id)" \
+  "bindQueuedPresentation(queuedScan)"
+assert_file_count \
+  "$insight_sheet_source" \
+  2 \
+  "viewModel.bindQueuedPresentationPreferringCompletedRecord("
+assert_file_contains \
+  "$insight_sheet_source" \
+  ".task(id: viewModel.scanBoundActionGeneration)"
+assert_file_count \
+  "$insight_sheet_source" \
+  0 \
+  ".task(id: viewModel.persistentScanId)"
+assert_file_contains \
+  "$insight_sheet_source" \
+  "viewModel.revealBottomBarTools("
+assert_file_contains \
+  "$insight_display_source" \
+  "func revealBottomBarTools("
 assert_file_contains \
   "$network_client_test_source" \
   "testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay()"
@@ -551,9 +624,9 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "71" ]] \
+[[ "$protected_case_count" == "73" ]] \
   || fail \
-    "Expected 71 exact protected iOS test cases; found $protected_case_count."
+    "Expected 73 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \

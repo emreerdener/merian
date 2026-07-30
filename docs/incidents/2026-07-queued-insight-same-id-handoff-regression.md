@@ -1,0 +1,179 @@
+# Queued Insight Same-ID Handoff Regression
+
+**Date:** 2026-07-30\
+**Severity:** Release-blocking\
+**Affected flow:** Offline queue / staged scan → completed Insight → Field Chat
+/ Share / Explore\
+**Repository status:** Remediated in the current worktree; hosted acceptance
+pending\
+**Production status:** Open until a matching iOS build satisfies the closure
+gates below
+
+## User Impact
+
+A scan could finish while its queued Insight destination was open but fail to
+become a fully usable completed result. In the earliest fixture revisions the
+screen could remain queued or be rebuilt from a stale queued navigation value
+even though a same-ID `LocalScanRecord` had been saved. After direct promotion
+was made reliable, the completed result and playable audio appeared, but the
+bottom toolbar did not. Field Chat and Share—including deliberate Explore
+publication—were therefore unreachable until the user reopened the scan.
+
+The defect is most visible in offline recovery because queue and completed
+presentations intentionally preserve one stable scan UUID. It is an iOS
+presentation-lifecycle regression, not an alternate AWS backend path; cloud scan
+readiness and publication continue to use the Supabase backend contracts.
+
+## Evidence Timeline
+
+- Hosted Run 100 on `8642a8c6d` passed 1,241 unit tests and its exact-SHA
+  Release archive, but a fixed four-second Debug fixture timer replaced queued
+  UI before the hosted accessibility query reached `ScanningStatusBadge`.
+- Hosted Run 101 on `399482b649` passed all unit tests and the archive. The
+  explicit badge handshake proved native Back, queued scanning content, and
+  decoded audio, then failed because the completed record was written through a
+  different `ModelContext` from the open destination.
+- Hosted Run 102 on `838533e985` did not execute the UI case after an
+  independent cancellation test used executor-yield counting as its URLSession
+  rendezvous. Its Release archive still passed.
+- Hosted Run 103 on `4f68e68913` passed all 1,241 unit tests, every protected
+  critical regression, and the exact-SHA Release archive. The UI case again
+  reached the badge and failed at completed-record takeover.
+- A local exact-case diagnostic run after correcting child/event ordering
+  committed the transaction, promoted **Northern Cardinal**, retained the
+  filename-scoped decoded audio control, and preserved native Back. It then
+  failed because neither `FieldChatToolbarButton` nor `InsightShareButton`
+  existed in the accessibility hierarchy.
+- A later exact local rerun after the same-ID toolbar correction again stopped
+  at takeover. Its verbose XCTest session log exposed an earlier interaction
+  boundary: `ScanningStatusBadge` reported `{{-384.7, 464.0}, {703.0, 36.0}}`
+  inside a 402-point-wide app window. XCTest classified that rectangle as
+  invalid and synthesized the tap at its fallback visible point, `(5, 482)`,
+  rather than on the usable capsule. The queued screen therefore remained intact
+  and its audio was still present; this run did not disprove the transaction or
+  promotion path because it never reliably invoked the Debug handshake.
+- The retained hierarchy also captured the same Button at width 1,406 while its
+  visible image and text remained inside the roughly 234-point capsule. Those
+  703- and 1,406-point extents track the glare rectangle's negative and positive
+  translated animation phases. The decoration was being unioned into the
+  ancestor's accessibility frame even while analyzing opacity made it invisible.
+
+Run 103's retained archive evidence is version/build `1.0.2 (235)`, size
+239,083,520 bytes, source fingerprint
+`99c82c4e68eceb39c0d29db26bfe57236105de25c499dcd1a9acbe3c82e25c0e`, verified
+main dSYM UUIDs, and no Debug-only seed markers. This evidence applies only to
+`4f68e68913`; it is not acceptance for the current correction.
+
+## Root Cause
+
+Four lifecycle boundaries combined:
+
+1. The deterministic fixture originally used elapsed time, allowing completion
+   to race accessibility startup. Replacing that timer with an explicit badge
+   handshake exposed the real handoff boundary.
+2. The fixture saved through a context other than the one already bound to the
+   open Insight, then depended on an asynchronous library event merge. Passing
+   the environment context fixed visibility, but the first implementation
+   synchronously published the parent event before direct child promotion. A
+   parent rebuild could therefore rebind the child from its retained
+   `QueuedScanContext` value.
+3. Promotion correctly advances `scanBoundActionGeneration` and clears
+   result-only UI. The delayed toolbar reveal was nevertheless
+   `.task(id: viewModel.persistentScanId)`. Queue and completion share that ID,
+   so promotion canceled the queued generation without changing the task key;
+   SwiftUI had no reason to schedule a completed-result reveal. Field Notes
+   synchronization used the same unsuitable task identity.
+4. The shared analyzing badge contains animated `GeometryReader` overlays.
+   Without an intrinsic-size constraint, one exact simulator layout exposed the
+   overlay's oversized, horizontally translated rectangle as the Button's
+   accessibility frame. XCTest's ordinary element tap then targeted the
+   five-point fallback sliver at the window edge instead of invoking the
+   deterministic completion request.
+
+The individual fixes kept moving the hosted smoke farther through the flow, so
+earlier attempts appeared to solve one failure while leaving the next seam
+unexercised.
+
+## Resolution
+
+- The Debug-only transaction saves through the exact environment `ModelContext`
+  bound to the open destination.
+- The child directly invokes the production
+  `promoteQueuedScanIfLocalRecordExists` path before it emits
+  `ScanLibraryEvents` for parent refresh.
+- `bindQueuedPresentationPreferringCompletedRecord` treats a persisted same-ID
+  completion as authoritative whenever SwiftUI rebinds a retained queued route.
+  If that completion is already the exact bound presentation, the bind is an
+  idempotent no-op that preserves its generation and visible result controls. If
+  no completion exists, it preserves the queued media and state.
+- Delayed result-toolbar reveal and Field Notes synchronization use
+  `scanBoundActionGeneration` as their task identity, so an in-place same-ID
+  promotion starts fresh result work.
+- `revealBottomBarTools` independently requires a non-queued presentation, the
+  exact completed local record, a matching immutable toolbar snapshot, scan ID,
+  and generation before exposing actions. A stale queued callback cannot unlock
+  result controls.
+- Once promotion succeeds, the event-driven completion poller stops consulting
+  the immutable route value and cannot produce repeated same-ID fetch/log loops.
+- `ConfidenceBadge` clips the translated decorative glare to its
+  `GeometryReader` bounds, excludes it from hit testing and accessibility, and
+  clips the translated text-reveal mask to the source text. The shared analyzing
+  badge is then fixed to its intrinsic size. The exact smoke rejects any badge
+  accessibility frame outside the application window before tapping it, so a
+  future animation regression cannot masquerade as a queue-promotion failure.
+
+The fixture remains unavailable outside app-target `DEBUG` compilation and
+ordinary Debug sessions cannot activate it without the private UI-test launch
+arguments. Release retains only false/no-op signatures, and the archive gate
+rejects fixture markers in the shipping binary.
+
+## Regression Coverage
+
+The complete unit result allowlist now protects 73 exact cases. The two added
+cases prove:
+
+- a persisted completed record wins over a stale same-ID queued route, advances
+  presentation generation, exits processing, binds biological subject and
+  toolbar identity, and passes the result-action reveal fence; and
+- a queued route remains queued with its media when no completed record exists.
+
+The portable workflow contract also pins child-promotion-before-event ordering,
+completed-wins destination binding, generation-keyed toolbar/Field Notes tasks,
+the centralized reveal fence, intrinsic scanning-badge bounds, and the
+window-frame assertion. The exact XCUI smoke still requires native Back, queued
+badge and fact card, decoded audio before and after completion, Northern
+Cardinal takeover, Field Chat, and Share under exactly one passed, unskipped
+result.
+
+The complete `InsightSheetViewModelTests` suite later passed 89/89 on Xcode 26.6
+with both strengthened routing cases present. That runtime evidence predates the
+animation-bounds correction. Current joined source passes compiler-frontend
+parse across all nine changed Swift files, strict focused SwiftLint with zero
+violations, portable workflow contracts, critical/focused result fixtures, and
+diff validation. A later workspace sandbox policy denied CoreSimulator user
+cache/device access and SwiftPM manifest diagnostics, so the animation-bounds
+correction has not been represented as locally runtime-accepted.
+
+## Closure Gates
+
+This incident is closed only when one committed descendant supplies all of the
+following:
+
+1. hosted Xcode 26.6 compilation of the app, complete unit bundle, and UI
+   bundle;
+2. all 1,243 unit tests passed with zero failed or skipped and all 73 exact
+   critical cases validated;
+3. exactly one passed and unskipped
+   `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` result;
+4. a current-SHA Release archive with matching source fingerprint and dSYMs and
+   no Debug fixture markers;
+5. physical-device recovery of image and audio scans queued fully offline,
+   proving the open destination transitions once, retains media, exposes Field
+   Chat and Share, and produces no periodic Library reconciliation loop; and
+6. the matching Supabase deployment/catalog and joined staging evidence required
+   by the normative
+   [scan reliability contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
+Do not waive the XCUI assertions because unit and archive lanes are green. Run
+103 demonstrates that those lanes can pass while the user-visible joined handoff
+remains broken.

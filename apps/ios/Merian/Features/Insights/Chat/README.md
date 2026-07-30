@@ -45,6 +45,13 @@ rereading a mutable engine ID; an engine scan change dismisses the sheet. A
 delayed preflight therefore cannot recover one observation and open another
 observation's private thread.
 
+Queued and completed presentations intentionally reuse one scan UUID. Promotion
+advances the Insight presentation generation, and the delayed bottom-toolbar
+task is keyed to that generation rather than the UUID. This guarantees Field
+Chat is revealed for the completed record even when queued-state invalidation
+canceled the prior toolbar task, while still rejecting every callback captured
+by the queued presentation.
+
 `InsightChatViewModel` provides a second subject boundary after presentation.
 Opening a different scan/post advances a subject generation, invalidates the
 prior load and prompt tokens, and clears the prior private transcript, pending
@@ -142,11 +149,11 @@ iOS does not calculate or assume that state.
 
 Migration `20260730180000_bind_field_chat_rows_to_subjects.sql` makes the same
 identity rule structural for retained server data. Every retained Insight
-conversation is a deferred composite child of its exact scan owner, each
-message is a child of its exact `(conversation, scan/post, user)`, and each
-answer rating is a child of its exact copied message identity. Sheet-level
-feature feedback remains independently bound to its exact scan owner even when
-it has no conversation context. This remains compatible with the transactional
+conversation is a deferred composite child of its exact scan owner, each message
+is a child of its exact `(conversation, scan/post, user)`, and each answer
+rating is a child of its exact copied message identity. Sheet-level feature
+feedback remains independently bound to its exact scan owner even when it has no
+conversation context. This remains compatible with the transactional
 anonymous-account merge while preventing a malformed historical or future
 service write from poisoning the whole strictly decoded thread. Insight
 answer/feature-feedback tables are Edge-only as well; iOS must never bypass the

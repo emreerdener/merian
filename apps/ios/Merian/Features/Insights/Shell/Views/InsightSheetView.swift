@@ -778,8 +778,14 @@ private extension InsightSheetView {
                 // resolve on the first frame rather than waiting for InsightContentView's onAppear.
                 viewModel.bindSettings(appSettings)
                 viewModel.inferenceEngine = inferenceEngine
+                var didPromoteQueuedScan = false
                 if let queuedScan {
-                    viewModel.bindQueuedPresentation(queuedScan)
+                    didPromoteQueuedScan =
+                        viewModel.bindQueuedPresentationPreferringCompletedRecord(
+                            queuedScan,
+                            modelContext: modelContext,
+                            inferenceEngine: inferenceEngine
+                        )
                 }
                 queuedCompletionHandoffGeneration &+= 1
                 queuedCompletionHandoffScanId = nil
@@ -796,7 +802,9 @@ private extension InsightSheetView {
                         inferenceEngine: inferenceEngine
                     )
                 }
-                viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
+                if !didPromoteQueuedScan {
+                    viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
+                }
                 // Suppress foreground inference banners while the insight is visible —
                 // the user can already see the result. PushNotificationManager.willPresent
                 // reads this flag and delivers the notification silently instead of as a banner.
@@ -808,7 +816,11 @@ private extension InsightSheetView {
             .onDisappear {
                 appSettings.suppressInferenceBanners = false
             }
-            .task(id: viewModel.persistentScanId) {
+            .task(id: viewModel.scanBoundActionGeneration) {
+                // A queued scan and its completed record intentionally share one persistent ID.
+                // Key this task to presentation identity so completion cancels the queued
+                // generation and schedules a fresh toolbar reveal for the result.
+                guard viewModel.queuedContext == nil else { return }
                 let scanId = viewModel.persistentScanId
                 let generation = viewModel.scanBoundActionGeneration
                 do {
@@ -816,15 +828,12 @@ private extension InsightSheetView {
                 } catch {
                     return
                 }
-                guard let scanId,
-                      viewModel.isPresentingMedia(
-                          scanId: scanId,
-                          generation: generation
-                      ) else {
-                    return
-                }
+                guard let scanId else { return }
                 withAnimation(.easeIn(duration: 0.2)) {
-                    viewModel.state.showBottomBarTools = true
+                    _ = viewModel.revealBottomBarTools(
+                        expectedScanId: scanId,
+                        expectedGeneration: generation
+                    )
                 }
             }
             .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
@@ -847,7 +856,11 @@ private extension InsightSheetView {
                 if let newScan {
                     let changedSubject =
                         oldScan?.id.caseInsensitiveCompare(newScan.id) != .orderedSame
-                    viewModel.bindQueuedPresentation(newScan)
+                    viewModel.bindQueuedPresentationPreferringCompletedRecord(
+                        newScan,
+                        modelContext: modelContext,
+                        inferenceEngine: inferenceEngine
+                    )
                     guard changedSubject else { return }
 
                     queuedCompletionHandoffGeneration &+= 1
@@ -873,10 +886,13 @@ private extension InsightSheetView {
                 await attemptQueuedCompletionHandoff(scanId: scanId)
             }
             .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
-                guard let scanId = queuedScan?.id else { return }
+                guard let scanId = viewModel.queuedContext?.id else { return }
                 Task { await attemptQueuedCompletionHandoff(scanId: scanId) }
             }
-            .task(id: viewModel.persistentScanId) {
+            .task(id: viewModel.scanBoundActionGeneration) {
+                // The persistent ID is unchanged by a queued-to-completed handoff.
+                // Re-sync against presentation identity so the completed record's
+                // Field Notes state becomes available without reopening the sheet.
                 viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
             }
             .task(id: fieldTripContributionLoadKey) {
@@ -1118,10 +1134,8 @@ private extension InsightSheetView {
         }
 
         for attempt in 0..<8 {
-            let isCurrentQueuedScan =
-                queuedScan?.id.caseInsensitiveCompare(scanId) == .orderedSame ||
-                viewModel.queuedContext?.id
-                    .caseInsensitiveCompare(scanId) == .orderedSame
+            let isCurrentQueuedScan = viewModel.queuedContext?.id
+                .caseInsensitiveCompare(scanId) == .orderedSame
             guard queuedCompletionHandoffGeneration == generation,
                   isCurrentQueuedScan else {
                 return

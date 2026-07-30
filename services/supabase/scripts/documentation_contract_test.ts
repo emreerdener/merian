@@ -1021,6 +1021,10 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       source,
       "2026-07-media-abandoned-explore-share-recovery.md",
     );
+    assertStringIncludes(
+      source,
+      "2026-07-queued-insight-same-id-handoff-regression.md",
+    );
   }
   for (
     const fragment of [
@@ -1033,18 +1037,29 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "`989544a7bbb531c91673c1949ed676497c6cd08a2028375fc5fc3a73ca7b100c`",
       "it failed only when the seeded completed record",
       "container main context while the sheet was bound to its environment",
-      "performs the transaction in that exact bound",
+      "performs the transaction in that exact context",
       "immediately calls the existing production queue-promotion path",
       "`838533e98589f4fca89643e966864a7d59adca05`",
       "Run 102 on that exact SHA did not",
       "complete unit target reported 1,240",
       "`testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay`",
       "fixed loop of 100 executor yields",
-      "waits up to five monotonic seconds",
+      "wait of up to five monotonic seconds",
       "one request before cancellation and still one after",
       "`2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`",
-      "A new hosted committed",
-      "descendant must still pass the complete unit target",
+      "Run 103 on exact SHA",
+      "`99c82c4e68eceb39c0d29db26bfe57236105de25c499dcd1a9acbe3c82e25c0e`",
+      "**Northern Cardinal** and retained decoded audio",
+      "bottom toolbar was absent",
+      "persisted completion authoritative over stale same-ID queued routes",
+      "idempotent no-op that preserves the result generation and controls",
+      "keys result-toolbar plus Field Notes tasks to that generation",
+      "animated scanning badge advertised a 703-point accessibility frame",
+      "translated decorative glare and text-reveal mask are now clipped to their owning bounds",
+      "excluded from interaction semantics where decorative",
+      "smoke rejects any off-window frame",
+      "pass all 1,243 unit tests",
+      "queued Insight same-ID handoff incident",
     ]
   ) {
     assertStringIncludes(compact(rootSource), compact(fragment));
@@ -1701,7 +1716,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(insightSheetImplementationSource),
-    "viewModel.bindQueuedPresentation(newScan)",
+    "viewModel.bindQueuedPresentationPreferringCompletedRecord(",
   );
   assertStringIncludes(
     compact(collectionModifiersImplementationSource),
@@ -1825,11 +1840,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "critical-result validator with 71 protected exact cases total, including all 27 added by the joined follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run, the two bounded/redacted queue-diagnostic cases, and the actual network-boundary media-incident compatibility case",
+    "critical-result validator with 73 protected exact cases total, including all 27 added by the joined follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run, the two bounded/redacted queue-diagnostic cases, and the actual network-boundary media-incident compatibility case",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 71 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, and the media-incident compatibility case exercises the actual network-client boundary",
+    "The current validator protects 73 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, and the media-incident compatibility case exercises the actual network-client boundary",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -1853,7 +1868,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 71 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 73 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -1893,7 +1908,23 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "`ScanLibraryEvents` remains responsible for parent-library refresh, but a cross-context event merge must not control the deterministic handoff",
+    "The open destination must complete direct promotion before it emits `ScanLibraryEvents` for parent-library refresh",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "A cross-context event merge must not control the deterministic handoff",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "the stale route rebind must be an idempotent no-op that preserves presentation generation and visible result actions",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "The analyzing badge clips its translated decorative glare and text-reveal mask to their owning geometry",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "The smoke requires the Button's accessibility frame to be fully contained by the application frame before tapping",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2406,8 +2437,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "roughly 74 seconds later",
       "That is a deterministic-fixture race, not evidence of a production queue failure",
       "Release still compiles only the false/no-op coordinator",
-      "complete generic iOS Simulator `build-for-testing` app/unit/UI graph under the documented local CoreSimulator",
-      "A new hosted committed descendant must execute the complete unit target",
+      "complete 67-target generic iOS Simulator `build-for-testing` graph for the app, unit-test bundle, and UI-test bundle",
+      "A new hosted committed descendant must pass all 1,243 unit tests",
       "`399482b649363c820b59fee1967bf94e35a5c0e7`",
       "Hosted Build/Test Run 101 on that exact SHA passed all 1,241 unit tests",
       "current-SHA Release archive independently passed at 239,079,424 bytes",
@@ -2418,23 +2449,29 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "container's main context after the queued Insight had bound its environment `ModelContext`",
       "immediately invokes the existing production `promoteQueuedScanIfLocalRecordExists` handoff",
       "library event remains for parent-library refresh",
-      "cannot connect Xcode to CoreSimulatorService",
+      "cannot connect to CoreSimulator",
       "`838533e98589f4fca89643e966864a7d59adca05`",
       "Hosted Build/Test Run 102 on that exact SHA stopped before the queued UI smoke",
       "complete unit target reported 1,240 passed, one failed, and zero skipped",
       "`testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay`",
       "`probe.count` was zero when the test expected the first request",
       "fixed loop of 100 `Task.yield()` calls is not a time-bounded synchronization contract",
-      "current test-only correction waits against `ContinuousClock` for up to five seconds",
+      "test-only correction committed as `4f68e68913fca6276458cd093ad167c9bc7d5d9e` waits against `ContinuousClock` for up to five seconds",
       "request count must be exactly one before cancellation and exactly one after",
       "portable workflow contract rejects a return to the fixed yield-count loop",
       "Run 102's current-SHA Release archive independently passed at 239,083,520 bytes",
       "`2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`",
-      "bounded-rendezvous follow-up passes the complete portable iOS tooling gate",
-      "all 12 documentation contracts",
-      "complete generic iOS Simulator `build-for-testing` app/unit/UI graph",
-      "test file's existing 32-violation whole-file baseline without adding a violation",
-      "every one of the 71 allowlist names",
+      "animated `ScanningStatusBadge` Button exposed an invalid accessibility frame beginning at x=-384.7 with width 703",
+      "retained hierarchy also captured width 1,406 at the glare's opposite translation phase",
+      "`ConfidenceBadge` now clips that glare to its `GeometryReader`, excludes it from hit testing and accessibility",
+      "clips the translated text-reveal mask to the source text",
+      "`ScanningExperienceView` fixes the composed badge to its intrinsic size",
+      "smoke explicitly requires the resulting Button frame to be contained by the app window",
+      "current extended source passes frontend parse across all nine changed Swift files, strict focused SwiftLint with zero violations, portable workflow contracts, and critical/focused result fixtures",
+      "110 deployment-tooling and 12 documentation contracts",
+      "complete 67-target generic iOS Simulator `build-for-testing` graph",
+      "large network test file retains the same 32 whole-file baseline violations",
+      "critical-result validator with 73 protected exact cases",
       "Physical beta testing already supplies two narrow behavioral observations",
       "one scan submitted with WiFi and cellular data disabled remained queued and completed after connectivity was restored",
       "Historical Run 91 retains green exact-SHA Xcode compilation",
@@ -2443,8 +2480,17 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "all 58 protected case names resolve to maintained tests",
       "the configured Edge suite reports 1,421 passed with zero failed",
       "all 89 isolated dependency graphs across 292 runtime files",
-      "The sole failure was the Explore replay-cancellation test observing zero requests before cancellation",
-      "yield-count polling with a bounded monotonic first-request wait",
+      "The production request had not replayed; it had not yet reached `MockURLProtocol`",
+      "workflow contract rejects a return to the fixed yield-count loop",
+      "Hosted Build/Test Run 103 on exact SHA `4f68e68913` passed the complete 1,241 unit target",
+      "local exact-case diagnostic run against the current worktree",
+      "no bottom toolbar appeared",
+      "The current worktree fixes the joined boundary in three layers",
+      "Rebinding an already-presented exact completion is an idempotent no-op",
+      "`scanBoundActionGeneration`",
+      "Two new exact protected unit regressions cover completed-record precedence",
+      "all 1,243 unit tests, exactly one queued-scan UI smoke",
+      "2026-07-queued-insight-same-id-handoff-regression.md",
       "The 2026-07-30 current-worktree rerun passed the complete Supabase tooling gate",
       "`b7be23f4e211b75c00a3df5fcd1f96f3905983c74ff3189bfc69ad5b0f7132c4`",
       "the desktop sandbox is denied access to Docker's Unix socket",

@@ -141,6 +141,9 @@ enum UITestSeedCoordinator {
         descriptor.fetchLimit = 1
 
         guard let queuedScan = try? modelContext.fetch(descriptor).first else {
+            MerianLog.general.error(
+                "UITestSeedCoordinator could not find the queued row for audio handoff."
+            )
             return false
         }
         triggeredQueuedAudioHandoffs.insert(scanId)
@@ -150,8 +153,9 @@ enum UITestSeedCoordinator {
         do {
             try modelContext.save()
             OfflineQueueManager.shared.unsyncedItemsCount = 0
-            ScanLibraryEvents.postLibraryDidUpdate()
-            MerianLog.general.debug("UITestSeedCoordinator completed queued audio handoff flow.")
+            MerianLog.general.info(
+                "UITestSeedCoordinator committed the queued audio handoff transaction."
+            )
             return true
         } catch {
             modelContext.rollback()

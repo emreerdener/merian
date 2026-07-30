@@ -331,6 +331,10 @@ final class merianUITests: XCTestCase {
             scanningStatusBadge.isHittable,
             "Shared scanning status badge was not available to trigger the deterministic handoff"
         )
+        XCTAssertTrue(
+            app.frame.contains(scanningStatusBadge.frame),
+            "Shared scanning status badge exposed an off-window accessibility frame"
+        )
         scanningStatusBadge.tap()
 
         XCTAssertTrue(app.staticTexts["Northern Cardinal"].waitForExistence(timeout: 8.0), "Seeded completed record did not take over the queued sheet")

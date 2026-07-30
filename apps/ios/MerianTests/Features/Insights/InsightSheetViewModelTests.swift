@@ -1630,6 +1630,90 @@ struct InsightSheetViewModelTests {
         #expect(secondRecord.hasBeenViewed)
     }
 
+    @Test func testQueuedPresentationPrefersPersistedCompletionOverStaleRoute() throws {
+        let context = try createIsolatedContext()
+        let record = LocalScanRecord(
+            speciesId: "queued_completed_route_species",
+            scientificName: "Cardinalis cardinalis",
+            commonName: "Northern Cardinal"
+        )
+        context.insert(record)
+        try context.save()
+
+        let staleQueuedRoute = QueuedScanContext(
+            id: record.id,
+            capturedMediaItems: [.audio(.documents("cardinal.wav"))],
+            queueState: .inferencing,
+            timestamp: Date(timeIntervalSince1970: 3)
+        )
+        let engine = InferenceEngine()
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+        let queuedGeneration = viewModel.scanBoundActionGeneration
+
+        #expect(viewModel.bindQueuedPresentationPreferringCompletedRecord(
+            staleQueuedRoute,
+            modelContext: context,
+            inferenceEngine: engine
+        ))
+        #expect(viewModel.queuedContext == nil)
+        #expect(viewModel.presentedLocalRecordScanId == record.id)
+        #expect(engine.speciesData?.scanId == record.id)
+        #expect(engine.speciesData?.commonName == "Northern Cardinal")
+        #expect(engine.speciesData?.isBiological == true)
+        #expect(engine.speciesData?.isHumanSubject == false)
+        #expect(viewModel.isProcessing == false)
+        #expect(viewModel.scanBoundActionGeneration != queuedGeneration)
+        #expect(viewModel.toolbarRecordSnapshot?.scanId == record.id)
+        #expect(!viewModel.revealBottomBarTools(
+            expectedScanId: record.id,
+            expectedGeneration: queuedGeneration
+        ))
+        #expect(!viewModel.state.showBottomBarTools)
+        #expect(viewModel.revealBottomBarTools(
+            expectedScanId: record.id,
+            expectedGeneration: viewModel.scanBoundActionGeneration
+        ))
+        #expect(viewModel.state.showBottomBarTools)
+
+        let completedGeneration = viewModel.scanBoundActionGeneration
+        #expect(viewModel.bindQueuedPresentationPreferringCompletedRecord(
+            staleQueuedRoute,
+            modelContext: context,
+            inferenceEngine: engine
+        ))
+        #expect(viewModel.scanBoundActionGeneration == completedGeneration)
+        #expect(viewModel.queuedContext == nil)
+        #expect(viewModel.presentedLocalRecordScanId == record.id)
+        #expect(viewModel.state.showBottomBarTools)
+    }
+
+    @Test func testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent() throws {
+        let context = try createIsolatedContext()
+        let queuedRoute = QueuedScanContext(
+            id: "queued_route_without_completion",
+            capturedMediaItems: [.audio(.documents("pending.wav"))],
+            queueState: .inferencing,
+            timestamp: Date(timeIntervalSince1970: 4)
+        )
+        let engine = InferenceEngine()
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+
+        #expect(!viewModel.bindQueuedPresentationPreferringCompletedRecord(
+            queuedRoute,
+            modelContext: context,
+            inferenceEngine: engine
+        ))
+        #expect(viewModel.queuedContext?.id == queuedRoute.id)
+        #expect(viewModel.presentedLocalRecordScanId == nil)
+        #expect(engine.speciesData == nil)
+        #expect(viewModel.cachedActiveMedia?.items.count == 1)
+        #expect(!viewModel.revealBottomBarTools(
+            expectedScanId: queuedRoute.id,
+            expectedGeneration: viewModel.scanBoundActionGeneration
+        ))
+        #expect(!viewModel.state.showBottomBarTools)
+    }
+
     @Test func testTotalImagesWithReferenceImageLoading() async throws {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

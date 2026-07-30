@@ -120,6 +120,9 @@ struct ScanningExperienceView<SupplementalContent: View>: View {
                 analyzingPhrase: analyzingPhrase,
                 onAnalyzingTap: onAnalyzingBadgeTap
             )
+            // ConfidenceBadge clips its translated renderers internally. Keep the composed
+            // label at intrinsic size so accessibility reports only the usable capsule.
+            .fixedSize(horizontal: true, vertical: true)
             .accessibilityIdentifier("ScanningStatusBadge")
 
             DidYouKnowCard()

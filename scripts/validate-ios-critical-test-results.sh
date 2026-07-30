@@ -389,6 +389,16 @@ assert_suite_has_passed_test_case \
   "Insight Sheet View Model Tests" \
   "testQueuedPromotionRejectsChangedPresentationIdentity"
 assert_suite_has_passed_test_case \
+  "Persisted completion wins over stale queued route" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testQueuedPresentationPrefersPersistedCompletionOverStaleRoute"
+assert_suite_has_passed_test_case \
+  "Absent completion preserves queued presentation" \
+  "InsightSheetViewModelTests" \
+  "Insight Sheet View Model Tests" \
+  "testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent"
+assert_suite_has_passed_test_case \
   "Explore presented-record identity fence" \
   "InsightSheetViewModelTests" \
   "Insight Sheet View Model Tests" \

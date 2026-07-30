@@ -171,6 +171,8 @@ write_test_tree() {
               "testQueuedRefreshRejectsChangedPresentationIdentity",
               "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity",
               "testQueuedPromotionRejectsChangedPresentationIdentity",
+              "testQueuedPresentationPrefersPersistedCompletionOverStaleRoute",
+              "testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent",
               "testExploreSharingRequiresExactEngineAndRecordIdentity"
             ]),
             suite("InsightChatTests"; [
@@ -319,6 +321,8 @@ required_cases=(
   "testQueuedRefreshRejectsChangedPresentationIdentity"
   "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity"
   "testQueuedPromotionRejectsChangedPresentationIdentity"
+  "testQueuedPresentationPrefersPersistedCompletionOverStaleRoute"
+  "testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent"
   "testExploreSharingRequiresExactEngineAndRecordIdentity"
   "testCheckScanStatusRejectsMalformedOrMismatchedSuccess"
   "testBulkScanStatusRejectsDuplicateMissingOrForeignRows"

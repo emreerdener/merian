@@ -238,22 +238,38 @@ struct QueuedContentView: View {
             fallbackLatitude: queuedContext.gpsLatitude,
             fallbackLongitude: queuedContext.gpsLongitude,
             onAnalyzingBadgeTap: {
+                #if DEBUG
+                guard UITestSeedCoordinator.isEnabled else { return }
+                MerianLog.general.info(
+                    "QueuedContentView received the queued audio handoff request."
+                )
                 guard UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded(
                     scanId: queuedContext.id,
                     modelContext: modelContext
                 ) else {
                     return
                 }
-                guard viewModel.promoteQueuedScanIfLocalRecordExists(
+                let didPromoteQueuedScan = viewModel.promoteQueuedScanIfLocalRecordExists(
                     scanId: queuedContext.id,
                     modelContext: modelContext,
                     inferenceEngine: inferenceEngine
-                ) else {
+                )
+
+                guard didPromoteQueuedScan else {
                     MerianLog.data.error(
                         "QueuedContentView: seeded completed record was not visible for deterministic handoff scanId=\(queuedContext.id, privacy: .private)"
                     )
                     return
                 }
+
+                // Stabilize the open destination before synchronously refreshing its parent.
+                // The Scans navigation route intentionally retains a queued value snapshot;
+                // publishing first can make a rebuilt destination bind that stale snapshot.
+                ScanLibraryEvents.postLibraryDidUpdate()
+                MerianLog.general.info(
+                    "QueuedContentView promoted the queued audio handoff before parent refresh."
+                )
+                #endif
             }
         ) {
             if retryDetail != nil || friendlyErrorText != nil || queuedContext.canRetryNow {

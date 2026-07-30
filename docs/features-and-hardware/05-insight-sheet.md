@@ -13,14 +13,14 @@ navigation stack.
 | File                                                                     | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Shell/ViewModels/InsightSheetViewModel.swift` + product-area extensions | `@Observable @MainActor final class` — the root file owns stored state, init/reset, and `UIState`. Extensions live beside their owners: shell display/lifecycle/record lookup in `Shell/ViewModels/`, field notes in `FieldNotes/ViewModels/`, Explore sharing in `Sharing/ViewModels/`, media export in `Media/Utilities/`, and name preferences in `Content/NamePreferences/ViewModels/`, while preserving the scan-ID/snapshot safety boundary.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `InsightSheetView`                                                       | Root Insight presentation. `InsightPresentationStyle` selects modal-sheet behavior or embedded Scans-library navigation. The optional `queuedScan: QueuedScanContext?` is a value snapshot, never an `OfflineQueuedScan @Model`; the custom initializer seeds `InsightSheetViewModel(queuedContext:)` before body evaluation. Queued presentations use a dedicated trash action, suppress duplicate inference banners, and observe both their initial task and `ScanLibraryEvents` for completion. `attemptQueuedCompletionHandoff` retries up to 8 × 350 ms for the matching `LocalScanRecord`, then replaces queued state with the completed result without dismissing or popping the presentation. See §Queued Scan Completion Transition. |
+| `InsightSheetView`                                                       | Root Insight presentation. `InsightPresentationStyle` selects modal-sheet behavior or embedded Scans-library navigation. The optional `queuedScan: QueuedScanContext?` is a value snapshot, never an `OfflineQueuedScan @Model`; the custom initializer seeds `InsightSheetViewModel(queuedContext:)` before body evaluation. Queued presentations use a dedicated trash action, suppress duplicate inference banners, and observe both their initial task and `ScanLibraryEvents` for completion. `attemptQueuedCompletionHandoff` retries up to 8 × 350 ms for the matching `LocalScanRecord`, then replaces queued state with the completed result without dismissing or popping the presentation. See §Queued Scan Completion Transition.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `Shell/Views/InsightSheetView+Toolbar.swift`                             | Keeps toolbar assembly out of the root sheet body. It wires queued-scan trash handling, collection actions, report/reanalyze/review/confirm actions, and bottom-toolbar visibility using view-model capability flags and record snapshots.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `Shell/Modifiers/EmbeddedInsightNavigationModifiers.swift`               | Hosts the feature-local back-swipe, navigation swipe enabler, and species-dictionary destination modifier used by embedded Insight navigation stacks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `Shell/Models/InsightPresentation.swift`                                 | Defines `.sheet` and `.embeddedInScansLibrary` presentation styles plus `ScanInsightRoute`, whose stable scan ID is the value-only route for completed Scans-library Insights. The queued route is private to `ScansSheetView` because it must carry a `QueuedScanContext` snapshot while hashing by scan ID. |
+| `Shell/Models/InsightPresentation.swift`                                 | Defines `.sheet` and `.embeddedInScansLibrary` presentation styles plus `ScanInsightRoute`, whose stable scan ID is the value-only route for completed Scans-library Insights. The queued route is private to `ScansSheetView` because it must carry a `QueuedScanContext` snapshot while hashing by scan ID.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `Toolbars/Models/InsightToolbarRecordSnapshot.swift`                     | Captures the toolbar's value snapshot of a `LocalScanRecord` before modal/share/delete boundaries so UI work does not retain a deleted SwiftData model.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `InsightContentView` / `InsightContentRouterView`                        | `InsightContentView` owns the hero/media shell and delegates the four-way mode switch (`.analyzing` / `.queued` / `.nonBiological` / `.biological`) to `InsightContentRouterView`. The first-open timing guard keeps `queuedScan` as a plain input value and falls back to it until `viewModel.queuedContext` is bound, preventing the wrong scanning body from flashing. |
-| `AnalyzingContentView` / `ScanningExperienceView`                        | `AnalyzingContentView` supplies the foreground engine's rotating `scanningPhaseText` and live telemetry. Generic `ScanningExperienceView` owns the shared visible scanning contract for foreground and queued work: status pill, rotating `DidYouKnowCard`, optional actionable supplemental content, Field notes, and `ScanInformationCard`. |
-| `QueuedContentView`                                                      | Owns queued polling, retry scheduling, state-aware phrase rotation, and recovery actions while delegating visible layout to `ScanningExperienceView`. It receives only `QueuedScanContext` value data. During active inference it reuses `InferenceEngine.genericScanningPhasePhrases`; offline, backoff, finalization, and needs-attention states use honest queue-specific phrases. It does not render a separate heading, helper paragraph, media-kind summary, or file-size label. Retry timing, friendly errors, and `Retry now` appear only when actionable. Field notes and telemetry continue to use the queued snapshot and survive completed-result handoff. |
+| `InsightContentView` / `InsightContentRouterView`                        | `InsightContentView` owns the hero/media shell and delegates the four-way mode switch (`.analyzing` / `.queued` / `.nonBiological` / `.biological`) to `InsightContentRouterView`. The first-open timing guard keeps `queuedScan` as a plain input value and falls back to it until `viewModel.queuedContext` is bound, preventing the wrong scanning body from flashing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `AnalyzingContentView` / `ScanningExperienceView`                        | `AnalyzingContentView` supplies the foreground engine's rotating `scanningPhaseText` and live telemetry. Generic `ScanningExperienceView` owns the shared visible scanning contract for foreground and queued work: status pill, rotating `DidYouKnowCard`, optional actionable supplemental content, Field notes, and `ScanInformationCard`. The animated status pill is constrained to its intrinsic bounds after overlay composition so its accessibility activation frame remains inside the window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `QueuedContentView`                                                      | Owns queued polling, retry scheduling, state-aware phrase rotation, and recovery actions while delegating visible layout to `ScanningExperienceView`. It receives only `QueuedScanContext` value data. During active inference it reuses `InferenceEngine.genericScanningPhasePhrases`; offline, backoff, finalization, and needs-attention states use honest queue-specific phrases. It does not render a separate heading, helper paragraph, media-kind summary, or file-size label. Retry timing, friendly errors, and `Retry now` appear only when actionable. Field notes and telemetry continue to use the queued snapshot and survive completed-result handoff.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `BiologicalView`                                                         | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, habitat/distribution, observation patterns, and lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `NonBiologicalView`                                                      | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard`. The header title resolves to the friendly display label `Non-biological` even when the stored fallback common name is `Unknown Subject` or `Not Applicable`. Local inference error placeholders such as `Network timeout` reuse this simple layout but hide the non-biological pill and retention notice because they are retry/offline states, not model classifications.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `InsightHeader`                                                          | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". For dog/cat scans with a displayable `SpeciesData.petIdentification`, the large headline uses the pet label while the subtitle remains the scientific name only; otherwise the header uses the normal common-name/scientific-name behavior. Automatically deduplicates its subtitle (scientific name) if it exactly matches the primary title string. Passes `userIdentificationOverride`, `userConfirmedIdentification`, `aiScientificName`, and the optional Ask the Community callback down to `ConfidenceBadge` (and transitively to `ConfidenceExplanationSheet`). Non-biological results display the stable title `Non-biological` instead of exposing unresolved taxonomy placeholders. Accepts an optional `visionTransitionText: String?` parameter: when non-nil, the paragraph slot renders the captured Apple Vision analysis text first, then cross-fades to Gemini `aiReasoning` after 700 ms via an `.easeInOut(0.45)` opacity transition. The species title is hidden initially and springs into view (`opacity 0→1`, `y+10→0`) on `.onAppear` with a 150 ms delay; a `triggerLightImpact(intensity: 0.5)` fires at title entrance and a `triggerSelectionPulse()` fires at the paragraph cross-fade moment. **Alternative names line**: when `alternativeCommonNames` is non-nil and non-empty, a footnote-sized "Also known as: X · Y · Z" line is rendered below the headline as a tappable `Button`; tapping calls `onAlternativeNamesTap` which sets `InsightSheetViewModel.isNamePickerPresented = true` to present `NamePickerSheet`. The common name title itself is also tappable when `alternativeCommonNames` are available — it calls the same `onAlternativeNamesTap` callback, so tapping the headline directly opens the same `NamePickerSheet` as tapping the "Also known as" footnote. |
@@ -303,39 +303,44 @@ dismisses if the engine changes scans.
 Persisted-record actions additionally require `presentedLocalRecordScanId`,
 which proves the engine result, active model, active-record ID, and toolbar
 snapshot all agree. A monotonic presentation generation invalidates older
-asynchronous publication, post-edit, Community, and field-note callbacks.
-Sheet reset advances rather than zeroes the Explore request/revision clocks, so
-an A → B → A cycle cannot make an older response token numerically current.
+asynchronous publication, post-edit, Community, and field-note callbacks. Sheet
+reset advances rather than zeroes the Explore request/revision clocks, so an A →
+B → A cycle cannot make an older response token numerically current.
 Record-bound collection, reanalysis, identification review, and deletion actions
 independently carry or recheck their expected scan ID; delayed candidate actions
 additionally capture the engine presentation generation. The Explore and
 Community editors, Field Notes editor, New Collection alert, and delayed Explore
 onboarding prompt capture both the scan ID and presentation generation. Nested
 Share receives that parent generation and compares it directly on every
-callback, including before `onChange` cleanup. The toolbar captures one immutable
-scan/generation target for collection, export, Field Chat, identification, share,
-review, reanalysis, and deletion callbacks instead of rereading the engine when a
-menu callback finally runs. Media-carousel observation taps, audio-boost
-bindings, local-gallery sheets, Wikipedia/Safari sheets, common-name selection,
-candidate modals, Explore composer submissions, and toast actions retain that
-same exact target. Parent Field Chat close/toast callbacks also require the
-generation that opened the thread. A queued-to-completed handoff advances the
-generation even when the UUID is unchanged, invalidating callbacks rendered by
-the queue presentation before result controls become active. Presentation
-dismissals clear only the matching captured target, never an editor, gallery,
-Safari page, candidate review, or chat opened by a newer render. Same-scan
-Explore and Community mutations also retain the exact post/request UUID across
-their await. The advisory post-detail projection preserves the last confirmed
-or optimistic Field Notes visibility when that read is unavailable.
+callback, including before `onChange` cleanup. The toolbar captures one
+immutable scan/generation target for collection, export, Field Chat,
+identification, share, review, reanalysis, and deletion callbacks instead of
+rereading the engine when a menu callback finally runs. Media-carousel
+observation taps, audio-boost bindings, local-gallery sheets, Wikipedia/Safari
+sheets, common-name selection, candidate modals, Explore composer submissions,
+and toast actions retain that same exact target. Parent Field Chat close/toast
+callbacks also require the generation that opened the thread. A
+queued-to-completed handoff advances the generation even when the UUID is
+unchanged, invalidating callbacks rendered by the queue presentation before
+result controls become active. The delayed bottom toolbar reveal and Field Notes
+synchronization tasks are therefore keyed to that generation rather than
+`persistentScanId`; queued and completed presentations intentionally share the
+UUID, so an ID-keyed task canceled during promotion would not restart to expose
+Field Chat, Share, or completed notes. Presentation dismissals clear only the
+matching captured target, never an editor, gallery, Safari page, candidate
+review, or chat opened by a newer render. Same-scan Explore and Community
+mutations also retain the exact post/request UUID across their await. The
+advisory post-detail projection preserves the last confirmed or optimistic Field
+Notes visibility when that read is unavailable.
 
-The delete alert captures its target when opened. `ReportInsightViewModel` rejects
-issue submission unless its supplied scan still matches the engine result,
-before either the remote report or local flag can mutate. Its completion also
-requires the captured engine presentation generation, so an A → B → A cycle
+The delete alert captures its target when opened. `ReportInsightViewModel`
+rejects issue submission unless its supplied scan still matches the engine
+result, before either the remote report or local flag can mutate. Its completion
+also requires the captured engine presentation generation, so an A → B → A cycle
 cannot dismiss or confirm the newer report sheet. A callback from an older
-render can therefore neither mutate the prior observation accidentally nor
-apply its state to the new presentation, including an A → B → A switch where the
-same UUID returns under a newer presentation.
+render can therefore neither mutate the prior observation accidentally nor apply
+its state to the new presentation, including an A → B → A switch where the same
+UUID returns under a newer presentation.
 
 Identification hydration and persistence carry the original scan, scientific
 name, presentation generation, and latest review-action generation through
@@ -432,9 +437,9 @@ unfaulted attribute on a deleted `@Model` crashes with
 Two value-type structs encapsulate all data the insight chain needs at snapshot
 time, while the `@Model` object is live:
 
-| Type                 | Purpose                                                                                                                                                                                                                                                                                                  |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `QueuedScanSnapshot` | Grid value containing identity, cover/media snapshot, queue state, retry presentation fields, timestamp, and an internal approximate-byte estimate. Used by `LazyVGrid` so no tile holds a detached `@Model` reference. |
+| Type                 | Purpose                                                                                                                                                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QueuedScanSnapshot` | Grid value containing identity, cover/media snapshot, queue state, retry presentation fields, timestamp, and an internal approximate-byte estimate. Used by `LazyVGrid` so no tile holds a detached `@Model` reference.                                                       |
 | `QueuedScanContext`  | Richer Insight-route value containing captured media, queue/retry state, telemetry, focus descriptors, and internal diagnostics. It is initialized from a live `OfflineQueuedScan`, then read through `capturedMediaSnapshot` so queued UI never retains the SwiftData model. |
 
 `InsightSheetViewModel.queuedContext: QueuedScanContext?` stores the context.
@@ -473,12 +478,12 @@ claim pipeline. The UI must never imply that a rounded minute is an execution
 receipt.
 
 The queued presentation otherwise follows the same visible scanning contract as
-foreground inference: a rotating status pill, `DidYouKnowCard`, Field notes,
-and `ScanInformationCard`. `QueuedContentView` rotates honest phrases from the
-exact queued state and reuses the engine's generic scanning phrases while the
-server is processing. It intentionally omits a separate heading, explanatory
-paragraph, media-kind summary, and approximate-byte label; the copied media and
-byte fields remain internal routing and diagnostic data.
+foreground inference: a rotating status pill, `DidYouKnowCard`, Field notes, and
+`ScanInformationCard`. `QueuedContentView` rotates honest phrases from the exact
+queued state and reuses the engine's generic scanning phrases while the server
+is processing. It intentionally omits a separate heading, explanatory paragraph,
+media-kind summary, and approximate-byte label; the copied media and byte fields
+remain internal routing and diagnostic data.
 
 Each poll and delayed Retry callback applies its fresh `QueuedScanContext` only
 when the view model still presents that exact queued scan ID. A completion from
@@ -488,10 +493,9 @@ generation and scan-bound state are invalidated before B's snapshot and media
 are installed. An accepted same-scan refresh replaces both queue state and the
 cached media snapshot. Manual Retry tracks `retryingScanId`, so A's delayed
 completion cannot release B's indicator. Queued Field Notes remain editable:
-their sheet
-captures the queued scan ID and presentation generation, writes through
-`FieldNotesRepository`, and rejects any callback after the queue presentation
-changes.
+their sheet captures the queued scan ID and presentation generation, writes
+through `FieldNotesRepository`, and rejects any callback after the queue
+presentation changes.
 
 ---
 
@@ -526,14 +530,14 @@ all work for that scan, so it deliberately omits a generation expectation.
 
 ## Queued Scan Completion Transition
 
-When an offline scan completes while an embedded `InsightSheetView` is open,
-the pushed destination must **transition to results without popping**.
+When an offline scan completes while an embedded `InsightSheetView` is open, the
+pushed destination must **transition to results without popping**.
 `LibraryView.openQueuedScan` first checks for a completed `LocalScanRecord` to
 close the render-to-tap race. If no completed record exists, it fetches the
 fresh queue row, snapshots `QueuedScanContext`, and emits it through
-`onQueuedInsight`. `ScansSheetView` appends a private
-`QueuedScanInsightRoute` to its existing `NavigationPath`; the route carries
-the immutable context but compares and hashes by queue ID.
+`onQueuedInsight`. `ScansSheetView` appends a private `QueuedScanInsightRoute`
+to its existing `NavigationPath`; the route carries the immutable context but
+compares and hashes by queue ID.
 
 ```
 LibraryView.openQueuedScan(snapshot)
@@ -544,6 +548,9 @@ LibraryView.openQueuedScan(snapshot)
           queuedScan: context,
           presentationStyle: .embeddedInScansLibrary
       )
+    → bindQueuedPresentationPreferringCompletedRecord(...)
+        → same-ID LocalScanRecord exists: promote immediately
+        → otherwise retain queued presentation
     → ScanLibraryEvents.libraryDidUpdatePublisher() emits
     → InsightSheetView.attemptQueuedCompletionHandoff(...)
     → Retry up to 8 × 350 ms for LocalScanRecord with matching ID
@@ -556,14 +563,32 @@ The same Insight destination remains on the Scans navigation stack while the
 queue row is deleted and the completed record is loaded. Native Back therefore
 returns to the library, matching completed-scan navigation; no second sheet is
 presented over the Scans sheet. A fallback context can be built from the grid
-snapshot if the queue row disappears between tap and fetch.
+snapshot if the queue row disappears between tap and fetch. Because a
+`NavigationPath` retains that queued value snapshot, every destination bind
+treats a persisted same-ID completed record as authoritative; a parent refresh
+cannot resurrect analyzing UI after completion. Rebinding that stale route after
+the exact completion is already visible is idempotent and preserves both the
+presentation generation and result controls.
+
+The shared scanning badge clips its translated glare to the owning
+`GeometryReader`, excludes that decoration from interaction semantics, clips the
+translated reveal mask to the source text, and then applies an intrinsic-size
+constraint before assigning `ScanningStatusBadge`. Without those boundaries, one
+simulator layout exposed a 703-point translated overlay as the Button's
+accessibility frame in a 402-point window; another hierarchy phase exposed width
+1,406 around the same roughly 234-point visible capsule. Automation consequently
+tapped a fallback edge point instead of the capsule. The exact queued-audio
+smoke requires the frame to remain fully inside the app window before it
+initiates deterministic completion.
 
 The handoff single-flight is subject-aware rather than one global busy Boolean.
 A request for a different queued scan advances its generation and replaces the
 older poller; the older task checks that token and exact queued ID before every
-promotion attempt. `promoteQueuedScanIfLocalRecordExists` independently
-requires the same queued ID before it releases queued routing and loads the
-completed record.
+promotion attempt. `promoteQueuedScanIfLocalRecordExists` independently requires
+the same queued ID before it releases queued routing and loads the completed
+record. A direct open-destination promotion completes before `ScanLibraryEvents`
+is emitted for parent Library refresh. Reversing that order would synchronously
+rebuild the parent while its route still carried the stale queued snapshot.
 
 Clearing `queuedContext` before calling `load(from:)` is critical:
 `InsightSheetView.onChange(of: inferenceEngine.isProcessing)` has a
@@ -721,11 +746,10 @@ transient live image is cleared. On queued scans, `InsightSheetViewModel` seeds
 `fetchLocalRecord` hydrates the same structure from
 `record.capturedMediaSnapshot.activeScanMedia`. That shared read path is what
 keeps the playback video clip, standalone audio clip, or mixed-media order
-intact while the Insight presentation transitions from queued/analyzing state
-to results.
-Pending video paths may move from temporary capture storage into Documents
-during queue persistence, so the resolver falls back by filename before
-declaring video unavailable.
+intact while the Insight presentation transitions from queued/analyzing state to
+results. Pending video paths may move from temporary capture storage into
+Documents during queue persistence, so the resolver falls back by filename
+before declaring video unavailable.
 
 **Video presentation rule**: Scan tiles, widgets, map/profile previews, and
 share previews remain thumbnail-first by reading `coverImagePath`,
@@ -1312,10 +1336,10 @@ identification decisions before falling back to the confidence-band logic:
 | Possible match | Orange | 65% – 84%   |
 | Weak match     | Gray   | Below 65%   |
 
-The inclusive lower edge of **Possible match** is also the server-side
-automatic evidence gate for Field trip goals: `0.75` for Flash and `0.65` for
-Pro. An unreviewed **Weak match** remains pending and does not advance an outing
-or Event until the user confirms the identification or a confirmed
+The inclusive lower edge of **Possible match** is also the server-side automatic
+evidence gate for Field trip goals: `0.75` for Flash and `0.65` for Pro. An
+unreviewed **Weak match** remains pending and does not advance an outing or
+Event until the user confirms the identification or a confirmed
 correction/community resolution supplies stronger evidence. See the
 [canonical Field Trip policy](25-field-trips.md#identification-evidence-policy).
 
@@ -1497,8 +1521,8 @@ immediately, saves locally, and then schedules cloud sync through
 `OfflineQueueManager`'s shared collection drain. The alert captures the exact
 local record ID and presentation generation when it opens and passes that
 immutable record ID into the modifier. The modifier revalidates `canCreate`
-before inserting or attaching anything, so even an alert action racing
-dismissal cannot mutate an obsolete presentation.
+before inserting or attaching anything, so even an alert action racing dismissal
+cannot mutate an obsolete presentation.
 
 ---
 

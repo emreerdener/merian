@@ -1,57 +1,183 @@
 # Feature Modules and UI Architecture
 
-Naturebook's UI architecture adheres to a modular, glassmorphic design philosophy, maximizing reuse of Swift components while decoupling heavy data operations from the main rendering loop to maintain a continuous 60fps framerate.
+Naturebook's UI architecture adheres to a modular, glassmorphic design
+philosophy, maximizing reuse of Swift components while decoupling heavy data
+operations from the main rendering loop to maintain a continuous 60fps
+framerate.
 
 ## 1. Onboarding & Permission Priming (`OnboardingView`)
 
-To satisfy Apple's privacy guidelines and secure high opt-in rates without friction, Merian intercepts the cold boot with a programmatic **Permission Priming** sequence. The `Onboarding` feature uses a product-area-first folder architecture. `Shell/` owns the root orchestrator and view model, `Steps/` owns the ordered welcome, camera, location, and ready screens, and `Permissions/` owns native permission delegates such as `LocationPermissionDelegate`.
+To satisfy Apple's privacy guidelines and secure high opt-in rates without
+friction, Merian intercepts the cold boot with a programmatic **Permission
+Priming** sequence. The `Onboarding` feature uses a product-area-first folder
+architecture. `Shell/` owns the root orchestrator and view model, `Steps/` owns
+the ordered welcome, camera, location, and ready screens, and `Permissions/`
+owns native permission delegates such as `LocationPermissionDelegate`.
 
-- **Enum-Backed State Machine (`OnboardingStep`)**: Enforces sequential permission gating (`.welcome`, `.camera`, `.location`, `.photoLibrary`, `.ready`) via a `switch` statement overlaying a `ZStack`. This prevents users from bypassing the `AVCaptureDevice` prompt by swiping (a flaw of standard `.tabViewStyle(.page)` paradigms).
-- **Asymmetric Glassmorphism Integrations**: View state transitions are synchronized using `withAnimation(.spring(...))` pushing `.asymmetric(insertion: .move, removal: .move)` structures.
-- **DRY Layout Abstraction (`OnboardingStepWrapper`)**: All individual steps (`WelcomeStepView`, `CameraPermissionStepView`, `LocationPermissionStepView`, etc.) share their geometric bounds and action-button chrome through `Steps/Shared/OnboardingStepWrapper.swift`, protecting UI consistency and supporting optional trailing button matrices such as "Skip for now".
+- **Enum-Backed State Machine (`OnboardingStep`)**: Enforces sequential
+  permission gating (`.welcome`, `.camera`, `.location`, `.photoLibrary`,
+  `.ready`) via a `switch` statement overlaying a `ZStack`. This prevents users
+  from bypassing the `AVCaptureDevice` prompt by swiping (a flaw of standard
+  `.tabViewStyle(.page)` paradigms).
+- **Asymmetric Glassmorphism Integrations**: View state transitions are
+  synchronized using `withAnimation(.spring(...))` pushing
+  `.asymmetric(insertion: .move, removal: .move)` structures.
+- **DRY Layout Abstraction (`OnboardingStepWrapper`)**: All individual steps
+  (`WelcomeStepView`, `CameraPermissionStepView`, `LocationPermissionStepView`,
+  etc.) share their geometric bounds and action-button chrome through
+  `Steps/Shared/OnboardingStepWrapper.swift`, protecting UI consistency and
+  supporting optional trailing button matrices such as "Skip for now".
 - **Hardware Fallbacks**:
-  - `CameraPermissionStepView`: Wraps `AVCaptureDevice.requestAccess(for: .video)` into the UI state, allowing the view to slide to Location as soon as the iOS permission boundary resolves.
-  - `LocationPermissionStepView`: Hooks into a `CLLocationManagerDelegate` observing authorization changes. Provides a transparent "Skip for now" fallback button, satisfying App Store Review requirements without alienating free users.
-- **Root View Handoff (`MerianApp`)**: Driven by the injected `AppSettings.hasCompletedOnboarding` flag. When the user completes Step 4, SwiftUI rewires the `WindowGroup`, unmounting `OnboardingView` and mapping the camera layers to `CaptureWorkspaceView(appSettings:)`. Because `CaptureWorkspaceView` remains uninitialized until this flag is `true`, background dependencies like `AVCaptureSession.beginConfiguration` are shielded from the onboarding frames.
+  - `CameraPermissionStepView`: Wraps
+    `AVCaptureDevice.requestAccess(for: .video)` into the UI state, allowing the
+    view to slide to Location as soon as the iOS permission boundary resolves.
+  - `LocationPermissionStepView`: Hooks into a `CLLocationManagerDelegate`
+    observing authorization changes. Provides a transparent "Skip for now"
+    fallback button, satisfying App Store Review requirements without alienating
+    free users.
+- **Root View Handoff (`MerianApp`)**: Driven by the injected
+  `AppSettings.hasCompletedOnboarding` flag. When the user completes Step 4,
+  SwiftUI rewires the `WindowGroup`, unmounting `OnboardingView` and mapping the
+  camera layers to `CaptureWorkspaceView(appSettings:)`. Because
+  `CaptureWorkspaceView` remains uninitialized until this flag is `true`,
+  background dependencies like `AVCaptureSession.beginConfiguration` are
+  shielded from the onboarding frames.
 
 ## 2. The Scans Library (`ScansSheetView`, `ScansManager`)
+
 The Scans tab is the user's primary offline biological journal.
 
 ### Native Paging Navigation
-- **Horizontal Swipe-to-Navigate**: The primary `ScansSheetView` uses a modern iOS 17 SwiftUI `ScrollView(.horizontal)` combined with `.scrollTargetBehavior(.paging)`, bound to `.scrollPosition(id: $activeTab)`. This enables smooth 1:1 interactive swiping between the "Scans" (Library) and "Collections" tabs without the safe area anomalies of `TabView`.
-- **Automatic Search Routing**: The `.searchable` prompt maps to the active `.scrollPosition`, displaying "Search keywords, habitats, colors..." or "Search collections..." respectively.
-- **Swipe-to-Clear UX**: If the user swipes between tabs with an active search filter, the architecture intercepts the activeTab `.onChange` to clear the filter and drop keyboard focus.
-- **Persistent Bottom Context**: The bottom-anchored search bar floats above the `ScrollView` content via native `.searchable`. Stripping the background (`.toolbarBackground(.hidden, for: .bottomBar)` when selection mode is inactive) lets photo grids flow continuously beneath the floating bar.
-- **Dynamic Multi-Selection & Grid Scaling**: `ScansSheetView` implements a trailing `.ellipsis` toolbar menu through `ScansSheetToolbar` and `ScansSheetModifiers` when the `library` tab is active. Grid options (1x1, 2x2, 3x3) are structured as horizontal quick actions using a `ControlGroup` of exclusive `Toggle` elements, writing through `AppSettings.gridColumns` and instantly reflowing the `ScansGrid` geometry. "Select multiple" transitions the entire UI into `isSelectionMode = true`.
-- **Contextual Batch Toolbars**: Entering `isSelectionMode` replaces the global toolbar. The header displays a selection count with "Cancel" and "Select All" actions. The bottom bar unhides, mounting `Share`, `Download`, and `Delete` actions. "Select All" caps at exactly 20 items to prevent `UIActivityViewController` RAM saturation.
-- **Download Overlays & Notifications**: Tapping "Download" freezes the scroll beneath a `ProgressView("Downloading...")` overlay. Selection state is preserved to prevent accidental re-queues during the async batch append to `PHPhotoLibrary`. When the loop completes on the `@MainActor`, the loader dismisses, selections clear, a success haptic pulses, and a `.ultraThinMaterial` capsule notification (e.g. "Saved X photos to your Camera Roll") appears.
+
+- **Horizontal Swipe-to-Navigate**: The primary `ScansSheetView` uses a modern
+  iOS 17 SwiftUI `ScrollView(.horizontal)` combined with
+  `.scrollTargetBehavior(.paging)`, bound to `.scrollPosition(id: $activeTab)`.
+  This enables smooth 1:1 interactive swiping between the "Scans" (Library) and
+  "Collections" tabs without the safe area anomalies of `TabView`.
+- **Automatic Search Routing**: The `.searchable` prompt maps to the active
+  `.scrollPosition`, displaying "Search keywords, habitats, colors..." or
+  "Search collections..." respectively.
+- **Swipe-to-Clear UX**: If the user swipes between tabs with an active search
+  filter, the architecture intercepts the activeTab `.onChange` to clear the
+  filter and drop keyboard focus.
+- **Persistent Bottom Context**: The bottom-anchored search bar floats above the
+  `ScrollView` content via native `.searchable`. Stripping the background
+  (`.toolbarBackground(.hidden, for: .bottomBar)` when selection mode is
+  inactive) lets photo grids flow continuously beneath the floating bar.
+- **Dynamic Multi-Selection & Grid Scaling**: `ScansSheetView` implements a
+  trailing `.ellipsis` toolbar menu through `ScansSheetToolbar` and
+  `ScansSheetModifiers` when the `library` tab is active. Grid options (1x1,
+  2x2, 3x3) are structured as horizontal quick actions using a `ControlGroup` of
+  exclusive `Toggle` elements, writing through `AppSettings.gridColumns` and
+  instantly reflowing the `ScansGrid` geometry. "Select multiple" transitions
+  the entire UI into `isSelectionMode = true`.
+- **Contextual Batch Toolbars**: Entering `isSelectionMode` replaces the global
+  toolbar. The header displays a selection count with "Cancel" and "Select All"
+  actions. The bottom bar unhides, mounting `Share`, `Download`, and `Delete`
+  actions. "Select All" caps at exactly 20 items to prevent
+  `UIActivityViewController` RAM saturation.
+- **Download Overlays & Notifications**: Tapping "Download" freezes the scroll
+  beneath a `ProgressView("Downloading...")` overlay. Selection state is
+  preserved to prevent accidental re-queues during the async batch append to
+  `PHPhotoLibrary`. When the loop completes on the `@MainActor`, the loader
+  dismisses, selections clear, a success haptic pulses, and a
+  `.ultraThinMaterial` capsule notification (e.g. "Saved X photos to your Camera
+  Roll") appears.
 
 ### Search & Filtering
-- **Native iOS 18 Bottom Search Bar**: Integrates the native iOS 18 `.searchable` and `.searchDictationBehavior(.inline)` modifiers pinned to the bottom via `DefaultToolbarItem(kind: .search, placement: .bottomBar)`.
-- **Dictation & Clear Mechanics**: Relies on native SwiftUI dictation capabilities and standard 'X' overlays, requiring no custom `UIViewRepresentable` bindings. Uses `.ultraThinMaterial` toolbars matching the aesthetic.
-- Driven by `ScansManager`, which uses cancellable tasks to filter arrays asynchronously without lagging the visual input.
-- **Dynamic Search & Filtering Chrome**: The UI tracks `isSearchFocused` state via the `.searchable(isPresented:)` binding alongside `searchManager.searchQuery`. Scans now owns its bottom search/filter chrome in `Scans/Shell/Modifiers/ScansSheetModifiers.swift`, while the generic pill-style `CategoryFilterBar` lives in `Core/UI/Components/CategoryFilterBar.swift` for Explore surfaces that still share that visual shell. When the user activates the Scans search field, the category controls give way to a dynamic "Search library" / "Search results" contextual header with a live result count, transitioning state without layout jumps.
-- Binds to SwiftData's `allRecords` using `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)` with a `#Predicate` filtering to biological scans (`$0.isBiological == true`). Historical unresolved placeholders are guarded separately by the resolved-identification helpers used for confidence, reference media, and Explore sharing.
-- **Dynamic Biological Taxonomy Pipeline**: Routes captures lacking generic class taxonomy (actinopterygii, arachnida, mollusks, unidentified specimens) into an "Other" fallback species-category filter without hiding them from the library.
-- **Offline Semantic Routing & Smart Search**: Queries map to user-facing `commonName`/`scientificName` text, user-defined `customTags`, and invisible `semanticTags` embedded by the AI model off-grid. `semanticTags` is assembled as `[commonName, scientificName] + colors + groupTags` — where `colors` are 1–3 dominant visual descriptors (e.g. `"orange"`) and `groupTags` are 2–4 plain-English categorical labels returned by Gemini. The `SearchDatabaseActor` dynamically extracts these payloads into a consolidated `rawString` index, additionally appending `customTags`, an explicit `"invasive"` keyword (injected conditionally via `isInvasive`), the Latin taxonomy fields (`taxonomyClass`, etc.), and a `commonGroupName` synonym mapping (e.g. `"aves"` → `"bird birds avian"`). SwiftData `#Predicate` constraints orchestrate swift case-insensitive SQLite matching across the index matrix.
-- **LazyVGrid Rendering Resilience**: To prevent SwiftUI rendering engine drops when swapping multi-thousand item text collections, `ScansManager` commits filtered arrays through a single async boundary and keeps sort primitives separate from model reads.
+
+- **Native iOS 18 Bottom Search Bar**: Integrates the native iOS 18
+  `.searchable` and `.searchDictationBehavior(.inline)` modifiers pinned to the
+  bottom via `DefaultToolbarItem(kind: .search, placement: .bottomBar)`.
+- **Dictation & Clear Mechanics**: Relies on native SwiftUI dictation
+  capabilities and standard 'X' overlays, requiring no custom
+  `UIViewRepresentable` bindings. Uses `.ultraThinMaterial` toolbars matching
+  the aesthetic.
+- Driven by `ScansManager`, which uses cancellable tasks to filter arrays
+  asynchronously without lagging the visual input.
+- **Dynamic Search & Filtering Chrome**: The UI tracks `isSearchFocused` state
+  via the `.searchable(isPresented:)` binding alongside
+  `searchManager.searchQuery`. Scans now owns its bottom search/filter chrome in
+  `Scans/Shell/Modifiers/ScansSheetModifiers.swift`, while the generic
+  pill-style `CategoryFilterBar` lives in
+  `Core/UI/Components/CategoryFilterBar.swift` for Explore surfaces that still
+  share that visual shell. When the user activates the Scans search field, the
+  category controls give way to a dynamic "Search library" / "Search results"
+  contextual header with a live result count, transitioning state without layout
+  jumps.
+- Binds to SwiftData's `allRecords` using
+  `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)` with a
+  `#Predicate` filtering to biological scans (`$0.isBiological == true`).
+  Historical unresolved placeholders are guarded separately by the
+  resolved-identification helpers used for confidence, reference media, and
+  Explore sharing.
+- **Dynamic Biological Taxonomy Pipeline**: Routes captures lacking generic
+  class taxonomy (actinopterygii, arachnida, mollusks, unidentified specimens)
+  into an "Other" fallback species-category filter without hiding them from the
+  library.
+- **Offline Semantic Routing & Smart Search**: Queries map to user-facing
+  `commonName`/`scientificName` text, user-defined `customTags`, and invisible
+  `semanticTags` embedded by the AI model off-grid. `semanticTags` is assembled
+  as `[commonName, scientificName] + colors + groupTags` — where `colors` are
+  1–3 dominant visual descriptors (e.g. `"orange"`) and `groupTags` are 2–4
+  plain-English categorical labels returned by Gemini. The `SearchDatabaseActor`
+  dynamically extracts these payloads into a consolidated `rawString` index,
+  additionally appending `customTags`, an explicit `"invasive"` keyword
+  (injected conditionally via `isInvasive`), the Latin taxonomy fields
+  (`taxonomyClass`, etc.), and a `commonGroupName` synonym mapping (e.g.
+  `"aves"` → `"bird birds avian"`). SwiftData `#Predicate` constraints
+  orchestrate swift case-insensitive SQLite matching across the index matrix.
+- **LazyVGrid Rendering Resilience**: To prevent SwiftUI rendering engine drops
+  when swapping multi-thousand item text collections, `ScansManager` commits
+  filtered arrays through a single async boundary and keeps sort primitives
+  separate from model reads.
 - **Indexed Advanced Filters**: Filter-sheet dimensions, taxonomy buckets, and
   per-scan filter values are cached once per scan generation. Selected values
   are normalized once per interaction, then immutable scan snapshots are
   filtered and sorted off the main actor. Large libraries no longer rescan and
   re-sort SwiftData models for every filter-sheet render or predicate.
-- **Reusable Scan Grid (`ScansGrid`)**: Shared grid rendering spans `LibraryView`, `NonBiologicalScansView`, `CollectionDetailView`, and `SelectMultipleScansView`. It accepts analysed `LocalScanRecord` rows plus optional `QueuedScanSnapshot` values, and relies on closures / generic menu content for context-specific UX such as deleting, selecting, or removing from collections.
-- **Composite Offline Queue Rendering and Routing (`ScansGrid` + `LibraryView` + `ScansSheetView`)**: `OfflineQueuedScan` photos, videos, audio, and descriptions render at the **top** of the `ScansGrid` `LazyVGrid`, before completed `LocalScanRecord` entries. Queued cells use the staged cover image when available and otherwise show the non-visual state. They are excluded from selection mode and the batch Share/Download/Delete pipeline. A tap calls `LibraryView.openQueuedScan`, which first checks whether a completed local record appeared after the grid rendered. A completed race winner uses the ordinary completed-scan route; otherwise the library snapshots a fresh `QueuedScanContext` and emits `onQueuedInsight`. `ScansSheetView` appends a private ID-hashed queued route to its existing `NavigationPath`, so queued and completed scans both open as pushed embedded Insights with native Back behavior—never as a second sheet or a status toast. The `hasContent` guard includes queued scans, suppressing the empty state when the analyzed list is empty. `ScansSheetView.refreshQueuedScans()` immediately converts eligible SwiftData rows into `QueuedScanSnapshot` values, preventing `LazyVGrid` from retaining deleted `@Model` references. The `q_` grid identity namespace and completed-only selection lookup keep queued IDs outside batch selection.
+- **Reusable Scan Grid (`ScansGrid`)**: Shared grid rendering spans
+  `LibraryView`, `NonBiologicalScansView`, `CollectionDetailView`, and
+  `SelectMultipleScansView`. It accepts analysed `LocalScanRecord` rows plus
+  optional `QueuedScanSnapshot` values, and relies on closures / generic menu
+  content for context-specific UX such as deleting, selecting, or removing from
+  collections.
+- **Composite Offline Queue Rendering and Routing (`ScansGrid` + `LibraryView` +
+  `ScansSheetView`)**: `OfflineQueuedScan` photos, videos, audio, and
+  descriptions render at the **top** of the `ScansGrid` `LazyVGrid`, before
+  completed `LocalScanRecord` entries. Queued cells use the staged cover image
+  when available and otherwise show the non-visual state. They are excluded from
+  selection mode and the batch Share/Download/Delete pipeline. A tap calls
+  `LibraryView.openQueuedScan`, which first checks whether a completed local
+  record appeared after the grid rendered. A completed race winner uses the
+  ordinary completed-scan route; otherwise the library snapshots a fresh
+  `QueuedScanContext` and emits `onQueuedInsight`. `ScansSheetView` appends a
+  private ID-hashed queued route to its existing `NavigationPath`, so queued and
+  completed scans both open as pushed embedded Insights with native Back
+  behavior—never as a second sheet or a status toast. The `hasContent` guard
+  includes queued scans, suppressing the empty state when the analyzed list is
+  empty. `ScansSheetView.refreshQueuedScans()` immediately converts eligible
+  SwiftData rows into `QueuedScanSnapshot` values, preventing `LazyVGrid` from
+  retaining deleted `@Model` references. The `q_` grid identity namespace and
+  completed-only selection lookup keep queued IDs outside batch selection.
 - **Presentation-only queue refresh**: While queued tiles are visible,
   `ScansSheetView` reads a fresh value snapshot every 1.5 seconds to work around
   dropped presented-sheet SwiftData notifications. That loop never owns retry
   scheduling or pipeline dispatch. It logs only when the queue/record signature
   changes; unchanged snapshots and throttled duplicate kicks remain silent.
-- **Modality-aware scan thumbnails**: `ScansGrid` now drives biological tiles through `LocalScanRecord.scanThumbnailPresentation` rather than assuming every missing image path means "archived". Audio-only / describe-only scans with a valid species show a non-visual "Reference pending" placeholder while `ScansSheetView` schedules `ScanThumbnailBackfillActor` to repair `referenceImageUrl` in the background. Unknown / taxonomy-unavailable non-visual scans render a terminal non-visual placeholder instead of a broken-photo state. `ArchivedVisualsView` is now reserved for genuinely missing visual assets or intentionally archived captures.
-- **Explore media recovery banner**: `ScansSheetView` refreshes the authenticated
-  owner's `/get-explore-media-incidents` queue on entry, foreground,
-  connectivity changes, and library-repair events. `LibraryView` keeps a
-  persistent orange Needs-attention banner above filters while incidents
+- **Modality-aware scan thumbnails**: `ScansGrid` now drives biological tiles
+  through `LocalScanRecord.scanThumbnailPresentation` rather than assuming every
+  missing image path means "archived". Audio-only / describe-only scans with a
+  valid species show a non-visual "Reference pending" placeholder while
+  `ScansSheetView` schedules `ScanThumbnailBackfillActor` to repair
+  `referenceImageUrl` in the background. Unknown / taxonomy-unavailable
+  non-visual scans render a terminal non-visual placeholder instead of a
+  broken-photo state. `ArchivedVisualsView` is now reserved for genuinely
+  missing visual assets or intentionally archived captures.
+- **Explore media recovery banner**: `ScansSheetView` refreshes the
+  authenticated owner's `/get-explore-media-incidents` queue on entry,
+  foreground, connectivity changes, and library-repair events. `LibraryView`
+  keeps a persistent orange Needs-attention banner above filters while incidents
   remain. Copy distinguishes degraded media from an all-missing hidden post,
   says that the post/likes/comments are safe, and Review opens the linked local
   scan when available so device-assisted repair can inspect it. Queue
@@ -65,61 +191,416 @@ The Scans tab is the user's primary offline biological journal.
   `invalidResponse`, and a failed refresh retains the prior in-memory incident
   state. The old ambiguous HTTP `bytes` benchmark measured requests and cannot
   prove that the direct-array topology was ever deployed.
-- **Embedded queued Insight**: The queued route retains a `QueuedScanContext` value snapshot while comparing and hashing by scan ID. `InsightSheetView` uses `.embeddedInScansLibrary`, so queue deletion and completed-record handoff replace content within the same pushed destination. A fallback context can be built from `QueuedScanSnapshot` if the live queue row vanishes between tap and fetch.
-- **Unified Empty States (`EmptyStateView`)**: Monolithic `VStack` geometries for 0-result states inside library and selection flows were replaced with a reusable `EmptyStateView` component mapping to strongly typed dynamic message fallbacks.
+- **Embedded queued Insight**: The queued route retains a `QueuedScanContext`
+  value snapshot while comparing and hashing by scan ID. `InsightSheetView` uses
+  `.embeddedInScansLibrary`, so queue deletion and completed-record handoff
+  replace content within the same pushed destination. Every bind prefers a
+  persisted completed record with that ID over the retained route snapshot, and
+  direct child promotion finishes before the synchronous parent-library event.
+  Rebinding the same stale route after its exact completion is visible is a
+  no-op that preserves presentation generation and result controls. The handoff
+  advances a monotonic presentation generation even though the UUID stays fixed;
+  result toolbar reveal and Field Notes tasks use that generation so Field Chat,
+  Share, and notes restart immediately after promotion. The shared animated
+  scanning badge clips its translated decorative renderers, excludes the glare
+  from interaction semantics, and is fixed to intrinsic size before exposing its
+  accessibility identifier, preventing an oversized off-window activation frame
+  from swallowing the deterministic completion handshake. A fallback context can
+  be built from `QueuedScanSnapshot` if the live queue row vanishes between tap
+  and fetch.
+- **Unified Empty States (`EmptyStateView`)**: Monolithic `VStack` geometries
+  for 0-result states inside library and selection flows were replaced with a
+  reusable `EmptyStateView` component mapping to strongly typed dynamic message
+  fallbacks.
 
 ### Collections (Top-Level Photo Albums)
-- In `MerianSchemaV6`, users can organize `LocalScanRecord` entries into distinct `ScanCollection` buckets.
-- **Inline Search Filtering**: The view supports inline string filtering against both custom collections and system folders (Favorites, Non-biological).
-- Uses SwiftData `@Relationship` mapping inside a nested 3-column `LazyVGrid`, providing an "Explore Library" modal inside `CollectionDetailView` to link IDs safely without duplicating local images.
-- **SaveToCollectionSheetView Removal**: The standalone `SaveToCollectionSheetView` was deleted. Collection routing from `InsightSheetView` is now handled via a native iOS Menu without pushing opaque sheets.
-- **Favorites & Non-Bio Isolation**: A default "Favorites" `ScanCollection` is seeded for every user. Bootstrap initialization logic is centralized in `ScanRepository.shared.configure(with:)` so the default folder seeds exactly once at startup. "Favorites" and "Non-biological" are filtered out of the primary `LazyVGrid` and pinned as `DefaultCollectionLink` components at the top of the viewport, above user-created collections. The `CollectionsView` layout uses an overarching `VStack(spacing: 16)` to maintain consistent proportions.
-- **Smart Default Collections**: `SmartCollectionSuggester` derives up to six auto-managed collections from the local biological scan library without changing SwiftData schema or cloud payloads. Suggestions can include "Needs review", "Recent finds", "Explore posts" for scans shared publicly to Explore, top normalized locations, top taxonomy buckets, invasive finds, and potential hazards. "Needs review" shares the candidate review thresholds: unreviewed biological scans qualify when the primary match is below the tier's Strong threshold, or when a Strong match has a competitive stored alternative, not merely because candidate alternatives exist. Each suggestion is threshold-gated to avoid empty/noisy rows, ranked by usefulness, filtered by locally hidden smart collection ids in `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed when the user already has an active collection with the same normalized name. Card-style smart collections render as image-backed `SmartCollectionCard` tiles before user-created collection cards, while row-style defaults (Favorites, Non-biological, and "Needs review") sit underneath the card grid.
-- **Smart Collection Boundary**: `SmartCollectionDetailView` is read-only and live-generated from current `LocalScanRecord` matches. Smart collections are not converted into `ScanCollection` rows, do not enqueue `OfflineQueueManager.shared.enqueueCollectionSync()`, and never enter `/sync-collections` in v1. Users can hide an individual smart collection from its detail menu and restore all hidden smart collections from the Collections toolbar menu; this hide state is local to the device.
-- **Deleted Collection Filtering**: Soft-deleted collections (`isDeleted == true`) are filtered out of both `CollectionsView` and the `InsightSheetView` add-to-collection menu, so a collection pending remote deletion cannot still be selected from another surface.
-- **Collection State Toasts**: A `.task(id:)` auto-dismissing `toastOverlay` modifier anchored to the `InsightSheetView` hierarchy provides haptic synchronization and glassmorphic `.ultraThinMaterial` pill notifications when scans are pushed to or removed from `ScanCollection` relations.
-- **Collection Management & OOM-Safety (`Rename` & `Delete`)**: `CollectionsView` integrates `.contextMenu` bounds into the custom `ScanCollection` grid, allowing users to rename or delete albums without navigating hierarchies. In `CollectionDetailView`, `Rename` and `Delete` actions anchor to a trailing native iOS `Menu` behind a glassmorphic `.ellipsis` glyph. Executing `Delete` bypasses iterative child payload loading by relying on SwiftData's default `.nullify` cascade behavior. Redundant inline `.alert("...")` boilerplate throughout `Views` (inside `CollectionDetailView`, `CollectionsView`, `InsightSheetView`, and `ScansSheetView`) was extracted into a standalone DRY `CollectionActionAlertModifier` handling `.rename`, `.delete`, and `.create` paths. This modifier trims names, blocks duplicates against live collections, reserves `"Favorites"` for the system collection, and only enqueues cloud sync after a successful local save. Membership edits from `CollectionDetailView`, `SelectMultipleScansView`, and the Insight sheet use the same save-first contract: rollback/log on save failure, then skip library refresh and collection sync side effects. These changes trigger the `OfflineQueueManager.enqueueCollectionSync()` pipeline, which drains `SyncCollectionPayload` arrays against the upstream `sync-collections` Supabase Edge Function through a shared single-flight sync path.
+
+- In `MerianSchemaV6`, users can organize `LocalScanRecord` entries into
+  distinct `ScanCollection` buckets.
+- **Inline Search Filtering**: The view supports inline string filtering against
+  both custom collections and system folders (Favorites, Non-biological).
+- Uses SwiftData `@Relationship` mapping inside a nested 3-column `LazyVGrid`,
+  providing an "Explore Library" modal inside `CollectionDetailView` to link IDs
+  safely without duplicating local images.
+- **SaveToCollectionSheetView Removal**: The standalone
+  `SaveToCollectionSheetView` was deleted. Collection routing from
+  `InsightSheetView` is now handled via a native iOS Menu without pushing opaque
+  sheets.
+- **Favorites & Non-Bio Isolation**: A default "Favorites" `ScanCollection` is
+  seeded for every user. Bootstrap initialization logic is centralized in
+  `ScanRepository.shared.configure(with:)` so the default folder seeds exactly
+  once at startup. "Favorites" and "Non-biological" are filtered out of the
+  primary `LazyVGrid` and pinned as `DefaultCollectionLink` components at the
+  top of the viewport, above user-created collections. The `CollectionsView`
+  layout uses an overarching `VStack(spacing: 16)` to maintain consistent
+  proportions.
+- **Smart Default Collections**: `SmartCollectionSuggester` derives up to six
+  auto-managed collections from the local biological scan library without
+  changing SwiftData schema or cloud payloads. Suggestions can include "Needs
+  review", "Recent finds", "Explore posts" for scans shared publicly to Explore,
+  top normalized locations, top taxonomy buckets, invasive finds, and potential
+  hazards. "Needs review" shares the candidate review thresholds: unreviewed
+  biological scans qualify when the primary match is below the tier's Strong
+  threshold, or when a Strong match has a competitive stored alternative, not
+  merely because candidate alternatives exist. Each suggestion is
+  threshold-gated to avoid empty/noisy rows, ranked by usefulness, filtered by
+  locally hidden smart collection ids in
+  `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed when the user
+  already has an active collection with the same normalized name. Card-style
+  smart collections render as image-backed `SmartCollectionCard` tiles before
+  user-created collection cards, while row-style defaults (Favorites,
+  Non-biological, and "Needs review") sit underneath the card grid.
+- **Smart Collection Boundary**: `SmartCollectionDetailView` is read-only and
+  live-generated from current `LocalScanRecord` matches. Smart collections are
+  not converted into `ScanCollection` rows, do not enqueue
+  `OfflineQueueManager.shared.enqueueCollectionSync()`, and never enter
+  `/sync-collections` in v1. Users can hide an individual smart collection from
+  its detail menu and restore all hidden smart collections from the Collections
+  toolbar menu; this hide state is local to the device.
+- **Deleted Collection Filtering**: Soft-deleted collections
+  (`isDeleted == true`) are filtered out of both `CollectionsView` and the
+  `InsightSheetView` add-to-collection menu, so a collection pending remote
+  deletion cannot still be selected from another surface.
+- **Collection State Toasts**: A `.task(id:)` auto-dismissing `toastOverlay`
+  modifier anchored to the `InsightSheetView` hierarchy provides haptic
+  synchronization and glassmorphic `.ultraThinMaterial` pill notifications when
+  scans are pushed to or removed from `ScanCollection` relations.
+- **Collection Management & OOM-Safety (`Rename` & `Delete`)**:
+  `CollectionsView` integrates `.contextMenu` bounds into the custom
+  `ScanCollection` grid, allowing users to rename or delete albums without
+  navigating hierarchies. In `CollectionDetailView`, `Rename` and `Delete`
+  actions anchor to a trailing native iOS `Menu` behind a glassmorphic
+  `.ellipsis` glyph. Executing `Delete` bypasses iterative child payload loading
+  by relying on SwiftData's default `.nullify` cascade behavior. Redundant
+  inline `.alert("...")` boilerplate throughout `Views` (inside
+  `CollectionDetailView`, `CollectionsView`, `InsightSheetView`, and
+  `ScansSheetView`) was extracted into a standalone DRY
+  `CollectionActionAlertModifier` handling `.rename`, `.delete`, and `.create`
+  paths. This modifier trims names, blocks duplicates against live collections,
+  reserves `"Favorites"` for the system collection, and only enqueues cloud sync
+  after a successful local save. Membership edits from `CollectionDetailView`,
+  `SelectMultipleScansView`, and the Insight sheet use the same save-first
+  contract: rollback/log on save failure, then skip library refresh and
+  collection sync side effects. These changes trigger the
+  `OfflineQueueManager.enqueueCollectionSync()` pipeline, which drains
+  `SyncCollectionPayload` arrays against the upstream `sync-collections`
+  Supabase Edge Function through a shared single-flight sync path.
 - **Collection Sync Projection**: Each collection-sync attempt fetches only
   persisted non-Favorites collections and their direct inverse `scans`
   relationships. Membership IDs are sorted for stable retries, and the server
   applies only the relationship delta. The client never walks the full scan
   library in OFFSET pages to discover collection membership.
-- **Non-Biological Scans Isolation**: A dedicated navigation button routes users to `NonBiologicalScansView.swift`, which queries exclusively for `$0.isBiological == false`. To prevent JetSam OOM when computing sizes without rendering grids, `ScansCollectionsGridView` drops the `@Query` mechanism and uses an asynchronous `Task` calling `modelContext.fetchCount(descriptor)`, computing exact counts inside the SQLite layer and rendering scalars without inflating memory dictionaries. Expired local non-biological records are purged after `MerianConfig.nonBiologicalRetentionDays` by `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` on app foreground and again when the Non-biological view opens, using the same save-first tombstone and file-cleanup contract as manual deletion.
-- **Correction Reanalysis Flow**: `NonBiologicalScansView` no longer mutates an existing record into a biological placeholder. The `Reanalyze as biological` action opens a local confirmation first (`Reanalyze identification?`) explaining that the identification was marked non-biological and that reanalysis will look for a biological subject using the original capture. Confirming emits `AppEvent.triggerRefinement(..., entryPoint: .nonBiologicalCorrection)` with no initial description draft, so the explanatory copy is not submitted as user-authored observation text. It stages the original media through `CaptureWorkspaceViewModel.startRefinementScan`. If the user adds live Describe notes and submits from the active scan toolbar, those notes are consumed into the staged payload and the input draft is cleared before analysis is sent. The original non-biological record remains unchanged until the existing replacement pipeline produces a successful new result; only then are notes, tags, and collections transferred and the old scan removed. This scoped correction entry point bypasses only the Pro reanalysis feature lock so free users can correct this specific failure mode, but the submitted replacement scan still follows normal free-tier inference settings and daily scan accounting.
-- **Compatibility Guards for Old Placeholders**: Historical records that were already converted into unresolved biological placeholders (`Unknown Subject` / `Taxonomy Unavailable`) stay protected locally. They suppress visible AI confidence, reference-loading carousel pages, and Explore sharing until a resolved biological identification exists. Programmatic Explore sharing for those records fails before the network request with `Reanalyze this scan before sharing to Explore.` A "Clear All" command still executes batch deletion through `BackgroundDatabaseActor.ScanErasurePayload` properties inside isolated `Task.detached` blocks.
-- The `NonBiologicalScansView` injects a `.blue.opacity(0.1)` 30-day auto-purge informational banner above the core layout grid.
+- **Non-Biological Scans Isolation**: A dedicated navigation button routes users
+  to `NonBiologicalScansView.swift`, which queries exclusively for
+  `$0.isBiological == false`. To prevent JetSam OOM when computing sizes without
+  rendering grids, `ScansCollectionsGridView` drops the `@Query` mechanism and
+  uses an asynchronous `Task` calling `modelContext.fetchCount(descriptor)`,
+  computing exact counts inside the SQLite layer and rendering scalars without
+  inflating memory dictionaries. Expired local non-biological records are purged
+  after `MerianConfig.nonBiologicalRetentionDays` by
+  `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` on app
+  foreground and again when the Non-biological view opens, using the same
+  save-first tombstone and file-cleanup contract as manual deletion.
+- **Correction Reanalysis Flow**: `NonBiologicalScansView` no longer mutates an
+  existing record into a biological placeholder. The `Reanalyze as biological`
+  action opens a local confirmation first (`Reanalyze identification?`)
+  explaining that the identification was marked non-biological and that
+  reanalysis will look for a biological subject using the original capture.
+  Confirming emits
+  `AppEvent.triggerRefinement(..., entryPoint: .nonBiologicalCorrection)` with
+  no initial description draft, so the explanatory copy is not submitted as
+  user-authored observation text. It stages the original media through
+  `CaptureWorkspaceViewModel.startRefinementScan`. If the user adds live
+  Describe notes and submits from the active scan toolbar, those notes are
+  consumed into the staged payload and the input draft is cleared before
+  analysis is sent. The original non-biological record remains unchanged until
+  the existing replacement pipeline produces a successful new result; only then
+  are notes, tags, and collections transferred and the old scan removed. This
+  scoped correction entry point bypasses only the Pro reanalysis feature lock so
+  free users can correct this specific failure mode, but the submitted
+  replacement scan still follows normal free-tier inference settings and daily
+  scan accounting.
+- **Compatibility Guards for Old Placeholders**: Historical records that were
+  already converted into unresolved biological placeholders (`Unknown Subject` /
+  `Taxonomy Unavailable`) stay protected locally. They suppress visible AI
+  confidence, reference-loading carousel pages, and Explore sharing until a
+  resolved biological identification exists. Programmatic Explore sharing for
+  those records fails before the network request with
+  `Reanalyze this scan before sharing to Explore.` A "Clear All" command still
+  executes batch deletion through `BackgroundDatabaseActor.ScanErasurePayload`
+  properties inside isolated `Task.detached` blocks.
+- The `NonBiologicalScansView` injects a `.blue.opacity(0.1)` 30-day auto-purge
+  informational banner above the core layout grid.
 
 ### Main Tab Bar
-- **Bottom Position Alignment**: The `Explore`, `Scans`, and `Profile` actions are hosted in a custom floating liquid glass capsule component (`MainTabBar`) overlaid at the bottom of the camera feed. `Explore` now opens a real sheet-backed feature rather than a placeholder tooltip.
-- **Ultra-Thin Material**: The tab bar uses iOS's native `.ultraThinMaterial` background, which adapts to the visual contrast of the camera feed, paired with a specular `.strokeBorder` gradient and soft drop shadow.
-- **Sheet Navigation**: Tapping any navigation element spawns `.sheet` structures (`SettingsView`, `ProfileView`, etc.) that slide over the camera interface without re-routing the global hierarchy or interrupting the `.isCapturing` hardware state.
-- **Unread Scan Badge**: `MainTabBar` reads `AppSettings.hasUnseenScan` and passes it as `showBadge:` to the Scans `TabBarButton`. When `true`, a red 8pt `Circle` is overlaid on the top-right of the stack icon. The flag is set to `true` through `diContainer.appSettings` in `CaptureWorkspaceViewModel.handleInferenceProcessingChange` only when a real result arrives (`speciesData?.scanId != nil` — error placeholders like "Analysis Failed" or "Network timeout" are excluded because they are not persisted to SwiftData). Background URLSession completions also write through `AppSettings.shared` while on `MainActor`. The flag is cleared to `false` by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView` when the user is actively viewing the result or library. Because `AppSettings` persists to `UserDefaults` and exposes `refreshFromDefaults()` on foreground, the badge survives app backgrounding and reconciles background delegate writes when SwiftUI resumes. Additionally, individual scans dynamically render a local `hasBeenViewed` indicator dot overlay on their thumbnail bounding box (`ScansGrid.swift`) for unopened biological and non-biological captures. The `hasBeenViewed` flag resolves asymptotically to `true` inside `InsightSheetViewModel` exclusively when `inferenceEngine.isProcessing == false`, guaranteeing the user sees the final output before the scan is marked as read. To defend against background database flush latency (where a Custom Actor save races the `@MainActor` UI query), `InsightSheetView` deploys an explicit `.task` retry wrapper. This loops up to 5 times (2.5s maximum) waiting for the background `.save()` to materialize on the UI context, totally eliminating false negative reads.
+
+- **Bottom Position Alignment**: The `Explore`, `Scans`, and `Profile` actions
+  are hosted in a custom floating liquid glass capsule component (`MainTabBar`)
+  overlaid at the bottom of the camera feed. `Explore` now opens a real
+  sheet-backed feature rather than a placeholder tooltip.
+- **Ultra-Thin Material**: The tab bar uses iOS's native `.ultraThinMaterial`
+  background, which adapts to the visual contrast of the camera feed, paired
+  with a specular `.strokeBorder` gradient and soft drop shadow.
+- **Sheet Navigation**: Tapping any navigation element spawns `.sheet`
+  structures (`SettingsView`, `ProfileView`, etc.) that slide over the camera
+  interface without re-routing the global hierarchy or interrupting the
+  `.isCapturing` hardware state.
+- **Unread Scan Badge**: `MainTabBar` reads `AppSettings.hasUnseenScan` and
+  passes it as `showBadge:` to the Scans `TabBarButton`. When `true`, a red 8pt
+  `Circle` is overlaid on the top-right of the stack icon. The flag is set to
+  `true` through `diContainer.appSettings` in
+  `CaptureWorkspaceViewModel.handleInferenceProcessingChange` only when a real
+  result arrives (`speciesData?.scanId != nil` — error placeholders like
+  "Analysis Failed" or "Network timeout" are excluded because they are not
+  persisted to SwiftData). Background URLSession completions also write through
+  `AppSettings.shared` while on `MainActor`. The flag is cleared to `false` by
+  `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView` when the user is
+  actively viewing the result or library. Because `AppSettings` persists to
+  `UserDefaults` and exposes `refreshFromDefaults()` on foreground, the badge
+  survives app backgrounding and reconciles background delegate writes when
+  SwiftUI resumes. Additionally, individual scans dynamically render a local
+  `hasBeenViewed` indicator dot overlay on their thumbnail bounding box
+  (`ScansGrid.swift`) for unopened biological and non-biological captures. The
+  `hasBeenViewed` flag resolves asymptotically to `true` inside
+  `InsightSheetViewModel` exclusively when
+  `inferenceEngine.isProcessing == false`, guaranteeing the user sees the final
+  output before the scan is marked as read. To defend against background
+  database flush latency (where a Custom Actor save races the `@MainActor` UI
+  query), `InsightSheetView` deploys an explicit `.task` retry wrapper. This
+  loops up to 5 times (2.5s maximum) waiting for the background `.save()` to
+  materialize on the UI context, totally eliminating false negative reads.
 
 ### Explore Feed
-- **Sheet-Based Public Feed**: `ExploreView` renders as a top-level sheet routed from `MainTabBar` through `CameraSheetRouter` and `CaptureWorkspaceViewModel.ActiveSheet.explore`.
-- **Explore Media Layout**: Feed media and detail media both resolve through the shared square media host so image aspect ratios fill a stable square. Feed/detail are the public video playback surfaces: feed video autoplay resets to muted whenever the feed is entered or uncovered, feed-to-detail navigation inherits the current choice, and detail-to-feed navigation resets to muted before autoplay resumes. Playback recovers from sheet interruptions through the scoped `ExploreVideoPlaybackCoordinator`. Detail media enables the transient zoom wrapper by default; the wrapper can be disabled for deterministic layout rendering tests without changing production behavior. Maps, widgets, profile grids, and compact previews remain thumbnail-first; widgets show clean still thumbnails without video badges.
-- **Explore Audio Playhead**: Feed and detail standalone audio share `ExplorePublicMediaView`, so both surfaces render the same thin playhead over the spectrogram. While playback intent and `AVPlayer.timeControlStatus` are both playing, a display-synchronized `TimelineView` samples the live player clock through `AudioSpectrogramSeekingPolicy.displayedProgress`. Paused, waiting, and seeking states render the last stored progress, and user, coordinator, or interruption pauses first snapshot the exact live position to prevent a backward snap. The 100 ms periodic observer remains responsible for the elapsed/total timestamp and stored lifecycle progress; the spectrogram poster and timestamp badge stay outside the per-frame timeline. Feed remains non-seekable, while detail retains tap-to-jump, horizontal scrubbing, and VoiceOver adjustment.
-- **Explore Root Navigation**: `ExploreView` uses bottom navigation for `Observations`, `Field trips`, `Identify`, and `Index`. The Observations tab owns a root-only Feed/Map segmented header toggle with Feed first, Field trips opens directly to Outings and adds its Outings/Events segmented view only when Events are enabled, and Index keeps its Catalog/Tree header toggle.
-- **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent checklist surface. Standard Outings are released for every user; `FieldTripEventsAvailability` stages live/upcoming curated Events for the tester account and simulator builds until its release flag is enabled. Base cards route into guided template detail pages with Goals/Tips, a left-aligned Private/Published badge above the title, a larger active-level progress ring, cover image, duration, tags, levels, guidance, item tips, and Start/Continue/Publish actions. Completed standard goals use their exact device-local completing scan as the catalog/detail thumbnail when available; tapping one pushes the existing embedded Insight route inside Explore and back returns to the outing. Seasonal cards open challenge detail pages with Join/Continue/Publish Entry states, schedules, progress, badges, and reverse-chronological entries. Published base trips are mixed into unfiltered Observations Recent and Following as typed Field trip cards that route to `FieldTripPublicationDetailView`; observation-specific species, media, or date filters omit these typed cards because Field trip publications do not share the observation filter contract. They retain Field trip-native likes/comments and do not create duplicate `explore_posts`. Trending, Nearby, map, APNs, widgets, public-web posts, and global Seasonal-entry aggregation remain out of scope.
-- **Feed Filters**: The feed tab mounts a leading `Filters` pill before `Recent`, `Following`, `Trending`, and `Nearby`. The pill opens a sheet that keeps feed mode single-select, adds multi-select Species and Media sections, adds an inclusive shared-date window, and exposes 10/25/50/100-mile distance choices when Nearby is active. Its badge counts only filters that currently constrain the feed; Reset clears the advanced selections while preserving the chosen feed mode. `Recent` remains the default mode, and only the canonical unfiltered Recent feed updates the main Explore "new post" badge bookkeeping and widget snapshot. `ExploreFeedViewModel` updates `AppSettings.hasUnseenExplorePost` and `AppSettings.lastSeenExplorePostSharedAt` only after that feed loads, so browsing alternate modes or filtered subsets does not mark unseen posts as viewed or replace the global recent snapshot.
-- **Feed Layout**: `ExplorePostCard` follows a social-feed structure instead of a framed card: author row above, full-width square image, species plaque over the image bottom-left (displaying a confident dog/cat pet label when present, otherwise the user's preferred local common name if set), then like/comment/share actions below.
-- **Audio Thumbnail Policy**: Compact author-profile, published-scan, hashtag, and Map discovery-card thumbnails use species reference photos for audio-only posts. Audio-backed posts prefer the server-projected `reference_thumbnail_url`; author-post and map responses must also retain `media_items` so these surfaces can distinguish audio and video from images. Map cards render from the Map projection after canonical engagement state is synchronized into it, preventing an older feed-store copy without `reference_thumbnail_url` from replacing the richer Map thumbnail. Both the Profile tab and Explore author-profile sheet merge the matching local scan's `referenceImageUrl` by `scanId` when showing the current user and an older deployed author-post payload omits the reference field. Audio and video use `ExploreMediaTypeIndicator`, matching the Scans library's 24-point dark circular badge, 11-point glyph, 8-point inset, and bottom-trailing placement. Feed and post-detail media do not use this override and continue to render playable audio spectrograms. In the private Scans library, `ScansGrid` opts the shared thumbnail into the same reference-photo-plus-waveform treatment; standard, smart, and rotating featured collection covers also prefer the reference photo for audio-only cover scans. Opening the scan still shows its spectrogram.
-- **Composer Common-Name Picker**: `ExplorePostComposerView` accepts the known common-name options for the species and lets the user choose which one is published on create/share/edit. Insight-sheet create/edit sources choices from `InsightSheetViewModel.allNamesForPicker` and defaults to the resolved species common name, excluding scan-level pet labels; Explore-origin edits default to the post's current `species_common_name` snapshot and append `get-explore-post-detail.alternative_common_names`. The selected value is submitted as `ExplorePostComposerDraft.selectedCommonName`, sent to the Explore mutation as `species_common_name`, and stored through `SpeciesPreferredNameRepository` so the user's local/cloud-syncable species preference follows their choice.
-- **Preferred Name Hydration**: Explore personalizes species names through `ExploreFeedViewModel.preferredSpeciesNamesByScientificName`, which is hydrated from `SpeciesPreferredNameRepository` for the feed store and visible map posts. A row-level `pet_identification.label` may sit above this resolver for dog/cat display, but it is never stored as a preferred common name. The published post still carries its own `species_common_name` snapshot so the community post can preserve the creator's chosen name even if dictionary names or a viewer's local preference differ. This keeps `ExplorePost` / `ExploreMapPost` as pure network DTOs while letting feed cards, map previews, comments, detail titles, and share text update from the SwiftData-backed preference source.
-- **Filter Semantics**: `Following` shows currently visible posts from authors the viewer follows and keeps the same recency cursor as `Recent`. `Trending` is intentionally freshness-biased rather than all-time top, ranking posts by like activity from the trailing 30 days with recency tie-breakers. Species and media selections are OR-ed within their section and AND-ed with each other and the shared-date cutoff; mixed-media posts match when any public item has a selected kind. These constraints run in the dedicated feed SQL RPC before ordering and page limits, and the client snapshots the date cutoff for stable pagination. `Nearby` resolves through `EnvironmentContextManager`, keeps the chip visible even when permission is denied, and can route the user to Settings if location access is unavailable. The backend applies the selected 10–100-mile radius (50 miles by default) using post-owned public coordinates, so non-owned `obscured` and `private` posts stay out of spatial Nearby results, then keeps the resulting feed recency-sorted.
-- **Feed Refresh Safety**: `ExploreFeedViewModel` owns the active filter, feed reset, and pagination cursor lifecycle. Switching filters clears the current page, reloads from page 1, and uses request IDs to discard stale async responses during rapid tab or filter switching.
-- **Detail Navigation**: Tapping the feed post body pushes a dedicated Explore detail page inside the Explore `NavigationStack`, except for the centered audio/video playback zone. That 96-point zone remains above navigation, single-taps Play/Pause even after its 58-point icon fades, and double-taps to like. The surrounding media still single-taps into detail and double-taps to like. The detail page expands the same post into a fuller public surface with author row, hero image, species section, public telemetry, public species cards, and an inline comments thread.
-- **Privacy-Safe Identity**: Author labels render from the public Explore identity projection, not directly from raw auth payloads. `author_name` remains the display label for logged-in/provider-derived identities, while `author_username` is the stable handle rendered as `@username` for profile handles and default/ghost author rows. Authenticated authors may additionally show a copied public avatar URL when available; feed posts, author-profile routes, and comment rows all use the same `public.users.public_avatar_url` projection. Ghost users fall back to iconography when no avatar is available.
-- **Profile Following**: `ExploreAuthorProfileSheet` shows public follower/following counts and an optimistic `Follow` / `Following` button for non-self profiles. Counts are not tappable in v1, and following never grants private scan access or creates mutual friend state.
-- **Interactions**: Likes, comments, and follows are optimistic and online-only. Feed comment entry uses a dedicated `ExploreCommentsSheet`, while the detail page keeps its comment thread and composer inline. Comments support interactive emoji reactions (Slack-style pill list) that toggle locally for instant haptic response. Feed media supports double-tap to like with a transient centered heart overlay; audio/video center double taps use the dedicated playback gesture recognizer so the post is liked exactly once. The center playback zone is exposed to VoiceOver as the current Play/Pause action, while the video mute control remains independently tappable. A system share button on each post shares media-aware species copy plus `https://naturebook.earth/explore/post/{postId}` in one string so Messages and social apps can render the public web preview; the page offers `naturebook://explore/post/{postId}` as its canonical "Open in Naturebook" action while retaining `merian://` as a compatibility alias. Overflow menus expose block/report/unshare actions depending on ownership.
-- **Public Species Cards**: Public species surfaces reuse a safe subset of the Insight visual language without mounting private `InferenceEngine` state. Explore detail includes `TaxonomyCard`, Explore-specific public Overview and `Habitat & distribution` cards, and the shared `SimilarSpeciesGallery` backed by `species_dictionary`, `species_lookalikes`, and `GBIFHeatmapMapView`. Species Dictionary additionally embeds `SpeciesObservationChartsCard`, which combines on-device local aggregation with cached global public iNaturalist stats. Similar species render after habitat/distribution and tap through to the standalone `SpeciesDictionaryPageView`; feed cards, map previews, widgets, and profile preview thumbnails do not render this section. Shared presentation stays in focused helpers under `Features/Insights/Shared/Cards/Chrome/` (`InsightCardHeader`, Wikipedia summary/read-more chrome, heatmap chrome, scientific-name text highlighting); domain-specific data gates stay inside each Explore, Dictionary, or Insight card.
-- **Public Telemetry**: The detail page surfaces only coarse/public-safe telemetry, such as general location, broad time context (`Morning`, `April`), weather, and shared date. Exact coordinates and raw scan telemetry never appear in Explore.
-- **Loading Treatment**: Initial feed loading uses glowing skeleton posts that mirror the live feed card layout rather than a spinner-only state.
-- **Map Surface**: `ExploreMapView` uses SwiftUI `Map` plus `ExploreMapViewModel` to render privacy-safe waypoints and zoom-aware clusters. Explore Map returns only posts whose saved post-level `location_sharing` is `open`; open posts with species-safety or uncertainty rounding retain a softer approximate-location halo in dot and thumbnail modes. The horizontal quick-filter pills remain species-focused, while the full Map filters sheet adds multi-select Images, Videos, and Audio. Species selections OR together, media selections OR together, and the two groups intersect before clustering; the Filters count and Reset/All actions cover both groups. The map keeps the last successful results visible while the camera moves, surfaces a `Search This Area` CTA when the viewport meaningfully changes, supports `Recenter`, an offline banner, and a compact results chip, and keys its aggressively evicted in-memory region cache by viewport plus both filter groups.
-- **Map Selection Flow**: Tapping a cluster zooms inward. Tapping either a dot waypoint or a thumbnail waypoint selects it and opens a preview card above the bottom edge. The preview card can like, comment, share, unshare, report, or block, and then route into the same `ExplorePostDetailView` used by the feed.
-- **Map Empty/Error States**: The shipped empty state uses a top banner only, keeping the map fully interactive underneath instead of blocking the center with a modal card. Full-screen center state cards are reserved for true load failures when no map data is available yet, with the exception of 503 Service Unavailable errors. For 503 errors, the UI intercepts the error and displays a graceful "Habitat data not available" pill badge instead of the intrusive error card, mimicking the design-system-compliant empty state of the habitat distribution maps.
-- **Cross-Tab State Sharing**: `ExplorePostStore` is now the canonical in-memory Explore post state layer. `ExploreFeedViewModel` owns feed-specific loading/pagination state, `ExploreMapViewModel` owns spatial state, and both surfaces stay synchronized through shared post mutations for likes, comments, unshares, reports, and blocks.
-- **Explore Activity Surface**: The Explore toolbar bell now shows an unread badge and opens `ExploreNotificationsSheet`. The badge refreshes on mount, on app foreground, on a lightweight fallback polling loop, and through a Supabase realtime subscription filtered to the viewer's notification rows. The sheet fetches the in-app activity feed first, paginates with a stable `(updated_at, notification_id)` cursor, and marks notifications as read only after a successful initial fetch. Post-backed activity routes through a single-post fetch path so older or paged-out posts still open correctly in `ExplorePostDetailView`; Field trip activity routes to `FieldTripPublicationDetailView`; follow activity is informational and does not navigate because it has no `postId`. Remote Explore activity pushes are opt-in from `NotificationSettingsView` and deep-link back into `ExploreView` through `AppEventPublisher` plus `CaptureWorkspaceViewModel`, but follow notifications and Field trip activity rows are in-app only and do not fan out to APNs.
+
+- **Sheet-Based Public Feed**: `ExploreView` renders as a top-level sheet routed
+  from `MainTabBar` through `CameraSheetRouter` and
+  `CaptureWorkspaceViewModel.ActiveSheet.explore`.
+- **Explore Media Layout**: Feed media and detail media both resolve through the
+  shared square media host so image aspect ratios fill a stable square.
+  Feed/detail are the public video playback surfaces: feed video autoplay resets
+  to muted whenever the feed is entered or uncovered, feed-to-detail navigation
+  inherits the current choice, and detail-to-feed navigation resets to muted
+  before autoplay resumes. Playback recovers from sheet interruptions through
+  the scoped `ExploreVideoPlaybackCoordinator`. Detail media enables the
+  transient zoom wrapper by default; the wrapper can be disabled for
+  deterministic layout rendering tests without changing production behavior.
+  Maps, widgets, profile grids, and compact previews remain thumbnail-first;
+  widgets show clean still thumbnails without video badges.
+- **Explore Audio Playhead**: Feed and detail standalone audio share
+  `ExplorePublicMediaView`, so both surfaces render the same thin playhead over
+  the spectrogram. While playback intent and `AVPlayer.timeControlStatus` are
+  both playing, a display-synchronized `TimelineView` samples the live player
+  clock through `AudioSpectrogramSeekingPolicy.displayedProgress`. Paused,
+  waiting, and seeking states render the last stored progress, and user,
+  coordinator, or interruption pauses first snapshot the exact live position to
+  prevent a backward snap. The 100 ms periodic observer remains responsible for
+  the elapsed/total timestamp and stored lifecycle progress; the spectrogram
+  poster and timestamp badge stay outside the per-frame timeline. Feed remains
+  non-seekable, while detail retains tap-to-jump, horizontal scrubbing, and
+  VoiceOver adjustment.
+- **Explore Root Navigation**: `ExploreView` uses bottom navigation for
+  `Observations`, `Field trips`, `Identify`, and `Index`. The Observations tab
+  owns a root-only Feed/Map segmented header toggle with Feed first, Field trips
+  opens directly to Outings and adds its Outings/Events segmented view only when
+  Events are enabled, and Index keeps its Catalog/Tree header toggle.
+- **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent
+  checklist surface. Standard Outings are released for every user;
+  `FieldTripEventsAvailability` stages live/upcoming curated Events for the
+  tester account and simulator builds until its release flag is enabled. Base
+  cards route into guided template detail pages with Goals/Tips, a left-aligned
+  Private/Published badge above the title, a larger active-level progress ring,
+  cover image, duration, tags, levels, guidance, item tips, and
+  Start/Continue/Publish actions. Completed standard goals use their exact
+  device-local completing scan as the catalog/detail thumbnail when available;
+  tapping one pushes the existing embedded Insight route inside Explore and back
+  returns to the outing. Seasonal cards open challenge detail pages with
+  Join/Continue/Publish Entry states, schedules, progress, badges, and
+  reverse-chronological entries. Published base trips are mixed into unfiltered
+  Observations Recent and Following as typed Field trip cards that route to
+  `FieldTripPublicationDetailView`; observation-specific species, media, or date
+  filters omit these typed cards because Field trip publications do not share
+  the observation filter contract. They retain Field trip-native likes/comments
+  and do not create duplicate `explore_posts`. Trending, Nearby, map, APNs,
+  widgets, public-web posts, and global Seasonal-entry aggregation remain out of
+  scope.
+- **Feed Filters**: The feed tab mounts a leading `Filters` pill before
+  `Recent`, `Following`, `Trending`, and `Nearby`. The pill opens a sheet that
+  keeps feed mode single-select, adds multi-select Species and Media sections,
+  adds an inclusive shared-date window, and exposes 10/25/50/100-mile distance
+  choices when Nearby is active. Its badge counts only filters that currently
+  constrain the feed; Reset clears the advanced selections while preserving the
+  chosen feed mode. `Recent` remains the default mode, and only the canonical
+  unfiltered Recent feed updates the main Explore "new post" badge bookkeeping
+  and widget snapshot. `ExploreFeedViewModel` updates
+  `AppSettings.hasUnseenExplorePost` and
+  `AppSettings.lastSeenExplorePostSharedAt` only after that feed loads, so
+  browsing alternate modes or filtered subsets does not mark unseen posts as
+  viewed or replace the global recent snapshot.
+- **Feed Layout**: `ExplorePostCard` follows a social-feed structure instead of
+  a framed card: author row above, full-width square image, species plaque over
+  the image bottom-left (displaying a confident dog/cat pet label when present,
+  otherwise the user's preferred local common name if set), then
+  like/comment/share actions below.
+- **Audio Thumbnail Policy**: Compact author-profile, published-scan, hashtag,
+  and Map discovery-card thumbnails use species reference photos for audio-only
+  posts. Audio-backed posts prefer the server-projected
+  `reference_thumbnail_url`; author-post and map responses must also retain
+  `media_items` so these surfaces can distinguish audio and video from images.
+  Map cards render from the Map projection after canonical engagement state is
+  synchronized into it, preventing an older feed-store copy without
+  `reference_thumbnail_url` from replacing the richer Map thumbnail. Both the
+  Profile tab and Explore author-profile sheet merge the matching local scan's
+  `referenceImageUrl` by `scanId` when showing the current user and an older
+  deployed author-post payload omits the reference field. Audio and video use
+  `ExploreMediaTypeIndicator`, matching the Scans library's 24-point dark
+  circular badge, 11-point glyph, 8-point inset, and bottom-trailing placement.
+  Feed and post-detail media do not use this override and continue to render
+  playable audio spectrograms. In the private Scans library, `ScansGrid` opts
+  the shared thumbnail into the same reference-photo-plus-waveform treatment;
+  standard, smart, and rotating featured collection covers also prefer the
+  reference photo for audio-only cover scans. Opening the scan still shows its
+  spectrogram.
+- **Composer Common-Name Picker**: `ExplorePostComposerView` accepts the known
+  common-name options for the species and lets the user choose which one is
+  published on create/share/edit. Insight-sheet create/edit sources choices from
+  `InsightSheetViewModel.allNamesForPicker` and defaults to the resolved species
+  common name, excluding scan-level pet labels; Explore-origin edits default to
+  the post's current `species_common_name` snapshot and append
+  `get-explore-post-detail.alternative_common_names`. The selected value is
+  submitted as `ExplorePostComposerDraft.selectedCommonName`, sent to the
+  Explore mutation as `species_common_name`, and stored through
+  `SpeciesPreferredNameRepository` so the user's local/cloud-syncable species
+  preference follows their choice.
+- **Preferred Name Hydration**: Explore personalizes species names through
+  `ExploreFeedViewModel.preferredSpeciesNamesByScientificName`, which is
+  hydrated from `SpeciesPreferredNameRepository` for the feed store and visible
+  map posts. A row-level `pet_identification.label` may sit above this resolver
+  for dog/cat display, but it is never stored as a preferred common name. The
+  published post still carries its own `species_common_name` snapshot so the
+  community post can preserve the creator's chosen name even if dictionary names
+  or a viewer's local preference differ. This keeps `ExplorePost` /
+  `ExploreMapPost` as pure network DTOs while letting feed cards, map previews,
+  comments, detail titles, and share text update from the SwiftData-backed
+  preference source.
+- **Filter Semantics**: `Following` shows currently visible posts from authors
+  the viewer follows and keeps the same recency cursor as `Recent`. `Trending`
+  is intentionally freshness-biased rather than all-time top, ranking posts by
+  like activity from the trailing 30 days with recency tie-breakers. Species and
+  media selections are OR-ed within their section and AND-ed with each other and
+  the shared-date cutoff; mixed-media posts match when any public item has a
+  selected kind. These constraints run in the dedicated feed SQL RPC before
+  ordering and page limits, and the client snapshots the date cutoff for stable
+  pagination. `Nearby` resolves through `EnvironmentContextManager`, keeps the
+  chip visible even when permission is denied, and can route the user to
+  Settings if location access is unavailable. The backend applies the selected
+  10–100-mile radius (50 miles by default) using post-owned public coordinates,
+  so non-owned `obscured` and `private` posts stay out of spatial Nearby
+  results, then keeps the resulting feed recency-sorted.
+- **Feed Refresh Safety**: `ExploreFeedViewModel` owns the active filter, feed
+  reset, and pagination cursor lifecycle. Switching filters clears the current
+  page, reloads from page 1, and uses request IDs to discard stale async
+  responses during rapid tab or filter switching.
+- **Detail Navigation**: Tapping the feed post body pushes a dedicated Explore
+  detail page inside the Explore `NavigationStack`, except for the centered
+  audio/video playback zone. That 96-point zone remains above navigation,
+  single-taps Play/Pause even after its 58-point icon fades, and double-taps to
+  like. The surrounding media still single-taps into detail and double-taps to
+  like. The detail page expands the same post into a fuller public surface with
+  author row, hero image, species section, public telemetry, public species
+  cards, and an inline comments thread.
+- **Privacy-Safe Identity**: Author labels render from the public Explore
+  identity projection, not directly from raw auth payloads. `author_name`
+  remains the display label for logged-in/provider-derived identities, while
+  `author_username` is the stable handle rendered as `@username` for profile
+  handles and default/ghost author rows. Authenticated authors may additionally
+  show a copied public avatar URL when available; feed posts, author-profile
+  routes, and comment rows all use the same `public.users.public_avatar_url`
+  projection. Ghost users fall back to iconography when no avatar is available.
+- **Profile Following**: `ExploreAuthorProfileSheet` shows public
+  follower/following counts and an optimistic `Follow` / `Following` button for
+  non-self profiles. Counts are not tappable in v1, and following never grants
+  private scan access or creates mutual friend state.
+- **Interactions**: Likes, comments, and follows are optimistic and online-only.
+  Feed comment entry uses a dedicated `ExploreCommentsSheet`, while the detail
+  page keeps its comment thread and composer inline. Comments support
+  interactive emoji reactions (Slack-style pill list) that toggle locally for
+  instant haptic response. Feed media supports double-tap to like with a
+  transient centered heart overlay; audio/video center double taps use the
+  dedicated playback gesture recognizer so the post is liked exactly once. The
+  center playback zone is exposed to VoiceOver as the current Play/Pause action,
+  while the video mute control remains independently tappable. A system share
+  button on each post shares media-aware species copy plus
+  `https://naturebook.earth/explore/post/{postId}` in one string so Messages and
+  social apps can render the public web preview; the page offers
+  `naturebook://explore/post/{postId}` as its canonical "Open in Naturebook"
+  action while retaining `merian://` as a compatibility alias. Overflow menus
+  expose block/report/unshare actions depending on ownership.
+- **Public Species Cards**: Public species surfaces reuse a safe subset of the
+  Insight visual language without mounting private `InferenceEngine` state.
+  Explore detail includes `TaxonomyCard`, Explore-specific public Overview and
+  `Habitat & distribution` cards, and the shared `SimilarSpeciesGallery` backed
+  by `species_dictionary`, `species_lookalikes`, and `GBIFHeatmapMapView`.
+  Species Dictionary additionally embeds `SpeciesObservationChartsCard`, which
+  combines on-device local aggregation with cached global public iNaturalist
+  stats. Similar species render after habitat/distribution and tap through to
+  the standalone `SpeciesDictionaryPageView`; feed cards, map previews, widgets,
+  and profile preview thumbnails do not render this section. Shared presentation
+  stays in focused helpers under `Features/Insights/Shared/Cards/Chrome/`
+  (`InsightCardHeader`, Wikipedia summary/read-more chrome, heatmap chrome,
+  scientific-name text highlighting); domain-specific data gates stay inside
+  each Explore, Dictionary, or Insight card.
+- **Public Telemetry**: The detail page surfaces only coarse/public-safe
+  telemetry, such as general location, broad time context (`Morning`, `April`),
+  weather, and shared date. Exact coordinates and raw scan telemetry never
+  appear in Explore.
+- **Loading Treatment**: Initial feed loading uses glowing skeleton posts that
+  mirror the live feed card layout rather than a spinner-only state.
+- **Map Surface**: `ExploreMapView` uses SwiftUI `Map` plus
+  `ExploreMapViewModel` to render privacy-safe waypoints and zoom-aware
+  clusters. Explore Map returns only posts whose saved post-level
+  `location_sharing` is `open`; open posts with species-safety or uncertainty
+  rounding retain a softer approximate-location halo in dot and thumbnail modes.
+  The horizontal quick-filter pills remain species-focused, while the full Map
+  filters sheet adds multi-select Images, Videos, and Audio. Species selections
+  OR together, media selections OR together, and the two groups intersect before
+  clustering; the Filters count and Reset/All actions cover both groups. The map
+  keeps the last successful results visible while the camera moves, surfaces a
+  `Search This Area` CTA when the viewport meaningfully changes, supports
+  `Recenter`, an offline banner, and a compact results chip, and keys its
+  aggressively evicted in-memory region cache by viewport plus both filter
+  groups.
+- **Map Selection Flow**: Tapping a cluster zooms inward. Tapping either a dot
+  waypoint or a thumbnail waypoint selects it and opens a preview card above the
+  bottom edge. The preview card can like, comment, share, unshare, report, or
+  block, and then route into the same `ExplorePostDetailView` used by the feed.
+- **Map Empty/Error States**: The shipped empty state uses a top banner only,
+  keeping the map fully interactive underneath instead of blocking the center
+  with a modal card. Full-screen center state cards are reserved for true load
+  failures when no map data is available yet, with the exception of 503 Service
+  Unavailable errors. For 503 errors, the UI intercepts the error and displays a
+  graceful "Habitat data not available" pill badge instead of the intrusive
+  error card, mimicking the design-system-compliant empty state of the habitat
+  distribution maps.
+- **Cross-Tab State Sharing**: `ExplorePostStore` is now the canonical in-memory
+  Explore post state layer. `ExploreFeedViewModel` owns feed-specific
+  loading/pagination state, `ExploreMapViewModel` owns spatial state, and both
+  surfaces stay synchronized through shared post mutations for likes, comments,
+  unshares, reports, and blocks.
+- **Explore Activity Surface**: The Explore toolbar bell now shows an unread
+  badge and opens `ExploreNotificationsSheet`. The badge refreshes on mount, on
+  app foreground, on a lightweight fallback polling loop, and through a Supabase
+  realtime subscription filtered to the viewer's notification rows. The sheet
+  fetches the in-app activity feed first, paginates with a stable
+  `(updated_at, notification_id)` cursor, and marks notifications as read only
+  after a successful initial fetch. Post-backed activity routes through a
+  single-post fetch path so older or paged-out posts still open correctly in
+  `ExplorePostDetailView`; Field trip activity routes to
+  `FieldTripPublicationDetailView`; follow activity is informational and does
+  not navigate because it has no `postId`. Remote Explore activity pushes are
+  opt-in from `NotificationSettingsView` and deep-link back into `ExploreView`
+  through `AppEventPublisher` plus `CaptureWorkspaceViewModel`, but follow
+  notifications and Field trip activity rows are in-app only and do not fan out
+  to APNs.
 - **Explore Media Availability**: One incident transition creates
   `media_missing` in app and, when enabled, one ordinary Explore push. It opens
   Scan Library recovery because a fully quarantined post has no public detail.
@@ -127,142 +608,642 @@ The Scans tab is the user's primary offline biological journal.
   tap can open the post. Public Feed/Map/profile/search/detail/share projections
   omit confirmed-missing items and omit an all-missing post consistently while
   retaining author intent and engagement.
-- **Home Screen Widget**: `MerianExploreWidget` is an image-only `systemSmall` WidgetKit extension. Recent Explore feed loads hydrate an App Group cache through `ExploreWidgetSnapshotWriter`, and the widget rotates through those local JPEGs with timeline entries. Tapping the full-bleed image opens `naturebook://explore/post/{postId}`, which `MerianApp` routes through the existing `AppEventPublisher` Explore deep-link path. `CaptureWorkspaceViewModel` protects fresh widget/deep-link routes from the immediate foreground session-timeout reset so the Explore sheet does not open and then collapse back to the camera. Public user-to-user shares use `https://naturebook.earth/explore/post/{postId}` through the Next.js web surface instead of the widget's device-local custom scheme. The app continues accepting legacy `merian://` and `https://merian.earth` links. See `docs/features-and-hardware/13-explore-home-screen-widget.md` for the cache, tap-routing, and target contract, and `docs/features-and-hardware/17-public-web-share-pages.md` for public share pages.
+- **Home Screen Widget**: `MerianExploreWidget` is an image-only `systemSmall`
+  WidgetKit extension. Recent Explore feed loads hydrate an App Group cache
+  through `ExploreWidgetSnapshotWriter`, and the widget rotates through those
+  local JPEGs with timeline entries. Tapping the full-bleed image opens
+  `naturebook://explore/post/{postId}`, which `MerianApp` routes through the
+  existing `AppEventPublisher` Explore deep-link path.
+  `CaptureWorkspaceViewModel` protects fresh widget/deep-link routes from the
+  immediate foreground session-timeout reset so the Explore sheet does not open
+  and then collapse back to the camera. Public user-to-user shares use
+  `https://naturebook.earth/explore/post/{postId}` through the Next.js web
+  surface instead of the widget's device-local custom scheme. The app continues
+  accepting legacy `merian://` and `https://merian.earth` links. See
+  `docs/features-and-hardware/13-explore-home-screen-widget.md` for the cache,
+  tap-routing, and target contract, and
+  `docs/features-and-hardware/17-public-web-share-pages.md` for public share
+  pages.
 
 ### Memory Integrity (`MediaPreparationActor`, `ImageDownsampler` & Concurrency)
-- Guards against OOM crashes by keeping file-backed still-image staging and avatar previews inside `MediaPreparationActor`, which produces bounded inference, display, and crop-preview payloads before SwiftUI can instantiate a `UIImage`.
-- Grid loads, share/export previews, and other already-bounded image bytes continue to use the static `ImageDownsampler` abstraction, using CoreGraphics interpolations to downsample 12 MP files rather than instantiating memory-heavy `UIImage(contentsOfFile:)` chunks.
-- **Thread Starvation Prevention**: Image fetch orchestration is detached from UI tasks, while synchronous Apple `ImageIO` decoding (`CGImageSourceCreateWithURL`) runs on an explicitly user-initiated concurrent queue behind a cancellation-aware four-permit pool. Excess callers suspend rather than blocking Swift cooperative or user-initiated threads.
-- `LiveCapturePageView` no longer downsamples from a computed property in `body`. It starts a `.task(id:)`, decodes via `DetachedWork.value(category: .imagePreparation)`, then commits the resulting `UIImage` to `@State` and `NSCache`.
+
+- Guards against OOM crashes by keeping file-backed still-image staging and
+  avatar previews inside `MediaPreparationActor`, which produces bounded
+  inference, display, and crop-preview payloads before SwiftUI can instantiate a
+  `UIImage`.
+- Grid loads, share/export previews, and other already-bounded image bytes
+  continue to use the static `ImageDownsampler` abstraction, using CoreGraphics
+  interpolations to downsample 12 MP files rather than instantiating
+  memory-heavy `UIImage(contentsOfFile:)` chunks.
+- **Thread Starvation Prevention**: Image fetch orchestration is detached from
+  UI tasks, while synchronous Apple `ImageIO` decoding
+  (`CGImageSourceCreateWithURL`) runs on an explicitly user-initiated concurrent
+  queue behind a cancellation-aware four-permit pool. Excess callers suspend
+  rather than blocking Swift cooperative or user-initiated threads.
+- `LiveCapturePageView` no longer downsamples from a computed property in
+  `body`. It starts a `.task(id:)`, decodes via
+  `DetachedWork.value(category: .imagePreparation)`, then commits the resulting
+  `UIImage` to `@State` and `NSCache`.
 - **Historical Payload Override**: The hydration engine
   (`ScanRepository.syncHistoricalScansDown`) restores historical Cloudflare R2
-  URLs into the scan's media payload while keeping `.referenceImageUrl` bound
-  to Wikipedia/GBIF. `ScansThumbnailView` and `AsyncLocalImageView` resolve those
+  URLs into the scan's media payload while keeping `.referenceImageUrl` bound to
+  Wikipedia/GBIF. `ScansThumbnailView` and `AsyncLocalImageView` resolve those
   paths through `LocalImageLoader`. For an eligible durable URL, the loader
   first checks exact/rescue/high-confidence timestamp mappings to a surviving
   Documents file, then performs the bounded network fetch when no local match
-  exists. A recovered local file can queue owner-authenticated cloud repair,
-  but local rendering does not by itself prove that R2 or Explore was restored.
-- **Sandbox Resiliency**: File references drop absolute path prefixes before parsing (via `.lastPathComponent`). This prevents broken thumbnails when the OS shifts active container mount paths (e.g. during Xcode Simulator rebuilds or iOS firmware updates).
+  exists. A recovered local file can queue owner-authenticated cloud repair, but
+  local rendering does not by itself prove that R2 or Explore was restored.
+- **Sandbox Resiliency**: File references drop absolute path prefixes before
+  parsing (via `.lastPathComponent`). This prevents broken thumbnails when the
+  OS shifts active container mount paths (e.g. during Xcode Simulator rebuilds
+  or iOS firmware updates).
 
 ## 3. Inferences & Telemetry (`InsightSheetView`)
-The `InsightSheetView` is Merian's central contextual readout, triggered after an Edge API response or opened offline via the Scans library.
+
+The `InsightSheetView` is Merian's central contextual readout, triggered after
+an Edge API response or opened offline via the Scans library.
 
 ### Core Rendering Logic
-- **Product-Area-First Isolation**: The `Insights` feature is organized by the work someone is trying to do in the insight sheet, not by generic SwiftUI file type. `Shell/` owns the root presentation, routes, embedded navigation helpers, and the main `InsightSheetViewModel`; `Content/` owns biological/non-biological results, queued lifecycle presentation, foreground analysis, and their shared `ScanningExperienceView`; `Media/` owns the carousel, fullscreen gallery, and photo export utilities; `IdentificationReview/` owns candidates, swipe review, candidate state models, and confidence explanation UI.
-  - Foreground and queued processing use one visible scanning contract: dynamic status pill, `DidYouKnowCard`, Field notes, and `ScanInformationCard`. Foreground text comes from `InferenceEngine.scanningPhaseText`; queued text rotates from exact queue/server state and reuses generic engine phrases during active inference. Queued retry timing, error text, and `Retry now` are inserted only when actionable. The UI does not show a separate queued heading, sync explainer, media-kind summary, or approximate file size.
-  - `Shared/Cards/Chrome/` owns lightweight card chrome helpers shared by Insights and Explore detail cards: `CardModifier.swift`, `InsightCardHeader.swift`, `WikipediaSummarySection.swift`, `WikipediaReadMoreButton.swift`, `GBIFHeatmapCardChrome.swift`, and `InsightScientificNameStyler.swift`. These are presentation-only helpers; `OverviewCard`, `ExploreOverviewCard`, `HabitatAndDistributionCard`, and `ExploreHabitatDistributionCard` still keep their own data sourcing, online/loading behavior, and privacy gates.
-  - Insight presentation primitives now live under `Features/Insights/Shell/Models`: `InsightPresentation` owns `ScanInsightRoute` and sheet/embedded presentation style. `Features/Insights/Toolbars/Models/InsightToolbarRecordSnapshot.swift` preserves value-type toolbar data across SwiftData deletion/dismissal boundaries, and share feedback/candidate-review state is kept out of SwiftUI view bodies.
-  - `InsightSheetViewModel` keeps its root state in `Features/Insights/Shell/ViewModels/`, while behavior extensions live beside their owning product areas: field-note behavior in `FieldNotes/ViewModels/`, Explore sharing in `Sharing/ViewModels/`, media export in `Media/Utilities/`, and name preferences in `Content/NamePreferences/ViewModels/`.
-  - `InsightChatViewModel` is intentionally separate from `InsightSheetViewModel`. It owns the Field chat lifecycle for completed biological insights, including `/check-scan-status` presentation preflight, `/insight-chat` load/send/delete/feedback/summary/prompt-suggestion calls, offline read-only state, saved messages, failed outgoing recovery, AI-generated prompt chips with local fallback, duplicate-send `client_message_id` values, answer feedback state, deterministic unavailable hiding, and local detection of identification-concern prompt buckets: direct wrong-ID language, soft doubt, alternate-ID suggestions, trait mismatch, and recheck/reanalysis requests. `InsightSheetView` passes only presentation/action hooks for toasts, append-only field-note writes, candidate review, reanalysis, and sheet dismissal.
-  - `InsightSheetView` keeps presentation and lifecycle wiring while toolbar assembly lives in `Shell/Views/InsightSheetView+Toolbar.swift`, and embedded navigation helpers live in `Features/Insights/Shell/Modifiers/`.
-  - `BiologicalView` owns the persistent `FieldTripProgressCard` after toxicity/identification review and before Field notes. `InsightSheetViewModel` loads its private server rows for saved biological scans, filters gated Event rows, rejects stale scan-change responses, and silently hides empty/error states. The adaptive card is visibly titled **Field trips**; undivided rows use an uppercase completion eyebrow, standalone goal name, enlarged objective art/check badge, and a prominent trailing `GoalProgressRing` without a redundant chevron. Full-row taps forward typed destinations through the shell so embedded Explore and root modal navigation remain distinct. The card is not a celebration surface and is not cached locally.
-  - The `SwiftUI` `@ViewBuilder` layout blocks previously hardcoded in `InsightLayout.swift` were decoupled. `InsightHeader` recouples the `Description` text into the localized semantic `VStack` tracking Scientific and Common Names, isolating the `SpeciesBadges` grids in the outer container boundaries. The biological view maps pure typography layers, shifting glyph matrices inline to match right-aligned layouts. This injects `timestamp: Date?` and `gpsElevation` bindings into the Environment Card for chronological and altitudinal display.
-  - `SimilarSpeciesGallery` renders a horizontally scrolling carousel of commonly confused species sourced from `SpeciesData.similarSpecies` / `LocalScanRecord.lookalikesData` in Insight and from `/get-explore-post-detail.similar_species` in Explore detail. Each `SimilarSpeciesCard` prefers a pre-resolved `referenceImageUrl`, falls back through `SimilarSpeciesImageFetcher`, and can receive a `routeForSpecies` builder to push the public species dictionary page in the current navigation stack by `speciesId` when available or scientific name as the compatibility fallback.
-  - Structural sub-elements sit with their owning product areas: `ImagesCarousel` in `Media/Carousel/`, `ToxicityBanner` in `Shared/Banners/`, specialized confidence/status UI in `IdentificationReview/Confidence/`, and report issue UI in `Reporting/`. Cross-feature milestone notification chrome and scan-completion coordination live in `Core/UI/Feedback/` so Field trip progress, achievement unlocks, and dictionary-contribution milestones share one queue and visual system. UIKit SDK wrappers (like the `SFSafariViewController` bridge) are moved to `Core/UI/Components/SafariView.swift`. `ReportInsightView` keeps API `Task` network closures in `Reporting/ViewModels/ReportInsightViewModel.swift` following `@MainActor` MVVM.
-- **Adaptive Dark Mode & System Materials**: All hardcoded dark-mode overrides were removed. The sheet maps to Apple's adaptive `.ultraThinMaterial` backgrounds, responding to the user's system appearance and maintaining accessibility contrast. Specialized badge views keep capsule bounds fixed to their content, preventing `maxWidth: .infinity` stretching from parent frames. The `ConfidenceBadge` formats mathematical floats into hybrid semantic strings (`85% - 100% • Strong match`), generates Emerald and Red `.sparkles.2` iconography, and overlays a holographic foil sweep tracking a `.linear(duration: 4.5)` offset. Tapping the badge triggers a `ConfidenceExplanationSheet` with `.presentationDragIndicator(.visible)`, rendering a Continuous Spectrum Timeline using `Rectangle` scaling with a connecting gradient pipeline. An AI Acknowledgment Banner is integrated beneath the Spectrum Timeline.
-- **Safety Block**: `ToxicityBanner` parses `speciesData?.insightData.isPoisonous` and displays yellow cautionary ribbons above the fold when needed. The `else` logic block has been stripped — the banner defaults to an `EmptyView()` when a subject is non-toxic, preserving zero vertical footprint.
-- **Ecological Validations & Legacy Hydration**: Binds fallback indicators for "Not biological" or "Not a live capture" cases, routing edge failures into a clean UI. `BiologicalView` renders validated lookalikes with the same "Similar species" gallery label regardless of confidence; candidate/uncertainty review is handled separately by `CandidatesCard`. Inline status capsules handle legacy historical payloads, rendering weather/location data if the dataset pre-dates MapKit reverse-geocoding. `ScanInformationCard` evaluates `.gpsElevation` data, blocking flat `0.0` initialization artifacts to ensure authentic topological reporting. The card also integrates a deterministic `Map` view using Apple MapKit, mapping `gpsLatitude` bounds into a performant geometry pinned to the base of the card.
-- **Liquid Glass Edge-to-Edge Parallax**: `InsightSheetView` overrides iOS 16 `.sheet` drag-indicator padding via `.ignoresSafeArea(.all, edges: .top)` on the `ImagesCarousel` geometry. The sheet integrates a "Stretchy Header" parallax inside the isolated `InsightContentView` `ScrollView`, using a custom `.coordinateSpace(name: "InsightScrollSpace")` to capture `minY` offset and shift the background upward (`offset(y: -scrollY)`) to prevent rubber-band bounce tearing. The primary `VStack` is clamped horizontally to screen geometries, discarding phantom horizontal swipe capabilities.
-- **Overscroll Bleed Buffer & TabView Resilience**: iOS 17 pure `ScrollView` horizontal paging introduces a bug inside `.sheet` layouts where rapid swipes leave elements frozen halfway between boundaries. The `ImagesCarousel` uses the `UIPageViewController`-backed `TabView(.page)` to work around this. To prevent a 1-frame cross-framework gesture tearing bug that opens a white gap when pulling the `TabView` vertically, the parallax geometry renders a rigid "Overscroll Bleed Buffer" — 50px of hidden image data forced upward out of the viewport — guaranteeing visual immunity against frame clipping lag during bouncy sheet interactions.
-- **Dynamic Contextual Header**: To replace the `ConfidenceBadge` with the truncated Common Name during active scrolling, the layout maps an invisible `GeometryReader` onto a native `ScrollView` coordinate tracking axis `"InsightScrollBoundary"`, calculating absolute text boundaries and shifting `.principal` UI payloads accordingly.
-- **Toolbar Actions & Vertical Taxonomy**: Core insight actions live in the top toolbar overflow menu, including collection membership, field notes, download, deletion, and identification review actions. Insight collection toggles save SwiftData first, rollback and show failure feedback on save errors, and only then emit success toasts or enqueue collection sync. Linnean classification was converted from horizontal-scrolling `.TaxonomyNode` pills into a vertical key-value `.glassCard` dictionary.
-- **Milestone Notifications**: The old local "New Discovery" pill was replaced by the shared bottom `MilestoneToastBanner`. `ScanMilestoneCoordinator` waits for the saved scan's Field trip progress attempt and atomically enqueues standard outing progress, Events-visible Seasonal Challenge progress, achievement unlocks, then `New to Naturebook`. It filters challenge-only progress before caching, refresh publication, routing, or presentation when Events are disabled. Foreground and background completion share the coordinator and deduplicate by final scan ID. The dictionary milestone still requires the identify response compatibility field `is_new_to_merian_dictionary` for a valid biological contribution; local `isNewDiscovery` remains limited to stats, persona, and achievements. Progress banners show `Field trip progress`, contextual `{species} counts toward {trip}` copy, and a credited progress ring; taps open the focused standard goal or challenge detail. All milestone types share haptics, a 3.5-second timeout, close/swipe dismissal, queue transitions, and VoiceOver announcements. Achievement taps open achievement detail; `New to Naturebook` taps dismiss.
-- **Scans Contextual Imagery**: When opened from the Scans library, the system forces the user's locally captured photograph to dominate the Hero Carousel rather than defaulting to Wikipedia/GBIF reference imagery.
-- **Field Notes Reconciliation**: `FieldNotesRepository` is the local/private boundary for insight and Explore field-note reads and writes. It resolves `LocalScanRecord.fieldNotes` first, then `OfflineQueuedScan.fieldNotes`, then the legacy `FieldNotesStore` per-scan bridge; a legacy hit is promoted back into SwiftData and mirrored to the bridge. When an owned scan is still shared to Explore, the sheet revalidates the post through `/get-scan-explore-share-state` and `/get-explore-post-detail`; if the Explore post still has public field notes but the local scan copy is empty, those notes are promoted through the repository. Existing local/private notes are never overwritten by the public Explore copy. Shared field-note cards surface Published or Private badges, and the Field notes edit sheet saves text and Explore visibility together so edited public notes do not go stale. The editor snapshots its initial text and effective visibility: closing with X or an interactive dismissal autosaves real changes, but an unchanged draft dismisses without committing the binding or calling the visibility save closure. Explore detail independently compares normalized local text and the desired public payload as a defensive no-op boundary. Private content-only edits remain local; public text or visibility changes call `/update-explore-field-notes` only when the public payload differs. Successful content-only edits show `Field notes updated`, while `Field notes are now public on Explore` and `Field notes are now private` are reserved for actual visibility transitions. The detail card and badge update from returned/local state without clearing and refetching the page, preserving the user's scroll position.
-- **Field Chat**: The Insight bottom toolbar shows a Chat action for completed biological, non-human insights. Every visible Explore post detail, including a post authored by the viewer, reuses the same floating `FieldChatToolbarButton` and `InsightChatSheet`, backed by an `InsightChatViewModel(source: .explorePost)`. Eligibility is independent of ownership and whether the post contains images, video, audio, or mixed media. The Explore button hides as soon as the comment composer becomes sticky (and remains hidden while focused), so private chat never competes with the public comment action at the bottom of the post. While hidden, Field chat moves into the post overflow menu. Non-Pro users open the existing paywall. Insight threads preflight ownership through `/check-scan-status` and call `/insight-chat`; Explore threads call `/explore-post-chat` and are private to the requesting viewer, never another viewer. The Explore empty state says `This Field chat is private and visible only to you.` without the former technical context/media disclaimer. Loaded messages remain readable offline, failed sends stay in-thread with retry/edit recovery, and prompt chips refresh after load and successful assistant responses. Owner-only notes, feature-feedback, candidate-review, and reanalysis actions remain unavailable from Explore threads. The backend still enforces the complete boundary: Insight uses private owned scan text; Explore uses privacy-filtered public post/detail and Species Dictionary text, with no owner chat history, private scan identifiers, exact GPS, or media payloads.
-- **Field Chat Owner-Row Repair**: Insight Field Chat preflight uses a single `/check-scan-status` request. If an older/interrupted local observation is missing its cloud owner row, the client may attach the bounded non-media `recovery_scan`; one atomic server transaction defers to active/retryable ingestion, permits exact structured `replay_exhausted`, and admits exact `media_reconciliation_abandoned` only with matching composite dead-letter/quota/media-lifecycle proof before duplicate-safe repair. A still-syncing result shows retryable customer-facing feedback and never permanently hides the action. Explore-post Field Chat is unaffected because it is keyed to an already-visible public post.
-- **Insight Reducers & Mutation Controllers**: Candidate review stack decisions live in `CandidateSwipeSession`, species observation local aggregation lives in `SpeciesObservationStatsReducer`, and custom tag add/remove/save/sync work lives in `UserTagsMutationController`. SwiftUI components keep animation, layout, and user interaction wiring while these helpers own deterministic state transitions and persistence side effects.
-- **Decoupled Asynchronous Validations**: All asynchronous `FileManager` fetches identifying historic local payloads are removed from the `ImagesCarousel` and isolated into the background `load` pipeline inside `InferenceEngine`.
-- **Isolated Animation Engine**: Features a continuously rotating 360-degree `LinearGradient` (rainbow styling) for pending AI states. The animation logic is decoupled and bound inside a localized struct with `Equatable` conformance, isolating it from `CaptureWorkspaceViewModel` SwiftUI layout redraws.
-- **Visual Virality & Sharing**: Implements a `UIActivityViewController` pipeline staging rich imagery payloads. When tapped, the system intercepts the actual photograph (live capture, local disk cache, or Cloudflare URL). Extracting raw 12 MP payloads via `Data(contentsOf:)` and `ImageDownsampler.downsample()` runs inside a `Task.detached(priority: .userInitiated)` and `autoreleasepool` to avoid blocking the `@MainActor` without causing JetSam OOMs. Duplicate recursive iOS `UIActivityViewController` presentation loops were removed; all sharing flows into a global isolated `ShareSheetUtility.present(items:)` pipeline that handles iPad Popover safety. Local file retrieval executes absolute path expansion (`URL.documentsDirectory.appendingPathComponent(path)`) before extraction. Remote URL parsing trims invisible whitespace characters (`.trimmingCharacters(in: .whitespacesAndNewlines)`) to prevent `nil` URL resolutions. Explore post messages lead with media-aware content copy: image and video use `Check out this {species}`, while audio uses `Listen to this {species}` based on the first ordered media item; author, scientific name, location, and app-promotional copy are omitted. To prevent the iOS Messages app from discarding the shared image attachment in favor of a "Rich Link Bubble", the `https://naturebook.earth/explore/post/{postId}` share URL is folded into the same `String` rather than passed as a standalone `URL` object.
-- **Exporting Raw Photography (`Save my photos`)**: Users can extract biological captures directly to the iOS Camera Roll via `PhotoLibraryManager.saveImageManual(imageData:)` with `.addOnly` permissions. This requires `.documentsDirectory` resolution across iOS sandbox boundaries to exclude Wikipedia/GBIF external references.
-- **Optimistic UX (Deletions)**: Users can delete scans via `.contextMenu` bounds (Library, Collections) or the Toolbar `Menu` inside Insight bounds. Pressing "Delete" removes the item from the local UI immediately, triggers `HapticManager.shared.triggerErrorThump()`, and routes physical R2 bytes and PostgreSQL rows to the `PendingCloudDeletionTask` detached background queue without blocking the UI thread.
-- **Custom Search Tags**: Users can manually categorize and index personal scans via the `UserTagsCard` layout injected at the base of the `InsightSheetView` (Biological and NonBiological formats). The interactive element surfaces a horizontal, scrolling `.capsule` array of active tags alongside an alert-driven text field securely bound to `LocalScanRecord.customTags`. Tag edits now commit locally before cloud sync or search-index notifications; save failures rollback the context, log an error, and leave the remote/search side effects untouched.
+
+- **Product-Area-First Isolation**: The `Insights` feature is organized by the
+  work someone is trying to do in the insight sheet, not by generic SwiftUI file
+  type. `Shell/` owns the root presentation, routes, embedded navigation
+  helpers, and the main `InsightSheetViewModel`; `Content/` owns
+  biological/non-biological results, queued lifecycle presentation, foreground
+  analysis, and their shared `ScanningExperienceView`; `Media/` owns the
+  carousel, fullscreen gallery, and photo export utilities;
+  `IdentificationReview/` owns candidates, swipe review, candidate state models,
+  and confidence explanation UI.
+  - Foreground and queued processing use one visible scanning contract: dynamic
+    status pill, `DidYouKnowCard`, Field notes, and `ScanInformationCard`.
+    Foreground text comes from `InferenceEngine.scanningPhaseText`; queued text
+    rotates from exact queue/server state and reuses generic engine phrases
+    during active inference. Queued retry timing, error text, and `Retry now`
+    are inserted only when actionable. The UI does not show a separate queued
+    heading, sync explainer, media-kind summary, or approximate file size.
+  - `Shared/Cards/Chrome/` owns lightweight card chrome helpers shared by
+    Insights and Explore detail cards: `CardModifier.swift`,
+    `InsightCardHeader.swift`, `WikipediaSummarySection.swift`,
+    `WikipediaReadMoreButton.swift`, `GBIFHeatmapCardChrome.swift`, and
+    `InsightScientificNameStyler.swift`. These are presentation-only helpers;
+    `OverviewCard`, `ExploreOverviewCard`, `HabitatAndDistributionCard`, and
+    `ExploreHabitatDistributionCard` still keep their own data sourcing,
+    online/loading behavior, and privacy gates.
+  - Insight presentation primitives now live under
+    `Features/Insights/Shell/Models`: `InsightPresentation` owns
+    `ScanInsightRoute` and sheet/embedded presentation style.
+    `Features/Insights/Toolbars/Models/InsightToolbarRecordSnapshot.swift`
+    preserves value-type toolbar data across SwiftData deletion/dismissal
+    boundaries, and share feedback/candidate-review state is kept out of SwiftUI
+    view bodies.
+  - `InsightSheetViewModel` keeps its root state in
+    `Features/Insights/Shell/ViewModels/`, while behavior extensions live beside
+    their owning product areas: field-note behavior in `FieldNotes/ViewModels/`,
+    Explore sharing in `Sharing/ViewModels/`, media export in
+    `Media/Utilities/`, and name preferences in
+    `Content/NamePreferences/ViewModels/`.
+  - `InsightChatViewModel` is intentionally separate from
+    `InsightSheetViewModel`. It owns the Field chat lifecycle for completed
+    biological insights, including `/check-scan-status` presentation preflight,
+    `/insight-chat` load/send/delete/feedback/summary/prompt-suggestion calls,
+    offline read-only state, saved messages, failed outgoing recovery,
+    AI-generated prompt chips with local fallback, duplicate-send
+    `client_message_id` values, answer feedback state, deterministic unavailable
+    hiding, and local detection of identification-concern prompt buckets: direct
+    wrong-ID language, soft doubt, alternate-ID suggestions, trait mismatch, and
+    recheck/reanalysis requests. `InsightSheetView` passes only
+    presentation/action hooks for toasts, append-only field-note writes,
+    candidate review, reanalysis, and sheet dismissal.
+  - `InsightSheetView` keeps presentation and lifecycle wiring while toolbar
+    assembly lives in `Shell/Views/InsightSheetView+Toolbar.swift`, and embedded
+    navigation helpers live in `Features/Insights/Shell/Modifiers/`.
+  - `BiologicalView` owns the persistent `FieldTripProgressCard` after
+    toxicity/identification review and before Field notes.
+    `InsightSheetViewModel` loads its private server rows for saved biological
+    scans, filters gated Event rows, rejects stale scan-change responses, and
+    silently hides empty/error states. The adaptive card is visibly titled
+    **Field trips**; undivided rows use an uppercase completion eyebrow,
+    standalone goal name, enlarged objective art/check badge, and a prominent
+    trailing `GoalProgressRing` without a redundant chevron. Full-row taps
+    forward typed destinations through the shell so embedded Explore and root
+    modal navigation remain distinct. The card is not a celebration surface and
+    is not cached locally.
+  - The `SwiftUI` `@ViewBuilder` layout blocks previously hardcoded in
+    `InsightLayout.swift` were decoupled. `InsightHeader` recouples the
+    `Description` text into the localized semantic `VStack` tracking Scientific
+    and Common Names, isolating the `SpeciesBadges` grids in the outer container
+    boundaries. The biological view maps pure typography layers, shifting glyph
+    matrices inline to match right-aligned layouts. This injects
+    `timestamp: Date?` and `gpsElevation` bindings into the Environment Card for
+    chronological and altitudinal display.
+  - `SimilarSpeciesGallery` renders a horizontally scrolling carousel of
+    commonly confused species sourced from `SpeciesData.similarSpecies` /
+    `LocalScanRecord.lookalikesData` in Insight and from
+    `/get-explore-post-detail.similar_species` in Explore detail. Each
+    `SimilarSpeciesCard` prefers a pre-resolved `referenceImageUrl`, falls back
+    through `SimilarSpeciesImageFetcher`, and can receive a `routeForSpecies`
+    builder to push the public species dictionary page in the current navigation
+    stack by `speciesId` when available or scientific name as the compatibility
+    fallback.
+  - Structural sub-elements sit with their owning product areas:
+    `ImagesCarousel` in `Media/Carousel/`, `ToxicityBanner` in
+    `Shared/Banners/`, specialized confidence/status UI in
+    `IdentificationReview/Confidence/`, and report issue UI in `Reporting/`.
+    Cross-feature milestone notification chrome and scan-completion coordination
+    live in `Core/UI/Feedback/` so Field trip progress, achievement unlocks, and
+    dictionary-contribution milestones share one queue and visual system. UIKit
+    SDK wrappers (like the `SFSafariViewController` bridge) are moved to
+    `Core/UI/Components/SafariView.swift`. `ReportInsightView` keeps API `Task`
+    network closures in `Reporting/ViewModels/ReportInsightViewModel.swift`
+    following `@MainActor` MVVM.
+- **Adaptive Dark Mode & System Materials**: All hardcoded dark-mode overrides
+  were removed. The sheet maps to Apple's adaptive `.ultraThinMaterial`
+  backgrounds, responding to the user's system appearance and maintaining
+  accessibility contrast. Specialized badge views keep capsule bounds fixed to
+  their content, preventing `maxWidth: .infinity` stretching from parent frames.
+  The `ConfidenceBadge` formats mathematical floats into hybrid semantic strings
+  (`85% - 100% • Strong match`), generates Emerald and Red `.sparkles.2`
+  iconography, and overlays a holographic foil sweep tracking a
+  `.linear(duration: 4.5)` offset. Tapping the badge triggers a
+  `ConfidenceExplanationSheet` with `.presentationDragIndicator(.visible)`,
+  rendering a Continuous Spectrum Timeline using `Rectangle` scaling with a
+  connecting gradient pipeline. An AI Acknowledgment Banner is integrated
+  beneath the Spectrum Timeline.
+- **Safety Block**: `ToxicityBanner` parses
+  `speciesData?.insightData.isPoisonous` and displays yellow cautionary ribbons
+  above the fold when needed. The `else` logic block has been stripped — the
+  banner defaults to an `EmptyView()` when a subject is non-toxic, preserving
+  zero vertical footprint.
+- **Ecological Validations & Legacy Hydration**: Binds fallback indicators for
+  "Not biological" or "Not a live capture" cases, routing edge failures into a
+  clean UI. `BiologicalView` renders validated lookalikes with the same "Similar
+  species" gallery label regardless of confidence; candidate/uncertainty review
+  is handled separately by `CandidatesCard`. Inline status capsules handle
+  legacy historical payloads, rendering weather/location data if the dataset
+  pre-dates MapKit reverse-geocoding. `ScanInformationCard` evaluates
+  `.gpsElevation` data, blocking flat `0.0` initialization artifacts to ensure
+  authentic topological reporting. The card also integrates a deterministic
+  `Map` view using Apple MapKit, mapping `gpsLatitude` bounds into a performant
+  geometry pinned to the base of the card.
+- **Liquid Glass Edge-to-Edge Parallax**: `InsightSheetView` overrides iOS 16
+  `.sheet` drag-indicator padding via `.ignoresSafeArea(.all, edges: .top)` on
+  the `ImagesCarousel` geometry. The sheet integrates a "Stretchy Header"
+  parallax inside the isolated `InsightContentView` `ScrollView`, using a custom
+  `.coordinateSpace(name: "InsightScrollSpace")` to capture `minY` offset and
+  shift the background upward (`offset(y: -scrollY)`) to prevent rubber-band
+  bounce tearing. The primary `VStack` is clamped horizontally to screen
+  geometries, discarding phantom horizontal swipe capabilities.
+- **Overscroll Bleed Buffer & TabView Resilience**: iOS 17 pure `ScrollView`
+  horizontal paging introduces a bug inside `.sheet` layouts where rapid swipes
+  leave elements frozen halfway between boundaries. The `ImagesCarousel` uses
+  the `UIPageViewController`-backed `TabView(.page)` to work around this. To
+  prevent a 1-frame cross-framework gesture tearing bug that opens a white gap
+  when pulling the `TabView` vertically, the parallax geometry renders a rigid
+  "Overscroll Bleed Buffer" — 50px of hidden image data forced upward out of the
+  viewport — guaranteeing visual immunity against frame clipping lag during
+  bouncy sheet interactions.
+- **Dynamic Contextual Header**: To replace the `ConfidenceBadge` with the
+  truncated Common Name during active scrolling, the layout maps an invisible
+  `GeometryReader` onto a native `ScrollView` coordinate tracking axis
+  `"InsightScrollBoundary"`, calculating absolute text boundaries and shifting
+  `.principal` UI payloads accordingly.
+- **Toolbar Actions & Vertical Taxonomy**: Core insight actions live in the top
+  toolbar overflow menu, including collection membership, field notes, download,
+  deletion, and identification review actions. Insight collection toggles save
+  SwiftData first, rollback and show failure feedback on save errors, and only
+  then emit success toasts or enqueue collection sync. Linnean classification
+  was converted from horizontal-scrolling `.TaxonomyNode` pills into a vertical
+  key-value `.glassCard` dictionary.
+- **Milestone Notifications**: The old local "New Discovery" pill was replaced
+  by the shared bottom `MilestoneToastBanner`. `ScanMilestoneCoordinator` waits
+  for the saved scan's Field trip progress attempt and atomically enqueues
+  standard outing progress, Events-visible Seasonal Challenge progress,
+  achievement unlocks, then `New to Naturebook`. It filters challenge-only
+  progress before caching, refresh publication, routing, or presentation when
+  Events are disabled. Foreground and background completion share the
+  coordinator and deduplicate by final scan ID. The dictionary milestone still
+  requires the identify response compatibility field
+  `is_new_to_merian_dictionary` for a valid biological contribution; local
+  `isNewDiscovery` remains limited to stats, persona, and achievements. Progress
+  banners show `Field trip progress`, contextual
+  `{species} counts toward {trip}` copy, and a credited progress ring; taps open
+  the focused standard goal or challenge detail. All milestone types share
+  haptics, a 3.5-second timeout, close/swipe dismissal, queue transitions, and
+  VoiceOver announcements. Achievement taps open achievement detail;
+  `New to Naturebook` taps dismiss.
+- **Scans Contextual Imagery**: When opened from the Scans library, the system
+  forces the user's locally captured photograph to dominate the Hero Carousel
+  rather than defaulting to Wikipedia/GBIF reference imagery.
+- **Field Notes Reconciliation**: `FieldNotesRepository` is the local/private
+  boundary for insight and Explore field-note reads and writes. It resolves
+  `LocalScanRecord.fieldNotes` first, then `OfflineQueuedScan.fieldNotes`, then
+  the legacy `FieldNotesStore` per-scan bridge; a legacy hit is promoted back
+  into SwiftData and mirrored to the bridge. When an owned scan is still shared
+  to Explore, the sheet revalidates the post through
+  `/get-scan-explore-share-state` and `/get-explore-post-detail`; if the Explore
+  post still has public field notes but the local scan copy is empty, those
+  notes are promoted through the repository. Existing local/private notes are
+  never overwritten by the public Explore copy. Shared field-note cards surface
+  Published or Private badges, and the Field notes edit sheet saves text and
+  Explore visibility together so edited public notes do not go stale. The editor
+  snapshots its initial text and effective visibility: closing with X or an
+  interactive dismissal autosaves real changes, but an unchanged draft dismisses
+  without committing the binding or calling the visibility save closure. Explore
+  detail independently compares normalized local text and the desired public
+  payload as a defensive no-op boundary. Private content-only edits remain
+  local; public text or visibility changes call `/update-explore-field-notes`
+  only when the public payload differs. Successful content-only edits show
+  `Field notes updated`, while `Field notes are now public on Explore` and
+  `Field notes are now private` are reserved for actual visibility transitions.
+  The detail card and badge update from returned/local state without clearing
+  and refetching the page, preserving the user's scroll position.
+- **Field Chat**: The Insight bottom toolbar shows a Chat action for completed
+  biological, non-human insights. Every visible Explore post detail, including a
+  post authored by the viewer, reuses the same floating `FieldChatToolbarButton`
+  and `InsightChatSheet`, backed by an
+  `InsightChatViewModel(source: .explorePost)`. Eligibility is independent of
+  ownership and whether the post contains images, video, audio, or mixed media.
+  The Explore button hides as soon as the comment composer becomes sticky (and
+  remains hidden while focused), so private chat never competes with the public
+  comment action at the bottom of the post. While hidden, Field chat moves into
+  the post overflow menu. Non-Pro users open the existing paywall. Insight
+  threads preflight ownership through `/check-scan-status` and call
+  `/insight-chat`; Explore threads call `/explore-post-chat` and are private to
+  the requesting viewer, never another viewer. The Explore empty state says
+  `This Field chat is private and visible only to you.` without the former
+  technical context/media disclaimer. Loaded messages remain readable offline,
+  failed sends stay in-thread with retry/edit recovery, and prompt chips refresh
+  after load and successful assistant responses. Owner-only notes,
+  feature-feedback, candidate-review, and reanalysis actions remain unavailable
+  from Explore threads. The backend still enforces the complete boundary:
+  Insight uses private owned scan text; Explore uses privacy-filtered public
+  post/detail and Species Dictionary text, with no owner chat history, private
+  scan identifiers, exact GPS, or media payloads.
+- **Field Chat Owner-Row Repair**: Insight Field Chat preflight uses a single
+  `/check-scan-status` request. If an older/interrupted local observation is
+  missing its cloud owner row, the client may attach the bounded non-media
+  `recovery_scan`; one atomic server transaction defers to active/retryable
+  ingestion, permits exact structured `replay_exhausted`, and admits exact
+  `media_reconciliation_abandoned` only with matching composite
+  dead-letter/quota/media-lifecycle proof before duplicate-safe repair. A
+  still-syncing result shows retryable customer-facing feedback and never
+  permanently hides the action. Explore-post Field Chat is unaffected because it
+  is keyed to an already-visible public post.
+- **Insight Reducers & Mutation Controllers**: Candidate review stack decisions
+  live in `CandidateSwipeSession`, species observation local aggregation lives
+  in `SpeciesObservationStatsReducer`, and custom tag add/remove/save/sync work
+  lives in `UserTagsMutationController`. SwiftUI components keep animation,
+  layout, and user interaction wiring while these helpers own deterministic
+  state transitions and persistence side effects.
+- **Decoupled Asynchronous Validations**: All asynchronous `FileManager` fetches
+  identifying historic local payloads are removed from the `ImagesCarousel` and
+  isolated into the background `load` pipeline inside `InferenceEngine`.
+- **Isolated Animation Engine**: Features a continuously rotating 360-degree
+  `LinearGradient` (rainbow styling) for pending AI states. The animation logic
+  is decoupled and bound inside a localized struct with `Equatable` conformance,
+  isolating it from `CaptureWorkspaceViewModel` SwiftUI layout redraws.
+- **Visual Virality & Sharing**: Implements a `UIActivityViewController`
+  pipeline staging rich imagery payloads. When tapped, the system intercepts the
+  actual photograph (live capture, local disk cache, or Cloudflare URL).
+  Extracting raw 12 MP payloads via `Data(contentsOf:)` and
+  `ImageDownsampler.downsample()` runs inside a
+  `Task.detached(priority: .userInitiated)` and `autoreleasepool` to avoid
+  blocking the `@MainActor` without causing JetSam OOMs. Duplicate recursive iOS
+  `UIActivityViewController` presentation loops were removed; all sharing flows
+  into a global isolated `ShareSheetUtility.present(items:)` pipeline that
+  handles iPad Popover safety. Local file retrieval executes absolute path
+  expansion (`URL.documentsDirectory.appendingPathComponent(path)`) before
+  extraction. Remote URL parsing trims invisible whitespace characters
+  (`.trimmingCharacters(in: .whitespacesAndNewlines)`) to prevent `nil` URL
+  resolutions. Explore post messages lead with media-aware content copy: image
+  and video use `Check out this {species}`, while audio uses
+  `Listen to this {species}` based on the first ordered media item; author,
+  scientific name, location, and app-promotional copy are omitted. To prevent
+  the iOS Messages app from discarding the shared image attachment in favor of a
+  "Rich Link Bubble", the `https://naturebook.earth/explore/post/{postId}` share
+  URL is folded into the same `String` rather than passed as a standalone `URL`
+  object.
+- **Exporting Raw Photography (`Save my photos`)**: Users can extract biological
+  captures directly to the iOS Camera Roll via
+  `PhotoLibraryManager.saveImageManual(imageData:)` with `.addOnly` permissions.
+  This requires `.documentsDirectory` resolution across iOS sandbox boundaries
+  to exclude Wikipedia/GBIF external references.
+- **Optimistic UX (Deletions)**: Users can delete scans via `.contextMenu`
+  bounds (Library, Collections) or the Toolbar `Menu` inside Insight bounds.
+  Pressing "Delete" removes the item from the local UI immediately, triggers
+  `HapticManager.shared.triggerErrorThump()`, and routes physical R2 bytes and
+  PostgreSQL rows to the `PendingCloudDeletionTask` detached background queue
+  without blocking the UI thread.
+- **Custom Search Tags**: Users can manually categorize and index personal scans
+  via the `UserTagsCard` layout injected at the base of the `InsightSheetView`
+  (Biological and NonBiological formats). The interactive element surfaces a
+  horizontal, scrolling `.capsule` array of active tags alongside an
+  alert-driven text field securely bound to `LocalScanRecord.customTags`. Tag
+  edits now commit locally before cloud sync or search-index notifications; save
+  failures rollback the context, log an error, and leave the remote/search side
+  effects untouched.
 
 ### External API Enrichment
-- Spawns parallel external lookups fetching the full taxonomic classification into the visual `TaxonomyCard`.
-- After the Gemini payload renders, `InferenceEngine.asynchronouslyFetchWikipediaAndHydrate` pings the Wikimedia REST API (e.g., `/api/rest_v1/page/summary/`). When the data resolves, the Wikipedia abstract paragraph fades directly into the active `InsightSheetView` without requiring modal dismissal.
+
+- Spawns parallel external lookups fetching the full taxonomic classification
+  into the visual `TaxonomyCard`.
+- After the Gemini payload renders,
+  `InferenceEngine.asynchronouslyFetchWikipediaAndHydrate` pings the Wikimedia
+  REST API (e.g., `/api/rest_v1/page/summary/`). When the data resolves, the
+  Wikipedia abstract paragraph fades directly into the active `InsightSheetView`
+  without requiring modal dismissal.
 
 ## 4. Account (`ProfileView`)
-The primary identity portal bridging local usage limits with the Supabase Ghost Session ecosystem. The legacy monolithic list was refactored into a dual-pane pagination structure matching the Scans Library. `ProfileView` acts as a structural orchestrator using a central horizontal `.paging` `ScrollView` controlled by a `ToolbarItem` segmented picker, mapping between a `ProfileTab.profile` layout (identity, statistics, hardware capabilities) and a `ProfileTab.settings` layout (hardware preferences, data exports, Danger Zone). Side effects are deferred to `ProfileViewModel`, leaving `ProfileView` focused on gesture-driven layout abstractions.
+
+The primary identity portal bridging local usage limits with the Supabase Ghost
+Session ecosystem. The legacy monolithic list was refactored into a dual-pane
+pagination structure matching the Scans Library. `ProfileView` acts as a
+structural orchestrator using a central horizontal `.paging` `ScrollView`
+controlled by a `ToolbarItem` segmented picker, mapping between a
+`ProfileTab.profile` layout (identity, statistics, hardware capabilities) and a
+`ProfileTab.settings` layout (hardware preferences, data exports, Danger Zone).
+Side effects are deferred to `ProfileViewModel`, leaving `ProfileView` focused
+on gesture-driven layout abstractions.
 
 ### Native OAuth & Entitlements
-- Implements native Swift `SignInWithAppleButton` and `GoogleSignInButton` SDK boundaries retrieving external `.idTokens`. These buttons unmount when `supabase.isGuestUser` resolves, mounting directly at the top of `ProfileTabView` above the Terrarium statistics to reduce setup friction.
-- Reassigns initial Anonymous IDFV GoTrue Sessions, merging user arrays into persistent Cloud records.
-- Displays the canonical public username handle (`@public_username`) on the profile card instead of the private email line. The profile menu opens the username edit sheet, which accepts pasted handles with or without `@`, validates availability through `/check-public-username`, and saves through `/update-public-username`.
+
+- Implements native Swift `SignInWithAppleButton` and `GoogleSignInButton` SDK
+  boundaries retrieving external `.idTokens`. These buttons unmount when
+  `supabase.isGuestUser` resolves, mounting directly at the top of
+  `ProfileTabView` above the Terrarium statistics to reduce setup friction.
+- Reassigns initial Anonymous IDFV GoTrue Sessions, merging user arrays into
+  persistent Cloud records.
+- Displays the canonical public username handle (`@public_username`) on the
+  profile card instead of the private email line. The profile menu opens the
+  username edit sheet, which accepts pasted handles with or without `@`,
+  validates availability through `/check-public-username`, and saves through
+  `/update-public-username`.
 - Normal logout clears only the current device's Supabase, RevenueCat, and
   PostHog session state so a simulator logout does not revoke the same account
   on another device.
-- Uses `RevenueCatManager.shared.isProActive` to conditionally show or trigger `PaywallView` when the advisory local meter is reached. The Profile uses this property to display a `PlanCard` in the header outlining plan capabilities (Pro HIGH-VOLUME SCANS vs Free 1 SCAN DAILY). DEBUG can bypass only the local meter; Supabase still applies the plan's fair-use and rate ceilings, and Release/TestFlight ignores the override. Purchase QA opens Settings → Plan directly. `PaywallView` renders in Light or Dark mode following the system color scheme.
-- Renders global gamification statistics including `uniqueSpeciesCount` and `currentStreak` in the stats grid, evaluating the user's `persona` (Explorer Rank) offline inside the profile header. `StatCard` modules and `ProfileTabView` deploy geometric 24px Continuous Squircles via `.background(...)` shape modifiers, avoiding intrinsic OS table cell clipping masks. Statistics are loaded from SwiftData `@Query` property wrappers, preventing network errors and UI lag.
+- Uses `RevenueCatManager.shared.isProActive` to conditionally show or trigger
+  `PaywallView` when the advisory local meter is reached. The Profile uses this
+  property to display a `PlanCard` in the header outlining plan capabilities
+  (Pro HIGH-VOLUME SCANS vs Free 1 SCAN DAILY). DEBUG can bypass only the local
+  meter; Supabase still applies the plan's fair-use and rate ceilings, and
+  Release/TestFlight ignores the override. Purchase QA opens Settings → Plan
+  directly. `PaywallView` renders in Light or Dark mode following the system
+  color scheme.
+- Renders global gamification statistics including `uniqueSpeciesCount` and
+  `currentStreak` in the stats grid, evaluating the user's `persona` (Explorer
+  Rank) offline inside the profile header. `StatCard` modules and
+  `ProfileTabView` deploy geometric 24px Continuous Squircles via
+  `.background(...)` shape modifiers, avoiding intrinsic OS table cell clipping
+  masks. Statistics are loaded from SwiftData `@Query` property wrappers,
+  preventing network errors and UI lag.
 
 ### Achievements UI
-- **Visual Hierarchy & Safe Geometry**: Uses a vertical `VStack` layout stacking discrete component files. `Achievements.swift` acts as a top-level orchestrator importing isolated `Features/Profile/UserProfile/Components/AchievementCard.swift` capsules. `ProfileTabView` replaced the legacy `List` UIKit wrappers (which broke Apple's iOS 17 horizontal `.paging` layout with double top-safe-area padding) with a pure `.grouped` background `ScrollView`.
-- **Dynamic Sorting Control & Temporal Heuristics**: The master header incorporates a native iOS `Menu` bound to an `@State` enum (`AwardSortOption`), allowing users to reorder the layout via a spring transition. The default `Smart sort` computes an advanced mathematical heuristic priority scalar entirely offline inside `ProfileDatabaseActor.calculateAwards`. The hierarchy ranks achievements as follows: **Tiers >= 3.0** isolate unlocked (`isCompleted`) goals triggered within 7 days (Hero Status). **Tiers 2.01–2.99** map to incomplete but active goals (In-Progress), ranked by completion fraction. **Tier 1.0** maps Legacy Completed achievements older than a week. **Tier 0.0** buries unstarted goals (0%). Chronological `lastInteractionDate` timestamps serve as a secondary tie-breaker.
-- **Achievement and Milestone Toast Previews**: DEBUG builds expose Developer settings controls for styling the shared milestone banner without mutating real state. Achievement previews can launch cat, dog, and long-title achievement payloads through `MilestoneToastPresenter.previewAchievementUnlock(_:)`; `Preview New to Naturebook notification` (`Settings_PreviewNewToMerianNotification`) launches the dictionary milestone through `previewNewToMerianMilestone()`; and `Preview Field trip progress toast` (`Settings_PreviewFieldTripProgressToast`) launches the contextual copy and ring through `previewFieldTripProgress()`. These preview paths bypass Field trip progress, achievement persistence, analytics, dictionary mutations, and native iOS notification authorization.
-- **Premium Specular Shimmer Engine**: The 48×48 icon `ZStack` hosts a `LinearGradient` diagonal ray sweeping across an `.overlay`. The animation uses a stochastic, randomly-interpolated asynchronous `Task` with 1.8-second flashes between 4–12 second delays, preventing 120Hz GPU locking.
-- **Vector-Bound SF Iconography**: Every badge uses `Image(systemName:)` with `.resizable().scaledToFit().frame(width: 24)`, eliminating unconstrained axis bleed regardless of device Accessibility Dynamic Type values. A difficulty `Color` engine (Spring Green / Amber / Deep Crimson) applies to right-aligned difficulty pills.
-- **Progress Meter Implementation**: Every badge tracks progress using a `GeometryReader` custom dual-`Capsule` progress bar, replacing `ProgressView(value:)`. Upon completion (`isCompleted == true`), the layout unmounts the Progress capsule, injects a "Completed" `Capsule` text overlay, bounds a `.strokeBorder` in the badge tint color, illuminates a checkmark, and triggers a holographic `.task` shimmer. Unearned badges suppress this `.task` loop and hide their overlay geometry, preventing the `@MainActor` from evaluating asynchronous animation frames endlessly. The entire `AwardCard` geometry is isolated inside `Color(uiColor: .secondarySystemGroupedBackground)` for correct dark mode boundary separation.
+
+- **Visual Hierarchy & Safe Geometry**: Uses a vertical `VStack` layout stacking
+  discrete component files. `Achievements.swift` acts as a top-level
+  orchestrator importing isolated
+  `Features/Profile/UserProfile/Components/AchievementCard.swift` capsules.
+  `ProfileTabView` replaced the legacy `List` UIKit wrappers (which broke
+  Apple's iOS 17 horizontal `.paging` layout with double top-safe-area padding)
+  with a pure `.grouped` background `ScrollView`.
+- **Dynamic Sorting Control & Temporal Heuristics**: The master header
+  incorporates a native iOS `Menu` bound to an `@State` enum
+  (`AwardSortOption`), allowing users to reorder the layout via a spring
+  transition. The default `Smart sort` computes an advanced mathematical
+  heuristic priority scalar entirely offline inside
+  `ProfileDatabaseActor.calculateAwards`. The hierarchy ranks achievements as
+  follows: **Tiers >= 3.0** isolate unlocked (`isCompleted`) goals triggered
+  within 7 days (Hero Status). **Tiers 2.01–2.99** map to incomplete but active
+  goals (In-Progress), ranked by completion fraction. **Tier 1.0** maps Legacy
+  Completed achievements older than a week. **Tier 0.0** buries unstarted goals
+  (0%). Chronological `lastInteractionDate` timestamps serve as a secondary
+  tie-breaker.
+- **Achievement and Milestone Toast Previews**: DEBUG builds expose Developer
+  settings controls for styling the shared milestone banner without mutating
+  real state. Achievement previews can launch cat, dog, and long-title
+  achievement payloads through
+  `MilestoneToastPresenter.previewAchievementUnlock(_:)`;
+  `Preview New to Naturebook notification`
+  (`Settings_PreviewNewToMerianNotification`) launches the dictionary milestone
+  through `previewNewToMerianMilestone()`; and
+  `Preview Field trip progress toast` (`Settings_PreviewFieldTripProgressToast`)
+  launches the contextual copy and ring through `previewFieldTripProgress()`.
+  These preview paths bypass Field trip progress, achievement persistence,
+  analytics, dictionary mutations, and native iOS notification authorization.
+- **Premium Specular Shimmer Engine**: The 48×48 icon `ZStack` hosts a
+  `LinearGradient` diagonal ray sweeping across an `.overlay`. The animation
+  uses a stochastic, randomly-interpolated asynchronous `Task` with 1.8-second
+  flashes between 4–12 second delays, preventing 120Hz GPU locking.
+- **Vector-Bound SF Iconography**: Every badge uses `Image(systemName:)` with
+  `.resizable().scaledToFit().frame(width: 24)`, eliminating unconstrained axis
+  bleed regardless of device Accessibility Dynamic Type values. A difficulty
+  `Color` engine (Spring Green / Amber / Deep Crimson) applies to right-aligned
+  difficulty pills.
+- **Progress Meter Implementation**: Every badge tracks progress using a
+  `GeometryReader` custom dual-`Capsule` progress bar, replacing
+  `ProgressView(value:)`. Upon completion (`isCompleted == true`), the layout
+  unmounts the Progress capsule, injects a "Completed" `Capsule` text overlay,
+  bounds a `.strokeBorder` in the badge tint color, illuminates a checkmark, and
+  triggers a holographic `.task` shimmer. Unearned badges suppress this `.task`
+  loop and hide their overlay geometry, preventing the `@MainActor` from
+  evaluating asynchronous animation frames endlessly. The entire `AwardCard`
+  geometry is isolated inside
+  `Color(uiColor: .secondarySystemGroupedBackground)` for correct dark mode
+  boundary separation.
 
 ### Aesthetic Customizations
-- Alternate app-icon switching is not currently present in the active Profile settings surface. `Config.xcconfig` is build-time client configuration and is not mutated by runtime UI.
+
+- Alternate app-icon switching is not currently present in the active Profile
+  settings surface. `Config.xcconfig` is build-time client configuration and is
+  not mutated by runtime UI.
 
 ### Contribution Heatmap
-- **ScansHeatmap**: Visualizes the user's biological scanning frequency via a GitHub-style 52-week contribution graph embedded on the background canvas without heavy UI card wrappers. Features a dual-state layout toggle (`.year` vs `.month`) for zooming into recent temporal data.
-- **Persistent Scale State**: Uses `@AppStorage("heatmapScaleSelection")` rather than ephemeral `@State`. On first launch, the graph defaults to the `.month` viewport. Changing the scale toggle persists the selection to `UserDefaults`.
-- **LazyHStack & Memory Matrix Isolation**: Uses a `LazyHStack` inside a `HeatmapGridMatrix: View, Equatable` component. The SwiftUI renderer caches the struct, preventing continuous layout passes from global view `.onChange` triggers and maintaining 120Hz rendering on-screen only.
-- **Isolated Data Pipeline**: Render states are generated off-thread in `ProfileDatabaseActor` as a flat `Sendable` array and bound into the view matrix. The `totalCaptures` scalar aggregates within the 52-week array generation loop, bypassing arbitrary lifetime `.reduce` counts. The metric filters to match the active timeframe (365 days or 30 days) when the scale toggle is activated.
-- **Dynamic Geometric Width Expansion**: Legacy explicit pixel arithmetic mapping `GeometryReader` widths was removed. For `.month` scale, the component uses a pure `HStack` with `.frame(maxWidth: .infinity)` constraints that divide available screen width evenly. During `.year` layouts, grid elements use strict `11pt` blocks.
-- **Conditional FadingScrollView Geometry Tracking**: The `.year` matrix is enclosed inside a `FadingScrollView` using `GeometryReader` tracking to map `.clear` gradients at the overlapping edges, pushing updates into isolated `.task` scopes. The `.month` scale bypasses `FadingScrollView` entirely, rendering as a static locked grid.
+
+- **ScansHeatmap**: Visualizes the user's biological scanning frequency via a
+  GitHub-style 52-week contribution graph embedded on the background canvas
+  without heavy UI card wrappers. Features a dual-state layout toggle (`.year`
+  vs `.month`) for zooming into recent temporal data.
+- **Persistent Scale State**: Uses `@AppStorage("heatmapScaleSelection")` rather
+  than ephemeral `@State`. On first launch, the graph defaults to the `.month`
+  viewport. Changing the scale toggle persists the selection to `UserDefaults`.
+- **LazyHStack & Memory Matrix Isolation**: Uses a `LazyHStack` inside a
+  `HeatmapGridMatrix: View, Equatable` component. The SwiftUI renderer caches
+  the struct, preventing continuous layout passes from global view `.onChange`
+  triggers and maintaining 120Hz rendering on-screen only.
+- **Isolated Data Pipeline**: Render states are generated off-thread in
+  `ProfileDatabaseActor` as a flat `Sendable` array and bound into the view
+  matrix. The `totalCaptures` scalar aggregates within the 52-week array
+  generation loop, bypassing arbitrary lifetime `.reduce` counts. The metric
+  filters to match the active timeframe (365 days or 30 days) when the scale
+  toggle is activated.
+- **Dynamic Geometric Width Expansion**: Legacy explicit pixel arithmetic
+  mapping `GeometryReader` widths was removed. For `.month` scale, the component
+  uses a pure `HStack` with `.frame(maxWidth: .infinity)` constraints that
+  divide available screen width evenly. During `.year` layouts, grid elements
+  use strict `11pt` blocks.
+- **Conditional FadingScrollView Geometry Tracking**: The `.year` matrix is
+  enclosed inside a `FadingScrollView` using `GeometryReader` tracking to map
+  `.clear` gradients at the overlapping edges, pushing updates into isolated
+  `.task` scopes. The `.month` scale bypasses `FadingScrollView` entirely,
+  rendering as a static locked grid.
 
 ### Settings and Hardware Preferences
-- **Theme Segmentation (Symbol Anchoring)**: Apple's native `.pickerStyle(.segmented)` limits rendering to Text identifiers. Merian uses pure system `Text("Light")` bindings rather than custom `HStack` wrappers attempting to force SF Symbol layouts, ensuring crisp `.segmented` boundaries.
+
+- **Theme Segmentation (Symbol Anchoring)**: Apple's native
+  `.pickerStyle(.segmented)` limits rendering to Text identifiers. Merian uses
+  pure system `Text("Light")` bindings rather than custom `HStack` wrappers
+  attempting to force SF Symbol layouts, ensuring crisp `.segmented` boundaries.
 - **Open Explore on launch (`opensExploreOnLaunch`)**: The default-off toggle is
   in the top general-preferences section immediately after Theme and directly
   above Notifications. A completed-onboarding cold launch may present the root
   Explore feed once; foreground returns do not reopen it. Capture remains the
   app root, camera hardware stays stopped while the initial sheet is visible,
   and explicit Photos/Files imports, deep links, and notification routes take
-  precedence. The automatic presentation marks the Explore **New** chip as
-  seen.
+  precedence. The automatic presentation marks the Explore **New** chip as seen.
 - **Workspace settings group**: The former Capture section is labeled
   **Workspace** without moving its Camera, Audio, **Reorder modes**, Field trip
   goals, or confirmation controls.
-- **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps and disables intensive visual blurs to preserve battery.
-- **Camera Settings (`CameraSettingsView`)**: A dedicated sub-page pushed from the "Camera" row in Preferences (described as "Zoom controls, viewfinder hints, and capture preferences"). Navigation state (`cameraSettingsActive: Bool`) is owned by `SettingsTabView` and passed as a `@Binding` to `Preferences`; the `.navigationDestination` modifier is attached to the `List` in `SettingsTabView` (not inside a `Section`) to satisfy SwiftUI's lazy-container navigation destination requirement. The view is split into two sections:
-  - **Viewfinder**: Live viewfinder hints toggle (`isLiveInferencePaused`, inverted for display).
-  - **Zoom**: Show zoom slider (`zoomSliderVisible`), left-side zoom slider (`zoomSideLeft`), invert zoom direction (`invertZoomDirection`).
-- **Live Viewfinder Hints (`isLiveInferencePaused`)**: Moved from the main Preferences list into the Viewfinder section of `CameraSettingsView`. Allows users to disable real-time AI scanning hints to reduce thermal load or battery drain. The toggle inverts `isLiveInferencePaused` for display and writes through the injected `AppSettings` boundary while keeping `CameraManager.shared.isLiveInferencePaused` synchronized.
-- **Field trip goals (`showsCaptureGoalProgress`)**: The Workspace settings section exposes an on-by-default toggle for the active outing target capsule on visual Scan. Disabling it changes only the camera presentation; cached capture-goal context, refresh behavior, selection, and outing progress remain intact.
-- **Show Zoom Slider (`zoomSliderVisible`)**: Toggles the `ZoomSliderView` overlay on/off. When disabled, zoom via pinch and swipe still works — only the visual meter is hidden. Defaults to `true`.
-- **Invert Zoom Direction (`invertZoomDirection`)**: Flips the zoom direction across all gesture surfaces and the zoom meter's visual orientation. Default (`false`): swipe up / drag up = zoom in, top of meter = max zoom. Inverted (`true`): swipe down / drag down = zoom in (traditional camera-style), top of meter = 1×. Read on each gesture frame in `CameraPreviewView.Coordinator.handlePan` and `ZoomSliderView`'s `DragGesture`; also controls `ZoomSliderView`'s Canvas tick-to-zoom mapping and indicator position formula so the ruler orientation always matches the drag direction. Does not affect pinch-to-zoom (scale-based).
-- **Left-Side Zoom Slider (`zoomSideLeft`)**: Moves the `ZoomSliderView` from the trailing edge to the leading edge of the viewfinder. `MainOverlayView` switches the `.overlay` alignment and padding side; `ZoomSliderView` mirrors itself horizontally via `.scaleEffect(x: -1, y: 1)` so ticks and dots face inward on both sides without duplicating Canvas drawing logic.
-- **SettingsToggleRow (`Profile/Settings/Components/Preferences.swift`)**: To eliminate `VStack` layout duplication for generic Toggle rows across OS preferences, core features (Expedition mode, Live Pathfinder hints, etc.) were refactored into a unified `SettingsToggleRow(title:, description:, isOn:)` primitive wrapping `.secondary` caption font descriptions globally.
-- **Push Notifications & Progressive Disclosure (`NotificationSettingsView`)**: Push notification permission prompting has been fully excised from the initial onboarding flow to optimize funnel completion rates. Instead, the system employs progressive disclosure: users are prompted dynamically via `PostIdentificationNotificationSheetView` when the AI resolves its first edge lookup over the network. Notification configurations are abstracted into a dedicated `NotificationSettingsView`. Navigation uses a `Button` + `.navigationDestination(isPresented:)` pattern (not `NavigationLink`) to avoid the double-chevron that SwiftUI's `List` injects on `NavigationLink` labels. The toggles inside the settings list mutate the typed `AppSettings` notification properties through custom `Binding(get:set:)` wrappers. If a user attempts to enable an alert type and their OS status is `.notDetermined`, the app intercepts the interaction and presents the `PostIdentificationNotificationSheetView` dynamically. If denied, it routes them directly into the iOS settings app url domain (`UIApplication.openSettingsURLString`). `Discovery Complete` deep link alerts are queued to the OS only when `HardwareOrchestrator` resolves `!= .active`, preventing popovers while the user is inside the app.
-- **Changelog (`ChangelogView`)**: The Settings list includes a plain "Changelog" row in the Resources section. It pushes `ChangelogView`, which reads bundled structured notes from `apps/ios/Merian/Resources/Changelog/changelog.json` through `ChangelogStore`, sorts entries newest-first, and renders dates, version/build labels, optional asset-catalog images, and grouped bullet sections. The surface is intentionally local-only for v1: no Supabase feed, unread badge, launch sheet, or remote config.
-- **Beta Feedback Survey (`FeedbackSurveyView`)**: The one-time `beta_feedback_2026_06` campaign opens with a short intro screen, then asks satisfaction, recommendation, usage, most-useful area, bugs/crashes, and free-text polish questions. `CaptureWorkspaceView` can arm the survey once after onboarding, at least three completed biological scans, and another accepted foreground biological result. Restored or launch-time synchronized history counts toward meaningful use but never arms the survey by itself. The proactive sheet is presented only after the active Insight/result sheet has closed so it never competes with scan results. `FeedbackSurveyPromptPolicy` suppresses the prompt after the campaign is dismissed or submitted. The Settings Resources section also exposes a manual "Feedback survey" row while the campaign is active. After a successful manual submission, the thank-you state remains during a 24-hour cooldown and then resets to a fresh form so testers can send more feedback without the proactive prompt returning. Responses submit through `/submit-feedback-survey` and are stored as private product feedback in Supabase.
-- **System Haptics & Camera Roll**: `UserDefaults` bindings skip `HapticManager` calls or prevent `PhotoLibraryManager` from pushing raw buffer bytes into the iOS Photos ecosystem. Haptic interactions overlay `.heavy` feedback on the Camera Shutter and `.medium` responses on hardware triggers like the Flash toggle.
-- **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` & `requiresScanConfirmation`)**: Defaults to `false` (instant 1-capture mode). When disabled, a single camera capture is submitted to the AI inference pipeline immediately via an `onChange(of: viewModel.stagedCapture.images.count)` observer in `CaptureWorkspaceView`. Photo-library picks are staged first, marked as required gallery crops, and routed through `ImageCropperView`; confirming the final required crop re-evaluates `shouldAutoSubmitStagedCapture` and only then submits in the default single-image flow. Setting "Confirm scan submission" (`requiresScanConfirmation = true`) disables the auto-submit gatekeeper, staging the cropped image in the `ActiveScanToolbar` and forcing the user to physically tap "Identify". If "Multi-capture mode" (`isMultiCaptureEnabled = true`) is enabled, gallery crops are reviewed sequentially and the user returns to the toolbar after the final crop. Capture surfaces read the injected `AppSettings` boundary (`@Environment(AppSettings.self)` in views and `diContainer.appSettings` in `CaptureWorkspaceViewModel`) and dynamically cap the `PhotoLibraryButton`'s `maxSelectionCount` and the toolbar's secondary add button.
+- **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps
+  and disables intensive visual blurs to preserve battery.
+- **Camera Settings (`CameraSettingsView`)**: A dedicated sub-page pushed from
+  the "Camera" row in Preferences (described as "Zoom controls, viewfinder
+  hints, and capture preferences"). Navigation state
+  (`cameraSettingsActive: Bool`) is owned by `SettingsTabView` and passed as a
+  `@Binding` to `Preferences`; the `.navigationDestination` modifier is attached
+  to the `List` in `SettingsTabView` (not inside a `Section`) to satisfy
+  SwiftUI's lazy-container navigation destination requirement. The view is split
+  into two sections:
+  - **Viewfinder**: Live viewfinder hints toggle (`isLiveInferencePaused`,
+    inverted for display).
+  - **Zoom**: Show zoom slider (`zoomSliderVisible`), left-side zoom slider
+    (`zoomSideLeft`), invert zoom direction (`invertZoomDirection`).
+- **Live Viewfinder Hints (`isLiveInferencePaused`)**: Moved from the main
+  Preferences list into the Viewfinder section of `CameraSettingsView`. Allows
+  users to disable real-time AI scanning hints to reduce thermal load or battery
+  drain. The toggle inverts `isLiveInferencePaused` for display and writes
+  through the injected `AppSettings` boundary while keeping
+  `CameraManager.shared.isLiveInferencePaused` synchronized.
+- **Field trip goals (`showsCaptureGoalProgress`)**: The Workspace settings
+  section exposes an on-by-default toggle for the active outing target capsule
+  on visual Scan. Disabling it changes only the camera presentation; cached
+  capture-goal context, refresh behavior, selection, and outing progress remain
+  intact.
+- **Show Zoom Slider (`zoomSliderVisible`)**: Toggles the `ZoomSliderView`
+  overlay on/off. When disabled, zoom via pinch and swipe still works — only the
+  visual meter is hidden. Defaults to `true`.
+- **Invert Zoom Direction (`invertZoomDirection`)**: Flips the zoom direction
+  across all gesture surfaces and the zoom meter's visual orientation. Default
+  (`false`): swipe up / drag up = zoom in, top of meter = max zoom. Inverted
+  (`true`): swipe down / drag down = zoom in (traditional camera-style), top of
+  meter = 1×. Read on each gesture frame in
+  `CameraPreviewView.Coordinator.handlePan` and `ZoomSliderView`'s
+  `DragGesture`; also controls `ZoomSliderView`'s Canvas tick-to-zoom mapping
+  and indicator position formula so the ruler orientation always matches the
+  drag direction. Does not affect pinch-to-zoom (scale-based).
+- **Left-Side Zoom Slider (`zoomSideLeft`)**: Moves the `ZoomSliderView` from
+  the trailing edge to the leading edge of the viewfinder. `MainOverlayView`
+  switches the `.overlay` alignment and padding side; `ZoomSliderView` mirrors
+  itself horizontally via `.scaleEffect(x: -1, y: 1)` so ticks and dots face
+  inward on both sides without duplicating Canvas drawing logic.
+- **SettingsToggleRow (`Profile/Settings/Components/Preferences.swift`)**: To
+  eliminate `VStack` layout duplication for generic Toggle rows across OS
+  preferences, core features (Expedition mode, Live Pathfinder hints, etc.) were
+  refactored into a unified `SettingsToggleRow(title:, description:, isOn:)`
+  primitive wrapping `.secondary` caption font descriptions globally.
+- **Push Notifications & Progressive Disclosure (`NotificationSettingsView`)**:
+  Push notification permission prompting has been fully excised from the initial
+  onboarding flow to optimize funnel completion rates. Instead, the system
+  employs progressive disclosure: users are prompted dynamically via
+  `PostIdentificationNotificationSheetView` when the AI resolves its first edge
+  lookup over the network. Notification configurations are abstracted into a
+  dedicated `NotificationSettingsView`. Navigation uses a `Button` +
+  `.navigationDestination(isPresented:)` pattern (not `NavigationLink`) to avoid
+  the double-chevron that SwiftUI's `List` injects on `NavigationLink` labels.
+  The toggles inside the settings list mutate the typed `AppSettings`
+  notification properties through custom `Binding(get:set:)` wrappers. If a user
+  attempts to enable an alert type and their OS status is `.notDetermined`, the
+  app intercepts the interaction and presents the
+  `PostIdentificationNotificationSheetView` dynamically. If denied, it routes
+  them directly into the iOS settings app url domain
+  (`UIApplication.openSettingsURLString`). `Discovery Complete` deep link alerts
+  are queued to the OS only when `HardwareOrchestrator` resolves `!= .active`,
+  preventing popovers while the user is inside the app.
+- **Changelog (`ChangelogView`)**: The Settings list includes a plain
+  "Changelog" row in the Resources section. It pushes `ChangelogView`, which
+  reads bundled structured notes from
+  `apps/ios/Merian/Resources/Changelog/changelog.json` through `ChangelogStore`,
+  sorts entries newest-first, and renders dates, version/build labels, optional
+  asset-catalog images, and grouped bullet sections. The surface is
+  intentionally local-only for v1: no Supabase feed, unread badge, launch sheet,
+  or remote config.
+- **Beta Feedback Survey (`FeedbackSurveyView`)**: The one-time
+  `beta_feedback_2026_06` campaign opens with a short intro screen, then asks
+  satisfaction, recommendation, usage, most-useful area, bugs/crashes, and
+  free-text polish questions. `CaptureWorkspaceView` can arm the survey once
+  after onboarding, at least three completed biological scans, and another
+  accepted foreground biological result. Restored or launch-time synchronized
+  history counts toward meaningful use but never arms the survey by itself. The
+  proactive sheet is presented only after the active Insight/result sheet has
+  closed so it never competes with scan results. `FeedbackSurveyPromptPolicy`
+  suppresses the prompt after the campaign is dismissed or submitted. The
+  Settings Resources section also exposes a manual "Feedback survey" row while
+  the campaign is active. After a successful manual submission, the thank-you
+  state remains during a 24-hour cooldown and then resets to a fresh form so
+  testers can send more feedback without the proactive prompt returning.
+  Responses submit through `/submit-feedback-survey` and are stored as private
+  product feedback in Supabase.
+- **System Haptics & Camera Roll**: `UserDefaults` bindings skip `HapticManager`
+  calls or prevent `PhotoLibraryManager` from pushing raw buffer bytes into the
+  iOS Photos ecosystem. Haptic interactions overlay `.heavy` feedback on the
+  Camera Shutter and `.medium` responses on hardware triggers like the Flash
+  toggle.
+- **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` &
+  `requiresScanConfirmation`)**: Defaults to `false` (instant 1-capture mode).
+  When disabled, a single camera capture is submitted to the AI inference
+  pipeline immediately via an
+  `onChange(of: viewModel.stagedCapture.images.count)` observer in
+  `CaptureWorkspaceView`. Photo-library picks are staged first, marked as
+  required gallery crops, and routed through `ImageCropperView`; confirming the
+  final required crop re-evaluates `shouldAutoSubmitStagedCapture` and only then
+  submits in the default single-image flow. Setting "Confirm scan submission"
+  (`requiresScanConfirmation = true`) disables the auto-submit gatekeeper,
+  staging the cropped image in the `ActiveScanToolbar` and forcing the user to
+  physically tap "Identify". If "Multi-capture mode"
+  (`isMultiCaptureEnabled = true`) is enabled, gallery crops are reviewed
+  sequentially and the user returns to the toolbar after the final crop. Capture
+  surfaces read the injected `AppSettings` boundary
+  (`@Environment(AppSettings.self)` in views and `diContainer.appSettings` in
+  `CaptureWorkspaceViewModel`) and dynamically cap the `PhotoLibraryButton`'s
+  `maxSelectionCount` and the toolbar's secondary add button.
 - **Photos Share Import**: Naturebook's Merian iOS target is an alternate
-  `public.image` document viewer, not a Photos Share Extension. Sharing one photo
-  opens the containing app, which copies the security-scoped file into
-  `ExternalImageImportStore`
-  before publishing `AppEvent.externalImageImportAvailable`. The Capture shell
-  recovers pending receipts on appearance/activation and retries after staging
-  capacity or Pro entitlement changes. Shared files use the same
-  `PreparedStagedImageLoader`, required crop, confirmation preference, quota,
-  inference, and offline queue as `PhotosPicker`; only the durable receipt and
-  embedded ImageIO EXIF extraction differ. See
-  [Photos Share Import](./26-photos-share-import.md).
-  A cold-launch import is an explicit intent: it dismisses the generic Explore
-  launch sheet, protects the incoming crop from the accompanying timeout reset,
-  and then follows the same staging path.
+  `public.image` document viewer, not a Photos Share Extension. Sharing one
+  photo opens the containing app, which copies the security-scoped file into
+  `ExternalImageImportStore` before publishing
+  `AppEvent.externalImageImportAvailable`. The Capture shell recovers pending
+  receipts on appearance/activation and retries after staging capacity or Pro
+  entitlement changes. Shared files use the same `PreparedStagedImageLoader`,
+  required crop, confirmation preference, quota, inference, and offline queue as
+  `PhotosPicker`; only the durable receipt and embedded ImageIO EXIF extraction
+  differ. See [Photos Share Import](./26-photos-share-import.md). A cold-launch
+  import is an explicit intent: it dismisses the generic Explore launch sheet,
+  protects the incoming crop from the accompanying timeout reset, and then
+  follows the same staging path.
 
 ### Privacy & Science
-- **Geoprivacy Control (`GeoprivacyPickerView`)**: Lives inside `Features/Profile/Settings/Components/Preferences.swift` and is pushed from the settings list. It explains `Open`, `Obscured`, and `Private` coordinate options, binds through `ProfileViewModel.defaultGeoprivacy`, and cascades changes to Supabase in the background.
-- **Community and Legal Links (`Community.swift`)**: The Profile settings Resources section opens `https://naturebook.earth/guidelines` and `https://naturebook.earth/legal` through the in-app Safari sheet, appending `?theme=light|dark|system` from `AppSettings.themeMode` so Mantine can match the iOS theme. Support/bug reports route to `support@naturebook.earth`, Feedback survey opens the native beta survey, and Changelog routes to the bundled in-app notes screen.
-- **Export Scans (DwC-A)**: *(Staged; launch-disabled)* Release iOS builds hide
+
+- **Geoprivacy Control (`GeoprivacyPickerView`)**: Lives inside
+  `Features/Profile/Settings/Components/Preferences.swift` and is pushed from
+  the settings list. It explains `Open`, `Obscured`, and `Private` coordinate
+  options, binds through `ProfileViewModel.defaultGeoprivacy`, and cascades
+  changes to Supabase in the background.
+- **Community and Legal Links (`Community.swift`)**: The Profile settings
+  Resources section opens `https://naturebook.earth/guidelines` and
+  `https://naturebook.earth/legal` through the in-app Safari sheet, appending
+  `?theme=light|dark|system` from `AppSettings.themeMode` so Mantine can match
+  the iOS theme. Support/bug reports route to `support@naturebook.earth`,
+  Feedback survey opens the native beta survey, and Changelog routes to the
+  bundled in-app notes screen.
+- **Export Scans (DwC-A)**: _(Staged; launch-disabled)_ Release iOS builds hide
   this section because `.dwcaExports` defaults off. Debug can show it, but the
   private PostgreSQL gate remains authoritative for old builds and direct
   requests. After the separate feature-enable gate, it queues background ZIP
@@ -270,77 +1251,204 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
   and multimedia DTOs from one MVCC snapshot, stopping projection at per-row and
   cumulative source-byte limits. The worker advances claim-fenced 100-row/256
   KiB CSV pages over that immutable source under canonical row/archive budgets,
-  runs a full-member live privacy fence before assembly and delivery, streams the
-  durable manifest into multipart R2, and sends one idempotent Resend request.
-  Processing application capabilities remain private until completion; each
-  click reruns the full privacy fence before a 30-second read-only redirect. A
-  mismatch revokes the URL and enqueues the archive for durable cleanup. A "Sign
-  in with Apple" prompt prevents anonymous users from generating exports before
-  creating an account. Production promotion remains governed by the
+  runs a full-member live privacy fence before assembly and delivery, streams
+  the durable manifest into multipart R2, and sends one idempotent Resend
+  request. Processing application capabilities remain private until completion;
+  each click reruns the full privacy fence before a 30-second read-only
+  redirect. A mismatch revokes the URL and enqueues the archive for durable
+  cleanup. A "Sign in with Apple" prompt prevents anonymous users from
+  generating exports before creating an account. Production promotion remains
+  governed by the
   [release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### Danger Zone & Data Lifecycle
-- **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background `OfflineQueueManager` URLSession transfers mid-sync from being cleared during manual cache management.
+
+- **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned
+  `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded
+  (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background
+  `OfflineQueueManager` URLSession transfers mid-sync from being cleared during
+  manual cache management.
 - **Account Erasure**: A "Delete Account & Data" action behind a `.destructive`
   `.confirmationDialog` calls the durable Deno `/safe-delete` endpoint. Both
   immediate `200` completion and `202` durable acceptance are successful:
   backend cleanup continues through its scheduled reaper, cursor-sweeps and
   delayed-verifies every canonical R2 prefix, and removes Auth only after
-  verification, while the client signs out locally and purges the device
-  SQLite boundary through `ScanRepository.shared.purgeAllData()`.
+  verification, while the client signs out locally and purges the device SQLite
+  boundary through `ScanRepository.shared.purgeAllData()`.
 - **Individual Scan Deletion**: Every single and batch deletion confirmation
   explains that a published scan owns its Explore post and that proceeding
   permanently removes the post, likes, and comments. This explicit destructive
   action is separate from reversible operational media quarantine.
 
-
 ## 5. Hardware Integrations (`AVCaptureEventInteraction`)
-- Hooks into iOS 17.2 tactile hardware boundaries, ensuring that pressing physical hardware buttons triggers the same `EnvironmentContextManager` background `MKReverseGeocodingRequest` and `WeatherService` hooks as the screen UI.
+
+- Hooks into iOS 17.2 tactile hardware boundaries, ensuring that pressing
+  physical hardware buttons triggers the same `EnvironmentContextManager`
+  background `MKReverseGeocodingRequest` and `WeatherService` hooks as the
+  screen UI.
 - Live camera still capture binds the shutter-time GPS snapshot into the saved
   Camera Roll asset. Imported photos instead preserve only the historical
   date/location that Photos or ImageIO actually supplies; excluding Location in
   Photos share Options produces an import with no GPS.
 
 ## 6. UI Abstract Modularization
-- **Visual Notification Overlays**: To prevent global Z-index overlays (e.g., `MilestoneToastBanner`, `ThermalWarningView`, `ToxicityBanner`) from blocking interactions with the underlying camera viewfinder or Insight sheet, Merian enforces strict hit-testing boundaries. `VStack` geometries paired with `Spacer()` layouts are replaced with tight `.frame(maxHeight: .infinity, alignment: .top)` structures to avoid greedy hit-testing. Components that do not require explicit interaction (e.g., `ToxicityBanner` and `ThermalWarningView`) apply `.allowsHitTesting(false)` universally, while interactive milestone banners keep their hit target constrained to the banner itself so users can scroll and tap underlying UI outside the notification bounds.
-- **Shared Circular Control Chrome**: Compact circular `.ultraThinMaterial` icon controls now route through `Core/UI/Modifiers/IconButtonModifiers.swift` via `.circularMaterialControl(...)` when their visual contract is identical. This is intentionally presentation-only: callers retain action ownership, haptics, accessibility labels, disabled state, icon choice, and foreground color. Animated or domain-specific controls such as the shutter, dictation pulse button, avatars, feed pills, and menus stay isolated.
+
+- **Visual Notification Overlays**: To prevent global Z-index overlays (e.g.,
+  `MilestoneToastBanner`, `ThermalWarningView`, `ToxicityBanner`) from blocking
+  interactions with the underlying camera viewfinder or Insight sheet, Merian
+  enforces strict hit-testing boundaries. `VStack` geometries paired with
+  `Spacer()` layouts are replaced with tight
+  `.frame(maxHeight: .infinity, alignment: .top)` structures to avoid greedy
+  hit-testing. Components that do not require explicit interaction (e.g.,
+  `ToxicityBanner` and `ThermalWarningView`) apply `.allowsHitTesting(false)`
+  universally, while interactive milestone banners keep their hit target
+  constrained to the banner itself so users can scroll and tap underlying UI
+  outside the notification bounds.
+- **Shared Circular Control Chrome**: Compact circular `.ultraThinMaterial` icon
+  controls now route through `Core/UI/Modifiers/IconButtonModifiers.swift` via
+  `.circularMaterialControl(...)` when their visual contract is identical. This
+  is intentionally presentation-only: callers retain action ownership, haptics,
+  accessibility labels, disabled state, icon choice, and foreground color.
+  Animated or domain-specific controls such as the shutter, dictation pulse
+  button, avatars, feed pills, and menus stay isolated.
 - `CaptureWorkspaceView` uses a horizontal paged `ScrollView` (no
-  `NavigationStack`) with a `LazyHStack` of the user-ordered `.visual`, `.audio`,
-  and `.describe` pages. The initializer samples the first decoded mode into
-  both `captureMode` and optional `scrollPageMode`, so Record- or Describe-first
-  settings open the requested page without first selecting Camera or starting
-  its session. Settled page swipes update `captureMode`; mode-toggle changes
-  update `scrollPageMode`; and
-  `ScrollViewReader` reanchors the active page when the stored sequence changes.
-  A full-screen `GeometryReader` gives every page an explicit width and height,
-  while fixed top, capture-bar, and toolbar overlays remain outside the pager.
-  Describe's vertical content is hosted by UIKit, and its prompt/dictation
-  lifecycle observer plus prompt sheet live at workspace scope. The capture bar
-  uses `CaptureControlBarLayout`'s fixed 80 pt control, 124 pt bottom inset, and
-  204 pt safe-area-relative reservation instead of publishing measured child
-  height into parent layout. Full-screen hint and audio overlays use the fixed
-  250 pt pre-regression clearance; they do not derive it from the full-bleed
-  pager, whose bottom safe-area inset is zero. The 80 pt primary capture control
-  and 50 pt secondary controls share one vertical centerline in every mode. The
-  UIKit-hosted Describe editor uses a 204 pt bottom content reservation matching
-  the overlaid row. Its flexible rounded field fills the remaining height, with
-  UI coverage requiring 8...32 pt between their rendered frames. Its top spacer
-  is a fixed 60 pt selector
-  band and does not add the safe area again; the rendered selector-to-question
-  gap must stay within 8...32 pt.
-  These lazy-construction,
-  scroll-hosting, presentation, and fixed-layout
-  boundaries are the startup AttributeGraph stability contract for all three
-  configurable first modes. Camera-only controls keep their slots hidden in
-  Record; Describe exposes prompt-list and dictation intents through
-  `CaptureActionCoordinator`; and the actual session lifecycle remains keyed to
-  the selected mode. See
+  `NavigationStack`) with a `LazyHStack` of the user-ordered `.visual`,
+  `.audio`, and `.describe` pages. The initializer samples the first decoded
+  mode into both `captureMode` and optional `scrollPageMode`, so Record- or
+  Describe-first settings open the requested page without first selecting Camera
+  or starting its session. Settled page swipes update `captureMode`; mode-toggle
+  changes update `scrollPageMode`; and `ScrollViewReader` reanchors the active
+  page when the stored sequence changes. A full-screen `GeometryReader` gives
+  every page an explicit width and height, while fixed top, capture-bar, and
+  toolbar overlays remain outside the pager. Describe's vertical content is
+  hosted by UIKit, and its prompt/dictation lifecycle observer plus prompt sheet
+  live at workspace scope. The capture bar uses `CaptureControlBarLayout`'s
+  fixed 80 pt control, 124 pt bottom inset, and 204 pt safe-area-relative
+  reservation instead of publishing measured child height into parent layout.
+  Full-screen hint and audio overlays use the fixed 250 pt pre-regression
+  clearance; they do not derive it from the full-bleed pager, whose bottom
+  safe-area inset is zero. The 80 pt primary capture control and 50 pt secondary
+  controls share one vertical centerline in every mode. The UIKit-hosted
+  Describe editor uses a 204 pt bottom content reservation matching the overlaid
+  row. Its flexible rounded field fills the remaining height, with UI coverage
+  requiring 8...32 pt between their rendered frames. Its top spacer is a fixed
+  60 pt selector band and does not add the safe area again; the rendered
+  selector-to-question gap must stay within 8...32 pt. These lazy-construction,
+  scroll-hosting, presentation, and fixed-layout boundaries are the startup
+  AttributeGraph stability contract for all three configurable first modes.
+  Camera-only controls keep their slots hidden in Record; Describe exposes
+  prompt-list and dictation intents through `CaptureActionCoordinator`; and the
+  actual session lifecycle remains keyed to the selected mode. See
   [`01-camera-and-hardware.md`](./01-camera-and-hardware.md) and
   [`11-describe-and-voice-dictation.md`](./11-describe-and-voice-dictation.md)
   for the detailed interaction and verification contracts.
-- `Capture` uses product-area-first folders. `Shell/` owns `CaptureWorkspaceView`, the Scan/Record/Describe pager, fixed overlay chrome, sheet routing, physical shutter handling, pending Photos document-import recovery, and the root `CaptureWorkspaceViewModel`; `Scan/` owns camera UI, cropper, focus/zoom, flash, Pro video capture, in-app photo-library import, and viewfinder hints; `Record/` owns the audio page, spectrogram, SNR gauge, and shared `RecordingCountdownBadge`; `Describe/` owns text input, guided questions, prompt managers, subject matching, and dictation; `Staging/` owns `StagedCapture`, staged video/audio/image/description editing, and crop sheet presentation; `Submission/` owns shared live/offline analysis paths for visual and non-visual captures. **Camera Session Pause During Analysis**: When `activeSheet` transitions to `.insight`, `CaptureWorkspaceView` calls `cameraManager.stopSession()` via an `onChange` observer, conserving thermal budget and battery. The session restarts when the sheet is dismissed. **Active Scan Dismissal**: Users can manually dismiss the `InsightSheetView` entirely while it is still in the `AnalyzingContentView` processing state. This invokes `dismissAnalysisToBackground()` in `CaptureWorkspaceViewModel`, which immediately hides the UI and re-queues the inference payload into the `OfflineQueueManager`. The server completes the request, consumes a credit, and seamlessly deposits the final result into the user's Library in the background (triggering the `hasUnseenScan` notification dot) without forcing the user to wait on-screen. **Offline Submission Intercept**: To optimize UX and preserve computing power, `CaptureWorkspaceViewModel.submitActiveScan` gates `activeSheet = .insight`, `InferenceEngine.prepareForNewScan()`, and the live `InferenceEngine.analyze` Task behind durable `enqueueCapture` acceptance plus `OfflineQueueManager.isOnline`. If the queue rejects the durable write, the UI shows an error and deletes unowned source media; if the user is un-networked, execution drops after the queued callback, clears the pending live scan ID, circumvents timeout overlays, and surfaces a temporary `ToastBanner` ("No network connection. Queued for upload.") directly on the camera matrix without locking the viewfinder. **On-Device Subject Classification (`VNClassifyImageRequest`)**: After staging images or sampled video frames for inference, `InferenceEngine.analyze` fires `classifySubjectLocally(from:)` into a tracked `localClassificationTask` tied to the active scan ID. That task immediately starts generic phase rotation, then runs a detached Vision classification on a 512 px downsampled image and swaps in subject-specific phrases only if the result clears the configured confidence and margin thresholds. If Vision cannot identify the subject, the generic fallback phrases continue rotating every 2.3 seconds until inference completes. All static phrase builders remain `nonisolated`, while the tracked task ownership prevents stale Vision completions from mutating a later scan. The app enforces an automatic multi-capture rapid-capture loop via `ActiveScanToolbar`. This isolated `.ultraThinMaterial` glassmorphic capsule swaps views using `.transition(.move(edge: .bottom).combined(with: .opacity))` when thumbnails are generated. Video thumbnails carry a play badge and open `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar close and remove actions; removal deletes the staged clip plus companion WAV. When the user reaches the 2-capture limit, `CaptureWorkspaceView`'s fixed overlays hide `MediaModeToggle`, `CaptureButton`, `FlashButton`, and `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds individual processing sequences per image without keeping full 12 MP buffers in background memory. Cancel/remove/replace hooks call the staged-media discard helper so temporary video/audio files are deleted, while submit uses reference-only staging reset after queue acceptance so the durable owner retains media; both paths clear pending crop state and keep index-out-of-bounds drift impossible because data is co-located rather than spread across parallel arrays. To preserve authentic `.environmentContext` metadata from imported photos, `submitActiveScan()` extracts the `historicalContext` from `stagedCapture.images[0].original` *before* clearing staged capture state. If the user backgrounds the app during an active AI lookup, `CaptureWorkspaceViewModel` does not explicitly nil out inference state, ensuring the completed modal sheet presents correctly when the app is foregrounded.
-- `Explore` uses product-area-first folders inside a single presented Explore navigation surface. `Shell/ExploreView.swift` owns the root Feed/Map/Identify/Index/Field trips router, stack-based author-profile routes, and the profile-to-scan nesting cap so author profiles do not layer a second sheet over active feed/detail video. `AuthorProfile/ExploreAuthorProfileSheet.swift` owns profile content, route metadata, and profile-library transitions; its in-place published-scan library hides the inherited stack back button and supplies one explicit back-to-profile control, library scans open `ExplorePostDetailView` with the current author-profile depth, and further author-profile taps are disabled after one profile hop. `Feed/Components/ExplorePostCard.swift` owns the shared feed/detail video host and keeps playback recovery local to the visible media view rather than sharing interrupted-player state across routed surfaces.
-- `Profile` uses product-area-first folders. `Shell/` owns `ProfileView` and the profile/settings pager, `UserProfile/` owns the visible user profile tab (public identity, published scans, achievements, persona, terrarium, heatmap, and `ProfileDatabaseActor`), `Settings/` owns the Settings tab rows plus account export and danger-zone actions; `Settings/Plan/` owns `PlanCard`, `ManagePlanView`, `PaywallView`, and shared Pro value-prop copy, `Settings/Notifications/` owns notification preferences, `Settings/Changelog/` owns bundled release notes, `Settings/Feedback/` owns the beta survey, and `Shared/` holds `ProfileViewModel`.
-- The `Scans` feature uses product-area-first folders. `Shell/` owns the presented sheet, paging, toolbar, search/filter chrome, and completed/queued pushed Insight destinations; `Library/` owns individual private scans, `ScansManager`, `SearchDatabaseActor`, `SearchableScan`, fresh queued-context hydration, and the scan-library route callback; `Collections/` owns collection cards, collection detail, smart collections, and multi-scan selection flows; `NonBiological/` owns the non-biological scan isolation route; `Shared/` holds scan-only primitives such as `ScansGrid`, `ScanThumbnail`, `EmptyStateView`, and deletion dialogs. Truly cross-feature primitives, including `CategoryFilterBar`, live under `Core/UI/Components/`.
-- **UIKit Window Theme Injection**: Previously, `.preferredColorScheme(themeMode.colorScheme)` declarations were utilized across view hierarchies, which exhibited a known caching bug where switching back to "System" (yielding `nil`) failed to forcefully propagate `.unspecified` traits through active modal presentation layers. The architecture now explicitly injects `themeMode.userInterfaceStyle` directly into the iOS root `UIWindowScene` window layer within `MerianApp.swift`, bypassing SwiftUI nested isolation bounds to guarantee instantaneous, global application style redraws.
-- **Menu Tinting & Action Roles**: To maintain visual consistency, native iOS `Menu` structures should explicitly declare `.tint(.primary)` to ensure standard action icons map to neutral (black/white) rather than the default system blue. Because this parent tint overrides standard role colors, any `Button(role: .destructive)` elements within the menu must then explicitly chain `.tint(.red)` to preserve their red semantic warning color.
+- `Capture` uses product-area-first folders. `Shell/` owns
+  `CaptureWorkspaceView`, the Scan/Record/Describe pager, fixed overlay chrome,
+  sheet routing, physical shutter handling, pending Photos document-import
+  recovery, and the root `CaptureWorkspaceViewModel`; `Scan/` owns camera UI,
+  cropper, focus/zoom, flash, Pro video capture, in-app photo-library import,
+  and viewfinder hints; `Record/` owns the audio page, spectrogram, SNR gauge,
+  and shared `RecordingCountdownBadge`; `Describe/` owns text input, guided
+  questions, prompt managers, subject matching, and dictation; `Staging/` owns
+  `StagedCapture`, staged video/audio/image/description editing, and crop sheet
+  presentation; `Submission/` owns shared live/offline analysis paths for visual
+  and non-visual captures. **Camera Session Pause During Analysis**: When
+  `activeSheet` transitions to `.insight`, `CaptureWorkspaceView` calls
+  `cameraManager.stopSession()` via an `onChange` observer, conserving thermal
+  budget and battery. The session restarts when the sheet is dismissed. **Active
+  Scan Dismissal**: Users can manually dismiss the `InsightSheetView` entirely
+  while it is still in the `AnalyzingContentView` processing state. This invokes
+  `dismissAnalysisToBackground()` in `CaptureWorkspaceViewModel`, which
+  immediately hides the UI and re-queues the inference payload into the
+  `OfflineQueueManager`. The server completes the request, consumes a credit,
+  and seamlessly deposits the final result into the user's Library in the
+  background (triggering the `hasUnseenScan` notification dot) without forcing
+  the user to wait on-screen. **Offline Submission Intercept**: To optimize UX
+  and preserve computing power, `CaptureWorkspaceViewModel.submitActiveScan`
+  gates `activeSheet = .insight`, `InferenceEngine.prepareForNewScan()`, and the
+  live `InferenceEngine.analyze` Task behind durable `enqueueCapture` acceptance
+  plus `OfflineQueueManager.isOnline`. If the queue rejects the durable write,
+  the UI shows an error and deletes unowned source media; if the user is
+  un-networked, execution drops after the queued callback, clears the pending
+  live scan ID, circumvents timeout overlays, and surfaces a temporary
+  `ToastBanner` ("No network connection. Queued for upload.") directly on the
+  camera matrix without locking the viewfinder. **On-Device Subject
+  Classification (`VNClassifyImageRequest`)**: After staging images or sampled
+  video frames for inference, `InferenceEngine.analyze` fires
+  `classifySubjectLocally(from:)` into a tracked `localClassificationTask` tied
+  to the active scan ID. That task immediately starts generic phase rotation,
+  then runs a detached Vision classification on a 512 px downsampled image and
+  swaps in subject-specific phrases only if the result clears the configured
+  confidence and margin thresholds. If Vision cannot identify the subject, the
+  generic fallback phrases continue rotating every 2.3 seconds until inference
+  completes. All static phrase builders remain `nonisolated`, while the tracked
+  task ownership prevents stale Vision completions from mutating a later scan.
+  The app enforces an automatic multi-capture rapid-capture loop via
+  `ActiveScanToolbar`. This isolated `.ultraThinMaterial` glassmorphic capsule
+  swaps views using `.transition(.move(edge: .bottom).combined(with: .opacity))`
+  when thumbnails are generated. Video thumbnails carry a play badge and open
+  `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar
+  close and remove actions; removal deletes the staged clip plus companion WAV.
+  When the user reaches the 2-capture limit, `CaptureWorkspaceView`'s fixed
+  overlays hide `MediaModeToggle`, `CaptureButton`, `FlashButton`, and
+  `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds
+  individual processing sequences per image without keeping full 12 MP buffers
+  in background memory. Cancel/remove/replace hooks call the staged-media
+  discard helper so temporary video/audio files are deleted, while submit uses
+  reference-only staging reset after queue acceptance so the durable owner
+  retains media; both paths clear pending crop state and keep
+  index-out-of-bounds drift impossible because data is co-located rather than
+  spread across parallel arrays. To preserve authentic `.environmentContext`
+  metadata from imported photos, `submitActiveScan()` extracts the
+  `historicalContext` from `stagedCapture.images[0].original` _before_ clearing
+  staged capture state. If the user backgrounds the app during an active AI
+  lookup, `CaptureWorkspaceViewModel` does not explicitly nil out inference
+  state, ensuring the completed modal sheet presents correctly when the app is
+  foregrounded.
+- `Explore` uses product-area-first folders inside a single presented Explore
+  navigation surface. `Shell/ExploreView.swift` owns the root
+  Feed/Map/Identify/Index/Field trips router, stack-based author-profile routes,
+  and the profile-to-scan nesting cap so author profiles do not layer a second
+  sheet over active feed/detail video.
+  `AuthorProfile/ExploreAuthorProfileSheet.swift` owns profile content, route
+  metadata, and profile-library transitions; its in-place published-scan library
+  hides the inherited stack back button and supplies one explicit
+  back-to-profile control, library scans open `ExplorePostDetailView` with the
+  current author-profile depth, and further author-profile taps are disabled
+  after one profile hop. `Feed/Components/ExplorePostCard.swift` owns the shared
+  feed/detail video host and keeps playback recovery local to the visible media
+  view rather than sharing interrupted-player state across routed surfaces.
+- `Profile` uses product-area-first folders. `Shell/` owns `ProfileView` and the
+  profile/settings pager, `UserProfile/` owns the visible user profile tab
+  (public identity, published scans, achievements, persona, terrarium, heatmap,
+  and `ProfileDatabaseActor`), `Settings/` owns the Settings tab rows plus
+  account export and danger-zone actions; `Settings/Plan/` owns `PlanCard`,
+  `ManagePlanView`, `PaywallView`, and shared Pro value-prop copy,
+  `Settings/Notifications/` owns notification preferences, `Settings/Changelog/`
+  owns bundled release notes, `Settings/Feedback/` owns the beta survey, and
+  `Shared/` holds `ProfileViewModel`.
+- The `Scans` feature uses product-area-first folders. `Shell/` owns the
+  presented sheet, paging, toolbar, search/filter chrome, and completed/queued
+  pushed Insight destinations; `Library/` owns individual private scans,
+  `ScansManager`, `SearchDatabaseActor`, `SearchableScan`, fresh queued-context
+  hydration, and the scan-library route callback; `Collections/` owns collection
+  cards, collection detail, smart collections, and multi-scan selection flows;
+  `NonBiological/` owns the non-biological scan isolation route; `Shared/` holds
+  scan-only primitives such as `ScansGrid`, `ScanThumbnail`, `EmptyStateView`,
+  and deletion dialogs. Truly cross-feature primitives, including
+  `CategoryFilterBar`, live under `Core/UI/Components/`.
+- **UIKit Window Theme Injection**: Previously,
+  `.preferredColorScheme(themeMode.colorScheme)` declarations were utilized
+  across view hierarchies, which exhibited a known caching bug where switching
+  back to "System" (yielding `nil`) failed to forcefully propagate
+  `.unspecified` traits through active modal presentation layers. The
+  architecture now explicitly injects `themeMode.userInterfaceStyle` directly
+  into the iOS root `UIWindowScene` window layer within `MerianApp.swift`,
+  bypassing SwiftUI nested isolation bounds to guarantee instantaneous, global
+  application style redraws.
+- **Menu Tinting & Action Roles**: To maintain visual consistency, native iOS
+  `Menu` structures should explicitly declare `.tint(.primary)` to ensure
+  standard action icons map to neutral (black/white) rather than the default
+  system blue. Because this parent tint overrides standard role colors, any
+  `Button(role: .destructive)` elements within the menu must then explicitly
+  chain `.tint(.red)` to preserve their red semantic warning color.

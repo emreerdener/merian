@@ -43,23 +43,29 @@ generation, and its binding may dismiss only the matching token. Changing the
 scan or parent generation advances the component generation, dismisses every
 nested presentation, and clears pending actions and drafts. Every callback
 compares the captured parent generation directly, so it is stale even before
-SwiftUI delivers `onChange`. Composer-media
-hydration and asynchronous publication completion revalidate all values before
-opening or closing a sheet. The Insight-owned Explore editor, Community editor,
-Field Notes editor, delayed Explore onboarding prompt, and New Collection alert
-also capture the view model's exact scan ID and presentation generation. This
-closes both ordinary A → B switches and A → B → A callbacks where the UUID
-happens to match again but the original presentation no longer owns the UI.
+SwiftUI delivers `onChange`. Composer-media hydration and asynchronous
+publication completion revalidate all values before opening or closing a sheet.
+The Insight-owned Explore editor, Community editor, Field Notes editor, delayed
+Explore onboarding prompt, and New Collection alert also capture the view
+model's exact scan ID and presentation generation. This closes both ordinary A →
+B switches and A → B → A callbacks where the UUID happens to match again but the
+original presentation no longer owns the UI.
 
 The same boundary covers callbacks outside the nested Share component. Toolbar
 collection/export/Field Chat/identification/review/reanalysis/delete actions,
-media and audio controls, local-gallery and Wikipedia/Safari sheets,
-common-name and candidate modals, copied Explore-composer submissions, and
-toast actions all retain an immutable scan/generation target. A queued result
-handoff advances the generation even when the completed record reuses the same
-UUID, so controls created by the queued presentation cannot act on the result
-presentation. Stale dismissal callbacks clear only their captured
-presentation, never a newer one.
+media and audio controls, local-gallery and Wikipedia/Safari sheets, common-name
+and candidate modals, copied Explore-composer submissions, and toast actions all
+retain an immutable scan/generation target. A queued result handoff advances the
+generation even when the completed record reuses the same UUID, so controls
+created by the queued presentation cannot act on the result presentation. Stale
+dismissal callbacks clear only their captured presentation, never a newer one.
+
+The delayed result-toolbar reveal and completed Field Notes synchronization use
+that generation as their SwiftUI task identity. Keying either task to the stable
+UUID would leave it canceled after an in-place queued-to-completed promotion and
+could hide Share or retain stale notes until the user reopened the observation.
+Every queued destination bind also prefers a persisted completed record with the
+same UUID over its retained navigation snapshot.
 
 An authoritative share-state `404` activates compatibility behavior only when
 the handler supplies stable `code: "not_found"` (or the narrow released-response
@@ -138,8 +144,8 @@ stable code), the network client:
 2. leaves active or retryable richer ingestion authoritative;
 3. refuses policy rejection, deletion, and ambiguous/unknown state;
 4. resolves every surviving local observation-media path and validates the
-   complete mixed-media count and byte budget, refusing owner-row
-   reconstruction when no eligible bytes survive;
+   complete mixed-media count and byte budget, refusing owner-row reconstruction
+   when no eligible bytes survive;
 5. resolves a server species UUID from the local scientific name;
 6. builds bounded non-media `OwnedScanRecoveryPayload` using the authenticated
    persisted Auth owner;
@@ -203,10 +209,10 @@ active six-item staging budget. Every current key must also match an
 authoritative capture-upload ledger row for the exact authenticated owner, scan
 ID, media kind, and role before the server reconstructs the owner row or
 promotes any object. This prevents an owner key from another scan or a signed
-audio/video key relabeled as an image
-from crossing into publication. Compatibility with released clients that signed
-before ledger registration is limited to their exact deterministic scan/category
-filename and legacy extension-derived kind.
+audio/video key relabeled as an image from crossing into publication.
+Compatibility with released clients that signed before ledger registration is
+limited to their exact deterministic scan/category filename and legacy
+extension-derived kind.
 
 If no eligible local user media survives, publication remains unavailable; a
 reference image is not observation evidence and cannot replace it.

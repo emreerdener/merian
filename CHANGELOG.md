@@ -22,24 +22,30 @@ TestFlight, App Store, support, and QA.
   Its transaction now uses the exact environment `ModelContext` already bound to
   the open Insight sheet and immediately invokes the existing production
   queue-promotion path after saving, rather than depending on a late
-  cross-context event merge. The library event is retained to refresh the parent
-  Scans surface. It also requires the completed observation to expose its Field
-  Chat and Share toolbar controls, guarding the downstream connections after
-  queue promotion. The Explore replay-cancellation regression now waits against
-  a bounded monotonic deadline for its observable first URLSession dispatch
-  instead of assuming 100 executor yields are sufficient on every hosted
-  simulator. It still requires exactly one request before cancellation and no
-  replay afterward. Empty, duplicate-suite, duplicate-case, contradictory-suite,
-  skipped, malformed, or wrong-test result evidence fails closed and retains a
-  separate result bundle and log. Complete-unit critical evidence now applies
-  the same exact-suite integrity: every protected case must appear exactly once
-  under exactly one passed suite, and every allowlisted source name must resolve
-  to one unique `@Test` declaration with any explicit display-name alias bound
-  to that declaration. The deterministic UI seed implementation is now excluded
-  from non-Debug compilation; Release retains only signature-compatible no-ops.
-  The Release archive gate also scans the main binary and rejects any retained
-  seed launch argument or queued-audio fixture marker, so TestFlight/App Store
-  launch state cannot activate or contain its local data replacement path.
+  cross-context event merge. The open destination is promoted before the
+  synchronous library event refreshes its parent, and any later rebuild treats a
+  persisted completed record as authoritative over the retained queued route
+  snapshot. Result toolbar and Field Notes tasks are keyed to the monotonic
+  presentation generation rather than the unchanged scan UUID, so Field Chat,
+  Share, and notes reconnect without reopening the scan. The library event is
+  retained only to refresh the parent Scans surface. The smoke also requires the
+  completed observation to expose its Field Chat and Share toolbar controls,
+  guarding the downstream connections after queue promotion. The Explore
+  replay-cancellation regression now waits against a bounded monotonic deadline
+  for its observable first URLSession dispatch instead of assuming 100 executor
+  yields are sufficient on every hosted simulator. It still requires exactly one
+  request before cancellation and no replay afterward. Empty, duplicate-suite,
+  duplicate-case, contradictory-suite, skipped, malformed, or wrong-test result
+  evidence fails closed and retains a separate result bundle and log.
+  Complete-unit critical evidence now applies the same exact-suite integrity:
+  every protected case must appear exactly once under exactly one passed suite,
+  and every allowlisted source name must resolve to one unique `@Test`
+  declaration with any explicit display-name alias bound to that declaration.
+  The deterministic UI seed implementation is now excluded from non-Debug
+  compilation; Release retains only signature-compatible no-ops. The Release
+  archive gate also scans the main binary and rejects any retained seed launch
+  argument or queued-audio fixture marker, so TestFlight/App Store launch state
+  cannot activate or contain its local data replacement path.
 - Scan Library recovery now distinguishes visible needs-attention rows from
   automatic queue work. Stable damaged/beta rows no longer keep the 1.5-second
   queue poll alive or repeatedly wake upload/inference reconciliation, while
@@ -219,9 +225,14 @@ TestFlight, App Store, support, and QA.
   release, and result promotion can no longer restore, retain, promote, or clear
   UI for a different queued scan. Queued-to-completed handoff invalidates queued
   callbacks even under the same UUID, and a new completion handoff replaces an
-  obsolete poller instead of being dropped. Best-effort Wikipedia, GBIF, and
-  enrichment persistence now has a hard eight-active/eight-pending ceiling, so
-  rapid queue replay cannot build an unbounded retained-closure backlog.
+  obsolete poller instead of being dropped. Rebinding an obsolete same-ID queued
+  route after completion now preserves the active result generation and controls
+  instead of resetting them. The shared animated scanning badge now clips
+  translated decorative renderers to its visible bounds and retains intrinsic
+  accessibility size instead of exposing an oversized off-window activation
+  frame. Best-effort Wikipedia, GBIF, and enrichment persistence now has a hard
+  eight-active/eight-pending ceiling, so rapid queue replay cannot build an
+  unbounded retained-closure backlog.
 - Fixed the release-blocking scan failure that let Gemini finish but rejected
   the observation while saving it. Inline camera bytes no longer advertise a
   synthetic staging object, and the strict media finalizer now receives only

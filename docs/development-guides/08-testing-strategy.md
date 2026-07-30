@@ -239,7 +239,7 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 71 exact
+   contradiction is invalid evidence. The current validator protects 73 exact
    cases; 27 were added by the joined scan-reliability follow-up, five
    menu/Field Notes regressions exposed by the prior failed hosted run are
    individually protected, two require the bounded/redacted offline-queue
@@ -290,10 +290,12 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
      rejection, missing-owner stale publication reset, exact single and bulk
      scan-status response cardinality/identity validation, validated deletion
      confirmation, pre-upload restored-media budget validation, Community
-     all-media recovery and response validation, and exact Explore
-     reconciliation validation, plus current/defensive-direct-array media-health
-     incident decoding, actual network-boundary empty-array acceptance, and
-     unknown-success-shape rejection; and
+     all-media recovery and response validation, exact Explore reconciliation
+     validation, persisted-completion precedence over a stale same-ID queued
+     navigation snapshot, queued fallback when no completed record exists, plus
+     current/defensive-direct-array media-health incident decoding, actual
+     network-boundary empty-array acceptance, and unknown-success-shape
+     rejection; and
    - Explore-post identifier routing plus retryable, single-flight, and
      cross-subject-replacement Field Chat preparation, and rejection of stale
      chat-subject completions.
@@ -345,7 +347,7 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 71
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 73
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
@@ -379,20 +381,25 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    fixture transaction must use the exact environment `ModelContext` bound to
    the open Insight sheet and, after saving, directly invoke the existing
    production `promoteQueuedScanIfLocalRecordExists` path with that same
-   context. `ScanLibraryEvents` remains responsible for parent-library refresh,
-   but a cross-context event merge must not control the deterministic handoff.
-   This keeps slow hosted accessibility startup or a stale open context from
-   erasing the state the test is required to prove. After the completed result
-   takes over, the same smoke requires `FieldChatToolbarButton` and
+   context. The open destination must complete direct promotion before it emits
+   `ScanLibraryEvents` for parent-library refresh; publishing the synchronous
+   event first can rebuild the child from its retained queued route snapshot. A
+   cross-context event merge must not control the deterministic handoff. This
+   keeps slow hosted accessibility startup or a stale open context from erasing
+   the state the test is required to prove. After the completed result takes
+   over, the same smoke requires `FieldChatToolbarButton` and
    `InsightShareButton`, proving queue promotion reconnects the observation to
-   Field Chat and sharing. Seed implementation is enclosed by the app target's
-   `DEBUG` compilation condition. Release retains only signature-compatible
-   no-ops with `UITestSeedCoordinator.isEnabled == false`; it does not compile
-   fixture arguments, deterministic media, or local data-replacement logic. The
-   portable workflow contract pins both branches. The current-SHA Release
-   archive then extracts the main binary's strings and fails if any
-   achievement/queued-audio seed argument or queued-audio fixture filename is
-   present.
+   Field Chat and sharing. Because queued and completed presentations
+   intentionally reuse the same scan UUID, delayed result-toolbar and Field
+   Notes tasks use `scanBoundActionGeneration` as their `.task(id:)`; an
+   ID-keyed task can be canceled by queued-state invalidation and never restart
+   for the result. Seed implementation is enclosed by the app target's `DEBUG`
+   compilation condition. Release retains only signature-compatible no-ops with
+   `UITestSeedCoordinator.isEnabled == false`; it does not compile fixture
+   arguments, deterministic media, or local data-replacement logic. The portable
+   workflow contract pins both branches. The current-SHA Release archive then
+   extracts the main binary's strings and fails if any achievement/queued-audio
+   seed argument or queued-audio fixture filename is present.
 
 2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
@@ -2213,15 +2220,28 @@ Only after native navigation, shared scanning content, audio-page, and decoded
 playback assertions pass does the smoke tap `ScanningStatusBadge`, which asks
 the exact Debug-only seed to perform the handoff. That transaction writes
 through the same environment `ModelContext` already bound to the open sheet and
-immediately calls the production queue-promotion method with that context;
-library-update notification remains for the parent Scans surface, not as the
-fixture's visibility mechanism. Production sessions and the Release coordinator
-remain no-ops for that request. The completed state must also expose the
-identifier-scoped Field Chat and Share toolbar buttons. Keep all navigation,
-shared-scanning, playable-media, downstream-toolbar, and handoff assertions when
-extending this regression. The exact-SHA hosted `Full iOS unit tests` job
-executes this case after the complete unit target; compilation alone is not
-acceptance evidence.
+immediately calls the production queue-promotion method with that context. The
+open child promotion completes before the synchronous library-update
+notification refreshes the parent Scans surface, so a retained queued route
+snapshot cannot win a re-entrant rebuild. On every later bind, a persisted
+same-ID completed record remains authoritative over that route snapshot. If that
+exact completion is already bound, the stale route rebind must be an idempotent
+no-op that preserves presentation generation and visible result actions.
+Production sessions and the Release coordinator remain no-ops for the request.
+The analyzing badge clips its translated decorative glare and text-reveal mask
+to their owning geometry, excludes the glare from hit testing and accessibility,
+and fixes the composed label to its intrinsic size. The smoke requires the
+Button's accessibility frame to be fully contained by the application frame
+before tapping. This prevents XCTest from silently substituting an
+edge-of-window activation point for an invalid off-window rectangle and
+reporting the resulting no-op as a promotion failure. The completed state must
+also expose the identifier-scoped Field Chat and Share toolbar buttons. Their
+delayed reveal and Field Notes synchronization are keyed to the monotonic
+presentation generation, not the unchanged scan ID, ensuring both tasks restart
+after promotion. Keep all navigation, shared-scanning, playable-media,
+downstream-toolbar, and handoff assertions when extending this regression. The
+exact-SHA hosted `Full iOS unit tests` job executes this case after the complete
+unit target; compilation alone is not acceptance evidence.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

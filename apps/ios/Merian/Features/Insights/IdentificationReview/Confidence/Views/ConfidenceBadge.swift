@@ -167,6 +167,12 @@ struct ConfidenceBadge: View {
                                     .strokeBorder(lineWidth: 1.5)
                             )
                     }
+                    // The translated glare is decorative and can travel several badge widths.
+                    // Keep its render and semantic bounds inside the capsule; otherwise AppKit
+                    // can union the off-screen rectangle into the Button accessibility frame.
+                    .clipped()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                     .opacity(isAnalyzing ? 0 : 1)
                 )
                 // Smoothly animate the fill transition when analysis finishes
@@ -307,6 +313,10 @@ private struct RevealText: View {
                         .frame(width: max(maskWidth, 50))
                         .offset(x: (revealProgress - 1.0) * max(maskWidth, 50))
                 }
+                // The reveal rectangle intentionally begins outside the text. Its drawing must
+                // remain clipped to the text bounds so it cannot enlarge an ancestor's
+                // accessibility activation frame while the animation is in flight.
+                .clipped()
             }
             .onAppear {
                 revealProgress = 0.0

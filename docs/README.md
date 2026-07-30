@@ -115,19 +115,19 @@ as their permanent engineering identity.
   dead-letter/quota/media-lifecycle proof. It never overwrites an existing or
   cross-owner row and restores media only through owner-scoped staging keys.
   Current/later policy, unproven abandonment, deletion, and unknown terminal
-  state remains closed.
-  A first `failed_retryable` status observation writes one durable local retry
-  latch; after its delay and any required media re-stage, that exact latch lets
-  the next generation-fenced preflight send Identify instead of blocking itself
-  in a status/upload loop. Retry counts survive re-upload, use committed
-  fresh-context reads, and stop at retained needs-attention state.
-  The repository fix is not a production fix until all affected Edge Functions
-  and the matching iOS build are promoted. See the
+  state remains closed. A first `failed_retryable` status observation writes one
+  durable local retry latch; after its delay and any required media re-stage,
+  that exact latch lets the next generation-fenced preflight send Identify
+  instead of blocking itself in a status/upload loop. Retry counts survive
+  re-upload, use committed fresh-context reads, and stop at retained
+  needs-attention state. The repository fix is not a production fix until all
+  affected Edge Functions and the matching iOS build are promoted. See the
   [joined reliability contract](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md),
   [failed-retryable deadlock incident](./incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md),
   [media-abandoned share incident](./incidents/2026-07-media-abandoned-explore-share-recovery.md),
   [owner-row incident report](./incidents/2026-07-scan-owner-row-durability-gap.md),
   [inline staging-manifest incident](./incidents/2026-07-inline-scan-staging-manifest-regression.md),
+  [queued Insight same-ID handoff incident](./incidents/2026-07-queued-insight-same-id-handoff-regression.md),
   [video finalization incident](./incidents/2026-07-video-scan-canonical-finalization-regression.md),
   and
   [Identify idempotency incident](./incidents/2026-07-identify-idempotency-conflict.md).
@@ -214,15 +214,20 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-07-queued-insight-same-id-handoff-regression.md`](./incidents/2026-07-queued-insight-same-id-handoff-regression.md)**
+  — Hosted Runs 100–103, same-ID route and SwiftUI task root cause, secure
+  child-before-parent promotion ordering, scanning-badge accessibility-frame
+  correction, complete-result toolbar recovery, and exact closure gates for
+  queued Insight → Field Chat / Share handoff.
 - **[`/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md`](./incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md)**
   — TestFlight evidence, state-machine root cause, dual-copy durable retry
   authority, migrated-store mirror repair, bounded retry behavior, and release
   closure gates for the status/re-upload loop that sent no Identify request.
 - **[`/incidents/2026-07-media-abandoned-explore-share-recovery.md`](./incidents/2026-07-media-abandoned-explore-share-recovery.md)**
-  — New-versus-existing scan evidence, the recovery-capable status 503
-  boundary, and the composite service-only proof that reconnects eligible
-  surviving local media to guarded owner-row repair and atomic Explore
-  publication without reopening later policy state.
+  — New-versus-existing scan evidence, the recovery-capable status 503 boundary,
+  and the composite service-only proof that reconnects eligible surviving local
+  media to guarded owner-row repair and atomic Explore publication without
+  reopening later policy state.
 - **[`/incidents/2026-07-inline-scan-staging-manifest-regression.md`](./incidents/2026-07-inline-scan-staging-manifest-regression.md)**
   — Joined iOS/Edge/catalog root cause and fail-closed remediation for inline
   scans rejected by a phantom staged-upload manifest, including offline, Field

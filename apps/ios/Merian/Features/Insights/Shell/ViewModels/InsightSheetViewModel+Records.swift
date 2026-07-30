@@ -151,6 +151,32 @@ extension InsightSheetViewModel {
         return true
     }
 
+    /// Binds a queued route snapshot while treating a completed local record with the same
+    /// identity as authoritative. Navigation routes retain value snapshots by design, so this
+    /// prevents a destination reappearance from resurrecting queued UI after completion.
+    @discardableResult
+    func bindQueuedPresentationPreferringCompletedRecord(
+        _ queuedScan: QueuedScanContext,
+        modelContext: ModelContext,
+        inferenceEngine: InferenceEngine
+    ) -> Bool {
+        // A retained NavigationPath value may be rebound after this destination already
+        // promoted the matching completion. Treat that rebind as idempotent: invalidating
+        // and promoting again would briefly hide result actions and reset scan-bound state.
+        if self.inferenceEngine === inferenceEngine,
+           queuedContext == nil,
+           isPresentingLocalRecord(scanId: queuedScan.id) {
+            return true
+        }
+
+        bindQueuedPresentation(queuedScan)
+        return promoteQueuedScanIfLocalRecordExists(
+            scanId: queuedScan.id,
+            modelContext: modelContext,
+            inferenceEngine: inferenceEngine
+        )
+    }
+
     @discardableResult
     func promoteQueuedScanIfLocalRecordExists(
         scanId: String,
