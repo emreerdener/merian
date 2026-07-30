@@ -238,8 +238,8 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    reports every named scan-flow regression as `Passed`. The current validator
    protects 58 exact cases; 19 were added by the joined scan-reliability
-   follow-up, and five menu/Field Notes regressions exposed by the newly
-   supplied 917-test hosted run are individually protected:
+   follow-up, and five menu/Field Notes regressions exposed by the prior failed
+   hosted run are individually protected:
 
    - foreground and background malformed-success rejection, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
@@ -271,6 +271,14 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    - Explore-post identifier routing plus retryable, single-flight, and
      cross-subject-replacement Field Chat preparation, and rejection of stale
      chat-subject completions.
+
+   Swift Testing reports an explicit `@Test("Display Name")` through that
+   display name rather than the source function name in Xcode's structured test
+   tree. A protected case with an explicit display name must therefore supply
+   both its exact Swift function name and that one exact display-name alias to
+   the result validator. The portable harness must model the display-name shape
+   and independently prove that omitting or skipping it is rejected; never use
+   substring or suite-only matching as a workaround.
 
    `OfflineQueueManagerTests` is explicitly serialized because its cases
    temporarily reconfigure the process-wide queue singleton, injected

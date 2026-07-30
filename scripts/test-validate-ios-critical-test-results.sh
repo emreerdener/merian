@@ -35,17 +35,39 @@ write_summary() {
     }' > "$summary_path"
 }
 
+reported_case_name() {
+  case "$1" in
+    testSubmitFlagRejectsChangedScanIdentity)
+      printf '%s\n' "Submit Flag Rejects Changed Scan Identity"
+      ;;
+    testSubmitFlagRejectsStaleSameScanCompletion)
+      printf '%s\n' "Submit Flag Rejects Stale Same-Scan Completion"
+      ;;
+    *)
+      printf '%s\n' "$1"
+      ;;
+  esac
+}
+
 write_test_tree() {
   local omitted_suite="${1:-}"
   local omitted_case="${2:-}"
+  local omitted_reported_case
+  omitted_reported_case="$(reported_case_name "$omitted_case")"
   jq -n \
     --arg omitted_suite "$omitted_suite" \
-    --arg omitted_case "$omitted_case" \
+    --arg omitted_case "$omitted_reported_case" \
     '
       def test_case($name):
         {
           nodeType: "Test Case",
-          name: ($name + "()"),
+          name: (
+            if ($name | startswith("display:")) then
+              $name | ltrimstr("display:")
+            else
+              $name + "()"
+            end
+          ),
           result: "Passed"
         };
       def suite($name; $case_names):
@@ -55,8 +77,11 @@ write_test_tree() {
           result: "Passed",
           children: (
             $case_names
-            | map(select(. != $omitted_case))
             | map(test_case(.))
+            | map(select(
+                .name != $omitted_case
+                and .name != ($omitted_case + "()")
+              ))
           )
         };
       {
@@ -141,8 +166,8 @@ write_test_tree() {
               "testFieldChatReplacesPreparationForChangedSubject"
             ]),
             suite("ReportInsightViewModel Tests"; [
-              "testSubmitFlagRejectsChangedScanIdentity",
-              "testSubmitFlagRejectsStaleSameScanCompletion"
+              "display:Submit Flag Rejects Changed Scan Identity",
+              "display:Submit Flag Rejects Stale Same-Scan Completion"
             ])
           ]
           | map(select(.name != $omitted_suite))
@@ -253,8 +278,9 @@ done
 
 for skipped_case in "${required_cases[@]}"; do
   write_test_tree
+  skipped_reported_case="$(reported_case_name "$skipped_case")"
   jq \
-    --arg skipped_case "$skipped_case" \
+    --arg skipped_case "$skipped_reported_case" \
     '
       (
         ..

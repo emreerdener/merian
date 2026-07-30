@@ -72,11 +72,13 @@ assert_suite_has_passed_test_case() {
   local primary_suite_name="$2"
   local alternate_suite_name="$3"
   local required_case_name="$4"
+  local alternate_case_name="${5:-}"
 
   if ! jq -e \
     --arg primary_suite "$primary_suite_name" \
     --arg alternate_suite "$alternate_suite_name" \
     --arg required_case "$required_case_name" \
+    --arg alternate_case "$alternate_case_name" \
     '
       [
         ..
@@ -96,6 +98,10 @@ assert_suite_has_passed_test_case() {
                 and (
                   .name? == $required_case
                   or .name? == ($required_case + "()")
+                  or (
+                    $alternate_case != ""
+                    and .name? == $alternate_case
+                  )
                 )
               )
           ]
@@ -409,11 +415,13 @@ assert_suite_has_passed_test_case \
   "Issue-reporting presented-scan identity fence" \
   "ReportInsightViewModelTests" \
   "ReportInsightViewModel Tests" \
-  "testSubmitFlagRejectsChangedScanIdentity"
+  "testSubmitFlagRejectsChangedScanIdentity" \
+  "Submit Flag Rejects Changed Scan Identity"
 assert_suite_has_passed_test_case \
   "Issue-reporting same-scan presentation-generation fence" \
   "ReportInsightViewModelTests" \
   "ReportInsightViewModel Tests" \
-  "testSubmitFlagRejectsStaleSameScanCompletion"
+  "testSubmitFlagRejectsStaleSameScanCompletion" \
+  "Submit Flag Rejects Stale Same-Scan Completion"
 
 echo "Critical iOS suites and exact scan-flow regressions reported passed test cases."

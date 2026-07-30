@@ -1501,15 +1501,19 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(reliabilitySource),
+    "The exact-identity fixture and fail-closed result-gate follow-up is committed on `main` as `21df28d6be1d20b27a1a31bd5812689b5a3c8fa5`",
+  );
+  assertStringIncludes(
+    compact(reliabilitySource),
     "Exact-source portable repetition passes",
   );
   assertStringIncludes(
     compact(reliabilitySource),
-    "critical-result validator with 58 protected exact cases total, including all 19 added by the joined follow-up and five menu/Field Notes regressions exposed by the newly supplied 917-test hosted run",
+    "critical-result validator with 58 protected exact cases total, including all 19 added by the joined follow-up and five menu/Field Notes regressions exposed by the prior failed hosted run",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 58 exact cases; 19 were added by the joined scan-reliability follow-up, and five menu/Field Notes regressions exposed by the newly supplied 917-test hosted run are individually protected",
+    "The current validator protects 58 exact cases; 19 were added by the joined scan-reliability follow-up, and five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -1518,6 +1522,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   assertStringIncludes(
     compact(testingStrategySource),
     "an Edge mock that represents a handler-owned `404` must include `X-Merian-Handler: 1`",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    'Swift Testing reports an explicit `@Test("Display Name")` through that display name rather than the source function name',
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "never use substring or suite-only matching as a workaround",
   );
   assertStringIncludes(
     compact(shareIncidentSource),
@@ -1928,7 +1940,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "a scope-only success is not release evidence",
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
       "authoritative known location-sharing value",
-      "At review, `HEAD` and `origin/main` both resolved to `cc664a20d`",
+      "At this review, `HEAD` and `origin/main` both resolved to `21df28d6b`",
+      "The joined runtime source remains immutable SHA `cc664a20d`; `21df28d6b` is its fixture/result-gate descendant",
       "`scripts/require_supabase_cli_version.sh`",
       "Current deterministic non-PostgreSQL Deno discovery run: 1,338 passed, 0 failed",
       "The current configured broad task reported 1,421 passed",
@@ -1945,10 +1958,11 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "atomic_community_identification_request_security.sql",
       "The hosted 24-assertion revision completed its first five preflight assertions",
       "The revised rollback-only fixture plans 25 assertions",
-      "contains 136 changed paths",
+      "The reviewed committed union from `daa18da00` through `21df28d6b` contains 136 changed paths",
       "is an explicit deployment control path, so the fail-closed planner resolves all 89 configured functions",
-      "On exact joined source SHA `cc664a20d`",
+      "On exact fixture/gate SHA `21df28d6b`",
       "all 89 isolated function graphs validated across 292 runtime files",
+      "the iOS scope detector selected the complete macOS gate",
       "Full-fallback, shuffled-plan, compatibility-order, and fail-stop fixtures passed.",
       "An unsafe or missing baseline falls back to all 89 functions.",
       "Selected critical members deploy sequentially in compatibility order",
@@ -1956,13 +1970,19 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Identity merge/recovery and all 30 inline/video assertions passed.",
       "Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501`",
       "the 16-assertion Field Chat file, and all 27 files must pass",
-      "The newly supplied hosted run compiled and executed 917 tests in 67 suites",
-      "reported 16 issues across six unique cases",
-      "omitted `X-Merian-Handler: 1`",
-      "expands the critical-result gate from 53 to 58 exact cases",
+      "Run 91 on exact SHA `21df28d6b` compiled and executed the complete target",
+      "structured summary reported 1,226 passed tests with zero failed or skipped",
+      "the Swift Testing subrun reported 917 tests in 67 suites passed",
+      "All six previously failing fixture cases therefore passed",
+      "Release archive also succeeded at 238,694,400 bytes",
+      'uses explicit `@Test("…")` display names',
+      "Current source supplies those two exact display-name aliases",
+      "For exact fixture/gate SHA `21df28d6b`",
       "all 58 protected case names resolve to maintained tests",
-      "The supplied run remains failed evidence",
-      "The rerun must report all six named cases as passed",
+      "the configured Edge suite reports 1,421 passed with zero failed",
+      "all 89 isolated dependency graphs across 292 runtime files",
+      "the workflow's overall result remains failed infrastructure evidence",
+      "One fresh full gate on an immutable descendant",
       "`1a75179dd88f20163cb5c01bffd60478b9545009` then stopped during isolated Edge graph validation",
       "does not restore that partial-write helper",
       "All 89 isolated entrypoints type-check locally",
