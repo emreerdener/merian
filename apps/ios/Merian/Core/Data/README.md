@@ -84,6 +84,12 @@ scans reject expensive transport for every manifest member, and dispatch
 repeats the live-policy check immediately before resume. A WiFi-started
 mixed-media video scan therefore cannot partially continue over cellular unless
 the user explicitly authorized that scan.
+Inference preparation and every delayed queue-owned status/poll/retry or
+completed-owner history-recovery entry recheck the same
+online-and-unconstrained predicate after suspension. Entering Low Data Mode
+mid-preparation cannot start another automatic foreground request or consume
+retry budget; durable orphan reconciliation resumes the row on the next
+eligible path.
 The upload packer scans the full bounded candidate window rather than only its
 first batch-size rows, continues past a non-fitting row when later work can
 fit, and quarantines a malformed `.pending` row with no upload media as

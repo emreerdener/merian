@@ -795,7 +795,7 @@ extension OfflineQueueManager {
                 )
             }
         }
-        guard isOnline,
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
               isInferencePreparationCurrent(
                 scanId: scanId,
                 generation: preparationGeneration
@@ -807,7 +807,7 @@ extension OfflineQueueManager {
         )
 
         let existingInferenceTasks = await backgroundSession.allTasks
-        guard isOnline,
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
               isInferencePreparationCurrent(
                 scanId: scanId,
                 generation: preparationGeneration
@@ -841,7 +841,7 @@ extension OfflineQueueManager {
             reuseScheduledServerFailureRetry:
                 hasScheduledServerFailureRetry
         )
-        guard isOnline,
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
               isInferencePreparationCurrent(
                 scanId: scanId,
                 generation: preparationGeneration
@@ -895,7 +895,7 @@ extension OfflineQueueManager {
             )
             return
         }
-        guard isOnline,
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
               isInferencePreparationCurrent(
                 scanId: scanId,
                 generation: preparationGeneration
@@ -907,7 +907,7 @@ extension OfflineQueueManager {
         // Dispatch the background download task. The OS serializes the URLRequest (including
         // httpBody) at resume() time — safe to use inline httpBody on background sessions.
         let tasksBeforeDispatch = await backgroundSession.allTasks
-        guard isOnline,
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
               isInferencePreparationCurrent(
                 scanId: scanId,
                 generation: preparationGeneration
@@ -1524,7 +1524,8 @@ extension OfflineQueueManager {
                         token: token,
                         ownerGeneration: generation
                     ),
-                    self.activeInferenceGenerations[scanId] == generation else {
+                    self.activeInferenceGenerations[scanId] == generation,
+                    self.allowsAutomaticNetworkWorkOnCurrentPath else {
                         return
                     }
 
@@ -1691,7 +1692,7 @@ extension OfflineQueueManager {
                     token: token
                 ),
                 self.activeInferenceGenerations[scanId] == nil,
-                self.isOnline else {
+                self.allowsAutomaticNetworkWorkOnCurrentPath else {
                     return
                 }
                 await self.handleInferenceRetry(
@@ -1714,7 +1715,10 @@ extension OfflineQueueManager {
         expectedGeneration: UUID?,
         resetMediaUploads: Bool
     ) async {
-        guard let container = modelContext?.container else { return }
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
+              let container = modelContext?.container else {
+            return
+        }
         let currentAttempt = queueAttemptCount(for: scanId)
         guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(
             currentAttempt: currentAttempt
@@ -1777,7 +1781,7 @@ extension OfflineQueueManager {
                     token: token
                 ),
                 self.activeInferenceGenerations[scanId] == nil,
-                self.isOnline else {
+                self.allowsAutomaticNetworkWorkOnCurrentPath else {
                     return
                 }
 
@@ -1855,6 +1859,7 @@ extension OfflineQueueManager {
         let hadDurableCompletedServerResult =
             hasDurableCompletedServerResult(scanId: scanId)
         guard !Task.isCancelled,
+              allowsAutomaticNetworkWorkOnCurrentPath,
               isServerIngestionPollCurrent(
                   scanId: scanId,
                   token: serverPollToken
@@ -1910,6 +1915,14 @@ extension OfflineQueueManager {
         persistServerStatus(scanId: scanId, response: response)
 
         let action = Self.scanStatusRecoveryAction(for: response)
+        guard allowsAutomaticNetworkWorkOnCurrentPath else {
+            // Keep exact completed-owner evidence persisted, but do not begin
+            // another automatic network request or consume recovery budget
+            // after a satisfied path becomes constrained.
+            return response.isFound || hadDurableCompletedServerResult
+                ? .waitForServer(1)
+                : .unresolved
+        }
         MerianLog.data.debug(
             "recoverCompletedInferenceFromServer: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) status=\(response.status.rawValue, privacy: .public) jobStatus=\((response.jobStatus?.rawValue ?? "nil"), privacy: .public) jobStage=\((response.jobStage ?? "nil"), privacy: .public) requiredVideos=\(requiredVideoCount, privacy: .public)"
         )
@@ -1991,6 +2004,7 @@ extension OfflineQueueManager {
         serverPollToken: UUID?
     ) async -> Bool {
         guard !Task.isCancelled,
+              allowsAutomaticNetworkWorkOnCurrentPath,
               isServerIngestionPollCurrent(
                   scanId: scanId,
                   token: serverPollToken
@@ -2032,6 +2046,9 @@ extension OfflineQueueManager {
         if recoveredLocalRecord == nil,
            !didSyncTarget,
            let context = modelContext {
+            guard allowsAutomaticNetworkWorkOnCurrentPath else {
+                return false
+            }
             await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(
                 modelContext: context
             )
@@ -2119,6 +2136,7 @@ extension OfflineQueueManager {
         serverPollToken: UUID?
     ) async -> ScanStatusRecoveryAction {
         guard !Task.isCancelled,
+              allowsAutomaticNetworkWorkOnCurrentPath,
               isServerIngestionPollCurrent(
                   scanId: scanId,
                   token: serverPollToken
@@ -2208,7 +2226,10 @@ extension OfflineQueueManager {
         reason: String,
         observedThrough: Date
     ) async -> Set<String> {
-        guard isOnline, let context = modelContext else { return [] }
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
+              let context = modelContext else {
+            return []
+        }
         let dbActor = resolvedQueueDbActor(container: context.container)
         let candidateIds = await dbActor.fetchServerOwnedInferencingScanIds(
             excludingScanIds: locallyActiveScanIds,
@@ -2328,7 +2349,8 @@ extension OfflineQueueManager {
         serverPollToken: UUID? = nil,
         minimumRetryDelay: TimeInterval? = nil
     ) async {
-        guard isServerIngestionPollCurrent(
+        guard allowsAutomaticNetworkWorkOnCurrentPath,
+              isServerIngestionPollCurrent(
             scanId: scanId,
             token: serverPollToken
         ),
@@ -2347,6 +2369,7 @@ extension OfflineQueueManager {
             serverPollToken: serverPollToken
         )
         guard !Task.isCancelled,
+              allowsAutomaticNetworkWorkOnCurrentPath,
               isServerIngestionPollCurrent(
                   scanId: scanId,
                   token: serverPollToken

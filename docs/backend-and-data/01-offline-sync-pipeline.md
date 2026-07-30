@@ -412,6 +412,16 @@ mixed-media WiFi manifest from partially continuing over cellular after a later
 handoff. Standalone image/audio requests may still use an expensive
 unconstrained path.
 
+Automatic inference request preparation, delayed status probes,
+server-ingestion polls, retry callbacks, and orphan-status reconciliation
+revalidate that same online-and-unconstrained predicate after every suspension
+and immediately before their next network entry. Completed-owner recovery
+rechecks again before targeted or fallback historical hydration and before
+persisting another local recovery attempt. A satisfied-path change into Low
+Data Mode therefore does not issue a foreground status/inference/history
+request or spend retry budget; the durable row is reclaimed when an eligible
+path wakes the queue.
+
 Connectivity restore now enters through `OfflineJobScheduler`. The scheduler is
 the durable control-plane facade; it delegates scan ingestion to
 `OfflineQueueManager`, cloud deletion to `PendingCloudDeletionTask`, and

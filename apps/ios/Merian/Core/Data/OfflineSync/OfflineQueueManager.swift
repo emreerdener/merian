@@ -120,7 +120,7 @@ import SwiftData
     @ObservationIgnored var uploadCompletionTokens: [String: Set<UUID>] = [:]
 
     var uploadCompletionScanIds: Set<String> {
-        Set(uploadCompletionTokens.compactMap { key, tokens in
+        Set<String>(uploadCompletionTokens.compactMap { key, tokens -> String? in
             tokens.isEmpty ? nil : key
         })
     }
@@ -376,6 +376,15 @@ import SwiftData
 
     var isCurrentNetworkConstrained: Bool {
         currentPathIsConstrained
+    }
+
+    /// Automatic queue recovery may use an eligible satisfied path only.
+    ///
+    /// Delayed probes and request preparation call this after every suspension
+    /// so a satisfied-path transition into Low Data Mode cannot start another
+    /// foreground status or inference request.
+    var allowsAutomaticNetworkWorkOnCurrentPath: Bool {
+        isOnline && !currentPathIsConstrained
     }
 
     var allowsLargeQueuedUploadsOnCurrentNetwork: Bool {

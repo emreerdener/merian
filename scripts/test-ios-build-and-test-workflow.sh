@@ -19,7 +19,9 @@ scans_grid_source="$repo_root/apps/ios/Merian/Features/Scans/Shared/Components/S
 queued_context_source="$repo_root/apps/ios/Merian/Models/QueuedScanContext.swift"
 queue_durability_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift"
 queue_manager_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
+queue_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift"
 queue_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Sync.swift"
+queue_url_session_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
 background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
 ios_test_sources="$repo_root/apps/ios/MerianTests"
 
@@ -382,6 +384,26 @@ assert_file_contains \
 assert_file_contains \
   "$queue_manager_source" \
   "private var currentPathIsExpensive = false"
+assert_file_contains \
+  "$queue_manager_source" \
+  "var allowsAutomaticNetworkWorkOnCurrentPath: Bool"
+assert_file_contains \
+  "$queue_url_session_source" \
+  "guard allowsAutomaticNetworkWorkOnCurrentPath,"
+assert_file_contains \
+  "$queue_url_session_source" \
+  "self.allowsAutomaticNetworkWorkOnCurrentPath else"
+assert_file_count \
+  "$queue_url_session_source" \
+  17 \
+  "allowsAutomaticNetworkWorkOnCurrentPath"
+assert_file_count \
+  "$queue_sync_source" \
+  3 \
+  "Set<String>(liveTasks.compactMap { task -> String? in"
+assert_file_contains \
+  "$queue_source" \
+  "Set<String>(allTasks.compactMap { task -> String? in"
 assert_file_contains \
   "$queue_sync_source" \
   "func queuedUploadRequest("

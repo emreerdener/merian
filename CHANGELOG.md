@@ -65,6 +65,10 @@ TestFlight, App Store, support, and QA.
   task resume, every final PUT disallows constrained transport, and every
   manifest PUT for a non-forced video scan disallows expensive transport so an
   in-flight mixed-media WiFi handoff cannot partially consume cellular data.
+  Automatic inference preparation, delayed status probes, ingestion polls,
+  retry callbacks, and orphan-status checks now also revalidate an online,
+  unconstrained path before network entry, preventing a mid-preparation Low
+  Data Mode transition from issuing another request or spending retry budget.
   Connectivity and upload policy are now also rechecked immediately after the
   durable claim. A handoff while claiming or signing atomically returns both
   scan and job to runnable state without consuming retry budget, and all signed

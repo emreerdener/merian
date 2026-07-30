@@ -2294,6 +2294,54 @@ struct OfflineQueueManagerTests {
             "candidateScanIds: undispatchedScanIDs"
         ))
         #expect(syncSource.contains("finalPolicy.isOnline"))
+
+        let managerSource = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
+        )
+        let queueSource = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift"
+        )
+        let urlSessionSource = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
+        )
+        #expect(syncSource.components(
+            separatedBy: "Set<String>(liveTasks.compactMap { task -> String? in"
+        ).count == 4)
+        #expect(queueSource.contains(
+            "Set<String>(allTasks.compactMap { task -> String? in"
+        ))
+        #expect(managerSource.contains(
+            "var allowsAutomaticNetworkWorkOnCurrentPath: Bool"
+        ))
+        #expect(urlSessionSource.components(
+            separatedBy: "allowsAutomaticNetworkWorkOnCurrentPath"
+        ).count == 18)
+        #expect(urlSessionSource.contains(
+            """
+            guard !Task.isCancelled,
+                  allowsAutomaticNetworkWorkOnCurrentPath,
+                  isServerIngestionPollCurrent(
+            """
+        ))
+        #expect(urlSessionSource.contains(
+            """
+            guard allowsAutomaticNetworkWorkOnCurrentPath,
+                  isServerIngestionPollCurrent(
+            """
+        ))
+        #expect(urlSessionSource.contains(
+            """
+            let action = Self.scanStatusRecoveryAction(for: response)
+            guard allowsAutomaticNetworkWorkOnCurrentPath else {
+            """
+        ))
+        #expect(urlSessionSource.contains(
+            """
+            guard !Task.isCancelled,
+                  allowsAutomaticNetworkWorkOnCurrentPath,
+                  isServerIngestionPollCurrent(
+            """
+        ))
     }
 
     @Test func testRetryQueuedScanNow_MakesFailedVisualScanRunnable() async throws {

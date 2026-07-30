@@ -748,8 +748,10 @@ extension OfflineQueueManager {
                 }
                 let observedThrough = Date()
                 let allTasks = await backgroundSession.allTasks
-                let activeIds = Set(allTasks.compactMap {
-                    MediaStagingContract.parseUploadTaskDescription($0.taskDescription)?.scanId
+                let activeIds = Set<String>(allTasks.compactMap { task -> String? in
+                    MediaStagingContract.parseUploadTaskDescription(
+                        task.taskDescription
+                    )?.scanId
                 })
                 let preparingUploadIds = await MainActor.run { self.uploadPreparationScanIds }
                 let completingUploadIds = await MainActor.run { self.uploadCompletionScanIds }
@@ -809,7 +811,7 @@ extension OfflineQueueManager {
             // A fresh actor's save() can invalidate sharedActor's cached fault objects
             // (§6 of swiftdata-and-api-gotchas), causing tryClaimForInference to miss a
             // scan it just transitioned if it still shows the stale pre-save state.
-            let activeUploadScanIds = Set(allTasks.compactMap { task in
+            let activeUploadScanIds = Set<String>(allTasks.compactMap { task -> String? in
                 MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
             })
             let preparingUploadScanIds = await MainActor.run { self.uploadPreparationScanIds }
@@ -822,7 +824,7 @@ extension OfflineQueueManager {
                 observedThrough: observedThrough
             )
 
-            let activeInferenceScanIds = Set(allTasks.compactMap { task -> String? in
+            let activeInferenceScanIds = Set<String>(allTasks.compactMap { task -> String? in
                 guard task.state != .canceling,
                       task.state != .completed,
                       let identity = InferenceURLSessionTaskContract.parse(

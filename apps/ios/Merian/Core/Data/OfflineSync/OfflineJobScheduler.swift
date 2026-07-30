@@ -141,7 +141,7 @@ final class OfflineJobScheduler {
             )
             return Date().addingTimeInterval(Self.databaseReadRetryDelay)
         }
-        let blockedScanJobIds = Set(scans.compactMap { scan in
+        let blockedScanJobIds = Set<String>(scans.compactMap { scan -> String? in
             (scan.queueNeedsAttention ||
                 scan.scanStateRaw >= firstNonRunnableRaw)
                 ? OfflineQueueManager.scanIngestionJobId(scanId: scan.id)

@@ -1167,12 +1167,14 @@ and `KeychainManager` migration logic. Do not inline
   hash after the old cert has expired everywhere. The intermediate CA hash only
   needs updating if Supabase migrates CAs.
 
-### Edge Network Operations (`S3` & `PostgreSQL` Bulk Insertions)
+### Edge Network Operations (Cloudflare R2 & PostgreSQL Bulk Insertions)
 
 - **Centralized Cloudflare R2 Operations (`_shared/aws.ts`)**: `copyR2Object()`
   and `deleteR2Object()` are defined once and shared across `moderation`,
   `export-dwca`, and `revenuecat-webhook`, rather than duplicating
-  `aws.sign(...)` headers in each.
+  `aws.sign(...)` headers in each. The filename and `aws4fetch` type name refer
+  to AWS Signature V4 for R2’s S3-compatible API; they do not indicate an Amazon
+  AWS storage or compute dependency.
 - **Shared Diagnostic Prompts (`_shared/diagnostic.ts`)**: The AI prompting
   logic for `fetchDiagnosticComparison` is extracted into a shared utility,
   preventing 1:1 duplication between the `identify` and `enrich-scan` Edge

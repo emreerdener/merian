@@ -1782,6 +1782,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "resumed as one complete main-actor manifest or not started",
   );
   assertStringIncludes(
+    compact(offlineSource),
+    "does not issue a foreground status/inference/history request or spend retry budget",
+  );
+  assertStringIncludes(
+    compact(rootSource),
+    "Merian does not use Amazon AWS storage or compute; Supabase remains the backend and authorization boundary",
+  );
+  assertStringIncludes(
     compact(reliabilitySource),
     "critical-result validator with 71 protected exact cases total, including all 27 added by the joined follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run, the two bounded/redacted queue-diagnostic cases, and the actual network-boundary media-incident compatibility case",
   );
@@ -2294,6 +2302,16 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Identity merge/recovery and all 30 inline/video assertions passed.",
       "Only the two atomic files aborted at their first service-role body call with SQLSTATE `42501`",
       "the 19-assertion Field Chat admission/binding file, and all 27 files must pass",
+      "Hosted iOS Runs 97 and 153 exposed one project-level type-inference error",
+      "The present worktree explicitly types every equivalent offline task-snapshot set as `Set<String>`",
+      "A direct Xcode 26.6 `swiftc -typecheck` of the current 406-source app module",
+      "completed with zero diagnostics, including SwiftData macro expansion and cross-file actor/generic checking",
+      "all 84 current unit-test sources type-checked against that module with Swift Testing macro expansion and zero errors",
+      "both current UI-test sources type-checked with zero diagnostics",
+      "an optimized whole-module Release/device type-check of all 406 app sources",
+      "do not emit or link the app/test products, execute either protected test lane, or package and inspect a Release archive",
+      "Physical beta testing already supplies two narrow behavioral observations",
+      "one scan submitted with WiFi and cellular data disabled remained queued and completed after connectivity was restored",
       "Run 91 on exact SHA `21df28d6b` compiled and executed the complete target",
       "structured summary reported 1,226 passed tests with zero failed or skipped",
       "the Swift Testing subrun reported 917 tests in 67 suites passed",

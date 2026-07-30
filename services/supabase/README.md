@@ -149,7 +149,9 @@ GenAI client uses the SDK's 90-second HTTP timeout.
 
 `functions/_tests/outboundDeadlineCoverage.test.ts` enforces this architecture
 and inventories the only remaining direct client transports: signed R2 calls in
-the reviewed AWS, inference-media, and export-storage adapters. Each such call
+the reviewed R2 SigV4, inference-media, and export-storage adapters. The legacy
+`_shared/aws.ts` filename and `aws4fetch` dependency refer only to R2’s
+S3-compatible signing protocol; no Amazon AWS service is used. Each such call
 must receive `r2RequestWithDeadline(...)` or the export worker's bounded
 `r2Request(...)`.
 

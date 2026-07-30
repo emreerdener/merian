@@ -537,6 +537,10 @@ breaches its SLA.
 | CI/CD          | GitHub Actions                                                          |
 | Email Services | Resend                                                                  |
 
+“S3-compatible” describes Cloudflare R2’s request/signature protocol only.
+Merian does not use Amazon AWS storage or compute; Supabase remains the backend
+and authorization boundary.
+
 **Minimum deployment target**: iOS 17.2 **Current schema**: MerianSchemaV50
 
 ---

@@ -534,7 +534,7 @@ extension OfflineQueueManager {
                 // policy handoff, not a failed attempt: retry budget and error
                 // metadata remain untouched.
                 let liveTasks = await session.allTasks
-                let activeUploadIds = Set(liveTasks.compactMap { task in
+                let activeUploadIds = Set<String>(liveTasks.compactMap { task -> String? in
                     guard task.state != .canceling,
                           task.state != .completed else {
                         return nil
@@ -630,7 +630,7 @@ extension OfflineQueueManager {
                 if !undispatchedScanIDs.isEmpty {
                     let observedThrough = Date()
                     let liveTasks = await session.allTasks
-                    let activeUploadIds = Set(liveTasks.compactMap { task in
+                    let activeUploadIds = Set<String>(liveTasks.compactMap { task -> String? in
                         guard task.state != .canceling,
                               task.state != .completed else {
                             return nil
@@ -1028,7 +1028,7 @@ extension OfflineQueueManager {
         // no-task claims first; a path handoff is not a failed queue attempt.
         let observedThrough = Date()
         let liveTasks = await session.allTasks
-        let activeUploadIds = Set(liveTasks.compactMap { task in
+        let activeUploadIds = Set<String>(liveTasks.compactMap { task -> String? in
             guard task.state != .canceling,
                   task.state != .completed else {
                 return nil
