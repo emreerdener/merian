@@ -152,7 +152,9 @@ struct ConfidenceBadge: View {
                 .animation(.easeInOut(duration: 0.4), value: isAnalyzing)
             }
             .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
+            // Preserve the native Button accessibility node. Re-composing this control with
+            // children: .ignore changes where an outer accessibilityIdentifier is exposed and
+            // makes UI automation unable to find the scanning badge as a Button.
             .accessibilityLabel(Text(data.label))
             .task(id: isAnalyzing) {
                 guard !isAnalyzing else {

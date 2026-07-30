@@ -395,8 +395,9 @@ assert_file_count "$confidence_badge_source" 0 "GeometryReader"
 assert_file_count "$confidence_badge_source" 0 ".offset(x:"
 assert_file_contains "$confidence_badge_source" ".allowsHitTesting(false)"
 assert_file_contains "$confidence_badge_source" ".accessibilityHidden(true)"
-assert_file_contains \
+assert_file_count \
   "$confidence_badge_source" \
+  0 \
   ".accessibilityElement(children: .ignore)"
 assert_file_contains \
   "$confidence_badge_source" \

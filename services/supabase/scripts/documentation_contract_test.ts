@@ -1059,9 +1059,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "visually clipping those translated descendants was insufficient",
       "passed all 1,243 unit tests and the 239,112,192-byte Release archive",
       "`145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`",
-      "Completed-state glare is drawn inside a fixed Canvas",
+      "completed-state glare is drawn inside a fixed Canvas",
       "label changes use a bounded opacity transition",
-      "one explicit accessibility element and label",
+      "`6ed0f557b3222890aca55e4c383b2c110ffc8269`",
+      "Run 105 on that exact SHA passed all 1,243 unit tests",
+      "`6141847844d37a450109e7d2ef2e7bd42512c1fc68991f5b7ef497a9625b2e7c`",
+      "`ScanningStatusBadge` was no longer discoverable through `app.buttons`",
+      "removes that recomposition",
+      "explicit label on the native Button",
       "reports both app and badge rectangles",
       "queued Insight same-ID handoff incident",
     ]
@@ -1699,9 +1704,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     compact(confidenceBadgeImplementationSource),
     "Canvas { context, size in",
   );
+  assert(
+    !confidenceBadgeImplementationSource.includes(
+      ".accessibilityElement(children: .ignore)",
+    ),
+    "ConfidenceBadge must preserve the native Button accessibility node.",
+  );
   assertStringIncludes(
     compact(confidenceBadgeImplementationSource),
-    ".accessibilityElement(children: .ignore)",
+    ".accessibilityLabel(Text(data.label))",
   );
   assertStringIncludes(
     compact(confidenceBadgeImplementationSource),
@@ -1960,7 +1971,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The smoke requires the Button's accessibility frame to be fully contained by the application frame before tapping and prints both rectangles on failure",
+    "Hosted Run 105 passed all 1,243 units and its exact-SHA Release archive but proved that synthetic recomposition also prevents the caller's `ScanningStatusBadge` identifier from being found as a Button",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "The smoke requires the native Button's accessibility frame to be fully contained by the application frame before tapping and prints both rectangles on failure",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2507,10 +2522,16 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "SwiftUI clipping constrained pixels but did not remove the descendants' transformed semantic geometry",
       "`ConfidenceBadge` paints completed-state glare inside a fixed Canvas",
       "translated text-reveal mask with an opacity-only content transition",
-      "one explicitly labeled accessibility element",
       "does not instantiate the glare Canvas or run its shimmer task",
-      "failure message now includes both the application and badge rectangles",
-      "rejects a return to either `GeometryReader` or horizontal-offset animation",
+      "`6ed0f557b3222890aca55e4c383b2c110ffc8269` removes that geometry",
+      "Hosted Build/Test Run 105 on that exact SHA passed all 1,243 unit tests",
+      "passed its current-SHA Release archive at 239,095,808 bytes",
+      "`6141847844d37a450109e7d2ef2e7bd42512c1fc68991f5b7ef497a9625b2e7c`",
+      "`ScanningStatusBadge` was absent from `app.buttons`",
+      "changed where its caller-applied identifier was exposed",
+      "removes only that synthetic recomposition",
+      "explicit label remains on the native Button",
+      "rejects a return to `GeometryReader`, horizontal-offset animation, or `.accessibilityElement(children: .ignore)`",
       "110 deployment-tooling and 12 documentation contracts",
       "complete 67-target generic iOS Simulator `build-for-testing` graph",
       "large network test file retains the same 32 whole-file baseline violations",
@@ -2533,7 +2554,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "`scanBoundActionGeneration`",
       "Two new exact protected unit regressions cover completed-record precedence",
       "all 1,243 unit tests, exactly one queued-scan UI smoke",
-      "Run 104 supplies current cross-file compilation, complete-unit runtime, and Release evidence through `2ca985f607`",
+      "Run 105 supplies current cross-file compilation, complete-unit runtime, and Release evidence through `6ed0f557b3`",
       "2026-07-queued-insight-same-id-handoff-regression.md",
       "The 2026-07-30 current-worktree rerun passed the complete Supabase tooling gate",
       "`b7be23f4e211b75c00a3df5fcd1f96f3905983c74ff3189bfc69ad5b0f7132c4`",

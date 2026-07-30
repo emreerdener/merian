@@ -204,11 +204,12 @@ The Scans tab is the user's primary offline biological journal.
   Share, and notes restart immediately after promotion. The shared animated
   scanning badge contains no translated child views: completed-state glare is
   painted inside a fixed Canvas, text changes use an opacity transition, and the
-  Button combines its children into one explicitly labeled accessibility
-  element. It is fixed to intrinsic size before exposing its accessibility
+  native Button receives an explicit accessibility label without synthetic
+  recomposition. It is fixed to intrinsic size before exposing its accessibility
   identifier, preventing invisible animation geometry from swallowing the
-  deterministic completion handshake. A fallback context can be built from
-  `QueuedScanSnapshot` if the live queue row vanishes between tap and fetch.
+  deterministic completion handshake while preserving native Button lookup
+  semantics. A fallback context can be built from `QueuedScanSnapshot` if the
+  live queue row vanishes between tap and fetch.
 - **Unified Empty States (`EmptyStateView`)**: Monolithic `VStack` geometries
   for 0-result states inside library and selection flows were replaced with a
   reusable `EmptyStateView` component mapping to strongly typed dynamic message

@@ -148,13 +148,23 @@ steps are tracked in the
 > (fingerprint
 > `145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`), then
 > failed the explicit containment assertion before tapping because the badge
-> still exposed an off-window accessibility frame. The current worktree removes
-> translated SwiftUI geometry from the control. Completed-state glare is drawn
-> inside a fixed Canvas, label changes use a bounded opacity transition, and the
-> Button exposes one explicit accessibility element and label. The smoke reports
-> both app and badge rectangles if containment ever fails again. A new hosted
-> committed descendant must pass the exact one-case queued-scan UI smoke and its
-> current-SHA archive together. See the
+> still exposed an off-window accessibility frame. Commit
+> `6ed0f557b3222890aca55e4c383b2c110ffc8269` removes translated SwiftUI geometry
+> from the control: completed-state glare is drawn inside a fixed Canvas and
+> label changes use a bounded opacity transition. Run 105 on that exact SHA
+> passed all 1,243 unit tests, every protected critical case, and its
+> 239,095,808-byte Release archive (fingerprint
+> `6141847844d37a450109e7d2ef2e7bd42512c1fc68991f5b7ef497a9625b2e7c`), but
+> failed earlier in the UI smoke because `ScanningStatusBadge` was no longer
+> discoverable through `app.buttons`. The queued Insight and native Back control
+> were present. Re-composing the native Button with
+> `.accessibilityElement(children: .ignore)` had changed where the caller's
+> identifier was exposed. The current worktree removes that recomposition,
+> retains the explicit label on the native Button, and adds a source guard
+> rejecting its return. The smoke still reports both app and badge rectangles if
+> containment ever fails again. A new hosted committed descendant must pass the
+> exact one-case queued-scan UI smoke and its current-SHA archive together. See
+> the
 > [queued Insight same-ID handoff incident](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md).
 
 ---

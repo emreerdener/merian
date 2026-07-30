@@ -63,16 +63,23 @@ readiness and publication continue to use the Supabase backend contracts.
   decoded audio, then deliberately failed before tapping because the badge frame
   remained outside the app window. This proved visual clipping did not remove
   transformed semantic geometry.
+- Hosted Run 105 on `6ed0f557b3` passed all 1,243 unit tests, every protected
+  critical case, and its exact-SHA Release archive after translated badge
+  geometry was replaced with Canvas drawing. The UI smoke opened the queued
+  Insight and observed native Back, then failed because `ScanningStatusBadge`
+  was not discoverable through `app.buttons`. The new
+  `.accessibilityElement(children: .ignore)` modifier had re-composed the native
+  control and changed where the caller's identifier was exposed.
 
-Run 104's retained archive evidence is version/build `1.0.2 (235)`, size
-239,112,192 bytes, source fingerprint
-`145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`, verified
+Run 105's retained archive evidence is version/build `1.0.2 (235)`, size
+239,095,808 bytes, source fingerprint
+`6141847844d37a450109e7d2ef2e7bd42512c1fc68991f5b7ef497a9625b2e7c`, verified
 main dSYM UUIDs, and no Debug-only seed markers. This evidence applies only to
-`2ca985f607`; it is not acceptance for the current correction.
+`6ed0f557b3`; it is not acceptance for the current native-control correction.
 
 ## Root Cause
 
-Four lifecycle boundaries combined:
+Five lifecycle boundaries combined:
 
 1. The deterministic fixture originally used elapsed time, allowing completion
    to race accessibility startup. Replacing that timer with an explicit badge
@@ -89,13 +96,17 @@ Four lifecycle boundaries combined:
    so promotion canceled the queued generation without changing the task key;
    SwiftUI had no reason to schedule a completed-result reveal. Field Notes
    synchronization used the same unsuitable task identity.
-4. The shared analyzing badge contains animated `GeometryReader` overlays. One
+4. The shared analyzing badge contained animated `GeometryReader` overlays. One
    exact simulator layout exposed an oversized, horizontally translated
    rectangle as the Button's accessibility frame. Intrinsic sizing, clipping,
    and hiding the decorative child constrained pixels but not the transformed
    semantic geometry. XCTest's ordinary element tap therefore targeted the
    five-point fallback sliver at the window edge instead of invoking the
    deterministic completion request.
+5. The first geometry-free revision also re-composed the native Button with
+   `.accessibilityElement(children: .ignore)`. Because `ScanningStatusBadge` is
+   assigned by the reusable caller, the identifier no longer resolved through
+   the native Button query used by the smoke and assistive control semantics.
 
 The individual fixes kept moving the hosted smoke farther through the flow, so
 earlier attempts appeared to solve one failure while leaving the next seam
@@ -125,9 +136,9 @@ unexercised.
 - `ConfidenceBadge` no longer lays out translated animation descendants.
   Completed-state glare is painted inside a fixed Canvas, label changes use an
   opacity-only content transition, and analyzing state neither instantiates nor
-  animates the glare. The Button combines its children into one explicitly
-  labeled accessibility element before the shared caller fixes it to intrinsic
-  size.
+  animates the glare. The native Button receives an explicit label without
+  `.accessibilityElement(children: .ignore)`, so the shared caller's identifier
+  remains discoverable as a Button after it fixes the control to intrinsic size.
 - The exact smoke rejects any badge accessibility frame outside the application
   window before tapping and reports both rectangles, so a future animation
   regression cannot masquerade as a queue-promotion failure.
@@ -150,19 +161,20 @@ cases prove:
 The portable workflow contract also pins child-promotion-before-event ordering,
 completed-wins destination binding, generation-keyed toolbar/Field Notes tasks,
 the centralized reveal fence, Canvas/opacity-only badge animation, absence of
-`GeometryReader`/horizontal offset geometry, single-element accessibility
-semantics, intrinsic scanning-badge bounds, and the diagnostic window-frame
-assertion. The exact XCUI smoke still requires native Back, queued badge and
-fact card, decoded audio before and after completion, Northern Cardinal
-takeover, Field Chat, and Share under exactly one passed, unskipped result.
+`GeometryReader`/horizontal offset geometry, absence of synthetic native-Button
+recomposition, an explicit accessibility label, intrinsic scanning-badge bounds,
+and the diagnostic window-frame assertion. The exact XCUI smoke still requires
+native Back, queued badge and fact card, decoded audio before and after
+completion, Northern Cardinal takeover, Field Chat, and Share under exactly one
+passed, unskipped result.
 
-Hosted Run 104 passed the complete 1,243-unit target and all protected routing
-cases on Xcode 26.6, then failed only the explicit pre-tap frame-containment
-check. The current Canvas/opacity correction passes compiler-frontend parse and
-strict focused SwiftLint for all three changed Swift files, portable workflow
-contracts, and diff validation. Workspace sandbox policy still denies
-CoreSimulator user cache/device access and SwiftPM manifest diagnostics, so the
-newest correction is not represented as locally runtime-accepted.
+Hosted Run 105 passed the complete 1,243-unit target and all protected routing
+cases on Xcode 26.6, then failed before the frame assertion because the
+synthetically re-composed badge was absent from `app.buttons`. The current
+native-Button correction retains the Canvas/opacity geometry fix and passes the
+portable workflow contract and diff validation. Workspace sandbox policy still
+denies CoreSimulator user cache/device access and SwiftPM manifest diagnostics,
+so the newest correction is not represented as locally runtime-accepted.
 
 ## Closure Gates
 

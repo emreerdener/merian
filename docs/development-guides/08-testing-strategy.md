@@ -2230,21 +2230,26 @@ no-op that preserves presentation generation and visible result actions.
 Production sessions and the Release coordinator remain no-ops for the request.
 The badge must not contain translated SwiftUI child geometry: completed-state
 glare is painted inside a fixed Canvas, label changes use an opacity-only
-content transition, and the Button combines its children into one explicitly
-labeled accessibility element before the composed label is fixed to intrinsic
-size. Hosted Run 104 proved that visually clipping translated descendants was
-not sufficient to constrain the semantic frame. The smoke requires the Button's
-accessibility frame to be fully contained by the application frame before
-tapping and prints both rectangles on failure. This prevents XCTest from
-silently substituting an edge-of-window activation point for an invalid
-off-window rectangle and reporting the resulting no-op as a promotion failure.
-The completed state must also expose the identifier-scoped Field Chat and Share
-toolbar buttons. Their delayed reveal and Field Notes synchronization are keyed
-to the monotonic presentation generation, not the unchanged scan ID, ensuring
-both tasks restart after promotion. Keep all navigation, shared-scanning,
-playable-media, downstream-toolbar, and handoff assertions when extending this
-regression. The exact-SHA hosted `Full iOS unit tests` job executes this case
-after the complete unit target; compilation alone is not acceptance evidence.
+content transition, and the native Button receives an explicit label without
+being re-composed with `.accessibilityElement(children: .ignore)` before the
+composed control is fixed to intrinsic size. Hosted Run 104 proved that visually
+clipping translated descendants was not sufficient to constrain the semantic
+frame. Hosted Run 105 passed all 1,243 units and its exact-SHA Release archive
+but proved that synthetic recomposition also prevents the caller's
+`ScanningStatusBadge` identifier from being found as a Button. The portable
+contract therefore rejects both animation patterns and that accessibility
+modifier. The smoke requires the native Button's accessibility frame to be fully
+contained by the application frame before tapping and prints both rectangles on
+failure. This prevents XCTest from silently substituting an edge-of-window
+activation point for an invalid off-window rectangle and reporting the resulting
+no-op as a promotion failure. The completed state must also expose the
+identifier-scoped Field Chat and Share toolbar buttons. Their delayed reveal and
+Field Notes synchronization are keyed to the monotonic presentation generation,
+not the unchanged scan ID, ensuring both tasks restart after promotion. Keep all
+navigation, shared-scanning, playable-media, downstream-toolbar, and handoff
+assertions when extending this regression. The exact-SHA hosted
+`Full iOS unit tests` job executes this case after the complete unit target;
+compilation alone is not acceptance evidence.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

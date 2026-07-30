@@ -572,15 +572,17 @@ presentation generation and result controls.
 
 The shared scanning badge contains no translated SwiftUI child geometry. Its
 completed-state glare is painted inside one fixed Canvas, label changes use an
-opacity-only content transition, and the Button combines its children into one
-explicitly labeled accessibility element before the caller applies an
-intrinsic-size constraint and assigns `ScanningStatusBadge`. This stronger
-boundary is deliberate: one simulator layout exposed a 703-point translated
-overlay as the Button's accessibility frame in a 402-point window; another
-hierarchy phase exposed width 1,406 around the same roughly 234-point visible
-capsule. Visually clipping those descendants did not repair their semantic
-geometry, as hosted Run 104 proved. Automation had consequently tapped a
-fallback edge point instead of the capsule. The exact queued-audio smoke
+opacity-only content transition, and its native Button receives an explicit
+label before the caller applies an intrinsic-size constraint and assigns
+`ScanningStatusBadge`. It is not re-composed through
+`.accessibilityElement(children: .ignore)`, because hosted Run 105 proved that
+doing so prevents the outer identifier from remaining discoverable as a Button.
+This stronger boundary is deliberate: one simulator layout exposed a 703-point
+translated overlay as the Button's accessibility frame in a 402-point window;
+another hierarchy phase exposed width 1,406 around the same roughly 234-point
+visible capsule. Visually clipping those descendants did not repair their
+semantic geometry, as hosted Run 104 proved. Automation had consequently tapped
+a fallback edge point instead of the capsule. The exact queued-audio smoke
 requires the frame to remain fully inside the app window before it initiates
 deterministic completion and reports both rectangles on failure.
 

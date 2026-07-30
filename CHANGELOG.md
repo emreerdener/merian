@@ -230,9 +230,11 @@ TestFlight, App Store, support, and QA.
   instead of resetting them. The shared animated scanning badge now draws its
   glare inside a fixed Canvas and fades text changes without translated mask
   views, instead of exposing invisible animation geometry as an oversized
-  off-window activation frame. Best-effort Wikipedia, GBIF, and enrichment
-  persistence now has a hard eight-active/eight-pending ceiling, so rapid queue
-  replay cannot build an unbounded retained-closure backlog.
+  off-window activation frame. It retains its native Button accessibility node
+  and explicit label so the caller's scanning identifier remains discoverable as
+  an actual control. Best-effort Wikipedia, GBIF, and enrichment persistence now
+  has a hard eight-active/eight-pending ceiling, so rapid queue replay cannot
+  build an unbounded retained-closure backlog.
 - Fixed the release-blocking scan failure that let Gemini finish but rejected
   the observation while saving it. Inline camera bytes no longer advertise a
   synthetic staging object, and the strict media finalizer now receives only
