@@ -25,7 +25,11 @@ TestFlight, App Store, support, and QA.
   cross-context event merge. The library event is retained to refresh the parent
   Scans surface. It also requires the completed observation to expose its Field
   Chat and Share toolbar controls, guarding the downstream connections after
-  queue promotion. Empty, duplicate-suite, duplicate-case, contradictory-suite,
+  queue promotion. The Explore replay-cancellation regression now waits against
+  a bounded monotonic deadline for its observable first URLSession dispatch
+  instead of assuming 100 executor yields are sufficient on every hosted
+  simulator. It still requires exactly one request before cancellation and no
+  replay afterward. Empty, duplicate-suite, duplicate-case, contradictory-suite,
   skipped, malformed, or wrong-test result evidence fails closed and retains a
   separate result bundle and log. Complete-unit critical evidence now applies
   the same exact-suite integrity: every protected case must appear exactly once

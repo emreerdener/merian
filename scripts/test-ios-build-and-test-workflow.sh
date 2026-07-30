@@ -24,6 +24,7 @@ queue_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManag
 queue_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Sync.swift"
 queue_url_session_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
 background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
+network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
 ios_test_sources="$repo_root/apps/ios/MerianTests"
 
 fail() {
@@ -363,6 +364,20 @@ assert_file_count "$queued_content_source" 0 "container: modelContext.container"
 assert_file_contains \
   "$queued_content_source" \
   "viewModel.promoteQueuedScanIfLocalRecordExists("
+assert_file_contains \
+  "$network_client_test_source" \
+  "testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay()"
+assert_file_contains "$network_client_test_source" "defer { requestTask.cancel() }"
+assert_file_contains \
+  "$network_client_test_source" \
+  "let firstRequestDeadline = ContinuousClock.now.advanced(by: .seconds(5))"
+assert_file_contains \
+  "$network_client_test_source" \
+  "while probe.count == 0 && ContinuousClock.now < firstRequestDeadline"
+assert_file_contains \
+  "$network_client_test_source" \
+  "try await Task.sleep(for: .milliseconds(10))"
+assert_file_count "$network_client_test_source" 0 "for _ in 0..<100 {"
 assert_file_contains \
   "$ui_seed_source" \
   "static var isEnabled: Bool { return false }"

@@ -1035,6 +1035,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "container main context while the sheet was bound to its environment",
       "performs the transaction in that exact bound",
       "immediately calls the existing production queue-promotion path",
+      "`838533e98589f4fca89643e966864a7d59adca05`",
+      "Run 102 on that exact SHA did not",
+      "complete unit target reported 1,240",
+      "`testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay`",
+      "fixed loop of 100 executor yields",
+      "waits up to five monotonic seconds",
+      "one request before cancellation and still one after",
+      "`2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`",
       "A new hosted committed",
       "descendant must still pass the complete unit target",
     ]
@@ -1888,6 +1896,26 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "`ScanLibraryEvents` remains responsible for parent-library refresh, but a cross-context event merge must not control the deterministic handoff",
   );
   assertStringIncludes(
+    compact(testingStrategySource),
+    "Establish the first dispatch through a bounded `ContinuousClock` wait for the observable mock request, not a fixed number of `Task.yield()` calls",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "assert an exact count of one immediately before cancellation and again after canonical `CancellationError` exits the retry delay",
+  );
+  assertStringIncludes(
+    compact(networkSource),
+    "The Explore replay-cancellation unit regression must observe its first `MockURLProtocol` dispatch through a bounded monotonic wait",
+  );
+  assertStringIncludes(
+    compact(networkSource),
+    "A fixed executor-yield count is not a URLSession scheduling guarantee on hosted simulators",
+  );
+  assertStringIncludes(
+    compact(networkSource),
+    "one request before cancellation and still one afterward",
+  );
+  assertStringIncludes(
     compact(shareIncidentSource),
     "A same-account legacy-record smoke test is also mandatory.",
   );
@@ -2378,7 +2406,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "roughly 74 seconds later",
       "That is a deterministic-fixture race, not evidence of a production queue failure",
       "Release still compiles only the false/no-op coordinator",
-      "complete generic iOS Simulator `build-for-testing` app/unit/UI graph pass",
+      "complete generic iOS Simulator `build-for-testing` app/unit/UI graph under the documented local CoreSimulator",
       "A new hosted committed descendant must execute the complete unit target",
       "`399482b649363c820b59fee1967bf94e35a5c0e7`",
       "Hosted Build/Test Run 101 on that exact SHA passed all 1,241 unit tests",
@@ -2391,6 +2419,21 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "immediately invokes the existing production `promoteQueuedScanIfLocalRecordExists` handoff",
       "library event remains for parent-library refresh",
       "cannot connect Xcode to CoreSimulatorService",
+      "`838533e98589f4fca89643e966864a7d59adca05`",
+      "Hosted Build/Test Run 102 on that exact SHA stopped before the queued UI smoke",
+      "complete unit target reported 1,240 passed, one failed, and zero skipped",
+      "`testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay`",
+      "`probe.count` was zero when the test expected the first request",
+      "fixed loop of 100 `Task.yield()` calls is not a time-bounded synchronization contract",
+      "current test-only correction waits against `ContinuousClock` for up to five seconds",
+      "request count must be exactly one before cancellation and exactly one after",
+      "portable workflow contract rejects a return to the fixed yield-count loop",
+      "Run 102's current-SHA Release archive independently passed at 239,083,520 bytes",
+      "`2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`",
+      "bounded-rendezvous follow-up passes the complete portable iOS tooling gate",
+      "all 12 documentation contracts",
+      "complete generic iOS Simulator `build-for-testing` app/unit/UI graph",
+      "test file's existing 32-violation whole-file baseline without adding a violation",
       "every one of the 71 allowlist names",
       "Physical beta testing already supplies two narrow behavioral observations",
       "one scan submitted with WiFi and cellular data disabled remained queued and completed after connectivity was restored",
@@ -2400,8 +2443,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "all 58 protected case names resolve to maintained tests",
       "the configured Edge suite reports 1,421 passed with zero failed",
       "all 89 isolated dependency graphs across 292 runtime files",
-      "The queued-audio smoke passed navigation, shared scanning-content, audio-page, decoded-playback, and badge-tap assertions",
-      "performs the exact Debug-only transaction on the sheet's bound environment `ModelContext`",
+      "The sole failure was the Explore replay-cancellation test observing zero requests before cancellation",
+      "yield-count polling with a bounded monotonic first-request wait",
       "The 2026-07-30 current-worktree rerun passed the complete Supabase tooling gate",
       "`b7be23f4e211b75c00a3df5fcd1f96f3905983c74ff3189bfc69ad5b0f7132c4`",
       "the desktop sandbox is denied access to Docker's Unix socket",

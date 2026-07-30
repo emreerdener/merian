@@ -47,19 +47,17 @@ session from creating an anonymous production user.
   signing URLs and upload. They refuse owner-row reconstruction when no
   observation media survives. Field Chat may repair non-media status because it
   does not publish media. Explore can then combine the repaired row with
-  owner-staged local image/video/audio;
-  guarded inline repair remains compatible with an older released client that
-  stages before Share. Recovery admits only a completed-but-missing job or exact
-  authenticated-owner `replay_exhausted` reason, or
-  `media_reconciliation_abandoned` with the matching composite
+  owner-staged local image/video/audio; guarded inline repair remains compatible
+  with an older released client that stages before Share. Recovery admits only a
+  completed-but-missing job or exact authenticated-owner `replay_exhausted`
+  reason, or `media_reconciliation_abandoned` with the matching composite
   dead-letter/quota/media-lifecycle proof. Active, retryable, current/later
   policy, unproven abandonment, deletion, foreign, no-ledger, and unknown state
-  fails closed. Restore signing uses the explicit
-  `scan_share_restore` purpose and deterministic scan/category filenames, so a
-  completed ingestion can stage surviving local media only after an unrestricted
-  scan read confirms the active JWT-owned row or proves it absent for guarded
-  reconstruction; tombstoned and foreign rows fail closed. Bulk status never
-  mutates server state.
+  fails closed. Restore signing uses the explicit `scan_share_restore` purpose
+  and deterministic scan/category filenames, so a completed ingestion can stage
+  surviving local media only after an unrestricted scan read confirms the active
+  JWT-owned row or proves it absent for guarded reconstruction; tombstoned and
+  foreign rows fail closed. Bulk status never mutates server state.
 - Treats `failed_retryable` status as a two-step durable transition rather than
   permanent server ownership. The first observation schedules one
   generation-fenced retry. Its exact `server_retryable_failure` marker and
@@ -72,15 +70,14 @@ session from creating an anonymous production user.
 - Translates known technical Explore failures at the UI boundary so database
   authorization and missing-row implementation detail are not customer-facing.
 - Decodes Explore media-health incidents from the canonical `{data:[...]}`
-  envelope and one exact direct-array compatibility shape retained
-  defensively. An empty `[]` is therefore a valid no-incidents result instead
-  of a Scan Library decode error; retained traces do not prove that this shape
-  was deployed, and any other malformed success shape becomes
-  `MerianError.invalidResponse`.
-  Scan Library coalesces rapid queue-event refreshes of this independent
-  read-only endpoint, preserves one trailing refresh requested during an
-  in-flight call, and revalidates the authenticated owner before projecting the
-  private incident queue.
+  envelope and one exact direct-array compatibility shape retained defensively.
+  An empty `[]` is therefore a valid no-incidents result instead of a Scan
+  Library decode error; retained traces do not prove that this shape was
+  deployed, and any other malformed success shape becomes
+  `MerianError.invalidResponse`. Scan Library coalesces rapid queue-event
+  refreshes of this independent read-only endpoint, preserves one trailing
+  refresh requested during an in-flight call, and revalidates the authenticated
+  owner before projecting the private incident queue.
 - Requires `/delete-scan` to return a decodable `success: true` envelope before
   confirming cloud erasure. A missing, false, malformed, or contradictory 2xx
   response is `MerianError.invalidResponse`; the durable
@@ -133,9 +130,9 @@ from `challenge_updates`. Both update models optionally decode
 `creditedLevelNumber`, `creditedLevelTitle`, `creditedCompletedCount`, and
 `creditedTargetCount`, plus removed-item metadata used when an identification or
 evidence correction invalidates credit. These fields describe the level changed
-by the scan; when a completion advances immediately, current counts describe
-the next level while credited counts preserve the just-completed full ring.
-Toast accessors fall back to current counts against the legacy response shape.
+by the scan; when a completion advances immediately, current counts describe the
+next level while credited counts preserve the just-completed full ring. Toast
+accessors fall back to current counts against the legacy response shape.
 
 Only updates with nonempty `newlyCompletedItems` represent a new credit. The
 first item is in server checklist order and supplies the toast label/focus
@@ -227,6 +224,13 @@ newer generation. Foundation may surface its async URLSession bridge as
 `CancellationError` only when the enclosing Swift task is canceled. Session
 invalidation or another transport-owned cancellation retains its original
 `URLError`.
+
+The Explore replay-cancellation unit regression must observe its first
+`MockURLProtocol` dispatch through a bounded monotonic wait before canceling the
+task. A fixed executor-yield count is not a URLSession scheduling guarantee on
+hosted simulators. Keep both exact request-count assertions: one request before
+cancellation and still one afterward, proving the cancellation-propagating retry
+delay did not construct a replay.
 
 A Supabase platform `404 NOT_FOUND` is not an application-level missing record.
 `performAuthenticatedRequest` classifies it only when the fixed

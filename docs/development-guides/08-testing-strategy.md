@@ -2008,8 +2008,13 @@ Identification latency has focused contract coverage at each boundary:
   combined Explore recovery/media restoration, and the Ask/Field Chat repair
   seams. Its route-retry coverage also cancels a replayable request after its
   first dispatch and proves no second request is issued or noncanonical
-  `URLError.cancelled` escapes the task-owned transport boundary.
-  `MerianConfigTests` locks customer-facing Explore error translation;
+  `URLError.cancelled` escapes the task-owned transport boundary. Establish the
+  first dispatch through a bounded `ContinuousClock` wait for the observable
+  mock request, not a fixed number of `Task.yield()` calls: URLSession protocol
+  scheduling is not coupled to executor-yield count on a loaded hosted
+  simulator. The test must still assert an exact count of one immediately before
+  cancellation and again after canonical `CancellationError` exits the retry
+  delay. `MerianConfigTests` locks customer-facing Explore error translation;
   `InsightChatTests` locks retryable still-syncing feedback.
 
 Before production percentage increases, run a device/simulator lifecycle matrix

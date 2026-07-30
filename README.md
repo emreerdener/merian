@@ -111,7 +111,20 @@ steps are tracked in the
 > insert. The current follow-up performs the transaction in that exact bound
 > context and immediately calls the existing production queue-promotion path;
 > the library event remains for parent-library refresh. Release retains a no-op
-> coordinator, and production queue timing is unchanged. A new hosted committed
+> coordinator, and production queue timing is unchanged. That context-bound
+> follow-up is committed as `838533e98589f4fca89643e966864a7d59adca05`. Run 102
+> on that exact SHA did not reach the queued UI smoke because its complete unit
+> target reported 1,240 passed and one failed:
+> `testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay` observed
+> zero requests while expecting the first request. Its fixed loop of 100
+> executor yields did not provide a time-bounded rendezvous with URLSession on
+> the loaded hosted simulator. The current test-only follow-up waits up to five
+> monotonic seconds for that observable first dispatch, then preserves both
+> exact assertions: one request before cancellation and still one after
+> cancellation. Run 102's current-SHA Release archive independently passed at
+> 239,083,520 bytes for `1.0.2 (235)`, fingerprint
+> `2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`, with
+> verified main dSYM UUIDs and no Debug UI-seed markers. A new hosted committed
 > descendant must still pass the complete unit target, one-case queued-scan UI
 > smoke, and current-SHA archive together.
 

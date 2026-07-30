@@ -762,7 +762,7 @@ struct MerianNetworkClientTests {
         #expect(probe.recordedIdempotencyKeys == [requestID, requestID])
     }
 
-    @Test func testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay() async {
+    @Test func testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay() async throws {
         let requestID = "019fa6ef-2f9f-7c7a-9e18-ec70e067a331"
         let scanID = "019fa6ef-39ab-77b1-a331-a86678f53043"
         let probe = NetworkRequestProbe()
@@ -789,9 +789,15 @@ struct MerianNetworkClientTests {
                 idempotencyKey: requestID
             )
         }
-        for _ in 0..<100 {
-            if probe.count > 0 { break }
-            await Task.yield()
+        defer { requestTask.cancel() }
+
+        // URLSession may need more than a fixed number of executor yields to
+        // schedule URLProtocol on a loaded hosted simulator. Wait against a
+        // bounded monotonic deadline for the observable transport boundary
+        // this test intends to cancel.
+        let firstRequestDeadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while probe.count == 0 && ContinuousClock.now < firstRequestDeadline {
+            try await Task.sleep(for: .milliseconds(10))
         }
         #expect(probe.count == 1)
 
