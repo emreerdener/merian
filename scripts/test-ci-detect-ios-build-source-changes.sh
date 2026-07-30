@@ -78,6 +78,8 @@ assert_scope true pull_request "scripts/embed-ios-build-provenance.sh"
 assert_scope true pull_request "scripts/ios-release-source-fingerprint.sh"
 assert_scope true pull_request "scripts/check-ios-project-source-membership.sh"
 assert_scope true pull_request "scripts/test-ios-project-source-membership.sh"
+assert_scope true pull_request "scripts/validate-ios-focused-test-results.sh"
+assert_scope true pull_request "scripts/test-validate-ios-focused-test-results.sh"
 assert_scope true workflow_dispatch "docs/README.md"
 assert_scope true merge_group "docs/README.md"
 

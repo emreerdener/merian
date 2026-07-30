@@ -207,7 +207,8 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and both macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the full unit-test plus Release-archive gate.
+replace the complete unit target, critical queued-scan UI smoke, and
+Release-archive gate.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
 does not report a completed required check when an entire workflow is skipped by
@@ -226,14 +227,12 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    plus both shared test bundles with `build-for-testing`, and executes the
    complete `merianTests` target with `test-without-building`. This prevents a
    newly added Swift or Objective-C file from escaping compilation when the
-   committed Xcode project was not regenerated. It also compiles `merianUITests`
-   so UI-test-only changes cannot silently break, but UI tests remain a separate
-   runtime gate. The unit-test selector does not select or skip any suite. Xcode
-   process-level parallel testing is disabled because several hardware,
-   networking, and persistence suites exercise shared singletons. The result
-   gate fails if Xcode returns success without a `Passed` result, a non-empty
-   test run, zero skipped tests, an exact passed/total count match, and at least
-   one passed test case from each critical concurrency boundary:
+   committed Xcode project was not regenerated. The unit-test selector does not
+   select or skip any suite. Xcode process-level parallel testing is disabled
+   because several hardware, networking, and persistence suites exercise shared
+   singletons. The result gate fails if Xcode returns success without a `Passed`
+   result, a non-empty test run, zero skipped tests, an exact passed/total count
+   match, and at least one passed test case from each critical concurrency boundary:
    `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    reports every named scan-flow regression as `Passed`. The current validator
@@ -303,6 +302,24 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
    successful validation is recorded as
    `Critical scan-flow regressions:
    passed` in the hosted job summary.
+
+   After the complete unit target passes, the same checkout, simulator
+   destination, locked packages, and `build-for-testing` output execute one
+   deterministic runtime UI smoke:
+   `merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`.
+   This is deliberately narrower than the complete UI suite, whose
+   camera/Photos/hardware cases remain separate. The focused result must report
+   exactly one passed case and zero failed or skipped cases. Its structured tree
+   must contain exactly that case under `merianUITests`; missing, wrong,
+   duplicated, malformed, empty, or contradictory evidence fails the job.
+   `scripts/validate-ios-focused-test-results.sh` enforces the hosted evidence,
+   and `scripts/test-validate-ios-focused-test-results.sh` provides portable
+   positive and adversarial fixtures. The seed writes a valid one-second PCM WAV
+   into Documents. The test must observe its filename-scoped playback control,
+   which appears only after player creation and spectrogram decoding, both
+   before and after completion handoff. The outer carousel-page identifier is
+   insufficient because it also exists while audio is unavailable.
+
 2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
    signing disabled. It requires production-shaped RevenueCat client
@@ -358,9 +375,10 @@ rejection after tracked-source changes, typed local-marker preparation ancestry,
 typed CI-marker exact-SHA enforcement, malformed identity rejection,
 rejection of hidden `assume-unchanged`/`skip-worktree` source state,
 main-target-only preflight/provenance phase attachment, generated-phase
-cardinality and ordering, canonical shell commands, critical-result
-validation, structured failure-diagnostic extraction, and the unconditional
-final decision. Its generated-project fixtures explicitly detach, duplicate,
+cardinality and ordering, canonical shell commands, complete-unit and exact
+focused-UI result validation, structured failure-diagnostic extraction, and
+the unconditional final decision. Its generated-project fixtures explicitly
+detach, duplicate,
 reorder, and replace the release phases. The hosted project-guardrail lane runs
 this target on Ubuntu without booting a simulator. JSON release-marker
 validation uses the same strict Ruby parser on Linux and macOS. The portable
@@ -389,8 +407,9 @@ failure:
 
 | Failure                                                               | Artifact or local action                                                                                                                   |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the `.xcresult`, package-resolution log, and `xcodebuild` log.                |
+| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.           |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.        |
+| Queued-scan UI smoke or focused-result validation                     | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require exactly one protected case. |
 | Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`. |
 | Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                              |
 
@@ -2095,8 +2114,13 @@ Insight to expose native **Back** in the Scans navigation stack plus
 `ScanningStatusBadge` and **Did you know?**, locking parity with foreground
 scanning rather than a nested-sheet variant. It then verifies the same audio
 carousel page exists before and after the seeded **Northern Cardinal** completed
-record replaces queued content in place. Keep all navigation, shared-scanning,
-and media-handoff assertions when extending this regression.
+record replaces queued content in place. Its seed writes a valid PCM WAV to
+Documents, and the test requires the decoded filename-scoped playback control
+before and after replacement; a page backed only by a missing filename cannot
+pass. Keep all navigation, shared-scanning, playable-media, and handoff
+assertions when extending this regression. The exact-SHA hosted `Full iOS unit
+tests` job executes this case after the complete unit target; compilation alone
+is not acceptance evidence.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

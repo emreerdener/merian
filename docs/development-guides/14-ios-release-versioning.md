@@ -253,8 +253,9 @@ to App Store Connect.
 Before TestFlight/App Store export, require all of the following for the exact
 release commit:
 
-1. `iOS Build and Test / Production readiness` is green; its Full unit tests
-   and Current-SHA Release archive jobs both succeeded.
+1. `iOS Build and Test / Production readiness` is green; its Full iOS unit
+   tests job passed the complete unit target and exact queued-scan completion UI
+   smoke, and its Current-SHA Release archive job succeeded.
 2. `make prepare-ios-release VERSION=x.y.z` produced the matching local prep
    marker and all tracked version/project changes are committed.
 3. A fresh locally signed archive from that clean commit passes the signing,

@@ -320,8 +320,18 @@ final class merianUITests: XCTestCase {
         let audioPage = app.otherElements["AudioPlaybackCarouselPage_ui_test_queued_audio_handoff.wav"]
         XCTAssertTrue(audioPage.waitForExistence(timeout: 8.0), "Audio carousel page was missing before the queued-to-result handoff")
 
+        let playbackControl = app.buttons["AudioPlaybackControl_ui_test_queued_audio_handoff.wav"]
+        XCTAssertTrue(
+            playbackControl.waitForExistence(timeout: 8.0),
+            "Seeded queued audio never became readable and playable"
+        )
+
         XCTAssertTrue(app.staticTexts["Northern Cardinal"].waitForExistence(timeout: 8.0), "Seeded completed record did not take over the queued sheet")
         XCTAssertTrue(audioPage.waitForExistence(timeout: 2.0), "Audio carousel page disappeared after the queued-to-result handoff")
+        XCTAssertTrue(
+            playbackControl.waitForExistence(timeout: 8.0),
+            "Readable audio did not survive the queued-to-result handoff"
+        )
     }
 
     @MainActor

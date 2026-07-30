@@ -8,6 +8,17 @@ TestFlight, App Store, support, and QA.
 
 ### Critical Scan Reliability
 
+- The exact-SHA hosted iOS gate now executes the deterministic queued-audio
+  completion handoff instead of merely compiling the UI-test bundle. Release
+  evidence must show exactly one passed, unskipped
+  `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` case: the queued
+  observation opens inside Scans with native Back navigation and the shared
+  scanning experience, then keeps its audio page when the completed analysis
+  replaces it. The seed now writes a valid PCM WAV and the smoke waits for the
+  decoded playback control before and after handoff, so a retained filename
+  backed by missing or corrupt media cannot pass. Empty, duplicate, skipped,
+  malformed, or wrong-test result evidence fails closed and retains a separate
+  result bundle and log.
 - Queued and staged captures now open as pushed destinations inside the Scans
   library navigation stack instead of layering another sheet over the library.
   Their waiting state now matches foreground scanning with the same dynamic

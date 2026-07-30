@@ -7,7 +7,11 @@ startup_workflow="$repo_root/.github/workflows/ios-startup-safety.yml"
 source_membership_check="$repo_root/scripts/check-ios-project-source-membership.sh"
 source_membership_test="$repo_root/scripts/test-ios-project-source-membership.sh"
 critical_results_check="$repo_root/scripts/validate-ios-critical-test-results.sh"
+focused_results_check="$repo_root/scripts/validate-ios-focused-test-results.sh"
 failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagnostics.sh"
+ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
+ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
+audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
 
 fail() {
   echo "error: $*" >&2
@@ -34,6 +38,24 @@ assert_count() {
   actual_count="$(grep -Fc -- "$text" "$workflow" || true)"
   [[ "$actual_count" == "$expected_count" ]] \
     || fail "Expected $expected_count occurrence(s) of '$text'; found $actual_count."
+}
+
+assert_before() {
+  local first="$1"
+  local second="$2"
+  local first_line
+  local second_line
+
+  first_line="$(
+    grep -Fn -- "$first" "$workflow" | head -n 1 | cut -d: -f1 || true
+  )"
+  second_line="$(
+    grep -Fn -- "$second" "$workflow" | head -n 1 | cut -d: -f1 || true
+  )"
+  [[ -n "$first_line" && -n "$second_line" ]] \
+    || fail "Cannot verify workflow ordering for '$first' before '$second'."
+  (( first_line < second_line )) \
+    || fail "Workflow must place '$first' before '$second'."
 }
 
 assert_action_release() {
@@ -138,11 +160,17 @@ assert_no_runner_context_in_job_env() {
   || fail "Missing generated-project source membership test: $source_membership_test"
 [[ -f "$critical_results_check" ]] \
   || fail "Missing critical iOS test-result validator: $critical_results_check"
+[[ -f "$focused_results_check" ]] \
+  || fail "Missing focused iOS test-result validator: $focused_results_check"
 [[ -f "$failure_diagnostics_extractor" ]] \
   || fail "Missing iOS failure-diagnostics extractor: $failure_diagnostics_extractor"
+[[ -f "$ui_test_source" ]] || fail "Missing iOS UI-test source: $ui_test_source"
+[[ -f "$ui_seed_source" ]] || fail "Missing iOS UI seed source: $ui_seed_source"
+[[ -f "$audio_page_source" ]] || fail "Missing Insight audio page: $audio_page_source"
 
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
+assert_contains "    name: Full iOS unit tests"
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
 assert_contains "macos-26"
 assert_contains "/Applications/Xcode_26.6.app/Contents/Developer"
@@ -186,7 +214,12 @@ assert_contains 'echo "XCODE_ARCHIVE=$RUNNER_TEMP/Merian.xcarchive"'
 assert_contains "CODE_SIGNING_ALLOWED=NO"
 assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
+assert_contains "bash scripts/validate-ios-focused-test-results.sh"
 assert_contains 'Critical scan-flow regressions: \`passed\`'
+assert_contains 'Exact queued-scan UX regression: \`passed\`'
+assert_contains "-only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
+assert_contains 'echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"'
+assert_contains '${{ runner.temp }}/ios-critical-scan-ui.xcresult'
 assert_contains "bash scripts/extract-ios-test-failure-diagnostics.sh"
 assert_contains "dwarfdump --uuid"
 assert_contains 'main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"'
@@ -196,6 +229,15 @@ assert_contains "production-readiness:"
 assert_contains "if: always()"
 assert_contains 'UNIT_TEST_RESULT" != "success'
 assert_contains 'RELEASE_ARCHIVE_RESULT" != "success'
+assert_before \
+  "- name: Validate and summarize unit-test execution" \
+  "- name: Run queued-scan completion UI smoke"
+assert_before \
+  "- name: Run queued-scan completion UI smoke" \
+  "- name: Validate and summarize queued-scan completion UI smoke"
+assert_before \
+  "- name: Validate and summarize queued-scan completion UI smoke" \
+  "- name: Upload unit-test evidence"
 
 if grep -Eq '^[[:space:]]+paths(-ignore)?:' "$workflow"; then
   fail "The required workflow must use in-workflow scope, not event path filters."
@@ -203,18 +245,19 @@ fi
 
 # Building and running the whole unit-test target is deliberate. A selector
 # below the target level can silently remove Camera, inference, or offline-sync
-# coverage while leaving xcodebuild green.
+# coverage while leaving xcodebuild green. The UI bundle is compiled in full,
+# then exactly one deterministic critical-path regression is executed.
 assert_count 2 "-only-testing:merianTests"
-assert_count 1 "-only-testing:merianUITests"
+assert_count 2 "-only-testing:merianUITests"
+assert_count 1 "-only-testing:merianUITests/"
 if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
   fail "The production gate must not narrow merianTests to selected suites."
 fi
 if grep -Fq -- "-skip-testing:merianTests" "$workflow"; then
   fail "The production gate must not skip any merianTests suite."
 fi
-if grep -Fq -- "-only-testing:merianUITests/" "$workflow" \
-  || grep -Fq -- "-skip-testing:merianUITests" "$workflow"; then
-  fail "The compile gate must include the complete merianUITests target."
+if grep -Fq -- "-skip-testing:merianUITests" "$workflow"; then
+  fail "The production gate must not skip any merianUITests case."
 fi
 
 # Every third-party action must use an immutable 40-character commit SHA.
@@ -243,12 +286,22 @@ assert_no_runner_context_in_job_env "$workflow"
 bash -n "$source_membership_check"
 bash -n "$source_membership_test"
 bash -n "$critical_results_check"
+bash -n "$focused_results_check"
 bash -n "$failure_diagnostics_extractor"
 assert_file_contains "$critical_results_check" '.result == "Passed"'
 assert_file_contains "$critical_results_check" "CameraManagerTests"
 assert_file_contains "$critical_results_check" "InferenceEngineTests"
 assert_file_contains "$critical_results_check" "OfflineQueueManagerTests"
 assert_file_contains "$critical_results_check" "SyncStateManagerTests"
+assert_file_contains "$focused_results_check" '.totalTestCount == 1'
+assert_file_contains "$focused_results_check" '.skippedTests == 0'
+assert_file_contains "$focused_results_check" '($all_cases | length) == 1'
+assert_file_contains "$ui_seed_source" "try prepareQueuedAudioHandoffMedia()"
+assert_file_contains "$ui_seed_source" 'appendASCII("RIFF")'
+assert_file_contains "$audio_page_source" '"AudioPlaybackControl_'
+assert_file_contains \
+  "$ui_test_source" \
+  'app.buttons["AudioPlaybackControl_ui_test_queued_audio_handoff.wav"]'
 
 for exact_scan_regression in \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \

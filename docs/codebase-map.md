@@ -167,8 +167,9 @@ Recent schema milestones:
 Compiled iOS assurance lives in `.github/workflows/ios-build-and-test.yml`. Its
 fail-closed detector (`scripts/ci-detect-ios-build-source-changes.sh`) sends
 every iOS/watch/project build input, merge-queue commit, and manual request to
-pinned Xcode 26.6 jobs that execute the complete unit-test target and
-independently create an unsigned current-SHA Release archive.
+pinned Xcode 26.6 jobs that execute the complete unit-test target, then the
+deterministic queued-scan completion UI smoke, and independently create an
+unsigned current-SHA Release archive.
 Release preparation and distribution provenance are enforced by
 `scripts/prepare-ios-release.sh`, `scripts/check-ios-release-prep.sh`,
 `scripts/ios-release-source-fingerprint.sh`, and
@@ -195,9 +196,10 @@ and phase-order fixtures live in
 source against the generated build phases and rejects source code orphaned
 outside all declared targets; its adversarial fixture is
 `scripts/test-ios-project-source-membership.sh`.
-`scripts/test-ios-build-and-test-workflow.sh` locks the full-target selectors,
-invocation of that membership check, exact-SHA and lockfile behavior, immutable
-action pins, archive/dSYM checks, and unconditional final decision. Repository
+`scripts/test-ios-build-and-test-workflow.sh` locks the complete unit-target and
+exact queued-scan UI selectors, invocation of that membership check, exact-SHA
+and lockfile behavior, immutable action pins, focused-result validation,
+archive/dSYM checks, and unconditional final decision. Repository
 rules should require only `iOS Build and Test / Production readiness`. On
 failure, `scripts/extract-ios-test-failure-diagnostics.sh` reads the structured
 result summary first, then the failed test tree, and uses the raw build log only
@@ -711,7 +713,11 @@ seeded flows in `MerianApp.swift` through `UITestSeedCoordinator`. The queued
 audio handoff regression opens a staged tile, asserts embedded Back navigation,
 the shared scanning status badge and `Did you know?` card, then verifies the
 same audio page remains available before and after the completed result replaces
-the queued presentation.
+the queued presentation. The seed writes a valid Documents PCM WAV, and the
+smoke requires its decoded playback control on both sides of the handoff rather
+than accepting a filename-only page. The exact-SHA hosted iOS gate executes this
+one deterministic regression after the complete unit target; the remaining UI
+tests are compiled but retain their feature-specific runtime gates.
 
 Deno tests live under `services/supabase/functions/_tests/` plus function-local
 `*.test.ts` files. Run from `services/supabase/functions` with:

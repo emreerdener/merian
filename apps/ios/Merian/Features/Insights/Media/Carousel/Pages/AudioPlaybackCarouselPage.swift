@@ -184,6 +184,10 @@ struct AudioPlaybackCarouselPage: View {
         "AudioPlaybackCarouselPage_\(URL(fileURLWithPath: filePath).lastPathComponent)"
     }
 
+    private var playbackControlAccessibilityIdentifier: String {
+        "AudioPlaybackControl_\(URL(fileURLWithPath: filePath).lastPathComponent)"
+    }
+
     init(
         filePath: String,
         isAudioBoostEnabled: Binding<Bool> = .constant(false),
@@ -307,6 +311,8 @@ struct AudioPlaybackCarouselPage: View {
                 .opacity(isPlaybackControlPresented ? (isPlaybackControlDisabled ? 0.3 : 1.0) : 0)
                 .allowsHitTesting(isPlaybackControlPresented)
                 .animation(.easeInOut(duration: 0.25), value: isPlaybackControlPresented)
+                .accessibilityLabel(isPlaying ? "Pause audio" : "Play audio")
+                .accessibilityIdentifier(playbackControlAccessibilityIdentifier)
 
                 playbackBadges
 

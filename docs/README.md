@@ -32,10 +32,11 @@ as their permanent engineering identity.
   changes.
 - **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
   `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
-  execute the complete unit-test target and independently inspect an unsigned
-  Release archive from the exact workflow SHA. Repository rules must require the
-  stable `iOS Build and Test / Production readiness` result; the focused Startup
-  Safety lane is supplementary. See the
+  execute the complete unit-test target and deterministic queued-scan completion
+  UI smoke, then independently inspect an unsigned Release archive from the
+  exact workflow SHA. Repository rules must require the stable
+  `iOS Build and Test / Production readiness` result; the focused Startup Safety
+  lane is supplementary. See the
   [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
   and
   [`release runbook`](./development-guides/14-ios-release-versioning.md#current-sha-ci-archive-gate).

@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile and execute the complete iOS unit-test target, then produce a validation-only Release archive from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic queued-scan completion UI smoke, then produce a validation-only Release archive from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -56,7 +56,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: macos-26
-    timeout-minutes: 65
+    timeout-minutes: 80
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
 
@@ -80,6 +80,11 @@ jobs:
             echo "XCODE_TEST_SUMMARY=$RUNNER_TEMP/ios-unit-test-summary.json"
             echo "XCODE_TEST_TREE=$RUNNER_TEMP/ios-unit-test-tree.json"
             echo "XCODE_EVIDENCE=$RUNNER_TEMP/ios-unit-test-evidence.json"
+            echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"
+            echo "XCODE_UI_BUILD_LOG=$RUNNER_TEMP/ios-critical-scan-ui-xcodebuild.log"
+            echo "XCODE_UI_TEST_SUMMARY=$RUNNER_TEMP/ios-critical-scan-ui-summary.json"
+            echo "XCODE_UI_TEST_TREE=$RUNNER_TEMP/ios-critical-scan-ui-tree.json"
+            echo "XCODE_UI_EVIDENCE=$RUNNER_TEMP/ios-critical-scan-ui-evidence.json"
           } >> "$GITHUB_ENV"
 
       - name: Verify exact source revision
@@ -287,17 +292,138 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Print unit-test failure diagnostics
-        if: failure()
+      - name: Run queued-scan completion UI smoke
+        id: xcode-critical-scan-ui
+        timeout-minutes: 10
         run: |
-          diagnostics="${RUNNER_TEMP}/ios-unit-test-diagnostics.txt"
-          bash scripts/extract-ios-test-failure-diagnostics.sh \
-            "$XCODE_TEST_SUMMARY" \
-            "$XCODE_TEST_TREE" \
-            "$XCODE_BUILD_LOG" > "$diagnostics"
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          xcodebuild test-without-building \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -configuration Debug \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            -resultBundlePath "$XCODE_UI_RESULT_BUNDLE" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff \
+            2>&1 | tee "$XCODE_UI_BUILD_LOG"
+
+      - name: Validate and summarize queued-scan completion UI smoke
+        id: validate-critical-scan-ui
+        if: always() && steps.xcode-critical-scan-ui.outcome != 'skipped'
+        env:
+          TEST_STEP_OUTCOME: ${{ steps.xcode-critical-scan-ui.outcome }}
+          IOS_TEST_DESTINATION: ${{ steps.ios-test-simulator.outputs.destination }}
+        run: |
+          summary_available="false"
+          test_tree_available="false"
+          if [ -d "$XCODE_UI_RESULT_BUNDLE" ] \
+            && xcrun xcresulttool get test-results summary \
+              --path "$XCODE_UI_RESULT_BUNDLE" > "$XCODE_UI_TEST_SUMMARY"; then
+            summary_available="true"
+          fi
+          if [ -d "$XCODE_UI_RESULT_BUNDLE" ] \
+            && xcrun xcresulttool get test-results tests \
+              --path "$XCODE_UI_RESULT_BUNDLE" > "$XCODE_UI_TEST_TREE"; then
+            test_tree_available="true"
+          fi
+
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg destination "${IOS_TEST_DESTINATION:-unavailable}" \
+            --arg outcome "${TEST_STEP_OUTCOME:-unknown}" \
+            --arg suite "merianUITests" \
+            --arg case_name "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff" \
+            --arg xcode "$(xcodebuild -version 2>/dev/null | paste -sd ' ' - || true)" \
+            '{
+              source_sha: $sha,
+              event: $event,
+              simulator_destination: $destination,
+              test_step_outcome: $outcome,
+              required_suite: $suite,
+              required_case: $case_name,
+              xcode: $xcode
+            }' > "$XCODE_UI_EVIDENCE"
+
           {
             echo ""
-            echo "#### Unit-test diagnostics"
+            echo "### Queued-scan completion UI smoke"
+            echo ""
+            echo "- Source SHA: \`$GITHUB_SHA\`"
+            echo "- Xcode step: \`${TEST_STEP_OUTCOME:-unknown}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$summary_available" == "true" ]; then
+            jq -r '
+              [
+                "- Result: `\(.result)`",
+                "- Passed: `\(.passedTests // 0)`",
+                "- Failed: `\(.failedTests // 0)`",
+                "- Skipped: `\(.skippedTests // 0)`"
+              ] | .[]
+            ' "$XCODE_UI_TEST_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Result bundle summary: unavailable" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "${TEST_STEP_OUTCOME:-unknown}" == "success" ]; then
+            if [ "$summary_available" != "true" ]; then
+              echo "Focused UI xcodebuild succeeded without a readable result summary." >&2
+              exit 1
+            fi
+            if [ "$test_tree_available" != "true" ]; then
+              echo "Focused UI xcodebuild succeeded without a readable test tree." >&2
+              exit 1
+            fi
+            bash scripts/validate-ios-focused-test-results.sh \
+              "$XCODE_UI_TEST_SUMMARY" \
+              "$XCODE_UI_TEST_TREE" \
+              "merianUITests" \
+              "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
+            echo "- Exact queued-scan UX regression: \`passed\`" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Print iOS test failure diagnostics
+        if: failure()
+        env:
+          UI_TEST_STEP_OUTCOME: ${{ steps.xcode-critical-scan-ui.outcome }}
+          UI_VALIDATION_STEP_OUTCOME: ${{ steps.validate-critical-scan-ui.outcome }}
+        run: |
+          diagnostics="${RUNNER_TEMP}/ios-unit-test-diagnostics.txt"
+          ui_failure="false"
+          if [ "${UI_TEST_STEP_OUTCOME:-skipped}" != "success" ] \
+            && [ "${UI_TEST_STEP_OUTCOME:-skipped}" != "skipped" ]; then
+            ui_failure="true"
+          fi
+          if [ "${UI_VALIDATION_STEP_OUTCOME:-skipped}" == "failure" ]; then
+            ui_failure="true"
+          fi
+
+          if [ "$ui_failure" == "true" ]; then
+            bash scripts/extract-ios-test-failure-diagnostics.sh \
+              "$XCODE_UI_TEST_SUMMARY" \
+              "$XCODE_UI_TEST_TREE" \
+              "$XCODE_UI_BUILD_LOG" > "$diagnostics"
+          else
+            bash scripts/extract-ios-test-failure-diagnostics.sh \
+              "$XCODE_TEST_SUMMARY" \
+              "$XCODE_TEST_TREE" \
+              "$XCODE_BUILD_LOG" > "$diagnostics"
+          fi
+          {
+            echo ""
+            echo "#### iOS test diagnostics"
             echo ""
             echo '```text'
             head -n 160 "$diagnostics"
@@ -314,6 +440,9 @@ jobs:
             ${{ runner.temp }}/ios-unit-test-summary.json
             ${{ runner.temp }}/ios-unit-test-tree.json
             ${{ runner.temp }}/ios-unit-xcode-version.txt
+            ${{ runner.temp }}/ios-critical-scan-ui-evidence.json
+            ${{ runner.temp }}/ios-critical-scan-ui-summary.json
+            ${{ runner.temp }}/ios-critical-scan-ui-tree.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -328,6 +457,10 @@ jobs:
             ${{ runner.temp }}/ios-unit-package-resolution.log
             ${{ runner.temp }}/ios-unit-test-tree.json
             ${{ runner.temp }}/ios-unit-test-diagnostics.txt
+            ${{ runner.temp }}/ios-critical-scan-ui.xcresult
+            ${{ runner.temp }}/ios-critical-scan-ui-xcodebuild.log
+            ${{ runner.temp }}/ios-critical-scan-ui-summary.json
+            ${{ runner.temp }}/ios-critical-scan-ui-tree.json
           if-no-files-found: ignore
           retention-days: 14
 
@@ -712,7 +845,7 @@ jobs:
             echo "- Scope job: \`${SCOPE_RESULT}\`"
             echo "- macOS verification required: \`${SHOULD_RUN:-unknown}\`"
             echo "- Scope reason: ${SCOPE_REASON:-unavailable}"
-            echo "- Full unit tests: \`${UNIT_TEST_RESULT}\`"
+            echo "- Full iOS tests: \`${UNIT_TEST_RESULT}\`"
             echo "- Current-SHA Release archive: \`${RELEASE_ARCHIVE_RESULT}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -734,10 +867,10 @@ jobs:
           if [ "$UNIT_TEST_RESULT" != "success" ] \
             || [ "$RELEASE_ARCHIVE_RESULT" != "success" ]; then
             echo \
-              "Full iOS unit tests: ${UNIT_TEST_RESULT:-unknown};" \
+              "Full iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
               "current-SHA Release archive: ${RELEASE_ARCHIVE_RESULT:-unknown}." >&2
-            echo "iOS unit tests and the current-SHA Release archive must both pass." >&2
+            echo "The complete unit target, critical queued-scan UI smoke, and current-SHA Release archive must all pass." >&2
             exit 1
           fi
 
-          echo "The exact workflow SHA passed full iOS unit tests and Release archive validation."
+          echo "The exact workflow SHA passed the complete iOS unit target, critical queued-scan UI smoke, and Release archive validation."

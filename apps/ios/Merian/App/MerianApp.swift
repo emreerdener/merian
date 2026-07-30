@@ -107,6 +107,7 @@ enum UITestSeedCoordinator {
                 OfflineQueueManager.shared.unsyncedItemsCount = 0
                 MerianLog.general.debug("UITestSeedCoordinator seeded achievement deletion refresh record.")
             } else if arguments.contains(queuedAudioHandoffArgument) {
+                try prepareQueuedAudioHandoffMedia()
                 context.insert(queuedAudioHandoffScan())
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
                 triggeredQueuedAudioHandoffs.removeAll(keepingCapacity: false)
@@ -241,6 +242,64 @@ enum UITestSeedCoordinator {
         ]
         guard let data = try? JSONEncoder().encode(items) else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    private static func prepareQueuedAudioHandoffMedia() throws {
+        guard let documentsURL = FileManager.default.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        let audioURL = documentsURL.appendingPathComponent(
+            queuedAudioHandoffAudioFilename,
+            isDirectory: false
+        )
+        try queuedAudioHandoffWAVData().write(to: audioURL, options: .atomic)
+    }
+
+    private static func queuedAudioHandoffWAVData() -> Data {
+        let sampleRate: UInt32 = 8_000
+        let sampleCount = Int(sampleRate)
+        let bytesPerSample: UInt16 = 2
+        let audioByteCount = UInt32(sampleCount) * UInt32(bytesPerSample)
+
+        var data = Data()
+        func appendASCII(_ value: String) {
+            data.append(contentsOf: value.utf8)
+        }
+        func appendUInt16LE(_ value: UInt16) {
+            data.append(UInt8(truncatingIfNeeded: value))
+            data.append(UInt8(truncatingIfNeeded: value >> 8))
+        }
+        func appendUInt32LE(_ value: UInt32) {
+            data.append(UInt8(truncatingIfNeeded: value))
+            data.append(UInt8(truncatingIfNeeded: value >> 8))
+            data.append(UInt8(truncatingIfNeeded: value >> 16))
+            data.append(UInt8(truncatingIfNeeded: value >> 24))
+        }
+
+        appendASCII("RIFF")
+        appendUInt32LE(36 + audioByteCount)
+        appendASCII("WAVE")
+        appendASCII("fmt ")
+        appendUInt32LE(16)
+        appendUInt16LE(1)
+        appendUInt16LE(1)
+        appendUInt32LE(sampleRate)
+        appendUInt32LE(sampleRate * UInt32(bytesPerSample))
+        appendUInt16LE(bytesPerSample)
+        appendUInt16LE(16)
+        appendASCII("data")
+        appendUInt32LE(audioByteCount)
+
+        for sampleIndex in 0..<sampleCount {
+            let sample: Int16 = (sampleIndex / 10).isMultiple(of: 2) ? 4_000 : -4_000
+            appendUInt16LE(UInt16(bitPattern: sample))
+        }
+
+        return data
     }
 
     private static func queuedAudioHandoffScan() -> OfflineQueuedScan {

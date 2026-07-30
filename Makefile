@@ -52,6 +52,7 @@ test-ios-ci-tooling:
 	bash scripts/test-ios-build-and-test-workflow.sh
 	bash scripts/test-extract-ios-test-failure-diagnostics.sh
 	bash scripts/test-validate-ios-critical-test-results.sh
+	bash scripts/test-validate-ios-focused-test-results.sh
 
 validate-ios-migration-guardrails:
 	bash scripts/check-ios-migration-source-guardrails.sh
