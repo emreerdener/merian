@@ -1526,13 +1526,20 @@ state is cached from that response.
 ### `/get-community-identification-feed`
 
 Returns unresolved `needs_id` requests for the Identify Requests dashboard and
-full Requests stack page. Optional `scope`
-accepts `all` or `mine` and defaults to `all`; `mine` returns unresolved
-requests created by the authenticated viewer. Optional `latitude` and
-`longitude` sort local public-coordinate requests first, followed by recent
-requests. Cursor fields are `before_requested_at` and `before_request_id`. Rows
-may include `taxonomy_version_id`, `projection_state`, and
-`consensus_processing_state`.
+full **Identify requests** stack page. `limit` defaults to 30 and is capped at
+100. Optional `scope` accepts `all` or `mine` and defaults to `all`; `mine`
+returns unresolved requests created by the authenticated viewer. Optional
+`group` accepts `all`, `plants`, `birds`, `insects`, `fungi`, `mammals`, or
+`reptiles_amphibians`. Requests and Activity share the same lineage-backed
+classifier.
+
+Optional `latitude` and `longitude` must be supplied together and sort local
+public-coordinate requests first, followed by recent requests. Cursor fields
+`before_requested_at` and `before_request_id` must also be supplied together.
+Rows may include `taxonomy_version_id`, `projection_state`,
+`consensus_processing_state`, `request_group`, and ordered `media_items`. The
+iOS dashboard explicitly requests 12 rows; the complete feed explicitly
+requests 30.
 
 ### `/get-community-identification-activity`
 
@@ -1542,6 +1549,49 @@ for requests created by the authenticated viewer rather than activity performed
 by that viewer. `limit` defaults to 30 and is capped at 100. The paired cursor
 fields are `before_activity_at` and `before_activity_id`; ordering is
 deterministic by `(activity_at DESC, activity_id DESC)`.
+
+The authenticated JSON request is:
+
+```json
+{
+  "limit": 10,
+  "scope": "mine",
+  "group": "birds",
+  "before_activity_at": "2026-07-30T19:00:00.000Z",
+  "before_activity_id": "00000000-0000-4000-8000-000000000002"
+}
+```
+
+The cursor fields are optional, but supplying only one returns `400`. Unknown
+scope/group values, malformed cursor timestamps, malformed cursor UUIDs, and
+invalid limits also return `400`.
+
+The success envelope is:
+
+```json
+{
+  "data": [
+    {
+      "activity_id": "00000000-0000-4000-8000-000000000010",
+      "activity_type": "suggestion_burst",
+      "request_id": "00000000-0000-4000-8000-000000000011",
+      "post_id": "00000000-0000-4000-8000-000000000012",
+      "scan_id": "00000000-0000-4000-8000-000000000013",
+      "hero_image_url": "https://media.example/request.jpg",
+      "activity_at": "2026-07-30T20:00:00.000Z",
+      "suggestion_count": 3,
+      "recent_actor_names": ["Explorer A", "Explorer B"],
+      "taxon_id": "00000000-0000-4000-8000-000000000014",
+      "taxon_common_name": "White-tailed Eagle",
+      "taxon_scientific_name": "Haliaeetus albicilla",
+      "taxon_rank": "species",
+      "consensus_score": 0.78,
+      "request_group": "birds",
+      "media_items": []
+    }
+  ]
+}
+```
 
 Items have type `suggestion_burst`, `consensus_changed`, or `resolved`.
 Suggestions on one request lifecycle chain into the same burst when each
@@ -1556,9 +1606,18 @@ The Edge Function is the only client entry point. Its RPC and internal
 projection are granted to `service_role` only; `PUBLIC`, `anon`, and
 `authenticated` cannot invoke or read them directly. Reads apply the same
 request visibility, blocking, shadowban, tombstone, unshare, moderation, media
-health quarantine, and active-media rules as Identify. Actor names are resolved from
-visible users at read time and are not stored in the projection. Fetching this
+health quarantine, and active-media rules as Identify. Actor names are resolved
+from visible users at read time and are not stored in the projection. A
+suggestion burst with no actors visible to the viewer is omitted. Fetching this
 feed does not read or mutate bell unread state.
+
+`config.toml` deliberately uses `verify_jwt = false` for this route because the
+repository owns JWT verification inside `withEdgeHandler`/`requireAuth`.
+Anonymous-session and authenticated user JWTs are still required; the setting
+does not make the endpoint public. The handler derives `self_id` from the
+verified user and never accepts it from the request body, then calls
+`public.get_community_identification_activity(...)` through its service-role
+client.
 
 ### `/get-community-identification-detail`
 

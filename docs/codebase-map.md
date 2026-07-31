@@ -465,6 +465,17 @@ Explore community identification:
 - `restore-community-identification`
 - `submit-community-feedback`
 
+The root iOS contract is Observations / Field trips / Identify. Identify owns
+Requests/Index; its Requests dashboard and complete feed routes live in
+`apps/ios/Merian/Features/Explore/Identify/Views/ExploreCommunityIdentificationView.swift`.
+Index reuses `Features/SpeciesDictionary/Catalog/`. The Activity route's
+service adapter lives in
+`services/supabase/functions/get-community-identification-activity/`, while
+`20260731050009_add_community_identification_activity.sql` owns its internal
+projection, triggers, shared request classifier, service-only RPC, and current-
+generation backfill. Tree/galaxy code remains under
+`Features/SpeciesDictionary/Tree/` but has no MVP navigation entry point.
+
 Explore publishing, activity, and delivery:
 
 - `get-explore-notifications`

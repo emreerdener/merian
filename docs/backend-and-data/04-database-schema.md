@@ -604,6 +604,9 @@ Changing an ID withdraws the old active row and inserts a new row.
 
 ### Internal Community Identify activity projection
 
+Migration
+`20260731050009_add_community_identification_activity.sql` creates and backfills
+this projection.
 `internal.community_identification_activity_groups` stores service-only
 suggestion bursts, standalone consensus changes, and immutable resolution
 milestones for each request generation.
@@ -613,6 +616,16 @@ Suggestions chain into one burst at intervals of up to and including 60
 minutes. Consensus events caused by a suggestion enrich the associated burst,
 while unrelated consensus changes and every resolution remain separate.
 
+`trg_record_community_identification_suggestion_activity` projects
+`explore_identifications` inserts.
+`trg_record_community_consensus_activity` projects
+`community_consensus_events` inserts. Both trigger functions are
+`SECURITY INVOKER`; their internal maintenance helpers are revoked from client
+roles and granted to `service_role`. Activity is historical: later suggestion
+withdrawal does not rewrite an already emitted suggestion burst, while its
+resulting consensus event may create or enrich the appropriate consensus
+metadata.
+
 Both tables have RLS enabled and no direct `PUBLIC`, `anon`, or
 `authenticated` privileges. Only `service_role` can maintain or read the
 projection. The service-only
@@ -621,7 +634,9 @@ names at read time, applies the request feed's visibility and shared
 scope/taxonomy filters, and paginates deterministically on
 `(activity_at, activity_id)`. Migration backfill includes only each request's
 current `requested_at` generation; older withdrawn/reopened generations remain
-available through request audit detail.
+available through request audit detail. The RPC joins projection rows back to
+the request's current `requested_at` generation, so prior generations remain
+stored for audit but cannot leak into the Activity feed after reopen.
 
 ### `community_consensus_jobs`, `community_consensus_events`
 

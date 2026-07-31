@@ -453,6 +453,18 @@ Explore is an active product surface, not a future roadmap item. It supports
 public, following, trending, nearby, and map discovery. Rich posts can include
 imagery, short video, and audio. Canonical public links use `naturebook.earth`.
 
+The native Explore root has exactly three bottom items: Observations, Field
+trips, and Identify. Observations contains Feed/Map. Identify contains
+Requests/Index. Requests is a dashboard with shared All/Yours/organism filters,
+12 open request cards, and 10 recent grouped Activity rows; complete feeds push
+as **Identify requests** and **Identify activity** pages. Index is the existing
+Species Dictionary catalog. Species links select Identify/Index and request
+links select Identify/Requests before opening detail.
+
+The taxonomy Tree/galaxy visualization is explicitly deferred beyond MVP. Its
+code, API support, and default-off release flag are preserved, but no current
+user navigation entry point may expose it.
+
 ## 7.2 Social graph and engagement - Implemented
 
 The current community model includes:
@@ -464,9 +476,16 @@ The current community model includes:
 - Notifications.
 - Public usernames, display names, avatars, and author profiles.
 - Community identification participation.
+- Grouped Identify Activity for suggestion bursts, consensus changes, and
+  resolution milestones.
 
 The stale "react-only" description is retired. Conversation and relationship
 features are part of the current codebase.
+
+Identify Activity is a request-discovery summary, not the Explore notifications
+feed. It does not create or update bell unread state. Visible actor labels are
+resolved at read time, and request/media visibility plus blocking rules apply
+before an Activity row is returned.
 
 ## 7.3 Reporting and blocking - Implemented
 

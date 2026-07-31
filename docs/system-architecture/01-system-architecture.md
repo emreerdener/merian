@@ -298,6 +298,19 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/refresh-merian-reference-images`: Internal service-role cron worker that
     promotes high-quality published Explore media into Merian-sourced species
     reference images and mirrors source visibility.
+- **Explore Community Identification**
+  - `/get-community-identification-feed`: Authenticated unresolved request feed
+    with owner scope, organism group, optional nearby ordering, and stable
+    request cursor.
+  - `/get-community-identification-activity`: Authenticated service-backed feed
+    of one-hour suggestion bursts, standalone consensus changes, and immutable
+    resolutions. It uses a service-role-only projection/RPC, resolves visible
+    actor labels at read time, and paginates by
+    `(activity_at, activity_id)`.
+  - `/get-community-identification-detail`: Authenticated privacy-filtered
+    request detail and identification audit timeline.
+  - Identify Activity is not the Explore notifications/bell feed and never
+    changes unread state.
 - **Public Web & Sharing**
   - `apps/web/`: Next.js + Mantine frontend for public Naturebook pages on the
     canonical `naturebook.earth` origin.

@@ -92,7 +92,7 @@ named DEBUG startup TODO are documented in
 - Heavy personalization, editorial curation, or ranking beyond the shipped `Recent` / `Following` / `Trending` / `Nearby` modes
 - Public species pages in this scope
 
-## Shipped V1 Snapshot (2026-05-05)
+## Shipped V1 Snapshot (updated 2026-07-31)
 
 The Explore feed and map shell are now live. The current shipped implementation is:
 
@@ -110,6 +110,17 @@ The Explore feed and map shell are now live. The current shipped implementation 
   completion scan ID to a device-local photo/video-poster thumbnail; tapping one
   pushes the existing Insight view in the same Explore navigation stack and
   returns to the outing on back.
+- Identify request and Activity previews load concurrently with independent
+  states, share the current All/Yours/organism filter, and reload together on
+  refresh or filter change. **See all requests** and **See all activity** carry
+  that filter to stack pages titled **Identify requests** and **Identify
+  activity**. Activity groups suggestion bursts at an inclusive 60-minute
+  boundary, folds submission-caused consensus into a burst, and keeps unrelated
+  consensus changes and resolutions as separate milestones.
+- Identify Activity is separate from the bell notifications feed and does not
+  affect unread state. Its internal projection stores actor IDs/counts rather
+  than names, resolves visible labels at read time, and applies request,
+  blocking, moderation, tombstone, unshare, quarantine, and active-media rules.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
 - Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.

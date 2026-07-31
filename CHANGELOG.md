@@ -1749,8 +1749,17 @@ TestFlight, App Store, support, and QA.
 - Added an Identify tab to Explore for Ask the Community identification
   requests, with an Insight-sheet CTA, community request queue, taxonomy search,
   disagreement prompts, and backend consensus storage.
-- Added Requests and Activity modes to the Identify header, with an All/Yours
-  request filter and an Activity placeholder for future consensus updates.
+- Consolidated Identify Requests and Activity into one filtered dashboard:
+  12 open request cards under **Identify requests**, followed by 10 grouped
+  **Recent activity** rows. Complete paginated feeds remain reachable through
+  **See all requests** and **See all activity**, with stack titles **Identify
+  requests** and **Identify activity**.
+- Added service-backed Identify Activity for suggestion bursts, standalone
+  consensus changes, and immutable resolution milestones. Requests and Activity
+  load independently, share All/Yours/organism filters, refresh together, and
+  keep request browsing available when only Activity fails.
+- Updated Recent activity outage copy so Activity failures no longer identify
+  the unavailable section as Explore.
 - Added owner-only Community request options with an Edit Request sheet for
   updating request notes and location sharing.
 - Added reporting to Community request detail menus for requests owned by other
@@ -1926,8 +1935,9 @@ TestFlight, App Store, support, and QA.
   user scan sessions.
 - Added extra species dictionary data fetches so undiscovered species can still
   load dictionary pages when users navigate to them.
-- Added an Explore bottom navigation for Observations, Identify, and Dictionary,
-  with Feed and Map grouped inside the Observations header toggle.
+- Reduced Explore bottom navigation to Observations, Field trips, and Identify,
+  with Feed/Map grouped inside Observations and Requests/Index grouped inside
+  Identify.
 - Added a searchable Species Dictionary catalog with category browsing,
   Dictionary detail pages, and species reference imagery.
 - Added Dictionary category browsing with a Recently Added featured species
@@ -1936,9 +1946,13 @@ TestFlight, App Store, support, and QA.
 - Added high-level Dictionary group cards with custom graphics for broad browse
   paths such as Plants, Birds, Insects, Fungi, Mammals, and Reptiles &
   Amphibians, with toolbar search available inside those species lists.
-- Added a Catalog/Tree segmented control to the Explore Dictionary header,
-  keeping the taxonomy tree inside Dictionary while the Explore bottom menu
-  stays focused on Observations, Identify, and Dictionary.
+- Moved the Species Dictionary catalog into Identify's **Index** mode and
+  removed Dictionary/Index from bottom navigation. Species links now select
+  Identify/Index before opening detail, while request links select
+  Identify/Requests.
+- Disconnected the unfinished taxonomy Tree/galaxy map from MVP navigation while
+  preserving its code, API support, and default-off feature flag for future
+  work.
 - Matched the main camera tab bar icon size, label size, and item spacing to the
   Explore bottom navigation.
 - Removed search from the Explore Dictionary Tree view so the header toggle

@@ -349,6 +349,14 @@ steps are tracked in the
 
 ### Explore
 
+- Explore uses exactly three bottom items: **Observations**, **Field trips**, and
+  **Identify**. Identify owns a **Requests / Index** root picker. Requests is a
+  dashboard with shared All/Yours/organism filters, a 12-card **Identify
+  requests** preview, and 10 grouped **Recent activity** rows. **See all
+  requests** and **See all activity** push paginated **Identify requests** and
+  **Identify activity** pages; Index renders the existing Species Dictionary
+  overview. The unfinished taxonomy Tree/galaxy map is preserved behind its
+  default-off flag but has no MVP navigation entry point.
 - Public feed, following feed, trending, nearby, and map views backed by
   Supabase RPCs and Edge Functions.
 - Explore post details expose the same floating Field chat entry point as
@@ -444,9 +452,10 @@ steps are tracked in the
 - Loaded Species Dictionary pages share readable UUID-first links at
   `https://naturebook.earth/species/{speciesId}/{slug}`. The UUID stays
   authoritative, while UUID-only and stale-slug browser links permanently
-  redirect to the current readable canonical URL. Installed apps open Explore's
-  Dictionary stack; browser recipients get the server-rendered public reference
-  page with attribution-approved imagery and no scan- or user-specific data.
+  redirect to the current readable canonical URL. Installed apps select
+  Explore Identify/Index before opening species detail; browser recipients get
+  the server-rendered public reference page with attribution-approved imagery
+  and no scan- or user-specific data.
 
 ### Native Share Extensions
 

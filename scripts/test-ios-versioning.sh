@@ -647,12 +647,14 @@ assert_fails_with "main-Info.plist is missing a readable MERIAN_SOURCE_FINGERPRI
 
 assert_fails_with "EXPORT_PATH must be a child of" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
+  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
   PROJECT_YML="$tmp_dir/project.yml" \
   IOS_EXPORT_SKIP_PREP_CHECK=1 \
   EXPORT_PATH="$tmp_dir/outside-export" \
   "$repo_root/scripts/export-ios-release.sh"
 assert_fails_with "EXPORT_OPTIONS_PLIST must be inside EXPORT_PATH" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
+  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
   PROJECT_YML="$tmp_dir/project.yml" \
   IOS_EXPORT_SKIP_PREP_CHECK=1 \
   EXPORT_PATH="$tmp_dir/build/export" \
@@ -660,12 +662,14 @@ assert_fails_with "EXPORT_OPTIONS_PLIST must be inside EXPORT_PATH" \
   "$repo_root/scripts/export-ios-release.sh"
 assert_fails_with "EXPORT_PATH must not contain . or .. path components" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
+  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
   PROJECT_YML="$tmp_dir/project.yml" \
   IOS_EXPORT_SKIP_PREP_CHECK=1 \
   EXPORT_PATH="$tmp_dir/build/missing/../../outside-export" \
   "$repo_root/scripts/export-ios-release.sh"
 assert_fails_with "EXPORT_OPTIONS_PLIST must not contain . or .. path components" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
+  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
   PROJECT_YML="$tmp_dir/project.yml" \
   IOS_EXPORT_SKIP_PREP_CHECK=1 \
   EXPORT_PATH="$tmp_dir/build/export" \

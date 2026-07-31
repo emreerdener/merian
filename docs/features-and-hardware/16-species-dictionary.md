@@ -19,11 +19,11 @@ This creates three separate species surfaces in the iOS app:
 
 ## Product Scope
 
-In-app entry includes similar-species cards in Insight and Explore, Dictionary
-browsing, and canonical or legacy external species links. An external link
-selects Explore's Dictionary tab and pushes the page in the existing Explore
-navigation stack. The standalone dictionary presenter still uses a
-large-detent sheet when opened directly.
+In-app entry includes similar-species cards in Insight and Explore,
+Identify/Index browsing, and canonical or legacy external species links. An
+external link selects Explore's Identify tab and Index mode before pushing the
+page in the existing Explore navigation stack. The standalone dictionary
+presenter still uses a large-detent sheet when opened directly.
 
 Included in V1:
 
@@ -172,7 +172,7 @@ parser accepts the canonical form, UUID-only compatibility form, and legacy
 host/scheme forms, ignores the optional slug for identity, and publishes only
 the normalized UUID through `AppEventPublisher`. `CaptureWorkspaceViewModel`
 clears conflicting launch routes, protects the destination from the immediate
-foreground timeout reset, opens Explore, selects Dictionary, and pushes a
+foreground timeout reset, opens Explore, selects Identify/Index, and pushes a
 `SpeciesDictionaryRoute(entryPoint: .deepLink)`.
 
 The share button appears only after the loaded response supplies a valid UUID
@@ -316,13 +316,14 @@ count and representative image so it does not duplicate the `All` total. iOS
 uses that featured card as the visible Recently Added entry point, renders
 `Your Region` as a full-width MapKit snapshot card when a matched native-region
 catalog exists, and moves `All` into a bottom row link. Explore keeps all
-Dictionary surfaces under its `Index` bottom-navigation entry; the root Index
-tab currently shows only the Catalog overview/search content.
-`FeatureFlags.isEnabled(.speciesDictionaryTree)` is the default-off release
-gate for the Catalog/Tree header control, the Tree canvas, and the internal
-taxonomy destination. DEBUG builds can override it from Settings → Feature
-Flags; Release builds always use the code default. The region snapshot uses the
-backend-matched native region and falls back to a default United States map only
+Dictionary surfaces under the Identify tab's `Index` mode; Index renders the
+Catalog overview/search content directly.
+`FeatureFlags.isEnabled(.speciesDictionaryTree)` remains the default-off release
+gate for the Tree canvas and preserved internal taxonomy destination. DEBUG
+builds can override it from Settings → Feature Flags, but the override does not
+restore a disconnected Explore entry point; Release builds always use the code
+default. The region snapshot uses the backend-matched native region and falls
+back to a default United States map only
 when MapKit geocoding cannot resolve that region label. If the overview has no
 non-empty region summaries with species counts, iOS hides the Region section
 and the "Browse all regions" row instead of showing an empty regional path.
@@ -442,13 +443,13 @@ content.
 
 ### Tree Mode
 
-The Tree of Life canvas and its Explore Dictionary header segment remain
-implemented but are hidden while
-`FeatureFlag.speciesDictionaryTree.defaultValue` is `false`. The same resolved
-flag also guards the internal taxonomy destination so a stale route cannot
-expose the unfinished canvas. When the flag is enabled in a DEBUG build, Tree
-appears within Index rather than as a separate Explore bottom-navigation tab
-and uses the same Edge Function with `mode: "tree"`:
+The Tree of Life/galaxy visualization is deferred beyond MVP. Its canvas,
+internal taxonomy destination, graph DTOs, and Edge contract remain implemented,
+but all Explore entry points are disconnected.
+`FeatureFlag.speciesDictionaryTree.defaultValue` remains `false`, and the same
+resolved flag guards the preserved internal taxonomy destination so a stale
+route cannot expose the unfinished canvas. The retained implementation uses the
+same Edge Function with `mode: "tree"`:
 
 ```json
 {
@@ -817,7 +818,7 @@ Manual acceptance:
 - Share a loaded dictionary page and confirm the payload uses the canonical
   UUID HTTPS URL and common-name subject.
 - Open canonical and legacy HTTPS/custom-scheme species links and confirm
-  Explore selects Dictionary, pushes the species, and survives an immediate
+  Explore selects Identify/Index, pushes the species, and survives an immediate
   session-timeout event.
 - In a browser, confirm canonical metadata, licensed image attribution, textual
   similar-species navigation, native-app CTA, and clean omission of absent

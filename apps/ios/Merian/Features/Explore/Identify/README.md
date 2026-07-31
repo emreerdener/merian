@@ -1,6 +1,162 @@
 # Explore Identify
 
-The `Identify` directory contains features related to community-driven species identification.
+The `Identify` directory owns community-driven species identification inside
+Explore. Identify is one of the three root bottom-navigation items and contains
+the `Requests` / `Index` root mode picker.
 
 ## Purpose
-This area allows users to suggest identifications for public posts in the Explore feed or ask the community for help with unknown observations. It includes feedback forms and specialized UI for community consensus on a given capture.
+
+This area lets explorers ask for help with an observation, review recent
+identification activity, open complete request/activity feeds, suggest a taxon,
+and follow community consensus to resolution. The existing Species Dictionary
+overview is rendered as Identify's `Index` mode, although its implementation
+continues to live under `Features/SpeciesDictionary/Catalog`.
+
+## Root surfaces
+
+`ExploreIdentifyMode` has exactly two cases:
+
+- `.requests` renders `ExploreCommunityIdentificationView`.
+- `.index` renders `SpeciesDictionaryOverviewView`.
+
+The Requests root is a dashboard with one shared
+`CommunityIdentificationRequestFilter`. `All` and `Yours` precede Plants,
+Birds, Insects, Fungi, Mammals, and Herps. `Yours` maps to API scope `mine` and
+means requests owned by the viewer, not suggestions made by the viewer.
+Organism filters apply to Requests and Activity together.
+
+The dashboard layout is:
+
+1. **Identify requests** / **See all requests** heading row.
+2. Dismissible **Ask the community** information banner.
+3. Up to 12 open request cards.
+4. A deliberately larger section gap.
+5. **Recent activity** / **See all activity** heading row.
+6. Up to 10 grouped Activity rows.
+7. **Give feedback**.
+
+Request and Activity previews start concurrently through `async let`. Each
+section keeps independent loading, empty, stale-content error, initial error,
+and Retry presentation. Pull-to-refresh and filter changes reload both. Activity
+temporary-service failures use Recent activity-specific copy; they must not show
+the generic “Explore is temporarily unavailable” message.
+
+## Complete feeds
+
+The dashboard pushes two typed routes while preserving the selected filter:
+
+- `ExploreCommunityRequestsFeedRoute` opens
+  `ExploreCommunityRequestsFeedView`, titled **Identify requests**.
+- `ExploreCommunityActivityFeedRoute` opens
+  `ExploreCommunityActivityFeedView`, titled **Identify activity**.
+
+Both pages hide the root tab bar and Requests/Index picker. Back navigation
+returns to the dashboard with its prior filter. Complete feeds request 30 rows
+per page and de-duplicate IDs while appending:
+
+- Requests paginate on `(requested_at, request_id)` and retain location-aware
+  ordering when coordinates are available.
+- Activity paginates on `(activity_at, activity_id)`.
+
+Changing filters or pulling to refresh starts a new load generation and resets
+the cursor. Near-end row/card appearance requests the next page.
+
+## Activity rows
+
+`CommunityIdentificationActivityRow` is a compact, tappable summary containing:
+
+- request thumbnail or placeholder;
+- Activity-type symbol;
+- visible actor/count summary for suggestion bursts;
+- latest consensus or resolved taxon when available;
+- relative timestamp; and
+- disclosure chevron.
+
+Every row pushes the existing `ExploreCommunityRequestRoute`; Activity has no
+separate detail page. Supported item types are `suggestion_burst`,
+`consensus_changed`, and `resolved`.
+
+## Navigation policy
+
+`ExploreView` owns the shared `NavigationPath`:
+
+- Species links select Explore's Identify tab and `.index` mode before pushing
+  `SpeciesDictionaryRoute`.
+- Community request links select Explore's Identify tab and `.requests` mode
+  before pushing `ExploreCommunityRequestRoute`.
+- The complete Requests and Activity routes are stack-only destinations and are
+  never root tabs.
+
+Keep these policies centralized in `ExploreInitialTabPolicy`,
+`ExploreInitialIdentifyModePolicy`, and
+`openCommunityIdentificationRequest(_:)`. A new caller must not infer mode from
+the route after presentation.
+
+## Network and privacy contract
+
+Requests call `/get-community-identification-feed`; Activity calls
+`/get-community-identification-activity`. Both receive the same `scope` and
+`group` filters. The dashboard limits are exactly 12 Requests and 10 Activity
+groups; backend defaults are not used for previews.
+
+The Activity Edge Function requires a user JWT through the repository's custom
+`withEdgeHandler` authentication boundary, even though platform
+`verify_jwt = false` is configured for that route. It invokes the database RPC
+with a service-role client. Projection tables and the RPC deny direct
+`PUBLIC`, `anon`, and `authenticated` access.
+
+Activity reads apply request withdrawal/unshare/moderation, owner shadowban,
+viewer blocking, scan tombstone, aggregate media quarantine, and active-media
+rules. Actor IDs/counts are stored in the internal projection; actor names are
+resolved and visibility-filtered at read time. Activity does not affect the
+Explore bell feed or unread state.
+
+Suggestions on the same request generation chain into one burst when every
+adjacent suggestion is at most 60 minutes apart. The exact 60-minute boundary
+is inclusive. Submission-caused consensus changes enrich that burst; unrelated
+consensus changes are standalone rows, and resolution is always a separate
+immutable milestone. Migration backfill includes only the request's current
+generation.
+
+## File ownership
+
+- `Views/ExploreCommunityIdentificationView.swift` owns modes, filters,
+  dashboard state, complete feeds, request cards, Activity rows, and typed
+  routes.
+- `Views/CommunityFeedbackSheet.swift` owns Identify feedback UI.
+- `Core/Network/ExploreAPIModels.swift` owns request/activity response DTOs,
+  item types, and cursor models.
+- `Core/Network/MerianNetworkClient.swift` constructs authenticated request and
+  Activity payloads.
+- `Core/Utilities/ExploreErrorFormatter.swift` owns generic and
+  Recent activity-specific error copy.
+- `Explore/Shell/ExploreView.swift` owns root tab/mode selection, destination
+  registration, and deep-link policy.
+
+Backend ownership:
+
+- `services/supabase/functions/get-community-identification-activity/`
+- `services/supabase/migrations/20260731050009_add_community_identification_activity.sql`
+- `services/supabase/functions/_tests/communityIdentificationActivityDb.test.ts`
+- `services/supabase/functions/_tests/communityIdentificationActivityMigrationContract.test.ts`
+
+## Deferred MVP scope
+
+The taxonomy Tree/galaxy map is unavailable for MVP. Its source, API support,
+and default-off `.speciesDictionaryTree` flag remain for future work, but
+Identify/Index must not expose a Tree control or route while the flag remains
+off.
+
+## Verification
+
+Focused tests cover dashboard limits, independent section failures, filter/route
+propagation, mode/deep-link policy, Activity decoding and cursor payloads,
+grouping boundaries, actor aggregation, consensus/resolution behavior,
+reopened generations, visibility, backfill, and stable pagination. See:
+
+- `apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift`
+- `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
+- `apps/ios/MerianTests/Core/Utilities/MerianConfigTests.swift`
+- `services/supabase/functions/get-community-identification-activity/db_test.ts`
+- `services/supabase/functions/_tests/communityIdentificationActivityDb.test.ts`
+- `services/supabase/functions/_tests/communityIdentificationActivityMigrationContract.test.ts`

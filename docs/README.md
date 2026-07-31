@@ -157,6 +157,14 @@ as their permanent engineering identity.
   reevaluated on foreground returns. Photos/Files imports, deep links, and
   tapped notification routes always replace the generic feed with the requested
   capture, post, community, scan, or library destination.
+- **Explore root-navigation contract**: Explore has exactly three bottom items:
+  Observations, Field trips, and Identify. Identify owns Requests/Index.
+  Requests concurrently previews 12 open cards and 10 grouped Activity rows
+  under shared filters, then pushes complete **Identify requests** and
+  **Identify activity** feeds. Index renders the Species Dictionary overview.
+  Species and request deep links select the corresponding Identify mode before
+  push. Tree/galaxy visualization remains default-off and has no MVP entry
+  point.
 - **Media durability safety net**: Backend deploys run a media-ingestion
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident
@@ -444,9 +452,10 @@ as their permanent engineering identity.
   — Explore comment `@username` mention eligibility, suggestion endpoint,
   notification behavior, iOS composer/link rendering, and verification.
 - **[`/features-and-hardware/24-explore-bottom-menu.md`](./features-and-hardware/24-explore-bottom-menu.md)**
-  — Explore launch entry points, root navigation, Observations Feed/Map toggle,
-  Community identification queue, author-profile stack routing, Dictionary
-  catalog, and Tree of Life canvas routing/data boundaries.
+  — Explore launch entry points, exactly-three-item root navigation,
+  Observations Feed/Map, Field trips, Identify Requests/Index, filtered request
+  and Activity previews/full feeds, deep-link mode policy, stack chrome, Index
+  catalog ownership, and deferred Tree/galaxy scope.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Public Field trips/Outings, the client-staged Events rollout and release
   checklist, guided outing detail, progress matching, the account-cached active

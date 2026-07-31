@@ -3,7 +3,12 @@
 The `Shell` directory acts as the root container and routing hub for the Explore tab.
 
 ## Purpose
-This area orchestrates the top-level navigation, layout chrome, and state coordination for the Explore feature. It manages the transitions between Observations, Identify, Field trips, Dictionary, pushed detail routes, notifications, and search interfaces while keeping the sub-components focused on their own domain logic.
+
+This area orchestrates the top-level navigation, layout chrome, and state
+coordination for Explore. It manages transitions among exactly three bottom
+items—Observations, Field trips, and Identify—plus root mode pickers, pushed
+detail/feed routes, notifications, and search interfaces while product-area
+subviews remain focused on their own domains.
 
 Field trips and standard Outings are released for every user through the
 `.fieldTrips` entry in the central `FeatureFlags` registry. Events remain staged
@@ -26,6 +31,31 @@ The generic feed is the lowest-priority launch route. Photos/Files imports
 dismiss it in favor of staging and crop, while deep links and tapped
 notifications replace it with their requested post, community request, scan, or
 library route.
+
+## Root navigation and Identify routing
+
+`ExploreTab` contains `.feed`, `.fieldTrips`, and `.community` only. The
+`.community` tab is labeled **Identify** and owns
+`ExploreIdentifyMode.requests` / `.index`:
+
+- Requests renders the 12-request/10-Activity dashboard and can push the
+  complete **Identify requests** and **Identify activity** feeds.
+- Index renders the existing Species Dictionary overview directly.
+
+The bottom tab bar and root segmented picker are visible only while
+`navigationPath` is empty. Complete Identify feeds, request detail, species
+catalog/detail, and other pushed pages hide root chrome and rely on native Back
+navigation.
+
+Deep-link policy is explicit. `ExploreInitialTabPolicy` selects Identify for a
+species or community-request destination.
+`ExploreInitialIdentifyModePolicy` selects Index for species and Requests for
+community requests. Runtime request notifications follow the same policy in
+`openCommunityIdentificationRequest(_:)`. Preserve this selection-before-push
+order when adding entry points.
+
+The taxonomy Tree/galaxy map remains implemented behind the default-off
+`.speciesDictionaryTree` flag but is disconnected from root MVP navigation.
 
 ## Field trip milestone routing
 

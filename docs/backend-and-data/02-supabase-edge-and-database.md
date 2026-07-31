@@ -1082,12 +1082,15 @@ the identify pipeline. The current shipped surface includes:
 - author profile reads: `get-explore-author-profile`, `get-explore-author-posts`
 - hashtag reads: `get-explore-hashtag-posts`
 - map reads: `get-explore-map-points`
+- community identification reads: `get-community-identification-feed`,
+  `get-community-identification-activity`,
+  `get-community-identification-detail`
 - mutations: `share-scan-to-explore`, `unshare-explore-post`,
   `update-explore-field-notes`, `set-explore-post-like`, `set-user-follow`,
   `create-explore-comment`, `delete-explore-comment`,
   `toggle-explore-comment-reaction`, `report-explore-comment`,
   `report-explore-post`
-- activity reads: `get-explore-notifications`,
+- bell activity reads: `get-explore-notifications`,
   `get-explore-unread-notification-count`, `mark-explore-notifications-read`
 - private viewer tools: `explore-post-chat`
 - device registration and delivery: `register-push-device`,
@@ -1129,6 +1132,23 @@ triggers on `user_follows`, Field trip activity is created from Field trip
 publication/comment triggers, self-notifications are suppressed server-side, and
 rows are pruned or hidden when relevant content is removed, a follow is removed,
 or either user blocks the other.
+
+Identify Activity is deliberately separate from these bell tables. Migration
+`20260731050009_add_community_identification_activity.sql` projects
+identification inserts and consensus events into service-only suggestion bursts,
+standalone consensus changes, and immutable resolution milestones. Adjacent
+suggestions on one request generation chain across an inclusive 60-minute
+boundary. Submission-caused consensus updates enrich the burst; every
+resolution remains separate.
+
+`get-community-identification-activity` verifies the caller through
+`withEdgeHandler`, derives the viewer ID from that JWT, and calls the
+service-role-only `get_community_identification_activity(...)` RPC. Projection
+tables have RLS enabled and no direct client privileges. Names are not stored;
+up to three visible actor labels are resolved at read time after blocking and
+shadowban checks. Request owner visibility, withdrawal, unshare, moderation,
+tombstone, media quarantine, and usable-media rules are reapplied for every
+read. This endpoint never reads or changes notification unread state.
 
 The authenticated `/field-trips` catalog and template-detail actions use a
 private viewer-specific projection that is intentionally different from public

@@ -64,6 +64,22 @@ These web surfaces are public projections only. They must never expose exact
 coordinates, private notes, raw scan telemetry, authenticated Community
 sightings, local observation aggregates, user media, or server credentials.
 
+The native Explore root contains Observations, Field trips, and Identify only.
+Identify's Requests mode concurrently reads a 12-row unresolved request preview
+and 10 grouped Activity rows under one scope/organism filter; Index renders the
+Species Dictionary overview. Complete **Identify requests** and **Identify
+activity** feeds push onto the shared stack with independent cursor pagination.
+Species links select Identify/Index before detail, while request links select
+Identify/Requests.
+
+Identify Activity is projected from identification and consensus inserts, then
+privacy-filtered at read time through an authenticated Edge Function and
+service-role-only RPC. Projection rows store actor IDs/counts, not names.
+Suggestion bursts chain at intervals of at most 60 minutes, submission-caused
+consensus metadata folds into a burst, and resolutions are immutable separate
+milestones. This feed is unrelated to bell unread state. The preserved taxonomy
+Tree/galaxy implementation is default-off and disconnected from MVP navigation.
+
 In the native app, every visible Explore post detail can open a Pro Field chat,
 including a post authored by the viewer. This is not a public comment: each
 conversation is keyed to the authenticated viewer and post, and is visible only

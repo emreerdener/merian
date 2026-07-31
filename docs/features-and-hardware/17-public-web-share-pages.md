@@ -391,7 +391,7 @@ back to their public web pages for everyone else.
 4. **Deep Linking Route Handler**: Incoming `NSUserActivityTypeBrowsingWeb` web
    links route through the same typed native router as custom-scheme links.
    Species routes carry only the validated canonical UUID, ignore the optional
-   descriptive slug, select Explore's Dictionary tab, and push
+   descriptive slug, select Explore's Identify tab and Index mode, and push
    `SpeciesDictionaryRoute(entryPoint: .deepLink)`. The parser accepts both
    Naturebook and legacy Merian hosts/schemes and ignores unrelated policy
    routes.

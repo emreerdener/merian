@@ -1,8 +1,9 @@
-# Explore Root Pager
+# Explore Root Navigation
 
 The Explore sheet uses root-only bottom navigation as its primary section
-navigation. The menu uses native tab-bar chrome for Observations, Identify,
-Field trips, and Dictionary.
+navigation. The menu uses native tab-bar chrome for exactly three items, in
+production order: Observations, Field trips, and Identify. Index is not a
+bottom-navigation item; it is the second root mode inside Identify.
 
 ## Presentation entry points
 
@@ -22,13 +23,6 @@ chip as seen.
 
 - **Observations** shows either the public Explore feed or the Explore map. A
   root-only header toggle keeps Feed first and Map second.
-- **Identify** shows the Ask the Community queue for unresolved identification
-  requests. It uses `ExploreCommunityIdentificationView`, a two-column image
-  grid sorted by nearby public coordinates when available and then recency. The
-  request filter row keeps `All` and `Yours` first, followed by server-backed
-  organism filters for Plants, Birds, Insects, Fungi, Mammals, and Herps. Cards
-  show the request image and submitted-ID count without exposing the AI-derived
-  name in the grid.
 - **Field trips** shows curated regional checklist quests backed by the
   `/field-trips` Edge Function. The tab defaults to `Outings` for standard outings
   for every user. The `Events` segment and its request are hidden behind
@@ -46,6 +40,31 @@ chip as seen.
   standard goals replace their artwork with the device-local completing scan
   thumbnail when available; tapping the thumbnail pushes the existing Insight
   view in this same Explore navigation stack.
+- **Identify** owns a root-only `Requests` / `Index` segmented control.
+  `Requests` renders `ExploreCommunityIdentificationView`, while `Index`
+  renders the existing `SpeciesDictionaryOverviewView` directly.
+- **Requests** is a dashboard rather than the complete request feed. A shared
+  filter row keeps `All` and `Yours` first, followed by Plants, Birds, Insects,
+  Fungi, Mammals, and Herps. `Yours` means requests owned by the viewer.
+  Organism filters constrain both dashboard sections. The first section is
+  headed **Identify requests** with **See all requests** opposite it, followed
+  immediately by the dismissible **Ask the community** banner and up to 12
+  unresolved request cards. Cards show the request image and submitted-ID count
+  without exposing the AI-derived name. The second section is headed
+  **Recent activity**, has additional visual separation from the request grid,
+  and renders up to 10 grouped Activity rows.
+- **Recent activity** rows show the request thumbnail, visible actor/count
+  summary, latest consensus or resolved taxon when available, relative time,
+  and a chevron. Tapping a row opens the existing request detail. Requests and
+  Activity load concurrently and retain independent loading, empty, and error
+  states; an Activity outage therefore does not remove the request preview.
+  Pull-to-refresh and filter changes reload both sections.
+- **Complete Identify feeds** are pushed stack pages reached through **See all
+  requests** and **See all activity**. They inherit the current filter, hide the
+  root tab bar and segmented control, and use **Identify requests** and
+  **Identify activity** as their navigation titles. The Requests page retains
+  the existing two-column paginated grid; Activity uses a paginated compact-row
+  feed. Native Back returns to the filtered dashboard.
 - **Observations Feed** keeps `Recent`, `Following`, `Trending`, and `Nearby` as
   dedicated server-backed modes. Its leading Filters pill opens a sheet for
   feed mode, species groups, image/audio/video media, shared-date range, and a
@@ -59,30 +78,35 @@ chip as seen.
   Filters count and Reset/All actions cover both groups, while media types stay
   out of the horizontal pills. Active filters apply before clusters or
   individual waypoints render.
-- **Dictionary** opens `SpeciesDictionaryOverviewView`, a browse overview with
+- **Index** opens `SpeciesDictionaryOverviewView`, a browse overview with
   Recently Added, local region, organism-group, and region entry points.
   The featured Recently Added card opens that species' detail page, while a
   separate Recently Added row opens the full newest-species list. Pushed
   category and group pages use `SpeciesDictionaryCatalogView`, a searchable and
   paginated catalog powered by the public `species_dictionary` table through
   the existing `/species-dictionary` Edge Function.
-- **Tree** is still in development and is only included in simulator builds.
-  It shows `TaxonomyTreeCanvasView`, an interactive Tree of Life canvas powered
-  by the `species-dictionary` Edge Function's `mode: "tree"` graph response for
-  the signed-in user's scanned taxonomy. The default tree orientation runs
-  top-down from higher taxonomy ranks into species leaves. Users can pan, zoom,
-  search, focus branches, inspect lineage highlights, and open a species
-  preview before navigating to the existing Species Dictionary detail page.
+- **Tree/galaxy map** is deferred beyond MVP. Its code, `mode: "tree"` API
+  support, and default-off `.speciesDictionaryTree` feature flag remain intact
+  for future work, but no production or simulator Explore navigation entry
+  exposes it.
 
 ## Navigation
 
 `ExploreView` owns the root section state through `ExploreTab` and owns pushed
 route state for post detail, hashtag collections, author profiles, and
-dictionary destinations. Bottom-menu taps set the active section in the
-production order Observations, Identify, then Field trips, then Dictionary.
-Observations owns a Feed/Map header toggle, and Dictionary keeps Tree inside
-its Catalog/Tree header toggle rather than exposing either Map or Tree as a
-separate root bottom-menu item. Author profiles opened from feed, detail,
+dictionary destinations. `ExploreTab.allCases` contains only `.feed`,
+`.fieldTrips`, and `.community`; `ExploreIdentifyMode.allCases` contains only
+`.requests` and `.index`. Observations owns a Feed/Map header toggle. Identify
+owns Requests/Index and resets no pushed route merely because the user changes
+that root mode.
+
+Species deep links and in-app species routes select Identify/Index before
+pushing `SpeciesDictionaryRoute`. Community request deep links and notifications
+select Identify/Requests before pushing `ExploreCommunityRequestRoute`. This
+policy keeps canonical and legacy links compatible after removal of the
+Dictionary bottom tab.
+
+Author profiles opened from feed, detail,
 comments, notifications, Field trips, or profile libraries push into this
 same Explore navigation stack rather than presenting a second sheet over the
 active surface. Profile-library scans carry an author-profile depth so the app
@@ -132,11 +156,11 @@ for the surface they are changing:
   catalog and overview surfaces, while
   `apps/ios/Merian/Features/SpeciesDictionary/Tree/` owns the Tree canvas.
 
-The bottom menu is intentionally root-scoped. It is hidden on pushed post
+The bottom menu and root segmented control are intentionally root-scoped. They
+are hidden on the complete Identify Requests and Activity feeds, pushed post
 details, Identify request details, catalog detail pages, hashtag lists, author
-profile routes, comments, notification sheets, and the Insight sheet.
-Dictionary rows and Tree species preview actions still push
-`SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
+profile routes, comments, notification sheets, and the Insight sheet. Index
+rows push `SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
 
 Community request details use `ExploreCommunityIdentificationDetailView`, which
 loads `/get-community-identification-detail`, frames the starting name as
@@ -189,23 +213,21 @@ species and media groups before clustering, and treats attached media kinds as
 an OR match. The horizontal pill row remains species-focused; image, video, and
 audio choices live in the full Map filters sheet.
 
-Dictionary and Tree use species-level public data only. The Dictionary overview
+Index uses species-level public data only. The Dictionary overview
 returns featured, group, and region summaries, while pushed catalog pages return
 compact species rows with taxonomy, content quality, tags, status fields, and a
 single reference image URL. Promoted Naturebook community photos rank before
-external reference images when available. The tree mode requires auth only to
-choose the species represented by the current user's non-deleted biological scans; it then
-returns public taxonomy nodes, edges, species counts, representative species,
-reference thumbnails, and status fields for those species. It does not include
-scan IDs, field notes, media, comments, locations, users, or Explore post
-content.
+external reference images when available.
 
-If no scanned biological species can be matched to dictionary rows, the tree
-returns an empty graph and `TaxonomyTreeCanvasView` shows the scanned-taxonomy
-empty state.
+Identify Activity is a separate service-only projection, not the Explore bell
+feed. It is updated from identification inserts and consensus events, applies
+the same request visibility/media rules at read time, and does not read or
+mutate unread state. See
+[`05-api-contracts.md`](../backend-and-data/05-api-contracts.md#get-community-identification-activity)
+and
+[`04-database-schema.md`](../backend-and-data/04-database-schema.md#internal-community-identify-activity-projection)
+for its grouping, cursor, and authorization contracts.
 
-Tree node IDs are stable lineage keys such as
-`taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus`,
-while species leaves use `species:<species_dictionary.id>`. Missing taxonomy
-ranks are grouped under `Unclassified`; no new taxonomy schema, migration, or
-precomputed graph table is required for this version.
+The preserved Tree data contract and future-release requirements are documented
+in [`16-species-dictionary.md`](16-species-dictionary.md#tree-mode) and the
+[`Species Dictionary long-term TODO`](../rfcs/species-dictionary-long-term-todo.md#scope-12--taxonomy-treegalaxy-visualization).
