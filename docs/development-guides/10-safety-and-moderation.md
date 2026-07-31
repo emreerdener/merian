@@ -211,7 +211,10 @@ failed.
 `is_shadowbanned` is a boolean column on the `users` table (default `false`).
 Shadowbanned users are not informed of that account state. Public Explore,
 Community Identification, notification, and related projections exclude
-shadowbanned authors server-side.
+shadowbanned authors server-side. Identify Activity also omits requests owned
+by a shadowbanned user. Its suggestion counts and recent-actor labels are
+resolved at read time and exclude shadowbanned actors without storing actor
+names in the internal projection.
 
 The moderation helper sets this flag after the third unsafe submission, but it
 does not currently read the flag as a blanket veto for every later safe scan

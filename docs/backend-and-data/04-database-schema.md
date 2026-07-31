@@ -606,7 +606,10 @@ Changing an ID withdraws the old active row and inserts a new row.
 
 Migration
 `20260731050009_add_community_identification_activity.sql` creates and backfills
-this projection.
+this projection. Companion migration
+`20260731063804_index_community_identification_activity_actor_user_fk.sql` adds
+the reverse `user_id` lookup needed for actor foreign-key enforcement during
+account deletion and identity maintenance.
 `internal.community_identification_activity_groups` stores service-only
 suggestion bursts, standalone consensus changes, and immutable resolution
 milestones for each request generation.

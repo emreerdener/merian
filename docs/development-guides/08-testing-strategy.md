@@ -1123,6 +1123,61 @@ MerianTests/
   out-of-bounds crashes. Tests core persistence loops simulating `@AppStorage`
   routing flags from the `.ready` boundary, fully offline.
 
+## Testing Identify Requests and Activity
+
+Identify has a three-layer contract: root navigation/mode policy, concurrent iOS
+dashboard/full-feed state, and a service-only PostgreSQL Activity projection.
+Do not accept one layer as evidence for another.
+
+iOS focused coverage:
+
+- `Features/SpeciesDictionary/SpeciesDictionaryTests.swift` locks the exact
+  three root tabs, Requests/Index mode cases, species-to-Index and
+  request-to-Requests deep-link policy, 12/10 preview limits, 30-row complete
+  page size, independent request/Activity failure state, and current-filter
+  route propagation.
+- `Core/Network/MerianNetworkClientTests.swift` decodes all Activity item fields
+  and verifies `limit`, shared scope/group filters, plus paired
+  `(before_activity_at, before_activity_id)` payload construction.
+- `Core/Utilities/MerianConfigTests.swift` verifies a temporary service failure
+  uses Recent activity-specific copy rather than the generic Explore outage
+  message.
+
+Backend focused coverage:
+
+- `get-community-identification-activity/db_test.ts` verifies the service
+  adapter forwards verified viewer identity, scope, group, limit, and paired
+  cursor arguments to the RPC and propagates failures.
+- `_tests/communityIdentificationActivityMigrationContract.test.ts` statically
+  locks internal tables, RLS, direct-role revocations, service-role grants,
+  trigger sources, current-generation backfill, stable RPC signature/order, and
+  configuration.
+- `_tests/communityIdentificationActivityDb.test.ts` runs against PostgreSQL and
+  covers the inclusive 60-minute boundary, chained/repeated suggestions,
+  distinct top-three actor ordering, submission consensus folding, standalone
+  consensus changes, separate resolutions, owner/group filters, equal-time
+  cursor stability, blocking, shadowban, tombstone, unshare, quarantine,
+  missing media, and reopened request generations.
+
+The PostgreSQL suite may explicitly return early when no test database is
+available. That is discovery/compile evidence only. Production acceptance still
+requires the fully migrated disposable catalog and the complete
+`make test-supabase-privileged-routines` gate.
+
+Manual root-UI acceptance requires:
+
+1. Exactly Observations, Field trips, and Identify in bottom navigation.
+2. Requests/Index at the Identify root and no Tree/galaxy entry point.
+3. **Identify requests**, banner, 12-card cap, larger section gap, then
+   **Recent activity** with 10-row cap.
+4. Shared filter behavior across both previews and independent outage/Retry
+   presentation.
+5. **See all requests** and **See all activity** preserving the filter and
+   opening **Identify requests** / **Identify activity** stack titles.
+6. Root tab/mode chrome hidden on pushed feeds, with native Back returning to
+   the dashboard.
+7. Activity rows opening existing request detail.
+
 ## Testing the Species Lookalike Pipeline
 
 The `SimilarSpecies` / `SimilarSpeciesEntry` domain model has two distinct data

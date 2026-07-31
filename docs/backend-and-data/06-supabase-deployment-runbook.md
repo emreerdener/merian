@@ -3985,6 +3985,92 @@ Close the incident only after:
 - the incident report records deployment identifiers, timestamps, retained
   evidence, and final measured latency/failure deltas.
 
+## Community Identify Activity Rollout
+
+Migration
+`20260731050009_add_community_identification_activity.sql`, companion actor-FK
+index migration
+`20260731063804_index_community_identification_activity_actor_user_fk.sql`, the
+`get-community-identification-activity` Edge Function, and the matching iOS
+Identify dashboard are one compatibility-ordered release unit. The change is
+additive: the migration is safe for the currently live client, and Requests
+remains independently usable if Activity is unavailable.
+
+Deploy in this order:
+
+1. Run `make test-supabase-tooling`. Require the Activity adapter unit test,
+   migration source contract, and PostgreSQL-backed grouping suite to be
+   discovered. A database connection skip is not relational acceptance.
+2. Run `make test-supabase-privileged-routines` against a complete fresh
+   disposable catalog. Confirm the migration backfill and triggers complete
+   inside normal migration timeouts.
+3. Push both migrations in timestamp order. Wait for
+   `NOTIFY pgrst, 'reload schema'` propagation and confirm both release
+   migrations appear at the linked-project head. Verify
+   `idx_community_identification_activity_actors_user_id` exists before
+   exercising deletion or identity-maintenance paths.
+4. Deploy `get-community-identification-activity`. Its `verify_jwt = false`
+   platform setting is intentional only because `withEdgeHandler` performs
+   repository-owned JWT verification. Do not change it to an unauthenticated
+   handler.
+5. Run the staging/production smoke matrix below without logging response
+   bodies, actor identities, request IDs, or media URLs.
+6. Release the exact iOS build that shows the Requests dashboard and complete
+   **Identify activity** stack feed.
+
+Database authorization checks:
+
+- RLS is enabled on
+  `internal.community_identification_activity_groups` and
+  `internal.community_identification_activity_actors`.
+- `PUBLIC`, `anon`, and `authenticated` have no direct privileges on either
+  table.
+- `PUBLIC`, `anon`, and `authenticated` cannot execute
+  `public.get_community_identification_activity(...)`.
+- `service_role` can maintain the internal tables and execute the RPC.
+- The RPC remains `SECURITY INVOKER` with an empty `search_path`; do not convert
+  it to `SECURITY DEFINER` to solve a schema-cache or grant problem.
+
+Smoke matrix:
+
+| Check | Expected result |
+| --- | --- |
+| Missing/invalid user JWT calls the Edge route | `401`; no RPC data |
+| Valid user calls with `{ "limit": 10, "scope": "all", "group": "all" }` | At most 10 rows ordered by `(activity_at DESC, activity_id DESC)` |
+| `scope: "mine"` | Only requests owned by the verified caller |
+| Each organism `group` | Same request classifier as `/get-community-identification-feed` |
+| Only one Activity cursor field | `400` |
+| Two rows share one timestamp; next request uses final paired cursor | No duplicate or skipped UUID tie |
+| User key invokes the RPC directly | Permission denied |
+| Request owner or actor is blocked/shadowbanned | Request or actor contribution omitted as appropriate |
+| Post is withdrawn, unshared, moderated, tombstoned, quarantined, or has no usable media | Activity omitted |
+| Activity feed is read | Bell unread count is unchanged |
+
+After the iOS rollout, verify:
+
+- root Explore shows exactly Observations, Field trips, and Identify;
+- Identify shows Requests/Index only;
+- the Requests dashboard caps previews at 12 request cards and 10 Activity
+  groups under one filter;
+- Requests and Activity expose independent loading/error/Retry states;
+- **See all requests** and **See all activity** inherit the filter and open
+  stack pages titled **Identify requests** and **Identify activity**;
+- Back returns to the dashboard without exposing root chrome on the pushed
+  page;
+- species links select Identify/Index and request links select
+  Identify/Requests; and
+- no Tree/galaxy entry point is present.
+
+Rollback is forward-only for data. Do not drop or truncate the additive
+projection after deployment and do not grant its RPC to client roles. A broken
+Activity presentation can be contained by shipping a forward Edge/iOS fix;
+independent dashboard state keeps Requests reachable. If trigger maintenance is
+suspected, stop client exposure and investigate in a restricted environment
+rather than disabling the triggers while new events continue.
+
+The canonical route contract is
+[`services/supabase/functions/get-community-identification-activity/README.md`](../../services/supabase/functions/get-community-identification-activity/README.md).
+
 ## Public Web Explore Read Boundary
 
 Migration

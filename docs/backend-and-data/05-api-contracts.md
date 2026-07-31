@@ -1563,8 +1563,9 @@ The authenticated JSON request is:
 ```
 
 The cursor fields are optional, but supplying only one returns `400`. Unknown
-scope/group values, malformed cursor timestamps, malformed cursor UUIDs, and
-invalid limits also return `400`.
+scope/group values, malformed cursor timestamps, and malformed cursor UUIDs
+also return `400`. `limit` follows the shared Explore policy: finite numbers
+are floored and clamped to `0...100`; missing or nonnumeric values use 30.
 
 The success envelope is:
 
@@ -1618,6 +1619,10 @@ does not make the endpoint public. The handler derives `self_id` from the
 verified user and never accepts it from the request body, then calls
 `public.get_community_identification_activity(...)` through its service-role
 client.
+
+The route-local implementation, verification, and compatibility deployment
+guide is
+[`services/supabase/functions/get-community-identification-activity/README.md`](../../services/supabase/functions/get-community-identification-activity/README.md).
 
 ### `/get-community-identification-detail`
 

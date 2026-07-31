@@ -350,6 +350,33 @@ The canonical product, architecture, API, security, monitoring, and deployment
 contract is
 [Explore Media Health and Quarantine](../../docs/backend-and-data/12-explore-media-health-and-quarantine.md).
 
+### Community Identify Activity Boundary
+
+Migration `20260731050009_add_community_identification_activity.sql` adds an
+internal service-only projection for the Activity summary below Identify
+Requests.
+`20260731063804_index_community_identification_activity_actor_user_fk.sql` adds
+the actor `user_id` reverse index required for bounded foreign-key enforcement
+during account deletion and identity maintenance. The projection groups
+adjacent suggestions on one request generation at an inclusive 60-minute
+boundary, stores normalized actor IDs/counts without names, folds
+submission-caused consensus metadata into the burst, and preserves standalone
+consensus changes plus immutable resolution milestones. Backfill includes only
+each request's current `requested_at` generation.
+
+`get-community-identification-activity` requires a user JWT through
+`withEdgeHandler` and calls `get_community_identification_activity(...)` with a
+service-role client. The internal tables have RLS enabled; table and RPC access
+is revoked from `PUBLIC`, `anon`, and `authenticated`. Every read reapplies
+request ownership scope/group filters, withdrawal, unshare, moderation,
+shadowban, blocking, tombstone, media quarantine, and usable-media rules.
+Visible actor labels are resolved at read time. This feed never reads or
+changes Explore notification unread state.
+
+The route-local request/response, grouping, security, tests, and compatibility
+deployment contract is in
+[`functions/get-community-identification-activity/README.md`](functions/get-community-identification-activity/README.md).
+
 ### Darwin Core Export Boundary
 
 Migration `20260728133835_disable_dwca_exports_for_launch.sql` is the current

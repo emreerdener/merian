@@ -106,17 +106,16 @@ select Identify/Requests before pushing `ExploreCommunityRequestRoute`. This
 policy keeps canonical and legacy links compatible after removal of the
 Dictionary bottom tab.
 
-Author profiles opened from feed, detail,
-comments, notifications, Field trips, or profile libraries push into this
-same Explore navigation stack rather than presenting a second sheet over the
-active surface. Profile-library scans carry an author-profile depth so the app
-allows `profile -> scan` but blocks another author-profile hop from that nested
-detail. The visual Scan goal indicator initializes this stack with a typed
-`CaptureGoalDestination`. Explore converts the Field trip case into a
-`FieldTripTemplateRoute` carrying an optional focused checklist-item ID. The
-destination opens Tips and focuses the matching guide, or falls back to the
-Goals tile when no guide exists. Ordinary route callers omit the optional
-focus ID and keep their prior behavior.
+Author profiles opened from feed, detail, comments, notifications, Field trips,
+or profile libraries push into this same Explore navigation stack rather than
+presenting a second sheet over the active surface. Profile-library scans carry
+an author-profile depth so the app allows `profile -> scan` but blocks another
+author-profile hop from that nested detail. The visual Scan goal indicator
+initializes this stack with a typed `CaptureGoalDestination`. Explore converts
+the Field trip case into a `FieldTripTemplateRoute` carrying an optional focused
+checklist-item ID. The destination opens Tips and focuses the matching guide, or
+falls back to the Goals tile when no guide exists. Ordinary route callers omit
+the optional focus ID and keep their prior behavior.
 
 Completed-goal navigation uses `ScanInsightRoute`. `ExploreView` resolves the
 private completion scan ID to a local record and loads `InferenceEngine` before

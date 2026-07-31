@@ -472,8 +472,11 @@ Index reuses `Features/SpeciesDictionary/Catalog/`. The Activity route's
 service adapter lives in
 `services/supabase/functions/get-community-identification-activity/`, while
 `20260731050009_add_community_identification_activity.sql` owns its internal
-projection, triggers, shared request classifier, service-only RPC, and current-
-generation backfill. Tree/galaxy code remains under
+projection, triggers, shared request classifier, service-only RPC, and current
+generation backfill.
+`20260731063804_index_community_identification_activity_actor_user_fk.sql` owns
+the actor-to-user reverse FK index used by deletion and identity maintenance.
+Tree/galaxy code remains under
 `Features/SpeciesDictionary/Tree/` but has no MVP navigation entry point.
 
 Explore publishing, activity, and delivery:

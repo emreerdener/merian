@@ -405,10 +405,13 @@ The Scans tab is the user's primary offline biological journal.
   owns a root-only Feed/Map segmented header toggle with Feed first, Field trips
   opens directly to Outings and adds its Outings/Events segmented view only when
   Events are enabled, and Identify owns Requests/Index. Requests shows shared
-  filters over a 12-card request preview and 10 grouped Activity rows, with
-  stack pages for both complete feeds. Index renders the existing catalog
-  overview. The taxonomy tree/galaxy work remains default-off and disconnected
-  from MVP navigation.
+  filters over a 12-card **Identify requests** preview, places the dismissible
+  Ask the community banner directly under that heading, and separates it from
+  10 grouped **Recent activity** rows with a larger section gap. Stack pages for
+  the complete feeds are titled **Identify requests** and **Identify activity**.
+  Requests and Activity maintain independent load/error states. Index renders
+  the existing catalog overview. The taxonomy tree/galaxy work remains
+  default-off and disconnected from MVP navigation.
 - **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent
   checklist surface. Standard Outings are released for every user;
   `FieldTripEventsAvailability` stages live/upcoming curated Events for the
