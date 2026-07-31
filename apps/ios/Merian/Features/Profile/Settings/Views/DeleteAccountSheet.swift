@@ -19,14 +19,27 @@ struct DeleteAccountSheet: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("This action represents a hard wipe of your account and cannot be reversed.")
+                        Text("This permanently removes your account and account-owned data. It cannot be reversed.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
                         VStack(alignment: .leading, spacing: 12) {
-                            consequenceRow(icon: "person.crop.circle.badge.xmark", text: "Your profile information and identifier will be removed.")
-                            consequenceRow(icon: "leaf.circle", text: "Your life list and collection progress will be deleted.")
-                            consequenceRow(icon: "icloud.slash", text: "All uploaded scans and cloud backups will perish.")
+                            consequenceRow(
+                                icon: "person.crop.circle.badge.xmark",
+                                text: "Your profile, account identifier, public attribution, and community content will be removed."
+                            )
+                            consequenceRow(
+                                icon: "icloud.slash",
+                                text: "Your uploaded media, private notes, life list, and collection progress will be deleted."
+                            )
+                            consequenceRow(
+                                icon: "leaf.circle",
+                                text: "Scientific observations you submitted—including exact coordinates, time, and taxonomy—will remain without account attribution."
+                            )
+                            consequenceRow(
+                                icon: "creditcard",
+                                text: "Deleting your account does not cancel an Apple subscription. Cancel it separately to stop renewal."
+                            )
                         }
                     }
                     .padding(.vertical, 8)

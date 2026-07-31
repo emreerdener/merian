@@ -66,6 +66,12 @@ enum UserDefaultsKeys {
     static let needsCollectionSync = "needsCollectionSync"
     /// Locally hidden smart collection ids, stored as a string array.
     static let hiddenSmartCollectionIDs = "hiddenSmartCollectionIDs"
+    /// Prefix for the per-account unavailable-media overview dismissal signature.
+    static let dismissedUnavailableMediaOverviewSignaturePrefix =
+        "dismissedUnavailableMediaOverviewSignature.v1."
+    /// Prefix for the per-account Profile published-media notice dismissal signature.
+    static let dismissedProfilePublicationRecoverySignaturePrefix =
+        "dismissedProfilePublicationRecoverySignature.v1."
     /// Prefix for per-species preferred common name. Append the scientific name to form the full key.
     /// e.g. `"speciesPreferredName_Gaillardia pulchella"` → user's chosen display name.
     static let speciesPreferredNamePrefix = "speciesPreferredName_"

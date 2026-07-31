@@ -267,13 +267,20 @@ struct SpeciesDictionaryOverviewView: View {
 
                     if let regionCategory = category(.yourRegion, in: overview),
                        shouldShowRegionMapCard(for: regionCategory) {
-                        NavigationLink(value: route(for: regionCategory)) {
+                        if regionCategory.count >= 1 {
+                            NavigationLink(value: route(for: regionCategory)) {
+                                SpeciesDictionaryRegionMapCard(
+                                    category: regionCategory,
+                                    width: availableWidth
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        } else {
                             SpeciesDictionaryRegionMapCard(
                                 category: regionCategory,
                                 width: availableWidth
                             )
                         }
-                        .buttonStyle(.plain)
                     }
 
                     if !overview.groups.isEmpty {
@@ -329,7 +336,7 @@ struct SpeciesDictionaryOverviewView: View {
                                     value: SpeciesDictionaryCategoryRoute.catalog(
                                         title: region.title,
                                         category: .region,
-                                        region: region.title
+                                        region: region.code ?? region.title
                                     )
                                 ) {
                                     SpeciesDictionaryRegionRow(
@@ -458,7 +465,6 @@ struct SpeciesDictionaryOverviewView: View {
         for category: SpeciesDictionaryCategorySummary
     ) -> Bool {
         category.region?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil
-            && category.count >= 1
     }
 
     private func visibleRegions(in overview: SpeciesDictionaryOverview) -> [SpeciesDictionaryRegionSummary] {
@@ -473,7 +479,8 @@ struct SpeciesDictionaryOverviewView: View {
         case .all:
             return .catalog(title: "All", category: .all, region: nil)
         case .yourRegion:
-            let region = category.region?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let region = (category.regionCode ?? category.region)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             guard let region, !region.isEmpty else {
                 return .regions
             }
@@ -657,7 +664,11 @@ private struct SpeciesDictionaryRegionMapCard: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.82)
 
-                        Text("\(category.count.formatted()) species")
+                        Text(
+                            category.count >= 1
+                                ? "\(category.count.formatted()) species recorded"
+                                : "Coverage updating"
+                        )
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -665,9 +676,11 @@ private struct SpeciesDictionaryRegionMapCard: View {
 
                     Spacer(minLength: 8)
 
-                    Image(systemName: "chevron.right")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                    if category.count >= 1 {
+                        Image(systemName: "chevron.right")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
 
                 if let subtitle = category.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1232,7 +1245,7 @@ struct SpeciesDictionaryRegionsView: View {
         ContentUnavailableView(
             "No regions found",
             systemImage: "map",
-            description: Text("Region browsing will appear when dictionary records include native-region data.")
+            description: Text("Country browsing will appear as verified GBIF occurrence coverage is refreshed.")
         )
     }
 
@@ -1256,7 +1269,7 @@ struct SpeciesDictionaryRegionsView: View {
                         value: SpeciesDictionaryCategoryRoute.catalog(
                             title: region.title,
                             category: .region,
-                            region: region.title
+                            region: region.code ?? region.title
                         )
                     ) {
                         SpeciesDictionaryRegionRow(

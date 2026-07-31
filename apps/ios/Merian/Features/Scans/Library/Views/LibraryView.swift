@@ -15,10 +15,11 @@ struct LibraryView: View {
     let filterCategories: [String]
     let isSearchFocused: Bool
     var queuedScans: [QueuedScanSnapshot] = []
-    var exploreMediaIncidents: [ExploreMediaIncident] = []
-    var recoveryContext: ExploreMediaRecoveryRouteContext?
+    var unavailableMediaScanCount = 0
+    var isUnavailableMediaOverviewVisible = true
     var isExploreMediaIncidentRefreshRunning = false
-    var onRetryExploreMediaIncidents: (() -> Void)?
+    var onRefreshExploreMediaIncidents: (() -> Void)?
+    var onDismissUnavailableMediaOverview: (() -> Void)?
 
     // MARK: - Component Callbacks
     var isSelectionMode: Bool = false
@@ -35,7 +36,7 @@ struct LibraryView: View {
     // MARK: - Visual Layout
     var body: some View {
         let completedScanIds = Set(searchManager.allScans.map(\.id))
-        let visibleQueuedScans = isRecoveryFilterEnabled
+        let visibleQueuedScans = isUnavailableMediaFilterEnabled
             ? []
             : queuedScans.filter { !completedScanIds.contains($0.id) }
         let hasContent = !displayedScans.isEmpty || !visibleQueuedScans.isEmpty
@@ -50,8 +51,9 @@ struct LibraryView: View {
             ZStack(alignment: .bottom) {
                 ScrollView {
                     LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
-                        if recoveryContext != nil {
-                            recoveryScopeHeader
+                        if unavailableMediaScanCount > 0,
+                           isUnavailableMediaOverviewVisible {
+                            unavailableMediaHeader
                         }
 
                         Section {
@@ -87,7 +89,7 @@ struct LibraryView: View {
                                     },
                                     isSelectionMode: isSelectionMode
                                 )
-                            } else if isRecoveryFilterEnabled {
+                            } else if isUnavailableMediaFilterEnabled {
                                 EmptyStateView(
                                     imageName: "fireflies",
                                     title: "No matching scans on this device",
@@ -174,13 +176,11 @@ struct LibraryView: View {
         .id(ScansTab.library)
     }
 
-    private var recoveryScopeHeader: some View {
+    private var unavailableMediaHeader: some View {
         HStack {
-            if let recoveryContext {
-                Text("\(recoveryContext.mediaUnavailableScanCount.formatted()) media unavailable")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.orange)
-            }
+            Text("\(unavailableMediaScanCount.formatted()) media unavailable")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.orange)
 
             Spacer()
 
@@ -194,16 +194,32 @@ struct LibraryView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityElement(children: .combine)
             } else {
-                Button("Try again") {
+                Button("Refresh") {
                     HapticManager.shared.triggerSelectionPulse()
-                    onRetryExploreMediaIncidents?()
+                    onRefreshExploreMediaIncidents?()
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.blue)
                 .buttonStyle(.plain)
             }
+
+            if let onDismissUnavailableMediaOverview {
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    onDismissUnavailableMediaOverview()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss unavailable media notice")
+            }
         }
         .padding(.horizontal, 12)
+        .padding(.top, 16)
     }
 
     @ViewBuilder
@@ -211,7 +227,10 @@ struct LibraryView: View {
         if searchManager.searchQuery.isEmpty && !isSearchFocused {
             CategoryFilterBar(
                 items: filterCategories,
-                activeItem: searchManager.activeCategoryFilter,
+                activeItem: searchManager.activeCategoryFilter == "All"
+                    && searchManager.filters.hasAdvancedFilters
+                    ? nil
+                    : searchManager.activeCategoryFilter,
                 title: { $0 },
                 leadingTitle: searchManager.hasActiveFilters
                     ? "Filters \(searchManager.activeFilterCount.formatted())"
@@ -251,22 +270,12 @@ struct LibraryView: View {
         }
     }
 
-    private var recoveryIncidentScanIds: Set<String> {
-        Set(exploreMediaIncidents.map(\.scanId))
-    }
-
-    private var isRecoveryFilterEnabled: Bool {
-        recoveryContext != nil
-            && !recoveryIncidentScanIds.isEmpty
+    private var isUnavailableMediaFilterEnabled: Bool {
+        searchManager.filters.explorePostFilters.contains(.unavailableMedia)
     }
 
     private var displayedScans: [LocalScanRecord] {
-        guard isRecoveryFilterEnabled else {
-            return searchManager.filteredScans
-        }
-        return searchManager.filteredScans.filter {
-            recoveryIncidentScanIds.contains($0.id)
-        }
+        searchManager.filteredScans
     }
 
     private var headerTitle: String {

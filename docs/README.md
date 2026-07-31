@@ -180,6 +180,18 @@ as their permanent engineering identity.
   repository, but production verification and device-assisted recovery remain
   incomplete. See the
   [incident report](./incidents/2026-07-account-scoped-r2-image-loss.md).
+- **Mandatory scientific-observation retention**: Every submitted scan
+  contributes Scientific Data. Account deletion removes authentication,
+  profile, attribution, community content, media, free-form private notes,
+  semantic/public location labels, device context, and custom tags. The scan
+  remains as an ownerless tombstone with exact coordinates/elevation, time,
+  taxonomy, identification, environmental, quality, and provenance facts
+  unchanged. Tombstones are excluded from personal and broad anonymous scan
+  access; public and export projections retain geoprivacy and sensitive-taxon
+  controls. This is a condition of submission without a separate opt-in or
+  opt-out. See the [schema contract](./backend-and-data/04-database-schema.md),
+  [API contract](./backend-and-data/05-api-contracts.md), and
+  [counsel review memo](./legal/terms-counsel-review.md).
 - **Explore media-loss contract**: An unavailable object never auto-deletes or
   auto-unpublishes a post. Two spaced direct R2-origin `404` checks confirm
   loss; bad items are omitted, all-missing posts are reversibly quarantined,

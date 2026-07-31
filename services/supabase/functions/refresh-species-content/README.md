@@ -5,7 +5,8 @@ Scheduled service-role worker for stale public species dictionary content.
 The worker claims first-class `species_enrichment_jobs` for the
 `gbif_wikipedia_reference` content group, groups work by species, refreshes
 supported public fields from GBIF/Wikipedia, updates `species_dictionary`,
-synchronizes normalized `species_reference_images`, and records fresh
+synchronizes normalized `species_reference_images`, atomically replaces
+service-owned `species_country_occurrences`, and records fresh
 `species_content_provenance` rows. If no jobs are queued, it falls back to the
 legacy `public.get_species_content_refresh_queue(...)` provenance queue.
 
@@ -53,8 +54,20 @@ include any known provenance key, but V1 refreshes only:
 - `wikipedia_overview`
 - `gbif_taxon_key`
 - `reference_images`
+- `country_occurrences`
 
 Unsupported queued keys are reported as skipped rather than overwritten.
+Country occurrence refresh uses GBIF's country facet for georeferenced PRESENT
+records without geospatial issues. A valid empty facet clears stale rows and is
+recorded as a successful refresh; a timeout, non-OK response, or malformed
+payload fails the species job so existing coverage is retained and retried.
+If the fresh GBIF name match is unavailable, the worker uses an existing
+positive dictionary taxon key; if neither identity is available, it fails the
+durable job for retry rather than silently completing partial hydration.
+The scheduled worker treats provenance writes as durable job state: if a
+replacement succeeds but its provenance upsert fails, the species job fails and
+retries. Interactive identification paths continue to record provenance on a
+best-effort basis so a telemetry-side failure cannot block an identification.
 
 ## Response
 
@@ -106,6 +119,23 @@ the public first/all-image SQL helpers, and adds a service-write trigger that
 silently discards future normalized rows for that exact media path. This is a
 database backstop for refresh or repair code; Edge filtering remains required so
 the denied URL is never sent to the write boundary.
+
+Migration `20260731151344_add_species_country_occurrence_index.sql` adds:
+
+- `species_country_occurrences`, a deny-by-default service-role table keyed by
+  species UUID and uppercase ISO 3166-1 alpha-2 country code.
+- `public.replace_species_country_occurrences(...)`, the validated atomic
+  replacement boundary for one GBIF taxon. It row-locks the dictionary identity
+  so concurrent taxon rematches cannot commit stale country rows.
+- `public.get_species_dictionary_country_summaries(...)`, the exact-country
+  aggregate used by the Dictionary overview.
+- a trigger that purges country rows, invalidates their provenance, and queues
+  an immediate durable refresh when a species' GBIF taxon key changes,
+  preventing stale evidence from crossing taxon identities or remaining empty.
+- the `country_occurrences` provenance key, insert-trigger gap detection, and a
+  durable `gbif_wikipedia_reference` backfill for existing biological rows.
+
+The table describes occurrence evidence ("recorded in"), not native range.
 
 ## Boundaries
 

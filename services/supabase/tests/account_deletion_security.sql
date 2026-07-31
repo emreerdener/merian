@@ -233,9 +233,15 @@ INSERT INTO public.scans (
     id,
     user_id,
     ai_confidence_score,
+    timestamp,
     gps_lat_exact,
     gps_long_exact,
     gps_elevation,
+    coordinate_uncertainty_in_meters,
+    weather_condition,
+    weather_temperature_f,
+    semantic_location,
+    public_location_label,
     human_intervention_notes,
     image_storage_urls,
     video_storage_urls,
@@ -246,9 +252,15 @@ VALUES (
     '00000000-0000-0000-0000-00000000d211'::UUID,
     '00000000-0000-0000-0000-00000000d201'::UUID,
     0.91,
+    TIMESTAMPTZ '2025-04-05 14:30:00+00',
     41.881832,
     -87.623177,
     181.0,
+    12,
+    'clear',
+    68.5,
+    'Account-linked test location',
+    'Account-linked test location',
     'account deletion personal note',
     ARRAY[
         'https://media.example.invalid/public_uploads/free/'
@@ -263,6 +275,17 @@ VALUES (
             || '00000000-0000-0000-0000-00000000d201/audio.m4a'
     ]::TEXT[],
     '[{"kind":"image","url":"https://media.example.invalid/private.jpg"}]'::JSONB
+);
+
+-- Exercise the narrow collision path where an individual scan-erasure fence
+-- already exists when account deletion detaches the observation.
+INSERT INTO internal.scan_deletion_tombstones (
+    scan_id,
+    user_id
+)
+VALUES (
+    '00000000-0000-0000-0000-00000000d211'::UUID,
+    '00000000-0000-0000-0000-00000000d201'::UUID
 );
 
 -- A stale outbox row for a live account must never authorize an R2 prefix
@@ -440,14 +463,31 @@ BEGIN
             '00000000-0000-0000-0000-00000000d211'::UUID
           AND scan.user_id IS NULL
           AND scan.is_tombstoned
-          AND scan.gps_lat_exact IS NULL
-          AND scan.gps_long_exact IS NULL
-          AND scan.gps_elevation IS NULL
+          AND scan.gps_lat_exact = 41.881832
+          AND scan.gps_long_exact = -87.623177
+          AND scan.gps_elevation = 181.0
+          AND scan.coordinate_uncertainty_in_meters = 12
+          AND scan.timestamp =
+              TIMESTAMPTZ '2025-04-05 14:30:00+00'
+          AND scan.weather_condition = 'clear'
+          AND scan.weather_temperature_f = 68.5
+          AND scan.ai_confidence_score = 0.91
+          AND scan.semantic_location IS NULL
+          AND scan.public_location_label IS NULL
           AND scan.human_intervention_notes IS NULL
           AND scan.image_storage_urls = ARRAY[]::TEXT[]
           AND scan.video_storage_urls = ARRAY[]::TEXT[]
           AND scan.audio_storage_urls = ARRAY[]::TEXT[]
           AND scan.captured_media IS NULL
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.scan_deletion_tombstones AS tombstone
+        WHERE tombstone.scan_id =
+            '00000000-0000-0000-0000-00000000d211'::UUID
+          AND tombstone.user_id IS NULL
+          AND tombstone.completed_at IS NOT NULL
+          AND tombstone.claim_token IS NULL
+          AND tombstone.lease_expires_at IS NULL
     ) OR EXISTS (
         SELECT 1
         FROM public.users AS invalid_sentinel
@@ -480,6 +520,73 @@ BEGIN
         RAISE EXCEPTION
             'Relational cleanup did not commit and verify the expected state';
     END IF;
+END;
+$$;
+
+SET LOCAL ROLE service_role;
+
+DO $$
+BEGIN
+    IF public.complete_scan_deletion(
+        '00000000-0000-0000-0000-00000000d211'::UUID,
+        '00000000-0000-0000-0000-00000000d201'::UUID
+    ) IS NOT TRUE THEN
+        RAISE EXCEPTION
+            'Terminal individual-deletion retry was not idempotent';
+    END IF;
+END;
+$$;
+
+RESET ROLE;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.scans AS scan
+        WHERE scan.id =
+            '00000000-0000-0000-0000-00000000d211'::UUID
+          AND scan.user_id IS NULL
+          AND scan.is_tombstoned
+          AND scan.gps_lat_exact = 41.881832
+          AND scan.gps_long_exact = -87.623177
+    ) THEN
+        RAISE EXCEPTION
+            'Stale individual-deletion retry removed retained Scientific Data';
+    END IF;
+END;
+$$;
+
+SET LOCAL ROLE anon;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.scans AS scan
+        WHERE scan.id =
+            '00000000-0000-0000-0000-00000000d211'::UUID
+    ) THEN
+        RAISE EXCEPTION
+            'Anonymous scan access exposed an ownerless scientific tombstone';
+    END IF;
+END;
+$$;
+
+RESET ROLE;
+
+DO $$
+BEGIN
+    BEGIN
+        UPDATE public.scans AS scan
+        SET gps_lat_exact = 40.0
+        WHERE scan.id =
+            '00000000-0000-0000-0000-00000000d211'::UUID;
+        RAISE EXCEPTION
+            'Ownerless scientific tombstone allowed a stale location rewrite';
+    EXCEPTION
+        WHEN SQLSTATE '55000' THEN NULL;
+    END;
 END;
 $$;
 

@@ -84,6 +84,27 @@ enum CommunityIdentificationRequestFilter: Hashable, CaseIterable {
             .reptilesAmphibians
         }
     }
+
+    var emptyRequestTitle: String {
+        switch self {
+        case .all:
+            "No requests yet"
+        case .mine:
+            "No requests from you yet"
+        case .plants:
+            "No plant requests yet"
+        case .birds:
+            "No bird requests yet"
+        case .insects:
+            "No insect requests yet"
+        case .fungi:
+            "No fungus requests yet"
+        case .mammals:
+            "No mammal requests yet"
+        case .reptilesAmphibians:
+            "No herp requests yet"
+        }
+    }
 }
 
 enum CommunityIdentificationDashboardPolicy {
@@ -358,14 +379,7 @@ struct ExploreCommunityIdentificationView: View {
     }
 
     private var requestEmptyStateTitle: String {
-        switch requestFilter {
-        case .mine:
-            "No requests from you yet"
-        case .all:
-            "No requests yet"
-        default:
-            "No \(requestFilter.title.lowercased()) requests yet"
-        }
+        requestFilter.emptyRequestTitle
     }
 
     private var requestEmptyStateDescription: String {
@@ -663,14 +677,7 @@ struct ExploreCommunityRequestsFeedView: View {
     }
 
     private var emptyStateTitle: String {
-        switch requestFilter {
-        case .mine:
-            "No requests from you yet"
-        case .all:
-            "No requests yet"
-        default:
-            "No \(requestFilter.title.lowercased()) requests yet"
-        }
+        requestFilter.emptyRequestTitle
     }
 
     private var emptyStateDescription: String {

@@ -194,9 +194,10 @@ configuration rather than Merian application faults:
 | An older build logs `/get-explore-media-incidents … bytes=2`, followed by an invalid-response error while opening Scan Library | The old ambiguous `bytes` field measured the two-byte `{}` request, not the response. It cannot prove that the handler returned `[]` or identify the malformed response topology. This is media-alert contract drift, not evidence that a scan or post is missing. | Confirm the handler SHA and canonical `{data:[]}` response. In a corrected build, use `status`, `requestBytes`, and `responseBytes` as distinct fields. Corrected iOS also accepts a defensively retained exact direct-array topology and maps every other malformed 2xx body to `invalidResponse`; do not synthesize an incident or retry scan analysis. |
 | A new scan shares successfully but an existing missing row reports `media_reconciliation_abandoned`, then recovery-capable `/check-scan-status` returns generic 503 | The primary Explore route is healthy; the legacy record failed at the guarded owner-recovery database boundary before restore signing or PUT. The reason is eligible only with matching composite dead-letter/quota/media-lifecycle proof. | Under restricted access, inspect all exact normal/replay reservation states and ordered commit/fail timestamps, the latest-authority/dead-letter chronology, producer-generation evidence fields, immutable migration-time legacy dead-letter-ID snapshot, private rollout cutoff, and both moderation failure reasons. Verify migrations `20260729173000_recover_media_abandoned_owned_scans.sql` and `20260729200000_harden_media_abandoned_scan_recovery_proof.sql`, privileged grants, quota-authority retention, both exact no-write RPC readiness probes, and matching Identify/signer/status/share versions. Unproven abandonment, active attempts, unsnapshotted or post-cutoff unstructured evidence, incomplete safety evidence, and current/later policy authority must remain closed. |
 
-For a Debug/TestFlight offline smoke, use Settings → Beta Diagnostics →
-**Generate offline queue diagnostics** after the scan completes and share the
-artifact before deleting the observation. Prefer this bounded durable ledger
+For a Debug/TestFlight offline smoke signed in as `erdener.emre@gmail.com`, use
+Settings → Beta Diagnostics → **Generate offline queue diagnostics** after
+the scan completes and share the artifact before deleting the observation.
+Prefer this bounded durable ledger
 over retaining a high-volume console stream. It supplies app version/build,
 embedded source revision/fingerprint/state, lifecycle kinds, timestamps,
 retry/error codes, HTTP status, and server status/stage while excluding media

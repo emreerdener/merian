@@ -1155,7 +1155,9 @@ final class CaptureWorkspaceViewModel {
         audioCaptureManager: AudioCaptureManager
     ) {
         if newPhase == .active {
-            if captureMode == .visual && self.activeSheet == nil {
+            if captureMode == .visual,
+               self.activeSheet == nil,
+               self.imageToCrop == nil {
                 cameraManager.startSession()
             }
         }
@@ -1195,7 +1197,9 @@ final class CaptureWorkspaceViewModel {
 
         if newMode == .audio || newMode == .describe {
             cameraManager.stopSession()
-        } else if scenePhase == .active && self.activeSheet == nil {
+        } else if scenePhase == .active,
+                  self.activeSheet == nil,
+                  self.imageToCrop == nil {
             cameraManager.startSession()
         }
     }

@@ -2,7 +2,10 @@ import {
   assertEquals,
   assertNotEquals,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import { fetchExternalEnrichment } from "./external.ts";
+import {
+  fetchExternalEnrichment,
+  fetchGBIFCountryOccurrences,
+} from "./external.ts";
 
 const jsonResponse = (value: unknown) =>
   new Response(JSON.stringify(value), {
@@ -37,6 +40,123 @@ function enrichmentFixture(options: {
     return Promise.resolve(new Response(null, { status: 404 }));
   };
 }
+
+Deno.test("fetchGBIFCountryOccurrences normalizes the bounded GBIF country facet", async () => {
+  const request: { url?: URL; userAgent?: string | null } = {};
+  const fetcher: typeof fetch = (input, init) => {
+    const requestInit = init as { headers?: HeadersInit } | undefined;
+    request.url = new URL(String(input));
+    request.userAgent = new Headers(requestInit?.headers).get("user-agent");
+    return Promise.resolve(jsonResponse({
+      facets: [
+        {
+          field: "COUNTRY",
+          counts: [
+            { name: "us", count: 128 },
+            { name: "CA", count: 42 },
+            { name: "US", count: 120 },
+          ],
+        },
+      ],
+    }));
+  };
+
+  const result = await fetchGBIFCountryOccurrences(5139790, fetcher);
+
+  assertEquals(result, [
+    { countryCode: "CA", occurrenceCount: 42 },
+    { countryCode: "US", occurrenceCount: 128 },
+  ]);
+  assertEquals(request.url?.searchParams.get("taxonKey"), "5139790");
+  assertEquals(request.url?.searchParams.get("occurrenceStatus"), "PRESENT");
+  assertEquals(request.url?.searchParams.get("hasCoordinate"), "true");
+  assertEquals(request.url?.searchParams.get("hasGeospatialIssue"), "false");
+  assertEquals(request.url?.searchParams.get("limit"), "0");
+  assertEquals(request.url?.searchParams.get("facet"), "country");
+  assertEquals(request.url?.searchParams.get("facetLimit"), "300");
+  assertEquals(request.userAgent?.startsWith("Naturebook "), true);
+});
+
+Deno.test("fetchGBIFCountryOccurrences distinguishes empty coverage from provider failure", async () => {
+  assertEquals(
+    await fetchGBIFCountryOccurrences(
+      123,
+      () => Promise.resolve(jsonResponse({ facets: [] })),
+    ),
+    [],
+  );
+  assertEquals(
+    await fetchGBIFCountryOccurrences(
+      123,
+      () =>
+        Promise.resolve(jsonResponse({
+          facets: [{ field: "COUNTRY", counts: [] }],
+        })),
+    ),
+    [],
+  );
+  assertEquals(
+    await fetchGBIFCountryOccurrences(
+      123,
+      () => Promise.resolve(new Response(null, { status: 503 })),
+    ),
+    null,
+  );
+  assertEquals(
+    await fetchGBIFCountryOccurrences(
+      123,
+      () => Promise.resolve(jsonResponse({ results: [] })),
+    ),
+    null,
+  );
+  assertEquals(
+    await fetchGBIFCountryOccurrences(
+      123,
+      () =>
+        Promise.resolve(jsonResponse({
+          facets: [{ field: "COUNTRY" }],
+        })),
+    ),
+    null,
+  );
+  assertEquals(
+    await fetchGBIFCountryOccurrences(
+      123,
+      () =>
+        Promise.resolve(jsonResponse({
+          facets: [{
+            field: "COUNTRY",
+            counts: [{ name: "not-a-country", count: 50 }],
+          }],
+        })),
+    ),
+    null,
+  );
+});
+
+Deno.test("fetchExternalEnrichment distinguishes an unmatched name from an unavailable GBIF match", async () => {
+  const unmatched = await fetchExternalEnrichment(
+    "Regionalis absentis",
+    enrichmentFixture({
+      match: { matchType: "NONE", confidence: 100 },
+      wiki: {},
+    }),
+  );
+  assertEquals(unmatched.gbifMatchStatus, "unmatched");
+
+  const unavailable = await fetchExternalEnrichment(
+    "Regionalis interrupta",
+    (input) => {
+      const url = String(input);
+      return Promise.resolve(
+        url.includes("/species/match")
+          ? new Response(null, { status: 503 })
+          : new Response(null, { status: 404 }),
+      );
+    },
+  );
+  assertEquals(unavailable.gbifMatchStatus, "unavailable");
+});
 
 Deno.test("fetchExternalEnrichment suppresses denied media and promotes the next result", async () => {
   const blocked =

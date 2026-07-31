@@ -66,6 +66,7 @@ enum ScanSeasonFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
 
 enum ScanExplorePostFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case shared = "Shared to Explore"
+    case unavailableMedia = "Unavailable media"
     var id: String { rawValue }
 }
 
@@ -161,6 +162,7 @@ struct ScanLibraryFilters: Equatable, Sendable {
             performSearch(query: searchQuery, category: activeCategoryFilter)
         }
     }
+    private(set) var unavailableExploreMediaScanIDs: Set<String> = []
     var isSelectionMode: Bool = false
     var selectedScans: Set<String> = []
 
@@ -220,6 +222,15 @@ struct ScanLibraryFilters: Equatable, Sendable {
         activeCategoryFilter = "All"
         filters.clear()
         performSearch(query: searchQuery)
+    }
+
+    func setUnavailableExploreMediaScanIDs(_ scanIDs: Set<String>) {
+        guard unavailableExploreMediaScanIDs != scanIDs else { return }
+        unavailableExploreMediaScanIDs = scanIDs
+
+        if filters.explorePostFilters.contains(.unavailableMedia) {
+            performSearch(query: searchQuery, category: activeCategoryFilter)
+        }
     }
     
     // MARK: - Data Ingestion
@@ -565,7 +576,10 @@ struct ScanLibraryFilters: Equatable, Sendable {
         let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let catMatch = currentCategory.lowercased()
         let cacheGeneration = searchCacheGeneration
-        let activeFilterQuery = ScanLibraryFilterQuery(filters: filters)
+        let activeFilterQuery = ScanLibraryFilterQuery(
+            filters: filters,
+            unavailableExploreMediaScanIDs: unavailableExploreMediaScanIDs
+        )
         let searchIndexBuildTask = indexingTask
         let filterIndexBuildTask = filterIndexingTask
         
@@ -579,6 +593,15 @@ struct ScanLibraryFilters: Equatable, Sendable {
 
             guard let self = self else { return }
             guard self.searchCacheGeneration == cacheGeneration else { return }
+
+            if self.allScans.isEmpty {
+                self.completeSearch(
+                    with: [],
+                    query: text,
+                    cacheGeneration: cacheGeneration
+                )
+                return
+            }
 
             if text.isEmpty && catMatch == "all" && !activeFilterQuery.hasAdvancedFilters {
                 let sortedIds = await self.sortedAllScanIDs(

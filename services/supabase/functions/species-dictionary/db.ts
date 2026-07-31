@@ -179,6 +179,7 @@ export interface SpeciesDictionaryCategorySummary {
   count: number;
   reference_image_url: string | null;
   region: string | null;
+  region_code: string | null;
 }
 
 export interface SpeciesDictionaryGroupSummary {
@@ -193,6 +194,13 @@ export interface SpeciesDictionaryRegionSummary {
   title: string;
   count: number;
   reference_image_url: string | null;
+  code: string | null;
+}
+
+export interface SpeciesDictionaryCountrySummaryRow {
+  country_code: string;
+  species_count: number;
+  representative_species_id: string | null;
 }
 
 export interface SpeciesDictionaryFeaturedSpecies {
@@ -266,8 +274,11 @@ export const PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE = 500;
 export const SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE = 100;
 export const SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT = 24;
 export const SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT = 40;
+export const SPECIES_DICTIONARY_MIN_COUNTRY_OCCURRENCES = 1;
 const SPECIES_DICTIONARY_CATALOG_SELECT =
   "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags, native_region, created_at";
+const SPECIES_COUNTRY_OCCURRENCE_RELATION_SELECT =
+  "country_occurrences:species_country_occurrences!inner(country_code, occurrence_count)";
 const HIGH_LEVEL_SPECIES_GROUPS = [
   {
     id: "plants",
@@ -495,10 +506,19 @@ export async function fetchSpeciesDictionaryCatalog(
   const fetchLimit = requestedLimit + 1;
   const queryText = request.query?.trim().replace(/\s+/g, " ");
   const category = request.category ?? "all";
+  const countryCode = category === "region" && request.region
+    ? normalizedCountryCode(request.region)
+    : null;
+  const useCountryOccurrenceIndex = countryCode
+    ? await speciesCountryOccurrenceCoverageExists(countryCode, supabaseAdmin)
+    : false;
+  const catalogSelect: string = useCountryOccurrenceIndex
+    ? `${SPECIES_DICTIONARY_CATALOG_SELECT},${SPECIES_COUNTRY_OCCURRENCE_RELATION_SELECT}`
+    : SPECIES_DICTIONARY_CATALOG_SELECT;
 
   let catalogQuery = supabaseAdmin
     .from("species_dictionary")
-    .select(SPECIES_DICTIONARY_CATALOG_SELECT)
+    .select(catalogSelect)
     .or("gbif_taxon_key.not.is.null,kingdom.not.is.null")
     .limit(fetchLimit);
 
@@ -507,12 +527,22 @@ export async function fetchSpeciesDictionaryCatalog(
   }
 
   if (category === "region" && request.region) {
-    const regionFilter = normalizedRegionTitle(request.region) ??
-      request.region;
-    catalogQuery = catalogQuery.ilike(
-      "native_region",
-      `%${regionFilter.trim().replace(/\s+/g, " ")}%`,
-    );
+    if (countryCode && useCountryOccurrenceIndex) {
+      catalogQuery = catalogQuery
+        .eq("country_occurrences.country_code", countryCode)
+        .gte(
+          "country_occurrences.occurrence_count",
+          SPECIES_DICTIONARY_MIN_COUNTRY_OCCURRENCES,
+        );
+    } else {
+      const regionFilter = countryCode
+        ? (regionDisplayName(countryCode) ?? request.region)
+        : (normalizedRegionTitle(request.region) ?? request.region);
+      catalogQuery = catalogQuery.ilike(
+        "native_region",
+        `%${regionFilter.trim().replace(/\s+/g, " ")}%`,
+      );
+    }
   }
 
   if (category === "group" && request.group) {
@@ -553,7 +583,7 @@ export async function fetchSpeciesDictionaryCatalog(
     );
   }
 
-  const rows = ((data ?? []) as SpeciesDictionaryRow[])
+  const rows = ((data ?? []) as unknown as SpeciesDictionaryRow[])
     .filter(isPublicBiologicalSpeciesRow)
     .slice(0, fetchLimit);
   const visibleRows = rows.slice(0, requestedLimit);
@@ -580,19 +610,89 @@ export async function fetchSpeciesDictionaryCatalog(
   return { data: items, nextCursor };
 }
 
+export async function speciesCountryOccurrenceCoverageExists(
+  countryCode: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("species_country_occurrences")
+    .select("species_id")
+    .eq("country_code", countryCode)
+    .gte("occurrence_count", SPECIES_DICTIONARY_MIN_COUNTRY_OCCURRENCES)
+    .limit(1);
+  if (error) {
+    throw new Error(
+      `Failed to check species country occurrence coverage: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) && data.length > 0;
+}
+
+export async function fetchSpeciesDictionaryCountrySummaries(
+  supabaseAdmin: SupabaseClient,
+  countryCode: string | null = null,
+  maxRows = SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT,
+): Promise<SpeciesDictionaryCountrySummaryRow[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_species_dictionary_country_summaries",
+    {
+      p_country_code: countryCode,
+      p_min_occurrence_count: SPECIES_DICTIONARY_MIN_COUNTRY_OCCURRENCES,
+      p_max_rows: maxRows,
+    },
+  );
+  if (error) {
+    throw new Error(
+      `Failed to fetch species country summaries: ${error.message}`,
+    );
+  }
+
+  return ((data ?? []) as Array<Record<string, unknown>>).flatMap((row) => {
+    const normalizedCode = normalizedCountryCode(row.country_code);
+    const count = typeof row.species_count === "number"
+      ? Math.floor(row.species_count)
+      : Number.parseInt(String(row.species_count ?? ""), 10);
+    const representativeSpeciesId = stringValue(
+      row.representative_species_id,
+    );
+    return normalizedCode && Number.isSafeInteger(count) && count > 0
+      ? [{
+        country_code: normalizedCode,
+        species_count: count,
+        representative_species_id: representativeSpeciesId,
+      }]
+      : [];
+  });
+}
+
 export async function fetchSpeciesDictionaryOverview(
   request: SpeciesDictionaryOverviewRequest,
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryOverviewResult> {
   const rows = await fetchAllPublicSpeciesDictionaryRows(supabaseAdmin);
-  const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
-    rows.map((row) => row.id),
-    supabaseAdmin,
-  );
+  const userCountryCode = normalizedCountryCode(request.userRegion);
+  const [firstImageBySpeciesId, countrySummaries, userCountrySummaries] =
+    await Promise.all([
+      fetchFirstReferenceImagesForSpecies(
+        rows.map((row) => row.id),
+        supabaseAdmin,
+      ),
+      fetchSpeciesDictionaryCountrySummaries(supabaseAdmin),
+      userCountryCode
+        ? fetchSpeciesDictionaryCountrySummaries(
+          supabaseAdmin,
+          userCountryCode,
+          1,
+        )
+        : Promise.resolve([]),
+    ]);
   return buildSpeciesDictionaryOverview(
     rows,
     firstImageBySpeciesId,
     request.userRegion,
+    countrySummaries,
+    userCountrySummaries[0] ?? null,
   );
 }
 
@@ -898,6 +998,8 @@ export function buildSpeciesDictionaryOverview(
   rows: SpeciesDictionaryRow[],
   firstImageBySpeciesId: Map<string, string> = new Map(),
   userRegion?: string,
+  countrySummaries: SpeciesDictionaryCountrySummaryRow[] = [],
+  userCountrySummary: SpeciesDictionaryCountrySummaryRow | null = null,
 ): SpeciesDictionaryOverviewResult {
   const biologicalRows = rows.filter(isPublicBiologicalSpeciesRow);
   const sortedRows = biologicalRows
@@ -907,12 +1009,24 @@ export function buildSpeciesDictionaryOverview(
     0,
     SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT,
   );
-  const regions = buildSpeciesDictionaryRegionSummaries(
+  const canonicalRegions = buildSpeciesDictionaryCountryRegionSummaries(
+    countrySummaries,
     biologicalRows,
     firstImageBySpeciesId,
   );
+  const regions = canonicalRegions.length > 0
+    ? canonicalRegions
+    : buildSpeciesDictionaryRegionSummaries(
+      biologicalRows,
+      firstImageBySpeciesId,
+    );
+  const userCountryCode = normalizedCountryCode(userRegion);
+  const canonicalUserSummary = userCountryCode &&
+      userCountrySummary?.country_code === userCountryCode
+    ? userCountrySummary
+    : null;
   const normalizedUserRegion = normalizedRegionKey(userRegion);
-  const userRegionRows = normalizedUserRegion
+  const legacyUserRegionRows = normalizedUserRegion
     ? biologicalRows.filter((row) =>
       regionKeysMatch(
         normalizedRegionKey(row.native_region),
@@ -920,7 +1034,9 @@ export function buildSpeciesDictionaryOverview(
       )
     )
     : [];
-  const userRegionTitle = userRegionRows.length > 0
+  const userRegionTitle = userCountryCode
+    ? regionDisplayName(userCountryCode)
+    : legacyUserRegionRows.length > 0
     ? (regions.find((region) =>
       regionKeysMatch(
         normalizedRegionKey(region.title),
@@ -928,6 +1044,23 @@ export function buildSpeciesDictionaryOverview(
       )
     )?.title ?? normalizedRegionTitle(userRegion))
     : null;
+  const userRegionCount = canonicalUserSummary?.species_count ??
+    legacyUserRegionRows.length;
+  const canonicalRepresentativeRow = canonicalUserSummary
+      ?.representative_species_id
+    ? biologicalRows.find((row) =>
+      row.id === canonicalUserSummary.representative_species_id
+    )
+    : undefined;
+  const userRegionReferenceImageUrl = canonicalRepresentativeRow
+    ? referenceImageUrlForRow(
+      canonicalRepresentativeRow,
+      firstImageBySpeciesId,
+    )
+    : representativeImageUrl(
+      legacyUserRegionRows,
+      firstImageBySpeciesId,
+    );
   const categoryReferenceImageUrls = randomRepresentativeImageUrlPair(
     biologicalRows,
     firstImageBySpeciesId,
@@ -946,19 +1079,20 @@ export function buildSpeciesDictionaryOverview(
         count: biologicalRows.length,
         reference_image_url: categoryReferenceImageUrls[0],
         region: null,
+        region_code: null,
       },
       {
         id: "your_region",
         title: "Your region",
-        subtitle: userRegionTitle
-          ? `Species associated with ${userRegionTitle}`
+        subtitle: userRegionTitle && userRegionCount > 0
+          ? `Species recorded in ${userRegionTitle}`
+          : userRegionTitle
+          ? `Regional occurrence coverage for ${userRegionTitle} is being prepared`
           : "Browse regions to find local species",
-        count: userRegionRows.length,
-        reference_image_url: representativeImageUrl(
-          userRegionRows,
-          firstImageBySpeciesId,
-        ),
+        count: userRegionCount,
+        reference_image_url: userRegionReferenceImageUrl,
         region: userRegionTitle,
+        region_code: userCountryCode,
       },
       {
         id: "taxonomy",
@@ -967,6 +1101,7 @@ export function buildSpeciesDictionaryOverview(
         count: biologicalRows.length,
         reference_image_url: categoryReferenceImageUrls[1],
         region: null,
+        region_code: null,
       },
       {
         id: "recently_added",
@@ -978,6 +1113,7 @@ export function buildSpeciesDictionaryOverview(
           firstImageBySpeciesId,
         ),
         region: null,
+        region_code: null,
       },
     ],
     groups: buildSpeciesDictionaryGroupSummaries(
@@ -1420,6 +1556,36 @@ function taxonomyRankSortValue(rank: TaxonomyTreeRank): number {
   ].indexOf(rank);
 }
 
+function buildSpeciesDictionaryCountryRegionSummaries(
+  summaries: SpeciesDictionaryCountrySummaryRow[],
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string>,
+): SpeciesDictionaryRegionSummary[] {
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+
+  return summaries.flatMap((summary) => {
+    const countryCode = normalizedCountryCode(summary.country_code);
+    const title = countryCode ? regionDisplayName(countryCode) : null;
+    if (!countryCode || !title || summary.species_count < 1) return [];
+
+    const representativeRow = summary.representative_species_id
+      ? rowById.get(summary.representative_species_id)
+      : undefined;
+    return [{
+      id: `country:${countryCode}`,
+      title,
+      count: summary.species_count,
+      reference_image_url: representativeRow
+        ? referenceImageUrlForRow(representativeRow, firstImageBySpeciesId)
+        : null,
+      code: countryCode,
+    }];
+  }).sort((lhs, rhs) => {
+    const countDelta = rhs.count - lhs.count;
+    return countDelta !== 0 ? countDelta : lhs.title.localeCompare(rhs.title);
+  }).slice(0, SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT);
+}
+
 function buildSpeciesDictionaryRegionSummaries(
   rows: SpeciesDictionaryRow[],
   firstImageBySpeciesId: Map<string, string>,
@@ -1459,6 +1625,7 @@ function buildSpeciesDictionaryRegionSummaries(
       title: summary.title,
       count: summary.count,
       reference_image_url: summary.referenceImageUrl,
+      code: null,
     }))
     .sort((lhs, rhs) => {
       const countDelta = rhs.count - lhs.count;
@@ -1694,6 +1861,33 @@ function normalizeOptionalRegion(
   return { region };
 }
 
+let countryCodeByEnglishDisplayName: Map<string, string> | null = null;
+
+export function normalizedCountryCode(value: unknown): string | null {
+  const region = stringValue(value)?.trim().replace(/\s+/g, " ");
+  if (!region) return null;
+  if (/^[A-Za-z]{2}$/.test(region)) return region.toUpperCase();
+
+  if (!countryCodeByEnglishDisplayName) {
+    countryCodeByEnglishDisplayName = new Map<string, string>();
+    for (let first = 65; first <= 90; first += 1) {
+      for (let second = 65; second <= 90; second += 1) {
+        const code = String.fromCharCode(first, second);
+        const displayName = regionDisplayName(code);
+        if (!displayName || displayName === code) continue;
+        countryCodeByEnglishDisplayName.set(
+          normalizedRegionSearchKey(displayName),
+          code,
+        );
+      }
+    }
+  }
+
+  return countryCodeByEnglishDisplayName.get(
+    normalizedRegionSearchKey(region),
+  ) ?? null;
+}
+
 function normalizedRegionTitle(
   value: string | null | undefined,
 ): string | null {
@@ -1729,8 +1923,12 @@ function regionDisplayName(regionCode: string): string | null {
 }
 
 function normalizedRegionKey(value: string | null | undefined): string {
+  return normalizedRegionSearchKey(normalizedRegionTitle(value));
+}
+
+function normalizedRegionSearchKey(value: unknown): string {
   return (
-    normalizedRegionTitle(value)
+    stringValue(value)
       ?.toLocaleLowerCase()
       .normalize("NFKD")
       .replace(/[\u0300-\u036f]/g, "")

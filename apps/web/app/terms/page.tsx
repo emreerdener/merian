@@ -19,15 +19,15 @@ export default function TermsPage() {
       eyebrow="Naturebook legal"
       title="Terms of Service"
       description="These Terms govern the Naturebook app, Explore community, subscriptions, and Naturebook public web pages."
-      lastUpdated="July 28, 2026"
+      lastUpdated="July 31, 2026"
     >
       <LegalSection title="1. Agreement to These Terms">
         <Text>
           These Terms of Service (&quot;Terms&quot;) are an agreement between
           you and the operator of Naturebook (&quot;Naturebook,&quot;
-          &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). They apply to
-          the Naturebook mobile app, Explore, public web pages, and related
-          features and services (together, the &quot;Service&quot;).
+          &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). They apply to the
+          Naturebook mobile app, Explore, public web pages, and related features
+          and services (together, the &quot;Service&quot;).
         </Text>
         <Text>
           By tapping the control that accepts these Terms, creating or using a
@@ -67,8 +67,8 @@ export default function TermsPage() {
           Terms, Naturebook grants you a limited, personal, revocable,
           non-exclusive, non-transferable, and non-sublicensable license to
           install and use the app on devices you own or control, solely for its
-          intended purpose and as permitted by applicable store usage rules.
-          The app is licensed, not sold. Naturebook and its licensors retain all
+          intended purpose and as permitted by applicable store usage rules. The
+          app is licensed, not sold. Naturebook and its licensors retain all
           rights in the Service not expressly granted to you.
         </Text>
         <Text>
@@ -76,8 +76,7 @@ export default function TermsPage() {
           devices may differ by plan, region, app version, or technical
           capacity. Access described as &quot;unlimited&quot; is still subject
           to reasonable fair-use, safety, anti-abuse, rate, file-size, and
-          provider limits. Naturebook is not a data-backup or emergency
-          service.
+          provider limits. Naturebook is not a data-backup or emergency service.
         </Text>
       </LegalSection>
 
@@ -101,8 +100,8 @@ export default function TermsPage() {
           </strong>{" "}
           Naturebook uses the Google Gemini API, operated by Google, to process
           identification requests and certain related AI features. Depending on
-          the feature and permissions you choose, information sent to Google
-          may include photos, sampled video frames and video audio, audio clips,
+          the feature and permissions you choose, information sent to Google may
+          include photos, sampled video frames and video audio, audio clips,
           written descriptions, follow-up questions, prior identification
           context, exact coordinates, elevation, approximate place information,
           weather and temperature, capture time and month, locale, time zone,
@@ -126,8 +125,8 @@ export default function TermsPage() {
           means the core identification Service will not be available. You may
           withdraw permission for future AI processing by stopping submissions
           and deleting applicable content or your account, subject to the
-          de-identified scientific-data provisions below. Withdrawal does not
-          invalidate processing already performed lawfully.
+          mandatory scientific-data retention provisions below. Withdrawal does
+          not invalidate processing already performed lawfully.
         </Text>
         <Text>
           We will not materially expand the information sent to third-party AI
@@ -162,9 +161,9 @@ export default function TermsPage() {
 
       <LegalSection title="7. Product Analytics">
         <Text>
-          Naturebook uses PostHog and may use comparable providers identified
-          in the Privacy Policy to understand app reliability, lifecycle
-          events, feature and product interactions, funnels, subscription and
+          Naturebook uses PostHog and may use comparable providers identified in
+          the Privacy Policy to understand app reliability, lifecycle events,
+          feature and product interactions, funnels, subscription and
           entitlement events, performance, and Service health. Analytics may
           include a pseudonymous or account identifier, app and device state,
           coarse locale or region, and event properties connected to how a
@@ -178,9 +177,9 @@ export default function TermsPage() {
           applicable law. Where law requires a separate choice or gives you a
           right to object or withdraw, Naturebook will honor that right.
           Declining non-essential analytics will not prevent access to the core
-          identification Service. You may contact <LegalEmailLink /> to object
-          to or withdraw future non-essential analytics processing. Withdrawal
-          does not affect processing already performed lawfully.
+          identification Service. You may contact <LegalEmailLink />{" "}
+          to object to or withdraw future non-essential analytics processing.
+          Withdrawal does not affect processing already performed lawfully.
         </Text>
       </LegalSection>
 
@@ -203,9 +202,9 @@ export default function TermsPage() {
             purchase unless you cancel through Apple before renewal.
           </li>
           <li>
-            Apple processes payment and controls billing, cancellation,
-            renewal, storefront pricing, and refund procedures. Naturebook does
-            not receive your full payment-card details.
+            Apple processes payment and controls billing, cancellation, renewal,
+            storefront pricing, and refund procedures. Naturebook does not
+            receive your full payment-card details.
           </li>
           <li>
             Trials may convert to paid access as disclosed in the purchase flow
@@ -227,18 +226,17 @@ export default function TermsPage() {
         <Text>
           You retain whatever ownership rights you have in photos, videos,
           audio, descriptions, field notes, comments, profile material,
-          corrections, and other content you submit
-          (&quot;Your Content&quot;). You grant Naturebook a worldwide,
-          non-exclusive, royalty-free, sublicensable license to host, copy,
-          cache, encode, compress, transmit, process, analyze, format,
-          technically modify, and create technical derivatives of Your Content
-          as reasonably needed to operate, secure, improve, troubleshoot, and
-          support the Service; provide AI identification and related features;
-          sync your library; enforce permissions and geoprivacy; generate
-          requested exports; prevent abuse; and fulfill your sharing choices.
-          This operational license lasts while the content is stored or as
-          reasonably needed for backups, security, legal compliance, and
-          processing already initiated before deletion.
+          corrections, and other content you submit (&quot;Your Content&quot;).
+          You grant Naturebook a worldwide, non-exclusive, royalty-free,
+          sublicensable license to host, copy, cache, encode, compress,
+          transmit, process, analyze, format, technically modify, and create
+          technical derivatives of Your Content as reasonably needed to operate,
+          secure, improve, troubleshoot, and support the Service; provide AI
+          identification and related features; sync your library; enforce
+          permissions and geoprivacy; generate requested exports; prevent abuse;
+          and fulfill your sharing choices. This operational license lasts while
+          the content is stored or as reasonably needed for backups, security,
+          legal compliance, and processing already initiated before deletion.
         </Text>
         <Text>
           You represent that you have all rights and permissions needed to
@@ -257,9 +255,9 @@ export default function TermsPage() {
           Explore or another public surface. When you publish content
           (&quot;Public Contributions&quot;), it may be visible in the app and
           on public web pages, search previews, social previews, feeds, maps,
-          and species pages. Public Contributions may include your public
-          author identity, privacy-filtered location, species labels,
-          observation context you elect to publish, engagement, and comments.
+          and species pages. Public Contributions may include your public author
+          identity, privacy-filtered location, species labels, observation
+          context you elect to publish, engagement, and comments.
         </Text>
         <Text>
           For each Public Contribution, you grant Naturebook a worldwide,
@@ -268,11 +266,11 @@ export default function TermsPage() {
           translate, communicate, publicly perform or display, distribute, make
           available, index, moderate, and promote that contribution in
           connection with Naturebook and its scientific and educational
-          purposes. This includes permission to select eligible shared photos
-          as species reference imagery and to show them to other users as a
-          reference for, comparison with, or support for other
-          identifications. Naturebook may display the public attribution
-          connected to the contribution while it remains available.
+          purposes. This includes permission to select eligible shared photos as
+          species reference imagery and to show them to other users as a
+          reference for, comparison with, or support for other identifications.
+          Naturebook may display the public attribution connected to the
+          contribution while it remains available.
         </Text>
         <Text>
           Naturebook&apos;s current reference-image system considers only
@@ -291,17 +289,27 @@ export default function TermsPage() {
 
       <LegalSection title="11. Scientific Observation Data and Commercial Use">
         <Text>
-          Naturebook may extract or derive scientific observation data from
-          scans and Public Contributions. Examples include taxonomy,
-          identification and confidence, confirmation state, observation time,
-          coarse or geoprivacy-projected location, environmental conditions,
-          biological traits, quality signals, and non-identifying usage or
-          provenance information (&quot;Scientific Data&quot;). Scientific Data
-          does not include your original private media, account credentials,
-          private notes, exact private location, or information that Naturebook
-          continues to treat as directly identifying, unless you have
-          separately chosen to make that information public and the applicable
-          license permits the use.
+          <strong>
+            Every scan submitted to Naturebook contributes a scientific
+            observation to the Naturebook database.
+          </strong>{" "}
+          This is a required, non-optional condition of submitting a scan and
+          using the identification Service. The scientific observation includes
+          the observation&apos;s exact and privacy-projected coordinates when
+          present, elevation and coordinate uncertainty, observation time,
+          taxonomy and taxonomy version, identification and confidence,
+          confirmation or review state, environmental measurements, biological
+          traits, quality signals, and scientific provenance (&quot;Scientific
+          Data&quot;).
+        </Text>
+        <Text>
+          Scientific Data does not include your authentication credentials,
+          account profile, original private photos, video or audio, community
+          content, private free-form notes, or other account-owned content.
+          Public geoprivacy settings govern public presentation of an
+          observation; they do not remove the exact coordinates from the
+          retained backend scientific record. Naturebook may apply additional
+          access and location protections for sensitive species and habitat.
         </Text>
         <Text>
           To the extent you have any intellectual-property or database right in
@@ -320,11 +328,13 @@ export default function TermsPage() {
           educational institutions, public bodies, data platforms, and
           commercial partners. Naturebook may retain any resulting revenue, and
           you are not entitled to royalties, payment, accounting, approval, or
-          ownership in resulting datasets, analyses, or products. We will not
-          attempt to re-identify de-identified Scientific Data or permit a
-          recipient to do so. If retained data remains personal information
-          under applicable law, your applicable privacy rights continue to
-          apply notwithstanding this section.
+          ownership in resulting datasets, analyses, or products. Naturebook may
+          reduce or withhold exact coordinates from published, shared, or
+          licensed datasets under its geoprivacy, sensitive-species, access, and
+          legal controls even though the exact coordinates remain in the backend
+          scientific record. If retained data is personal information under
+          applicable law, applicable privacy rights and statutory requirements
+          continue to apply notwithstanding this section.
         </Text>
       </LegalSection>
 
@@ -337,7 +347,9 @@ export default function TermsPage() {
           open, obscured, or private—and Naturebook may further obscure
           sensitive-species locations. An &quot;open&quot; choice can expose a
           precise or near-precise location. No geoprivacy method eliminates all
-          inference or re-identification risk.
+          inference or re-identification risk. Geoprivacy controls public
+          presentation and distribution; it does not remove exact coordinates
+          from Naturebook&apos;s mandatory backend scientific record.
         </Text>
         <Text>
           A file selected from your photo library may contain embedded capture
@@ -352,12 +364,12 @@ export default function TermsPage() {
 
       <LegalSection title="13. Explore, Community Conduct, and Moderation">
         <Text>
-          Explore includes public profiles, posts, comments, replies,
-          reactions, likes, follows, hashtags, notifications, maps, nearby
-          discovery, reports, blocks, and community identification. You must
-          comply with the Community Guidelines and all applicable law.
-          Naturebook does not endorse and is not responsible for user content,
-          and we do not promise to monitor every contribution.
+          Explore includes public profiles, posts, comments, replies, reactions,
+          likes, follows, hashtags, notifications, maps, nearby discovery,
+          reports, blocks, and community identification. You must comply with
+          the Community Guidelines and all applicable law. Naturebook does not
+          endorse and is not responsible for user content, and we do not promise
+          to monitor every contribution.
         </Text>
         <LegalList>
           <li>
@@ -457,32 +469,32 @@ export default function TermsPage() {
         <Text>
           Deleting an individual scan removes its server scan record and owned
           media through Naturebook&apos;s deletion workflow. If the scan has an
-          Explore post, that post and associated engagement are also removed.
-          A private, content-free scan identifier may be retained to prevent a
+          Explore post, that post and associated engagement are also removed. A
+          private, content-free scan identifier may be retained to prevent a
           delayed upload or another device from recreating the deleted scan.
         </Text>
         <Text>
-          <strong>Account deletion.</strong> When you delete your account,
-          Naturebook deletes your account, profile, authentication record,
-          public attribution, community content, avatars, exports, and stored
-          scan photos, videos, and audio through a verified deletion process.
-          Exact account-linked location, device and semantic-location context,
-          free-form notes, and similar identifying fields are removed or
-          transformed as part of that process. Deletion may take time to finish
-          across active systems, security records, caches, and backups.
+          <strong>Account deletion.</strong>{" "}
+          When you delete your account, Naturebook deletes your account,
+          profile, authentication record, public attribution, community content,
+          avatars, exports, and stored scan photos, videos, and audio through a
+          verified deletion process. It also removes direct account linkage,
+          device and semantic-location context, custom tags, and private
+          free-form notes from contributed observations. Deletion may take time
+          to finish across active systems, security records, caches, and
+          backups.
         </Text>
         <Text>
-          Account deletion does not necessarily delete the scientific fact that
-          an observation occurred. Naturebook may retain a reduced,
-          ownerless observation record after taking measures designed to make it
-          non-personal. That record may retain taxonomy or identification,
-          confidence and quality signals, observation time, coarse or
-          geoprivacy-projected location, environmental measurements, and
-          non-identifying biological facts. It will not remain attributed to
-          your deleted account and may continue to be used as Scientific Data
-          under Section 11. If a retained record is personal information under
-          applicable law, it remains subject to applicable legal rights and
-          deletion requirements.
+          Account deletion does not delete Scientific Data contributed through
+          submitted scans. Naturebook retains each observation as an ownerless
+          scientific record, including exact coordinates, elevation, observation
+          time, taxonomy, identification, confidence, review and quality state,
+          environmental measurements, biological facts, and scientific
+          provenance. The retained record is not publicly attributed to your
+          deleted account and remains excluded from personal libraries and
+          public scan surfaces. Section 11 continues to apply. If retained data
+          is personal information under applicable law, applicable legal rights
+          and requirements continue to apply.
         </Text>
         <Text>
           Naturebook may retain records that applicable law requires, records
@@ -509,11 +521,12 @@ export default function TermsPage() {
         </Text>
         <Text>
           To report claimed copyright or other rights infringement, contact{" "}
-          <LegalEmailLink /> with your contact information, identification of
-          the protected work, identification and location of the material,
-          a good-faith statement explaining the claim, and any other information
-          required by applicable law. We may forward a complete complaint to
-          the person who submitted the material.
+          <LegalEmailLink />{" "}
+          with your contact information, identification of the protected work,
+          identification and location of the material, a good-faith statement
+          explaining the claim, and any other information required by applicable
+          law. We may forward a complete complaint to the person who submitted
+          the material.
         </Text>
       </LegalSection>
 
@@ -629,8 +642,8 @@ export default function TermsPage() {
             If the app fails to conform to an applicable warranty, you may
             notify Apple, and Apple may refund the app purchase price, if any.
             To the maximum extent permitted by law, Apple has no other warranty
-            obligation, and Naturebook is responsible for other warranty
-            claims, losses, liabilities, damages, costs, or expenses.
+            obligation, and Naturebook is responsible for other warranty claims,
+            losses, liabilities, damages, costs, or expenses.
           </li>
           <li>
             Naturebook, not Apple, is responsible for product-liability,
@@ -644,8 +657,8 @@ export default function TermsPage() {
           </li>
           <li>
             You represent that you are not located in a region subject to a
-            United States government embargo or designated by that government
-            as supporting terrorism, and that you are not on a United States
+            United States government embargo or designated by that government as
+            supporting terrorism, and that you are not on a United States
             government prohibited- or restricted-party list.
           </li>
           <li>
@@ -659,8 +672,8 @@ export default function TermsPage() {
       <LegalSection title="24. Governing Law and Disputes">
         <Text>
           Applicable law governs these Terms. A dispute may be brought before a
-          court with lawful jurisdiction. Nothing in these Terms deprives you
-          of a mandatory right to bring a claim in your home jurisdiction or
+          court with lawful jurisdiction. Nothing in these Terms deprives you of
+          a mandatory right to bring a claim in your home jurisdiction or
           receive the protection of law that cannot be contractually excluded.
           Before filing a claim, you and Naturebook agree to make a reasonable
           good-faith effort to resolve it by contacting the other party, unless

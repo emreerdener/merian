@@ -6,6 +6,18 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Scientific Observation Retention
+
+- Every submitted scan now has an explicit scientific-retention contract.
+  Account deletion removes the login, profile, public attribution, community
+  content, media, private free-form notes, and device or semantic-location
+  context, but retains the contributed ownerless scientific observation with
+  its exact coordinates, elevation, time, taxonomy, identification,
+  environmental, quality, and provenance facts. Tombstones remain outside
+  personal and anonymous scan access. The deletion confirmation, location
+  permission text, Terms, Privacy Policy, and Privacy Choices page now state the
+  same mandatory, non-optional behavior.
+
 ### Release Integrity
 
 - App Store Connect export now preserves the deliberately prepared project
@@ -945,10 +957,11 @@ TestFlight, App Store, support, and QA.
   empty verification sweep must finish before sign-in access is removed as the
   final step. Interrupted attempts are resumed automatically instead of leaving
   an inaccessible account with personal profile data still present. Retained
-  scientific observations now become ownerless tombstones with exact location
-  and free-form notes removed, rather than relying on a synthetic login/profile
-  identity. Delayed ingestion replay treats those tombstones as terminal and
-  cannot invoke AI for them.
+  scientific observations now become ownerless tombstones rather than relying
+  on a synthetic login/profile identity. Free-form notes and account context are
+  removed; exact location and other scientific facts are retained under the
+  current mandatory scientific-observation contract. Delayed ingestion replay
+  treats those tombstones as terminal and cannot invoke AI for them.
 - Fenced account-level R2 erasure against stale or orphaned storage markers. The
   database now requires the matching private deletion job to have completed
   relational cleanup, and refuses a storage claim while a live profile or any
@@ -1017,6 +1030,12 @@ TestFlight, App Store, support, and QA.
 
 ### Species Dictionary
 
+- Fixed the Index's **Your Region** section so a valid device country no longer
+  disappears. Regional catalogs now use refreshable GBIF occurrence evidence
+  and exact country codes instead of trying to match country names inside broad
+  free-text ranges. While existing species are being backfilled, the map card
+  stays visible with a clear coverage-updating state; new identifications also
+  stop overwriting curated legacy range text with `Unknown`.
 - Temporarily hid the unfinished Tree of Life view from Explore’s Index while
   keeping the Species Dictionary catalog available.
 - Hardened public observation charts against duplicate cold refreshes and

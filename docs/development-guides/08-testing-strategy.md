@@ -1804,7 +1804,13 @@ deno test --frozen --config supabase/functions/deno.json \
   supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
 ```
 
-Durable account deletion has nine complementary checks:
+Durable account deletion has ten complementary checks:
+
+- `apps/web/lib/scientificRetentionContract.test.ts` keeps the public Terms,
+  Privacy Policy, Privacy Choices page, iOS account-deletion confirmation,
+  location-onboarding copy, and location usage description aligned on mandatory
+  ownerless Scientific Data retention. The web-quality workflow includes those
+  three iOS source paths so an iOS-only wording change cannot bypass the test.
 
 - `_tests/safeDelete.test.ts` executes the actual handler/worker modules with
   injected boundaries. It proves intake precedes processing, cleanup failure
@@ -1820,7 +1826,8 @@ Durable account deletion has nine complementary checks:
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order, cleanup
   verification, required `storage_pending` phase, five-prefix keyset cursor,
-  25-hour delayed verification, media/location/context clearing, upload-signing
+  25-hour delayed verification, media/private-context clearing, unchanged
+  scientific-field retention, upload-signing
   fence, profile-recreation guard, terminal UUID minimization, service-only
   ACLs, five-minute cron, the failed-version no-op bridge, ownerless-tombstone
   constraint, the Auth/profile foreign key, and the absence of synthetic user
@@ -1834,8 +1841,12 @@ Durable account deletion has nine complementary checks:
   Auth-first delete, premature Auth completion is denied, all five sweep and all
   five delayed verification prefixes advance in order, cleanup commits while
   Auth still exists, retained scans are ownerless tombstones with media and
-  personal fields cleared, no all-zero profile exists, active deletion blocks
-  profile resurrection, retries preserve `auth_pending`, the service role sees
+  personal fields cleared and exact scientific coordinates retained, a
+  pre-existing scan-generation fence permits only that one detachment, stale
+  post-detachment coordinate rewrites are rejected, a delayed individual-scan
+  completion remains idempotent without deleting the retained observation, no
+  all-zero profile exists, active deletion blocks profile resurrection, retries
+  preserve `auth_pending`, the service role sees
   that retry through aggregate health while public roles cannot execute the
   health RPC, final completion erases the direct UUID, and duplicate completion
   is idempotent. Before deletion begins, the same fixture inserts a stale

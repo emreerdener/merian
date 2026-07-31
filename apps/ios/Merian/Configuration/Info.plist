@@ -65,7 +65,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Naturebook needs camera access for instant AI-powered ecological identification.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Naturebook requires your location to determine regional ecological context and coordinate mapping.</string>
+	<string>Naturebook uses your location for identification, mapping, and the scientific observation record created when you submit a scan.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Naturebook uses the microphone when you record wildlife sounds or dictate text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

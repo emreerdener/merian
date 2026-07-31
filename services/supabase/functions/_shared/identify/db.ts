@@ -127,7 +127,7 @@ export interface SpeciesUpsertData {
   genus?: string | null;
   wikipedia_overview?: string | null;
   hazard_type?: string;
-  native_region: string;
+  native_region?: string;
   iucn_red_list_status?: string;
   habitat_description?: string;
   wikipedia_url?: string | null;
@@ -135,13 +135,28 @@ export interface SpeciesUpsertData {
   reference_image_url?: string | null;
 }
 
+export function omitNullishSpeciesUpsertValues(
+  data: SpeciesUpsertData,
+): SpeciesUpsertData {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) =>
+      value !== null && value !== undefined
+    ),
+  ) as unknown as SpeciesUpsertData;
+}
+
 export async function upsertSpeciesDictionary(
   data: SpeciesUpsertData,
   supabaseAdmin: SupabaseClient,
 ): Promise<string | null> {
+  const upsertData = omitNullishSpeciesUpsertValues(data);
   const { data: row, error } = await supabaseAdmin
     .from("species_dictionary")
-    .upsert(data, { onConflict: "scientific_name", ignoreDuplicates: false })
+    .upsert(upsertData, {
+      onConflict: "scientific_name",
+      ignoreDuplicates: false,
+      defaultToNull: false,
+    })
     .select("id")
     .maybeSingle();
   if (error) throw new Error(`upsertSpeciesDictionary: ${error.message}`);
@@ -150,13 +165,13 @@ export async function upsertSpeciesDictionary(
   if (speciesId) {
     await upsertSpeciesReferenceImages(
       speciesId,
-      data.reference_image_url,
-      data.wikipedia_url,
+      upsertData.reference_image_url,
+      upsertData.wikipedia_url,
       supabaseAdmin,
     );
     await recordSpeciesContentProvenance(
       supabaseAdmin,
-      buildSpeciesDictionaryProvenanceRows(speciesId, data),
+      buildSpeciesDictionaryProvenanceRows(speciesId, upsertData),
       "upsertSpeciesDictionary",
     );
   }

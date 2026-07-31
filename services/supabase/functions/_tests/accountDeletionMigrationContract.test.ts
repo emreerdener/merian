@@ -27,6 +27,10 @@ const healthMonitorMigrationUrl = new URL(
   "../../migrations/20260727001630_monitor_account_deletion_health.sql",
   import.meta.url,
 );
+const scientificRetentionMigrationUrl = new URL(
+  "../../migrations/20260731154139_retain_scientific_coordinates_after_account_deletion.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -127,6 +131,88 @@ Deno.test("account deletion RPCs remain service-only", async () => {
     "PostgreSQL conditional expressions are not schema-qualified functions and fail plpgsql_check.",
   );
 });
+
+Deno.test(
+  "latest account tombstone retains every scientific field unchanged",
+  async () => {
+    const sql = normalized(
+      await Deno.readTextFile(scientificRetentionMigrationUrl),
+    );
+
+    assert(
+      !/\bCREATE\s+TABLE\b/i.test(sql),
+      "Mandatory scientific retention must keep using the ownerless scans row, not create a parallel retention table.",
+    );
+
+    for (
+      const fragment of [
+        "CREATE OR REPLACE FUNCTION public.apply_user_tombstone",
+        "PERFORM internal.require_service_role()",
+        "SET search_path = ''",
+        "SET user_id = NULL, is_tombstoned = TRUE",
+        "image_storage_urls = ARRAY[]::TEXT[]",
+        "captured_media = NULL",
+        "semantic_location = NULL",
+        "public_location_label = NULL",
+        "device_locale = NULL",
+        "device_time_zone = NULL",
+        "user_observation_context = NULL",
+        "custom_tags = ARRAY[]::TEXT[]",
+        "human_intervention_notes = NULL",
+        "including exact coordinates and elevation",
+        "CREATE OR REPLACE FUNCTION internal.reject_deleted_scan_generation_mutation",
+        "OLD.user_id IS NOT NULL",
+        "NEW.user_id IS NULL",
+        "pg_catalog.TO_JSONB(NEW) - account_detachment_columns",
+        "pg_catalog.TO_JSONB(OLD) - account_detachment_columns",
+        "REVOKE ALL ON FUNCTION public.apply_user_tombstone(UUID) FROM PUBLIC, anon, authenticated, service_role",
+        "GRANT EXECUTE ON FUNCTION public.apply_user_tombstone(UUID) TO service_role",
+        "REVOKE ALL ON FUNCTION internal.reject_deleted_scan_generation_mutation() FROM PUBLIC, anon, authenticated, service_role",
+      ]
+    ) {
+      assertStringIncludes(sql, fragment);
+    }
+
+    const routineStart = sql.indexOf(
+      "CREATE OR REPLACE FUNCTION public.apply_user_tombstone",
+    );
+    const routineEnd = sql.indexOf(
+      "COMMENT ON FUNCTION public.apply_user_tombstone",
+      routineStart,
+    );
+    const routine = sql.slice(routineStart, routineEnd);
+    for (
+      const retainedColumn of [
+        "gps_lat_exact",
+        "gps_long_exact",
+        "gps_elevation",
+        "gps_lat_public",
+        "gps_long_public",
+        "coordinate_uncertainty_in_meters",
+        "timestamp",
+        "species_id",
+        "confirmed_species_id",
+      ]
+    ) {
+      assert(
+        !routine.includes(retainedColumn),
+        `${retainedColumn} must not be changed by account detachment.`,
+      );
+    }
+
+    const allowedChangesStart = sql.indexOf(
+      "account_detachment_columns CONSTANT TEXT[]",
+    );
+    const allowedChangesEnd = sql.indexOf("]::TEXT[]", allowedChangesStart);
+    const allowedChanges = sql.slice(allowedChangesStart, allowedChangesEnd);
+    assert(
+      !allowedChanges.includes("gps_") &&
+        !allowedChanges.includes("species_id") &&
+        !allowedChanges.includes("timestamp"),
+      "The scan-generation exception must never allow retained scientific fields to change.",
+    );
+  },
+);
 
 Deno.test("account deletion requires verified object erasure before Auth", async () => {
   const sql = normalized(

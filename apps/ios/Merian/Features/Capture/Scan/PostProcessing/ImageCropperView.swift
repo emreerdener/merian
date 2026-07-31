@@ -110,10 +110,10 @@ struct ImageCropperView: View {
                     }
                     .environment(\.colorScheme, .dark)
                     .padding(.horizontal, 24)
-                    // The full-screen cover's foreground layout already begins below
-                    // the status-bar safe area, so adding the inset again pushes this
-                    // toolbar into the body of the viewport.
-                    .padding(.top, 12)
+                    // Cropper covers are hosted from multiple view hierarchies. Some
+                    // begin at the physical screen edge; others are already constrained
+                    // to the safe area, so delegate the effective inset to SwiftUI.
+                    .safeAreaPadding(.top, 12)
 
                     Spacer()
 

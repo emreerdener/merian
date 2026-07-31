@@ -43,3 +43,9 @@ to Documents, waits for that control before completion, and requires the same
 readable control after the completed record replaces the queued presentation.
 The outer page identifier alone is not media-readiness evidence because it is
 also present while decoding and in the unavailable state.
+
+Video pages track the underlying `AVPlayerItem` status instead of treating a
+created player as proof that media is playable. Unknown items show loading,
+ready items expose playback and mute controls, and failed or invalid items show
+an accessible `Video Unavailable` state with no dead playback controls. The same
+contract applies in the inline Insight carousel and fullscreen gallery.

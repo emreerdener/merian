@@ -2069,11 +2069,15 @@ Account deletions use the `apply_user_tombstone` PL/pgSQL function (introduced
 by `00006_apply_user_tombstone.sql` and hardened by later forward migrations).
 Instead of cascade-deleting retained observations, migration
 `20260725041308_ownerless_account_deletion_tombstones.sql` makes those scans
-ownerless (`user_id = NULL`) and sets `is_tombstoned = true`. It clears exact
-latitude, longitude, elevation, and free-form intervention notes before the
-original public profile is removed. A validated check constraint permits an
-ownerless scan only when it is tombstoned, and the anonymous table-read policy
-explicitly excludes tombstones.
+ownerless (`user_id = NULL`) and sets `is_tombstoned = true`. Migration
+`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`
+installs the current mandatory retention boundary: it clears media, private
+free-form notes, custom tags, semantic/public location labels, and device
+context, while leaving exact coordinates, elevation, observation time,
+taxonomy, identification, environmental, quality, and provenance facts
+unchanged. A validated check constraint permits an ownerless scan only when it
+is tombstoned, and the anonymous table-read policy explicitly excludes
+tombstones.
 
 `20260725035737_repair_tombstone_profile_seed.sql` is a no-op compatibility
 bridge for production run 1461. The attempted public-only all-zero profile could

@@ -1079,7 +1079,6 @@ Deno.serve((req: Request) =>
                 externalData.wikiExtract ?? null,
               hazard_type: freshSpecies?.hazard_type ??
                 cachedSpecies?.hazard_type ?? "none",
-              native_region: "Unknown",
               iucn_red_list_status: freshSpecies?.iucn_red_list_status ??
                 cachedSpecies?.iucn_red_list_status ??
                 "not_evaluated",
@@ -1373,7 +1372,6 @@ Deno.serve((req: Request) =>
                 genus: null,
                 wikipedia_overview: externalData.wikiExtract ?? null,
                 hazard_type: "none",
-                native_region: "Unknown",
                 iucn_red_list_status: "not_evaluated",
                 habitat_description: undefined,
                 wikipedia_url: externalData.wikipediaUrl,

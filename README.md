@@ -491,11 +491,11 @@ achievement milestone alerts. **Changelog** — bundled feature notes, release
 notes, and selected in-progress work. **Export** — staged Darwin Core Archive
 (DwC-A) data export for academic/research use; hidden and server-disabled for
 the initial production launch. **Account** — Sign in with Apple or Google,
-anonymous Ghost Sessions, and durable account deletion that anonymizes retained
-observations, queues media cleanup, and removes login access only after database
-cleanup is verified. An independent scheduled health check alerts when the
-reaper is unconfigured, work is overdue, leases expire, or the erasure backlog
-breaches its SLA.
+anonymous Ghost Sessions, and durable account deletion that detaches retained
+scientific observations from the account, queues media cleanup, and removes
+login access only after database cleanup is verified. An independent scheduled
+health check alerts when the reaper is unconfigured, work is overdue, leases
+expire, or the erasure backlog breaches its SLA.
 
 ---
 
@@ -620,10 +620,10 @@ breaches its SLA.
   Revoked/expired archives enter a leased cleanup outbox. Final ZIP checksum
   assembly composes bounded chunk CRCs instead of rescanning the complete
   archive in JavaScript.
-- Account deletion preserves login access through relational anonymization and
-  cursor-persisted R2 erasure. It waits for a delayed empty verification sweep
-  before removing Auth, and a scheduled reaper resumes every phase after a
-  crash. The database refuses an R2 storage claim unless the matching private
+- Account deletion preserves login access through relational account detachment
+  and cursor-persisted R2 erasure. It waits for a delayed empty verification
+  sweep before removing Auth, and a scheduled reaper resumes every phase after
+  a crash. The database refuses an R2 storage claim unless the matching private
   deletion job is `storage_pending` after relational cleanup, and vetoes the
   claim while a live profile or owned scan remains. An outbox row alone is never
   deletion authority. A separate five-minute monitor reads only aggregate

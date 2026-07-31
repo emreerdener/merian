@@ -2907,6 +2907,13 @@ struct MerianNetworkClientTests {
         #expect(incidentResponse.data[0].mediaHealthStatus == .quarantined)
         #expect(incidentResponse.data[0].missingMediaUrls.count == 2)
 
+        let deduplicatedSummary = ExploreMediaIncidentSummary(
+            incidents: incidentResponse.data + incidentResponse.data
+        )
+        #expect(deduplicatedSummary.unavailablePublishedScanIDs == ["scan-1"])
+        #expect(deduplicatedSummary.unavailablePublishedScanCount == 1)
+        #expect(deduplicatedSummary.overviewDismissalSignature == "6:scan-1")
+
         let nullableSpeciesIncidentData = Data("""
         {
           "data": [
@@ -2931,6 +2938,22 @@ struct MerianNetworkClientTests {
             from: nullableSpeciesIncidentData
         )
         #expect(nullableSpeciesResponse.data[0].speciesCommonName == nil)
+        let expandedSummary = ExploreMediaIncidentSummary(
+            incidents: incidentResponse.data + nullableSpeciesResponse.data
+        )
+        #expect(
+            expandedSummary.overviewDismissalSignature
+                == "6:scan-16:scan-2"
+        )
+        #expect(
+            expandedSummary.overviewDismissalSignature
+                != deduplicatedSummary.overviewDismissalSignature
+        )
+        #expect(
+            ExploreMediaIncidentSummary(
+                incidents: [ExploreMediaIncident]()
+            ).overviewDismissalSignature == nil
+        )
 
         let incidentObject = try #require(
             JSONSerialization.jsonObject(with: incidentData)
@@ -3007,6 +3030,52 @@ struct MerianNetworkClientTests {
         )
 
         #expect(notificationResponse.data.map(\.type) == [.mediaMissing, .mediaRestored])
+    }
+
+    @Test func testExploreMediaOverviewDismissalIsAccountScopedAndClearable() throws {
+        let suiteName = "ExploreMediaOverviewPreferencesTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let firstOwnerID = UUID().uuidString
+        let secondOwnerID = UUID().uuidString
+        let signature = "6:scan-16:scan-2"
+
+        #expect(
+            ExploreMediaOverviewPreferences.dismissedSignature(
+                ownerUserID: firstOwnerID,
+                defaults: defaults
+            ) == nil
+        )
+
+        ExploreMediaOverviewPreferences.dismiss(
+            signature: signature,
+            ownerUserID: firstOwnerID,
+            defaults: defaults
+        )
+
+        #expect(
+            ExploreMediaOverviewPreferences.dismissedSignature(
+                ownerUserID: firstOwnerID.uppercased(),
+                defaults: defaults
+            ) == signature
+        )
+        #expect(
+            ExploreMediaOverviewPreferences.dismissedSignature(
+                ownerUserID: secondOwnerID,
+                defaults: defaults
+            ) == nil
+        )
+
+        ExploreMediaOverviewPreferences.clear(
+            ownerUserID: firstOwnerID,
+            defaults: defaults
+        )
+        #expect(
+            ExploreMediaOverviewPreferences.dismissedSignature(
+                ownerUserID: firstOwnerID,
+                defaults: defaults
+            ) == nil
+        )
     }
 
     @Test func testExploreMediaIncidentsRejectsUnknownSuccessShape() async throws {

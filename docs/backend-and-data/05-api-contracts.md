@@ -2570,6 +2570,24 @@ configuration, network errors, other Edge failures, unsupported schema versions,
 malformed payloads, and identity mismatch. Transient errors are therefore never
 cached as missing species. Successful pages revalidate every 300 seconds.
 
+Overview mode:
+
+```json
+{ "mode": "overview", "user_region": "US" }
+```
+
+The `your_region` category includes the English country title in `region` and
+the canonical ISO 3166-1 alpha-2 value in additive `region_code`. Country rows
+in `regions` likewise include additive `code`. Counts and representatives come
+from `species_country_occurrences`, using exact country equality and positive
+GBIF occurrence counts. The underlying provider query is limited to PRESENT,
+georeferenced records without geospatial issues; the product language is
+"recorded in," never a native-range claim. A valid user country remains in the
+response with `count = 0` while its durable backfill is pending, allowing iOS to
+show a non-interactive coverage state instead of silently removing the card.
+Legacy English region-title matching is retained only when that country has no
+normalized occurrence coverage, for deployed-client and backfill compatibility.
+
 Catalog mode:
 
 ```json
@@ -2588,6 +2606,10 @@ Catalog mode:
   Dictionary catalog.
 - `limit` defaults to `40` and is capped at `100`.
 - `query` is optional, trims/collapses whitespace, and filters scientific names.
+- `category: "region"` requires `region`. ISO country codes and English country
+  titles normalize to an exact `species_country_occurrences.country_code`
+  filter once coverage exists; broad free-text ranges are not treated as
+  canonical country membership.
 - `cursor` carries the last `scientific_name` and `species_id` returned.
 - Response rows include `id`, `scientific_name`, `common_name`,
   `content_quality`, nullable `taxonomy`, status fields, `group_tags`, and one
@@ -6300,8 +6322,9 @@ idempotent cleanup success.
 
 ## Deno `/safe-delete` Edge Node
 
-Tombstones a user's account and initiates deletion of all associated data from
-PostgreSQL and Cloudflare R2.
+Deletes a user's account and account-owned content from PostgreSQL and
+Cloudflare R2 while retaining mandatory ownerless Scientific Data on each
+submitted observation.
 
 ### Request Payload
 
@@ -6321,10 +6344,12 @@ prevent IDOR vulnerabilities.
    `complete_account_deletion_cleanup` atomically writes the idempotent storage
    job, invokes `apply_user_tombstone`, and verifies no public user or scan
    still references the UUID. Retained scans become ownerless tombstones and
-   clear compatibility media URLs, structured captured-media references, exact
-   location/elevation, semantic location, device locale/time-zone context,
-   free-form notes, and custom tags. No synthetic `auth.users` or `public.users`
-   identity is created.
+   clear compatibility media URLs, structured captured-media references,
+   semantic/public location labels, device locale/time-zone context, free-form
+   notes, and custom tags. Exact coordinates, elevation, time, taxonomy,
+   identification, environmental, quality, and provenance facts remain
+   unchanged as mandatory Scientific Data. No synthetic `auth.users` or
+   `public.users` identity is created.
 5. Relational completion returns `storage_pending` and releases the account
    claim. The storage worker keyset-sweeps the user's free uploads, Pro uploads,
    staging, avatars, and exports prefixes in 50-key pages. After at least 25

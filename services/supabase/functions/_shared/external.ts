@@ -11,11 +11,12 @@ async function discardProviderBody(response: Response): Promise<void> {
 async function fetchBoundedProviderJson<T>(
   url: string,
   fetcher: typeof fetch = fetch,
+  init: RequestInit = {},
 ): Promise<T | null> {
   try {
     const response = await fetchWithDeadline(
       url,
-      {},
+      init,
       { fetcher, timeoutMs: EXTERNAL_REQUEST_TIMEOUT_MS },
     );
     if (!response.ok) {
@@ -88,6 +89,79 @@ export interface ExternalEnrichmentData {
   alternativeCommonNames: string[];
   wikiTitle: string | null;
   gbifTaxonomy: ExternalEnrichmentTaxonomy | null;
+  gbifMatchStatus?: "matched" | "unmatched" | "unavailable";
+}
+
+export interface GBIFCountryOccurrence {
+  countryCode: string;
+  occurrenceCount: number;
+}
+
+interface GBIFOccurrenceFacetResponse {
+  facets?: Array<{
+    field?: unknown;
+    counts?: Array<{ name?: unknown; count?: unknown }>;
+  }>;
+}
+
+const GBIF_REQUEST_HEADERS = {
+  "User-Agent":
+    "Naturebook species content refresh/1.0 (https://naturebook.earth)",
+};
+
+/**
+ * Fetches GBIF's country facet for georeferenced, present occurrence records.
+ * A successful response with no country counts returns an empty array. Provider
+ * or schema failures return null so durable workers can retry rather than erase
+ * previously valid coverage.
+ */
+export async function fetchGBIFCountryOccurrences(
+  gbifKey: number,
+  fetcher: typeof fetch = fetch,
+): Promise<GBIFCountryOccurrence[] | null> {
+  if (!Number.isSafeInteger(gbifKey) || gbifKey <= 0) return null;
+
+  const json = await fetchBoundedProviderJson<GBIFOccurrenceFacetResponse>(
+    `https://api.gbif.org/v1/occurrence/search?taxonKey=${gbifKey}&occurrenceStatus=PRESENT&hasCoordinate=true&hasGeospatialIssue=false&limit=0&facet=country&facetLimit=300`,
+    fetcher,
+    { headers: GBIF_REQUEST_HEADERS },
+  );
+  if (!json || !Array.isArray(json.facets)) return null;
+
+  const countryFacet = json.facets.find((facet) =>
+    typeof facet.field === "string" && facet.field.toUpperCase() === "COUNTRY"
+  );
+  if (!countryFacet) return [];
+  if (!Array.isArray(countryFacet.counts)) return null;
+
+  const countByCountryCode = new Map<string, number>();
+  for (const entry of countryFacet.counts) {
+    const countryCode = typeof entry.name === "string"
+      ? entry.name.trim().toUpperCase()
+      : "";
+    const occurrenceCount = typeof entry.count === "number"
+      ? entry.count
+      : Number.NaN;
+    if (
+      !/^[A-Z]{2}$/.test(countryCode) ||
+      !Number.isSafeInteger(occurrenceCount) ||
+      occurrenceCount <= 0
+    ) {
+      return null;
+    }
+
+    countByCountryCode.set(
+      countryCode,
+      Math.max(countByCountryCode.get(countryCode) ?? 0, occurrenceCount),
+    );
+  }
+
+  return Array.from(countByCountryCode.entries())
+    .map(([countryCode, occurrenceCount]) => ({
+      countryCode,
+      occurrenceCount,
+    }))
+    .sort((lhs, rhs) => lhs.countryCode.localeCompare(rhs.countryCode));
 }
 
 export async function fetchGBIFVernacularNames(
@@ -95,6 +169,8 @@ export async function fetchGBIFVernacularNames(
 ): Promise<string[]> {
   const json = await fetchBoundedProviderJson<{ results?: unknown }>(
     `https://api.gbif.org/v1/species/${gbifKey}/vernacularNames?limit=30`,
+    fetch,
+    { headers: GBIF_REQUEST_HEADERS },
   );
   return collectEnglishVernacularNames(json?.results);
 }
@@ -148,6 +224,7 @@ export async function fetchExternalEnrichment(
   let wikiTitle: string | null = null;
   let alternativeCommonNames: string[] = [];
   let gbifTaxonomy: ExternalEnrichmentTaxonomy | null = null;
+  let gbifMatchStatus: "matched" | "unmatched" | "unavailable" = "unavailable";
 
   try {
     const fetchedUrls: string[] = [];
@@ -166,6 +243,7 @@ export async function fetchExternalEnrichment(
             encodeURIComponent(scientificName)
           }`,
           fetcher,
+          { headers: GBIF_REQUEST_HEADERS },
         );
         if (!gbifJson) {
           return {
@@ -174,11 +252,21 @@ export async function fetchExternalEnrichment(
             vernacularNames,
             taxonomy: null,
             rank,
+            matchStatus: "unavailable" as const,
           };
         }
-        key = typeof gbifJson.usageKey === "number" ? gbifJson.usageKey : null;
+        key = typeof gbifJson.usageKey === "number" &&
+            Number.isSafeInteger(gbifJson.usageKey) && gbifJson.usageKey > 0
+          ? gbifJson.usageKey
+          : null;
         const taxonomy = gbifTaxonomyFromMatch(gbifJson);
         rank = stringValue(gbifJson.rank);
+        const matchType = stringValue(gbifJson.matchType)?.toUpperCase();
+        const matchStatus = key
+          ? "matched" as const
+          : matchType === "NONE"
+          ? "unmatched" as const
+          : "unavailable" as const;
 
         if (key) {
           // Fetch occurrence images and vernacular names in parallel — both depend on key
@@ -193,10 +281,12 @@ export async function fetchExternalEnrichment(
             }>(
               `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
               fetcher,
+              { headers: GBIF_REQUEST_HEADERS },
             ),
             fetchBoundedProviderJson<{ results?: unknown }>(
               `https://api.gbif.org/v1/species/${key}/vernacularNames?language=eng&limit=30`,
               fetcher,
+              { headers: GBIF_REQUEST_HEADERS },
             ),
           ]);
 
@@ -222,7 +312,7 @@ export async function fetchExternalEnrichment(
             vernacularJson?.results,
           );
         }
-        return { key, urls, vernacularNames, taxonomy, rank };
+        return { key, urls, vernacularNames, taxonomy, rank, matchStatus };
       })(),
 
       (async () => {
@@ -235,6 +325,7 @@ export async function fetchExternalEnrichment(
       fetchedUrls.push(...gbifOutcome.value.urls);
       alternativeCommonNames = gbifOutcome.value.vernacularNames;
       gbifTaxonomy = gbifOutcome.value.taxonomy;
+      gbifMatchStatus = gbifOutcome.value.matchStatus;
     }
 
     let wikiImg: string | null = null;
@@ -319,6 +410,7 @@ export async function fetchExternalEnrichment(
     alternativeCommonNames,
     wikiTitle,
     gbifTaxonomy,
+    gbifMatchStatus,
   };
 }
 

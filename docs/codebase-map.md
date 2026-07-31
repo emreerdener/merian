@@ -538,8 +538,9 @@ Data lifecycle, identity, and exports:
 - `reconcile-ghost-profile-merges` — scheduled service-role worker that leases
   committed merge receipts and retries obsolete anonymous Auth deletion.
 - `safe-delete` — authenticated intake plus immediate processing for the durable
-  `pending → storage_pending → auth_pending → completed` account-erasure state
-  machine; retained scans become personal-data-cleared ownerless tombstones, all
+  `pending → storage_pending → auth_pending → completed` account-deletion state
+  machine; retained scans become account-detached ownerless scientific
+  tombstones that preserve exact coordinates and other scientific facts, all
   canonical R2 prefixes receive a cursor-persisted sweep and delayed empty
   verification pass, and only then may Auth be deleted. The SQL storage claim
   requires the matching cleaned-up `storage_pending` private job and vetoes live

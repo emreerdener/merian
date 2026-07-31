@@ -45,6 +45,8 @@ struct ScansSheetView: View {
     @State private var lastExploreMediaIncidentRefreshAt = Date.distantPast
     @State private var isExploreMediaIncidentRefreshRunning = false
     @State private var needsTrailingExploreMediaIncidentRefresh = false
+    @State private var didApplyInitialRecoveryFilter = false
+    @State private var dismissedUnavailableMediaOverviewSignature: String?
 
     @Environment(\.modelContext) private var modelContext
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
@@ -97,6 +99,15 @@ struct ScansSheetView: View {
         }
         .onChange(of: rawRecords) { _, _ in
             handleRawRecordsChange()
+        }
+        .onChange(of: exploreMediaIncidentSummary) { _, summary in
+            searchManager.setUnavailableExploreMediaScanIDs(
+                summary.unavailablePublishedScanIDs
+            )
+            synchronizeUnavailableMediaOverviewPreference()
+        }
+        .onChange(of: currentExploreMediaOwnerID) { _, _ in
+            synchronizeUnavailableMediaOverviewPreference()
         }
         .onChange(of: offlineQueueManager.unsyncedItemsCount) { _, _ in
             // `@Observable` change notifications are queued and delivered on the next active
@@ -169,10 +180,14 @@ struct ScansSheetView: View {
                     searchManager: searchManager,
                     filterCategories: filterCategories,
                     queuedScans: queuedScans,
-                    exploreMediaIncidents: exploreMediaIncidents,
-                    recoveryContext: recoveryContext,
+                    unavailableMediaScanCount:
+                        exploreMediaIncidentSummary.unavailablePublishedScanCount,
+                    isUnavailableMediaOverviewVisible:
+                        isUnavailableMediaOverviewVisible,
                     isExploreMediaIncidentRefreshRunning: isExploreMediaIncidentRefreshRunning,
-                    onRetryExploreMediaIncidents: retryExploreMediaIncidents,
+                    onRefreshExploreMediaIncidents: refreshExploreMediaIncidentsNow,
+                    onDismissUnavailableMediaOverview:
+                        dismissUnavailableMediaOverview,
                     isSearchFocused: $isSearchFocused,
                     onScanSelected: { record in
                         navigationPath.append(ScanInsightRoute(scanId: record.id))
@@ -252,12 +267,23 @@ struct ScansSheetView: View {
 
     private func handleAppear() {
         searchManager.bindSettings(appSettings)
+        applyInitialRecoveryFilterIfNeeded()
+        synchronizeUnavailableMediaOverviewPreference()
         refreshLibraryAndQueue()
         if hasAutomaticQueuedRecoveryWork {
             kickQueuedScanPipeline(reason: "onAppear")
         }
         appSettings.hasUnseenScan = false
         AppIconBadgeCoordinator.updateAppIconBadge()
+    }
+
+    private func applyInitialRecoveryFilterIfNeeded() {
+        guard recoveryContext != nil, !didApplyInitialRecoveryFilter else { return }
+        didApplyInitialRecoveryFilter = true
+
+        var updatedFilters = searchManager.filters
+        updatedFilters.explorePostFilters.insert(.unavailableMedia)
+        searchManager.filters = updatedFilters
     }
 
     private func handleUnseenScanBadgeChange(_ isSet: Bool) {
@@ -455,6 +481,46 @@ struct ScansSheetView: View {
         return "\(userId)|\(recoveryOwnerId)|\(offlineQueueManager.isOnline)|\(scenePhase)"
     }
 
+    private var exploreMediaIncidentSummary: ExploreMediaIncidentSummary {
+        ExploreMediaIncidentSummary(incidents: exploreMediaIncidents)
+    }
+
+    private var currentExploreMediaOwnerID: String? {
+        SupabaseManager.shared.currentUser?.id.uuidString.lowercased()
+    }
+
+    private var isUnavailableMediaOverviewVisible: Bool {
+        guard let signature = exploreMediaIncidentSummary.overviewDismissalSignature else {
+            return false
+        }
+        return dismissedUnavailableMediaOverviewSignature != signature
+    }
+
+    private func synchronizeUnavailableMediaOverviewPreference() {
+        guard let ownerUserID = currentExploreMediaOwnerID else {
+            dismissedUnavailableMediaOverviewSignature = nil
+            return
+        }
+
+        dismissedUnavailableMediaOverviewSignature = ExploreMediaOverviewPreferences
+            .dismissedSignature(ownerUserID: ownerUserID)
+    }
+
+    private func dismissUnavailableMediaOverview() {
+        guard let ownerUserID = currentExploreMediaOwnerID,
+              let signature = exploreMediaIncidentSummary.overviewDismissalSignature else {
+            return
+        }
+
+        ExploreMediaOverviewPreferences.dismiss(
+            signature: signature,
+            ownerUserID: ownerUserID
+        )
+        withAnimation(.easeInOut(duration: 0.2)) {
+            dismissedUnavailableMediaOverviewSignature = signature
+        }
+    }
+
     @MainActor
     private func refreshExploreMediaIncidents() async {
         guard offlineQueueManager.isOnline,
@@ -539,6 +605,11 @@ struct ScansSheetView: View {
                     return
                 }
                 exploreMediaIncidents = incidents
+                clearUnavailableMediaFilterIfResolved(incidents: incidents)
+                clearUnavailableMediaOverviewDismissalIfResolved(
+                    incidents: incidents,
+                    ownerUserID: expectedOwnerId.uuidString.lowercased()
+                )
                 MerianLog.network.debug(
                     "Loaded \(incidents.count, privacy: .public) active Explore media recovery incident(s)."
                 )
@@ -551,7 +622,31 @@ struct ScansSheetView: View {
         } while needsTrailingExploreMediaIncidentRefresh && !Task.isCancelled
     }
 
-    private func retryExploreMediaIncidents() {
+    private func clearUnavailableMediaFilterIfResolved(
+        incidents: [ExploreMediaIncident]
+    ) {
+        guard incidents.isEmpty,
+              searchManager.filters.explorePostFilters.contains(.unavailableMedia) else {
+            return
+        }
+
+        var updatedFilters = searchManager.filters
+        updatedFilters.explorePostFilters.remove(.unavailableMedia)
+        searchManager.filters = updatedFilters
+    }
+
+    private func clearUnavailableMediaOverviewDismissalIfResolved(
+        incidents: [ExploreMediaIncident],
+        ownerUserID: String
+    ) {
+        guard incidents.isEmpty else { return }
+        ExploreMediaOverviewPreferences.clear(ownerUserID: ownerUserID)
+        dismissedUnavailableMediaOverviewSignature = nil
+    }
+
+    private func refreshExploreMediaIncidentsNow() {
+        // This is intentionally status-only. Repairing image/video/audio media
+        // requires an asset-typed, owner-authoritative recovery contract.
         lastExploreMediaIncidentRefreshAt = .distantPast
         Task { @MainActor in
             await refreshExploreMediaIncidents()
@@ -692,10 +787,11 @@ private struct LibraryTabContent: View {
     @Bindable var searchManager: ScansManager
     let filterCategories: [String]
     let queuedScans: [QueuedScanSnapshot]
-    let exploreMediaIncidents: [ExploreMediaIncident]
-    let recoveryContext: ExploreMediaRecoveryRouteContext?
+    let unavailableMediaScanCount: Int
+    let isUnavailableMediaOverviewVisible: Bool
     let isExploreMediaIncidentRefreshRunning: Bool
-    let onRetryExploreMediaIncidents: () -> Void
+    let onRefreshExploreMediaIncidents: () -> Void
+    let onDismissUnavailableMediaOverview: () -> Void
     @Binding var isSearchFocused: Bool
     let onScanSelected: (LocalScanRecord) -> Void
     let onQueuedScanSelected: (QueuedScanContext) -> Void
@@ -711,10 +807,11 @@ private struct LibraryTabContent: View {
             filterCategories: filterCategories,
             isSearchFocused: isSearchFocused,
             queuedScans: queuedScans,
-            exploreMediaIncidents: exploreMediaIncidents,
-            recoveryContext: recoveryContext,
+            unavailableMediaScanCount: unavailableMediaScanCount,
+            isUnavailableMediaOverviewVisible: isUnavailableMediaOverviewVisible,
             isExploreMediaIncidentRefreshRunning: isExploreMediaIncidentRefreshRunning,
-            onRetryExploreMediaIncidents: onRetryExploreMediaIncidents,
+            onRefreshExploreMediaIncidents: onRefreshExploreMediaIncidents,
+            onDismissUnavailableMediaOverview: onDismissUnavailableMediaOverview,
             isSelectionMode: searchManager.isSelectionMode,
             isSelected: { scan in searchManager.selectedScans.contains(scan.id) },
             onSelect: { scan in

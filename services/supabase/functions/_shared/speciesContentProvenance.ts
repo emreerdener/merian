@@ -13,6 +13,7 @@ export type SpeciesContentKey =
   | "habitat_description"
   | "gbif_taxon_key"
   | "reference_images"
+  | "country_occurrences"
   | "lookalikes"
   | "group_tags"
   | "iucn_red_list_status"
@@ -46,6 +47,10 @@ export interface SpeciesContentProvenanceOptions {
   metadata?: Record<string, unknown>;
   refreshedAt?: Date;
   refreshAfter?: Date | null;
+}
+
+export interface RecordSpeciesContentProvenanceOptions {
+  throwOnError?: boolean;
 }
 
 export interface SpeciesDictionaryProvenanceData {
@@ -279,6 +284,7 @@ export async function recordSpeciesContentProvenance(
   supabaseAdmin: SupabaseClient,
   rows: SpeciesContentProvenanceRow[],
   context: string,
+  options: RecordSpeciesContentProvenanceOptions = {},
 ): Promise<void> {
   if (rows.length === 0) return;
 
@@ -290,10 +296,12 @@ export async function recordSpeciesContentProvenance(
     });
 
   if (error) {
-    console.error(
-      `[${context}] Failed to record species content provenance:`,
-      error.message,
-    );
+    const message =
+      `[${context}] Failed to record species content provenance: ${error.message}`;
+    if (options.throwOnError) {
+      throw new Error(message);
+    }
+    console.error(message);
   }
 }
 

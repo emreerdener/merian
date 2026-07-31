@@ -177,8 +177,14 @@ struct ScanLibraryFilterQuery: Sendable {
     let requiresTaxonomyGenusMatch: Bool
     let taxonomyGenera: Set<String>
     let explorePostFilters: Set<ScanExplorePostFilter>
+    let unavailableExploreMediaScanIDs: Set<String>
 
-    init(filters: ScanLibraryFilters, now: Date = Date(), calendar: Calendar = .current) {
+    init(
+        filters: ScanLibraryFilters,
+        unavailableExploreMediaScanIDs: Set<String> = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) {
         hasAdvancedFilters = filters.hasAdvancedFilters
         requiresDateMatch = !filters.dateFilters.isEmpty
 
@@ -239,6 +245,7 @@ struct ScanLibraryFilterQuery: Sendable {
         requiresTaxonomyGenusMatch = !filters.taxonomyGenera.isEmpty
         taxonomyGenera = Self.normalized(filters.taxonomyGenera)
         explorePostFilters = filters.explorePostFilters
+        self.unavailableExploreMediaScanIDs = unavailableExploreMediaScanIDs
     }
 
     private static func normalized(_ values: Set<String>) -> Set<String> {
@@ -380,8 +387,12 @@ struct ScanLibraryFilterQuery: Sendable {
             return false
         }
 
-        if explorePostFilters.contains(.shared), !document.isSharedToExplore {
-            return false
+        if !explorePostFilters.isEmpty {
+            let matchesExplorePostFilter =
+                (explorePostFilters.contains(.shared) && document.isSharedToExplore)
+                || (explorePostFilters.contains(.unavailableMedia)
+                    && unavailableExploreMediaScanIDs.contains(document.id))
+            if !matchesExplorePostFilter { return false }
         }
 
         return true

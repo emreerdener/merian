@@ -2410,6 +2410,12 @@ struct InsightSheetViewModelTests {
         ))
     }
 
+    @Test func testInsightVideoPlaybackAvailabilityMapsPlayerItemStatus() {
+        #expect(InsightVideoPlaybackAvailability(itemStatus: .unknown) == .loading)
+        #expect(InsightVideoPlaybackAvailability(itemStatus: .readyToPlay) == .ready)
+        #expect(InsightVideoPlaybackAvailability(itemStatus: .failed) == .unavailable)
+    }
+
     @Test func testInsightVideoPlaybackCoordinatorPausesBeforeFullscreenPresentation() {
         let coordinator = InsightCarouselVideoPlaybackCoordinator()
         var pauseCommandCount = 0

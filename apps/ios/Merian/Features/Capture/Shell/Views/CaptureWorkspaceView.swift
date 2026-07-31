@@ -504,6 +504,7 @@ struct CaptureWorkspaceView: View {
             viewModel.updateNotificationSuppression()
             if captureMode == .visual,
                viewModel.activeSheet == nil,
+               viewModel.imageToCrop == nil,
                scenePhase == .active {
                 cameraManager.startSession()
             }
@@ -565,6 +566,9 @@ struct CaptureWorkspaceView: View {
             )
             cameraManager.resetZoom()
         }
+        .onChange(of: viewModel.imageToCrop != nil) { _, isCropPresented in
+            handleCropPresentationChange(isCropPresented: isCropPresented)
+        }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhaseChange(
                 newPhase,
@@ -617,7 +621,9 @@ struct CaptureWorkspaceView: View {
 
             if newSheet != nil {
                 cameraManager.stopSession()
-            } else if captureMode == .visual && scenePhase == .active {
+            } else if captureMode == .visual,
+                      viewModel.imageToCrop == nil,
+                      scenePhase == .active {
                 // Strictly guard the un-pause with `scenePhase == .active`, ensuring the
                 // startSession() hardware call can never fire indiscriminately during
                 // backgrounding transitions when the UI naturally dismisses sheets.
@@ -711,6 +717,16 @@ struct CaptureWorkspaceView: View {
                        !viewModel.isStagingRefinement
         ) {
             viewModel.executeCapture()
+        }
+    }
+
+    private func handleCropPresentationChange(isCropPresented: Bool) {
+        if isCropPresented {
+            cameraManager.stopSession()
+        } else if captureMode == .visual,
+                  viewModel.activeSheet == nil,
+                  scenePhase == .active {
+            cameraManager.startSession()
         }
     }
 

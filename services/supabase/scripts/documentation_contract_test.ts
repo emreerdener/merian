@@ -3478,3 +3478,59 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     `Unresolved local Markdown links:\n${failures.join("\n")}`,
   );
 });
+
+Deno.test("scientific retention documentation matches the account tombstone contract", async () => {
+  const [
+    backend,
+    schema,
+    api,
+    runbook,
+    product,
+    settings,
+    safeDelete,
+    changelog,
+  ] = await Promise.all([
+    read("services/supabase/README.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("docs/product/01-master-product-document.md"),
+    read("apps/ios/Merian/Features/Profile/Settings/README.md"),
+    read("services/supabase/functions/safe-delete/README.md"),
+    read("CHANGELOG.md"),
+  ]).then((sources) => sources.map(compact));
+
+  assertStringIncludes(
+    backend,
+    "mandatory scientific-retention contract: exact coordinates/elevation and every other scientific fact are left unchanged",
+  );
+  assertStringIncludes(
+    schema,
+    "Exact coordinates, elevation, time, taxonomy, identification, environmental, quality, and provenance facts remain unchanged as mandatory Scientific Data.",
+  );
+  assertStringIncludes(
+    api,
+    "Exact coordinates, elevation, time, taxonomy, identification, environmental, quality, and provenance facts remain unchanged as mandatory Scientific Data.",
+  );
+  assertStringIncludes(runbook, "retains_exact_latitude");
+  assertStringIncludes(
+    runbook,
+    "exact location/elevation, time, taxonomy, identification, environmental, quality, and provenance fields equal their pre-deletion values",
+  );
+  assertStringIncludes(
+    product,
+    "remain unchanged as the mandatory scientific observation",
+  );
+  assertStringIncludes(
+    settings,
+    "Every submitted scan also contributes mandatory Scientific Data.",
+  );
+  assertStringIncludes(
+    safeDelete,
+    "The permanent scientific record is a condition of submitting a scan, not an account-deletion option.",
+  );
+  assertStringIncludes(
+    changelog,
+    "Every submitted scan now has an explicit scientific-retention contract.",
+  );
+});

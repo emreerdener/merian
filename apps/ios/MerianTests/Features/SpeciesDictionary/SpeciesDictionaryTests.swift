@@ -470,6 +470,17 @@ struct SpeciesDictionaryTests {
         #expect(CommunityIdentificationRequestFilter.birds.group == .birds)
     }
 
+    @Test func testIdentifyRequestZeroStatesUseSingularCategoryNames() {
+        #expect(CommunityIdentificationRequestFilter.all.emptyRequestTitle == "No requests yet")
+        #expect(CommunityIdentificationRequestFilter.mine.emptyRequestTitle == "No requests from you yet")
+        #expect(CommunityIdentificationRequestFilter.plants.emptyRequestTitle == "No plant requests yet")
+        #expect(CommunityIdentificationRequestFilter.birds.emptyRequestTitle == "No bird requests yet")
+        #expect(CommunityIdentificationRequestFilter.insects.emptyRequestTitle == "No insect requests yet")
+        #expect(CommunityIdentificationRequestFilter.fungi.emptyRequestTitle == "No fungus requests yet")
+        #expect(CommunityIdentificationRequestFilter.mammals.emptyRequestTitle == "No mammal requests yet")
+        #expect(CommunityIdentificationRequestFilter.reptilesAmphibians.emptyRequestTitle == "No herp requests yet")
+    }
+
     @Test func testExploreBottomNavigationHasExactlyThreeItems() {
         #expect(ExploreTab.allCases == [.feed, .fieldTrips, .community])
         #expect(ExploreIdentifyMode.allCases == [.requests, .index])
@@ -1000,7 +1011,8 @@ struct SpeciesDictionaryTests {
                         "subtitle": "Species associated with United States",
                         "count": 8,
                         "reference_image_url": "https://example.com/local.jpg",
-                        "region": "United States"
+                        "region": "United States",
+                        "region_code": "US"
                     },
                     {
                         "id": "recently_added",
@@ -1024,7 +1036,8 @@ struct SpeciesDictionaryTests {
                         "id": "region:united%20states",
                         "title": "United States",
                         "count": 8,
-                        "reference_image_url": "https://example.com/local.jpg"
+                        "reference_image_url": "https://example.com/local.jpg",
+                        "code": "US"
                     }
                 ]
             }
@@ -1042,9 +1055,11 @@ struct SpeciesDictionaryTests {
         #expect(response.data.categories.first?.id == .all)
         #expect(response.data.categories[1].id == .yourRegion)
         #expect(response.data.categories[1].region == "United States")
+        #expect(response.data.categories[1].regionCode == "US")
         #expect(response.data.categories.last?.id == .recentlyAdded)
         #expect(response.data.groups.first?.title == "Birds")
         #expect(response.data.regions.first?.title == "United States")
+        #expect(response.data.regions.first?.code == "US")
     }
 
     @Test func testGetSpeciesDictionaryCatalogConstructsPayloadAndParsesResponse() async throws {

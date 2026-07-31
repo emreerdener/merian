@@ -1164,8 +1164,9 @@ migration sequence:
 - excludes the public profile's own Auth foreign key from generic Ghost
   reparenting;
 - clears every compatibility media URL, captured-media reference, semantic
-  location, device locale/time-zone context, exact location/elevation, free-form
-  note, and custom tag on retained tombstones;
+  location and public label, device locale/time-zone context, free-form note,
+  and custom tag on retained tombstones while preserving exact
+  location/elevation and every other scientific field unchanged;
 - upgrades the storage marker to a five-prefix cursor-persisted sweep, capped at
   four 50-key pages per Edge invocation, followed by a delayed 25-hour
   verification sweep;
@@ -1333,6 +1334,34 @@ SELECT
     ) AS legacy_sentinel_scans
 FROM public.scans;
 
+WITH tombstone_definition AS (
+    SELECT pg_catalog.LOWER(
+        pg_catalog.PG_GET_FUNCTIONDEF(
+            'public.apply_user_tombstone(uuid)'::REGPROCEDURE
+        )
+    ) AS body
+), generation_guard_definition AS (
+    SELECT pg_catalog.LOWER(
+        pg_catalog.PG_GET_FUNCTIONDEF(
+            'internal.reject_deleted_scan_generation_mutation()'::REGPROCEDURE
+        )
+    ) AS body
+)
+SELECT
+    tombstone.body !~ 'gps_lat_exact[[:space:]]*=[[:space:]]*null'
+        AS retains_exact_latitude,
+    tombstone.body !~ 'gps_long_exact[[:space:]]*=[[:space:]]*null'
+        AS retains_exact_longitude,
+    tombstone.body !~ 'gps_elevation[[:space:]]*=[[:space:]]*null'
+        AS retains_elevation,
+    tombstone.body ~ 'public_location_label[[:space:]]*=[[:space:]]*null'
+        AS clears_public_location_label,
+    generation_guard.body ~
+        'to_jsonb[[:space:]]*\([[:space:]]*new[[:space:]]*\)[[:space:]]*-[[:space:]]*account_detachment_columns'
+        AS generation_guard_compares_scientific_fields
+FROM tombstone_definition AS tombstone
+CROSS JOIN generation_guard_definition AS generation_guard;
+
 SELECT COUNT(*) AS invalid_sentinel_profiles
 FROM public.users
 WHERE id = '00000000-0000-0000-0000-000000000000'::UUID;
@@ -1418,7 +1447,8 @@ WHERE deletion.status IN ('pending', 'processing')
 Expected: at least one validated restrictive profile/Auth foreign key, a
 nullable scan owner plus validated ownerless check, zero invalid ownerless
 scans, zero legacy sentinel scans/profiles, zero synthetic all-zero Auth users,
-all five claim-fence booleans true, an active cron, and
+all five scientific-retention booleans true, all five claim-fence booleans
+true, an active cron, and
 `reaper_cron_active = true` plus `reaper_credentials_configured = true` in the
 health row. The other health fields reflect the current aggregate queue and must
 not contain identifiers. The credential boolean checks nonblank effective values
@@ -1441,8 +1471,10 @@ Smoke-test with a staging-only account that owns at least one scan. Confirm:
 1. `/safe-delete` returns `200 completed` or `202 pending`;
 2. the retained scan has `user_id IS NULL` and `is_tombstoned = true`;
 3. all compatibility media URLs and structured media references are empty, and
-   its exact location/elevation, semantic location, device context, notes, and
-   custom tags are null/empty;
+   its semantic/public location labels, device context, notes, and custom tags
+   are null/empty; exact location/elevation, time, taxonomy, identification,
+   environmental, quality, and provenance fields equal their pre-deletion
+   values;
 4. anonymous table access does not return the tombstoned scan;
 5. the original public profile is absent and one storage job exists with all
    five canonical prefixes;

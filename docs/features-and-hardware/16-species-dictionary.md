@@ -310,23 +310,27 @@ landing view through overview mode:
 The response returns image-backed category summaries for `All`, `Your Region`,
 `Taxonomy`, and `Recently Added`, a Recently Added featured species card with
 overview copy, graphic-led high-level group summaries such as Birds and Plants,
-plus region summaries derived from `species_dictionary.native_region`.
+plus country summaries derived from canonical GBIF occurrence facets in
+`species_country_occurrences`.
 `Recently Added` is capped to the newest 40 biological entries for its overview
 count and representative image so it does not duplicate the `All` total. iOS
 uses that featured card as the visible Recently Added entry point, renders
-`Your Region` as a full-width MapKit snapshot card when a matched native-region
-catalog exists, and moves `All` into a bottom row link. Explore keeps all
+`Your Region` as a full-width MapKit snapshot card whenever iOS can supply an
+ISO country. The card links to the exact country catalog when coverage exists
+and remains visible, non-interactive, with `Coverage updating` while the
+scheduled backfill is still filling that country. `All` moves into a bottom row
+link. Explore keeps all
 Dictionary surfaces under the Identify tab's `Index` mode; Index renders the
 Catalog overview/search content directly.
 `FeatureFlags.isEnabled(.speciesDictionaryTree)` remains the default-off release
 gate for the Tree canvas and preserved internal taxonomy destination. DEBUG
 builds can override it from Settings → Feature Flags, but the override does not
 restore a disconnected Explore entry point; Release builds always use the code
-default. The region snapshot uses the backend-matched native region and falls
-back to a default United States map only
-when MapKit geocoding cannot resolve that region label. If the overview has no
-non-empty region summaries with species counts, iOS hides the Region section
-and the "Browse all regions" row instead of showing an empty regional path.
+default. The region snapshot uses the backend's country display title and falls
+back to a default United States map only when MapKit geocoding cannot resolve
+that title. If the overview has no non-empty country summaries with species
+counts, iOS hides the Region section and the "Browse all regions" row while the
+personal country card still communicates the pending refresh state.
 Catalog detail pages opened from overview cards or rows, including Birds,
 Mammals, All, Your Region, and Recently Added, keep the same paginated species
 row list but add toolbar search, matching the Scans library search presentation,
@@ -336,11 +340,23 @@ must have a scientific name plus either a positive GBIF taxon key or usable
 biological taxonomy with a kingdom and at least one downstream rank. Rows that
 only resolve to generic encyclopedia concepts are filtered out before they can
 appear as dictionary records.
-`user_region` may be an ISO region code from an already-authorized physical
+`user_region` may be an ISO country code from an already-authorized physical
 location or, when location is unavailable/not granted, from
-`Locale.current.region?.identifier`; the function expands codes such as `US`
-for native-region matching. iOS includes `cache_buster` so overview requests
-bypass old cached response bodies while category thumbnails are randomized.
+`Locale.current.region?.identifier`. The function normalizes the code and
+queries exact ISO-country occurrence rows; it never substring-matches a broad
+range such as `North America` as the long-term regional source. During the
+backfill only, a country with no occurrence rows may fall back to the legacy
+`native_region` display-name compatibility filter. iOS includes `cache_buster` so
+overview requests bypass old cached response bodies while category thumbnails
+are randomized.
+
+The scheduled `refresh-species-content` worker obtains GBIF country facets for
+records with `occurrenceStatus=PRESENT`, coordinates, and no geospatial issue.
+It atomically replaces each species' country rows and refreshes them every 180
+days through `species_content_provenance`. These rows mean "recorded in this
+country," not "native to this country." Identification paths omit the legacy
+range column and nullish provider fields so an upsert cannot erase curated text
+with `Unknown` or remove a known GBIF identity during a transient lookup failure.
 
 ```json
 {
@@ -357,10 +373,11 @@ bypass old cached response bodies while category thumbnails are randomized.
       {
         "id": "your_region",
         "title": "Your Region",
-        "subtitle": "Species associated with United States",
+        "subtitle": "Species recorded in United States",
         "count": 8,
         "reference_image_url": "https://...",
-        "region": "United States"
+        "region": "United States",
+        "region_code": "US"
       }
     ],
     "groups": [
@@ -373,10 +390,11 @@ bypass old cached response bodies while category thumbnails are randomized.
     ],
     "regions": [
       {
-        "id": "region:united%20states",
+        "id": "country:US",
         "title": "United States",
         "count": 8,
-        "reference_image_url": "https://..."
+        "reference_image_url": "https://...",
+        "code": "US"
       }
     ]
   }
@@ -389,7 +407,7 @@ Catalog mode powers search results and category detail pages:
 {
   "mode": "catalog",
   "category": "region",
-  "region": "United States",
+  "region": "US",
   "query": "Danaus",
   "limit": 40,
   "cursor": {
@@ -401,7 +419,9 @@ Catalog mode powers search results and category detail pages:
 ```
 
 `category` defaults to `all` for backward compatibility. `region` is required
-when `category` is `region` and may also be an ISO region code. `group` is
+when `category` is `region`; new clients send the response's ISO `region_code`
+or region-summary `code`. English country titles remain accepted for deployed
+client compatibility. `group` is
 required when `category` is `group`; supported high-level groups are `plants`,
 `birds`, `insects`, `fungi`, `mammals`, and `reptiles_amphibians`.
 `recently_added` sorts by

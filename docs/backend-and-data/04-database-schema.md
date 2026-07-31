@@ -349,14 +349,19 @@ results, not dictionary taxa.
   `species_reference_images` and fall back to this field for older rows/direct
   readers. Keep this cache until every iOS historical/backfill path has
   migrated.
-- `native_region` (Text): Origin markers.
+- `native_region` (Text): Legacy free-text origin marker. New identification
+  upserts omit this column so they preserve curated values on conflict and use
+  its `Unknown` database default only for a new row. Regional catalog queries
+  use `species_country_occurrences`, not this text field, once country coverage
+  exists.
 - `habitat_description` (Text): Summarizes the expected ecosystem parameters for
   the species.
 - ~~`global_distribution_regions`~~ (JSONB): Dropped in migration
   `20260327140000_drop_global_distribution_regions.sql`. Previously populated
   with Gemini Flash-generated ISO 3166-1/3166-2 region codes that proved
-  inaccurate. Species geographic range is now communicated exclusively through
-  the GBIF occurrence density tile overlay (driven by `gbif_taxon_key`).
+  inaccurate. Species pages communicate geographic density through the GBIF
+  occurrence tile overlay (driven by `gbif_taxon_key`), while Index country
+  catalogs use normalized GBIF occurrence facets.
 - `similar_species` (Text Array): Legacy flat array of validated similar-species
   scientific names. Kept only as a compatibility cache alongside the
   authoritative `species_lookalikes` join table. Raw Gemini Flash output is no
@@ -446,6 +451,36 @@ migration `20260513030000_add_species_reference_images.sql`.
 Ordering uses `public.public_species_reference_image_source_rank(...)`: Merian
 images first, then Wikipedia, then GBIF, with `sort_order`, `created_at`, and
 `id` as tie-breakers.
+
+### `species_country_occurrences`
+
+Normalized country occurrence evidence for species dictionary browsing. Added
+in migration `20260731151344_add_species_country_occurrence_index.sql`.
+
+- `species_id` (UUID FK -> `species_dictionary.id`, CASCADE DELETE) and
+  `country_code` (uppercase ISO 3166-1 alpha-2 text) form the primary key.
+- `occurrence_count` (BIGINT, positive): Number returned by GBIF's country facet
+  for georeferenced PRESENT records without geospatial issues.
+- `gbif_taxon_key` (BIGINT, positive): Taxon identity used for the provider
+  query. Readers require it to match the current dictionary taxon key so stale
+  rematches cannot leak into a country catalog.
+- `source`: Fixed to `gbif_occurrence`.
+- `last_refreshed_at`, `created_at`, `updated_at`: Refresh and audit clocks.
+- Index: `(country_code, occurrence_count DESC, species_id)` supports exact
+  country catalogs, counts, and representative-species selection.
+- RLS: enabled with no public policies. `anon` and `authenticated` have no table
+  privileges; `service_role` is granted only the operations required by the
+  Edge read and replacement boundaries.
+
+`public.replace_species_country_occurrences(...)` validates at most 300 facet
+rows, locks the current dictionary taxon identity against concurrent rematches,
+and replaces one species' complete country set in a single database call.
+`public.get_species_dictionary_country_summaries(...)` returns exact ISO-country
+species counts plus a representative species UUID for overview imagery. Both
+functions are revoked from public client roles. A GBIF taxon-key change purges
+the old rows, marks their provenance due, and enqueues a durable replacement.
+The rows mean that GBIF has recorded the species in a country; they do not
+assert that it is native there.
 
 ### Current-scan exclusion projection
 
@@ -901,8 +936,8 @@ Added in migration `20260513050000_add_species_content_provenance.sql`.
 - `content_key` (TEXT): Field bucket being described. Current values are
   `common_names`, `alternative_common_names`, `taxonomy`, `wikipedia_url`,
   `wikipedia_overview`, `habitat_description`, `gbif_taxon_key`,
-  `reference_images`, `lookalikes`, `group_tags`, `iucn_red_list_status`, and
-  `hazard_type`.
+  `reference_images`, `country_occurrences`, `lookalikes`, `group_tags`,
+  `iucn_red_list_status`, and `hazard_type`.
 - `source` (TEXT): Origin classification. Current values are `gbif`,
   `wikipedia`, `model_enrichment`, `user_review`, `manual_curation`,
   `system_backfill`, `taxonomy_trigger`, `mixed`, and `unknown`.
@@ -957,7 +992,9 @@ Operational queue for species-level hydration work. Added in
   context.
 
 `refresh-species-content` claims `gbif_wikipedia_reference` jobs first and uses
-the older provenance queue only as a fallback. `refresh-species-model-content`
+the older provenance queue only as a fallback. That group also refreshes the
+normalized GBIF country-occurrence index and its provenance clock.
+`refresh-species-model-content`
 claims `habitat`, `lookalikes`, and `group_tags` jobs and reuses the same
 species-level primitives behind `enrich-scan`. New GBIF-backed species
 materialized from Community ID publish enqueue all four content groups so
@@ -1129,10 +1166,13 @@ The transaction log for every successful identification.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` and
-  the ownerless forward migration for account deletions. Retained rows have no
-  owner and clear exact coordinates, elevation, and free-form intervention
-  notes. They remain available to trusted scientific exports but are excluded
-  from the broad anonymous scans policy.
+  the ownerless forward migrations for account deletion. Retained rows have no
+  owner and clear media, semantic/public location labels, device context,
+  custom tags, and free-form intervention notes. Exact coordinates, elevation,
+  time, taxonomy, identification, environmental, quality, and provenance facts
+  remain unchanged as mandatory Scientific Data. Tombstones are available only
+  to reviewed backend scientific paths and are excluded from the broad
+  anonymous scans policy.
 - `custom_tags` (Text Array): User-defined plain-text labels for personal
   categorization. The database allows at most 50 non-null/control-free elements
   of at most 256 UTF-8 bytes each; iOS additionally limits visible tag length to
@@ -1970,7 +2010,7 @@ oldest-due `FOR UPDATE SKIP LOCKED` leases; `release_scan_deletion_job(...)`
 compare-before-releases a failed generation; and `get_scan_deletion_health()`
 returns only aggregate SLA/backlog state. Successful completion immediately
 nulls the owner UUID, retaining no observation content or user linkage. Account
-anonymization applies the same unlink-and-complete transition to any interrupted
+detachment applies the same unlink-and-complete transition to any interrupted
 individual deletion. Thus a completed ledger cannot be used by a stale device to
 recreate a deliberately deleted scan.
 

@@ -1,4 +1,5 @@
 import AVFoundation
+import Combine
 import SwiftUI
 
 struct InsightFullscreenImageCarousel: View {
@@ -7,6 +8,7 @@ struct InsightFullscreenImageCarousel: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedItemID: String?
     @State private var isVideoMuted: Bool
+    @State private var unavailableVideoItemIDs: Set<String> = []
 
     init(presentation: InsightImageGalleryPresentation) {
         self.presentation = presentation
@@ -17,6 +19,11 @@ struct InsightFullscreenImageCarousel: View {
         let fallbackID = presentation.items[safe: presentation.initialSelectedIndex]?.id
         let activeID = selectedItemID ?? fallbackID
         return presentation.items.first { $0.id == activeID } ?? presentation.items.first
+    }
+
+    private var isSelectedVideoUnavailable: Bool {
+        guard let selectedItem, selectedItem.source.isVideo else { return false }
+        return unavailableVideoItemIDs.contains(selectedItem.id)
     }
 
     var body: some View {
@@ -85,7 +92,7 @@ struct InsightFullscreenImageCarousel: View {
 
                 Spacer()
 
-                if selectedItem?.source.isVideo == true {
+                if selectedItem?.source.isVideo == true, !isSelectedVideoUnavailable {
                     Button {
                         isVideoMuted.toggle()
                         HapticManager.shared.triggerSelectionPulse(
@@ -128,7 +135,10 @@ struct InsightFullscreenImageCarousel: View {
             FullscreenVideoView(
                 path: path,
                 isSelected: item.id == selectedItem?.id,
-                isMuted: $isVideoMuted
+                isMuted: $isVideoMuted,
+                onAvailabilityChange: {
+                    updateVideoAvailability(itemID: item.id, isUnavailable: $0)
+                }
             )
         case .referenceURL(let urlString):
             AsyncLocalImageView(
@@ -137,6 +147,14 @@ struct InsightFullscreenImageCarousel: View {
                 contentMode: .fit,
                 onImageLoadFailed: nil
             )
+        }
+    }
+
+    private func updateVideoAvailability(itemID: String, isUnavailable: Bool) {
+        if isUnavailable {
+            unavailableVideoItemIDs.insert(itemID)
+        } else {
+            unavailableVideoItemIDs.remove(itemID)
         }
     }
 
@@ -191,27 +209,40 @@ private struct FullscreenVideoView: View {
     let path: String
     let isSelected: Bool
     @Binding var isMuted: Bool
+    let onAvailabilityChange: (Bool) -> Void
 
     @State private var player: AVPlayer?
     @State private var isPlaying = false
+    @State private var availability = InsightVideoPlaybackAvailability.loading
     @State private var playbackEndObserver: NSObjectProtocol?
+    @State private var playbackFailureObserver: NSObjectProtocol?
 
     var body: some View {
         ZStack {
             Color.black
 
-            if let player {
+            if let player,
+               let playerItem = player.currentItem,
+               availability != .unavailable {
                 InsightCoverVideoPlayer(player: player, videoGravity: .resizeAspect)
                     .ignoresSafeArea()
-            } else {
-                ProgressView()
-                    .tint(.white)
+                    .onReceive(playerItem.publisher(for: \.status).removeDuplicates()) { status in
+                        updateAvailability(for: status, observedPlayer: player)
+                    }
             }
 
-            InsightCenterVideoPlaybackControl(
-                isPlaying: isPlaying,
-                action: togglePlayback
-            )
+            switch availability {
+            case .loading:
+                ProgressView()
+                    .tint(.white)
+            case .ready:
+                InsightCenterVideoPlaybackControl(
+                    isPlaying: isPlaying,
+                    action: togglePlayback
+                )
+            case .unavailable:
+                InsightUnavailableVideoView()
+            }
         }
         .task(id: path) {
             configurePlayer()
@@ -233,22 +264,27 @@ private struct FullscreenVideoView: View {
             if !newValue {
                 player?.pause()
                 isPlaying = false
+            } else if availability == .ready {
+                startPlayback(source: "media.insight.fullscreen.selection")
             }
         }
         .onDisappear {
             player?.pause()
             isPlaying = false
-            removePlaybackEndObserver()
+            removePlaybackObservers()
         }
     }
 
     private func configurePlayer() {
         player?.pause()
-        removePlaybackEndObserver()
+        removePlaybackObservers()
         isPlaying = false
+        availability = .loading
+        onAvailabilityChange(false)
 
         guard let url = resolvedURL(path) else {
             player = nil
+            markUnavailable()
             return
         }
 
@@ -256,6 +292,10 @@ private struct FullscreenVideoView: View {
         configuredPlayer.isMuted = isMuted
         configuredPlayer.actionAtItemEnd = .pause
         player = configuredPlayer
+        updateAvailability(
+            for: configuredPlayer.currentItem?.status ?? .unknown,
+            observedPlayer: configuredPlayer
+        )
         playbackEndObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: configuredPlayer.currentItem,
@@ -268,11 +308,18 @@ private struct FullscreenVideoView: View {
             }
             startPlayback(source: "media.insight.fullscreen.loop")
         }
-        startPlayback(source: "media.insight.fullscreen.autoplay")
+        playbackFailureObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: configuredPlayer.currentItem,
+            queue: .main
+        ) { _ in
+            guard self.player === configuredPlayer else { return }
+            markUnavailable()
+        }
     }
 
     private func togglePlayback() {
-        guard let player else { return }
+        guard availability == .ready, let player else { return }
 
         if isPlaying {
             HapticManager.shared.triggerLightImpact(
@@ -288,7 +335,7 @@ private struct FullscreenVideoView: View {
     }
 
     private func startPlayback(source: String) {
-        guard isSelected, let player else { return }
+        guard availability == .ready, isSelected, let player else { return }
         guard !isMuted else {
             player.play()
             isPlaying = true
@@ -304,10 +351,41 @@ private struct FullscreenVideoView: View {
         }
     }
 
-    private func removePlaybackEndObserver() {
+    private func updateAvailability(
+        for status: AVPlayerItem.Status,
+        observedPlayer: AVPlayer
+    ) {
+        guard player === observedPlayer else { return }
+        let nextAvailability = InsightVideoPlaybackAvailability(itemStatus: status)
+        availability = nextAvailability
+        onAvailabilityChange(nextAvailability == .unavailable)
+
+        switch nextAvailability {
+        case .loading:
+            break
+        case .ready:
+            startPlayback(source: "media.insight.fullscreen.autoplay")
+        case .unavailable:
+            observedPlayer.pause()
+            isPlaying = false
+        }
+    }
+
+    private func markUnavailable() {
+        availability = .unavailable
+        player?.pause()
+        isPlaying = false
+        onAvailabilityChange(true)
+    }
+
+    private func removePlaybackObservers() {
         if let playbackEndObserver {
             NotificationCenter.default.removeObserver(playbackEndObserver)
             self.playbackEndObserver = nil
+        }
+        if let playbackFailureObserver {
+            NotificationCenter.default.removeObserver(playbackFailureObserver)
+            self.playbackFailureObserver = nil
         }
     }
 

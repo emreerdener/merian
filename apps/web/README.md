@@ -367,8 +367,8 @@ preference.
 - `/apple-app-site-association` and `/.well-known/apple-app-site-association` —
   served Apple App Site Association file for iOS deep linking capabilities.
 - `/privacy` — App Store privacy policy URL.
-- `/privacy-choices` — optional App Store privacy choices URL and data deletion
-  help.
+- `/privacy-choices` — App Store privacy choices URL, data deletion help, and
+  the mandatory ownerless scientific-observation retention boundary.
 - `/terms` — Terms of Service.
 - `/guidelines` — Community Guidelines. `/community-guidelines` redirects here.
 - `/support` — support/contact page.
@@ -389,6 +389,14 @@ flags are false.
 Do not replace the combined routine with sequential calls or direct
 service-key table reads. Exact-SHA promotion evidence is tracked in the
 [release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
+
+Every submitted scan contributes Scientific Data. Account deletion removes the
+account, attribution, media, private notes, semantic/public location labels,
+custom tags, and device context, but retains the ownerless observation's exact
+coordinates/elevation, time, taxonomy, identification, environmental, quality,
+and provenance facts in the restricted backend. This retention is a condition
+of the Service without a separate opt-in or opt-out. Public surfaces remain
+governed by geoprivacy, sensitive-taxon projection, and tombstone exclusion.
 
 The page may consume the resulting public image, species labels, public author
 identity, shared timestamp, privacy-filtered location/telemetry, public field

@@ -1,9 +1,14 @@
 import {
   assert,
+  assertEquals,
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
+const countryOccurrenceDatabaseTest = new URL(
+  "../../tests/species_country_occurrences_security.sql",
+  import.meta.url,
+);
 
 async function migrationSql(fileName: string): Promise<string> {
   return await Deno.readTextFile(new URL(fileName, migrationsDir));
@@ -66,6 +71,116 @@ Deno.test("species dictionary enrichment migration maps content gaps to the exis
   assert(
     !sql.includes("missing_groups || '"),
     "content group appends must not rely on ambiguous array concatenation",
+  );
+});
+
+Deno.test("species country occurrence migration creates a deny-by-default canonical index", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260731151344_add_species_country_occurrence_index.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE public.species_country_occurrences",
+      "PRIMARY KEY (species_id, country_code)",
+      "country_code = UPPER(country_code)",
+      "CHECK (occurrence_count > 0)",
+      "CREATE INDEX idx_species_country_occurrences_country ON public.species_country_occurrences ( country_code, occurrence_count DESC, species_id )",
+      "ALTER TABLE public.species_country_occurrences ENABLE ROW LEVEL SECURITY",
+      "REVOKE ALL PRIVILEGES ON TABLE public.species_country_occurrences FROM PUBLIC, anon, authenticated, service_role",
+      "GRANT SELECT, INSERT, DELETE ON TABLE public.species_country_occurrences TO service_role",
+      "ALTER COLUMN native_region SET DEFAULT 'Unknown'",
+      "NOTIFY pgrst, 'reload schema'",
+      "'country_occurrences'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("CREATE POLICY"),
+    "country occurrence rows must remain service-owned rather than directly exposed",
+  );
+});
+
+Deno.test("species country occurrence migration refreshes atomically and reads exact ISO countries", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260731151344_add_species_country_occurrence_index.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.replace_species_country_occurrences",
+      "SECURITY INVOKER SET search_path = ''",
+      "FROM public.species_dictionary AS species WHERE species.id = p_species_id AND species.gbif_taxon_key::BIGINT = p_gbif_taxon_key FOR SHARE",
+      "DELETE FROM public.species_country_occurrences AS occurrence WHERE occurrence.species_id = p_species_id",
+      "GROUP BY UPPER(item.value ->> 'country_code')",
+      "CREATE OR REPLACE FUNCTION public.get_species_dictionary_country_summaries",
+      "OR occurrence.country_code = UPPER(pg_catalog.BTRIM(p_country_code))",
+      "species.gbif_taxon_key::BIGINT = occurrence.gbif_taxon_key",
+      "CREATE OR REPLACE FUNCTION public.invalidate_species_country_occurrences_on_gbif_change",
+      "AFTER UPDATE OF gbif_taxon_key ON public.species_dictionary",
+      "WHEN (OLD.gbif_taxon_key IS DISTINCT FROM NEW.gbif_taxon_key)",
+      "refresh_after = pg_catalog.NOW()",
+      "'invalidated_by', 'gbif_taxon_key_change'",
+      "'species_gbif_taxon_key_change'",
+      "ARRAY['gbif_wikipedia_reference']::TEXT[]",
+      "GRANT EXECUTE ON FUNCTION public.replace_species_country_occurrences",
+      "GRANT EXECUTE ON FUNCTION public.get_species_dictionary_country_summaries",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
+Deno.test("species country occurrence migration reuses the durable GBIF worker and backfills coverage", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260731151344_add_species_country_occurrence_index.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "has_country_occurrences BOOLEAN := FALSE",
+      "FROM public.species_country_occurrences AS occurrence",
+      "provenance.content_key = 'country_occurrences'",
+      "provenance.metadata ->> 'gbif_taxon_key' = (species_row).gbif_taxon_key::TEXT",
+      "AND has_country_occurrences",
+      "'species_country_occurrence_backfill'",
+      "ARRAY['gbif_wikipedia_reference']::TEXT[]",
+      "public.enqueue_species_enrichment_jobs",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
+Deno.test("species country occurrence database test covers behavior and lifecycle security", async () => {
+  const sql = await Deno.readTextFile(countryOccurrenceDatabaseTest);
+
+  for (
+    const fragment of [
+      "SET LOCAL ROLE service_role",
+      "species_country_occurrences_taxon_mismatch",
+      "species_country_occurrences_invalid_entry",
+      "a valid empty GBIF facet is a successful atomic replacement",
+      "a GBIF rematch purges stale rows, invalidates provenance, and queues repair",
+      "a successful empty current facet counts as hydrated country coverage",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assertStringIncludes(sql, "SELECT extensions.plan(19)");
+  assertEquals(
+    sql.match(/^SELECT extensions\.(?:ok|is|throws_ok)\(/gm)?.length,
+    19,
+    "Country occurrence pgTAP plan must match its executable assertions.",
   );
 });
 

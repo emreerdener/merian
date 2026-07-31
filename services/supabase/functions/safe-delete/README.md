@@ -1,7 +1,9 @@
 # Safe Account Deletion
 
-Executes the irreversible right-to-erasure protocol for the user established by
-the verified request session. The caller cannot nominate another user ID.
+Executes the irreversible account-deletion protocol for the user established by
+the verified request session. It deletes account-owned data while preserving
+mandatory ownerless Scientific Data. The caller cannot nominate another user
+ID.
 
 ## Durable state machine
 
@@ -15,13 +17,16 @@ executable no-op compatibility bridge for production run 1461. Its superseded
 public-only sentinel insert could not satisfy production's
 `public.users.id → auth.users.id` foreign key. Migration
 `20260725041308_ownerless_account_deletion_tombstones.sql` is the forward fix:
-retained scans become ownerless tombstones, exact coordinates/elevation and
-free-form intervention notes are cleared, and no synthetic Auth or public user
-is created. A validated constraint permits a null scan owner only for a
-tombstone. The public profile's restrictive Auth foreign key also rejects any
-Auth-first delete until cleanup has removed that profile. The scan-ingestion
-replay worker treats an ownerless tombstone as terminal and never dispatches
-another AI request for it.
+retained scans become ownerless tombstones and no synthetic Auth or public user
+is created. Migration
+`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`
+supersedes its coordinate-clearing routine: exact coordinates, elevation, time,
+taxonomy, identification, environmental, quality, and provenance facts are now
+mandatory retained Scientific Data. A validated constraint permits a null scan
+owner only for a tombstone. The public profile's restrictive Auth foreign key
+also rejects any Auth-first delete until cleanup has removed that profile. The
+scan-ingestion replay worker treats an ownerless tombstone as terminal and
+never dispatches another AI request for it.
 
 1. `request_account_deletion(user_id)` inserts or returns the active `pending`
    job. This durable receipt is always the first mutation.
@@ -31,10 +36,11 @@ another AI request for it.
    `complete_account_deletion_cleanup(job_id, claim_token)`. It writes the
    idempotent storage job, calls `apply_user_tombstone`, and verifies that no
    public profile or scan still references the user. Tombstoning clears every
-   scan media URL/manifest, exact location, device/location context, custom tag,
-   and free-form intervention field before making the retained observation
-   ownerless. Until storage is verified the job is `storage_pending`, with no
-   account-worker lease.
+   scan media URL/manifest, semantic location and public label, device context,
+   custom tag, and free-form intervention field before making the retained
+   observation ownerless. Exact coordinates and all other scientific facts are
+   left unchanged. Until storage is verified the job is `storage_pending`, with
+   no account-worker lease.
 4. `claim_pending_storage_deletions(...)` leases bounded R2 prefix pages. The
    worker claims at most four rows per Edge invocation, deletes at most 50 keys
    per page with eight deletes in flight, and traverses the user's free/pro
@@ -134,6 +140,12 @@ durable job for the recorded UUID through the service-only intake RPC, then run
 the reaper. Review the target and current relational state before doing so. Do
 not create an all-zero Auth/profile sentinel or weaken the profile foreign key;
 ownerless tombstones are the only supported retained-observation state.
+
+The permanent scientific record is a condition of submitting a scan, not an
+account-deletion option. The retained row has no account UUID and remains
+excluded from personal and broad anonymous scan policies. Exact coordinates are
+available only through reviewed backend scientific access; public and export
+projections continue to apply geoprivacy and sensitive-taxon rules.
 
 ## Source layout
 

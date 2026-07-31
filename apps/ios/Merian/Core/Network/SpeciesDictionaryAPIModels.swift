@@ -162,6 +162,7 @@ struct SpeciesDictionaryCategorySummary: Decodable, Equatable, Identifiable, Has
     let count: Int
     let referenceImageUrl: String?
     let region: String?
+    let regionCode: String?
 }
 
 struct SpeciesDictionaryGroupSummary: Decodable, Equatable, Identifiable, Hashable {
@@ -176,6 +177,7 @@ struct SpeciesDictionaryRegionSummary: Decodable, Equatable, Identifiable, Hasha
     let title: String
     let count: Int
     let referenceImageUrl: String?
+    let code: String?
 }
 
 struct SpeciesDictionaryTreePayload: Decodable, Equatable {

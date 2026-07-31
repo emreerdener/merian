@@ -7,6 +7,7 @@ import {
   insertScan,
   mergeSpeciesCommonNames,
   normalizeScanEcologyType,
+  omitNullishSpeciesUpsertValues,
   resolveScanGeoprivacy,
   speciesReferenceImageRowsFromCache,
   upsertGhostUserIfMissing,
@@ -222,6 +223,26 @@ Deno.test("mergeSpeciesCommonNames ignores blank scan common names", () => {
   assertEquals(mergeSpeciesCommonNames({ fr: "Renard roux" }, "  "), {
     fr: "Renard roux",
   });
+});
+
+Deno.test("species upserts omit unknown provider values instead of erasing known data", () => {
+  assertEquals(
+    omitNullishSpeciesUpsertValues({
+      scientific_name: "Danaus plexippus",
+      common_names: { en: "Monarch" },
+      alternative_common_names: [],
+      kingdom: null,
+      wikipedia_url: undefined,
+      gbif_taxon_key: null,
+      reference_image_url: "https://example.org/monarch.jpg",
+    }),
+    {
+      scientific_name: "Danaus plexippus",
+      common_names: { en: "Monarch" },
+      alternative_common_names: [],
+      reference_image_url: "https://example.org/monarch.jpg",
+    },
+  );
 });
 
 function insertScanMock(options?: {

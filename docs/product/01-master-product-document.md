@@ -659,17 +659,19 @@ blanket claims about domesticated observations.
 
 Account deletion uses `/safe-delete` to persist deletion intent before any
 destructive action. A claim-fenced database transaction queues object-store
-cleanup, makes retained observations ownerless tombstones, clears exact
-location, all stored media references, device/location context, custom tags, and
-free-form account-linked notes, and anonymizes cost/linkage records. A scheduled
-reaper cursor-sweeps durable uploads, staging data, avatars, and exports, then
-performs a delayed empty verification sweep. Auth is deleted only after both
-relational and storage verification succeed. Transient failures are resumed
-automatically. After immediate completion or durable acceptance, the client
-signs out locally and removes its local store. An independent scheduled health
-check alerts when the reaper is disabled or misconfigured, deletion work is
-overdue, leases expire, storage work is orphaned, or queue age/backlog breaches
-the deletion SLA.
+cleanup, makes retained observations ownerless tombstones, clears all stored
+media references, semantic/public location labels, device context, custom tags,
+and free-form account-linked notes, and anonymizes cost/linkage records. Exact
+coordinates/elevation, time, taxonomy, identification, environmental, quality,
+and provenance facts remain unchanged as the mandatory scientific observation.
+A scheduled reaper cursor-sweeps durable uploads, staging data, avatars, and
+exports, then performs a delayed empty verification sweep. Auth is deleted only
+after both relational and storage verification succeed. Transient failures are
+resumed automatically. After immediate completion or durable acceptance, the
+client signs out locally and removes its local store. An independent scheduled
+health check alerts when the reaper is disabled or misconfigured, deletion work
+is overdue, leases expire, storage work is orphaned, or queue age/backlog
+breaches the deletion SLA.
 
 Deleting an individual scan uses an owner-bound `/delete-scan` path that first
 persists a private, content-free generation tombstone, then removes owned media,
@@ -682,8 +684,8 @@ Successful completion removes the owner linkage from the permanent UUID fence.
 Because the scan owns its Explore post, explicit deletion also permanently
 removes that post, its likes, and its comments. Every deletion confirmation must
 say so before proceeding. Deletion user experience should clearly separate local
-removal, server completion, and any legally required residual anonymized
-records.
+removal, server completion, and the mandatory ownerless Scientific Data retained
+after account deletion.
 
 ## 10.4 Analytics privacy boundary
 

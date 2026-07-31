@@ -884,11 +884,9 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertNil(viewModel.pendingScansRecoveryContext)
     }
 
-    func testProfileRecoveryRoutePreservesMediaUnavailableScanContext() async throws {
+    func testProfileRecoveryRoutePreservesOwnerFilterContext() async throws {
         let context = ExploreMediaRecoveryRouteContext(
-            ownerUserId: "5d8372cc-1078-49a4-af27-e32d10290bad",
-            mediaUnavailableScanCount: 5,
-            hiddenScanCount: 5
+            ownerUserId: "5d8372cc-1078-49a4-af27-e32d10290bad"
         )
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
@@ -2163,6 +2161,67 @@ final class ProfilePublicationRecoverySummaryTests: XCTestCase {
             summary.userFacingMessage,
             "Its media isn’t available, so it’s temporarily hidden from Explore. "
                 + "Your posts and activity are safe."
+        )
+    }
+
+    func testRecoveryNoticeDismissalSignatureChangesWithPublishedTotals() {
+        let summary = ProfilePublicationRecoverySummary(
+            publicationIntentCount: 41,
+            visibleCount: 34,
+            recoveryNeededCount: 5,
+            quarantinedCount: 5
+        )
+        let changedSummary = ProfilePublicationRecoverySummary(
+            publicationIntentCount: 42,
+            visibleCount: 34,
+            recoveryNeededCount: 6,
+            quarantinedCount: 6
+        )
+
+        XCTAssertEqual(summary.overviewDismissalSignature, "41:34:5:5")
+        XCTAssertNotEqual(
+            summary.overviewDismissalSignature,
+            changedSummary.overviewDismissalSignature
+        )
+    }
+
+    func testRecoveryNoticeDismissalIsAccountScopedAndClearable() throws {
+        let suiteName = "ProfilePublicationRecoveryOverviewPreferencesTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let firstOwnerID = UUID().uuidString
+        let secondOwnerID = UUID().uuidString
+        let signature = "41:34:5:5"
+
+        ProfileRecoveryNoticePreferences.dismiss(
+            signature: signature,
+            ownerUserID: firstOwnerID,
+            defaults: defaults
+        )
+
+        XCTAssertEqual(
+            ProfileRecoveryNoticePreferences.dismissedSignature(
+                ownerUserID: firstOwnerID.uppercased(),
+                defaults: defaults
+            ),
+            signature
+        )
+        XCTAssertNil(
+            ProfileRecoveryNoticePreferences.dismissedSignature(
+                ownerUserID: secondOwnerID,
+                defaults: defaults
+            )
+        )
+
+        ProfileRecoveryNoticePreferences.clear(
+            ownerUserID: firstOwnerID,
+            defaults: defaults
+        )
+        XCTAssertNil(
+            ProfileRecoveryNoticePreferences.dismissedSignature(
+                ownerUserID: firstOwnerID,
+                defaults: defaults
+            )
         )
     }
 }

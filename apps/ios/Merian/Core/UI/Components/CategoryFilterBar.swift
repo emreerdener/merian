@@ -8,7 +8,7 @@ enum CategoryFilterBarPresentation {
 struct CategoryFilterBar<Item: Hashable>: View {
     // MARK: - State Dependencies
     let items: [Item]
-    let activeItem: Item
+    let activeItem: Item?
     let title: (Item) -> String
     let leadingTitle: String?
     let isLeadingSelected: Bool
@@ -21,7 +21,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
 
     init(
         items: [Item],
-        activeItem: Item,
+        activeItem: Item?,
         title: @escaping (Item) -> String,
         leadingTitle: String? = nil,
         isLeadingSelected: Bool = false,

@@ -17,9 +17,12 @@ achievement evidence.
   thumbnail fallback for an already-visible server post, but local share cache
   never creates an extra public tile.
 - When a publication needs media recovery, the owner sees concise,
-  anchored copy showing the unavailable-media count and a `Review scans` link.
-  The link opens Scan Library, where a matching compact count and retry action
-  remain anchored above the filters. The retry link becomes an in-line loading
+  anchored copy showing the unavailable-media count, a `Review scans` link,
+  and an account-scoped dismiss action. Dismissal hides only the Profile notice
+  for the current published-recovery totals; changed totals show it again, and
+  resolving all published incidents clears the saved dismissal.
+  The link opens Scan Library, where a matching compact count and refresh action
+  remain anchored above the filters. The refresh link becomes an in-line loading
   indicator while the incident request runs. The grid automatically scopes to
   local scans with media issues when their incident IDs are available.
 - The user's own Profile tab also shows active and published Field trip modules
@@ -314,7 +317,7 @@ Conversion rules:
   only server-visible rows. It may use a matching local scan's reference image
   as a thumbnail fallback for that row, but never promotes local share cache
   into the public grid.
-- Owner profile stats decode `owner_publication_summary`. A persistent recovery
+- Owner profile stats decode `owner_publication_summary`. A dismissible recovery
   explanation appears above both the preview and full grid when
   `recovery_needed_post_count > 0`; its recovery-specific Scan Library route
   preserves those totals, fetches scan IDs with unavailable media, and enables

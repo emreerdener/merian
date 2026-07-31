@@ -19,6 +19,7 @@ export default function PrivacyPolicyPage() {
       eyebrow="Naturebook legal"
       title="Privacy Policy"
       description="This policy explains what Naturebook collects, how it is used, and the controls available to you."
+      lastUpdated="July 31, 2026"
     >
       <LegalSection title="Overview">
         <Text>
@@ -53,8 +54,9 @@ export default function PrivacyPolicyPage() {
           <li>
             <Text>
               <strong>Location and environmental context:</strong>{" "}
-              GPS coordinates, approximate place names, elevation, weather, time
-              of day, month, and device capture context when permissions allow.
+              exact and privacy-projected GPS coordinates, coordinate
+              uncertainty, approximate place names, elevation, weather, time of
+              day, month, and device capture context when permissions allow.
             </Text>
           </li>
           <li>
@@ -97,6 +99,11 @@ export default function PrivacyPolicyPage() {
             Identify observations and generate structured ecological results.
           </li>
           <li>
+            Maintain the Naturebook scientific observation database, including
+            exact location and time needed to study range, migration, phenology,
+            biodiversity, and conservation patterns.
+          </li>
+          <li>
             Save and sync your personal scan library, collections, and field
             notes.
           </li>
@@ -126,8 +133,10 @@ export default function PrivacyPolicyPage() {
           Explore. When you share a scan, Naturebook may display the public
           image, species labels, public author identity, privacy-filtered
           location label, coarse environmental context, engagement counts,
-          comments, and any field notes you choose to publish. Exact coordinates
-          and private notes are not shown on public Explore pages.
+          comments, and any field notes you choose to publish. Private notes are
+          not shown on public Explore pages. An open geoprivacy choice can show
+          a precise or near-precise location; obscured and private choices
+          reduce or suppress the public location.
         </Text>
       </LegalSection>
 
@@ -141,7 +150,9 @@ export default function PrivacyPolicyPage() {
           A photo selected or shared from Photos may include its embedded
           capture date and GPS coordinates. You can exclude Location in
           Photos&apos; share Options; Naturebook does not invent missing
-          coordinates or dates.
+          coordinates or dates. Geoprivacy controls public presentation and
+          distribution. It does not remove exact coordinates from the required
+          backend scientific observation record created when you submit a scan.
         </Text>
       </LegalSection>
 
@@ -168,28 +179,44 @@ export default function PrivacyPolicyPage() {
           <li>Change geoprivacy settings in Naturebook.</li>
           <li>Unshare Explore posts or delete scans in the app.</li>
           <li>
-            Request a Darwin Core Archive export from the profile settings.
+            Request a Darwin Core Archive export when that feature is available.
           </li>
           <li>Delete your account from the app or contact support for help.</li>
         </LegalList>
+        <Text>
+          Submitting a scan necessarily contributes its Scientific Data,
+          including exact coordinates when present, to Naturebook&apos;s
+          scientific observation database. This contribution and retention are
+          conditions of the Service and do not have a separate opt-in or opt-out
+          control. You can prevent future scans from including device location
+          by disabling location permission or removing location metadata before
+          submission, but account deletion does not delete Scientific Data
+          already contributed. Applicable statutory rights remain available.
+        </Text>
       </LegalSection>
 
       <LegalSection title="Retention">
         <Text>
-          Naturebook keeps account, waitlist, scan, subscription, and Explore
-          data for as long as needed to provide the service, maintain records,
-          prevent abuse, comply with legal obligations, and honor deletion
-          requests. Some free-tier cloud media may be subject to lifecycle
-          limits, while local copies may remain on your device until you delete
-          them or remove the app.
+          Naturebook keeps account, waitlist, subscription, media, and Explore
+          data for as long as needed to provide and secure the Service, meet the
+          periods disclosed for a feature, comply with legal obligations, and
+          complete valid deletion requests. Scientific Data from every submitted
+          scan is retained for the life of the Naturebook scientific observation
+          database. After account deletion, the retained observation is made
+          ownerless and keeps exact coordinates, elevation, observation time,
+          taxonomy, identification, environmental, quality, and provenance
+          facts; account linkage, private media, private free-form notes, and
+          device or semantic-location context are removed. Some free-tier cloud
+          media may be subject to lifecycle limits, while local copies may
+          remain on your device until you delete them or remove the app.
         </Text>
       </LegalSection>
 
       <LegalSection title="Children">
         <Text>
-          Naturebook is not directed to children under 13. If you believe a
-          child has provided personal information without appropriate consent,
-          contact us so we can review and delete it where required.
+          Naturebook is not directed to people under 18. If you believe a child
+          has provided personal information without appropriate consent, contact
+          us so we can review and delete it where required.
         </Text>
       </LegalSection>
 

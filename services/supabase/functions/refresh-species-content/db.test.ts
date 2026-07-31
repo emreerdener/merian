@@ -1,6 +1,7 @@
 import {
   assertEquals,
   assertExists,
+  assertRejects,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { ExternalEnrichmentData } from "../_shared/external.ts";
@@ -135,6 +136,7 @@ Deno.test("refresh species content - builds GBIF/Wikipedia/reference plans from 
     "wikipedia_overview",
     "gbif_taxon_key",
     "reference_images",
+    "country_occurrences",
   ]);
 });
 
@@ -306,4 +308,273 @@ Deno.test("refresh species content - persists refreshed fields and provenance", 
   });
   assertEquals(calls[1].table, "species_content_provenance");
   assertEquals(calls[1].operation, "upsert");
+});
+
+Deno.test("refresh species content - atomically replaces country occurrences and records GBIF provenance", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const supabase = {
+    from(table: string) {
+      return {
+        update(update: Record<string, unknown>) {
+          return {
+            eq(column: string, value: string) {
+              calls.push({ table, operation: "update", update, column, value });
+              return Promise.resolve({ error: null });
+            },
+          };
+        },
+        upsert(rows: unknown[], options: Record<string, unknown>) {
+          calls.push({ table, operation: "upsert", rows, options });
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+    rpc(name: string, args: Record<string, unknown>) {
+      calls.push({ operation: "rpc", name, args });
+      return Promise.resolve({ error: null });
+    },
+  } as unknown as SupabaseClient;
+
+  const result = await refreshSpeciesContent(
+    {
+      speciesId: QUEUE_ROW_BASE.species_id,
+      scientificName: QUEUE_ROW_BASE.scientific_name,
+      contentKeys: ["gbif_taxon_key", "country_occurrences"],
+      queueRows: [],
+      jobIds: ["job-1"],
+    },
+    supabase,
+    () => Promise.resolve(EXTERNAL_DATA),
+    () =>
+      Promise.resolve([
+        { countryCode: "CA", occurrenceCount: 42 },
+        { countryCode: "US", occurrenceCount: 128 },
+      ]),
+  );
+
+  assertEquals(result.status, "refreshed");
+  assertEquals(result.refreshed_keys, [
+    "gbif_taxon_key",
+    "country_occurrences",
+  ]);
+  const replacementCall = calls.find((call) =>
+    call.name === "replace_species_country_occurrences"
+  );
+  assertExists(replacementCall);
+  assertEquals(
+    (replacementCall.args as Record<string, unknown>).p_occurrences,
+    [
+      { country_code: "CA", occurrence_count: 42 },
+      { country_code: "US", occurrence_count: 128 },
+    ],
+  );
+  const provenanceCall = calls.find((call) =>
+    call.table === "species_content_provenance"
+  );
+  assertExists(provenanceCall);
+  const provenanceRows = provenanceCall.rows as Array<Record<string, unknown>>;
+  const countryProvenance = provenanceRows.find((row) =>
+    row.content_key === "country_occurrences"
+  );
+  assertEquals(countryProvenance?.source, "gbif");
+  assertEquals(countryProvenance?.metadata, {
+    gbif_taxon_key: 5139790,
+    country_count: 2,
+    occurrence_count: 170,
+  });
+});
+
+Deno.test("refresh species content - retries a failed country facet instead of erasing coverage", async () => {
+  const supabase = {} as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      refreshSpeciesContent(
+        {
+          speciesId: QUEUE_ROW_BASE.species_id,
+          scientificName: QUEUE_ROW_BASE.scientific_name,
+          contentKeys: ["country_occurrences"],
+          queueRows: [],
+          jobIds: [],
+        },
+        supabase,
+        () => Promise.resolve(EXTERNAL_DATA),
+        () => Promise.resolve(null),
+      ),
+    Error,
+    "GBIF country occurrence refresh failed",
+  );
+});
+
+Deno.test("refresh species content - uses a known dictionary taxon key when GBIF matching is unavailable", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const supabase = {
+    from(table: string) {
+      if (table === "species_dictionary") {
+        const query = {
+          select(columns: string) {
+            calls.push({ table, operation: "select", columns });
+            return query;
+          },
+          eq(column: string, value: string) {
+            calls.push({ table, operation: "eq", column, value });
+            return query;
+          },
+          maybeSingle() {
+            return Promise.resolve({
+              data: { gbif_taxon_key: 5139790 },
+              error: null,
+            });
+          },
+        };
+        return query;
+      }
+
+      return {
+        upsert(rows: unknown[], options: Record<string, unknown>) {
+          calls.push({ table, operation: "upsert", rows, options });
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+    rpc(name: string, args: Record<string, unknown>) {
+      calls.push({ operation: "rpc", name, args });
+      return Promise.resolve({ error: null });
+    },
+  } as unknown as SupabaseClient;
+  const unavailableMatch: ExternalEnrichmentData = {
+    wikipediaUrl: null,
+    wikiExtract: null,
+    gbifKey: null,
+    referenceImageUrl: null,
+    alternativeCommonNames: [],
+    wikiTitle: null,
+    gbifTaxonomy: null,
+    gbifMatchStatus: "unavailable",
+  };
+
+  const result = await refreshSpeciesContent(
+    {
+      speciesId: QUEUE_ROW_BASE.species_id,
+      scientificName: QUEUE_ROW_BASE.scientific_name,
+      contentKeys: ["country_occurrences"],
+      queueRows: [],
+      jobIds: [],
+    },
+    supabase,
+    () => Promise.resolve(unavailableMatch),
+    (gbifKey) => {
+      assertEquals(gbifKey, 5139790);
+      return Promise.resolve([{ countryCode: "US", occurrenceCount: 128 }]);
+    },
+  );
+
+  assertEquals(result.status, "refreshed");
+  const replacementCall = calls.find((call) =>
+    call.name === "replace_species_country_occurrences"
+  );
+  assertEquals(
+    (replacementCall?.args as Record<string, unknown>).p_gbif_taxon_key,
+    5139790,
+  );
+});
+
+Deno.test("refresh species content - retries an unavailable match when no known taxon key exists", async () => {
+  const query = {
+    select() {
+      return query;
+    },
+    eq() {
+      return query;
+    },
+    maybeSingle() {
+      return Promise.resolve({
+        data: { gbif_taxon_key: null },
+        error: null,
+      });
+    },
+  };
+  const supabase = {
+    from(table: string) {
+      assertEquals(table, "species_dictionary");
+      return query;
+    },
+  } as unknown as SupabaseClient;
+  const unavailableMatch: ExternalEnrichmentData = {
+    wikipediaUrl: null,
+    wikiExtract: null,
+    gbifKey: null,
+    referenceImageUrl: null,
+    alternativeCommonNames: [],
+    wikiTitle: null,
+    gbifTaxonomy: null,
+    gbifMatchStatus: "unavailable",
+  };
+
+  await assertRejects(
+    () =>
+      refreshSpeciesContent(
+        {
+          speciesId: QUEUE_ROW_BASE.species_id,
+          scientificName: QUEUE_ROW_BASE.scientific_name,
+          contentKeys: ["country_occurrences"],
+          queueRows: [],
+          jobIds: [],
+        },
+        supabase,
+        () => Promise.resolve(unavailableMatch),
+      ),
+    Error,
+    "GBIF taxon match unavailable",
+  );
+});
+
+Deno.test("refresh species content - retries when durable provenance cannot be recorded", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const supabase = {
+    from(table: string) {
+      return {
+        update(update: Record<string, unknown>) {
+          return {
+            eq(column: string, value: string) {
+              calls.push({ table, operation: "update", update, column, value });
+              return Promise.resolve({ error: null });
+            },
+          };
+        },
+        upsert(rows: unknown[], options: Record<string, unknown>) {
+          calls.push({ table, operation: "upsert", rows, options });
+          return Promise.resolve({
+            error: { message: "database unavailable" },
+          });
+        },
+      };
+    },
+    rpc(name: string, args: Record<string, unknown>) {
+      calls.push({ operation: "rpc", name, args });
+      return Promise.resolve({ error: null });
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      refreshSpeciesContent(
+        {
+          speciesId: QUEUE_ROW_BASE.species_id,
+          scientificName: QUEUE_ROW_BASE.scientific_name,
+          contentKeys: ["country_occurrences"],
+          queueRows: [],
+          jobIds: [],
+        },
+        supabase,
+        () => Promise.resolve(EXTERNAL_DATA),
+        () => Promise.resolve([]),
+      ),
+    Error,
+    "Failed to record species content provenance",
+  );
+
+  assertExists(
+    calls.find((call) => call.name === "replace_species_country_occurrences"),
+  );
 });

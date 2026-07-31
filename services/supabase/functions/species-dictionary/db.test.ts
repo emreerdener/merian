@@ -7,8 +7,10 @@ import {
   buildSpeciesDictionaryPayload,
   buildSpeciesDictionaryTree,
   fetchAllPublicSpeciesDictionaryRows,
+  fetchSpeciesDictionaryCatalog,
   firstReferenceImageUrl,
   firstReferenceImageUrlsBySpeciesId,
+  normalizedCountryCode,
   parseSpeciesDictionaryRequest,
   PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE,
   publicSpeciesProjectionForbiddenKeys,
@@ -22,6 +24,59 @@ import {
   speciesIdsFromUserScanRows,
   speciesReferenceImageLookupBatches,
 } from "./db.ts";
+
+function regionalCatalogSupabaseMock(hasCountryCoverage: boolean): {
+  client: SupabaseClient;
+  calls: Array<{ table: string; method: string; args: unknown[] }>;
+} {
+  const calls: Array<{ table: string; method: string; args: unknown[] }> = [];
+  const client = {
+    from(table: string) {
+      const response = table === "species_country_occurrences"
+        ? {
+          data: hasCountryCoverage ? [{ species_id: "species-id" }] : [],
+          error: null,
+        }
+        : { data: [], error: null };
+      const query = {
+        select(...args: unknown[]) {
+          calls.push({ table, method: "select", args });
+          return query;
+        },
+        or(...args: unknown[]) {
+          calls.push({ table, method: "or", args });
+          return query;
+        },
+        limit(...args: unknown[]) {
+          calls.push({ table, method: "limit", args });
+          return query;
+        },
+        eq(...args: unknown[]) {
+          calls.push({ table, method: "eq", args });
+          return query;
+        },
+        gte(...args: unknown[]) {
+          calls.push({ table, method: "gte", args });
+          return query;
+        },
+        ilike(...args: unknown[]) {
+          calls.push({ table, method: "ilike", args });
+          return query;
+        },
+        order(...args: unknown[]) {
+          calls.push({ table, method: "order", args });
+          return query;
+        },
+        then(resolve: (value: typeof response) => unknown) {
+          return Promise.resolve(resolve(response));
+        },
+      };
+      return query;
+    },
+  } as unknown as SupabaseClient;
+
+  return { client, calls };
+}
 
 Deno.test("species-dictionary helpers - resolve common name fallback order", () => {
   assertEquals(
@@ -597,6 +652,68 @@ Deno.test("species-dictionary db - fetches every public row across response page
   ]);
 });
 
+Deno.test("species-dictionary db - catalog filters canonical coverage by exact country code", async () => {
+  const mock = regionalCatalogSupabaseMock(true);
+
+  const result = await fetchSpeciesDictionaryCatalog(
+    { mode: "catalog", category: "region", region: "US", limit: 40 },
+    mock.client,
+  );
+
+  assertEquals(result.data, []);
+  const dictionarySelect = mock.calls.find((call) =>
+    call.table === "species_dictionary" && call.method === "select"
+  );
+  assertEquals(
+    String(dictionarySelect?.args[0]).includes(
+      "species_country_occurrences!inner",
+    ),
+    true,
+  );
+  assertEquals(
+    mock.calls.some((call) =>
+      call.table === "species_dictionary" && call.method === "eq" &&
+      call.args[0] === "country_occurrences.country_code" &&
+      call.args[1] === "US"
+    ),
+    true,
+  );
+  assertEquals(
+    mock.calls.some((call) =>
+      call.table === "species_dictionary" && call.method === "ilike" &&
+      call.args[0] === "native_region"
+    ),
+    false,
+  );
+});
+
+Deno.test("species-dictionary db - catalog retains a legacy rollout fallback only without country coverage", async () => {
+  const mock = regionalCatalogSupabaseMock(false);
+
+  await fetchSpeciesDictionaryCatalog(
+    { mode: "catalog", category: "region", region: "US", limit: 40 },
+    mock.client,
+  );
+
+  const dictionarySelect = mock.calls.find((call) =>
+    call.table === "species_dictionary" && call.method === "select"
+  );
+  assertEquals(
+    String(dictionarySelect?.args[0]).includes(
+      "species_country_occurrences!inner",
+    ),
+    false,
+  );
+  assertEquals(
+    mock.calls.some((call) =>
+      call.table === "species_dictionary" && call.method === "ilike" &&
+      call.args[0] === "native_region" &&
+      call.args[1] === "%United States%"
+    ),
+    true,
+  );
+});
+
 Deno.test("species-dictionary helpers - builds overview categories and regions", () => {
   const overview = buildSpeciesDictionaryOverview(
     [
@@ -706,6 +823,11 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
       ?.region,
     "United States",
   );
+  assertEquals(
+    overview.categories.find((category) => category.id === "your_region")
+      ?.region_code,
+    "US",
+  );
   const allReferenceImageUrl = overview.categories.find((category) =>
     category.id === "all"
   )?.reference_image_url;
@@ -752,6 +874,88 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
     "Northern Hemisphere",
   ]);
   assertEquals(overview.regions[0].count, 3);
+});
+
+Deno.test("species-dictionary helpers - uses exact country occurrence summaries instead of range text", () => {
+  const usRepresentativeId = "1cf79982-e5ee-4e3d-8d65-274527e6ae01";
+  const overview = buildSpeciesDictionaryOverview(
+    [
+      speciesRow({
+        id: usRepresentativeId,
+        scientific_name: "Danaus plexippus",
+        native_region: "North America",
+      }),
+      speciesRow({
+        id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+        scientific_name: "Danaus gilippus",
+        native_region: "North America",
+      }),
+    ],
+    new Map([[usRepresentativeId, "https://example.com/monarch.jpg"]]),
+    "US",
+    [
+      {
+        country_code: "US",
+        species_count: 128,
+        representative_species_id: usRepresentativeId,
+      },
+      {
+        country_code: "CA",
+        species_count: 42,
+        representative_species_id: null,
+      },
+    ],
+    {
+      country_code: "US",
+      species_count: 128,
+      representative_species_id: usRepresentativeId,
+    },
+  );
+
+  const yourRegion = overview.categories.find((category) =>
+    category.id === "your_region"
+  );
+  assertEquals(yourRegion?.count, 128);
+  assertEquals(yourRegion?.region, "United States");
+  assertEquals(yourRegion?.region_code, "US");
+  assertEquals(yourRegion?.subtitle, "Species recorded in United States");
+  assertEquals(
+    yourRegion?.reference_image_url,
+    "https://example.com/monarch.jpg",
+  );
+  assertEquals(
+    overview.regions.map((region) => [region.code, region.title, region.count]),
+    [
+      ["US", "United States", 128],
+      ["CA", "Canada", 42],
+    ],
+  );
+});
+
+Deno.test("species-dictionary helpers - keeps a zero-coverage user country visible", () => {
+  const overview = buildSpeciesDictionaryOverview(
+    [speciesRow({ native_region: "North America" })],
+    new Map(),
+    "DE",
+  );
+  const yourRegion = overview.categories.find((category) =>
+    category.id === "your_region"
+  );
+
+  assertEquals(yourRegion?.count, 0);
+  assertEquals(yourRegion?.region, "Germany");
+  assertEquals(yourRegion?.region_code, "DE");
+  assertEquals(
+    yourRegion?.subtitle,
+    "Regional occurrence coverage for Germany is being prepared",
+  );
+});
+
+Deno.test("species-dictionary helpers - resolves ISO codes and English country titles", () => {
+  assertEquals(normalizedCountryCode("us"), "US");
+  assertEquals(normalizedCountryCode("United States"), "US");
+  assertEquals(normalizedCountryCode("Canada"), "CA");
+  assertEquals(normalizedCountryCode("North America"), null);
 });
 
 Deno.test("species-dictionary helpers - recently added overview count is capped to newest entries", () => {

@@ -173,9 +173,12 @@ no-op compatibility bridge for production run 1461, where the attempted
 public-only tombstone profile correctly failed the existing
 `public.users.id → auth.users.id` foreign key. The immediately following
 `20260725041308_ownerless_account_deletion_tombstones.sql` removes that invalid
-sentinel design. Retained scans become ownerless tombstones, exact
-location/elevation and free-form intervention notes are cleared, and a validated
-check permits `NULL user_id` only when `is_tombstoned = true`.
+sentinel design. Retained scans become ownerless tombstones and a validated
+check permits `NULL user_id` only when `is_tombstoned = true`. Migration
+`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`
+replaces the old clearing routine with the mandatory scientific-retention
+contract: exact coordinates/elevation and every other scientific fact are left
+unchanged while free-form intervention notes and account context are cleared.
 `replay-scan-ingestion` treats that state as terminal and cannot dispatch
 another AI request for a deleted account's scan.
 
@@ -206,9 +209,11 @@ boundary.
 
 Every retry repeats the idempotent relational cleanup before considering Auth
 deletion. It also clears compatibility media URLs, structured captured-media
-references, exact coordinates/elevation, semantic location, device
-locale/time-zone context, free-form notes, and custom tags from retained
-tombstones. An internal insert trigger rejects recreation of `public.users`
+references, semantic location and its public label, device locale/time-zone
+context, free-form notes, and custom tags from retained tombstones. Exact
+coordinates, elevation, time, taxonomy, identification, environmental, quality,
+and provenance fields are retained unchanged. An internal insert trigger
+rejects recreation of `public.users`
 while a deletion is active, so Auth metadata synchronization cannot restore a
 profile before the terminal Auth step. New upload signing also fails closed with
 `409 account_deletion_in_progress`.

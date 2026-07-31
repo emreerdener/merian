@@ -55,7 +55,9 @@ struct SettingsTabView: View {
                     )
                 }
 
-                if Self.shouldShowQueueDiagnostics {
+                if OfflineQueueDiagnosticsAvailability.isEnabledForCurrentBuild(
+                    email: viewModel.userEmail
+                ) {
                     Section {
                         if let queueDiagnosticsURL {
                             ShareLink(item: queueDiagnosticsURL) {
@@ -225,8 +227,24 @@ struct SettingsTabView: View {
             }
         }
     }
+}
 
-    private static var shouldShowQueueDiagnostics: Bool {
+enum OfflineQueueDiagnosticsAvailability {
+    static let allowedEmail = "erdener.emre@gmail.com"
+
+    static func isEnabledForCurrentBuild(email: String?) -> Bool {
+        isEnabled(email: email, isEligibleBuild: isEligibleBuild)
+    }
+
+    static func isEnabled(email: String?, isEligibleBuild: Bool) -> Bool {
+        guard isEligibleBuild else { return false }
+
+        return email?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() == allowedEmail
+    }
+
+    private static var isEligibleBuild: Bool {
         #if DEBUG
         true
         #else

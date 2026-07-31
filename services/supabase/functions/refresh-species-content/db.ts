@@ -2,6 +2,8 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import {
   type ExternalEnrichmentData,
   fetchExternalEnrichment,
+  fetchGBIFCountryOccurrences,
+  type GBIFCountryOccurrence,
 } from "../_shared/external.ts";
 import {
   legacyReferenceImageUrls,
@@ -13,6 +15,7 @@ import {
   buildSpeciesDictionaryProvenanceRows,
   recordSpeciesContentProvenance,
   type SpeciesContentKey,
+  speciesContentProvenanceRow,
   type SpeciesDictionaryProvenanceData,
 } from "../_shared/speciesContentProvenance.ts";
 
@@ -29,6 +32,7 @@ export const ALL_REFRESH_CONTENT_KEYS: SpeciesContentKey[] = [
   "habitat_description",
   "gbif_taxon_key",
   "reference_images",
+  "country_occurrences",
   "lookalikes",
   "group_tags",
   "iucn_red_list_status",
@@ -42,6 +46,7 @@ export const SUPPORTED_REFRESH_CONTENT_KEYS: SpeciesContentKey[] = [
   "wikipedia_overview",
   "gbif_taxon_key",
   "reference_images",
+  "country_occurrences",
 ];
 
 const SUPPORTED_KEY_SET = new Set<SpeciesContentKey>(
@@ -156,6 +161,10 @@ export interface SpeciesContentRefreshRunResult {
 export type ExternalEnrichmentFetcher = (
   scientificName: string,
 ) => Promise<ExternalEnrichmentData>;
+
+export type GBIFCountryOccurrenceFetcher = (
+  gbifKey: number,
+) => Promise<GBIFCountryOccurrence[] | null>;
 
 export function parseSpeciesContentRefreshRequest(
   body: Record<string, unknown> = {},
@@ -299,6 +308,7 @@ export function buildSpeciesRefreshPlansFromJobs(
     "wikipedia_overview",
     "gbif_taxon_key",
     "reference_images",
+    "country_occurrences",
   ];
   const planBySpeciesId = new Map<string, SpeciesContentRefreshPlan>();
   const skipped: SpeciesContentRefreshSkippedItem[] = [];
@@ -477,32 +487,58 @@ export async function refreshSpeciesContent(
   plan: SpeciesContentRefreshPlan,
   supabaseAdmin: SupabaseClient,
   enrichmentFetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
+  countryOccurrenceFetcher: GBIFCountryOccurrenceFetcher =
+    fetchGBIFCountryOccurrences,
 ): Promise<SpeciesContentRefreshResult> {
   const externalData = await enrichmentFetcher(plan.scientificName);
   const refreshUpdate = buildSpeciesDictionaryRefreshUpdate(
     plan.contentKeys,
     externalData,
   );
+  const refreshedAt = new Date();
+  const refreshedKeys = refreshUpdate.refreshedKeys.slice();
+  const noDataKeys = refreshUpdate.noDataKeys.slice();
+  const shouldRefreshCountryOccurrences = plan.contentKeys.includes(
+    "country_occurrences",
+  );
+  let countryGBIFKey = shouldRefreshCountryOccurrences
+    ? positiveInteger(externalData.gbifKey)
+    : null;
+  let countryOccurrences: GBIFCountryOccurrence[] | null = null;
 
-  if (Object.keys(refreshUpdate.update).length === 0) {
-    return {
-      species_id: plan.speciesId,
-      scientific_name: plan.scientificName,
-      requested_keys: plan.contentKeys,
-      refreshed_keys: [],
-      skipped_keys: refreshUpdate.noDataKeys,
-      status: "no_data",
-    };
+  if (shouldRefreshCountryOccurrences) {
+    countryGBIFKey ??= await fetchCurrentSpeciesGBIFTaxonKey(
+      plan.speciesId,
+      supabaseAdmin,
+    );
+    if (countryGBIFKey == null) {
+      if (externalData.gbifMatchStatus === "unavailable") {
+        throw new Error(
+          `GBIF taxon match unavailable for country occurrence refresh ${plan.speciesId}`,
+        );
+      }
+      noDataKeys.push("country_occurrences");
+    } else {
+      countryOccurrences = await countryOccurrenceFetcher(countryGBIFKey);
+      if (countryOccurrences === null) {
+        throw new Error(
+          `GBIF country occurrence refresh failed for ${plan.speciesId}`,
+        );
+      }
+      refreshedKeys.push("country_occurrences");
+    }
   }
 
-  const { error } = await supabaseAdmin
-    .from("species_dictionary")
-    .update(refreshUpdate.update)
-    .eq("id", plan.speciesId);
-  if (error) {
-    throw new Error(
-      `species_dictionary refresh failed for ${plan.speciesId}: ${error.message}`,
-    );
+  if (Object.keys(refreshUpdate.update).length > 0) {
+    const { error } = await supabaseAdmin
+      .from("species_dictionary")
+      .update(refreshUpdate.update)
+      .eq("id", plan.speciesId);
+    if (error) {
+      throw new Error(
+        `species_dictionary refresh failed for ${plan.speciesId}: ${error.message}`,
+      );
+    }
   }
 
   if (refreshUpdate.refreshedKeys.includes("reference_images")) {
@@ -515,29 +551,97 @@ export async function refreshSpeciesContent(
     );
   }
 
+  if (countryGBIFKey != null && countryOccurrences !== null) {
+    await replaceSpeciesCountryOccurrences(
+      plan.speciesId,
+      countryGBIFKey,
+      countryOccurrences,
+      refreshedAt,
+      supabaseAdmin,
+    );
+  }
+
+  const provenanceRows = buildSpeciesDictionaryProvenanceRows(
+    plan.speciesId,
+    refreshUpdate.provenance,
+    refreshedAt,
+  );
+  if (countryGBIFKey != null && countryOccurrences !== null) {
+    provenanceRows.push(
+      speciesContentProvenanceRow(
+        plan.speciesId,
+        "country_occurrences",
+        "gbif",
+        {
+          refreshedAt,
+          sourceDetail:
+            "GBIF occurrence country facet with geospatial quality filters",
+          confidence: 0.85,
+          metadata: {
+            gbif_taxon_key: countryGBIFKey,
+            country_count: countryOccurrences.length,
+            occurrence_count: countryOccurrences.reduce(
+              (total, occurrence) => total + occurrence.occurrenceCount,
+              0,
+            ),
+          },
+        },
+      ),
+    );
+  }
+
   await recordSpeciesContentProvenance(
     supabaseAdmin,
-    buildSpeciesDictionaryProvenanceRows(
-      plan.speciesId,
-      refreshUpdate.provenance,
-    ),
+    provenanceRows,
     "refreshSpeciesContent",
+    { throwOnError: true },
   );
+
+  if (refreshedKeys.length === 0) {
+    return {
+      species_id: plan.speciesId,
+      scientific_name: plan.scientificName,
+      requested_keys: plan.contentKeys,
+      refreshed_keys: [],
+      skipped_keys: noDataKeys,
+      status: "no_data",
+    };
+  }
 
   return {
     species_id: plan.speciesId,
     scientific_name: plan.scientificName,
     requested_keys: plan.contentKeys,
-    refreshed_keys: refreshUpdate.refreshedKeys,
-    skipped_keys: refreshUpdate.noDataKeys,
+    refreshed_keys: refreshedKeys,
+    skipped_keys: noDataKeys,
     status: "refreshed",
   };
+}
+
+export async function fetchCurrentSpeciesGBIFTaxonKey(
+  speciesId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<number | null> {
+  const { data, error } = await supabaseAdmin
+    .from("species_dictionary")
+    .select("gbif_taxon_key")
+    .eq("id", speciesId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(
+      `Failed to load current GBIF taxon key for ${speciesId}: ${error.message}`,
+    );
+  }
+
+  return positiveInteger(data?.gbif_taxon_key);
 }
 
 export async function runSpeciesContentRefresh(
   request: SpeciesContentRefreshRequest,
   supabaseAdmin: SupabaseClient,
   enrichmentFetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
+  countryOccurrenceFetcher: GBIFCountryOccurrenceFetcher =
+    fetchGBIFCountryOccurrences,
 ): Promise<SpeciesContentRefreshRunResult> {
   if (request.dryRun) {
     const queueRows = await fetchSpeciesContentRefreshQueue(
@@ -582,6 +686,7 @@ export async function runSpeciesContentRefresh(
     planning.plans,
     supabaseAdmin,
     enrichmentFetcher,
+    countryOccurrenceFetcher,
   );
 
   return {
@@ -603,6 +708,7 @@ async function refreshPlansWithConcurrency(
   plans: SpeciesContentRefreshPlan[],
   supabaseAdmin: SupabaseClient,
   enrichmentFetcher: ExternalEnrichmentFetcher,
+  countryOccurrenceFetcher: GBIFCountryOccurrenceFetcher,
 ): Promise<SpeciesContentRefreshResult[]> {
   const results = new Array<SpeciesContentRefreshResult>(plans.length);
   let nextIndex = 0;
@@ -618,6 +724,7 @@ async function refreshPlansWithConcurrency(
           plan,
           supabaseAdmin,
           enrichmentFetcher,
+          countryOccurrenceFetcher,
         );
         await completePlanJobs(plan, results[index], supabaseAdmin);
       } catch (error) {
@@ -714,6 +821,32 @@ async function replaceSpeciesReferenceImages(
   if (error) {
     throw new Error(
       `replace_species_reference_images failed for ${speciesId}: ${error.message}`,
+    );
+  }
+}
+
+export async function replaceSpeciesCountryOccurrences(
+  speciesId: string,
+  gbifTaxonKey: number,
+  occurrences: GBIFCountryOccurrence[],
+  refreshedAt: Date,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin.rpc(
+    "replace_species_country_occurrences",
+    {
+      p_species_id: speciesId,
+      p_gbif_taxon_key: gbifTaxonKey,
+      p_occurrences: occurrences.map((occurrence) => ({
+        country_code: occurrence.countryCode,
+        occurrence_count: occurrence.occurrenceCount,
+      })),
+      p_refreshed_at: refreshedAt.toISOString(),
+    },
+  );
+  if (error) {
+    throw new Error(
+      `replace_species_country_occurrences failed for ${speciesId}: ${error.message}`,
     );
   }
 }

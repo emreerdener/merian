@@ -16,6 +16,26 @@ The `Library` directory handles the primary grid view of all personal biological
 ## Purpose
 This is the core browsing experience for a user's identified biological scans. It includes the semantic search engine that can resolve plain-English queries against taxonomy, as well as handling the presentation of pending queued captures that haven't yet finished inference or upload.
 
+## Explore media incident contract
+
+- Every authenticated Library entry loads the owner's active Explore media
+  incidents. Profile `Review scans` is only a route intent that initially
+  enables the `Unavailable media` advanced filter; it is not the source of the
+  alert count.
+- The unavailable row is derived from the live, deduplicated incident scan IDs.
+  The server queue contains only active published posts, so private scans do not
+  contribute. The row disappears when no incidents remain.
+- Dismissing the unavailable row hides only the Library overview presentation
+  for that account and incident set. `Unavailable media` remains available in
+  the Explore posts group in the filter sheet, and a new incident set surfaces
+  the overview row again.
+- `Refresh` only reloads server-authoritative health status. It must not be
+  labeled as a recovery retry unless an asset-typed owner recovery API actually
+  uploads or repairs the missing image, playback video, or standalone audio.
+- When refresh proves the incident queue is empty, the unavailable-media filter
+  is removed so a resolved Profile route cannot strand the Library in an empty
+  filtered state.
+
 ## Queued scan routing contract
 
 - Queued value snapshots render above completed scans and remain outside

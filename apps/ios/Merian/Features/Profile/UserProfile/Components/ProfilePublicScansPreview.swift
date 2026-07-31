@@ -34,6 +34,9 @@ struct ProfilePublicScansPreview: View {
         .onReceive(AppEventPublisher.shared.publisher) { event in
             handleAppEvent(event)
         }
+        .onChange(of: profileViewModel.socialStats) { _, stats in
+            clearRecoveryDismissalIfResolved(stats: stats)
+        }
         .navigationDestination(isPresented: $isLibraryPresented) {
             if let currentUserId {
                 ProfilePublishedScansLibraryView(
@@ -52,9 +55,10 @@ struct ProfilePublicScansPreview: View {
             VStack(alignment: .leading, spacing: 14) {
                 sectionHeader
 
-                if let recoverySummary {
+                if let recoverySummary, let currentUserId {
                     ProfilePublicationRecoverySummaryView(
                         summary: recoverySummary,
+                        ownerUserID: currentUserId,
                         onReview: reviewRecovery
                     )
                 }
@@ -207,17 +211,24 @@ struct ProfilePublicScansPreview: View {
     }
 
     private func reviewRecovery() {
-        guard let currentUserId, let recoverySummary else { return }
+        guard let currentUserId, recoverySummary != nil else { return }
         HapticManager.shared.triggerSelectionPulse()
         AppEventPublisher.shared.send(
             .requestOpenScansLibraryRecovery(
                 ExploreMediaRecoveryRouteContext(
-                    ownerUserId: currentUserId.lowercased(),
-                    mediaUnavailableScanCount: recoverySummary.recoveryNeededCount,
-                    hiddenScanCount: recoverySummary.quarantinedCount
+                    ownerUserId: currentUserId.lowercased()
                 )
             )
         )
+    }
+
+    private func clearRecoveryDismissalIfResolved(stats: ProfileSocialStats?) {
+        guard let currentUserId,
+              let stats,
+              ProfilePublicationRecoverySummary.publishedOnly(from: stats) == nil else {
+            return
+        }
+        ProfileRecoveryNoticePreferences.clear(ownerUserID: currentUserId)
     }
 
     @MainActor
@@ -333,6 +344,7 @@ private struct ProfilePublishedScansLibraryView: View {
                 if let recoverySummary {
                     ProfilePublicationRecoverySummaryView(
                         summary: recoverySummary,
+                        ownerUserID: authorUserId,
                         onReview: reviewRecovery
                     )
                         .padding(.horizontal, 16)
@@ -377,6 +389,9 @@ private struct ProfilePublishedScansLibraryView: View {
                 await reloadPosts()
                 await profileViewModel.fetchSocialStats()
             }
+        }
+        .onChange(of: profileViewModel.socialStats) { _, stats in
+            clearRecoveryDismissalIfResolved(stats: stats)
         }
         .refreshable {
             await reloadPosts()
@@ -634,17 +649,23 @@ private struct ProfilePublishedScansLibraryView: View {
     }
 
     private func reviewRecovery() {
-        guard let recoverySummary else { return }
+        guard recoverySummary != nil else { return }
         HapticManager.shared.triggerSelectionPulse()
         AppEventPublisher.shared.send(
             .requestOpenScansLibraryRecovery(
                 ExploreMediaRecoveryRouteContext(
-                    ownerUserId: authorUserId.lowercased(),
-                    mediaUnavailableScanCount: recoverySummary.recoveryNeededCount,
-                    hiddenScanCount: recoverySummary.quarantinedCount
+                    ownerUserId: authorUserId.lowercased()
                 )
             )
         )
+    }
+
+    private func clearRecoveryDismissalIfResolved(stats: ProfileSocialStats?) {
+        guard let stats,
+              ProfilePublicationRecoverySummary.publishedOnly(from: stats) == nil else {
+            return
+        }
+        ProfileRecoveryNoticePreferences.clear(ownerUserID: authorUserId)
     }
 }
 
@@ -707,26 +728,115 @@ struct ProfilePublicationRecoverySummary: Equatable {
     var userFacingEmptyMessage: String {
         "Your published scans are temporarily hidden until their media is available again."
     }
+
+    var overviewDismissalSignature: String {
+        [
+            publicationIntentCount,
+            visibleCount,
+            recoveryNeededCount,
+            quarantinedCount
+        ]
+        .map(String.init)
+        .joined(separator: ":")
+    }
 }
 
 private struct ProfilePublicationRecoverySummaryView: View {
     let summary: ProfilePublicationRecoverySummary
+    let ownerUserID: String
     let onReview: () -> Void
 
+    @State private var locallyDismissedContext: String?
+
     var body: some View {
-        HStack {
-            Text("\(summary.recoveryNeededCount.formatted()) media unavailable")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.orange)
+        if !isDismissed {
+            HStack {
+                Text("\(summary.recoveryNeededCount.formatted()) media unavailable")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
 
-            Spacer()
+                Spacer()
 
-            Button("Review scans", action: onReview)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.blue)
+                Button("Review scans", action: onReview)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.blue)
+                    .buttonStyle(.plain)
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss unavailable media notice")
+            }
+            .frame(maxWidth: .infinity)
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    private var dismissalContext: String {
+        "\(ownerUserID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+            + "|\(summary.overviewDismissalSignature)"
+    }
+
+    private var isDismissed: Bool {
+        locallyDismissedContext == dismissalContext
+            || ProfileRecoveryNoticePreferences.dismissedSignature(
+                ownerUserID: ownerUserID
+            ) == summary.overviewDismissalSignature
+    }
+
+    private func dismiss() {
+        HapticManager.shared.triggerSelectionPulse()
+        ProfileRecoveryNoticePreferences.dismiss(
+            signature: summary.overviewDismissalSignature,
+            ownerUserID: ownerUserID
+        )
+        withAnimation(.easeInOut(duration: 0.2)) {
+            locallyDismissedContext = dismissalContext
+        }
+    }
+}
+
+enum ProfileRecoveryNoticePreferences {
+    static func dismissedSignature(
+        ownerUserID: String,
+        defaults: UserDefaults = .standard
+    ) -> String? {
+        guard let key = preferenceKey(ownerUserID: ownerUserID) else { return nil }
+        return defaults.string(forKey: key)
+    }
+
+    static func dismiss(
+        signature: String,
+        ownerUserID: String,
+        defaults: UserDefaults = .standard
+    ) {
+        guard !signature.isEmpty,
+              let key = preferenceKey(ownerUserID: ownerUserID) else { return }
+        defaults.set(signature, forKey: key)
+    }
+
+    static func clear(
+        ownerUserID: String,
+        defaults: UserDefaults = .standard
+    ) {
+        guard let key = preferenceKey(ownerUserID: ownerUserID) else { return }
+        defaults.removeObject(forKey: key)
+    }
+
+    private static func preferenceKey(ownerUserID: String) -> String? {
+        let normalizedOwnerUserID = ownerUserID
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalizedOwnerUserID.isEmpty else { return nil }
+        return UserDefaultsKeys.dismissedProfilePublicationRecoverySignaturePrefix
+            + normalizedOwnerUserID
     }
 }
 

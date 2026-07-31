@@ -9,6 +9,7 @@ struct CarouselPageBuilder {
         selectedIndex: Binding<Int> = .constant(0),
         isVideoMuted: Binding<Bool> = .constant(true),
         videoPlaybackCoordinator: InsightCarouselVideoPlaybackCoordinator? = nil,
+        onVideoAvailabilityChange: @escaping (String, Bool) -> Void = { _, _ in },
         isAudioBoostEnabled: Binding<Bool> = .constant(false),
         audioBoostActionToken: UUID? = nil,
         onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
@@ -64,15 +65,19 @@ struct CarouselPageBuilder {
                 ))
             case .video(let resolvedPath):
                 let pageIndex = pages.count
+                let pageID = "video-\(resolvedPath)"
                 pages.append(CarouselPageItem(
-                    id: "video-\(resolvedPath)",
+                    id: pageID,
                     mediaKind: .video,
                     view: AnyView(VideoPlaybackCarouselPage(
                         path: resolvedPath,
                         pageIndex: pageIndex,
                         selectedIndex: selectedIndex,
                         isMuted: isVideoMuted,
-                        playbackCoordinator: videoPlaybackCoordinator
+                        playbackCoordinator: videoPlaybackCoordinator,
+                        onAvailabilityChange: {
+                            onVideoAvailabilityChange(pageID, $0)
+                        }
                     ))
                 ))
             }
@@ -231,6 +236,40 @@ enum CarouselMediaKind: Equatable {
     case description
 }
 
+enum InsightVideoPlaybackAvailability: Equatable {
+    case loading
+    case ready
+    case unavailable
+
+    init(itemStatus: AVPlayerItem.Status) {
+        switch itemStatus {
+        case .unknown:
+            self = .loading
+        case .readyToPlay:
+            self = .ready
+        case .failed:
+            self = .unavailable
+        @unknown default:
+            self = .unavailable
+        }
+    }
+}
+
+struct InsightUnavailableVideoView: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "video.slash")
+                .font(.title)
+            Text("Video Unavailable")
+                .font(.subheadline)
+        }
+        .foregroundStyle(.white.opacity(0.6))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Video unavailable")
+    }
+}
+
 enum CarouselImageOrigin: Equatable {
     case user
     case reference
@@ -308,11 +347,14 @@ private struct VideoPlaybackCarouselPage: View {
     @Binding var selectedIndex: Int
     @Binding var isMuted: Bool
     let playbackCoordinator: InsightCarouselVideoPlaybackCoordinator?
+    let onAvailabilityChange: (Bool) -> Void
 
     @State private var player: AVPlayer?
     @State private var hasAutoplayed = false
     @State private var isPlaying = false
+    @State private var availability = InsightVideoPlaybackAvailability.loading
     @State private var playbackEndObserver: NSObjectProtocol?
+    @State private var playbackFailureObserver: NSObjectProtocol?
 
     private var isSelected: Bool {
         selectedIndex == pageIndex
@@ -321,7 +363,10 @@ private struct VideoPlaybackCarouselPage: View {
     var body: some View {
         ZStack {
             Color.black
-            if let player {
+
+            if let player,
+               let playerItem = player.currentItem,
+               availability != .unavailable {
                 InsightCoverVideoPlayer(player: player)
                     .ignoresSafeArea()
                     .onReceive(player.publisher(for: \.timeControlStatus).removeDuplicates()) { status in
@@ -336,15 +381,23 @@ private struct VideoPlaybackCarouselPage: View {
                             break
                         }
                     }
-            } else {
-                ProgressView()
-                    .tint(.white)
+                    .onReceive(playerItem.publisher(for: \.status).removeDuplicates()) { status in
+                        updateAvailability(for: status, observedPlayer: player)
+                    }
             }
 
-            InsightCenterVideoPlaybackControl(
-                isPlaying: isPlaying,
-                action: togglePlayback
-            )
+            switch availability {
+            case .loading:
+                ProgressView()
+                    .tint(.white)
+            case .ready:
+                InsightCenterVideoPlaybackControl(
+                    isPlaying: isPlaying,
+                    action: togglePlayback
+                )
+            case .unavailable:
+                InsightUnavailableVideoView()
+            }
         }
         .task(id: path) {
             configurePlayer()
@@ -372,7 +425,7 @@ private struct VideoPlaybackCarouselPage: View {
         .onDisappear {
             player?.pause()
             isPlaying = false
-            removePlaybackEndObserver()
+            removePlaybackObservers()
         }
     }
 
@@ -383,12 +436,15 @@ private struct VideoPlaybackCarouselPage: View {
 
     private func configurePlayer() {
         player?.pause()
-        removePlaybackEndObserver()
+        removePlaybackObservers()
         hasAutoplayed = false
         isPlaying = false
+        availability = .loading
+        onAvailabilityChange(false)
 
         guard let url = resolvedURL(path) else {
             player = nil
+            markUnavailable()
             return
         }
 
@@ -396,12 +452,16 @@ private struct VideoPlaybackCarouselPage: View {
         configuredPlayer.isMuted = isMuted
         configuredPlayer.actionAtItemEnd = .pause
         player = configuredPlayer
-        installPlaybackEndObserver(for: configuredPlayer)
+        installPlaybackObservers(for: configuredPlayer)
+        updateAvailability(
+            for: configuredPlayer.currentItem?.status ?? .unknown,
+            observedPlayer: configuredPlayer
+        )
         updatePlaybackForSelection()
     }
 
     private func updatePlaybackForSelection() {
-        guard let player else { return }
+        guard availability == .ready, let player else { return }
 
         if isSelected {
             if !hasAutoplayed {
@@ -424,7 +484,7 @@ private struct VideoPlaybackCarouselPage: View {
     }
 
     private func togglePlayback() {
-        guard let player else { return }
+        guard availability == .ready, let player else { return }
 
         if isPlaying {
             HapticManager.shared.triggerLightImpact(
@@ -440,8 +500,8 @@ private struct VideoPlaybackCarouselPage: View {
         }
     }
 
-    private func installPlaybackEndObserver(for player: AVPlayer) {
-        removePlaybackEndObserver()
+    private func installPlaybackObservers(for player: AVPlayer) {
+        removePlaybackObservers()
         playbackEndObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: player.currentItem,
@@ -454,10 +514,18 @@ private struct VideoPlaybackCarouselPage: View {
             }
             play(player, source: "media.insight.carousel.loop")
         }
+        playbackFailureObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: player.currentItem,
+            queue: .main
+        ) { _ in
+            guard self.player === player else { return }
+            markUnavailable()
+        }
     }
 
     private func play(_ player: AVPlayer, source: String) {
-        guard isSelected else { return }
+        guard availability == .ready, isSelected else { return }
         guard !isMuted else {
             player.play()
             isPlaying = true
@@ -473,10 +541,41 @@ private struct VideoPlaybackCarouselPage: View {
         }
     }
 
-    private func removePlaybackEndObserver() {
+    private func updateAvailability(
+        for status: AVPlayerItem.Status,
+        observedPlayer: AVPlayer
+    ) {
+        guard player === observedPlayer else { return }
+        let nextAvailability = InsightVideoPlaybackAvailability(itemStatus: status)
+        availability = nextAvailability
+        onAvailabilityChange(nextAvailability == .unavailable)
+
+        switch nextAvailability {
+        case .loading:
+            break
+        case .ready:
+            updatePlaybackForSelection()
+        case .unavailable:
+            observedPlayer.pause()
+            isPlaying = false
+        }
+    }
+
+    private func markUnavailable() {
+        availability = .unavailable
+        player?.pause()
+        isPlaying = false
+        onAvailabilityChange(true)
+    }
+
+    private func removePlaybackObservers() {
         if let playbackEndObserver {
             NotificationCenter.default.removeObserver(playbackEndObserver)
             self.playbackEndObserver = nil
+        }
+        if let playbackFailureObserver {
+            NotificationCenter.default.removeObserver(playbackFailureObserver)
+            self.playbackFailureObserver = nil
         }
     }
 
@@ -722,6 +821,7 @@ struct ImagesCarousel: View {
     @State private var videoPlaybackCoordinator = InsightCarouselVideoPlaybackCoordinator()
     @State private var unavailableImageIdentifiers: Set<String> = []
     @State private var loadedReferenceImageIdentifiers: Set<String> = []
+    @State private var unavailableVideoPageIDs: Set<String> = []
 
     // MARK: - Body
     var body: some View {
@@ -776,6 +876,7 @@ struct ImagesCarousel: View {
             isVideoMuted = true
             unavailableImageIdentifiers.removeAll()
             loadedReferenceImageIdentifiers.removeAll()
+            unavailableVideoPageIDs.removeAll()
         }
     }
 
@@ -795,6 +896,7 @@ struct ImagesCarousel: View {
             selectedIndex: $selectedIndex,
             isVideoMuted: $isVideoMuted,
             videoPlaybackCoordinator: videoPlaybackCoordinator,
+            onVideoAvailabilityChange: handleVideoAvailabilityChange,
             isAudioBoostEnabled: $isAudioBoostEnabled,
             audioBoostActionToken: audioBoostActionToken,
             onAudioBoostActionFinished: onAudioBoostActionFinished,
@@ -817,6 +919,14 @@ struct ImagesCarousel: View {
         carouselPages[safe: selectedIndex]?.focusRegion
     }
 
+    private var isSelectedVideoUnavailable: Bool {
+        guard let page = carouselPages[safe: selectedIndex],
+              page.mediaKind == .video else {
+            return false
+        }
+        return unavailableVideoPageIDs.contains(page.id)
+    }
+
     // MARK: - Action Handlers
     private func handleCarouselTap(at location: CGPoint, containerSize: CGSize) {
         guard !InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
@@ -831,6 +941,7 @@ struct ImagesCarousel: View {
     private func handleVisualImageTap() {
         let pages = carouselPages
         guard let selectedPage = pages[safe: selectedIndex] else { return }
+        guard selectedPage.mediaKind != .video || !isSelectedVideoUnavailable else { return }
         if let imageIdentifier = selectedPage.imageIdentifier,
            unavailableImageIdentifiers.contains(imageIdentifier) {
             return
@@ -846,6 +957,14 @@ struct ImagesCarousel: View {
 
         videoPlaybackCoordinator.pauseForFullscreenPresentation()
         onVisualImageTap?(presentation)
+    }
+
+    private func handleVideoAvailabilityChange(pageID: String, isUnavailable: Bool) {
+        if isUnavailable {
+            unavailableVideoPageIDs.insert(pageID)
+        } else {
+            unavailableVideoPageIDs.remove(pageID)
+        }
     }
 
     private func handleImageFailure(identifier: String) {
@@ -1150,7 +1269,7 @@ private struct LensFocusOverlay: View {
             let focusRect = ImageFocusOverlayLayout.rect(for: region, in: geometry.size)
             let shortestSide = min(geometry.size.width, geometry.size.height)
             let bracketArm = min(30, max(18, shortestSide * 0.075))
-            let strokeWidth = min(5, max(3, shortestSide * 0.0125))
+            let strokeWidth = min(2.5, max(1, shortestSide * 0.0125 - 2.5))
             let cornerRadius = min(12, max(8, shortestSide * 0.03))
 
             ZStack {
@@ -1281,7 +1400,7 @@ private extension ImagesCarousel {
 
     @ViewBuilder
     var videoMuteControl: some View {
-        if selectedMediaKind == .video {
+        if selectedMediaKind == .video, !isSelectedVideoUnavailable {
             Button {
                 isVideoMuted.toggle()
                 HapticManager.shared.triggerLightImpact(intensity: 0.45)

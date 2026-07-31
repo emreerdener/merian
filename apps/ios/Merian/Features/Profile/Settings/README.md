@@ -29,8 +29,18 @@ Both responses are safe points for local sign-out and device-data cleanup.
 
 The server owns all ordering and retry semantics. The app must not send a target
 user ID, attempt to delete the Auth identity directly, or retry individual
-cleanup phases. Database anonymization is verified before Auth removal, while
-media deletion continues through the existing durable storage-cleanup outbox.
+cleanup phases. Account detachment and private-content clearing are verified
+before Auth removal, while media deletion continues through the existing
+durable storage-cleanup outbox.
+
+Every submitted scan also contributes mandatory Scientific Data. Account
+deletion leaves that observation as an ownerless tombstone with exact
+coordinates/elevation, time, taxonomy, identification, environmental, quality,
+and provenance facts unchanged. It removes account attribution, media, private
+free-form notes, semantic/public location labels, device context, and custom
+tags. `DeleteAccountSheet` must state both sides of this boundary and must not
+describe account deletion as deleting every submitted scan. Geoprivacy governs
+public display, not this restricted backend retention.
 
 ## Plan and prelaunch purchase testing
 
@@ -120,9 +130,10 @@ delivery.
 
 ## Beta offline-queue diagnostics
 
-Debug and TestFlight builds expose **Beta Diagnostics** in Settings. Generate
-the artifact after an offline/reconnect smoke, then use **Share offline queue
-diagnostics** before deleting the tested observation. The bounded JSON contains
+Debug and TestFlight builds expose **Beta Diagnostics** in Settings only for
+`erdener.emre@gmail.com`. Generate the artifact after an offline/reconnect
+smoke, then use **Share offline queue diagnostics** before deleting the tested
+observation. The bounded JSON contains
 app version/build, embedded source revision/fingerprint/state, queue/job
 identifiers, lifecycle kinds, timestamps, retry/error codes, HTTP status, and
 server status/stage. Only canonical lowercase machine tokens survive in the

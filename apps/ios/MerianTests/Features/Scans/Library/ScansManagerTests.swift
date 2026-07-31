@@ -38,6 +38,15 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertFalse(searchManager.isFiltering)
     }
 
+    func testUnavailableMediaFilterCompletesForEmptyLibrary() async {
+        await waitForFilterCompletion {
+            $0.explorePostFilters = [.unavailableMedia]
+        }
+
+        XCTAssertTrue(searchManager.filteredScans.isEmpty)
+        XCTAssertFalse(searchManager.isFiltering)
+    }
+
     func testCategoryFiltersSortByLibraryFrequencyWithStablePriority() async throws {
         let birds = try (0..<2).map { index in
             try createTestScan(
@@ -652,6 +661,39 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [shared.id])
         XCTAssertTrue(searchManager.hasActiveFilters)
         XCTAssertEqual(searchManager.activeFilterCount, 1)
+    }
+
+    func testUnavailableExploreMediaFilterUsesIncidentScanIDs() async throws {
+        let unavailable = try createTestScan(
+            commonName: "Unavailable Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        unavailable.timestamp = Date(timeIntervalSince1970: 200)
+
+        let available = try createTestScan(
+            commonName: "Available Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild"
+        )
+        available.timestamp = Date(timeIntervalSince1970: 300)
+
+        searchManager.allScans = [unavailable, available]
+        searchManager.setUnavailableExploreMediaScanIDs([unavailable.id])
+
+        await waitForFilterCompletion {
+            $0.explorePostFilters = [.unavailableMedia]
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [unavailable.id])
+        XCTAssertTrue(searchManager.hasActiveFilters)
+        XCTAssertEqual(searchManager.activeFilterCount, 1)
+
+        await waitForSearchCompletion(for: "") {
+            searchManager.setUnavailableExploreMediaScanIDs([available.id])
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [available.id])
     }
 
     func testMediaFiltersSeparateImagesVideosAndAudio() async throws {

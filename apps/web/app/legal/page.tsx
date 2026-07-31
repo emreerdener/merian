@@ -5,35 +5,38 @@ import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Legal",
-  description: "Naturebook legal, privacy, community, and support pages."
+  description: "Naturebook legal, privacy, community, and support pages.",
 };
 
 const links = [
   {
     href: "/privacy",
     title: "Privacy Policy",
-    description: "How Naturebook collects, uses, shares, and protects information."
+    description:
+      "How Naturebook collects, uses, shares, and protects information.",
   },
   {
     href: "/terms",
     title: "Terms of Service",
-    description: "Rules and terms for using Naturebook and public web pages."
+    description: "Rules and terms for using Naturebook and public web pages.",
   },
   {
     href: "/guidelines",
     title: "Community Guidelines",
-    description: "Expectations for sharing and participating in Explore."
+    description: "Expectations for sharing and participating in Explore.",
   },
   {
     href: "/privacy-choices",
     title: "Privacy Choices",
-    description: "Manage permissions, exports, account deletion, and public sharing."
+    description:
+      "Manage permissions, account deletion, public sharing, and understand scientific retention.",
   },
   {
     href: "/support",
     title: "Support",
-    description: "Contact Naturebook for bugs, feature ideas, and account help."
-  }
+    description:
+      "Contact Naturebook for bugs, feature ideas, and account help.",
+  },
 ];
 
 export default function LegalIndexPage() {
@@ -47,7 +50,8 @@ export default function LegalIndexPage() {
             </Text>
             <Title order={1}>Legal and support</Title>
             <Text size="lg" c="dimmed">
-              Public policies for Naturebook. Last updated {siteConfig.legalUpdatedAt}.
+              Public policies for Naturebook. Last updated{" "}
+              {siteConfig.legalUpdatedAt}.
             </Text>
           </Stack>
 

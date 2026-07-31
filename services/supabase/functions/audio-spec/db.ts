@@ -5,6 +5,7 @@ import {
   recordSpeciesContentProvenance,
 } from "../_shared/speciesContentProvenance.ts";
 import {
+  omitNullishSpeciesUpsertValues,
   resolveScanGeoprivacy,
   upsertGhostUserIfMissing as ensureSharedScanUserProfile,
 } from "../_shared/identify/db.ts";
@@ -70,7 +71,7 @@ export interface SpeciesUpsertData {
   genus?: string;
   wikipedia_overview?: string | null;
   hazard_type?: string;
-  native_region: string;
+  native_region?: string;
   iucn_red_list_status?: string;
   habitat_description?: string;
   wikipedia_url?: string | null;
@@ -82,9 +83,14 @@ export async function upsertSpeciesDictionary(
   data: SpeciesUpsertData,
   supabaseAdmin: SupabaseClient,
 ): Promise<string | null> {
+  const upsertData = omitNullishSpeciesUpsertValues(data);
   const { data: row, error } = await supabaseAdmin
     .from("species_dictionary")
-    .upsert(data, { onConflict: "scientific_name", ignoreDuplicates: false })
+    .upsert(upsertData, {
+      onConflict: "scientific_name",
+      ignoreDuplicates: false,
+      defaultToNull: false,
+    })
     .select("id")
     .maybeSingle();
   if (error) throw new Error(`upsertSpeciesDictionary: ${error.message}`);
@@ -93,7 +99,7 @@ export async function upsertSpeciesDictionary(
   if (speciesId) {
     await recordSpeciesContentProvenance(
       supabaseAdmin,
-      buildSpeciesDictionaryProvenanceRows(speciesId, data),
+      buildSpeciesDictionaryProvenanceRows(speciesId, upsertData),
       "audio-spec/upsertSpeciesDictionary",
     );
   }

@@ -1,13 +1,25 @@
 # Naturebook Terms: Counsel and Release Review
 
-Status: internal working memo  
-Draft reviewed against repository behavior: July 28, 2026  
+Status: internal working memo
+
+Product retention decision recorded: July 31, 2026
+
+Draft reviewed against repository behavior: July 31, 2026
+
 Public draft: [`apps/web/app/terms/page.tsx`](../../apps/web/app/terms/page.tsx)
 
 This memo is not legal advice. It records product facts, drafting decisions, unresolved
 business choices, and implementation gaps for qualified counsel and the release team.
 The public Terms should not be treated as launch-ready until the release blockers below
 are resolved.
+
+The operator's documented product requirements and implemented Service behavior are the
+source of truth. Earlier Terms and policy drafts do not define or constrain product
+requirements. The mandatory product decision is: every submitted scan contributes a
+scientific observation; exact coordinates and the other scientific facts remain after
+account deletion; this retention has no separate opt-in or opt-out; and no additional
+retention table is introduced. Public documents must accurately disclose that behavior
+without purporting to remove statutory rights that cannot be waived by contract.
 
 ## Drafting Position
 
@@ -20,10 +32,13 @@ The Terms use three distinct permissions:
    on public surfaces and may be selected as species reference imagery while it remains
    shared and eligible. The draft does not turn every private scan into public reference
    media and does not grant Naturebook a standalone stock-media resale right.
-3. **Scientific Data license.** Reduced, non-identifying scientific facts may be
-   aggregated, shared, published, licensed, or sold, and Naturebook may retain the
-   revenue without paying contributors. This license can survive account deletion only
-   for data that is lawfully non-personal or otherwise lawfully retained.
+3. **Mandatory Scientific Data contribution and license.** Every submitted scan creates
+   a scientific observation containing exact coordinates when present, elevation, time,
+   taxonomy, identification, environmental, quality, and provenance facts. The ownerless
+   scientific record survives account deletion as a required condition of the Service.
+   Scientific Data may be aggregated, shared, published, licensed, or sold under the
+   Terms' privacy, geoprivacy, sensitive-species, access, and legal restrictions, and
+   Naturebook may retain resulting revenue without paying contributors.
 
 The draft intentionally does **not** grant Google or another third party permission to
 train a general-purpose AI model on user submissions. A materially different future AI
@@ -103,8 +118,8 @@ core app. A contract cannot remove statutory consent, objection, or withdrawal r
 
 The current app uses the Gemini Developer API. Google's Gemini API Additional Terms
 effective March 23, 2026 say API clients may not be directed to or likely accessed by
-people under 18. The current Privacy Policy says only that Naturebook is not directed to
-children under 13, and no complete minor gate was found.
+people under 18. The Terms and Privacy Policy now use an interim 18+ rule, but no
+complete minor gate was found.
 
 The draft therefore uses an interim **18+** rule. Before release, product and counsel
 must either:
@@ -114,59 +129,45 @@ must either:
 - move to a provider/product agreement that permits the intended younger audience and
   redesign consent and precise-location handling accordingly.
 
-### P0 — Make Account Deletion Truly Match "De-identified"
+### P0 — Counsel Review of Mandatory Scientific Retention
 
-The current account-erasure routine is
-[`20260725052337_enforce_account_storage_erasure.sql`](../../services/supabase/migrations/20260725052337_enforce_account_storage_erasure.sql).
-It makes scans ownerless and clears media URLs/manifests, exact-coordinate columns,
-elevation, semantic location, locale/time zone, observation context, custom tags, and
-free-form intervention notes. It deletes the user profile and uses a verified object
-store eraser.
+Migration
+[`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`](../../services/supabase/migrations/20260731154139_retain_scientific_coordinates_after_account_deletion.sql)
+implements the product decision without a new table. It makes scans ownerless and clears
+media URLs/manifests, semantic and public location labels, device locale/time-zone
+context, observation context, custom tags, and free-form intervention notes. It retains
+exact and projected coordinates, elevation, observation time, taxonomy, identification,
+review, environmental, quality, and provenance fields. The privileged routine deletes
+the public profile and the durable workflow verifies object-store erasure before deleting
+Auth. Tombstones remain excluded from personal and broad anonymous scan access.
 
-The routine uses a removal list rather than a positive retention allowlist. It does not
-visibly clear every field that could remain personal or user-authored, including:
+The scan-generation trigger compares complete `OLD` and `NEW` rows after subtracting
+only the account fields that deletion is allowed to change. This fails closed for every
+current or future scientific field when account deletion collides with an individual
+scan-deletion fence. The account routine deliberately uses a clearing list because every
+other scan field is retained Scientific Data; new columns still require an explicit
+privacy and retention review.
 
-- `gps_lat_public` and `gps_long_public`, which may be precise for an open observation;
-- `user_identification_override`;
-- review/confirmation fields and timestamps that may increase re-identification risk;
-  and
-- future scan columns added after the erasure routine.
+The retained observation must not be described as necessarily anonymous or
+de-identified. Exact location plus time and species may remain personal information.
+Before release, qualified counsel should review the applicable legal bases, notice at
+collection, purpose and retention disclosures, regional deletion exceptions and other
+non-waivable rights, sensitive-location safeguards, recipient restrictions, and App
+Review explanation. This is a legal-compliance review of a fixed product requirement,
+not a consent, opt-in, or opt-out product decision.
 
-Before describing retained rows as de-identified:
-
-- define and enforce a positive allowlist of scientific fields permitted in a tombstone;
-- clear or coarsen every location copy so an "open" public coordinate cannot preserve
-  the exact coordinate after account deletion;
-- remove all user-authored free text;
-- assess whether time plus location plus species is still personal information;
-- add a migration-contract test that fails whenever a new scan column lacks an explicit
-  retain/delete decision; and
-- document recipient restrictions against re-identification.
-
-Apple says account deletion is expected to remove shared UGC, including photos, videos,
-text posts, and reviews. Current code also removes scan media and account-linked Explore
-content. The public draft therefore retains only a reduced scientific record—not the
-deleted user's public photos. Keeping public media permanently after account deletion
-would require a different product decision, a lawful irrevocable-media license analysis,
-new UX, and specific App Review review; it should not be achieved merely by changing
-the Terms.
+The product still deletes account-linked Explore content and all submitted photos,
+videos, and audio. Permanent retention of public media is not part of this decision.
 
 ### P0 — Correct the Account-Deletion UI
 
 [`DeleteAccountSheet.swift`](../../apps/ios/Merian/Features/Profile/Settings/Views/DeleteAccountSheet.swift)
-currently says all uploaded scans and cloud backups will "perish." That is misleading if
-reduced scientific records remain. It also does not warn an annual subscriber that Apple
-billing continues until separately canceled.
-
-Before release, the confirmation should clearly distinguish:
-
-- deletion of profile, attribution, community content, private notes, exact location,
-  and all scan media;
-- retention and permitted use of a reduced ownerless scientific record;
-- local deletion versus accepted server-side deletion work and expected completion
-  timing; and
-- the need to cancel an Apple auto-renewing subscription separately, with a direct
-  subscription-management action.
+now distinguishes deletion of the profile, attribution, community content, scan media,
+private notes, life list, and collections from mandatory retention of exact coordinates,
+time, taxonomy, and the other ownerless scientific facts. It also warns that account
+deletion does not cancel Apple billing. Keep this language synchronized with the Terms,
+Privacy Policy, and backend migration contract. A direct subscription-management action
+would further improve the flow but is not implemented in this patch.
 
 Verify that Sign in with Apple tokens are revoked as part of account deletion. No token
 revocation implementation was found in the reviewed deletion paths.
@@ -192,8 +193,10 @@ Before release:
 
 ### P0 — Update the Privacy Documents at the Same Time
 
-The current Privacy Policy and Privacy Choices page do not yet provide a complete match
-for this Terms draft. Before the Terms become effective, update them to cover:
+The Privacy Policy and Privacy Choices page now disclose the mandatory ownerless
+scientific record, exact-coordinate retention, absence of a separate retention choice,
+and launch-disabled DwC-A export. Before the Terms become effective, counsel must still
+review the complete privacy package for:
 
 - the main identification payload sent to Google Gemini, not only Explore audio
   classification;
@@ -201,15 +204,14 @@ for this Terms draft. Before the Terms become effective, update them to cover:
 - PostHog event categories, identifier linkage, host region, consent or lawful basis,
   and a working withdrawal method;
 - public-photo selection as species reference imagery;
-- free and paid sharing/licensing of de-identified Scientific Data;
-- the exact account-tombstone retention allowlist;
+- free and paid sharing/licensing of Scientific Data that may remain personal;
+- the exact account-tombstone retention and clearing boundary;
 - retention periods and deletion completion timing;
 - the 18+ eligibility rule; and
 - applicable privacy rights, appeals, and regional contact/representative details.
 
-Both pages currently describe Darwin Core Archive export as available. The authoritative
-launch gate currently disables that feature. Remove or qualify those statements until
-the release gate is deliberately enabled.
+Both pages now qualify Darwin Core Archive export as launch-disabled. Keep that language
+until the authoritative release gate is deliberately enabled.
 
 ## Counsel and Business Decisions
 
@@ -228,7 +230,7 @@ Counsel and the operator should decide and document:
 - insurance appropriate to AI identification, UGC, privacy, and outdoor-use risks;
 - research ethics and recipient terms for Scientific Data;
 - whether any commercial data arrangement is a "sale" or "sharing" under a privacy law,
-  even when the business intends the data to be de-identified;
+  particularly when retained Scientific Data includes exact location and time;
 - tax, attribution, database-right, and third-party-license constraints for commercial
   datasets;
 - rules for government, law-enforcement, and emergency requests;
@@ -247,14 +249,14 @@ Counsel and the operator should decide and document:
 | Seven-day non-renewing pass, annual auto-renewing plan, and trials | 8 |
 | Operational content license and contributor warranties | 9 |
 | Explore is public UGC and eligible photos can become reference imagery | 10 |
-| De-identified Scientific Data can be shared or licensed free or for money | 11 |
+| Every submitted scan contributes mandatory Scientific Data that can be used or licensed | 11 |
 | Exact/private location, public projections, embedded photo metadata | 12 |
 | Likes, comments, replies, follows, reports, blocks, and moderation | 13 |
 | Fair-use, scraping, security, model-training, clinical-use restrictions | 3 and 14 |
 | Supabase, Cloudflare, Google, RevenueCat, PostHog, Resend, GBIF, Wikipedia | 15 |
 | Durable biological media, 30-day non-biological purge, temporary storage | 16 |
 | Individual scan deletion and content-free anti-resurrection UUID fence | 16 |
-| Account deletion removes media and attribution but can retain reduced facts | 16 |
+| Account deletion removes account content but retains ownerless exact scientific facts | 16 |
 | AI/data loss disclaimers, liability cap, indemnity, termination | 18–22 |
 | Apple's minimum custom-EULA concepts | 23 |
 
@@ -266,12 +268,12 @@ The draft does not promise:
 - medically, legally, or regulatorily safe output;
 - truly unbounded Pro usage;
 - that every queued or offline item will upload;
-- permanent storage or backup;
+- permanent storage or backup of account-owned content or media;
 - Darwin Core Archive export at launch;
 - complete end-to-end Apple Watch functionality;
 - permanent public use of a photo after unsharing or account deletion;
 - payment or royalties to contributors;
-- that anonymized data is outside every privacy law in every context; or
+- that ownerless Scientific Data is anonymous or outside privacy law; or
 - that future Terms changes alone can authorize a materially different data purpose.
 
 ## Final Review Evidence
@@ -283,7 +285,7 @@ Before approval, provide counsel with:
   deletion copy;
 - App Store subscription product metadata and every paywall variant;
 - final App Store privacy labels and age-rating answers;
-- a data-flow diagram and current scan/tombstone field allowlist;
+- a data-flow diagram and current scan/tombstone retention and clearing boundary;
 - Google and PostHog contracts, DPAs, regions, and subprocessor lists;
 - representative PostHog event payloads;
 - public/reference-photo promotion and removal tests;
