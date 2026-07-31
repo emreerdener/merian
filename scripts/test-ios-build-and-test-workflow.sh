@@ -112,10 +112,15 @@ assert_action_release() {
   local expected_count="$2"
   local required_major="$3"
   local actual_count
-  local compliant_count
+  local pinned_count
+  local reviewed_version_count
   local release_count
 
-  read -r actual_count compliant_count release_count < <(
+  read -r \
+    actual_count \
+    pinned_count \
+    reviewed_version_count \
+    release_count < <(
     awk \
       -v action_path="$action_path" \
       -v required_major="$required_major" '
@@ -131,8 +136,11 @@ assert_action_release() {
           valid_ref = ref ~ /^[0-9a-f]{40}$/
           version_pattern = "^v" required_major "\\.[0-9]+\\.[0-9]+$"
           valid_version = version ~ version_pattern
-          if (valid_ref && $3 == "#" && valid_version) {
-            compliant_count += 1
+          if (valid_ref) {
+            pinned_count += 1
+          }
+          if ($3 == "#" && valid_version) {
+            reviewed_version_count += 1
           }
           releases[$2 " " version] = 1
         }
@@ -140,9 +148,10 @@ assert_action_release() {
           for (release in releases) {
             release_count += 1
           }
-          printf "%d %d %d\n",
+          printf "%d %d %d %d\n",
             actual_count,
-            compliant_count,
+            pinned_count,
+            reviewed_version_count,
             release_count
         }
       ' "$workflow"
@@ -151,9 +160,12 @@ assert_action_release() {
   [[ "$actual_count" == "$expected_count" ]] \
     || fail \
       "Expected $expected_count occurrence(s) of '$action_path'; found $actual_count."
-  [[ "$compliant_count" == "$expected_count" ]] \
+  [[ "$pinned_count" == "$expected_count" ]] \
     || fail \
-      "Every '$action_path' use must have a full SHA and v$required_major.x.y comment."
+      "Every '$action_path' use must pin a full 40-character lowercase commit SHA."
+  [[ "$reviewed_version_count" == "$expected_count" ]] \
+    || fail \
+      "Every '$action_path' use must declare the reviewed v$required_major.x.y release comment; action-major upgrades require an explicit contract review."
   [[ "$release_count" == "1" ]] \
     || fail "Every '$action_path' use must share one reviewed release."
 }
@@ -238,7 +250,7 @@ assert_count 3 "persist-credentials: false"
 # Lock the reviewed Node.js 24 action major releases while allowing Dependabot
 # to advance commit-pinned patch/minor releases. Major upgrades remain an
 # explicit review boundary.
-assert_action_release "actions/checkout" 3 6
+assert_action_release "actions/checkout" 3 7
 assert_action_release "actions/cache/restore" 2 6
 assert_action_release "actions/cache/save" 1 6
 assert_action_release "actions/upload-artifact" 5 7

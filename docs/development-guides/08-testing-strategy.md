@@ -222,6 +222,14 @@ artifact retention use reviewed, immutable action commits whose current major
 versions run on Node.js 24. The portable workflow contract pins those exact
 commits so a downgrade cannot silently restore a deprecated action runtime.
 
+A Dependabot pull request that crosses an action major is expected to stop at
+this guardrail even when its commit SHA is valid. Review the upstream release,
+including its runtime and runner requirements and any security changes; update
+every use to one immutable commit with its matching inline release comment;
+then advance the reviewed major in
+`scripts/test-ios-build-and-test-workflow.sh`. Do not relax commit pinning or
+accept a floating action tag to make the upgrade pass.
+
 1. **Full iOS unit tests** resolves only locked package versions, validates the
    generated-project source membership against `project.yml`, compiles the app
    plus both shared test bundles with `build-for-testing`, and executes the
