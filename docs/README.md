@@ -189,7 +189,9 @@ as their permanent engineering identity.
   unchanged. Tombstones are excluded from personal and broad anonymous scan
   access; public and export projections retain geoprivacy and sensitive-taxon
   controls. This is a condition of submission without a separate opt-in or
-  opt-out. See the [schema contract](./backend-and-data/04-database-schema.md),
+  opt-out. See the
+  [canonical retention contract](./backend-and-data/17-scientific-observation-retention.md),
+  [schema contract](./backend-and-data/04-database-schema.md),
   [API contract](./backend-and-data/05-api-contracts.md), and
   [counsel review memo](./legal/terms-counsel-review.md).
 - **Explore media-loss contract**: An unavailable object never auto-deletes or
@@ -386,6 +388,11 @@ as their permanent engineering identity.
   manifests, profile and identity fences, foreground/offline retry behavior,
   persistence ambiguity, guarded recovery, Field Chat readiness, Explore
   publication, security, deployment order, monitoring, and regression gates.
+- **[`/backend-and-data/17-scientific-observation-retention.md`](./backend-and-data/17-scientific-observation-retention.md)**
+  — Normative product and engineering contract for mandatory ownerless
+  scientific-observation retention after account deletion, including the exact
+  clearing boundary, durable sequence, authorization, visibility, race fencing,
+  change procedure, and verification gates.
 
 ### Features & Hardware
 

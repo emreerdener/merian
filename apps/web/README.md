@@ -369,7 +369,8 @@ preference.
 - `/privacy` — App Store privacy policy URL.
 - `/privacy-choices` — App Store privacy choices URL, data deletion help, and
   the mandatory ownerless scientific-observation retention boundary.
-- `/terms` — Terms of Service.
+- `/terms` — Terms of Service, including the mandatory Scientific Data
+  contribution and account-deletion retention terms.
 - `/guidelines` — Community Guidelines. `/community-guidelines` redirects here.
 - `/support` — support/contact page.
 - `/legal` — hub linking the legal and support pages.

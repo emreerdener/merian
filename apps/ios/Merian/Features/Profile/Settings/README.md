@@ -42,6 +42,9 @@ tags. `DeleteAccountSheet` must state both sides of this boundary and must not
 describe account deletion as deleting every submitted scan. Geoprivacy governs
 public display, not this restricted backend retention.
 
+The complete boundary and required update procedure are canonical in
+[`17-scientific-observation-retention.md`](../../../../../../docs/backend-and-data/17-scientific-observation-retention.md).
+
 ## Plan and prelaunch purchase testing
 
 Settings → Plan is the canonical manual entry point for `PaywallView`. Every

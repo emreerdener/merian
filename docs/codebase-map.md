@@ -544,7 +544,8 @@ Data lifecycle, identity, and exports:
   canonical R2 prefixes receive a cursor-persisted sweep and delayed empty
   verification pass, and only then may Auth be deleted. The SQL storage claim
   requires the matching cleaned-up `storage_pending` private job and vetoes live
-  profiles or owned scans.
+  profiles or owned scans. See the
+  [canonical scientific-retention contract](./backend-and-data/17-scientific-observation-retention.md).
 - `reconcile-account-deletions` — scheduled service-role worker that leases and
   resumes incomplete relational, storage, and Auth deletion work without
   accepting caller-selected user IDs. Aggregate queue/lease/configuration health

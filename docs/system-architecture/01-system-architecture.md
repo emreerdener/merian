@@ -254,7 +254,8 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/reconcile-scan-deletions`: Service-only leased reaper that independently
     resumes interrupted scan erasure and emits aggregate SLA health.
   - `/safe-delete`: Persists a private deletion job, atomically tombstones and
-    clears ownership/personal fields from retained observations, verifies
+    clears ownership/account-owned fields from retained observations while
+    leaving exact coordinates and all other scientific facts unchanged, verifies
     relational data, then cursor-sweeps every canonical R2 prefix and performs a
     delayed empty verification pass before removing Auth. The database claim
     requires the matching cleaned-up `storage_pending` job and rejects live

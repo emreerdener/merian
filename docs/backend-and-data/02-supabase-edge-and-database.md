@@ -1914,8 +1914,8 @@ discovers candidates oldest first, acquires canonical scan-generation locks in
 UUID order, rechecks age, classification, `is_tombstoned = false`,
 non-null/non-reserved ownership, and generation-tombstone absence under each row
 lock, and commits the permanent deletion fence. Ownerless, reserved-owner, and
-rows already tombstoned by account erasure remain exclusively owned by the
-account-erasure pipeline. The route never captures media URLs, deletes R2
+rows already tombstoned by account deletion remain exclusively owned by the
+account-deletion pipeline. The route never captures media URLs, deletes R2
 objects, or deletes scan rows.
 
 The independent `reconcile-scan-deletions` reaper subsequently reloads each
@@ -2078,6 +2078,10 @@ taxonomy, identification, environmental, quality, and provenance facts
 unchanged. A validated check constraint permits an ownerless scan only when it
 is tombstoned, and the anonymous table-read policy explicitly excludes
 tombstones.
+
+The normative retained-versus-cleared field boundary and its change procedure
+are defined in the
+[scientific-observation retention contract](./17-scientific-observation-retention.md).
 
 `20260725035737_repair_tombstone_profile_seed.sql` is a no-op compatibility
 bridge for production run 1461. The attempted public-only all-zero profile could

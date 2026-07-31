@@ -661,9 +661,12 @@ Account deletion uses `/safe-delete` to persist deletion intent before any
 destructive action. A claim-fenced database transaction queues object-store
 cleanup, makes retained observations ownerless tombstones, clears all stored
 media references, semantic/public location labels, device context, custom tags,
-and free-form account-linked notes, and anonymizes cost/linkage records. Exact
+and free-form account-linked notes, and clears account linkage from aggregate
+cost records. Exact
 coordinates/elevation, time, taxonomy, identification, environmental, quality,
 and provenance facts remain unchanged as the mandatory scientific observation.
+The complete product and engineering boundary is normative in the
+[scientific-observation retention contract](../backend-and-data/17-scientific-observation-retention.md).
 A scheduled reaper cursor-sweeps durable uploads, staging data, avatars, and
 exports, then performs a delayed empty verification sweep. Auth is deleted only
 after both relational and storage verification succeed. Transient failures are

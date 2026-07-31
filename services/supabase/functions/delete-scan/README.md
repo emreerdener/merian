@@ -26,8 +26,8 @@ fail closed for a tombstoned UUID. A lost HTTP response is therefore safe: the
 iOS `PendingCloudDeletionTask` retries, R2 absence is idempotent, and no stale
 device can recreate the observation while deletion is incomplete or after it
 finishes. The owner UUID exists only while erasure is pending; successful
-completion or account anonymization clears that linkage without removing the
-scan UUID fence.
+completion or account deletion clears that linkage without removing the scan
+UUID fence.
 
 The iOS `PendingCloudDeletionTask` provides the immediate retry path, but is not
 the sole durability mechanism. `reconcile-scan-deletions` leases and

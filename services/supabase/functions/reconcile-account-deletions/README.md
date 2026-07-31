@@ -1,7 +1,10 @@
 # Account Deletion Reconciler
 
-Service-only worker for durable account erasure. The
-`reconcile_account_deletions_every_five_minutes` database cron invokes this
+Service-only worker for durable account deletion. Account-owned data and stored
+media are erased, while each submitted observation remains in `public.scans` as
+mandatory ownerless Scientific Data under the
+[canonical retention contract](../../../../docs/backend-and-data/17-scientific-observation-retention.md).
+The `reconcile_account_deletions_every_five_minutes` database cron invokes this
 route with a platform-managed current or legacy server credential. Opaque keys
 use `apikey` only; legacy JWT keys use both supported headers.
 
@@ -11,7 +14,9 @@ worker first calls `complete_account_deletion_cleanup`, which idempotently and
 atomically:
 
 1. inserts the idempotent storage-cleanup outbox row;
-2. tombstones retained scans and removes the public profile; and
+2. detaches retained scans, clears their account-owned fields, and removes the
+   public profile without changing exact coordinates or other scientific facts;
+   and
 3. verifies that no scan or public profile still references the user.
 
 Only a job advanced to `auth_pending` can reach `auth.admin.deleteUser`. An Auth

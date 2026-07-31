@@ -374,3 +374,7 @@ Backend intent and relational cleanup are persisted before the client signs out.
 The scheduled account-deletion reaper owns cursor-persisted R2 sweeps, delayed
 empty verification, and terminal Auth removal; a new request therefore normally
 receives `202`.
+
+Account deletion retains ownerless exact scientific facts under the
+[`scientific-observation retention contract`](../../../../../docs/backend-and-data/17-scientific-observation-retention.md);
+`signOut()` must not imply that every submitted observation is erased.

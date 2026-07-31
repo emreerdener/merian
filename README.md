@@ -493,9 +493,11 @@ notes, and selected in-progress work. **Export** — staged Darwin Core Archive
 the initial production launch. **Account** — Sign in with Apple or Google,
 anonymous Ghost Sessions, and durable account deletion that detaches retained
 scientific observations from the account, queues media cleanup, and removes
-login access only after database cleanup is verified. An independent scheduled
+the backend Auth identity only after database and storage cleanup are verified.
+An independent scheduled
 health check alerts when the reaper is unconfigured, work is overdue, leases
-expire, or the erasure backlog breaches its SLA.
+expire, or the deletion backlog breaches its SLA. See the
+[scientific-observation retention contract](docs/backend-and-data/17-scientific-observation-retention.md).
 
 ---
 

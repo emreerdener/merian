@@ -1804,13 +1804,18 @@ deno test --frozen --config supabase/functions/deno.json \
   supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
 ```
 
-Durable account deletion has ten complementary checks:
+Durable account deletion has eleven complementary checks:
 
 - `apps/web/lib/scientificRetentionContract.test.ts` keeps the public Terms,
   Privacy Policy, Privacy Choices page, iOS account-deletion confirmation,
   location-onboarding copy, and location usage description aligned on mandatory
   ownerless Scientific Data retention. The web-quality workflow includes those
   three iOS source paths so an iOS-only wording change cannot bypass the test.
+- `scripts/documentation_contract_test.ts` requires the canonical retention
+  contract, links it from the maintained documentation index, locks the
+  mandatory/no-parallel-table and ownerless-not-necessarily-anonymous boundary,
+  verifies the current migration is part of the deployment release unit, and
+  rejects unresolved local links across the account-deletion documentation.
 
 - `_tests/safeDelete.test.ts` executes the actual handler/worker modules with
   injected boundaries. It proves intake precedes processing, cleanup failure

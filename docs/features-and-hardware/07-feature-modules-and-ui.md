@@ -1277,8 +1277,10 @@ on gesture-driven layout abstractions.
   (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background
   `OfflineQueueManager` URLSession transfers mid-sync from being cleared during
   manual cache management.
-- **Account Erasure**: A "Delete Account & Data" action behind a `.destructive`
-  `.confirmationDialog` calls the durable Deno `/safe-delete` endpoint. Both
+- **Account Deletion**: The destructive "Delete account & data" action opens
+  `DeleteAccountSheet`, which itemizes deleted account-owned data and mandatory
+  ownerless retention of exact scientific facts, then requires the user to type
+  `DELETE` before calling the durable Deno `/safe-delete` endpoint. Both
   immediate `200` completion and `202` durable acceptance are successful:
   backend cleanup continues through its scheduled reaper, cursor-sweeps and
   delayed-verifies every canonical R2 prefix, and removes Auth only after

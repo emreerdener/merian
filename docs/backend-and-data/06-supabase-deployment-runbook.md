@@ -1120,8 +1120,10 @@ Migrations `20260725030308_durable_account_deletion.sql`,
 `20260725035737_repair_tombstone_profile_seed.sql`,
 `20260725041308_ownerless_account_deletion_tombstones.sql`,
 `20260725052337_enforce_account_storage_erasure.sql`,
-`20260726041109_fence_storage_erasure_claims.sql`, and
-`20260727001630_monitor_account_deletion_health.sql`, plus the shared server-key
+`20260726041109_fence_storage_erasure_claims.sql`,
+`20260727001630_monitor_account_deletion_health.sql`, and
+`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`, plus
+the shared server-key
 transport migration `20260727013416_future_proof_server_key_boundaries.sql` and
 user-FK index migration
 `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
@@ -1136,6 +1138,11 @@ a critical monitor result. Its current transport sends a modern `sb_secret_...`
 Vault key only in `apikey`, or a legacy service-role JWT in both `apikey` and
 Bearer Authorization. The value must match an active project server key. Do not
 replace only the Vault value; rotate it and the project key together.
+
+The release must also satisfy the normative
+[scientific-observation retention contract](./17-scientific-observation-retention.md),
+including its public-copy, fresh-catalog, catalog-ACL, staging-smoke, and
+production-verification requirements.
 
 The `20260725035737` file is an explicit executable no-op. It is a compatibility
 bridge for production run 1461, where its superseded public-only sentinel insert

@@ -3396,6 +3396,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "apps/ios/Merian/Features/Explore/Feed/README.md",
     "apps/ios/Merian/Features/Insights/Chat/README.md",
     "apps/ios/Merian/Features/Insights/Sharing/README.md",
+    "apps/ios/Merian/Features/Profile/Settings/README.md",
     "apps/web/README.md",
     "docs/CONTRIBUTING.md",
     "docs/README.md",
@@ -3410,6 +3411,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md",
     "docs/backend-and-data/15-edge-function-fleet-review-2026-07-28.md",
     "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
+    "docs/backend-and-data/17-scientific-observation-retention.md",
     "docs/codebase-map.md",
     "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
@@ -3435,6 +3437,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/incidents/2026-07-supabase-edge-route-not-found.md",
     "docs/incidents/2026-07-video-scan-canonical-finalization-regression.md",
     "docs/incidents/2026-07-xcode-export-build-number-rewrite.md",
+    "docs/legal/terms-counsel-review.md",
     "docs/product/01-master-product-document.md",
     "docs/rfcs/active-capture-goal-context.md",
     "docs/system-architecture/01-system-architecture.md",
@@ -3446,6 +3449,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/README.md",
     "services/supabase/functions/_shared/README.md",
     "services/supabase/functions/check-scan-status/README.md",
+    "services/supabase/functions/delete-scan/README.md",
     "services/supabase/functions/download-dwca/README.md",
     "services/supabase/functions/export-dwca/README.md",
     "services/supabase/functions/audio-spec/README.md",
@@ -3455,12 +3459,15 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/identify-describe/README.md",
     "services/supabase/functions/identify-multimodal/README.md",
     "services/supabase/functions/insight-chat/README.md",
+    "services/supabase/functions/merge-ghost-profile/README.md",
+    "services/supabase/functions/reconcile-account-deletions/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
     "services/supabase/functions/reconcile-dwca-archive-cleanup/README.md",
     "services/supabase/functions/reconcile-scan-media-assets/README.md",
     "services/supabase/functions/repair-scan-image/README.md",
     "services/supabase/functions/request-community-identification/README.md",
     "services/supabase/functions/request-export-dwca/README.md",
+    "services/supabase/functions/safe-delete/README.md",
     "services/supabase/functions/share-scan-to-explore/README.md",
     "services/supabase/functions/species-dictionary/README.md",
   ];
@@ -3481,6 +3488,8 @@ Deno.test("maintained contract documentation has no unresolved local file links"
 
 Deno.test("scientific retention documentation matches the account tombstone contract", async () => {
   const [
+    canonical,
+    docsIndex,
     backend,
     schema,
     api,
@@ -3488,8 +3497,11 @@ Deno.test("scientific retention documentation matches the account tombstone cont
     product,
     settings,
     safeDelete,
+    reconciler,
     changelog,
   ] = await Promise.all([
+    read("docs/backend-and-data/17-scientific-observation-retention.md"),
+    read("docs/README.md"),
     read("services/supabase/README.md"),
     read("docs/backend-and-data/04-database-schema.md"),
     read("docs/backend-and-data/05-api-contracts.md"),
@@ -3497,9 +3509,28 @@ Deno.test("scientific retention documentation matches the account tombstone cont
     read("docs/product/01-master-product-document.md"),
     read("apps/ios/Merian/Features/Profile/Settings/README.md"),
     read("services/supabase/functions/safe-delete/README.md"),
+    read("services/supabase/functions/reconcile-account-deletions/README.md"),
     read("CHANGELOG.md"),
   ]).then((sources) => sources.map(compact));
 
+  assertStringIncludes(
+    canonical,
+    "Every scan submitted for identification contributes a scientific observation to the Naturebook database.",
+  );
+  assertStringIncludes(canonical, "does not use a parallel retention table");
+  assertStringIncludes(
+    canonical,
+    "must not claim that every retained observation is necessarily anonymous or de-identified",
+  );
+  assertStringIncludes(
+    canonical,
+    "it cannot reconstruct coordinates already erased by a previous routine",
+  );
+  assertStringIncludes(canonical, "is_tombstoned = FALSE");
+  assertStringIncludes(
+    docsIndex,
+    "backend-and-data/17-scientific-observation-retention.md",
+  );
   assertStringIncludes(
     backend,
     "mandatory scientific-retention contract: exact coordinates/elevation and every other scientific fact are left unchanged",
@@ -3518,6 +3549,10 @@ Deno.test("scientific retention documentation matches the account tombstone cont
     "exact location/elevation, time, taxonomy, identification, environmental, quality, and provenance fields equal their pre-deletion values",
   );
   assertStringIncludes(
+    runbook,
+    "20260731154139_retain_scientific_coordinates_after_account_deletion.sql",
+  );
+  assertStringIncludes(
     product,
     "remain unchanged as the mandatory scientific observation",
   );
@@ -3528,6 +3563,14 @@ Deno.test("scientific retention documentation matches the account tombstone cont
   assertStringIncludes(
     safeDelete,
     "The permanent scientific record is a condition of submitting a scan, not an account-deletion option.",
+  );
+  assertStringIncludes(
+    reconciler,
+    "Service-only worker for durable account deletion.",
+  );
+  assertStringIncludes(
+    reconciler,
+    "without changing exact coordinates or other scientific facts",
   );
   assertStringIncludes(
     changelog,

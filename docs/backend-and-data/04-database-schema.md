@@ -1173,6 +1173,9 @@ The transaction log for every successful identification.
   remain unchanged as mandatory Scientific Data. Tombstones are available only
   to reviewed backend scientific paths and are excluded from the broad
   anonymous scans policy.
+  See the
+  [canonical retention contract](./17-scientific-observation-retention.md) for
+  the complete retained-versus-cleared boundary and required change procedure.
 - `custom_tags` (Text Array): User-defined plain-text labels for personal
   categorization. The database allows at most 50 non-null/control-free elements
   of at most 256 UTF-8 bytes each; iOS additionally limits visible tag length to
@@ -3604,7 +3607,7 @@ indexes; API roles retain no direct queue access.
 
 Migration `20260725030308_durable_account_deletion.sql` adds durable intake;
 migration `20260725052337_enforce_account_storage_erasure.sql` completes the
-private account-erasure state machine. It has RLS enabled and revokes direct
+private account-deletion state machine. It has RLS enabled and revokes direct
 table access from `PUBLIC`, `anon`, `authenticated`, and `service_role`.
 
 Important columns and invariants:

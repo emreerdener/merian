@@ -248,7 +248,7 @@ See Cloudflare's official documentation:
 
 Do not mark this incident resolved until all of the following are complete:
 
-1. Verify the account-erasure fence, image-repair, and independent deletion
+1. Verify the account-deletion fence, image-repair, and independent deletion
    health migrations are recorded in production:
 
    - `20260726041109_fence_storage_erasure_claims.sql`

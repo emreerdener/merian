@@ -1225,7 +1225,7 @@ Gemini `usageMetadata` is normalized into prompt, cached, candidate, thinking,
 tool, total, and per-modality counts; prompts and responses are never stored.
 Effective-dated model prices produce clearly labeled estimates. Historical token
 columns are idempotently backfilled as partial/primary-only, and account
-deletion removes linkage while retaining anonymous aggregate usage.
+deletion clears account linkage while retaining aggregate usage.
 
 `geminiUsageModalityBreakdown(...)` stores `prompt`, `cached`, `candidates`, and
 `tool` objects inside the ledger's legacy-named `prompt_tokens_by_modality`
@@ -1260,7 +1260,7 @@ event.
 The unique source key `(source_type, source_id, operation)` makes retries and
 backfill idempotent. When no stable source row exists, design one before relying
 on retry deduplication. Account deletion invokes the tightly scoped
-anonymization path; arbitrary event update/delete remains prohibited.
+account-linkage clearing path; arbitrary event update/delete remains prohibited.
 
 Admin analytics distinguish:
 

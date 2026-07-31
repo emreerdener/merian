@@ -182,6 +182,10 @@ unchanged while free-form intervention notes and account context are cleared.
 `replay-scan-ingestion` treats that state as terminal and cannot dispatch
 another AI request for a deleted account's scan.
 
+The complete retained-versus-cleared field boundary, visibility rules, change
+procedure, and verification requirements are canonicalized in
+[`docs/backend-and-data/17-scientific-observation-retention.md`](../../docs/backend-and-data/17-scientific-observation-retention.md).
+
 The same migration declares the production Auth/profile relationship with
 `ON DELETE RESTRICT`, so an Auth Admin call cannot bypass verified relational
 cleanup. It also excludes tombstones from the broad anonymous scan-read policy

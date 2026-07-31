@@ -56,18 +56,18 @@ include any known provenance key, but V1 refreshes only:
 - `reference_images`
 - `country_occurrences`
 
-Unsupported queued keys are reported as skipped rather than overwritten.
-Country occurrence refresh uses GBIF's country facet for georeferenced PRESENT
-records without geospatial issues. A valid empty facet clears stale rows and is
-recorded as a successful refresh; a timeout, non-OK response, or malformed
-payload fails the species job so existing coverage is retained and retried.
-If the fresh GBIF name match is unavailable, the worker uses an existing
-positive dictionary taxon key; if neither identity is available, it fails the
-durable job for retry rather than silently completing partial hydration.
-The scheduled worker treats provenance writes as durable job state: if a
-replacement succeeds but its provenance upsert fails, the species job fails and
-retries. Interactive identification paths continue to record provenance on a
-best-effort basis so a telemetry-side failure cannot block an identification.
+Unsupported queued keys are reported as skipped rather than overwritten. Country
+occurrence refresh uses GBIF's country facet for georeferenced PRESENT records
+without geospatial issues. A valid empty facet clears stale rows and is recorded
+as a successful refresh; a timeout, non-OK response, or malformed payload fails
+the species job so existing coverage is retained and retried. If the fresh GBIF
+name match is unavailable, the worker uses an existing positive dictionary taxon
+key; if neither identity is available, it fails the durable job for retry rather
+than silently completing partial hydration. The scheduled worker treats
+provenance writes as durable job state: if a replacement succeeds but its
+provenance upsert fails, the species job fails and retries. Interactive
+identification paths continue to record provenance on a best-effort basis so a
+telemetry-side failure cannot block an identification.
 
 ## Response
 

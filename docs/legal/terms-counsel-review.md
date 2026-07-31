@@ -131,6 +131,8 @@ must either:
 
 ### P0 — Counsel Review of Mandatory Scientific Retention
 
+The fixed product and engineering boundary is canonical in
+[`17-scientific-observation-retention.md`](../backend-and-data/17-scientific-observation-retention.md).
 Migration
 [`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`](../../services/supabase/migrations/20260731154139_retain_scientific_coordinates_after_account_deletion.sql)
 implements the product decision without a new table. It makes scans ownerless and clears

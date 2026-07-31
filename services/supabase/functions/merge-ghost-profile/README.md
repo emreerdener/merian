@@ -53,8 +53,8 @@ The transaction:
   remains an independent rollout;
 - reparents append-only AI usage explicitly under transaction-local
   source/target authorization; this ledger intentionally does not receive an
-  Auth FK because normal account deletion has a separate guarded anonymization
-  path;
+  Auth FK because normal account deletion has a separate guarded account-linkage
+  clearing path;
 - snapshots and preserves guest-customized public identity;
 - verifies that no external foreign key still points to the source before
   deleting `public.users`;

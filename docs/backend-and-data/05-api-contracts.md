@@ -6326,6 +6326,9 @@ Deletes a user's account and account-owned content from PostgreSQL and
 Cloudflare R2 while retaining mandatory ownerless Scientific Data on each
 submitted observation.
 
+The exact retained-versus-cleared field boundary is normative in the
+[scientific-observation retention contract](./17-scientific-observation-retention.md).
+
 ### Request Payload
 
 No JSON body is required. The endpoint operates from the JWT identity alone to

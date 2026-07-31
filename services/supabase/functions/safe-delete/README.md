@@ -2,8 +2,11 @@
 
 Executes the irreversible account-deletion protocol for the user established by
 the verified request session. It deletes account-owned data while preserving
-mandatory ownerless Scientific Data. The caller cannot nominate another user
-ID.
+mandatory ownerless Scientific Data. The caller cannot nominate another user ID.
+
+The normative retained-versus-cleared field boundary and its change procedure
+live in the
+[scientific-observation retention contract](../../../../docs/backend-and-data/17-scientific-observation-retention.md).
 
 ## Durable state machine
 
@@ -25,8 +28,8 @@ taxonomy, identification, environmental, quality, and provenance facts are now
 mandatory retained Scientific Data. A validated constraint permits a null scan
 owner only for a tombstone. The public profile's restrictive Auth foreign key
 also rejects any Auth-first delete until cleanup has removed that profile. The
-scan-ingestion replay worker treats an ownerless tombstone as terminal and
-never dispatches another AI request for it.
+scan-ingestion replay worker treats an ownerless tombstone as terminal and never
+dispatches another AI request for it.
 
 1. `request_account_deletion(user_id)` inserts or returns the active `pending`
    job. This durable receipt is always the first mutation.

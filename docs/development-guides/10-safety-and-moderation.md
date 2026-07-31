@@ -279,7 +279,7 @@ the critical path.
 are promoted by `/update-public-avatar` after a user-owned staged upload and are
 deleted only by the avatar replacement helper for the same user. Scan purge,
 moderation rollback, and storage lifecycle jobs must not target `avatars/`. The
-explicit account-erasure state machine is the only owner-prefix exception: after
+explicit account-deletion state machine is the only owner-prefix exception: after
 relational cleanup, its fenced five-prefix job also removes that owner's
 avatars. Neither `public_uploads/free/`, `public_uploads/pro/`, nor `avatars/`
 may have an age-based expiration lifecycle rule.
@@ -505,4 +505,5 @@ never be deleted as part of incident cleanup. Full incident procedures are in
   be tombstoned and clear media, semantic/public location labels, device
   context, custom tags, and intervention notes, while exact location/elevation
   and other scientific facts remain unchanged under `20260731154139`. They are
-  excluded from anonymous scan-table reads.
+  excluded from anonymous scan-table reads. See the
+  [canonical scientific-retention contract](../backend-and-data/17-scientific-observation-retention.md).

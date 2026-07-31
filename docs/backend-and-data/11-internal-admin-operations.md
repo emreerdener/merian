@@ -325,7 +325,7 @@ batch, flex, priority, grounding, or media-output price into the current columns
 - Raw report/feedback/chat data must be handled only in the admin UI. Do not paste
   it into tickets or chat systems unless the separate system is approved for that
   data class.
-- Account deletion anonymizes AI linkage but retains aggregate usage/cost. It
+- Account deletion clears AI account linkage but retains aggregate usage/cost. It
   does not delete immutable staff audit records whose actor is still referenced.
 - V1 has no export. Do not add an ad hoc SQL/CSV export without a separate
   authorization, privacy, retention, and audit design.

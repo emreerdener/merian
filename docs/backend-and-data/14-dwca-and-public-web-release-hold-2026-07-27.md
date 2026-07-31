@@ -211,7 +211,7 @@ oldest-first candidate sets, acquires generation locks in UUID order, and
 rechecks age, classification, `is_tombstoned = false`, non-null/non-reserved
 ownership, and generation-tombstone absence under each row lock before
 requesting deletion. Ownerless, reserved-owner, and rows already tombstoned by
-account erasure remain with the account-erasure pipeline. `auto-purge-nonbio`
+account deletion remain with the account-deletion pipeline. `auto-purge-nonbio`
 deadline-drains only this database intake. The reaper reloads the fenced
 canonical media afterward, closing the former window in which a finalizer could
 append an object after the purge route captured its URL list but before it
