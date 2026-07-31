@@ -287,6 +287,14 @@ when you also want to install the production RevenueCat key, or use `BUILD=N
 make prepare-ios-release VERSION=x.y.z` for the documented manual build-number
 fallback.
 
+If the preflight says the marker predates release-source fingerprint binding,
+the ignored `build/ios-release-prep.json` was generated before the current
+provenance schema. Matching version/build numbers do not make that legacy marker
+safe: it cannot prove which source snapshot it authorized. Do not hand-edit the
+marker or copy a digest into it. Run `make prepare-ios-release VERSION=x.y.z`
+again so release prep selects a fresh, higher build and writes the typed
+fingerprint from the current source.
+
 If the expanded log warns that the RevenueCat key is invalid, either copy
 `Config.local.example.xcconfig` to `Config.local.xcconfig` and set:
 

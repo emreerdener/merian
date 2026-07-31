@@ -1352,6 +1352,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(releaseVersioningSource),
+    "the marker predates release-source fingerprint binding",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "Do not hand-edit the marker or copy a digest into it",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
     "CI-only marker instead requires `ci_validation_only: true` and an exact `source_sha`",
   );
   for (
@@ -1360,6 +1368,8 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "read_marker_value source_sha string",
       '--is-ancestor "$marker_prepared_from_sha" "$source_revision"',
       '"$marker_ci_validation_only" == "true"',
+      "predates release-source fingerprint binding",
+      "must be a JSON string",
     ]
   ) {
     assertStringIncludes(

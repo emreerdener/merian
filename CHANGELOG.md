@@ -50,6 +50,10 @@ TestFlight, App Store, support, and QA.
   uses an opacity-only label transition, and preserves its native Button
   accessibility node. This keeps the queued completion handshake discoverable as
   `ScanningStatusBadge` while retaining the strict in-window frame assertion.
+  Release preflight now distinguishes a legacy marker that predates source
+  fingerprint binding from a malformed current marker and requires fresh
+  higher-build preparation rather than suggesting that the old marker be
+  repaired by hand.
 - Scan Library recovery now distinguishes visible needs-attention rows from
   automatic queue work. Stable damaged/beta rows no longer keep the 1.5-second
   queue poll alive or repeatedly wake upload/inference reconciliation, while

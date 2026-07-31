@@ -176,9 +176,12 @@ marker_version="$(read_marker_value version string "$marker_file")" \
   || fail "release prep marker has no string version."
 marker_build="$(read_marker_value build integer "$marker_file")" \
   || fail "release prep marker has no integer build."
+if ! marker_has_key source_fingerprint "$marker_file"; then
+  fail "release prep marker at $marker_file predates release-source fingerprint binding; prepare a fresh, higher build before archiving."
+fi
 marker_source_fingerprint="$(
   read_marker_value source_fingerprint string "$marker_file"
-)" || fail "release prep marker has no string release-source fingerprint."
+)" || fail "release prep marker source_fingerprint at $marker_file must be a JSON string."
 marker_ci_validation_only="false"
 if marker_has_key ci_validation_only "$marker_file"; then
   marker_ci_validation_only="$(

@@ -577,6 +577,10 @@ jobs:
             MERIAN_PROJECT_ROOT="$GITHUB_WORKSPACE" \
               bash scripts/ios-release-source-fingerprint.sh
           )"
+          if ! [[ "$source_fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Could not create a valid release-source fingerprint." >&2
+            exit 1
+          fi
           jq -n \
             --arg version "$project_version" \
             --argjson build "$project_build" \

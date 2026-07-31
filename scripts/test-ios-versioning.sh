@@ -64,7 +64,7 @@ assert_fails_with() {
     fail "Expected command to fail: $*"
   fi
   if ! grep -q -- "$expected" <<<"$output"; then
-    fail "Expected failing command output to contain: $expected"
+    fail "Expected failing command output to contain: $expected. Actual output: $output"
   fi
 }
 
@@ -439,6 +439,16 @@ current_fixture_tree="$(git -C "$tmp_dir" write-tree)"
 
 set_marker_value build string "42" "$local_marker"
 assert_fails_with "release prep marker has no integer build" \
+  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
+
+cp "$local_marker_backup" "$local_marker"
+remove_marker_key source_fingerprint "$local_marker"
+assert_fails_with "predates release-source fingerprint binding" \
+  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
+
+cp "$local_marker_backup" "$local_marker"
+set_marker_value source_fingerprint bool false "$local_marker"
+assert_fails_with "must be a JSON string" \
   env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
 
 cp "$local_marker_backup" "$local_marker"

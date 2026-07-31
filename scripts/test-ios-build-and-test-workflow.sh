@@ -246,6 +246,7 @@ assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
 assert_contains "bash scripts/ios-release-source-fingerprint.sh"
+assert_contains '[[ "$source_fingerprint" =~ ^[0-9a-f]{64}$ ]]'
 assert_contains "source_fingerprint: \$source_fingerprint"
 assert_contains 'MERIAN_EXPECTED_SOURCE_REVISION="$GITHUB_SHA"'
 assert_contains "Print :MERIAN_SOURCE_REVISION"
