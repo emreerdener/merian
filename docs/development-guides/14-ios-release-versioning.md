@@ -444,7 +444,14 @@ marketing version + allocated build
 |---|---:|---|
 | `ios-beta-publisher-plan-<run>-attempt-<attempt>` | 30 days | Read-only plan; never a reservation |
 | `ios-beta-candidate-<run>-attempt-<attempt>` | 90 days | New candidate IPA/evidence and optional direct-upload log |
+| `ios-beta-publisher-failure-<run>-attempt-<attempt>` | 90 days | Candidate bytes when available plus plan/archive/upload diagnostics from a failed new-candidate run |
 | `ios-beta-upload-receipt-<run>-attempt-<attempt>` | 90 days | Existing-candidate attempt, updated evidence, exact IPA, and log |
+
+The complete candidate artifact is mandatory after a successful publisher run.
+After a publisher-step failure, the workflow instead uploads whatever candidate
+bytes and diagnostics exist. An earlier gate failure does not invoke the
+artifact uploader, and missing failure diagnostics produce only a warning so
+the original failing step remains authoritative.
 
 Immediately before any existing-candidate Transporter call, the publisher
 changes the downloaded evidence status to `upload_attempted`. The source
@@ -509,8 +516,8 @@ For a definitive App Store Connect `Failed` result:
 1. Open the failed `upload-existing`, `retry-upload`, or direct `upload` run.
 2. Use its retained artifact containing evidence with status
    `upload_attempted`, the exact IPA, and the attempt log. A direct `upload` run
-   retains those files under its candidate artifact name; an existing upload
-   retains them under its upload-receipt artifact name.
+   retains those files under its publisher-failure artifact name; an existing
+   upload retains them under its upload-receipt artifact name.
 3. Confirm App Store Connect—not only a local Transporter exit—shows `Failed`.
 4. Dispatch `retry-upload` with that run ID and exact artifact name.
 5. Enter `UPLOAD TO APP STORE CONNECT` and `FAILED CONFIRMED`.

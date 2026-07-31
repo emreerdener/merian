@@ -28,6 +28,10 @@ TestFlight, App Store, support, and QA.
 
 ### Release Integrity
 
+- Failed TestFlight publisher runs now keep any available candidate bytes and
+  archive/upload diagnostics without emitting a second missing-artifact error
+  that hides the original failure. Successful runs still require complete IPA
+  and evidence artifacts.
 - Routine TestFlight iteration is now a zero-input **TestFlight Beta** dispatch:
   select `main` and click Run to allocate, archive, validate, and upload one new
   build. Planning, retained candidates, existing-candidate uploads, and

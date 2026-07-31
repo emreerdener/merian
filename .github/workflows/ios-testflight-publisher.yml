@@ -232,6 +232,7 @@ jobs:
         run: bash scripts/publish-ios-beta.sh --dry-run
 
       - name: Configure credentials and run publisher
+        id: publisher
         if: inputs.action != 'plan'
         env:
           PUBLISH_ACTION: ${{ inputs.action }}
@@ -335,7 +336,7 @@ jobs:
           retention-days: 30
 
       - name: Upload immutable candidate and evidence
-        if: always() && (inputs.action == 'candidate' || inputs.action == 'upload')
+        if: success() && (inputs.action == 'candidate' || inputs.action == 'upload')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ios-beta-candidate-${{ github.run_id }}-attempt-${{ github.run_attempt }}
@@ -344,6 +345,21 @@ jobs:
             build/ios-publisher/*/export/*.ipa
             build/ios-publisher/*/upload.log
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Preserve candidate or diagnostics after publisher failure
+        if: failure() && steps.publisher.outcome == 'failure' && (inputs.action == 'candidate' || inputs.action == 'upload')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-beta-publisher-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            build/ios-publisher/*/evidence.json
+            build/ios-publisher/*/export/*.ipa
+            build/ios-publisher/*/upload.log
+            build/ios-publisher/*/plan.json
+            build/ios-publisher/*/archive.log
+          if-no-files-found: warn
           compression-level: 0
           retention-days: 90
 

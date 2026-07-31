@@ -158,6 +158,12 @@ The architecture deliberately uses two retention classes:
 - GitHub artifacts retain the exact IPA, structured evidence, and Transporter
   logs for a bounded period.
 
+A successful new-candidate run treats missing IPA/evidence as an artifact
+contract failure. A failed publisher step retains any available candidate,
+plan, archive log, and upload log with warning-only missing-file behavior; this
+prevents artifact cleanup from masking the primary failure. Failures before the
+publisher step do not run candidate artifact collection.
+
 The approved long-term release store must receive exact hash-verified copies
 when legal, support, or audit needs exceed Actions retention. An evidence tag
 alone cannot reconstruct an IPA, and an IPA without matching evidence is not an

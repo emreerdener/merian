@@ -132,6 +132,16 @@ assert_contains "archive_invocations" "$publisher"
 assert_contains "ios-builds/" "$publisher"
 assert_contains "ios-uploads/" "$publisher"
 
+# Successful publishers must retain a complete candidate. Failed publisher
+# steps preserve any candidate bytes or diagnostics without adding a second
+# missing-files failure that masks the primary error.
+assert_contains "if: success() && (inputs.action == 'candidate' || inputs.action == 'upload')" "$workflow"
+assert_contains "Preserve candidate or diagnostics after publisher failure" "$workflow"
+assert_contains "steps.publisher.outcome == 'failure'" "$workflow"
+assert_contains "ios-beta-publisher-failure-" "$workflow"
+assert_contains "build/ios-publisher/*/archive.log" "$workflow"
+assert_contains "if-no-files-found: warn" "$workflow"
+
 # Retry and promotion semantics never archive or export again.
 assert_contains "--upload-existing" "$publisher"
 assert_contains "--retry-upload" "$publisher"
