@@ -36,23 +36,31 @@ automatic version management—to disagree about the shipped build.
 The publisher does not decide product readiness, replace physical-device QA,
 administer tester groups, or make App Store metadata changes.
 
+The manual entry may be dispatched while the exact-SHA iOS check is queued or
+running. A bounded Ubuntu job polls that existing check for up to 30 minutes
+and starts the macOS publisher only after all required jobs pass. It never
+converts a failed or scope-only check into authorization and does not trigger a
+replacement check automatically.
+
 ## Components and Data Flow
 
 ```mermaid
 flowchart LR
     A["Protected main SHA"] --> B["Exact-SHA iOS Build and Test"]
-    B --> C["Routine or advanced manual entry"]
-    C --> D["One serialized publisher core"]
-    D --> E["ASC latest + repository floor"]
-    E --> F["Immutable allocation tag"]
-    F --> G["One signed archive"]
-    G --> H["Archive validation + identity"]
-    H --> I["Export with automatic renumbering off"]
-    I --> J["Signed IPA validation + SHA-256"]
-    J --> K["Evidence tag + retained artifact"]
-    K --> L["Optional Transporter upload"]
-    L --> M["Upload receipt tag"]
-    M --> N["Same binary: internal → external → App Review"]
+    A --> C["Routine or advanced manual entry"]
+    B --> D["Bounded Ubuntu readiness wait"]
+    C --> D
+    D --> E["One serialized publisher core"]
+    E --> F["ASC latest + repository floor"]
+    F --> G["Immutable allocation tag"]
+    G --> H["One signed archive"]
+    H --> I["Archive validation + identity"]
+    I --> J["Export with automatic renumbering off"]
+    J --> K["Signed IPA validation + SHA-256"]
+    K --> L["Evidence tag + retained artifact"]
+    L --> M["Optional Transporter upload"]
+    M --> N["Upload receipt tag"]
+    N --> O["Same binary: internal → external → App Review"]
 ```
 
 The publisher queries App Store Connect immediately before allocation. It also

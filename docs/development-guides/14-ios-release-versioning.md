@@ -218,18 +218,20 @@ preflight requires the exact `GITHUB_SHA`, a clean checkout, and the unchanged
 tracked version/build. It also requires signing to be disabled with no identity
 or team, so that flag cannot authorize a signed publisher archive.
 
-Before a new candidate is allowed, the publisher finds a successful **iOS
-Build and Test** run for the exact selected SHA and verifies these jobs all
-succeeded:
+Before a new candidate is allowed, a cheap Ubuntu readiness job waits up to 30
+minutes for **iOS Build and Test** on the exact selected SHA and verifies these
+jobs all succeeded:
 
 1. `Full iOS unit tests`
 2. `Current-SHA Release archive`
 3. `Production readiness`
 
 A green parent, a byte-similar checkout, or an out-of-scope run is not enough.
-Manually dispatch **iOS Build and Test** on the intended ref first when needed.
-The publisher itself is not a required pull-request check and must never run
-automatically.
+The readiness job can wait for an existing queued or running push check, so the
+operator does not need to time the routine dispatch. It fails immediately when
+that check completes unsuccessfully. Manually dispatch **iOS Build and Test**
+on the intended ref when no full macOS run exists. The publisher itself is not
+a required pull-request check and must never run automatically.
 
 ## Read-Only Planning
 
@@ -291,8 +293,9 @@ publisher core.
 ### Before Dispatch
 
 1. Confirm the intended commit is the current protected `main` HEAD.
-2. Confirm **iOS Build and Test** succeeded on that exact SHA and ran both macOS
-   jobs rather than reporting a scope-only success.
+2. Confirm **iOS Build and Test** for that exact SHA is queued, running, or
+   successful. The publisher waits up to 30 minutes for it, but a failed or
+   scope-only result still blocks distribution.
 3. Review `CHANGELOG.md`, the current App Store release-note source, product
    metadata, privacy/export-compliance answers, and stage-specific QA gates.
 4. Confirm no publisher run is active or queued. Do not cancel an older run to
@@ -311,9 +314,10 @@ Use this path for normal TestFlight iteration:
 5. Do not start another publisher run while upload or processing status is
    unresolved.
 
-The workflow reserves the next global build, archives exactly once, exports and
-validates the IPA, uploads that exact IPA, and retains the candidate plus upload
-evidence for 90 days.
+The workflow first waits on Ubuntu for the same-SHA compiled gate, avoiding an
+expensive macOS publisher runner while CI is pending. It then reserves the next
+global build, archives exactly once, exports and validates the IPA, uploads
+that exact IPA, and retains the candidate plus upload evidence for 90 days.
 
 ### Create and Retain an Advanced Candidate
 
@@ -594,7 +598,8 @@ and the
 
 | Failure | Operator response |
 |---|---|
-| No successful exact-SHA iOS run | Manually dispatch **iOS Build and Test** on final `main`; do not bypass the gate |
+| Exact-SHA iOS run is queued or running | Let the publisher wait up to 30 minutes; do not start another publisher |
+| No full successful exact-SHA iOS run after waiting | Manually dispatch **iOS Build and Test** on final `main`; do not bypass the gate |
 | Publisher rejects the ref/SHA | Merge through protected `main` and publish its current HEAD |
 | Another publisher holds the lock or concurrency slot | Wait for its terminal result; do not delete locks or cancel to overlap writers |
 | App Store Connect lookup/authentication fails before reservation | Correct or rotate credentials, rerun a read-only plan, then dispatch again |

@@ -32,6 +32,10 @@ TestFlight, App Store, support, and QA.
   archive/upload diagnostics without emitting a second missing-artifact error
   that hides the original failure. Successful runs still require complete IPA
   and evidence artifacts.
+- TestFlight Beta can now be dispatched while same-SHA iOS CI is queued or
+  running. A bounded Ubuntu readiness job waits for all required checks before
+  allocating a macOS publisher runner, eliminating routine dispatch timing
+  failures without bypassing unsuccessful CI.
 - Routine TestFlight iteration is now a zero-input **TestFlight Beta** dispatch:
   select `main` and click Run to allocate, archive, validate, and upload one new
   build. Planning, retained candidates, existing-candidate uploads, and

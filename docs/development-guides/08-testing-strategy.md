@@ -456,11 +456,13 @@ publisher core exposed directly for advanced operations. Both are restricted to
 the current protected `main` SHA. Do not add either as a required status check
 or use a live signed candidate as routine CI validation.
 
-Before the publisher can create a new candidate, it queries the Actions API for
-a successful **iOS Build and Test** run with the same exact SHA and independently
-requires the named unit, validation-archive, and final readiness jobs to have
-succeeded. This protects the handoff from compiled assurance to distribution;
-it does not permit the publisher to reuse or export CI's unsigned archive.
+Before the publisher can create a new candidate, a bounded Ubuntu job polls the
+Actions API for up to 30 minutes for **iOS Build and Test** on the same exact
+SHA. It independently requires the named unit, validation-archive, and final
+readiness jobs to have succeeded before allocating a macOS publisher runner.
+This protects the handoff from compiled assurance to distribution without
+forcing an operator to time the dispatch; it does not permit the publisher to
+reuse or export CI's unsigned archive.
 
 `scripts/test-ios-publisher-workflow.sh` guards the publisher at source level.
 Among other invariants, it proves:
@@ -470,6 +472,8 @@ Among other invariants, it proves:
   upload operation;
 - routine and advanced operations call one reusable publisher core rather than
   duplicating allocation or archive logic;
+- queued or running exact-SHA CI receives a bounded readiness wait on Ubuntu,
+  while completed failures remain blocking;
 - external-state and upload confirmations remain independent;
 - live allocation uses App Store Connect plus tracked/tag floors;
 - a durable reservation precedes the sole archive call site;

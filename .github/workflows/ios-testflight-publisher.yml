@@ -78,8 +78,104 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  readiness:
+    name: Wait for exact-SHA iOS production readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      contents: none
+    outputs:
+      green_run_id: ${{ steps.green-gate.outputs.run_id }}
+
+    steps:
+      - name: Wait for successful exact-SHA iOS build
+        id: green-gate
+        if: inputs.action == 'candidate' || inputs.action == 'upload'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs_json="$RUNNER_TEMP/ios-green-runs.json"
+          jobs_json="$RUNNER_TEMP/ios-green-jobs.json"
+          max_attempts=61
+          poll_seconds=30
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/$GITHUB_REPOSITORY/actions/workflows/ios-build-and-test.yml/runs?head_sha=$GITHUB_SHA&per_page=20" \
+              > "$runs_json"
+
+            green_run_id=""
+            while IFS= read -r candidate_run_id; do
+              [[ "$candidate_run_id" =~ ^[1-9][0-9]*$ ]] || continue
+              gh api \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/$GITHUB_REPOSITORY/actions/runs/$candidate_run_id/jobs?per_page=100" \
+                > "$jobs_json"
+
+              required_jobs_passed=true
+              for required_job in \
+                "Full iOS unit tests" \
+                "Current-SHA Release archive" \
+                "Production readiness"; do
+                if ! jq -e --arg name "$required_job" \
+                  '.jobs | any(.name == $name and .conclusion == "success")' \
+                  "$jobs_json" >/dev/null; then
+                  required_jobs_passed=false
+                  break
+                fi
+              done
+              if [ "$required_jobs_passed" = true ]; then
+                green_run_id="$candidate_run_id"
+                break
+              fi
+            done < <(
+              jq -r --arg sha "$GITHUB_SHA" \
+                '[.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success")] | sort_by(.id) | reverse | .[].id' \
+                "$runs_json"
+            )
+            if [[ "$green_run_id" =~ ^[1-9][0-9]*$ ]]; then
+              echo "run_id=$green_run_id" >> "$GITHUB_OUTPUT"
+              echo "Verified exact-SHA green run $green_run_id for $GITHUB_SHA."
+              exit 0
+            fi
+
+            latest_run="$(
+              jq -r --arg sha "$GITHUB_SHA" \
+                '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.id) | last | select(. != null) | [.id, .status, (.conclusion // ""), .html_url] | @tsv' \
+                "$runs_json"
+            )"
+            if [ -n "$latest_run" ]; then
+              IFS=$'\t' read -r latest_run_id latest_status latest_conclusion latest_url <<< "$latest_run"
+              if [ "$latest_status" = "completed" ]; then
+                if [ "$latest_conclusion" = "success" ]; then
+                  echo "Exact-SHA run $latest_run_id succeeded without all required macOS jobs." >&2
+                  echo "Manually dispatch iOS Build and Test on main, then run TestFlight Beta again." >&2
+                  exit 1
+                fi
+                echo "Exact-SHA iOS Build and Test run $latest_run_id completed with conclusion ${latest_conclusion:-unknown}." >&2
+                echo "$latest_url" >&2
+                exit 1
+              fi
+              echo "Waiting for exact-SHA iOS run $latest_run_id (${latest_status:-unknown}); attempt $attempt/$max_attempts."
+            else
+              echo "Waiting for an iOS Build and Test run for $GITHUB_SHA; attempt $attempt/$max_attempts."
+            fi
+
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              sleep "$poll_seconds"
+            fi
+          done
+
+          echo "Timed out after 30 minutes waiting for successful iOS Build and Test jobs for exact SHA $GITHUB_SHA." >&2
+          exit 1
+
   publish:
     name: Serialized iOS publisher
+    needs: readiness
     runs-on: macos-26
     timeout-minutes: 90
     env:
@@ -162,48 +258,6 @@ jobs:
               ;;
           esac
 
-      - name: Verify exact-SHA iOS production-readiness run
-        id: green-gate
-        if: inputs.action == 'candidate' || inputs.action == 'upload'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          runs_json="$RUNNER_TEMP/ios-green-runs.json"
-          gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/$GITHUB_REPOSITORY/actions/workflows/ios-build-and-test.yml/runs?head_sha=$GITHUB_SHA&status=success&per_page=20" \
-            > "$runs_json"
-          green_run_id="$(
-            jq -r --arg sha "$GITHUB_SHA" \
-              '[.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success")] | sort_by(.id) | last | .id // empty' \
-              "$runs_json"
-          )"
-          if ! [[ "$green_run_id" =~ ^[1-9][0-9]*$ ]]; then
-            echo "No successful iOS Build and Test run exists for exact SHA $GITHUB_SHA." >&2
-            exit 1
-          fi
-
-          jobs_json="$RUNNER_TEMP/ios-green-jobs.json"
-          gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/$GITHUB_REPOSITORY/actions/runs/$green_run_id/jobs?per_page=100" \
-            > "$jobs_json"
-          for required_job in \
-            "Full iOS unit tests" \
-            "Current-SHA Release archive" \
-            "Production readiness"; do
-            if ! jq -e --arg name "$required_job" \
-              '.jobs | any(.name == $name and .conclusion == "success")' \
-              "$jobs_json" >/dev/null; then
-              echo "Run $green_run_id did not pass required job: $required_job" >&2
-              exit 1
-            fi
-          done
-          echo "run_id=$green_run_id" >> "$GITHUB_OUTPUT"
-          echo "Verified exact-SHA green run $green_run_id for $GITHUB_SHA."
-
       - name: Download immutable existing candidate
         if: inputs.action == 'upload-existing' || inputs.action == 'retry-upload'
         env:
@@ -236,7 +290,7 @@ jobs:
         if: inputs.action != 'plan'
         env:
           PUBLISH_ACTION: ${{ inputs.action }}
-          GREEN_RUN_ID: ${{ steps.green-gate.outputs.run_id }}
+          GREEN_RUN_ID: ${{ needs.readiness.outputs.green_run_id }}
           ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
           ASC_TEAM_ID: ${{ secrets.ASC_TEAM_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}

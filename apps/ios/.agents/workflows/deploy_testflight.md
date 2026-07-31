@@ -21,8 +21,9 @@ make plan-ios-beta LATEST_ASC_BUILD=275
 For a routine TestFlight beta:
 
 1. Use the current protected `main` SHA.
-2. Require a successful exact-SHA **iOS Build and Test** run with both macOS
-   jobs and **Production readiness** passing.
+2. Ensure exact-SHA **iOS Build and Test** is queued, running, or successful.
+   The publisher waits up to 30 minutes and still requires both macOS jobs plus
+   **Production readiness** to pass.
 3. Manually dispatch the zero-input **TestFlight Beta** workflow.
 4. Record the run, artifact, immutable tags, source fingerprint, archive
    identity, and IPA SHA-256.
