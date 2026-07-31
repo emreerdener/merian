@@ -6,6 +6,14 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Insight Media Fallbacks
+
+- Video scans whose original clip is no longer available now retain one photo
+  fallback—the stored poster or middle sampled frame—instead of showing a black
+  video page. If no usable user photo or video remains, the carousel ends with
+  the existing original-photo-unavailable state after any audio, description,
+  and reference pages.
+
 ### Scientific Observation Retention
 
 - Every submitted scan now has an explicit scientific-retention contract.
@@ -20,20 +28,20 @@ TestFlight, App Store, support, and QA.
 
 ### Release Integrity
 
-- App Store Connect export now preserves the deliberately prepared project
-  build number instead of allowing Xcode's default automatic version management
-  to silently replace it. The release helper reopens the resulting IPA and
-  requires exactly one root app whose bundle ID, semantic version, build,
-  embedded revision, source fingerprint, and clean source state match the
-  reviewed archive. The Explore widget, Messages extension, and watch app must
-  carry the same version/build. Ambiguous archives, duplicate IPA entries,
-  symlinked outputs, missing provenance, and post-signing renumbering all fail
-  before an artifact can be called TestFlight-ready. Validation hashes the IPA
-  before and after inspection, rejects concurrent mutation, and reports its
-  exact SHA-256 for upload evidence. Retained Content Delivery evidence confirms
-  Xcode's rewritten `1.0.2 (272)` package uploaded successfully and entered App
-  Store Connect processing, so release recovery advances to build `273` or an
-  authoritative higher successor.
+- A manually dispatched, globally serialized publisher is now the sole
+  TestFlight build-number writer and signed archive/export/upload path. It
+  requires a green exact-SHA iOS run, computes the next build from App Store
+  Connect and durable repository reservations, injects that build into the app,
+  widget, Messages extension, and watch app at one clean archive, and burns a
+  reservation after any failed archive so a rebuild receives a higher number.
+  Export keeps `manageAppVersionAndBuildNumber=false`; archive and IPA
+  validators prove version/build and source provenance, reject missing embedded
+  products or post-signing renumbering, and retain archive identity plus final
+  IPA SHA-256 in evidence and upload tags. A deliberately retained candidate or
+  definitively failed upload can send the exact hash-verified IPA again without
+  rebuilding, and that same processed binary is promoted through internal and
+  external TestFlight and App Review. PR tests and unsigned validation archives
+  remain on the tracked build floor and allocate nothing.
 
 ### Critical Scan Reliability
 
@@ -79,12 +87,11 @@ TestFlight, App Store, support, and QA.
   uses an opacity-only label transition, and preserves its native Button
   accessibility node. This keeps the queued completion handshake discoverable as
   `ScanningStatusBadge` while retaining the strict in-window frame assertion.
-  Release preflight now distinguishes a legacy marker that predates source
-  fingerprint binding from a malformed current marker and requires fresh
-  higher-build preparation rather than suggesting that the old marker be
-  repaired by hand. Tracked per-user Xcode scheme metadata has been removed and
-  the fingerprint tool rejects any future `xcuserdata`, preventing asynchronous
-  scheme-order rewrites from invalidating a marker immediately after creation.
+  Release preflight now separates unsigned validation archives from the sole
+  serialized publisher mode and blocks Organizer/ad-hoc distribution archives.
+  Tracked per-user Xcode scheme metadata has been removed and the fingerprint
+  tool rejects any future `xcuserdata`, preventing asynchronous scheme-order
+  rewrites from changing release-source identity.
 - Scan Library recovery now distinguishes visible needs-attention rows from
   automatic queue work. Stable damaged/beta rows no longer keep the 1.5-second
   queue poll alive or repeatedly wake upload/inference reconciliation, while

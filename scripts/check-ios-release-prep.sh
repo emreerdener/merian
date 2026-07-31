@@ -3,9 +3,14 @@ set -euo pipefail
 
 fail() {
   echo "error: Release archive blocked: $*" >&2
-  echo "Run from the repo root: make prepare-ios-release VERSION=x.y.z" >&2
-  echo "Emergency fallback: BUILD=N make prepare-ios-release VERSION=x.y.z" >&2
+  echo "Distributable archives must come from the serialized 'iOS TestFlight Publisher' workflow." >&2
   exit 1
+}
+
+extract_project_setting() {
+  local key="$1"
+  local file="$2"
+  awk -v key="$key" '$1 == key ":" { print $2; found = 1; exit } END { if (!found) exit 1 }' "$file"
 }
 
 is_placeholder_revenuecat_key() {
@@ -19,118 +24,21 @@ is_placeholder_revenuecat_key() {
   esac
 }
 
-read_xcconfig_key() {
-  local key="$1"
-  local file="$2"
+validate_revenuecat_key() {
+  local key="${REVENUECAT_API_KEY:-}"
 
-  [[ -f "$file" ]] || return 1
-  awk -v key="$key" '
-    /^[[:space:]]*\/\// { next }
-    /^[[:space:]]*#/ { next }
-    {
-      line = $0
-      sub(/[[:space:]]*\/\/.*/, "", line)
-      if (line ~ "^[[:space:]]*" key "[[:space:]]*=") {
-        sub("^[[:space:]]*" key "[[:space:]]*=[[:space:]]*", "", line)
-        sub(/[[:space:]]+$/, "", line)
-        print line
-      }
-    }
-  ' "$file" | tail -n 1
-}
-
-print_revenuecat_local_state() {
-  local root="${MERIAN_PROJECT_ROOT:-${SRCROOT:-$(pwd)}}"
-  local local_config="$root/Config.local.xcconfig"
-  local local_key
-
-  if [[ ! -f "$local_config" ]]; then
-    echo "Current state: $local_config does not exist, so Xcode is falling back to the tracked development key in Config.xcconfig." >&2
-    return
+  if [[ -z "$key" ]]; then
+    fail "REVENUECAT_API_KEY is missing."
   fi
-
-  local_key="$(read_xcconfig_key REVENUECAT_API_KEY "$local_config" || true)"
-  if [[ -z "$local_key" ]]; then
-    echo "Current state: $local_config exists but has no active REVENUECAT_API_KEY line." >&2
-  elif [[ "$local_key" == test_* ]]; then
-    echo "Current state: $local_config still contains a RevenueCat Test Store key." >&2
-  elif is_placeholder_revenuecat_key "$local_key"; then
-    echo "Current state: $local_config contains a placeholder RevenueCat key, not the real production iOS SDK key." >&2
-  else
-    echo "Current state: $local_config has an active RevenueCat key; if Xcode still resolves test_, reopen the project or clean build settings." >&2
-  fi
-}
-
-report_revenuecat_issue() {
-  local message="$1"
-
-  if [[ "${MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY:-0}" == "1" ]]; then
-    echo "error: Release archive blocked: $message" >&2
-  else
-    echo "warning: Release archive is using non-production RevenueCat config: $message" >&2
-  fi
-  print_revenuecat_local_state
-  echo "Production/TestFlight builds should use the RevenueCat iOS production SDK key:" >&2
-  echo "  cp Config.local.example.xcconfig Config.local.xcconfig" >&2
-  echo "  # edit Config.local.xcconfig: REVENUECAT_API_KEY = appl_..." >&2
-  echo "Or let release prep write the ignored override:" >&2
-  echo "  REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=x.y.z" >&2
-
-  if [[ "${MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY:-0}" == "1" ]]; then
-    exit 1
-  fi
-}
-
-extract_project_setting() {
-  local key="$1"
-  local file="$2"
-  awk -v key="$key" '$1 == key ":" { print $2; found = 1; exit } END { if (!found) exit 1 }' "$file"
-}
-
-read_marker_value() {
-  local key="$1"
-  local expected_type="$2"
-  local file="$3"
-
-  ruby -rjson -e '
-    key, expected_type, path = ARGV
-    document = JSON.parse(File.binread(path))
-    exit(1) unless document.is_a?(Hash) && document.key?(key)
-
-    value = document[key]
-    valid = case expected_type
-            when "string"
-              value.is_a?(String)
-            when "integer"
-              value.is_a?(Integer)
-            when "bool"
-              value.equal?(true) || value.equal?(false)
-            else
-              false
-            end
-    exit(1) unless valid
-    puts(value)
-  ' "$key" "$expected_type" "$file" 2>/dev/null
-}
-
-marker_has_key() {
-  local key="$1"
-  local file="$2"
-
-  ruby -rjson -e '
-    key, path = ARGV
-    document = JSON.parse(File.binread(path))
-    exit(document.is_a?(Hash) && document.key?(key) ? 0 : 1)
-  ' "$key" "$file" 2>/dev/null
-}
-
-validate_marker_json() {
-  local file="$1"
-
-  ruby -rjson -e '
-    document = JSON.parse(File.binread(ARGV.fetch(0)))
-    exit(document.is_a?(Hash) ? 0 : 1)
-  ' "$file" 2>/dev/null
+  case "$key" in
+    test_*) fail "REVENUECAT_API_KEY is a RevenueCat Test Store key." ;;
+    appl_*)
+      if is_placeholder_revenuecat_key "$key"; then
+        fail "REVENUECAT_API_KEY is a placeholder, not the production iOS SDK key."
+      fi
+      ;;
+    *) fail "REVENUECAT_API_KEY must be a production iOS SDK key beginning with appl_." ;;
+  esac
 }
 
 should_enforce="false"
@@ -139,130 +47,84 @@ if [[ "${CONFIGURATION:-}" == "Release" ]]; then
     should_enforce="true"
   fi
 fi
-if [[ "${MERIAN_FORCE_RELEASE_PREP_CHECK:-}" == "1" ]]; then
-  should_enforce="true"
-fi
-
-if [[ "$should_enforce" != "true" ]]; then
-  exit 0
-fi
+[[ "${MERIAN_FORCE_RELEASE_PREP_CHECK:-0}" == "1" ]] && should_enforce="true"
+[[ "$should_enforce" == "true" ]] || exit 0
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${MERIAN_PROJECT_ROOT:-${SRCROOT:-$(cd "$script_dir/.." && pwd)}}"
-repo_root="$(cd "$repo_root" && pwd -P)" \
-  || fail "could not canonicalize project root $repo_root."
+repo_root="$(cd "$repo_root" && pwd -P)" || fail "could not canonicalize project root."
 project_yml="$repo_root/project.yml"
-
-if [[ -n "${IOS_RELEASE_PREP_MARKER:-}" ]]; then
-  if [[ "$IOS_RELEASE_PREP_MARKER" = /* ]]; then
-    marker_file="$IOS_RELEASE_PREP_MARKER"
-  else
-    marker_file="$repo_root/$IOS_RELEASE_PREP_MARKER"
-  fi
-else
-  marker_file="$repo_root/build/ios-release-prep.json"
-fi
-
-[[ -f "$project_yml" ]] || fail "missing project.yml at $project_yml."
-[[ -f "$marker_file" ]] || fail "missing release prep marker at $marker_file."
-command -v ruby >/dev/null 2>&1 || fail "ruby is unavailable."
-validate_marker_json "$marker_file" \
-  || fail "release prep marker is not a valid JSON object at $marker_file."
-
-project_version="$(extract_project_setting MARKETING_VERSION "$project_yml")" || fail "could not read MARKETING_VERSION from project.yml."
-project_build="$(extract_project_setting CURRENT_PROJECT_VERSION "$project_yml")" || fail "could not read CURRENT_PROJECT_VERSION from project.yml."
-
-marker_version="$(read_marker_value version string "$marker_file")" \
-  || fail "release prep marker has no string version."
-marker_build="$(read_marker_value build integer "$marker_file")" \
-  || fail "release prep marker has no integer build."
-if ! marker_has_key source_fingerprint "$marker_file"; then
-  fail "release prep marker at $marker_file predates release-source fingerprint binding; prepare a fresh, higher build before archiving."
-fi
-marker_source_fingerprint="$(
-  read_marker_value source_fingerprint string "$marker_file"
-)" || fail "release prep marker source_fingerprint at $marker_file must be a JSON string."
-marker_ci_validation_only="false"
-if marker_has_key ci_validation_only "$marker_file"; then
-  marker_ci_validation_only="$(
-    read_marker_value ci_validation_only bool "$marker_file"
-  )" || fail "release prep marker has a malformed ci_validation_only flag."
-fi
-
-[[ "$marker_version" == "$project_version" ]] || fail "release prep marker version $marker_version does not match project version $project_version."
-[[ "$marker_build" == "$project_build" ]] || fail "release prep marker build $marker_build does not match project build $project_build."
-[[ "$marker_source_fingerprint" =~ ^[0-9a-f]{64}$ ]] \
-  || fail "release prep marker has no valid release-source fingerprint."
-
 fingerprint_script="$repo_root/scripts/ios-release-source-fingerprint.sh"
-[[ -f "$fingerprint_script" ]] || fail "missing source fingerprint script at $fingerprint_script."
+
+[[ -f "$project_yml" ]] || fail "missing project.yml."
+[[ -f "$fingerprint_script" ]] || fail "missing release-source fingerprint tool."
+git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+  || fail "$repo_root is not a Git worktree."
+
+project_version="$(extract_project_setting MARKETING_VERSION "$project_yml")" \
+  || fail "could not read MARKETING_VERSION from project.yml."
+project_baseline="$(extract_project_setting CURRENT_PROJECT_VERSION "$project_yml")" \
+  || fail "could not read CURRENT_PROJECT_VERSION from project.yml."
+[[ "$project_version" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]] \
+  || fail "tracked MARKETING_VERSION is malformed."
+[[ "$project_baseline" =~ ^[1-9][0-9]*$ ]] \
+  || fail "tracked CURRENT_PROJECT_VERSION baseline is malformed."
 
 source_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal)"
 if [[ -n "$source_status" ]]; then
-  echo "Current source changes:" >&2
   printf '%s\n' "$source_status" >&2
-  fail "source checkout is dirty; commit the prepared source before archiving."
+  fail "source checkout is dirty."
 fi
-
-source_fingerprint="$(
-  MERIAN_PROJECT_ROOT="$repo_root" bash "$fingerprint_script"
-)"
-[[ "$source_fingerprint" == "$marker_source_fingerprint" ]] \
-  || fail "tracked source changed after release prep; prepare a fresh, higher TestFlight build."
 
 source_revision="$(git -C "$repo_root" rev-parse HEAD)"
-[[ "$source_revision" =~ ^[0-9a-f]{40,64}$ ]] \
-  || fail "git returned an invalid source revision."
+source_fingerprint="$(MERIAN_PROJECT_ROOT="$repo_root" bash "$fingerprint_script")"
+[[ "$source_revision" =~ ^[0-9a-f]{40,64}$ ]] || fail "Git returned a malformed source revision."
+[[ "$source_fingerprint" =~ ^[0-9a-f]{64}$ ]] || fail "release-source fingerprint is malformed."
 
-if [[ "$marker_ci_validation_only" == "true" ]]; then
-  marker_source_sha="$(
-    read_marker_value source_sha string "$marker_file"
-  )" || fail "CI validation marker has no string exact source revision."
-  [[ "$marker_source_sha" =~ ^[0-9a-f]{40,64}$ ]] \
-    || fail "CI validation marker has no valid exact source revision."
-  [[ "$marker_source_sha" == "$source_revision" ]] \
-    || fail "CI release marker source $marker_source_sha does not match checked-out source $source_revision."
-else
-  marker_prepared_from_sha="$(
-    read_marker_value prepared_from_sha string "$marker_file"
-  )" || fail "local release marker has no string preparation-base revision."
-  [[ "$marker_prepared_from_sha" =~ ^[0-9a-f]{40,64}$ ]] \
-    || fail "local release marker has no valid preparation-base revision."
-  git -C "$repo_root" cat-file -e "${marker_prepared_from_sha}^{commit}" \
-    >/dev/null 2>&1 \
-    || fail "local release marker preparation base $marker_prepared_from_sha is not a commit."
-  git -C "$repo_root" merge-base \
-    --is-ancestor "$marker_prepared_from_sha" "$source_revision" \
-    || fail "release commit $source_revision does not descend from preparation base $marker_prepared_from_sha."
+expected_revision="${MERIAN_EXPECTED_SOURCE_REVISION:-}"
+[[ "$expected_revision" =~ ^[0-9a-f]{40,64}$ ]] \
+  || fail "MERIAN_EXPECTED_SOURCE_REVISION is required for every Release archive."
+[[ "$source_revision" == "$expected_revision" ]] \
+  || fail "checked-out source $source_revision does not match expected source $expected_revision."
+
+if [[ "${MERIAN_IOS_VALIDATION_ARCHIVE:-0}" == "1" ]]; then
+  [[ "${MERIAN_RELEASE_PUBLISHER:-0}" != "1" ]] \
+    || fail "validation and publisher archive modes are mutually exclusive."
+  [[ "${CODE_SIGNING_ALLOWED:-}" == "NO" && "${CODE_SIGNING_REQUIRED:-}" == "NO" ]] \
+    || fail "validation archive mode is restricted to unsigned archives."
+  [[ -z "${CODE_SIGN_IDENTITY:-}" && -z "${DEVELOPMENT_TEAM:-}" ]] \
+    || fail "validation archive mode cannot use a signing identity or development team."
+  [[ "${MARKETING_VERSION:-$project_version}" == "$project_version" ]] \
+    || fail "validation archive changed MARKETING_VERSION."
+  [[ "${CURRENT_PROJECT_VERSION:-$project_baseline}" == "$project_baseline" ]] \
+    || fail "validation archive changed or allocated CURRENT_PROJECT_VERSION."
+  echo "Unsigned validation-only Release archive authorized for ${project_version} (${project_baseline}) at ${source_revision}; no build number was allocated."
+  exit 0
 fi
 
-if [[ -n "${MARKETING_VERSION:-}" && "$MARKETING_VERSION" != "$project_version" ]]; then
-  fail "Xcode resolved MARKETING_VERSION=$MARKETING_VERSION but project.yml says $project_version."
-fi
-if [[ -n "${CURRENT_PROJECT_VERSION:-}" && "$CURRENT_PROJECT_VERSION" != "$project_build" ]]; then
-  fail "Xcode resolved CURRENT_PROJECT_VERSION=$CURRENT_PROJECT_VERSION but project.yml says $project_build."
-fi
+[[ "${MERIAN_RELEASE_PUBLISHER:-0}" == "1" ]] \
+  || fail "manual Organizer and ad-hoc xcodebuild archives are unsupported."
+[[ "${MERIAN_PUBLISHER_SERIALIZED:-0}" == "1" ]] \
+  || fail "publisher concurrency lock is not asserted."
 
-if [[ "${CONFIGURATION:-}" == "Release" ]]; then
-  revenuecat_key="${REVENUECAT_API_KEY:-}"
-  if [[ -z "$revenuecat_key" ]]; then
-    report_revenuecat_issue "REVENUECAT_API_KEY is missing."
-  else
-    case "$revenuecat_key" in
-      test_*)
-        report_revenuecat_issue "REVENUECAT_API_KEY is a RevenueCat Test Store key."
-        ;;
-      appl_*)
-        if is_placeholder_revenuecat_key "$revenuecat_key"; then
-          report_revenuecat_issue "REVENUECAT_API_KEY is still a placeholder, not the real RevenueCat production iOS SDK key."
-        fi
-        ;;
-      *)
-        report_revenuecat_issue "REVENUECAT_API_KEY should be a RevenueCat iOS production key beginning with appl_."
-        ;;
-    esac
-  fi
-fi
+expected_version="${MERIAN_EXPECTED_MARKETING_VERSION:-}"
+expected_build="${MERIAN_EXPECTED_BUILD_NUMBER:-}"
+expected_fingerprint="${MERIAN_EXPECTED_SOURCE_FINGERPRINT:-}"
 
-echo "Release prep marker verified for Merian ${project_version} (${project_build}) at ${source_revision}."
+[[ "$expected_version" == "$project_version" ]] \
+  || fail "publisher version must equal tracked MARKETING_VERSION $project_version."
+[[ "$expected_build" =~ ^[1-9][0-9]*$ ]] \
+  || fail "publisher supplied no valid allocated build number."
+(( expected_build > project_baseline )) \
+  || fail "allocated build $expected_build is not higher than tracked baseline $project_baseline."
+[[ "$expected_fingerprint" == "$source_fingerprint" ]] \
+  || fail "publisher source fingerprint does not match the clean checkout."
+[[ "${MARKETING_VERSION:-}" == "$expected_version" ]] \
+  || fail "Xcode resolved MARKETING_VERSION=${MARKETING_VERSION:-missing}; expected $expected_version."
+[[ "${CURRENT_PROJECT_VERSION:-}" == "$expected_build" ]] \
+  || fail "Xcode resolved CURRENT_PROJECT_VERSION=${CURRENT_PROJECT_VERSION:-missing}; expected $expected_build."
+
+validate_revenuecat_key
+
+echo "Serialized publisher Release archive authorized for ${expected_version} (${expected_build}) at ${source_revision}."
 echo "Release source fingerprint: ${source_fingerprint}"

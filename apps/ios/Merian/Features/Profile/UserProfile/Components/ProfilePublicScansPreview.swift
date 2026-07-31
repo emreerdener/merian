@@ -55,14 +55,6 @@ struct ProfilePublicScansPreview: View {
             VStack(alignment: .leading, spacing: 14) {
                 sectionHeader
 
-                if let recoverySummary, let currentUserId {
-                    ProfilePublicationRecoverySummaryView(
-                        summary: recoverySummary,
-                        ownerUserID: currentUserId,
-                        onReview: reviewRecovery
-                    )
-                }
-
                 if isLoading && posts.isEmpty {
                     loadingGrid
                 } else if didFail && posts.isEmpty {
@@ -71,6 +63,14 @@ struct ProfilePublicScansPreview: View {
                     emptyState
                 } else {
                     scanGrid(posts: posts)
+                }
+
+                if let recoverySummary, let currentUserId {
+                    ProfilePublicationRecoverySummaryView(
+                        summary: recoverySummary,
+                        ownerUserID: currentUserId,
+                        onReview: reviewRecovery
+                    )
                 }
 
                 if shouldShowViewMoreButton {
@@ -93,6 +93,13 @@ struct ProfilePublicScansPreview: View {
         profileViewModel.socialStats?.visiblePublishedPostCount
     }
 
+    private var publishedScanCountLabel: String? {
+        guard let visiblePublishedPostCount else { return nil }
+        let noun = visiblePublishedPostCount == 1 ? "scan" : "scans"
+        let count = visiblePublishedPostCount.formatted(.number.notation(.compactName))
+        return "\(count) \(noun)"
+    }
+
     private var recoverySummary: ProfilePublicationRecoverySummary? {
         guard let stats = profileViewModel.socialStats else { return nil }
         return ProfilePublicationRecoverySummary.publishedOnly(from: stats)
@@ -113,8 +120,8 @@ struct ProfilePublicScansPreview: View {
 
             Spacer()
 
-            if let visiblePublishedPostCount {
-                Text("\(visiblePublishedPostCount.formatted(.number.notation(.compactName))) visible")
+            if let publishedScanCountLabel {
+                Text(publishedScanCountLabel)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
             } else if profileViewModel.isLoadingSocialStats {
@@ -190,7 +197,7 @@ struct ProfilePublicScansPreview: View {
             isLibraryPresented = true
         } label: {
             HStack(spacing: 4) {
-                Text("View more scans")
+                Text("View all scans")
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .bold))
             }

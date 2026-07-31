@@ -1,16 +1,17 @@
-.PHONY: help xcodegen prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-project-resources test-ios-versioning test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen plan-ios-beta prepare-ios-release export-ios-release validate-ios-project validate-ios-versioning test-ios-project-resources test-ios-versioning test-ios-publisher-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
 help:
 	@printf "Available targets:\n"
 	@printf "  make xcodegen                         Regenerate Merian.xcodeproj from project.yml\n"
-	@printf "  make prepare-ios-release VERSION=x.y.z Prepare a TestFlight release version/build\n"
-	@printf "  make export-ios-release               Export the latest prepared archive for App Store Connect\n"
+	@printf "  make plan-ios-beta LATEST_ASC_BUILD=N Show the no-write beta allocation/archive/upload plan\n"
+	@printf "  GitHub Actions > iOS TestFlight Publisher is the sole candidate/upload entry point\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-project-resources       Test adversarial generated-project phase fixtures\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
+	@printf "  make test-ios-publisher-workflow      Check serialized manual publisher workflow invariants\n"
 	@printf "  make test-ios-ci-tooling              Test portable iOS CI workflow/result invariants\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
 	@printf "  make generate-edge-dto-contract       Regenerate Identify Swift DTOs from the executable contract\n"
@@ -27,11 +28,15 @@ help:
 xcodegen:
 	xcodegen generate
 
+plan-ios-beta:
+	LATEST_ASC_BUILD="$(LATEST_ASC_BUILD)" bash scripts/publish-ios-beta.sh --dry-run
+
 prepare-ios-release:
-	bash scripts/prepare-ios-release.sh
+	@bash scripts/prepare-ios-release.sh
 
 export-ios-release:
-	bash scripts/export-ios-release.sh
+	@printf "error: standalone release export is retired; use the iOS TestFlight Publisher workflow.\n" >&2
+	@exit 2
 
 validate-ios-project:
 	bash scripts/check-ios-project-resources.sh
@@ -45,9 +50,13 @@ test-ios-project-resources:
 test-ios-versioning:
 	bash scripts/test-ios-versioning.sh
 
+test-ios-publisher-workflow:
+	bash scripts/test-ios-publisher-workflow.sh
+
 test-ios-ci-tooling:
 	bash scripts/test-check-ios-project-resources.sh
 	bash scripts/test-ios-versioning.sh
+	bash scripts/test-ios-publisher-workflow.sh
 	bash scripts/test-ci-detect-ios-build-source-changes.sh
 	bash scripts/test-ios-build-and-test-workflow.sh
 	bash scripts/test-extract-ios-test-failure-diagnostics.sh

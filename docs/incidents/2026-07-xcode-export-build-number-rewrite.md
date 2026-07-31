@@ -1,8 +1,8 @@
 # Xcode Export Build-Number Rewrite
 
-**Status:** Root cause identified and the repository export path remediated;
-fresh globally higher hosted, signed-export, upload, and device evidence remains
-required.
+**Status:** Repository prevention is implemented; the incident remains open
+until a fresh globally higher publisher-signed export, upload, processing, and
+physical-device evidence chain satisfies the closure gates below.
 
 **Observed:** 2026-07-30
 
@@ -100,48 +100,75 @@ first-party component mismatch, missing provenance, duplicate ZIP entries, and
 multiple root apps. Its integration fixture drives the complete export helper
 with a fake Xcode export and proves a renumbered output is rejected.
 
+### Systemic Prevention
+
+Fixing export metadata alone would still leave build allocation, local archive
+selection, signing, and upload as separable operations. The repository now also
+uses one manually dispatched **iOS TestFlight Publisher** as the sole
+distributable writer. The new path:
+
+1. requires protected `main` and a successful exact-SHA compiled iOS gate;
+2. serializes every candidate with a global workflow concurrency group;
+3. queries the authoritative App Store Connect sequence and combines it with
+   the tracked floor and immutable repository reservations;
+4. pushes `ios-build-allocations/<build>` before the only archive invocation;
+5. leaves the checkout unchanged and injects the build only into that archive;
+6. validates and hashes the archive before and after export;
+7. validates and hashes the final signed IPA before upload;
+8. records annotated candidate and upload tags plus retained structured
+   evidence; and
+9. permits a retry only for the identical IPA after App Store Connect
+   definitively reports `Failed`.
+
+The tracked release-prep command now hard-fails, the export helper is
+publisher-bound to one explicit archive, and the former agent Fastlane recipe
+has been replaced by a pointer to the canonical runbook. Pull-request and
+unsigned validation archives remain build-number-neutral.
+
 ## Safe Recovery
 
 Build `272` is consumed: Content Delivery uploaded the package successfully and
-App Store Connect accepted it for processing. Prepare from that authoritative
-global sequence:
+App Store Connect accepted it for processing. The old tracked prep/marker
+recovery below has been retired. Use a read-only plan to inspect the current
+sequence:
 
 ```bash
-LATEST_ASC_BUILD=272 make prepare-ios-release VERSION=1.0.2
+make plan-ios-beta LATEST_ASC_BUILD=272
 ```
 
-App Store Connect API credentials are preferred because they remove the need
-for a manual anchor. The expected successor is `273` unless App Store Connect
-already reports something higher. Commit the full generated change, wait for
-the exact-SHA hosted iOS gate, create a fresh signed archive, and use
-`make export-ios-release`. Do not hand-edit the marker, relabel an IPA, or reuse
-archive `236`.
+For a real successor, wait for the exact-SHA iOS gate and manually dispatch the
+serialized **iOS TestFlight Publisher**. It queries App Store Connect, combines
+that value with the repository floor and durable reservation tags, allocates a
+globally higher build, archives exactly once, and exports with automatic
+renumbering disabled. Do not relabel an IPA, reuse archive `236`, or bypass the
+publisher.
 
 ## Closure Gates
 
 This incident is not closed until one exact remediated revision has all of:
 
-1. a fresh release-prep marker at build `273` or an authoritative higher
-   successor;
+1. a durable publisher reservation for an authoritative globally higher build;
 2. a green hosted complete unit target, exact queued-scan XCUI smoke, and
    current-SHA Release archive;
-3. a clean locally signed archive with the intended revision and fingerprint;
-4. a successful checked-in export whose validator reports the exact prepared
-   version/build and provenance;
-5. the validator-reported IPA SHA-256 retained independently, plus an App Store
-   Connect processed build matching that validator output; and
+3. a clean publisher-signed archive with the intended revision, fingerprint,
+   and retained archive identity;
+4. a successful publisher-bound export whose validator reports the exact
+   allocated version/build and provenance with Xcode renumbering disabled;
+5. immutable evidence and upload tags retaining the final IPA SHA-256, plus an
+   App Store Connect processed build matching that validator output; and
 6. the physical TestFlight scan submission/analysis, reconnecting offline
    queue, Field Chat, existing/new Explore sharing, push, and purchase smokes
    required by the release runbooks.
 
-If Xcode cannot preserve the prepared build with automatic management disabled,
-stop the release and prepare a fresh higher build after determining the
+If Xcode cannot preserve the allocated build with automatic management disabled,
+stop the release and create a fresh higher build after determining the
 authoritative App Store Connect maximum. Re-enabling automatic mutation is not
 a rollback.
 
 ## Related Documentation
 
 - [iOS release versioning](../development-guides/14-ios-release-versioning.md)
+- [iOS release publisher architecture](../system-architecture/09-ios-release-publisher.md)
 - [Testing strategy](../development-guides/08-testing-strategy.md)
 - [Queued Insight handoff incident](./2026-07-queued-insight-same-id-handoff-regression.md)
 - [Failed retryable scan incident](./2026-07-failed-retryable-scan-status-upload-deadlock.md)

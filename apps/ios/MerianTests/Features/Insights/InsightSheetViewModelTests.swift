@@ -2007,7 +2007,7 @@ struct InsightSheetViewModelTests {
         #expect(media.items.contains(.image(unavailablePath)))
     }
 
-    @Test func testFailedUserImageRemainsWithoutUsableReferences() {
+    @Test func testFailedOnlyUserImageResolvesToFinalZeroState() {
         let unavailablePath = "documents/unavailable.webp"
 
         for referenceState in [ReferenceState.empty, .loading] {
@@ -2026,11 +2026,13 @@ struct InsightSheetViewModelTests {
                 loadedReferenceIdentifiers: []
             )
 
-            #expect(visiblePages.contains { $0.imageIdentifier == unavailablePath })
+            #expect(!visiblePages.contains { $0.imageIdentifier == unavailablePath })
+            #expect(visiblePages.last?.id == "user-media-unavailable")
+            #expect(visiblePages.last?.isUserMediaZeroState == true)
         }
     }
 
-    @Test func testFailedUserImageRemainsUntilAReferenceLoads() {
+    @Test func testFailedOnlyUserImageShowsZeroStateWhileReferenceLoads() {
         let unavailablePath = "documents/unavailable.webp"
         let referenceURL = "https://example.com/reference.webp"
         let media = ActiveScanMedia(
@@ -2050,11 +2052,12 @@ struct InsightSheetViewModelTests {
             loadedReferenceIdentifiers: []
         )
 
-        #expect(visiblePages.contains { $0.imageIdentifier == unavailablePath })
+        #expect(!visiblePages.contains { $0.imageIdentifier == unavailablePath })
         #expect(visiblePages.contains { $0.imageIdentifier == referenceURL })
+        #expect(visiblePages.last?.id == "user-media-unavailable")
     }
 
-    @Test func testFailedUserImageReturnsWhenEveryReferenceFails() {
+    @Test func testFailedUserImageStaysRemovedWhenEveryReferenceFails() {
         let unavailablePath = "documents/unavailable.webp"
         let referenceURL = "https://example.com/reference.webp"
         let media = ActiveScanMedia(
@@ -2080,7 +2083,8 @@ struct InsightSheetViewModelTests {
         )
 
         #expect(!hiddenPages.contains { $0.imageIdentifier == unavailablePath })
-        #expect(restoredPages.contains { $0.imageIdentifier == unavailablePath })
+        #expect(!restoredPages.contains { $0.imageIdentifier == unavailablePath })
+        #expect(restoredPages.last?.id == "user-media-unavailable")
     }
 
     @Test func testRemovedSelectedUserImagePrefersLoadedReference() {
@@ -2137,6 +2141,132 @@ struct InsightSheetViewModelTests {
             "liveImage-\(liveImageData.hashValue)",
             "image-\(unavailablePath)"
         ])
+    }
+
+    @Test func testUnavailableVideoReplacesInPlaceWithZoomableFallbackImage() {
+        let videoPath = "https://cdn.example.com/missing.mp4"
+        let posterPath = "https://cdn.example.com/poster.webp"
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(items: [
+                .video(videoPath, fallbackImage: .imagePath(posterPath))
+            ]),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [],
+            loadedReferenceIdentifiers: [],
+            unavailableVideoPageIDs: ["video-\(videoPath)"]
+        )
+        let fallbackPage = visiblePages.first
+        let presentation = InsightImageGalleryBuilder.presentation(
+            items: visiblePages.compactMap(\.galleryItem),
+            selectedCarouselPageID: fallbackPage?.id
+        )
+        let resolvedSelection = CarouselSelectionResolver.selectedIndex(
+            preserving: sourcePages.first?.id,
+            previousSelectedIndex: 0,
+            in: visiblePages,
+            loadedReferenceIdentifiers: []
+        )
+
+        #expect(fallbackPage?.id == "video-\(videoPath)")
+        #expect(fallbackPage?.mediaKind == .visual)
+        #expect(fallbackPage?.imageIdentifier == posterPath)
+        #expect(fallbackPage?.galleryItem?.source == .imagePath(posterPath))
+        #expect(presentation?.items.map(\.source) == [.imagePath(posterPath)])
+        #expect(presentation?.initialSelectedIndex == 0)
+        #expect(resolvedSelection == 0)
+    }
+
+    @Test func testUnavailableVideoWithoutFallbackAppendsZeroStateAfterOtherPages() {
+        let videoPath = "https://cdn.example.com/missing.mp4"
+        let referenceURL = "https://cdn.example.com/reference.webp"
+        let context = ObservationContext(freeText: "Observed after sunset")
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(
+                items: [
+                    .video(videoPath),
+                    .audio("documents/call.wav"),
+                    .description(context)
+                ],
+                referenceState: .loaded([referenceURL])
+            ),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [],
+            loadedReferenceIdentifiers: [referenceURL],
+            unavailableVideoPageIDs: ["video-\(videoPath)"]
+        )
+
+        #expect(visiblePages.map(\.id) == [
+            "audio-documents/call.wav",
+            "description-\(context.serialized())",
+            "reference-\(referenceURL)",
+            "user-media-unavailable"
+        ])
+        #expect(visiblePages.last?.galleryItem == nil)
+        #expect(InsightImageGalleryBuilder.presentation(
+            items: visiblePages.compactMap(\.galleryItem),
+            selectedCarouselPageID: visiblePages.last?.id
+        ) == nil)
+    }
+
+    @Test func testAudioDescriptionAndLoadingPagesStillEndWithUserMediaZeroState() {
+        let context = ObservationContext(freeText: "A distant call")
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(
+                items: [.audio("documents/call.wav"), .description(context)],
+                referenceState: .loading
+            ),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [],
+            loadedReferenceIdentifiers: []
+        )
+
+        #expect(visiblePages.map(\.id) == [
+            "audio-documents/call.wav",
+            "description-\(context.serialized())",
+            "reference-loading",
+            "user-media-unavailable"
+        ])
+    }
+
+    @Test func testFailedVideoFallbackAlsoResolvesToFinalZeroState() {
+        let videoPath = "https://cdn.example.com/missing.mp4"
+        let posterPath = "https://cdn.example.com/missing-poster.webp"
+        let sourcePages = CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(items: [
+                .video(videoPath, fallbackImage: .imagePath(posterPath))
+            ]),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let visiblePages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourcePages,
+            unavailableIdentifiers: [posterPath],
+            loadedReferenceIdentifiers: [],
+            unavailableVideoPageIDs: ["video-\(videoPath)"]
+        )
+
+        #expect(visiblePages.map(\.id) == ["user-media-unavailable"])
+        #expect(visiblePages[0].isUserMediaZeroState)
     }
 
     @Test func testReferenceDeduplicationIgnoresNaturebookURLDecorationsButKeepsStrictExternalIdentity() {

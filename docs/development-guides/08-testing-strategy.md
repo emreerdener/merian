@@ -437,6 +437,51 @@ keep that trigger if the merge queue is enabled. A repository administrator
 should verify the rule with one unrelated pull request and one iOS pull request
 after any workflow or ruleset change.
 
+### Serialized Publisher Contract
+
+`.github/workflows/ios-testflight-publisher.yml` is a distribution workflow,
+not a pull-request test lane. It is manual-only, restricted to the current
+protected `main` SHA, and globally serialized. Do not add it as a required
+status check or use a live signed candidate as routine CI validation.
+
+Before the publisher can create a new candidate, it queries the Actions API for
+a successful **iOS Build and Test** run with the same exact SHA and independently
+requires the named unit, validation-archive, and final readiness jobs to have
+succeeded. This protects the handoff from compiled assurance to distribution;
+it does not permit the publisher to reuse or export CI's unsigned archive.
+
+`scripts/test-ios-publisher-workflow.sh` guards the publisher at source level.
+Among other invariants, it proves:
+
+- there is no automatic trigger and the global concurrency lock is retained;
+- external-state and upload confirmations remain independent;
+- live allocation uses App Store Connect plus tracked/tag floors;
+- a durable reservation precedes the sole archive call site;
+- validation archives and publisher archives cannot impersonate each other;
+- export disables Xcode automatic version/build management;
+- archive and IPA identities are retained in structured evidence and tags;
+- existing-candidate upload and retry do not archive or export again;
+- API, certificate, and repository credentials are constrained to the trusted
+  workflow step; and
+- the architecture, operator runbook, and agent entry point retain one writer
+  and contain no actionable Fastlane or retired local release path.
+
+`scripts/test-ios-versioning.sh` supplies generated artifacts and isolated Git
+remotes to exercise the runtime contracts without contacting Apple. Its
+publisher fixtures cover a failed archive that consumes one reservation, a
+higher successor, immutable evidence tags, exact-IPA existing upload with zero
+new archive/export calls, hash tampering, and explicit failed-upload retry
+authorization. IPA fixtures also reproduce the observed Xcode post-archive
+renumbering and require it to fail validation.
+
+Repository source tests cannot prove external repository tag rules, current
+Apple credentials, signing profiles, Transporter delivery, processing, or
+physical-device behavior. Administrators verify rules and credentials with a
+read-only publisher `plan`; release managers collect live candidate/upload and
+device evidence only during an authorized release. Follow the
+[operator runbook](./14-ios-release-versioning.md) for setup, artifact names,
+evidence inspection, retries, promotion, and emergency recovery.
+
 Successful `main` and manual runs retain the unsigned validation archive for
 seven days. Every run retains compact SHA/toolchain/test or archive evidence for
 fourteen days; failed runs also retain the raw `.xcresult`, package-resolution
@@ -451,10 +496,10 @@ make test-ios-ci-tooling
 
 That portable target tests the fail-closed scope detector, immutable action
 pins, exact-SHA checkout, workflow invocation of generated-project source
-membership, full-target unit-test selectors, merge-queue trigger, Release
-archive, embedded source-provenance and product/dSYM checks, stale
-release-marker rejection after tracked-source changes, typed local-marker
-preparation ancestry, typed CI-marker exact-SHA enforcement, malformed identity
+membership, full-target unit-test selectors, merge-queue trigger, validation-only
+Release archive, embedded source-provenance and product/dSYM checks, disjoint CI
+and serialized-publisher archive modes, exact-SHA/fingerprint enforcement,
+durable failed-archive allocation and higher-build successor, malformed identity
 rejection, rejection of hidden `assume-unchanged`/`skip-worktree` source state,
 main-target-only preflight/provenance phase attachment, generated-phase
 cardinality and ordering, canonical shell commands, complete-unit and exact
@@ -466,14 +511,15 @@ unconditional final decision, including an exact machine-readable
 generated-project fixtures explicitly detach,
 duplicate, reorder, and replace the release phases. Generated IPA fixtures
 exercise a valid export and exact digest, the observed archive-to-IPA build
-rewrite, dirty and mismatched provenance, extension/watch build drift, missing
-metadata, duplicate ZIP entries, and multiple root apps; an integration fixture
-drives the complete export helper and rejects a renumbered result. The hosted
-project-guardrail lane runs this target on Ubuntu without booting a simulator.
-JSON release-marker
-validation uses the same strict Ruby parser on Linux and macOS. The portable
-provenance and IPA fixtures inject a narrow `plistlib` reader/editor; macOS runs
-additionally exercise the real Apple tool. Production archives retain
+rewrite, dirty and mismatched provenance, extension/watch build drift,
+duplicate ZIP entries, archive content identity, one failed archive reservation
+followed by a higher successful build, immutable evidence tags, exact-IPA
+existing upload with no archive or export, tamper rejection, and explicit retry
+confirmation. The hosted project-guardrail lane runs this target on Ubuntu
+without booting a simulator. Portable JSON evidence validation uses the same
+strict Ruby parser on Linux and macOS. The provenance and IPA fixtures inject a
+narrow `plistlib` reader/editor; macOS runs additionally exercise the real Apple
+tool. Production archives retain
 `/usr/libexec/PlistBuddy` as the fail-closed default. This lane does not replace
 compilation or simulator execution.
 

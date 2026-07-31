@@ -77,6 +77,31 @@ done
 require_grep 'INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)";' "$PROJECT_FILE" "Watch target must inherit generated CFBundleShortVersionString from MARKETING_VERSION."
 require_grep 'INFOPLIST_KEY_CFBundleVersion = "$(CURRENT_PROJECT_VERSION)";' "$PROJECT_FILE" "Watch target must inherit generated CFBundleVersion from CURRENT_PROJECT_VERSION."
 
+publisher_script="scripts/publish-ios-beta.sh"
+export_script="scripts/export-ios-release.sh"
+preflight_script="scripts/check-ios-release-prep.sh"
+publisher_workflow=".github/workflows/ios-testflight-publisher.yml"
+validation_workflow=".github/workflows/ios-build-and-test.yml"
+
+for release_file in "$publisher_script" "$export_script" "$preflight_script" "$publisher_workflow" "$validation_workflow"; do
+  [[ -f "$release_file" ]] || fail "Missing canonical release artifact: $release_file"
+done
+
+require_grep 'workflow_dispatch:' "$publisher_workflow" "iOS publisher must be manually dispatched."
+require_grep 'group: ios-testflight-publisher' "$publisher_workflow" "iOS publisher workflow must use the global publisher concurrency lock."
+require_grep 'cancel-in-progress: false' "$publisher_workflow" "An in-progress publisher must never be cancelled by a later dispatch."
+require_grep 'MERIAN_IOS_VALIDATION_ARCHIVE=1' "$validation_workflow" "Unsigned CI archives must explicitly remain validation-only."
+require_grep 'manageAppVersionAndBuildNumber' "$export_script" "Publisher export must explicitly control Xcode version management."
+require_grep '<false/>' "$export_script" "Publisher export must disable Xcode version/build renumbering."
+require_grep 'ios-build-allocations/' "$publisher_script" "Publisher must preserve durable build-number reservations."
+require_grep 'ios-builds/' "$publisher_script" "Publisher must preserve immutable archive/IPA evidence tags."
+require_grep 'prepare-ios-release is retired' scripts/prepare-ios-release.sh "Legacy tracked-build release prep must remain retired."
+
+if grep -Eq '(agvtool[[:space:]]+(new-version|next-version)|write_project_versions|ios-release-prep[.]json)' \
+  "$publisher_script" "$export_script" "$preflight_script" scripts/prepare-ios-release.sh; then
+  fail "Canonical release path contains a competing project/build writer or stale local-marker flow."
+fi
+
 lowercase_project_refs="$(grep -REIn -- '-project[[:space:]]+merian[.]xcodeproj' Makefile scripts .github 2>/dev/null || true)"
 if [[ -n "$lowercase_project_refs" ]]; then
   echo "$lowercase_project_refs" >&2

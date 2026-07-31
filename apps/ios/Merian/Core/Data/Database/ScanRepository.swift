@@ -522,21 +522,19 @@ actor HistoricalDatabaseActor {
                 )
 
                 let existingMediaSnapshot = existing.capturedMediaSnapshot
-                let existingMediaPaths = existingMediaSnapshot.thumbnailImagePaths + existingMediaSnapshot.videoPaths
                 let newItems = CapturedMediaSnapshot.cloudHydratedItems(
                     capturedMediaItems: res.captured_media,
                     imageStorageURLs: res.image_storage_urls,
                     videoStorageURLs: res.video_storage_urls
                 )
-                if !newItems.isEmpty {
-                    let newMediaSnapshot = CapturedMediaSnapshot(items: newItems)
-                    let hasRemoteMedia = existingMediaPaths.contains { $0.starts(with: "http://") || $0.starts(with: "https://") }
-                    let onlyLocalOrMissingMedia = existingMediaPaths.isEmpty || !hasRemoteMedia
-                    let repairsMissingVideo = !existingMediaSnapshot.summary.hasVideo && newMediaSnapshot.summary.hasVideo
-                    if onlyLocalOrMissingMedia || repairsMissingVideo {
-                        existing.replaceCapturedMedia(with: newItems)
-                        chunkDidUpdate = true
-                    }
+                if CloudMediaReplacementPolicy.shouldReplace(
+                    existing: existingMediaSnapshot,
+                    hydratedItems: newItems,
+                    imageStorageURLs: res.image_storage_urls,
+                    videoStorageURLs: res.video_storage_urls
+                ) {
+                    existing.replaceCapturedMedia(with: newItems)
+                    chunkDidUpdate = true
                 }
                 if existing.referenceImageUrl != dictRefImage {
                     existing.referenceImageUrl = dictRefImage; chunkDidUpdate = true

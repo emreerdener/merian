@@ -190,6 +190,16 @@ awk -v prefix="Payload/${expected_app_bundle_name}/" '
   }
 ' "$listing" > "$component_entries"
 
+required_component_entries=(
+  "Payload/${expected_app_bundle_name}/PlugIns/MerianExploreWidget.appex/Info.plist"
+  "Payload/${expected_app_bundle_name}/PlugIns/MerianMessagesExtension.appex/Info.plist"
+  "Payload/${expected_app_bundle_name}/Watch/MerianWatch.app/Info.plist"
+)
+for required_component_entry in "${required_component_entries[@]}"; do
+  grep -Fxq -- "$required_component_entry" "$component_entries" \
+    || fail "IPA is missing required embedded component: ${required_component_entry}."
+done
+
 component_count=0
 while IFS= read -r component_entry; do
   [[ -n "$component_entry" ]] || continue
@@ -198,6 +208,9 @@ while IFS= read -r component_entry; do
   extract_plist "$component_entry" "$component_info"
   verify_component_version "$component_entry" "$component_info"
 done < "$component_entries"
+
+(( component_count >= ${#required_component_entries[@]} )) \
+  || fail "IPA contains fewer embedded components than required."
 
 [[ -f "$ipa_path" && ! -L "$ipa_path" ]] \
   || fail "IPA changed file type while it was being validated: ${ipa_path}."

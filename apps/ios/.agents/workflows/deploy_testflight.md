@@ -1,26 +1,38 @@
 ---
-description: TestFlight Beta Deployment via Fastlane
+description: Publish an immutable iOS candidate with the serialized GitHub Actions publisher
 ---
 
-# 🚀 Merian Fastlane Automated Deployment
+# Publish Naturebook to TestFlight
 
-This project uses `fastlane` to bypass manual Xcode archives. Since we use `xcodegen`, Fastlane ensures the `.xcodeproj` is generated before it begins its sequence, incrementing the build number dynamically from App Store Connect, signing the executable, and initiating the upload.
+Use the repository's canonical
+[iOS publishing runbook](../../../../docs/development-guides/14-ios-release-versioning.md).
+This file is an agent entry point, not a second deployment procedure.
 
-## Step 1: Prepare Authentication
-You must be authenticated with Apple's developer servers locally to run this.
-1. If you haven't yet, log in to your Apple ID locally:
+Never increment a release build locally, archive with Organizer, run `agvtool`,
+invoke a Fastlane beta lane, prepare a versioning commit, or export whichever
+archive happens to be newest.
+
+For a read-only local estimate:
+
 ```bash
-fastlane spaceauth
-```
-2. Or have your App Store Connect API keys exported into your terminal (`FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD`).
-
-## Step 2: Triggering the Deployment
-
-// turbo-all
-```bash
-cd fastlane
-fastlane beta
+make plan-ios-beta LATEST_ASC_BUILD=275
 ```
 
-## Step 3: Wait for Processing
-After the console indicates the `.ipa` has been successfully uploaded, App Store Connect will put it into a `Processing` state. Once complete, it will be automatically distributed to your Internal Testers list.
+For a real candidate:
+
+1. Use the current protected `main` SHA.
+2. Require a successful exact-SHA **iOS Build and Test** run with both macOS
+   jobs and **Production readiness** passing.
+3. Manually dispatch **iOS TestFlight Publisher** with the runbook's exact
+   action, inputs, and confirmations.
+4. Record the run, artifact, immutable tags, source fingerprint, archive
+   identity, and IPA SHA-256.
+5. If uploading later or retrying a definitive failed upload, use the exact
+   retained artifact chain. Never rebuild the build number.
+6. Promote the same processed binary through internal TestFlight, external
+   TestFlight, and App Review.
+
+If any source, dependency, configuration, signing/export setting, or rebuilt
+byte changes, create a new candidate and let the publisher allocate a higher
+global build. Treat an unknown upload result as consumed until App Store
+Connect proves it failed.

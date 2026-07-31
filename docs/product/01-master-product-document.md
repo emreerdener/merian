@@ -37,7 +37,7 @@ when they affect product direction, and are clearly labeled.
 
 ## Snapshot and precedence
 
-- This edition reflects the visible monorepo on 22 July 2026.
+- This edition reflects the visible monorepo on 31 July 2026.
 - Current source code, schemas, migrations, configuration, tests, and release
   guardrails take precedence over older prose documents.
 - Where the repository contains conflicting prose, executable behavior and the
@@ -53,8 +53,8 @@ when they affect product direction, and are clearly labeled.
 | -------------------------- | ------------------------ |
 | Public product             | Naturebook               |
 | Subscription               | Naturebook Pro           |
-| iOS marketing version      | 1.0.2                    |
-| iOS build                  | 235                      |
+| iOS marketing version      | 1.0.3                    |
+| iOS tracked build floor    | 275                      |
 | Minimum iOS deployment     | iOS 17.2                 |
 | Device family              | iPhone                   |
 | SwiftData schema           | MerianSchemaV50          |
@@ -981,6 +981,23 @@ Each release should exercise at minimum:
 Apple Watch capture should not enter the release-critical "complete" set until
 the phone receiver and end-to-end tests exist.
 
+## 16.4 iOS distribution contract
+
+Distributable iOS builds use one manually dispatched, globally serialized
+publisher after compiled CI passes on the exact protected `main` SHA. Marketing
+versions advance through reviewed release trains; TestFlight build numbers
+increase globally and are allocated from App Store Connect plus durable
+repository reservations. One allocated build maps to one signed archive and one
+final IPA hash. Rebuilt or changed bytes receive a higher build, while the same
+processed binary advances through internal TestFlight, external TestFlight, and
+App Review.
+
+This contract is an engineering provenance requirement, not a product-readiness
+shortcut. Device, purchase/restore, push, privacy, migration, and critical
+journey acceptance remain required. See the
+[publisher architecture](../system-architecture/09-ios-release-publisher.md)
+and [operator runbook](../development-guides/14-ios-release-versioning.md).
+
 # 17. Roadmap and release posture
 
 ## 17.1 General availability foundation
@@ -1142,6 +1159,8 @@ repository-relative.
 ## Product identity and release
 
 - `docs/system-architecture/08-public-brand-compatibility.md`
+- `docs/system-architecture/09-ios-release-publisher.md`
+- `docs/development-guides/14-ios-release-versioning.md`
 - `project.yml`
 - `README.md`
 - `apps/ios/Merian/Models/Aliases.swift`

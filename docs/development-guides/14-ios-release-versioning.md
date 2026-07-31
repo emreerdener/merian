@@ -1,438 +1,604 @@
-# iOS Release Versioning
+# iOS Release Versioning and TestFlight Publishing
 
-Naturebook uses semantic app versions and globally increasing TestFlight build
-numbers. The Xcode project, scheme, targets, and build artifacts intentionally
-retain the Merian engineering identity:
+Naturebook has one supported path for a distributable iOS build: manually
+dispatch **iOS TestFlight Publisher** in GitHub Actions. Xcode Organizer,
+`agvtool`, tracked release-prep commits, Fastlane beta lanes, and separate
+“export the newest archive” operations are not release procedures.
 
-- `MARKETING_VERSION` is the public app version, for example `1.0.1`.
-- `CURRENT_PROJECT_VERSION` is the build number uploaded to App Store Connect.
-- `project.yml` is the tracked source of truth for both values.
+The current release train is tracked as `MARKETING_VERSION: 1.0.3` in
+`project.yml`. Change that value in an ordinary reviewed pull request only when
+starting a new public version train. `CURRENT_PROJECT_VERSION` in that file is
+a repository floor used by development and validation builds; it is not edited
+for each beta candidate. The publisher injects the allocated build at archive
+time into the app, Explore widget, Messages extension, and watch app.
 
-The iOS app, Explore widget, Messages extension, and watch app must inherit
-these values through build settings. Do not hardcode version strings in
-`Info.plist` files or update only `Merian.xcodeproj`; XcodeGen will overwrite
-generated-project-only changes.
+Apple associates an upload with the bundle ID, marketing version, and build
+number. Naturebook deliberately uses a globally increasing build number across
+marketing versions. See Apple's current
+[build upload guidance](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/).
 
-## Daily Development
+The stable design and trust-boundary rationale live in the
+[iOS release publisher architecture](../system-architecture/09-ios-release-publisher.md).
+This document is the operator source of truth.
 
-Local debug builds do not increment the version or build number. Regenerate the
-project after changing project structure or build settings:
+## Contract at a Glance
+
+| Concern | Repository policy |
+|---|---|
+| Marketing version | Reviewed `MARKETING_VERSION` release train in `project.yml` |
+| Development build | Tracked `CURRENT_PROJECT_VERSION` floor; no per-beta commits |
+| Distribution build | Next global number allocated by the serialized publisher |
+| Source | Clean, protected `main` HEAD that passed the exact-SHA compiled gate |
+| Archive | One signed archive invocation per allocated build |
+| Export | `manageAppVersionAndBuildNumber=false`; Xcode may not renumber |
+| Evidence | Source fingerprint, archive identity, IPA SHA-256, tags, and receipt |
+| Failed archive | Keep the reservation and allocate a higher build next time |
+| Upload retry | Same hash-verified IPA, only after App Store Connect says `Failed` |
+| Promotion | One processed binary through internal/external TestFlight and App Review |
+
+Gaps in the global build sequence are expected. Reusing an identity for rebuilt
+or changed bytes is forbidden. Promotion uses the same processed binary through
+internal TestFlight, external TestFlight, and App Review.
+
+## One-Time Repository and Apple Setup
+
+A repository administrator and release manager must complete this setup before
+the first live candidate and repeat the verification after changing repository
+rules, Apple credentials, signing assets, or the publisher workflow.
+
+### Protected Main and Required CI
+
+Protect `main` and require exactly this stable check for pull requests and the
+merge queue:
+
+```text
+iOS Build and Test / Production readiness
+```
+
+Do not require the conditional macOS jobs individually. They correctly report
+as skipped when an unrelated pull request needs only the stable final decision.
+The full setup and verification procedure is in
+[Repository Rule Setup](./08-testing-strategy.md#repository-rule-setup).
+
+The repository or organization Actions policy must allow the publisher's
+declared `actions: read` and `contents: write` permissions. Keep the workflow
+manual-only and preserve its global `ios-testflight-publisher` concurrency
+group with `cancel-in-progress: false`.
+
+### Immutable Release Tags
+
+Configure repository tag rules for all three namespaces:
+
+```text
+ios-build-allocations/*
+ios-builds/*
+ios-uploads/*
+```
+
+The policy must allow the publisher to create a new tag, but prevent ordinary
+updates, force-pushes, and deletions. Do not grant a broad bypass that lets a
+second automation or routine maintainer rewrite release history. Losing an
+allocation tag can make an archived-but-never-uploaded build appear reusable.
+
+The namespaces have separate purposes:
+
+| Namespace | Type | Meaning |
+|---|---|---|
+| `ios-build-allocations/<build>` | Lightweight | Global number was reserved before archive |
+| `ios-builds/<version>-<build>` | Annotated | Signed candidate maps to source/archive/IPA identity |
+| `ios-uploads/<version>-<build>` | Annotated | Transporter succeeded for that exact IPA |
+
+Never delete a reservation because a build failed. That gap is the durable
+record that the number must not be selected again.
+
+### Apple and GitHub Credentials
+
+Create an App Store Connect API key with the least privilege that can inspect
+builds and upload this app. Retain its issuer ID, key ID, and original `.p8`
+file in the approved credential manager. Export an active Apple Distribution
+certificate together with its private key as a password-protected `.p12`.
+Confirm the explicit App ID `app.merian.Merian` and its required capabilities
+exist for the permanent Merian bundle identity.
+
+Configure these GitHub Actions secrets:
+
+| Secret | Required value |
+|---|---|
+| `ASC_APP_ID` | Numeric Apple ID for the existing App Store Connect app |
+| `ASC_TEAM_ID` | Ten-character Apple Developer team ID |
+| `ASC_KEY_ID` | App Store Connect API key ID |
+| `ASC_ISSUER_ID` | App Store Connect issuer UUID |
+| `ASC_PRIVATE_KEY_P8_BASE64` | Base64 of the original API private-key bytes |
+| `IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64` | Base64 of the distribution certificate and private key |
+| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | Password protecting that `.p12` |
+
+Candidate creation requires all seven values. Existing-candidate upload modes
+do not import the distribution certificate, but they still need the App Store
+Connect values. The workflow writes credentials only to runner-temporary files,
+does not echo them, unsets inherited secret values before repository code runs,
+and removes the files and temporary keychain on exit.
+
+The tracked Release configuration must resolve the production RevenueCat iOS
+SDK key beginning with `appl_`. The publisher rejects a Test Store key or a
+placeholder. Apple signing and App Store Connect credentials are server-side CI
+secrets; do not add them to tracked or local app-facing `.xcconfig` files.
+
+### Setup Verification
+
+Run the portable release contracts from a clean checkout:
+
+```bash
+make validate-ios-project
+make validate-ios-versioning
+make test-ios-ci-tooling
+```
+
+Then manually dispatch **iOS TestFlight Publisher** on `main` with action
+`plan` and a numeric `latest_asc_build`. Verify it creates only the 30-day plan
+artifact described below and creates no release tags. Do not use a live
+candidate as a setup probe.
+
+## Version and Build Policy
+
+### Marketing-Version Trains
+
+`MARKETING_VERSION` is the customer-visible semantic version. Keep it unchanged
+for every beta in one public train. Use a patch train for compatible fixes, a
+minor train for a planned customer-facing feature release, and a major train
+only for an intentional compatibility/product transition. Do not put beta or
+release-candidate suffixes in `MARKETING_VERSION`; TestFlight stage and the
+globally increasing integer build identify prerelease iterations.
+
+To start a new train:
+
+1. Open a normal pull request that changes `MARKETING_VERSION` in `project.yml`.
+2. Do not reset or lower `CURRENT_PROJECT_VERSION`.
+3. Add the new reviewed source under `apps/ios/AppStore/ReleaseNotes/` and update
+   `CHANGELOG.md`; update the bundled in-app changelog when appropriate.
+4. Run `make xcodegen` and commit the generated project update.
+5. Run the project, versioning, and publisher contract checks.
+6. Merge normally and wait for compiled CI on the final exact `main` SHA.
+7. Let the publisher allocate the next global build for the new train.
+
+Changing only the marketing version does not authorize a build-number reset.
+Raise the tracked build floor only in a reviewed exceptional change that must
+skip a known range; never use floor changes as routine beta increments.
+
+### Global Build Allocation
+
+The workflow has the global concurrency group `ios-testflight-publisher` with
+`cancel-in-progress: false`. The publisher also takes a local atomic lock.
+Together these prevent overlapping writers in the supported workflow.
+
+Immediately before the sole distributable archive, the publisher computes:
+
+```text
+tracked floor       = CURRENT_PROJECT_VERSION in project.yml
+tag floor           = highest ios-build-allocations/<number> tag
+repository baseline = max(tracked floor, tag floor)
+next build          = max(App Store Connect latest, repository baseline) + 1
+```
+
+App Store Connect cannot know about an archive that failed before upload, so
+the durable tag floor is required. The workflow pushes
+`ios-build-allocations/<next build>` before invoking `xcodebuild archive`. If
+the archive, export, or evidence publication fails, that reservation remains
+and creates an allowed gap. A later attempt receives a new number.
+
+There is no manual `BUILD=N` live override. Candidate and upload modes reject
+an operator-supplied App Store Connect maximum and query the service directly.
+A collision while pushing the reservation—including Git reporting an
+equal-value ref as already up to date—fails before archive begins.
+
+## Daily Development and CI
+
+Debug builds, unit tests, pull requests, and unsigned validation archives use
+the tracked baseline and never query App Store Connect, reserve an allocation,
+or consume a build number.
 
 ```bash
 make xcodegen
 make validate-ios-versioning
+make test-ios-versioning
+make test-ios-publisher-workflow
 ```
 
-Use `agvtool` only as a read-only sanity check if needed. It must not be the
-release updater because it writes generated Xcode project state instead of the
-tracked XcodeGen source.
+`.github/workflows/ios-build-and-test.yml` passes
+`MERIAN_IOS_VALIDATION_ARCHIVE=1` to its unsigned Release archive. The archive
+preflight requires the exact `GITHUB_SHA`, a clean checkout, and the unchanged
+tracked version/build. It also requires signing to be disabled with no identity
+or team, so that flag cannot authorize a signed publisher archive.
 
-## TestFlight Release Prep
+Before a new candidate is allowed, the publisher finds a successful **iOS
+Build and Test** run for the exact selected SHA and verifies these jobs all
+succeeded:
 
-External testing is intentionally moving from the approved `1.0.0` version
-train to `1.0.2`. Keep `MARKETING_VERSION` at `1.0.2` and increase only
-`CURRENT_PROJECT_VERSION` for subsequent uploads on this train. The first
-external `1.0.2` build requires Beta App Review because it starts a new
-TestFlight version train.
+1. `Full iOS unit tests`
+2. `Current-SHA Release archive`
+3. `Production readiness`
 
-Before archiving for TestFlight, choose the next semantic version and prepare a
-fresh build number from the repo root:
+A green parent, a byte-similar checkout, or an out-of-scope run is not enough.
+Manually dispatch **iOS Build and Test** on the intended ref first when needed.
+The publisher itself is not a required pull-request check and must never run
+automatically.
+
+## Read-Only Planning
+
+Use the latest global build shown in App Store Connect as a read-only anchor:
 
 ```bash
-make prepare-ios-release VERSION=1.0.2
+make plan-ios-beta LATEST_ASC_BUILD=275
 ```
 
-Release prep permits the checked-in semantic version or a higher one and
-rejects a downgrade.
+The command writes an ignored JSON plan under `build/ios-publisher/plans/`. It
+does not create or push a Git tag, change source, archive, export, sign, or
+upload. The plan shows the tentative allocation, source revision and
+fingerprint, single-archive intent, immutable export setting, IPA validation,
+and same-binary promotion policy.
 
-The RevenueCat key is a public iOS SDK key, not a backend-only secret. If you
-are ready to use production RevenueCat, pass the real production key to release
-prep to write or update the ignored `Config.local.xcconfig` override:
+The GitHub workflow's `plan` action has the same no-write contract and retains:
+
+```text
+ios-beta-publisher-plan-<run_id>-attempt-<attempt>
+```
+
+for 30 days. Plan mode accepts an operator-supplied App Store Connect value
+because it has no external side effects. It is a point-in-time estimate, not a
+reservation, and can become stale as soon as another build is allocated or
+accepted.
+
+## Publisher Actions and Authorization
+
+Dispatch `.github/workflows/ios-testflight-publisher.yml` from protected
+`main`. Every action rejects other refs and requires the checkout, selected
+`origin/main`, and workflow SHA to be identical. In practice, publish the
+current protected `main` HEAD; do not attempt to publish a historical commit or
+a branch-modified workflow.
+
+| Action | Result | Required inputs |
+|---|---|---|
+| `plan` | Read-only allocation-to-upload plan | Numeric `latest_asc_build` |
+| `candidate` | Reserve, archive once, export, and retain; no upload | `external_state_confirmation` = `RESERVE BUILD` |
+| `upload` | Create a new candidate and upload its exact IPA | `RESERVE BUILD` and `UPLOAD TO APP STORE CONNECT` confirmations |
+| `upload-existing` | Upload a retained untouched candidate without rebuilding | Source run, exact artifact name, and upload confirmation |
+| `retry-upload` | Retry an attempted identical IPA after definitive failure | Source run, exact artifact name, upload confirmation, and `FAILED CONFIRMED` |
+
+Leave inputs unrelated to the selected action blank. Candidate and upload
+actions create durable Git refs, so they require explicit external-state
+authorization. Upload actions additionally require a separate unmistakable
+upload confirmation. Never add a `push`, `pull_request`, `merge_group`,
+schedule, or reusable-workflow trigger to this publisher.
+
+## Routine Candidate Procedure
+
+### Before Dispatch
+
+1. Confirm the intended commit is the current protected `main` HEAD.
+2. Confirm **iOS Build and Test** succeeded on that exact SHA and ran both macOS
+   jobs rather than reporting a scope-only success.
+3. Review `CHANGELOG.md`, the current App Store release-note source, product
+   metadata, privacy/export-compliance answers, and stage-specific QA gates.
+4. Confirm no publisher run is active or queued. Do not cancel an older run to
+   make a newer run start sooner.
+5. Confirm Apple credentials, the distribution certificate, provisioning
+   capabilities, and production RevenueCat configuration are current.
+
+### Create and Retain a Candidate
+
+Use `candidate` when the release manager wants to inspect and preserve a signed
+binary before authorizing an upload:
+
+1. Open **Actions → iOS TestFlight Publisher → Run workflow**.
+2. Select branch `main` and action `candidate`.
+3. Enter `RESERVE BUILD` in `external_state_confirmation`.
+4. Leave upload, failed-upload, source-run, artifact, and plan inputs blank.
+5. Dispatch once and wait for a terminal result.
+
+A successful run retains this 90-day artifact:
+
+```text
+ios-beta-candidate-<run_id>-attempt-<attempt>
+```
+
+It contains exactly one `evidence.json` and one exported IPA. It does not have
+an upload receipt. Record the run URL, run ID, artifact name, version/build,
+source SHA, source fingerprint, archive identity, and IPA SHA-256 in the release
+record.
+
+### Create and Upload Directly
+
+Use `upload` only when the same dispatch is already authorized to reserve and
+send a new candidate:
+
+1. Select action `upload` on branch `main`.
+2. Enter `RESERVE BUILD` in `external_state_confirmation`.
+3. Enter `UPLOAD TO APP STORE CONNECT` in `upload_confirmation`.
+4. Leave source-run, artifact, failed-upload, and plan inputs blank.
+5. Dispatch once. Do not start another run while Transporter or App Store
+   Connect status is unresolved.
+
+The output uses the same candidate artifact name. Its evidence status is
+`uploaded` only after Transporter succeeds and the durable upload receipt is
+recorded.
+
+### Upload a Retained Candidate
+
+To upload a successful untouched `candidate` later:
+
+1. Copy the numeric run ID and exact
+   `ios-beta-candidate-<run_id>-attempt-<attempt>` artifact name from the source
+   publisher run.
+2. Select action `upload-existing` on branch `main`.
+3. Set `source_run_id` and `candidate_artifact_name` to those exact values.
+4. Enter `UPLOAD TO APP STORE CONNECT` in `upload_confirmation`.
+5. Leave `external_state_confirmation`, `latest_asc_build`, and
+   `failed_upload_confirmation` blank.
+
+The workflow downloads the retained files, verifies the annotated evidence tag
+and IPA hash, revalidates the signed IPA, and invokes Transporter without
+archiving or exporting again.
+
+## Archive, Export, and Evidence
+
+The publisher never edits or regenerates the checkout after CI proof, so it has
+no runtime XcodeGen dependency. It archives from a clean exact Git SHA using
+the reviewed generated project and passes
+`CURRENT_PROJECT_VERSION=<allocated build>` as an Xcode build-setting override.
+The shared settings and plist inheritance inject one marketing version and
+build into all four shipped components.
+
+The Release preflight rejects a distributable archive unless publisher mode,
+the workflow concurrency assertion, exact source SHA, source fingerprint,
+tracked marketing version, allocated build, and production RevenueCat config
+all agree. Manual Organizer and ad-hoc Release archives fail here.
+
+The archive receives these processed `Info.plist` values:
+
+- `MERIAN_SOURCE_REVISION`: exact source commit
+- `MERIAN_SOURCE_FINGERPRINT`: exact nonignored source snapshot
+- `MERIAN_SOURCE_STATE`: `clean`
+
+After the one archive invocation, validation checks the main app, widget,
+Messages extension, watch app, bundle ID, source fields, and version/build. A
+content manifest over every archive path, mode, symlink target, and file digest
+produces `archive_identity`. Export verifies that identity before and after
+`xcodebuild -exportArchive` so a changed archive is rejected.
+
+The generated export options always contain:
+
+```xml
+<key>manageAppVersionAndBuildNumber</key>
+<false/>
+```
+
+IPA validation reopens the ZIP, requires one root app, rejects duplicate
+entries, verifies all embedded component versions/builds and main-app source
+provenance, and hashes the IPA before and after inspection. Only the stable
+final `ipa_sha256` is accepted.
+
+### Evidence Fields
+
+Each candidate's `evidence.json` records:
+
+| Field | Required meaning |
+|---|---|
+| `status` | `candidate`, `upload_attempted`, or `uploaded` |
+| `version` and `build` | App Store Connect identity |
+| `source_revision` | Exact protected source SHA |
+| `source_fingerprint` and `source_state` | Complete nonignored snapshot and `clean` state |
+| `green_workflow_run_id` | Exact-SHA compiled assurance run |
+| `archive_identity` and `archive_invocations` | Content identity and the value `1` |
+| `ipa_sha256` | Stable final signed IPA identity |
+| `manageAppVersionAndBuildNumber` | The value `false` |
+| `allocation_tag` and `evidence_tag` | Durable repository identities |
+| `retry_policy` and `promotion_policy` | Identical-IPA retry and same-binary promotion rules |
+| Upload timestamps/receipt hash | Present after an upload attempt or success as applicable |
+
+The complete mapping is:
+
+```text
+marketing version + allocated build
+    -> source SHA + source fingerprint + clean state
+    -> exact-SHA compiled CI run
+    -> archive identity (one archive invocation)
+    -> final IPA SHA-256
+    -> Transporter receipt hash after successful upload
+```
+
+### Artifact Chain and Retention
+
+| Artifact | Retention | Use |
+|---|---:|---|
+| `ios-beta-publisher-plan-<run>-attempt-<attempt>` | 30 days | Read-only plan; never a reservation |
+| `ios-beta-candidate-<run>-attempt-<attempt>` | 90 days | New candidate IPA/evidence and optional direct-upload log |
+| `ios-beta-upload-receipt-<run>-attempt-<attempt>` | 90 days | Existing-candidate attempt, updated evidence, exact IPA, and log |
+
+Immediately before any existing-candidate Transporter call, the publisher
+changes the downloaded evidence status to `upload_attempted`. The source
+candidate artifact remains immutable. Therefore, if an attempt fails, the
+receipt artifact from that attempt—not the original candidate artifact—is the
+source for a possible authorized retry. Always use that run and artifact as the
+source for any authorized retry.
+
+Copy the exact IPA, evidence, receipt log, run URL, and artifact name to the
+approved release artifact store when the release record must outlive GitHub's
+90-day retention. Preserve bytes and filenames; verify the IPA hash after the
+copy. The current workflow still requires a source Actions run and artifact for
+`upload-existing` or `retry-upload`. If it has expired, allocate a new candidate
+unless a separately reviewed tooling change restores the evidence-verified
+artifact path.
+
+### Verify Downloaded Evidence
+
+After downloading and expanding the artifact into a dedicated directory:
 
 ```bash
-REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=1.0.2
+RELEASE_EVIDENCE=/path/to/evidence.json
+RELEASE_IPA=/path/to/Naturebook.ipa
+jq '{status, version, build, source_revision, source_fingerprint, green_workflow_run_id, archive_identity, archive_invocations, ipa_sha256, allocation_tag, evidence_tag}' "$RELEASE_EVIDENCE"
+EXPECTED_IPA_SHA="$(jq -r '.ipa_sha256' "$RELEASE_EVIDENCE")"
+ACTUAL_IPA_SHA="$(shasum -a 256 "$RELEASE_IPA" | awk 'NR == 1 { print $1 }')"
+test "$ACTUAL_IPA_SHA" = "$EXPECTED_IPA_SHA"
 ```
 
-Placeholder values such as the literal `appl_...` are blocked. If no production
-key is configured yet, release prep and Xcode Archive warn but continue; app
-export/upload should use the production key.
-
-With App Store Connect credentials present, the script asks the sortable global
-build-list endpoint, scoped by the exact app resource ID, for the numerically
-highest uploaded build and writes the next higher number. The app relationship
-endpoint is not used because it does not support sorting. Query names such as
-`filter[app]` and `fields[builds]` are URL-encoded instead of being placed
-literally in a curl URL, where brackets would be interpreted as URL globbing.
-The lookup is sorted by build version rather than upload date, so an older,
-out-of-order upload cannot be missed behind the endpoint's 200-item page limit.
-Transport retries and timeouts are bounded, response size is capped, and an
-unknown successful response shape fails closed instead of being treated as an
-empty account:
+Fetch and inspect the immutable mappings without changing them:
 
 ```bash
-export ASC_APP_ID=1234567890
-export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
-export ASC_KEY_ID=ABC123DEFG
-export ASC_PRIVATE_KEY_PATH=/path/to/AuthKey_ABC123DEFG.p8
-make prepare-ios-release VERSION=1.0.2
+git fetch --tags
+RELEASE_VERSION="$(jq -r '.version' "$RELEASE_EVIDENCE")"
+RELEASE_BUILD="$(jq -r '.build' "$RELEASE_EVIDENCE")"
+git show "ios-builds/${RELEASE_VERSION}-${RELEASE_BUILD}"
+git for-each-ref --format='%(contents)' "refs/tags/ios-builds/${RELEASE_VERSION}-${RELEASE_BUILD}"
 ```
 
-If credentials are not available, provide a one-time App Store Connect anchor:
+After a successful upload, inspect
+`ios-uploads/${RELEASE_VERSION}-${RELEASE_BUILD}` the same way and confirm App
+Store Connect shows the identical version/build. The upload tag means
+Transporter returned success; App Store Connect processing and release
+acceptance remain separate gates.
 
-```bash
-LATEST_ASC_BUILD=421 make prepare-ios-release VERSION=1.0.2
-```
+## Retry Decision Procedure
 
-For an emergency manual override, provide the exact build number. The script
-still refuses values that are not higher than the checked-in repo build, and it
-checks against App Store Connect when credentials are present:
+Gaps are harmless and expected. Identity reuse is not.
 
-```bash
-BUILD=422 make prepare-ios-release VERSION=1.0.2
-```
+| Situation | Required action |
+|---|---|
+| Archive/export/validation failed after reservation | Keep the reservation; run a new candidate and allocate a higher build |
+| Upload outcome unknown, processing, or missing from the UI | Do not retry or rebuild; determine App Store Connect status |
+| App Store Connect definitively reports upload `Failed` | `retry-upload` may send the evidence-verified identical IPA |
+| Candidate was deliberately created without upload | `upload-existing` sends that retained IPA |
+| Transporter succeeded but durable upload-tag publication failed | Treat the build as consumed; open an incident and reconcile evidence—do not upload again |
+| Any source, dependency, build configuration, signing/export configuration, or rebuilt bytes differ | Allocate a new build and archive once again |
+| Tester group or release stage changes | Select/promote the already uploaded build; do not rebuild |
 
-The command warns when the resolved RevenueCat key is still development-only,
-then updates `project.yml`, regenerates `Merian.xcodeproj`, and writes
-`build/ios-release-prep.json`. The marker is intentionally ignored by git and
-exists only to prove that the local archive was deliberately prepared. It
-records a SHA-256 fingerprint of every tracked or nonignored source file and
-file mode present after preparation. This makes the snapshot stable when an
-intended new file or deletion is committed. Commit the complete prepared tree
-before archiving: the archive preflight requires a clean checkout and requires
-its current fingerprint to match the marker. A marker from an earlier source
-tree cannot authorize an archive after code changes, even when the version and
-build settings are unchanged.
+For a definitive App Store Connect `Failed` result:
 
-Fingerprinting also requires a complete, ordinary Git index. Any tracked path
-marked `assume-unchanged` or `skip-worktree` is rejected before hashing. Clear
-those flags and disable sparse checkout before release preparation; otherwise
-Git can conceal local or omitted source from its normal clean-checkout report.
-Tracked `xcuserdata` or `.xcuserdatad` is also rejected. Xcode and XcodeGen can
-rewrite that per-user scheme metadata asynchronously after project generation,
-making an otherwise identical release fingerprint change during preparation.
-The paths are already ignored; never force-add them to Git.
+1. Open the failed `upload-existing`, `retry-upload`, or direct `upload` run.
+2. Use its retained artifact containing evidence with status
+   `upload_attempted`, the exact IPA, and the attempt log. A direct `upload` run
+   retains those files under its candidate artifact name; an existing upload
+   retains them under its upload-receipt artifact name.
+3. Confirm App Store Connect—not only a local Transporter exit—shows `Failed`.
+4. Dispatch `retry-upload` with that run ID and exact artifact name.
+5. Enter `UPLOAD TO APP STORE CONNECT` and `FAILED CONFIRMED`.
+6. Leave reservation and plan inputs blank.
 
-The local marker also records `prepared_from_sha`, the exact commit on which
-release preparation began. It intentionally differs from the final release
-commit because the version, generated project, and any other prepared changes
-must be committed afterward. Archive preflight requires this field to be a
-valid commit and an ancestor of the final clean checkout. Rebasing, amending,
-or transplanting the prepared tree onto unrelated history requires a fresh
-release-prep marker; matching bytes alone do not preserve its preparation
-lineage.
+The retry rechecks the evidence tag, IPA SHA-256, and signed IPA metadata. It
+never reserves, archives, or exports. If the bytes are unavailable or any hash
+differs, do not reconstruct the IPA; create a higher build.
 
-Release preparation requires XcodeGen `2.45.4`, matching the exact version
-declared in `project.yml`; using another generator version is blocked to prevent
-silent generated-project or scheme drift. Upgrade the script pin, project
-metadata, and generated project together in a reviewed change.
+## TestFlight and App Review Promotion
 
-Commit the tracked `project.yml` and generated-project changes, push them, and
-wait for `iOS Build and Test / Production readiness` to pass on that exact
-commit before creating the signed distribution archive. A green run for an
-earlier commit, even with the same semantic version, is not release evidence.
-The repository ruleset and merge queue should require that final check.
+Once App Store Connect finishes processing, verify the displayed version/build
+matches `evidence.json` and the immutable tags. Then move one binary through
+the stages:
 
-Build `1.0.2 (235)` was already successfully distributed to beta testers. Any
-binary containing later remediation must use a globally higher App Store
-Connect build number; another local archive labeled `235` does not replace or
-verify the previously uploaded TestFlight binary.
+1. Complete export-compliance and beta metadata for the processed build.
+2. Select that build for the approved internal TestFlight group.
+3. Run the physical-device smoke matrix and record device/OS/build results.
+4. Add the same processed build to external TestFlight when ready; submit that
+   build for Beta App Review when Apple requires it.
+5. After beta acceptance, select that same build for the App Store version and
+   App Review.
 
-A clean archive created at `2026-07-30T19:56:00-05:00` from exact revision
-`6ce1a56a47aea1deb05353a7714c3f0518aabfac` correctly embedded `1.0.2
-(236)`, fingerprint
-`5c02aec4af0b40f131f127d1d55469f23bf503cb236a4029e87dd1b1946c3b76`,
-and `sourceState=clean`. Xcode's distribution pipeline then emitted an
-App Store-signed IPA labeled build `272`; its cached App Store Connect record
-reported latest build `271`. The source revision and fingerprint were unchanged
-and the main app, widget, Messages extension, and watch app were all rewritten
-to `272`. Xcode Content Delivery then uploaded all `62,122,682` bytes, reported
-`UPLOAD SUCCEEDED with no errors`, returned an empty errors/warnings set, and
-placed `1.0.2 (272)` into App Store Connect processing at
-`2026-07-30T19:59:06-05:00`. This proves an archive identity alone does not
-prove exported or uploaded artifact identity.
+No promotion stage gets a new archive or IPA. A code, dependency,
+configuration, entitlement, or signing change is a new candidate with a higher
+global build. Apple's current
+[TestFlight overview](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
+documents tester and beta-review behavior.
 
-The cause was a missing `manageAppVersionAndBuildNumber` export option. Xcode
-documents its default as enabled. The checked-in export helper now sets it to
-`false` and validates the IPA after signing. Build `272` is definitively
-consumed by the successful upload; use `273` or a higher authoritative App Store
-Connect successor for the remediated candidate. Never reuse `236` or hand-edit
-the prep marker. See the
-[export-renumbering incident](../incidents/2026-07-xcode-export-build-number-rewrite.md).
+Before broad distribution, retain:
 
-A local archive audit at `2026-07-30T02:13:13Z` inspected all 417 retained local
-`.xcarchive` bundles. Forty-one were labeled `1.0.2 (235)`, and zero archives
-contained `MERIAN_SOURCE_REVISION`, `MERIAN_SOURCE_FINGERPRINT`, or
-`MERIAN_SOURCE_STATE`. No retained local archive can therefore prove or export
-the current remediated source; `scripts/export-ios-release.sh` rejects each one
-before signing because the embedded provenance is absent.
+- publisher run URL and exact-SHA green CI run URL;
+- candidate/upload artifact names and their retention deadline;
+- version/build, source SHA, source fingerprint, and archive identity;
+- final IPA SHA-256 and upload receipt-log SHA-256;
+- allocation, evidence, and upload tag names;
+- App Store Connect processing/acceptance observation;
+- internal/external tester groups and Beta App Review status;
+- physical-device, purchase/restore, push, and critical scan-flow evidence.
 
-RevenueCat product configuration is a separate release gate. Open the paywall
-with the production SDK key and confirm the dashboard-selected current offering
-returns packages mapped to both `pro_week` and `pro_annual`. The client logs an
-operational error for no current offering, an empty current offering, or a
-missing required product, but it cannot create App Store products or repair
-RevenueCat package mappings from the repository. A successful RevenueCat login
-only verifies identity linking; it does not verify StoreKit product loading.
+## Signing and Product Gates
 
-The committed shared scheme does not currently bind a `.storekit` file. For
-routine simulator purchase QA, use the RevenueCat Test Store with a Debug
-`test_` key, or deliberately add and attach a StoreKit configuration following
-the testing matrix in
-[`02-revenue-and-identity.md`](../features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
-TestFlight must use the production `appl_` key and App Store Connect products;
-a local StoreKit success does not replace the TestFlight purchase/restore and
-webhook smoke tests.
+The publisher proves artifact identity; it does not replace release acceptance.
+Before distributing broadly:
 
-Before that TestFlight smoke, the backend release must have applied
-`20260723201500_secure_revenuecat_webhook_delivery.sql` and synchronized the
-three required RevenueCat server credentials. Follow the
-[RevenueCat webhook release gate](../backend-and-data/06-supabase-deployment-runbook.md#revenuecat-webhook-release-gate);
-an iOS archive with the correct public `appl_` key does not prove signed webhook
-delivery, authoritative reconciliation, or durable ordering.
+1. Confirm the explicit App ID `app.merian.Merian` has required capabilities.
+2. Inspect the retained signed IPA's app entitlements and require production
+   APS. Expand the already validated IPA into a dedicated temporary directory:
 
-`FeatureFlag.unlimitedFreeScans.defaultValue` is `false` for every shipped
-configuration. DEBUG may bypass only the advisory local meter; TestFlight and
-Release ignore persisted overrides and remain subject to the database quota.
-Run `UsageManagerTests`, `FieldTripsAvailabilityTests`, and a physical
-free/Pro endpoint smoke before release. A `DEBUG OVERRIDE ACTIVE` startup
-warning must never appear in a Release/TestFlight build. Pro removes the normal
-one-scan product cap but still has server-side fair-use/rate ceilings.
+   ```bash
+   RELEASE_IPA=/path/to/Naturebook.ipa
+   SIGNING_CHECK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naturebook-signing.XXXXXX")"
+   ditto -x -k "$RELEASE_IPA" "$SIGNING_CHECK_DIR"
+   codesign -d --entitlements - \
+     "$SIGNING_CHECK_DIR/Payload/Merian.app"
+   ```
 
-## Archive Guardrail
+   Record the reviewed values, then discard the temporary expansion without
+   retaining profiles or unrelated signed metadata in release notes.
 
-Xcode calls `scripts/check-ios-release-prep.sh` during Release archives. The
-check is quiet for normal Debug builds and non-archive Release builds. During an
-archive, it parses the marker as typed JSON and blocks if the marker is missing,
-if its version/build does not match `project.yml`, if its local preparation base
-is malformed or outside the final commit's ancestry, if the checkout is dirty,
-or if the exact tracked source fingerprint no longer matches the marker. The
-CI-only marker instead requires `ci_validation_only: true` and an exact
-`source_sha` matching the checked-out workflow revision. A malformed identity
-field cannot silently disable either check. Preflight warns, but does not block,
-if the resolved `REVENUECAT_API_KEY` is missing, still begins with RevenueCat's
-`test_` Test Store prefix, or does not look like an iOS production SDK key
-beginning with `appl_`. Set
-`MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1` for export/release checks that
-should fail on non-production RevenueCat config.
+3. Open the production paywall and verify RevenueCat's current offering maps
+   both `pro_week` and `pro_annual` to App Store Connect products.
+4. Complete purchase, restore, webhook, push-notification, camera, microphone,
+   offline replay, and critical scan-flow smoke tests appropriate to the stage.
+5. Confirm no Debug-only UI-test seed marker or free-scan override is present.
 
-Every built app embeds three support-safe provenance values in its processed
-`Info.plist`:
+Simulator StoreKit or RevenueCat Test Store success does not replace the
+TestFlight sandbox and webhook checks. Follow
+[`02-revenue-and-identity.md`](../features-and-hardware/02-revenue-and-identity.md)
+and the
+[RevenueCat webhook release gate](../backend-and-data/06-supabase-deployment-runbook.md#revenuecat-webhook-release-gate).
 
-- `MERIAN_SOURCE_REVISION`: exact Git revision;
-- `MERIAN_SOURCE_FINGERPRINT`: exact release-source snapshot fingerprint; and
-- `MERIAN_SOURCE_STATE`: `clean` or `dirty` at build time.
+## Failure Triage
 
-The startup `ModelContainer bootstrap diagnostics` notice exposes the same
-values as `source`, `sourceFingerprint`, and `sourceState`. Record them with
-every TestFlight trace. A release candidate must report the intended revision
-and fingerprint with `sourceState=clean`; version/build alone is not sufficient
-binary provenance.
+| Failure | Operator response |
+|---|---|
+| No successful exact-SHA iOS run | Manually dispatch **iOS Build and Test** on final `main`; do not bypass the gate |
+| Publisher rejects the ref/SHA | Merge through protected `main` and publish its current HEAD |
+| Another publisher holds the lock or concurrency slot | Wait for its terminal result; do not delete locks or cancel to overlap writers |
+| App Store Connect lookup/authentication fails before reservation | Correct or rotate credentials, rerun a read-only plan, then dispatch again |
+| Allocation push collides | Treat the other reservation as authoritative and dispatch again for a recalculated higher build |
+| Archive fails after reservation | Preserve logs and the tag; fix source/tooling and create a new higher candidate |
+| Archive or IPA identity validation fails | Quarantine the output; never upload, patch, rename, or relabel it |
+| Evidence-tag push fails | Do not upload the candidate; preserve artifacts, investigate tag policy, and allocate a higher candidate |
+| Transporter exits unsuccessfully | Preserve the receipt artifact and determine App Store Connect state before deciding on retry |
+| Transporter succeeds but upload-tag push fails | Treat the upload as consumed; preserve logs and open an evidence-reconciliation incident |
+| App Store Connect remains processing | Wait and monitor; processing delay is not definitive failure |
+| Artifact approaches expiry | Copy it to the approved release store and record the verified hash before expiry |
+| Any immutable release tag is missing or mutated | Freeze publishing, preserve remote/local evidence, and open an incident |
 
-The embed phase treats the processed product plist as a scoped build artifact,
-not an arbitrary write target. `INFOPLIST_PATH` must be relative and
-traversal-free, every parent resolves inside the canonical
-`TARGET_BUILD_DIR`, and the final `Info.plist` must be a single-link regular
-file. Symbolic links and multiple hard links are rejected before `PlistBuddy`
-can write through them. The release-tooling fixture proves both escapes fail
-and an ordinary product plist receives all three provenance keys.
+An upload with unknown status is treated as consumed until App Store Connect
+proves it failed. A failed runner or missing UI refresh is not enough to assert
+`FAILED CONFIRMED`.
 
-Release-preparation markers are JSON and are validated with the same strict,
-typed Ruby parser on Ubuntu and macOS. Production provenance embedding defaults
-to the absolute Apple `/usr/libexec/PlistBuddy` path. The portable test fixture
-explicitly injects a narrow Python `plistlib` editor because the Apple binary is
-not present on Ubuntu; macOS runs additionally test the real default tool. The
-override is for fixture execution, not release configuration.
+## Emergency Stop and Recovery
 
-Generated-project validation binds both release scripts to the main `Merian`
-target rather than accepting a matching phase elsewhere in the project. The
-preflight must be attached exactly once as the target's first build phase.
-Provenance embedding must also be attached exactly once, run after sources,
-resources, frameworks, app extensions, and watch content, and remain the last
-product-mutating phase immediately before SwiftLint. Both shell definitions
-must be always out of date and invoke only their canonical checked-in script.
-Run `make test-ios-project-resources` to exercise detached, duplicated,
-misordered, and wrong-command adversarial project fixtures.
+When release identity, credentials, or repository rules are suspect:
 
-### Current-SHA CI Archive Gate
+1. Stop new publisher dispatches and preserve the active run's logs/artifacts.
+2. Cancel a live run only when continued external effects are riskier than an
+   incomplete run. If a reservation may already exist, keep it permanently.
+3. Revoke or rotate the App Store Connect key and distribution certificate when
+   compromise is possible; do not expose them for local recovery.
+4. Disable the publisher workflow temporarily if dispatch must be prevented.
+5. Preserve all allocation/evidence/upload tags and App Store Connect records.
+6. Open an incident that separately records repository remediation, Apple-side
+   state, evidence reconciliation, and production/tester recovery.
+7. Re-enable only after reviewed remediation, portable contracts, exact-SHA CI,
+   and a read-only plan succeed.
 
-`.github/workflows/ios-build-and-test.yml` independently archives the exact
-`GITHUB_SHA` with Release optimization on the generic iOS device destination.
-It uses Xcode 26.6, resolves only the checked-in `Package.resolved` versions,
-and disables signing because distribution credentials do not belong on
-untrusted pull-request runners. The job verifies the app version/build,
-embedded widget, Messages extension, watch app, main binary, and matching dSYM
-UUIDs. It also requires the archive's embedded revision to equal `GITHUB_SHA`,
-the embedded release-source fingerprint to equal the checked-out source, and the
-embedded source state to be `clean`. Its evidence JSON records the source SHA,
-source fingerprint, source state, and binary hash.
-
-CI creates an ephemeral version/build marker solely to exercise the same
-archive preflight. That marker has `ci_validation_only: true`, is stored as
-workflow evidence, and contains an exact `source_sha` that preflight requires
-to match `GITHUB_SHA`. It does not satisfy the ignored local
-`build/ios-release-prep.json` requirement. The unsigned CI archive is retained
-for seven days after successful `main` and manual runs for inspection only. It
-cannot prove distribution signing, provisioning, APNs entitlements, StoreKit,
-physical camera behavior, or App Store export, and it must never be submitted
-to App Store Connect.
-
-Before TestFlight/App Store export, require all of the following for the exact
-release commit:
-
-1. `iOS Build and Test / Production readiness` is green; its Full iOS unit
-   tests job passed the complete unit target and exact queued-scan completion UI
-   smoke, and its Current-SHA Release archive job succeeded.
-2. `make prepare-ios-release VERSION=x.y.z` produced the matching local prep
-   marker and all tracked version/project changes are committed.
-3. A fresh locally signed archive from that clean commit passes the signing,
-   entitlement, RevenueCat, physical-device, and purchase smoke gates below.
-
-Require only the unconditional Production readiness job in GitHub repository
-rules. The two macOS jobs are conditional and are expected to report skipped
-for unrelated pull requests. The exact repository-rule setup and verification
-procedure is documented in the
-[compiled iOS CI gate](./08-testing-strategy.md#repository-rule-setup).
-
-If the intended release SHA contains no iOS build input and the two macOS jobs
-were skipped, manually dispatch `iOS Build and Test` on that ref. A green
-out-of-scope Production readiness decision is safe for merging, but it is not
-current-SHA archive evidence and does not satisfy the release checklist above.
-
-For archive failures, use the job summary first. The
-`ios-release-archive-evidence-<run>-attempt-<attempt>` artifact contains the
-source/toolchain and verification record; failed runs also publish
-`ios-release-archive-failure-<run>-attempt-<attempt>` with package-resolution
-and `xcodebuild` logs. Do not treat either artifact as a signed distribution
-archive.
-
-If Xcode only shows `Command PhaseScriptExecution failed with a nonzero exit
-code`, expand the `Release Versioning Preflight` log. A missing marker means the
-archive was started before release prep; run `REVENUECAT_API_KEY=appl_...
-make prepare-ios-release VERSION=x.y.z` with the intended next semantic version
-when you also want to install the production RevenueCat key, or use `BUILD=N
-make prepare-ios-release VERSION=x.y.z` for the documented manual build-number
-fallback.
-
-If the preflight says the marker predates release-source fingerprint binding,
-the ignored `build/ios-release-prep.json` was generated before the current
-provenance schema. Matching version/build numbers do not make that legacy marker
-safe: it cannot prove which source snapshot it authorized. Do not hand-edit the
-marker or copy a digest into it. Run `make prepare-ios-release VERSION=x.y.z`
-again so release prep selects a fresh, higher build and writes the typed
-fingerprint from the current source.
-
-If the expanded log warns that the RevenueCat key is invalid, either copy
-`Config.local.example.xcconfig` to `Config.local.xcconfig` and set:
-
-```xcconfig
-REVENUECAT_API_KEY = appl_...
-```
-
-`Config.local.xcconfig` is ignored by git and is included after the tracked
-development defaults, so it can safely override the local archive key without
-committing environment-specific config. You can also let release prep write the
-override for you by substituting the real key:
-
-```bash
-REVENUECAT_API_KEY=appl_... make prepare-ios-release VERSION=x.y.z
-```
-
-## Push Entitlement and Signing
-
-`project.yml` is the source of truth for the main app's Push Notifications
-entitlement. `Merian.entitlements` uses
-`aps-environment = $(APS_ENVIRONMENT)`; XcodeGen resolves it to `development`
-for Debug and `production` for Release. Regenerate `Merian.xcodeproj` after any
-project setting change, and do not hardcode one environment in the generated
-project or entitlement file.
-
-Before distributing a Release archive:
-
-1. Confirm the Apple Developer explicit App ID `app.merian.Merian` has the Push
-   Notifications capability enabled.
-2. Confirm the selected distribution provisioning profile includes the
-   production APS entitlement.
-3. Inspect the signed archive and verify `aps-environment` is `production`:
-
-```bash
-codesign -d --entitlements - \
-  /path/to/Merian.xcarchive/Products/Applications/Merian.app
-```
-
-The `:-` form is deprecated in current `codesign` and can print a misleading
-entitlement-blob warning. Use `-` as the output destination as shown above.
-
-A simulator build can verify the Release build setting and compile-time wiring,
-but it does not prove APNs registration or distribution signing. Complete one
-physical-device smoke test that registers a token and receives an Explore push
-before TestFlight rollout. If logs report a missing valid `aps-environment`,
-inspect the signed entitlements and provisioning capability first.
-
-## Archive Export
-
-If Xcode Organizer times out while fetching apps for team `TA8S64ST9W`, the
-archive can still be checked without that screen:
-
-```bash
-make export-ios-release
-```
-
-The export step validates that the newest archive matches the prepared
-version/build, checked-out revision, release-source fingerprint, and clean build
-state, then runs App Store Connect export signing. Its generated
-`exportOptions.plist` explicitly sets `manageAppVersionAndBuildNumber=false`;
-the global build selected by release prep must remain the uploaded build rather
-than being replaced by Xcode during distribution. By default the helper uses the
-Apple account state in Xcode. If Xcode reports `No Accounts`, an invalid
-keychain credential, or a missing `iOS Distribution` certificate, fix Xcode >
-Settings > Accounts for the team or provide App Store Connect API key
-authentication:
-
-```bash
-export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
-export ASC_KEY_ID=ABC123DEFG
-export ASC_PRIVATE_KEY_PATH=/path/to/AuthKey_ABC123DEFG.p8
-make export-ios-release
-```
-
-The exported `.ipa`, `exportOptions.plist`, and Xcode export log are written to
-`build/ios-export/`.
-
-Success is reported only after `scripts/validate-ios-exported-ipa.sh` reopens
-the IPA. It requires exactly one regular, non-symlinked IPA and one root
-application `Info.plist`, rejects duplicate ZIP entries, and compares the main
-app's bundle ID, semantic version, build, embedded source revision, source
-fingerprint, and clean source state to the reviewed archive. Every embedded
-Explore widget, Messages extension, and watch app must retain the same
-version/build. Missing, contradictory, ambiguous, oversized, or unreadable
-metadata and Xcode post-signing renumbering all fail closed before the output is
-called TestFlight-ready. The validator computes the IPA SHA-256 before and
-after metadata inspection, rejects a file changed during that interval, and
-reports the stable digest on a dedicated
-`ipa_sha256=<64 lowercase hex>` success line.
-
-The helper canonicalizes its output paths before deleting any previous export.
-`EXPORT_PATH` must resolve to a child of this repository's `build/` directory,
-and `EXPORT_OPTIONS_PLIST` must resolve inside that export directory. Symlink
-escapes and lexical `.`/`..` components—including traversal hidden behind a
-not-yet-created directory—are rejected before prep validation, archive
-selection, directory creation, or file removal.
-
-Do not use Organizer's default automatic version-management path as release
-evidence. Use the checked-in helper, retain its validator line with the IPA
-SHA-256, then upload that exact IPA. After processing, confirm App Store Connect
-places it under the expected semantic version and build number. Any discrepancy
-requires a fresh globally higher release-prep build; never rename or patch an
-exported IPA.
+Never “roll back” by deleting a tag, lowering the tracked floor, reusing a build
+number, or rebuilding an old IPA. Removing a beta from tester access or pausing
+a release is an App Store Connect action; corrected bytes still require a new
+globally higher candidate.
 
 ## Naturebook Apple Distribution Metadata Gate
 
 For the public rebrand release, update the existing app listing; do not create a
 new App Store Connect app record or bundle identifier. In Apple Developer
 Certificates, Identifiers & Profiles, ensure there is exactly one explicit App
-ID for `app.merian.Merian`, with description `Naturebook iOS (Merian)`. Register
-it if it does not exist; otherwise edit only its description. The description
-is not an App Store Connect metadata field.
+ID for `app.merian.Merian`, with description `Naturebook iOS (Merian)`.
 
 Confirm these App Store Connect values before submitting:
 
@@ -447,11 +613,40 @@ Confirm these App Store Connect values before submitting:
 | Privacy policy URL | `https://naturebook.earth/privacy` |
 | Subscription/IAP localization | Naturebook Pro |
 
-Do not change product IDs, entitlement IDs, RevenueCat offering identifiers, or
-the App Store Connect app record. Confirm the canonical domains, direct AASA
-responses with exact Explore/species paths, support mailbox, and export sender
-are live before releasing the renamed binary. Use
+Do not change product IDs, entitlement IDs, RevenueCat offering identifiers,
+or the App Store Connect app record. Use
 [`15-naturebook-rebrand-rollout.md`](./15-naturebook-rebrand-rollout.md) as the
 release checklist and
 [`08-public-brand-compatibility.md`](../system-architecture/08-public-brand-compatibility.md)
 as the permanent identifier contract.
+
+## Documentation and Change Ownership
+
+Any pull request that changes release policy, workflow inputs, evidence fields,
+tag namespaces, artifact names, retention, signing, export, or retry behavior
+must update all affected documentation and tests in the same change:
+
+| Source | Ownership |
+|---|---|
+| `project.yml` | Reviewed marketing train and development build floor |
+| `.github/workflows/ios-testflight-publisher.yml` | Sole manual distribution entry point and permissions |
+| `scripts/publish-ios-beta.sh` and validators | Allocation, archive/export, identity, upload, and retry enforcement |
+| This runbook | Canonical operator procedure |
+| `09-ios-release-publisher.md` | Stable architecture and trust boundaries |
+| `08-testing-strategy.md` | CI and portable contract coverage |
+| `CHANGELOG.md` | Human release, QA, support, and TestFlight history |
+| `apps/ios/AppStore/ReleaseNotes/<version>.md` | Reviewed App Store metadata source |
+| `changelog.json` | Curated in-app customer notes |
+| `docs/incidents/` | Failures, evidence limits, remediation, and closure gates |
+
+Run at minimum:
+
+```bash
+make test-ios-ci-tooling
+make validate-ios-versioning
+git diff --check
+```
+
+The agent entry at `apps/ios/.agents/workflows/deploy_testflight.md` is only a
+pointer into this source of truth. It must not grow an independent deployment
+procedure.

@@ -3,11 +3,14 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${MERIAN_PROJECT_ROOT:-$(cd "$script_dir/.." && pwd)}"
+repo_root="$(cd "$repo_root" && pwd -P)"
+archive_validator="$script_dir/validate-ios-archive.sh"
 ipa_validator="$script_dir/validate-ios-exported-ipa.sh"
 plistbuddy_command="${MERIAN_PLISTBUDDY_COMMAND:-/usr/libexec/PlistBuddy}"
+xcodebuild_command="${XCODEBUILD_COMMAND:-xcodebuild}"
 
 fail() {
-  echo "error: $*" >&2
+  echo "error: iOS release export: $*" >&2
   exit 1
 }
 
@@ -15,21 +18,10 @@ note() {
   echo "$*" >&2
 }
 
-resolve_repo_path() {
-  local path="$1"
-  if [[ "$path" = /* ]]; then
-    printf '%s\n' "$path"
-  else
-    printf '%s/%s\n' "$repo_root" "$path"
-  fi
-}
-
 canonicalize_maybe_missing_path() {
-  local path="$1"
   perl -MCwd=abs_path -MFile::Basename=basename,dirname -MFile::Spec -e '
     my $path = File::Spec->rel2abs($ARGV[0]);
     my @missing;
-
     while (!-e $path) {
       my $name = basename($path);
       my $parent = dirname($path);
@@ -37,286 +29,166 @@ canonicalize_maybe_missing_path() {
       unshift @missing, $name;
       $path = $parent;
     }
-
     my $resolved = abs_path($path);
     die "could not canonicalize path\n" unless defined $resolved;
     print File::Spec->catfile($resolved, @missing);
-  ' "$path"
+  ' "$1"
 }
 
 reject_dot_path_components() {
   local label="$1"
   local path="$2"
-
   case "/$path/" in
-    */../* | */./*)
-      fail "$label must not contain . or .. path components: $path"
-      ;;
+    */../* | */./*) fail "$label must not contain . or .. path components: $path" ;;
   esac
-}
-
-extract_project_setting() {
-  local key="$1"
-  local file="$2"
-  awk -v key="$key" '
-    $1 == key ":" {
-      print $2
-      found = 1
-      exit
-    }
-    END {
-      if (!found) {
-        exit 1
-      }
-    }
-  ' "$file"
 }
 
 read_plist_value() {
   local plist="$1"
-  local key_path="$2"
-  "$plistbuddy_command" -c "Print :${key_path}" "$plist" 2>/dev/null
-}
-
-newest_archive() {
-  local archive_root="$HOME/Library/Developer/Xcode/Archives"
-  [[ -d "$archive_root" ]] || return 1
-  find "$archive_root" -maxdepth 3 -name "*.xcarchive" -print0 | perl -0ne '
-    chomp;
-    my $mtime = (stat($_))[9];
-    if (!defined($best) || $mtime > $best_mtime) {
-      $best = $_;
-      $best_mtime = $mtime;
-    }
-    END {
-      print $best if defined $best;
-    }
-  '
-}
-
-have_asc_key_auth() {
-  [[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" && -n "${ASC_PRIVATE_KEY_PATH:-}" ]]
+  local key="$2"
+  "$plistbuddy_command" -c "Print :${key}" "$plist" 2>/dev/null
 }
 
 write_export_options() {
   local output="$1"
   local team_id="$2"
-
-  cat > "$output" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>destination</key>
-  <string>export</string>
-  <key>method</key>
-  <string>app-store-connect</string>
-  <key>signingStyle</key>
-  <string>automatic</string>
-  <key>manageAppVersionAndBuildNumber</key>
-  <false/>
-  <key>teamID</key>
-  <string>${team_id}</string>
-  <key>uploadSymbols</key>
-  <true/>
-  <key>stripSwiftSymbols</key>
-  <true/>
-  <key>testFlightInternalTestingOnly</key>
-  <false/>
-</dict>
-</plist>
-PLIST
+  printf '%s\n' \
+    '<?xml version="1.0" encoding="UTF-8"?>' \
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+    '<plist version="1.0">' \
+    '<dict>' \
+    '  <key>destination</key>' \
+    '  <string>export</string>' \
+    '  <key>method</key>' \
+    '  <string>app-store-connect</string>' \
+    '  <key>signingStyle</key>' \
+    '  <string>automatic</string>' \
+    '  <key>manageAppVersionAndBuildNumber</key>' \
+    '  <false/>' \
+    '  <key>teamID</key>' \
+    "  <string>${team_id}</string>" \
+    '  <key>uploadSymbols</key>' \
+    '  <true/>' \
+    '  <key>stripSwiftSymbols</key>' \
+    '  <true/>' \
+    '  <key>testFlightInternalTestingOnly</key>' \
+    '  <false/>' \
+    '</dict>' \
+    '</plist>' > "$output"
 }
 
-explain_export_failure() {
-  local log_file="$1"
-  local team_id="$2"
+[[ "${MERIAN_RELEASE_PUBLISHER:-0}" == "1" ]] \
+  || fail "standalone Organizer/manual export is unsupported; use the serialized publisher workflow."
+[[ "${MERIAN_PUBLISHER_SERIALIZED:-0}" == "1" ]] \
+  || fail "publisher concurrency lock is not asserted."
 
-  if grep -Eq 'No Accounts|No signing certificate "iOS Distribution"|Invalid credentials.*Xcode-Username|Fetching apps .* timed out' "$log_file"; then
-    {
-      echo
-      echo "error: App Store Connect export failed because Xcode has no valid Apple account/distribution signing credentials for team ${team_id}."
-      echo "The archive version/build is valid; the blocker is local Apple account or distribution signing state."
-      echo
-      echo "Fix one of these, then run: make export-ios-release"
-      echo "- Xcode > Settings > Accounts: remove and re-add the Apple ID for team ${team_id}, then refresh signing certificates/profiles."
-      echo "- Or set ASC_KEY_ID, ASC_ISSUER_ID, and ASC_PRIVATE_KEY_PATH so xcodebuild can authenticate with an App Store Connect API key."
-    } >&2
-  else
-    {
-      echo
-      echo "error: App Store Connect export failed. See the export log for the full Xcode output:"
-      echo "$log_file"
-    } >&2
-  fi
-}
+plan_path="${IOS_PUBLISHER_PLAN:-}"
+archive_path="${ARCHIVE_PATH:-}"
+export_path_input="${EXPORT_PATH:-}"
+expected_version="${MERIAN_EXPECTED_MARKETING_VERSION:-}"
+expected_build="${MERIAN_EXPECTED_BUILD_NUMBER:-}"
+expected_revision="${MERIAN_EXPECTED_SOURCE_REVISION:-}"
+expected_fingerprint="${MERIAN_EXPECTED_SOURCE_FINGERPRINT:-}"
+expected_bundle_id="${IOS_APP_BUNDLE_ID:-app.merian.Merian}"
 
-cd "$repo_root"
-repo_root="$(pwd -P)"
+[[ -f "$plan_path" && ! -L "$plan_path" ]] || fail "publisher plan JSON is required."
+[[ -d "$archive_path" && ! -L "$archive_path" ]] || fail "an explicit publisher archive path is required."
+[[ -n "$export_path_input" ]] || fail "an explicit export path is required."
+[[ "$expected_version" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]] || fail "expected version is malformed."
+[[ "$expected_build" =~ ^[1-9][0-9]*$ ]] || fail "expected build is malformed."
+[[ "$expected_revision" =~ ^[0-9a-f]{40,64}$ ]] || fail "expected source revision is malformed."
+[[ "$expected_fingerprint" =~ ^[0-9a-f]{64}$ ]] || fail "expected source fingerprint is malformed."
+[[ "$plistbuddy_command" == /* && -x "$plistbuddy_command" ]] || fail "PlistBuddy must be an executable absolute path."
+[[ -f "$archive_validator" && -f "$ipa_validator" ]] || fail "release validators are missing."
 
-project_yml="${PROJECT_YML:-project.yml}"
-[[ -f "$project_yml" ]] || fail "Missing project.yml at $repo_root/$project_yml"
-[[ -f "$ipa_validator" ]] || fail "Missing exported-IPA validator: $ipa_validator"
-[[ "$plistbuddy_command" == /* ]] || fail "PlistBuddy command must be an absolute path."
-[[ -x "$plistbuddy_command" ]] || fail "PlistBuddy is unavailable at $plistbuddy_command."
+ruby -rjson -e '
+  path, version, build, revision, fingerprint = ARGV
+  document = JSON.parse(File.binread(path))
+  abort("invalid publisher plan") unless document.is_a?(Hash) && document["kind"] == "merian-ios-beta-publisher-plan"
+  abort("plan is not a live build reservation") unless ["candidate", "upload"].include?(document["mode"])
+  abort("plan is not at the build-reserved stage") unless document["stage"] == "build_reserved"
+  abort("plan source is not clean") unless document.dig("source", "state") == "clean"
+  abort("plan is not serialized") unless document.dig("publisher", "serialized") == true
+  abort("plan has no external-state authorization") unless document.dig("publisher", "external_state_authorized") == true
+  abort("plan live preconditions were not met") unless document["live_preconditions_met"] == true
+  abort("plan does not authorize exactly one archive") unless document.dig("archive", "planned_invocations") == 1
+  abort("plan version mismatch") unless document["version"] == version
+  abort("plan build mismatch") unless document["build"] == Integer(build)
+  abort("plan source mismatch") unless document.dig("source", "revision") == revision
+  abort("plan fingerprint mismatch") unless document.dig("source", "fingerprint") == fingerprint
+  abort("plan enabled Xcode renumbering") unless document.dig("export", "manageAppVersionAndBuildNumber") == false
+' "$plan_path" "$expected_version" "$expected_build" "$expected_revision" "$expected_fingerprint" \
+  || fail "publisher plan does not authorize this exact export."
 
 mkdir -p "$repo_root/build"
 build_root="$(cd "$repo_root/build" && pwd -P)"
-export_path_input="$(
-  resolve_repo_path "${EXPORT_PATH:-build/ios-export}"
-)"
 reject_dot_path_components "EXPORT_PATH" "$export_path_input"
-export_path="$(
-  canonicalize_maybe_missing_path "$export_path_input"
-)" || fail "Could not canonicalize EXPORT_PATH."
+export_path="$(canonicalize_maybe_missing_path "$export_path_input")" \
+  || fail "could not canonicalize EXPORT_PATH."
 case "$export_path" in
-  "$build_root"/*)
-    ;;
-  *)
-    fail "EXPORT_PATH must be a child of $build_root; resolved: $export_path"
-    ;;
+  "$build_root"/*) ;;
+  *) fail "EXPORT_PATH must be a child of $build_root; resolved: $export_path" ;;
 esac
+[[ ! -e "$export_path" ]] || fail "EXPORT_PATH already exists; a release export must never overwrite evidence."
+mkdir "$export_path"
 
-export_options_input="$(
-  resolve_repo_path "${EXPORT_OPTIONS_PLIST:-$export_path/exportOptions.plist}"
-)"
-reject_dot_path_components "EXPORT_OPTIONS_PLIST" "$export_options_input"
-export_options="$(
-  canonicalize_maybe_missing_path "$export_options_input"
-)" || fail "Could not canonicalize EXPORT_OPTIONS_PLIST."
-case "$export_options" in
-  "$export_path"/*)
-    ;;
-  *)
-    fail "EXPORT_OPTIONS_PLIST must be inside EXPORT_PATH; resolved: $export_options"
-    ;;
-esac
-
-if [[ "${IOS_EXPORT_SKIP_PREP_CHECK:-0}" != "1" ]]; then
-  CONFIGURATION=Release MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$repo_root" "$script_dir/check-ios-release-prep.sh"
-fi
-
-archive_path="${ARCHIVE_PATH:-}"
-if [[ -z "$archive_path" ]]; then
-  archive_path="$(newest_archive)" || true
-fi
-[[ -n "$archive_path" ]] || fail "No .xcarchive found. Archive Merian in Xcode first, or pass ARCHIVE_PATH=/path/to/Merian.xcarchive."
-archive_path="$(resolve_repo_path "$archive_path")"
-[[ -d "$archive_path" ]] || fail "Archive not found: $archive_path"
-
-archive_info="$archive_path/Info.plist"
-[[ -f "$archive_info" ]] || fail "Archive is missing Info.plist: $archive_info"
-
-app_path="$(read_plist_value "$archive_info" "ApplicationProperties:ApplicationPath")" || fail "Could not read ApplicationPath from archive Info.plist"
-[[ "$app_path" =~ ^Applications/[A-Za-z0-9][A-Za-z0-9._-]*[.]app$ ]] \
-  || fail "Archive ApplicationPath is malformed: $app_path"
-app_bundle_name="${app_path#Applications/}"
-app_info="$archive_path/Products/$app_path/Info.plist"
-[[ -f "$app_info" ]] || fail "Archive app is missing Info.plist: $app_info"
-
-project_version="$(extract_project_setting MARKETING_VERSION "$project_yml")" || fail "Could not read MARKETING_VERSION from $project_yml"
-project_build="$(extract_project_setting CURRENT_PROJECT_VERSION "$project_yml")" || fail "Could not read CURRENT_PROJECT_VERSION from $project_yml"
-archive_version="$(read_plist_value "$app_info" "CFBundleShortVersionString")" || fail "Could not read archive CFBundleShortVersionString"
-archive_build="$(read_plist_value "$app_info" "CFBundleVersion")" || fail "Could not read archive CFBundleVersion"
-archive_bundle_id="$(read_plist_value "$app_info" "CFBundleIdentifier")" || fail "Could not read archive CFBundleIdentifier"
-
-if [[ "$archive_version" != "$project_version" || "$archive_build" != "$project_build" ]]; then
-  fail "Archive is Merian ${archive_version} (${archive_build}) but release prep is ${project_version} (${project_build}). Archive again before exporting."
-fi
-
-archive_source_revision="$(read_plist_value "$app_info" "MERIAN_SOURCE_REVISION")" \
-  || fail "Archive has no embedded source revision. Archive again before exporting."
-archive_source_fingerprint="$(read_plist_value "$app_info" "MERIAN_SOURCE_FINGERPRINT")" \
-  || fail "Archive has no embedded source fingerprint. Archive again before exporting."
-archive_source_state="$(read_plist_value "$app_info" "MERIAN_SOURCE_STATE")" \
-  || fail "Archive has no embedded source state. Archive again before exporting."
-
-current_source_revision="$(git -C "$repo_root" rev-parse HEAD)"
-current_source_fingerprint="$(
-  MERIAN_PROJECT_ROOT="$repo_root" bash "$script_dir/ios-release-source-fingerprint.sh"
-)"
-
-[[ "$archive_source_revision" == "$current_source_revision" ]] \
-  || fail "Archive source ${archive_source_revision} does not match checked-out source ${current_source_revision}. Archive again before exporting."
-[[ "$archive_source_fingerprint" == "$current_source_fingerprint" ]] \
-  || fail "Archive source fingerprint does not match the release-prepared source. Archive again before exporting."
-[[ "$archive_source_state" == "clean" ]] \
-  || fail "Archive reports source state ${archive_source_state}; only a clean source archive can be exported."
-
+export_options="$export_path/exportOptions.plist"
 team_id="${TEAM_ID:-${ASC_TEAM_ID:-}}"
 if [[ -z "$team_id" ]]; then
-  team_id="$(read_plist_value "$archive_info" "ApplicationProperties:Team")" || true
+  team_id="$(read_plist_value "$archive_path/Info.plist" ApplicationProperties:Team || true)"
 fi
-[[ -n "$team_id" ]] || fail "Could not determine Apple team ID from archive. Pass TEAM_ID=..."
-[[ "$team_id" =~ ^[A-Z0-9]{10}$ ]] \
-  || fail "Apple team ID must be 10 uppercase letters or digits, got: $team_id"
-
-rm -rf "$export_path"
-mkdir -p "$export_path"
-
+[[ "$team_id" =~ ^[A-Z0-9]{10}$ ]] || fail "Apple team ID is missing or malformed."
 write_export_options "$export_options" "$team_id"
 
-cmd=(
-  xcodebuild
+archive_validation_output="$(
+  MERIAN_PLISTBUDDY_COMMAND="$plistbuddy_command" \
+    bash "$archive_validator" "$archive_path" "$expected_bundle_id" "$expected_version" "$expected_build" "$expected_revision" "$expected_fingerprint"
+)"
+archive_identity_before="$(awk -F= '$1 == "archive_identity" { print $2 }' <<<"$archive_validation_output")"
+[[ "$archive_identity_before" =~ ^[0-9a-f]{64}$ ]] || fail "archive validator returned no identity."
+
+command=(
+  "$xcodebuild_command"
   -exportArchive
   -archivePath "$archive_path"
   -exportOptionsPlist "$export_options"
   -exportPath "$export_path"
   -allowProvisioningUpdates
 )
-
-if have_asc_key_auth; then
-  [[ -r "$ASC_PRIVATE_KEY_PATH" ]] || fail "ASC_PRIVATE_KEY_PATH is not readable: $ASC_PRIVATE_KEY_PATH"
-  cmd+=(
+if [[ -n "${ASC_KEY_ID:-}" || -n "${ASC_ISSUER_ID:-}" || -n "${ASC_PRIVATE_KEY_PATH:-}" ]]; then
+  [[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" && -r "${ASC_PRIVATE_KEY_PATH:-}" ]] \
+    || fail "App Store Connect export credentials are incomplete."
+  command+=(
     -authenticationKeyPath "$ASC_PRIVATE_KEY_PATH"
     -authenticationKeyID "$ASC_KEY_ID"
     -authenticationKeyIssuerID "$ASC_ISSUER_ID"
   )
-  note "Using App Store Connect API key authentication for export."
-else
-  note "Using Xcode account signing state for export."
+  note "Using App Store Connect API-key authentication for export."
 fi
 
-log_file="$export_path/export.log"
-note "Exporting Merian ${archive_version} (${archive_build}) from:"
-note "$archive_path"
-note "Embedded source revision: ${archive_source_revision}"
-note "Embedded source fingerprint: ${archive_source_fingerprint}"
-note "Export path:"
-note "$export_path"
-
+export_log="$export_path/export.log"
+note "Exporting evidence-bound ${expected_version} (${expected_build}) with Xcode renumbering disabled."
 set +e
-"${cmd[@]}" 2>&1 | tee "$log_file"
-status=${PIPESTATUS[0]}
+"${command[@]}" 2>&1 | tee "$export_log"
+export_pipeline_status=("${PIPESTATUS[@]}")
+status="${export_pipeline_status[0]}"
+log_status="${export_pipeline_status[1]}"
 set -e
+(( log_status == 0 )) || fail "export log could not be retained; this build is not publishable."
+(( status == 0 )) || fail "xcodebuild -exportArchive failed; see $export_log"
 
-if (( status != 0 )); then
-  explain_export_failure "$log_file" "$team_id"
-  exit "$status"
-fi
+archive_identity_after="$(bash "$script_dir/hash-ios-archive.sh" "$archive_path")"
+[[ "$archive_identity_after" == "$archive_identity_before" ]] || fail "archive changed while being exported."
 
 shopt -s nullglob
-ipa_candidates=(
-  "$export_path"/*.ipa
-  "$export_path"/*/*.ipa
-)
+ipa_candidates=("$export_path"/*.ipa "$export_path"/*/*.ipa)
 shopt -u nullglob
-
-(( ${#ipa_candidates[@]} == 1 )) \
-  || fail "Export must produce exactly one .ipa in $export_path; found ${#ipa_candidates[@]}."
+(( ${#ipa_candidates[@]} == 1 )) || fail "export must produce exactly one IPA; found ${#ipa_candidates[@]}."
 ipa_path="${ipa_candidates[0]}"
-[[ -f "$ipa_path" && ! -L "$ipa_path" ]] \
-  || fail "Exported .ipa must be a regular, non-symbolic-link file: $ipa_path"
+[[ -f "$ipa_path" && ! -L "$ipa_path" ]] || fail "exported IPA is not a regular file."
 
 MERIAN_PLISTBUDDY_COMMAND="$plistbuddy_command" \
-  bash "$ipa_validator" \
-  "$ipa_path" \
-  "$app_bundle_name" \
-  "$archive_bundle_id" \
-  "$archive_version" \
-  "$archive_build" \
-  "$archive_source_revision" \
-  "$archive_source_fingerprint"
+  bash "$ipa_validator" "$ipa_path" "Merian.app" "$expected_bundle_id" "$expected_version" "$expected_build" "$expected_revision" "$expected_fingerprint"
 
-note "Exported TestFlight-ready IPA:"
-note "$ipa_path"
+note "Exported publisher-bound IPA: $ipa_path"
+note "Archive identity retained: $archive_identity_before"

@@ -244,11 +244,12 @@ environment variable.**
   `REVERSED_CLIENT_ID` are also public client config values used by the app at
   runtime. `Config.xcconfig` may carry development defaults, while
   `Config.local.xcconfig` can override local app-facing values without being
-  committed. Release archives warn if `REVENUECAT_API_KEY` is still a RevenueCat
-  Test Store key, but can continue for local archive workflows. TestFlight/App
-  Store export should resolve to a RevenueCat production iOS SDK key beginning
-  with `appl_`; placeholder values such as the literal `appl_...` are blocked
-  when supplied as a release override.
+  committed. Local development and unsigned validation archives may use a
+  RevenueCat Test Store key. The sole distributable path, **iOS TestFlight
+  Publisher**, requires the tracked Release configuration to resolve to a
+  production iOS SDK key beginning with `appl_`; Test Store and placeholder
+  values are blocked. Do not pass payment or Apple distribution credentials
+  through an app-facing `.xcconfig` file.
 
 That means committed client config is acceptable for values in the second group,
 while the first group must stay server-side only.

@@ -187,9 +187,10 @@ steps are tracked in the
 > rejects concurrent mutation, and reports the exact SHA-256 to retain as upload
 > evidence. Retained Content Delivery logs prove Xcode uploaded `1.0.2 (272)`
 > successfully with no errors or warnings and App Store Connect accepted it for
-> processing, so `272` is definitively consumed. Prepare a fresh build `273` or
-> an authoritative higher successor; do not reuse `236` or infer upload identity
-> from an archive alone. See the
+> processing, so `272` is definitively consumed. The serialized publisher must
+> query App Store Connect and allocate an authoritative globally higher
+> successor; do not target a fixed recovery number, reuse `236`, or infer upload
+> identity from an archive alone. See the
 > [Xcode export renumbering incident](docs/incidents/2026-07-xcode-export-build-number-rewrite.md).
 
 ---
@@ -693,17 +694,18 @@ cannot make it merge-blocking by itself; require that exact final check in the
 repository ruleset. See the
 [compiled iOS CI gate](docs/development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
 and
-[release checklist](docs/development-guides/14-ios-release-versioning.md#current-sha-ci-archive-gate).
+[release checklist](docs/development-guides/14-ios-release-versioning.md#daily-development-and-ci).
+The stable single-writer design is recorded in the
+[iOS publisher architecture](docs/system-architecture/09-ios-release-publisher.md).
 
 Configure the required app-facing client config in `Config.xcconfig` or ignored
 local overrides in `Config.local.xcconfig`. Public client values like
 `SUPABASE_URL` and the public key configured through the historical
 `SUPABASE_ANON_KEY` build setting are used by the app at runtime; use a current
 `sb_publishable_...` value rather than a legacy anon JWT. True backend secrets
-like `GEMINI_API_KEY` must stay server-side only. Release archives can still use
-the development RevenueCat `test_` key, but TestFlight or App Store exports
-should override `REVENUECAT_API_KEY` with the production iOS SDK key that begins
-with `appl_`.
+like `GEMINI_API_KEY` must stay server-side only. Unsigned validation archives
+do not ship. The serialized TestFlight publisher requires the production
+RevenueCat iOS SDK key beginning with `appl_`.
 
 ### Common Shortcuts
 
@@ -711,29 +713,30 @@ From the repo root:
 
 ```bash
 make xcodegen
-make prepare-ios-release VERSION=1.0.2
-make export-ios-release
+make plan-ios-beta LATEST_ASC_BUILD=275
+make validate-ios-versioning
 make db-push
 make functions-deploy
 ```
 
-Run release prep only when preparing a TestFlight archive. Normal local builds
-should not change the app version or build number. If you are ready to use
-production RevenueCat, pass the real production key as
-`REVENUECAT_API_KEY=appl_...`; release prep writes that public client key into
-ignored `Config.local.xcconfig` so the following archive/export uses it.
-Placeholder values such as the literal `appl_...` are blocked.
-Use the checked-in export helper after creating the fresh signed archive. It
-disables Xcode's automatic build-number management and rejects an IPA that does
-not preserve the prepared build and exact embedded source provenance. Retain
-the validator-reported IPA SHA-256 and upload that exact file.
+Normal local builds never increment the app version or build. The plan command
+is read-only. For an actual beta candidate, manually dispatch **iOS TestFlight
+Publisher** on an exact SHA that has passed **iOS Build and Test**. That workflow
+is the sole supported build-number writer, signed archive, export, and upload
+entry point. It archives once, disables Xcode renumbering, validates every
+embedded target, and retains source/archive/IPA identity evidence. See the
+[iOS publishing runbook](docs/development-guides/14-ios-release-versioning.md)
+for initial repository/Apple setup, exact workflow inputs, retries, promotion,
+and incident-safe recovery.
 
 ### Release Notes & Changelog
 
-User-facing release notes live in two places:
+User-facing release documentation lives in three places:
 
 - `CHANGELOG.md` for TestFlight, App Store, QA, support, and human release
   planning.
+- `apps/ios/AppStore/ReleaseNotes/<marketing-version>.md` for the reviewed
+  per-train App Store listing and “What's New” source.
 - `apps/ios/Merian/Resources/Changelog/changelog.json` for the bundled in-app
   Settings changelog.
 

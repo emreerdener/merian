@@ -6,6 +6,13 @@ import Foundation
 @MainActor
 struct ScanRepositoryTests {
 
+    private struct HistoricalMediaPayload: Encodable {
+        let id: String
+        let image_storage_urls: [String]
+        let video_storage_urls: [String]
+        let captured_media: [SerializedMediaItem]
+    }
+
     // Helper to create an isolated SwiftData container caching out to disk due to iOS 18 simulator array appending bugs.
     @MainActor
     private func createIsolatedContext() throws -> ModelContext {
@@ -27,6 +34,53 @@ struct ScanRepositoryTests {
         let context = ModelContext(container)
         ScanRepository.shared.configure(with: context)
         return context
+    }
+
+    @Test func testHistoricalReconciliationRepairsCachedMissingRemoteVideo() async throws {
+        let schema = Schema(CurrentSchema.models)
+        let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
+        let configuration = ModelConfiguration(schema: schema, url: tempURL)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        let scanID = "cached-missing-video-\(UUID().uuidString.lowercased())"
+        let posterURL = "https://cdn.example.com/poster.webp"
+        let capturedMedia: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(
+                .remoteURL("https://cdn.example.com/missing.mp4"),
+                thumbnail: .remoteURL(posterURL)
+            ))
+        ]
+        let capturedMediaData = try JSONEncoder().encode(capturedMedia)
+        let capturedMediaJSON = try #require(String(data: capturedMediaData, encoding: .utf8))
+        context.insert(LocalScanRecord(
+            id: scanID,
+            speciesId: "cached-video-species",
+            scientificName: "Testus video",
+            commonName: "Cached Video",
+            capturedMediaJSON: capturedMediaJSON
+        ))
+        try context.save()
+
+        let responseData = try JSONEncoder().encode(HistoricalMediaPayload(
+            id: scanID,
+            image_storage_urls: [posterURL],
+            video_storage_urls: [],
+            captured_media: capturedMedia
+        ))
+        let response = try JSONDecoder().decode(HistoricalScanResponse.self, from: responseData)
+        let actor = HistoricalDatabaseActor(modelContainer: container)
+
+        _ = await actor.reconcileScanPage(responses: [response])
+
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanID }
+        )
+        descriptor.fetchLimit = 1
+        let repaired = try #require(try verificationContext.fetch(descriptor).first)
+        #expect(repaired.serializedCapturedMediaItems == [
+            .image(.remoteURL(posterURL))
+        ])
     }
 
     @Test func testCollectionRelationshipsRetainProperReferences() async throws {

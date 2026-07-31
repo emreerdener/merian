@@ -2,58 +2,21 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/merian-versioning-tests.XXXXXX")"
-valid_revenuecat_key="appl_1234567890abcdef1234567890abcdef"
-trap 'rm -rf "$tmp_dir"' EXIT
+test_root="$(mktemp -d "${TMPDIR:-/tmp}/merian-versioning-tests.XXXXXX")"
+fixture_repo="$test_root/repository"
+fixture_remote="$test_root/remote.git"
+tool_bin="$test_root/tools"
+trap 'rm -rf "$test_root"' EXIT
 
 fail() {
-  echo "error: $*" >&2
+  echo "FAIL: $*" >&2
   exit 1
-}
-
-write_project_yml() {
-  local version="$1"
-  local build="$2"
-  local file="$tmp_dir/project.yml"
-
-  {
-    printf 'name: Merian\n'
-    printf 'settings:\n'
-    printf '  base:\n'
-    printf '    CODE_SIGN_STYLE: Automatic\n'
-    printf '    MARKETING_VERSION: %s\n' "$version"
-    printf '    CURRENT_PROJECT_VERSION: %s\n' "$build"
-    printf '    VERSIONING_SYSTEM: apple-generic\n'
-  } > "$file"
-}
-
-run_prepare() {
-  env \
-    -u ASC_APP_ID \
-    -u ASC_ISSUER_ID \
-    -u ASC_KEY_ID \
-    -u ASC_PRIVATE_KEY_PATH \
-    REVENUECAT_API_KEY="${REVENUECAT_API_KEY:-$valid_revenuecat_key}" \
-    PROJECT_YML="$tmp_dir/project.yml" \
-    PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" \
-    CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" \
-    LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" \
-    IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" \
-    MERIAN_PROJECT_ROOT="$tmp_dir" \
-    RUN_XCODEGEN=0 \
-    "$repo_root/scripts/prepare-ios-release.sh"
 }
 
 assert_contains() {
   local needle="$1"
   local file="$2"
-  grep -Fq -- "$needle" "$file" || fail "Expected $file to contain: $needle"
-}
-
-assert_fails() {
-  if "$@" >/dev/null 2>&1; then
-    fail "Expected command to fail: $*"
-  fi
+  grep -Fq -- "$needle" "$file" || fail "expected $file to contain: $needle"
 }
 
 assert_fails_with() {
@@ -61,11 +24,10 @@ assert_fails_with() {
   shift
   local output
   if output="$("$@" 2>&1)"; then
-    fail "Expected command to fail: $*"
+    fail "expected command to fail: $*"
   fi
-  if ! grep -q -- "$expected" <<<"$output"; then
-    fail "Expected failing command output to contain: $expected. Actual output: $output"
-  fi
+  grep -q -- "$expected" <<<"$output" \
+    || fail "expected failure to contain '$expected'; actual: $output"
 }
 
 assert_succeeds_with() {
@@ -73,174 +35,112 @@ assert_succeeds_with() {
   shift
   local output
   if ! output="$("$@" 2>&1)"; then
-    fail "Expected command to succeed: $*. Actual output: $output"
+    fail "expected command to succeed: $*; actual: $output"
   fi
-  if ! grep -q -- "$expected" <<<"$output"; then
-    fail "Expected command output to contain: $expected"
-  fi
+  grep -q -- "$expected" <<<"$output" \
+    || fail "expected success to contain '$expected'; actual: $output"
 }
 
-set_marker_value() {
-  local key="$1"
-  local type="$2"
-  local value="$3"
-  local file="$4"
-
-  ruby -rjson -e '
-    key, type, raw_value, path = ARGV
-    document = JSON.parse(File.binread(path))
-    abort("marker root must be an object") unless document.is_a?(Hash)
-
-    value = case type
-            when "string"
-              raw_value
-            when "bool"
-              abort("invalid bool fixture value") unless %w[true false].include?(raw_value)
-              raw_value == "true"
-            else
-              abort("unsupported fixture type")
-            end
-    document[key] = value
-    File.binwrite(path, JSON.pretty_generate(document) + "\n")
-  ' "$key" "$type" "$value" "$file"
+json_value() {
+  local path="$1"
+  local expression="$2"
+  ruby -rjson -e 'document = JSON.parse(File.binread(ARGV[0])); value = eval("document" + ARGV[1]); puts value' "$path" "$expression"
 }
 
-remove_marker_key() {
-  local key="$1"
-  local file="$2"
+write_project_yml() {
+  local version="$1"
+  local build="$2"
+  printf '%s\n' \
+    'name: Merian' \
+    'settings:' \
+    '  base:' \
+    '    CODE_SIGN_STYLE: Automatic' \
+    "    MARKETING_VERSION: $version" \
+    "    CURRENT_PROJECT_VERSION: $build" \
+    '    VERSIONING_SYSTEM: apple-generic' > "$fixture_repo/project.yml"
+}
 
-  ruby -rjson -e '
-    key, path = ARGV
-    document = JSON.parse(File.binread(path))
-    abort("marker root must be an object") unless document.is_a?(Hash)
-    abort("marker key is missing") unless document.delete(key)
-    File.binwrite(path, JSON.pretty_generate(document) + "\n")
-  ' "$key" "$file"
+commit_fixture() {
+  git -C "$fixture_repo" add -A
+  git -C "$fixture_repo" commit --allow-empty -q -m "fixture state"
 }
 
 write_ipa_fixture() {
   local ipa_path="$1"
-  local app_bundle_name="$2"
-  local bundle_id="$3"
-  local version="$4"
-  local build="$5"
-  local source_revision="$6"
-  local source_fingerprint="$7"
-  local source_state="$8"
-  local component_build="${9:-$build}"
-  local topology="${10:-normal}"
+  local version="$2"
+  local build="$3"
+  local revision="$4"
+  local fingerprint="$5"
+  local source_state="${6:-clean}"
+  local component_build="${7:-$build}"
+  local topology="${8:-normal}"
 
   mkdir -p "$(dirname "$ipa_path")"
-  python3 - \
-    "$ipa_path" \
-    "$app_bundle_name" \
-    "$bundle_id" \
-    "$version" \
-    "$build" \
-    "$source_revision" \
-    "$source_fingerprint" \
-    "$source_state" \
-    "$component_build" \
-    "$topology" <<'PYTHON'
+  python3 - "$ipa_path" "$version" "$build" "$revision" "$fingerprint" "$source_state" "$component_build" "$topology" <<'PYTHON'
 import plistlib
 import sys
 import warnings
 import zipfile
 
-(
-    ipa_path,
-    app_bundle_name,
-    bundle_id,
-    version,
-    build,
-    source_revision,
-    source_fingerprint,
-    source_state,
-    component_build,
-    topology,
-) = sys.argv[1:]
-
-root_info = {
-    "CFBundleIdentifier": bundle_id,
+ipa_path, version, build, revision, fingerprint, source_state, component_build, topology = sys.argv[1:]
+root = {
+    "CFBundleIdentifier": "app.merian.Merian",
     "CFBundlePackageType": "APPL",
     "CFBundleShortVersionString": version,
     "CFBundleVersion": build,
-    "MERIAN_SOURCE_REVISION": source_revision,
-    "MERIAN_SOURCE_FINGERPRINT": source_fingerprint,
+    "MERIAN_SOURCE_REVISION": revision,
+    "MERIAN_SOURCE_FINGERPRINT": fingerprint,
     "MERIAN_SOURCE_STATE": source_state,
 }
-if topology == "missing-fingerprint":
-    del root_info["MERIAN_SOURCE_FINGERPRINT"]
-
-component_info = {
-    "CFBundleIdentifier": f"{bundle_id}.fixture",
+component = {
+    "CFBundleIdentifier": "app.merian.Merian.fixture",
     "CFBundlePackageType": "XPC!",
     "CFBundleShortVersionString": version,
     "CFBundleVersion": component_build,
 }
-watch_info = {
-    "CFBundleIdentifier": f"{bundle_id}.watchkitapp",
-    "CFBundlePackageType": "APPL",
-    "CFBundleShortVersionString": version,
-    "CFBundleVersion": component_build,
-}
-
-root_entry = f"Payload/{app_bundle_name}/Info.plist"
+watch = dict(component)
+watch["CFBundlePackageType"] = "APPL"
+root_entry = "Payload/Merian.app/Info.plist"
 warnings.simplefilter("ignore", UserWarning)
 with zipfile.ZipFile(ipa_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-    archive.writestr(root_entry, plistlib.dumps(root_info))
-    archive.writestr(
-        f"Payload/{app_bundle_name}/PlugIns/Fixture.appex/Info.plist",
-        plistlib.dumps(component_info),
-    )
-    archive.writestr(
-        f"Payload/{app_bundle_name}/Watch/FixtureWatch.app/Info.plist",
-        plistlib.dumps(watch_info),
-    )
+    archive.writestr(root_entry, plistlib.dumps(root))
+    archive.writestr("Payload/Merian.app/PlugIns/MerianExploreWidget.appex/Info.plist", plistlib.dumps(component))
+    archive.writestr("Payload/Merian.app/PlugIns/MerianMessagesExtension.appex/Info.plist", plistlib.dumps(component))
+    if topology != "missing-watch":
+        archive.writestr("Payload/Merian.app/Watch/MerianWatch.app/Info.plist", plistlib.dumps(watch))
     if topology == "duplicate-root":
-        archive.writestr(root_entry, plistlib.dumps(root_info))
+        archive.writestr(root_entry, plistlib.dumps(root))
     elif topology == "extra-root":
-        archive.writestr(
-            "Payload/Other.app/Info.plist",
-            plistlib.dumps(
-                {
-                    "CFBundleIdentifier": "invalid.other",
-                    "CFBundlePackageType": "APPL",
-                    "CFBundleShortVersionString": version,
-                    "CFBundleVersion": build,
-                }
-            ),
-        )
+        archive.writestr("Payload/Other.app/Info.plist", plistlib.dumps(root))
 PYTHON
 }
 
-write_export_archive_fixture() {
+write_archive_fixture() {
   local archive_path="$1"
   local version="$2"
   local build="$3"
-  local source_revision="$4"
-  local source_fingerprint="$5"
+  local revision="$4"
+  local fingerprint="$5"
+  local component_build="${6:-$build}"
 
-  mkdir -p "$archive_path/Products/Applications/Merian.app"
-  python3 - \
-    "$archive_path/Info.plist" \
-    "$archive_path/Products/Applications/Merian.app/Info.plist" \
-    "$version" \
-    "$build" \
-    "$source_revision" \
-    "$source_fingerprint" <<'PYTHON'
+  local app_path="$archive_path/Products/Applications/Merian.app"
+  mkdir -p \
+    "$app_path/PlugIns/MerianExploreWidget.appex" \
+    "$app_path/PlugIns/MerianMessagesExtension.appex" \
+    "$app_path/Watch/MerianWatch.app"
+  python3 - "$archive_path/Info.plist" "$app_path" "$version" "$build" "$revision" "$fingerprint" "$component_build" <<'PYTHON'
+import os
 import plistlib
 import sys
 
-archive_info_path, app_info_path, version, build, revision, fingerprint = sys.argv[1:]
-
+archive_info_path, app_path, version, build, revision, fingerprint, component_build = sys.argv[1:]
 archive_info = {
     "ApplicationProperties": {
         "ApplicationPath": "Applications/Merian.app",
         "Team": "TA8S64ST9W",
     }
 }
-app_info = {
+main = {
     "CFBundleIdentifier": "app.merian.Merian",
     "CFBundlePackageType": "APPL",
     "CFBundleShortVersionString": version,
@@ -249,731 +149,588 @@ app_info = {
     "MERIAN_SOURCE_FINGERPRINT": fingerprint,
     "MERIAN_SOURCE_STATE": "clean",
 }
-
-with open(archive_info_path, "wb") as handle:
-    plistlib.dump(archive_info, handle)
-with open(app_info_path, "wb") as handle:
-    plistlib.dump(app_info, handle)
+extension = {
+    "CFBundleIdentifier": "app.merian.Merian.fixture",
+    "CFBundlePackageType": "XPC!",
+    "CFBundleShortVersionString": version,
+    "CFBundleVersion": component_build,
+}
+watch = dict(extension)
+watch["CFBundlePackageType"] = "APPL"
+documents = {
+    archive_info_path: archive_info,
+    os.path.join(app_path, "Info.plist"): main,
+    os.path.join(app_path, "PlugIns/MerianExploreWidget.appex/Info.plist"): extension,
+    os.path.join(app_path, "PlugIns/MerianMessagesExtension.appex/Info.plist"): extension,
+    os.path.join(app_path, "Watch/MerianWatch.app/Info.plist"): watch,
+}
+for path, document in documents.items():
+    with open(path, "wb") as handle:
+        plistlib.dump(document, handle)
+with open(os.path.join(app_path, "Merian"), "wb") as handle:
+    handle.write(b"fixture executable\n")
 PYTHON
 }
 
-run_exported_ipa_validator() {
-  env \
-    MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
-    MERIAN_UNZIP_COMMAND="$(command -v unzip)" \
-    MERIAN_SHASUM_COMMAND="$(command -v shasum)" \
-    bash "$repo_root/scripts/validate-ios-exported-ipa.sh" \
-    "$@"
+run_ipa_validator() {
+  MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  MERIAN_UNZIP_COMMAND="$(command -v unzip)" \
+  MERIAN_SHASUM_COMMAND="$(command -v shasum)" \
+    bash "$repo_root/scripts/validate-ios-exported-ipa.sh" "$@"
 }
 
-commit_fixture_source() {
-  git -C "$tmp_dir" add -A
-  git -C "$tmp_dir" commit --allow-empty -q -m "fixture source"
-}
+mkdir -p "$fixture_repo/scripts" "$fixture_repo/Merian.xcodeproj" "$tool_bin"
+git -C "$fixture_repo" init -q
+git -C "$fixture_repo" config user.name "Merian Release Tests"
+git -C "$fixture_repo" config user.email "release-tests@example.invalid"
+printf '%s\n' 'build/' 'Config.local.xcconfig' 'xcuserdata/' > "$fixture_repo/.gitignore"
+printf '%s\n' 'let fixtureSource = true' > "$fixture_repo/source.swift"
+printf '%s\n' '// generated project fixture' > "$fixture_repo/Merian.xcodeproj/project.pbxproj"
+cp "$repo_root/scripts/ios-release-source-fingerprint.sh" "$fixture_repo/scripts/ios-release-source-fingerprint.sh"
+write_project_yml "1.0.3" "39"
+commit_fixture
+git init --bare -q "$fixture_remote"
+git -C "$fixture_repo" remote add origin "$fixture_remote"
+git -C "$fixture_repo" push -q origin HEAD:refs/heads/main
 
-git -C "$tmp_dir" init -q
-git -C "$tmp_dir" config user.name "Merian Tests"
-git -C "$tmp_dir" config user.email "merian-tests@example.invalid"
-{
-  printf 'build/\n'
-  printf 'Config.local.xcconfig\n'
-  printf 'xcuserdata/\n'
-} > "$tmp_dir/.gitignore"
-printf 'let fixture = true\n' > "$tmp_dir/source.swift"
-mkdir -p "$tmp_dir/scripts"
-cp "$repo_root/scripts/ios-release-source-fingerprint.sh" \
-  "$tmp_dir/scripts/ios-release-source-fingerprint.sh"
-mkdir -p "$tmp_dir/fake-bin"
-{
-  printf '#!/usr/bin/env bash\n'
-  printf 'if [[ "${1:-}" == "--version" ]]; then\n'
-  printf '  printf "Version: 9.9.9\\\\n"\n'
-  printf '  exit 0\n'
-  printf 'fi\n'
-  printf 'exit 99\n'
-} > "$tmp_dir/fake-bin/xcodegen"
-chmod +x "$tmp_dir/fake-bin/xcodegen"
-{
-  printf '#!/usr/bin/env bash\n'
-  printf 'set -euo pipefail\n'
-  printf 'output=""\n'
-  printf 'printf "%%s\\n" "$@" >> "${FAKE_ASC_CURL_LOG:?}"\n'
-  printf 'while (( $# > 0 )); do\n'
-  printf '  case "$1" in\n'
-  printf '    -o)\n'
-  printf '      output="$2"\n'
-  printf '      shift 2\n'
-  printf '      ;;\n'
-  printf '    *)\n'
-  printf '      shift\n'
-  printf '      ;;\n'
-  printf '  esac\n'
-  printf 'done\n'
-  printf 'if [[ "${FAKE_ASC_CURL_STATUS:-0}" != "0" ]]; then\n'
-  printf '  exit "$FAKE_ASC_CURL_STATUS"\n'
-  printf 'fi\n'
-  printf 'cp "${FAKE_ASC_RESPONSE:?}" "$output"\n'
-  printf 'printf "%%s" "${FAKE_ASC_HTTP_CODE:-200}"\n'
-} > "$tmp_dir/fake-bin/curl"
-chmod +x "$tmp_dir/fake-bin/curl"
-command -v python3 >/dev/null 2>&1 || fail "python3 is required for the portable plist fixture"
-{
-  printf '#!/usr/bin/env python3\n'
-  printf 'import plistlib\n'
-  printf 'import shlex\n'
-  printf 'import sys\n'
-  printf '\n'
-  printf 'if len(sys.argv) != 4 or sys.argv[1] != "-c":\n'
-  printf '    sys.exit(2)\n'
-  printf 'command = shlex.split(sys.argv[2])\n'
-  printf 'path = sys.argv[3]\n'
-  printf 'with open(path, "rb") as handle:\n'
-  printf '    document = plistlib.load(handle)\n'
-  printf 'operation = command[0] if command else ""\n'
-  printf 'keys = command[1].lstrip(":").split(":") if len(command) > 1 else []\n'
-  printf 'container = document\n'
-  printf 'for key in keys[:-1]:\n'
-  printf '    if not isinstance(container, dict) or key not in container:\n'
-  printf '        sys.exit(1)\n'
-  printf '    container = container[key]\n'
-  printf 'key = keys[-1] if keys else ""\n'
-  printf 'if operation == "Print" and len(command) == 2:\n'
-  printf '    if not isinstance(container, dict) or key not in container:\n'
-  printf '        sys.exit(1)\n'
-  printf '    print(container[key])\n'
-  printf '    sys.exit(0)\n'
-  printf 'if operation == "Set" and len(command) >= 3:\n'
-  printf '    if not isinstance(container, dict) or key not in container:\n'
-  printf '        sys.exit(1)\n'
-  printf '    value = " ".join(command[2:])\n'
-  printf 'elif operation == "Add" and len(command) >= 4 and command[2] == "string":\n'
-  printf '    if not isinstance(container, dict) or key in container:\n'
-  printf '        sys.exit(1)\n'
-  printf '    value = " ".join(command[3:])\n'
-  printf 'else:\n'
-  printf '    sys.exit(2)\n'
-  printf 'container[key] = value\n'
-  printf 'with open(path, "wb") as handle:\n'
-  printf '    plistlib.dump(document, handle, fmt=plistlib.FMT_XML, sort_keys=True)\n'
-} > "$tmp_dir/fake-bin/PlistBuddy"
-chmod +x "$tmp_dir/fake-bin/PlistBuddy"
-write_project_yml "1.0.0" "39"
-commit_fixture_source
+cat > "$tool_bin/PlistBuddy" <<'PYTHON'
+#!/usr/bin/env python3
+import plistlib
+import shlex
+import sys
 
-bash -n "$repo_root/scripts/prepare-ios-release.sh"
-bash -n "$repo_root/scripts/check-ios-release-prep.sh"
-bash -n "$repo_root/scripts/validate-ios-versioning.sh"
-bash -n "$repo_root/scripts/export-ios-release.sh"
-bash -n "$repo_root/scripts/validate-ios-exported-ipa.sh"
-bash -n "$repo_root/scripts/ios-release-source-fingerprint.sh"
-bash -n "$repo_root/scripts/embed-ios-build-provenance.sh"
+if len(sys.argv) != 4 or sys.argv[1] != "-c":
+    sys.exit(2)
+command = shlex.split(sys.argv[2])
+path = sys.argv[3]
+with open(path, "rb") as handle:
+    document = plistlib.load(handle)
+operation = command[0] if command else ""
+keys = command[1].lstrip(":").split(":") if len(command) > 1 else []
+container = document
+for key in keys[:-1]:
+    if not isinstance(container, dict) or key not in container:
+        sys.exit(1)
+    container = container[key]
+key = keys[-1] if keys else ""
+if operation == "Print" and len(command) == 2:
+    if not isinstance(container, dict) or key not in container:
+        sys.exit(1)
+    print(container[key])
+    sys.exit(0)
+if operation == "Set" and len(command) >= 3:
+    if not isinstance(container, dict) or key not in container:
+        sys.exit(1)
+    value = " ".join(command[2:])
+elif operation == "Add" and len(command) >= 4 and command[2] == "string":
+    if not isinstance(container, dict) or key in container:
+        sys.exit(1)
+    value = " ".join(command[3:])
+else:
+    sys.exit(2)
+container[key] = value
+with open(path, "wb") as handle:
+    plistlib.dump(document, handle, fmt=plistlib.FMT_XML, sort_keys=True)
+PYTHON
+chmod +x "$tool_bin/PlistBuddy"
 
-git -C "$tmp_dir" update-index --assume-unchanged source.swift
-assert_fails_with "tracked source uses assume-unchanged or skip-worktree index state" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  "$repo_root/scripts/ios-release-source-fingerprint.sh"
-git -C "$tmp_dir" update-index --no-assume-unchanged source.swift
-
-git -C "$tmp_dir" update-index --skip-worktree source.swift
-assert_fails_with "tracked source uses assume-unchanged or skip-worktree index state" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  "$repo_root/scripts/ios-release-source-fingerprint.sh"
-git -C "$tmp_dir" update-index --no-skip-worktree source.swift
-
-tracked_xcode_user_state="$tmp_dir/Merian.xcodeproj/xcuserdata/fixture.xcuserdatad/xcschemes/xcschememanagement.plist"
-mkdir -p "$(dirname "$tracked_xcode_user_state")"
-printf '<plist/>\n' > "$tracked_xcode_user_state"
-git -C "$tmp_dir" add -f "$tracked_xcode_user_state"
-commit_fixture_source
-assert_fails_with "tracked Xcode user state is nondeterministic release source" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  "$repo_root/scripts/ios-release-source-fingerprint.sh"
-git -C "$tmp_dir" rm -q "$tracked_xcode_user_state"
-commit_fixture_source
-
-mkdir -p "$(dirname "$tracked_xcode_user_state")"
-printf '<plist><integer>1</integer></plist>\n' > "$tracked_xcode_user_state"
-ignored_user_state_fingerprint_before="$(
-  MERIAN_PROJECT_ROOT="$tmp_dir" \
-    "$repo_root/scripts/ios-release-source-fingerprint.sh"
-)"
-printf '<plist><integer>2</integer></plist>\n' > "$tracked_xcode_user_state"
-ignored_user_state_fingerprint_after="$(
-  MERIAN_PROJECT_ROOT="$tmp_dir" \
-    "$repo_root/scripts/ios-release-source-fingerprint.sh"
-)"
-[[ "$ignored_user_state_fingerprint_before" == "$ignored_user_state_fingerprint_after" ]] \
-  || fail "Ignored Xcode user state changed the release-source fingerprint"
-
-assert_fails_with "expected revision" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  MERIAN_EXPECTED_SOURCE_REVISION=0000000000000000000000000000000000000000 \
-  "$repo_root/scripts/embed-ios-build-provenance.sh"
-assert_fails_with "INFOPLIST_PATH contains a traversal component" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  TARGET_BUILD_DIR="$tmp_dir" \
-  INFOPLIST_PATH="../outside.plist" \
-  "$repo_root/scripts/embed-ios-build-provenance.sh"
-
-provenance_product_dir="$tmp_dir/build/provenance-product"
-provenance_relative_plist="Merian.app/Info.plist"
-provenance_product_plist="$provenance_product_dir/$provenance_relative_plist"
-provenance_outside_plist="$tmp_dir/build/provenance-outside.plist"
-mkdir -p "$(dirname "$provenance_product_plist")"
-{
-  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
-  printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"'
-  printf '%s\n' '  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
-  printf '%s\n' '<plist version="1.0"><dict/></plist>'
-} > "$provenance_outside_plist"
-
-ln -s "$provenance_outside_plist" "$provenance_product_plist"
-assert_fails_with "product Info.plist must not be a symbolic link" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  TARGET_BUILD_DIR="$provenance_product_dir" \
-  INFOPLIST_PATH="$provenance_relative_plist" \
-  "$repo_root/scripts/embed-ios-build-provenance.sh"
-
-rm -f "$provenance_product_plist"
-ln "$provenance_outside_plist" "$provenance_product_plist"
-assert_fails_with "product Info.plist must not have multiple hard links" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  TARGET_BUILD_DIR="$provenance_product_dir" \
-  INFOPLIST_PATH="$provenance_relative_plist" \
-  "$repo_root/scripts/embed-ios-build-provenance.sh"
-
-rm -f "$provenance_product_plist"
-cp "$provenance_outside_plist" "$provenance_product_plist"
-assert_fails_with "PlistBuddy command must be an absolute path" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  MERIAN_PLISTBUDDY_COMMAND="fake-bin/PlistBuddy" \
-  TARGET_BUILD_DIR="$provenance_product_dir" \
-  INFOPLIST_PATH="$provenance_relative_plist" \
-  "$repo_root/scripts/embed-ios-build-provenance.sh"
-assert_succeeds_with "Embedded iOS build provenance" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
-  TARGET_BUILD_DIR="$provenance_product_dir" \
-  INFOPLIST_PATH="$provenance_relative_plist" \
-  "$repo_root/scripts/embed-ios-build-provenance.sh"
-assert_contains "MERIAN_SOURCE_REVISION" "$provenance_product_plist"
-assert_contains "MERIAN_SOURCE_FINGERPRINT" "$provenance_product_plist"
-assert_contains "MERIAN_SOURCE_STATE" "$provenance_product_plist"
-
-if [[ -x /usr/libexec/PlistBuddy ]]; then
-  real_provenance_dir="$tmp_dir/build/real-provenance-product"
-  real_provenance_plist="$real_provenance_dir/$provenance_relative_plist"
-  mkdir -p "$(dirname "$real_provenance_plist")"
-  cp "$provenance_outside_plist" "$real_provenance_plist"
-  assert_succeeds_with "Embedded iOS build provenance" \
-    env MERIAN_PROJECT_ROOT="$tmp_dir" \
-    TARGET_BUILD_DIR="$real_provenance_dir" \
-    INFOPLIST_PATH="$provenance_relative_plist" \
-    "$repo_root/scripts/embed-ios-build-provenance.sh"
-  assert_contains "MERIAN_SOURCE_REVISION" "$real_provenance_plist"
-  assert_contains "MERIAN_SOURCE_FINGERPRINT" "$real_provenance_plist"
-  assert_contains "MERIAN_SOURCE_STATE" "$real_provenance_plist"
+cat > "$tool_bin/xcodegen" <<'SHELL'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+  printf '%s\n' 'Version: 2.45.4'
+  exit 0
 fi
+exit 99
+SHELL
+chmod +x "$tool_bin/xcodegen"
 
-ipa_fixture_root="$tmp_dir/build/ipa-fixtures"
-fixture_ipa_revision="1111111111111111111111111111111111111111"
-fixture_ipa_fingerprint="2222222222222222222222222222222222222222222222222222222222222222"
-good_ipa="$ipa_fixture_root/good.ipa"
-write_ipa_fixture \
-  "$good_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint" \
-  "clean"
-assert_succeeds_with "Exported IPA metadata verified for app.merian.Merian 1.0.2 (236)" \
-  run_exported_ipa_validator \
-  "$good_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
-good_ipa_sha256="$(shasum -a 256 -- "$good_ipa" | awk 'NR == 1 { print $1 }')"
-assert_succeeds_with "^ipa_sha256=${good_ipa_sha256}$" \
-  run_exported_ipa_validator \
-  "$good_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
+for script in \
+  publish-ios-beta.sh \
+  check-ios-release-prep.sh \
+  export-ios-release.sh \
+  validate-ios-archive.sh \
+  validate-ios-exported-ipa.sh \
+  hash-ios-archive.sh \
+  ios-release-source-fingerprint.sh \
+  embed-ios-build-provenance.sh; do
+  bash -n "$repo_root/scripts/$script"
+done
 
-renumbered_ipa="$ipa_fixture_root/renumbered.ipa"
-write_ipa_fixture \
-  "$renumbered_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "272" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint" \
-  "clean"
-assert_fails_with "main app build 272 does not match expected build 236" \
-  run_exported_ipa_validator \
-  "$renumbered_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
+# Fingerprinting rejects hidden index state and tracked Xcode user data.
+git -C "$fixture_repo" update-index --assume-unchanged source.swift
+assert_fails_with "tracked source uses assume-unchanged or skip-worktree index state" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" bash "$repo_root/scripts/ios-release-source-fingerprint.sh"
+git -C "$fixture_repo" update-index --no-assume-unchanged source.swift
+git -C "$fixture_repo" update-index --skip-worktree source.swift
+assert_fails_with "tracked source uses assume-unchanged or skip-worktree index state" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" bash "$repo_root/scripts/ios-release-source-fingerprint.sh"
+git -C "$fixture_repo" update-index --no-skip-worktree source.swift
 
-assert_fails_with "main app source revision does not match the exported archive" \
-  run_exported_ipa_validator \
-  "$good_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "3333333333333333333333333333333333333333" \
-  "$fixture_ipa_fingerprint"
+tracked_user_state="$fixture_repo/Merian.xcodeproj/xcuserdata/test.xcuserdatad/xcschemes/state.plist"
+mkdir -p "$(dirname "$tracked_user_state")"
+printf '%s\n' '<plist/>' > "$tracked_user_state"
+git -C "$fixture_repo" add -f "$tracked_user_state"
+commit_fixture
+assert_fails_with "tracked Xcode user state is nondeterministic release source" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" bash "$repo_root/scripts/ios-release-source-fingerprint.sh"
+git -C "$fixture_repo" rm -q "$tracked_user_state"
+commit_fixture
 
-dirty_ipa="$ipa_fixture_root/dirty.ipa"
-write_ipa_fixture \
-  "$dirty_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint" \
-  "dirty"
+fixture_revision="$(git -C "$fixture_repo" rev-parse HEAD)"
+fixture_fingerprint="$(MERIAN_PROJECT_ROOT="$fixture_repo" bash "$repo_root/scripts/ios-release-source-fingerprint.sh")"
+
+# Product provenance refuses path escapes and link redirection, then embeds the
+# exact clean source identity in an ordinary processed product plist.
+product_dir="$fixture_repo/build/product"
+product_plist="$product_dir/Merian.app/Info.plist"
+outside_plist="$fixture_repo/build/outside.plist"
+mkdir -p "$(dirname "$product_plist")"
+python3 - "$outside_plist" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "wb") as handle:
+    plistlib.dump({}, handle)
+PYTHON
+assert_fails_with "INFOPLIST_PATH contains a traversal component" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" TARGET_BUILD_DIR="$product_dir" INFOPLIST_PATH="../outside.plist" \
+  bash "$repo_root/scripts/embed-ios-build-provenance.sh"
+ln -s "$outside_plist" "$product_plist"
+assert_fails_with "product Info.plist must not be a symbolic link" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" TARGET_BUILD_DIR="$product_dir" INFOPLIST_PATH="Merian.app/Info.plist" \
+  bash "$repo_root/scripts/embed-ios-build-provenance.sh"
+rm -f "$product_plist"
+ln "$outside_plist" "$product_plist"
+assert_fails_with "product Info.plist must not have multiple hard links" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" TARGET_BUILD_DIR="$product_dir" INFOPLIST_PATH="Merian.app/Info.plist" \
+  bash "$repo_root/scripts/embed-ios-build-provenance.sh"
+rm -f "$product_plist"
+cp "$outside_plist" "$product_plist"
+assert_succeeds_with "Embedded iOS build provenance" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  TARGET_BUILD_DIR="$product_dir" INFOPLIST_PATH="Merian.app/Info.plist" \
+  bash "$repo_root/scripts/embed-ios-build-provenance.sh"
+assert_contains "MERIAN_SOURCE_REVISION" "$product_plist"
+assert_contains "MERIAN_SOURCE_FINGERPRINT" "$product_plist"
+assert_contains "MERIAN_SOURCE_STATE" "$product_plist"
+
+# IPA verification covers the app and every shipped embedded component.
+ipa_root="$fixture_repo/build/ipa-fixtures"
+good_ipa="$ipa_root/good.ipa"
+write_ipa_fixture "$good_ipa" "1.0.3" "40" "$fixture_revision" "$fixture_fingerprint"
+assert_succeeds_with "Exported IPA metadata verified for app.merian.Merian 1.0.3 (40)" \
+  run_ipa_validator "$good_ipa" Merian.app app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
+good_sha="$(shasum -a 256 -- "$good_ipa" | awk '{ print $1 }')"
+assert_succeeds_with "^ipa_sha256=${good_sha}$" \
+  run_ipa_validator "$good_ipa" Merian.app app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
+
+renumbered_ipa="$ipa_root/renumbered.ipa"
+write_ipa_fixture "$renumbered_ipa" "1.0.3" "272" "$fixture_revision" "$fixture_fingerprint"
+assert_fails_with "main app build 272 does not match expected build 40" \
+  run_ipa_validator "$renumbered_ipa" Merian.app app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
+component_mismatch_ipa="$ipa_root/component-mismatch.ipa"
+write_ipa_fixture "$component_mismatch_ipa" "1.0.3" "40" "$fixture_revision" "$fixture_fingerprint" clean 39
+assert_fails_with "MerianExploreWidget.appex/Info.plist build 39 does not match expected build 40" \
+  run_ipa_validator "$component_mismatch_ipa" Merian.app app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
+dirty_ipa="$ipa_root/dirty.ipa"
+write_ipa_fixture "$dirty_ipa" "1.0.3" "40" "$fixture_revision" "$fixture_fingerprint" dirty
 assert_fails_with "main app source state is dirty; expected clean" \
-  run_exported_ipa_validator \
-  "$dirty_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
-
-component_mismatch_ipa="$ipa_fixture_root/component-mismatch.ipa"
-write_ipa_fixture \
-  "$component_mismatch_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint" \
-  "clean" \
-  "235"
-assert_fails_with "Fixture.appex/Info.plist build 235 does not match expected build 236" \
-  run_exported_ipa_validator \
-  "$component_mismatch_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
-
-duplicate_root_ipa="$ipa_fixture_root/duplicate-root.ipa"
-write_ipa_fixture \
-  "$duplicate_root_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint" \
-  "clean" \
-  "236" \
-  "duplicate-root"
+  run_ipa_validator "$dirty_ipa" Merian.app app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
+duplicate_ipa="$ipa_root/duplicate.ipa"
+write_ipa_fixture "$duplicate_ipa" "1.0.3" "40" "$fixture_revision" "$fixture_fingerprint" clean 40 duplicate-root
 assert_fails_with "IPA contains a duplicate archive entry" \
-  run_exported_ipa_validator \
-  "$duplicate_root_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
+  run_ipa_validator "$duplicate_ipa" Merian.app app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
+missing_watch_ipa="$ipa_root/missing-watch.ipa"
+write_ipa_fixture "$missing_watch_ipa" "1.0.3" "40" "$fixture_revision" "$fixture_fingerprint" clean 40 missing-watch
+assert_fails_with "IPA is missing required embedded component: .*MerianWatch.app/Info.plist" \
+  run_ipa_validator "$missing_watch_ipa" Merian.app app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
 
-extra_root_ipa="$ipa_fixture_root/extra-root.ipa"
-write_ipa_fixture \
-  "$extra_root_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint" \
-  "clean" \
-  "236" \
-  "extra-root"
-assert_fails_with "IPA must contain exactly one root application Info.plist; found 2" \
-  run_exported_ipa_validator \
-  "$extra_root_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
+# Archive verification has the same all-target identity contract and a stable
+# content identity that changes with any archive byte.
+archive_fixture="$fixture_repo/build/archive-fixture.xcarchive"
+write_archive_fixture "$archive_fixture" "1.0.3" "40" "$fixture_revision" "$fixture_fingerprint"
+archive_output="$(MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" bash "$repo_root/scripts/validate-ios-archive.sh" "$archive_fixture" app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint")"
+archive_identity="$(awk -F= '$1 == "archive_identity" { print $2 }' <<<"$archive_output")"
+[[ "$archive_identity" =~ ^[0-9a-f]{64}$ ]] || fail "archive validation returned no identity"
+printf '%s\n' 'mutation' >> "$archive_fixture/Products/Applications/Merian.app/Merian"
+mutated_identity="$(bash "$repo_root/scripts/hash-ios-archive.sh" "$archive_fixture")"
+[[ "$mutated_identity" != "$archive_identity" ]] || fail "archive identity ignored a content change"
+bad_archive="$fixture_repo/build/bad-component.xcarchive"
+write_archive_fixture "$bad_archive" "1.0.3" "40" "$fixture_revision" "$fixture_fingerprint" 39
+assert_fails_with "Explore widget build 39 does not match 40" \
+  env MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  bash "$repo_root/scripts/validate-ios-archive.sh" "$bad_archive" app.merian.Merian 1.0.3 40 "$fixture_revision" "$fixture_fingerprint"
 
-missing_fingerprint_ipa="$ipa_fixture_root/missing-fingerprint.ipa"
-write_ipa_fixture \
-  "$missing_fingerprint_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint" \
-  "clean" \
-  "236" \
-  "missing-fingerprint"
-assert_fails_with "main-Info.plist is missing a readable MERIAN_SOURCE_FINGERPRINT" \
-  run_exported_ipa_validator \
-  "$missing_fingerprint_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.2" \
-  "236" \
-  "$fixture_ipa_revision" \
-  "$fixture_ipa_fingerprint"
+# Release preflight has disjoint validation and serialized publisher modes.
+assert_succeeds_with "no build number was allocated" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
+  MERIAN_IOS_VALIDATION_ARCHIVE=1 MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' \
+  MARKETING_VERSION=1.0.3 CURRENT_PROJECT_VERSION=39 \
+  bash "$repo_root/scripts/check-ios-release-prep.sh"
+assert_fails_with "validation archive changed or allocated CURRENT_PROJECT_VERSION" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
+  MERIAN_IOS_VALIDATION_ARCHIVE=1 MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' \
+  MARKETING_VERSION=1.0.3 CURRENT_PROJECT_VERSION=40 \
+  bash "$repo_root/scripts/check-ios-release-prep.sh"
+assert_fails_with "validation archive mode is restricted to unsigned archives" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
+  MERIAN_IOS_VALIDATION_ARCHIVE=1 MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" \
+  CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES MARKETING_VERSION=1.0.3 CURRENT_PROJECT_VERSION=39 \
+  bash "$repo_root/scripts/check-ios-release-prep.sh"
+assert_fails_with "manual Organizer and ad-hoc xcodebuild archives are unsupported" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
+  MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" \
+  bash "$repo_root/scripts/check-ios-release-prep.sh"
+assert_succeeds_with "Serialized publisher Release archive authorized" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
+  MERIAN_RELEASE_PUBLISHER=1 MERIAN_PUBLISHER_SERIALIZED=1 \
+  MERIAN_EXPECTED_MARKETING_VERSION=1.0.3 MERIAN_EXPECTED_BUILD_NUMBER=40 \
+  MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" MERIAN_EXPECTED_SOURCE_FINGERPRINT="$fixture_fingerprint" \
+  MARKETING_VERSION=1.0.3 CURRENT_PROJECT_VERSION=40 REVENUECAT_API_KEY=appl_fixtureproductionkey \
+  bash "$repo_root/scripts/check-ios-release-prep.sh"
+assert_fails_with "allocated build 39 is not higher than tracked baseline 39" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
+  MERIAN_RELEASE_PUBLISHER=1 MERIAN_PUBLISHER_SERIALIZED=1 \
+  MERIAN_EXPECTED_MARKETING_VERSION=1.0.3 MERIAN_EXPECTED_BUILD_NUMBER=39 \
+  MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" MERIAN_EXPECTED_SOURCE_FINGERPRINT="$fixture_fingerprint" \
+  MARKETING_VERSION=1.0.3 CURRENT_PROJECT_VERSION=39 REVENUECAT_API_KEY=appl_fixtureproductionkey \
+  bash "$repo_root/scripts/check-ios-release-prep.sh"
 
-assert_fails_with "EXPORT_PATH must be a child of" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
-  PROJECT_YML="$tmp_dir/project.yml" \
-  IOS_EXPORT_SKIP_PREP_CHECK=1 \
-  EXPORT_PATH="$tmp_dir/outside-export" \
-  "$repo_root/scripts/export-ios-release.sh"
-assert_fails_with "EXPORT_OPTIONS_PLIST must be inside EXPORT_PATH" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
-  PROJECT_YML="$tmp_dir/project.yml" \
-  IOS_EXPORT_SKIP_PREP_CHECK=1 \
-  EXPORT_PATH="$tmp_dir/build/export" \
-  EXPORT_OPTIONS_PLIST="$tmp_dir/outside.plist" \
-  "$repo_root/scripts/export-ios-release.sh"
-assert_fails_with "EXPORT_PATH must not contain . or .. path components" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
-  PROJECT_YML="$tmp_dir/project.yml" \
-  IOS_EXPORT_SKIP_PREP_CHECK=1 \
-  EXPORT_PATH="$tmp_dir/build/missing/../../outside-export" \
-  "$repo_root/scripts/export-ios-release.sh"
-assert_fails_with "EXPORT_OPTIONS_PLIST must not contain . or .. path components" \
-  env MERIAN_PROJECT_ROOT="$tmp_dir" \
-  MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
-  PROJECT_YML="$tmp_dir/project.yml" \
-  IOS_EXPORT_SKIP_PREP_CHECK=1 \
-  EXPORT_PATH="$tmp_dir/build/export" \
-  EXPORT_OPTIONS_PLIST="$tmp_dir/build/export/missing/../../outside-options.plist" \
-  "$repo_root/scripts/export-ios-release.sh"
+# Dry-run allocation uses both tracked and durable repository baselines without
+# reserving a tag or modifying project.yml.
+git -C "$fixture_repo" tag ios-build-allocations/44 "$fixture_revision"
+remote_main_revision="$(git --git-dir="$fixture_remote" rev-parse refs/heads/main)"
+git --git-dir="$fixture_remote" update-ref refs/tags/ios-build-allocations/nested/46 "$remote_main_revision"
+assert_fails_with "remote contains a malformed iOS allocation tag" \
+  env LATEST_ASC_BUILD=41 PUBLISHER_PLAN_PATH="$fixture_repo/build/malformed-remote-tag-plan.json" \
+  MERIAN_PROJECT_ROOT="$fixture_repo" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --dry-run
+git --git-dir="$fixture_remote" update-ref -d refs/tags/ios-build-allocations/nested/46
+project_before="$(shasum -a 256 "$fixture_repo/project.yml" | awk '{ print $1 }')"
+plan_path="$fixture_repo/build/plan-45.json"
+LATEST_ASC_BUILD=41 \
+PUBLISHER_PLAN_PATH="$plan_path" \
+MERIAN_PROJECT_ROOT="$fixture_repo" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --dry-run >/dev/null
+[[ "$(json_value "$plan_path" '["build"]')" == "45" ]] || fail "dry run did not use allocation tag baseline"
+[[ "$(json_value "$plan_path" '["allocation"]["repository_baseline"]')" == "44" ]] || fail "repository baseline is wrong"
+[[ "$(json_value "$plan_path" '["export"]["manageAppVersionAndBuildNumber"]')" == "false" ]] || fail "plan enabled Xcode renumbering"
+[[ "$(json_value "$plan_path" '["upload"]["planned"]')" == "true" ]] || fail "dry run did not demonstrate the allocation-to-upload path"
+[[ "$(json_value "$plan_path" '["upload"]["authorized"]')" == "false" ]] || fail "dry run authorized an upload"
+[[ "$(json_value "$plan_path" '["upload"]["will_execute"]')" == "false" ]] || fail "dry run would execute an upload"
+[[ "$(json_value "$plan_path" '["upload"]["rebuild"]')" == "false" ]] || fail "dry run planned a promotion rebuild"
+[[ "$(json_value "$plan_path" '["upload"]["promotion_policy"]')" == *"internal TestFlight, external TestFlight, and App Review"* ]] \
+  || fail "dry run lost the same-binary promotion policy"
+git -C "$fixture_repo" show-ref --verify --quiet refs/tags/ios-build-allocations/45 \
+  && fail "dry run reserved a build"
+project_after="$(shasum -a 256 "$fixture_repo/project.yml" | awk '{ print $1 }')"
+[[ "$project_before" == "$project_after" ]] || fail "dry run edited tracked version settings"
+assert_fails_with "publisher plan does not authorize this exact export" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_RELEASE_PUBLISHER=1 MERIAN_PUBLISHER_SERIALIZED=1 \
+  IOS_PUBLISHER_PLAN="$plan_path" ARCHIVE_PATH="$archive_fixture" \
+  EXPORT_PATH="$fixture_repo/build/dry-run-plan-export" TEAM_ID=TA8S64ST9W \
+  MERIAN_EXPECTED_MARKETING_VERSION=1.0.3 MERIAN_EXPECTED_BUILD_NUMBER=45 \
+  MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" MERIAN_EXPECTED_SOURCE_FINGERPRINT="$fixture_fingerprint" \
+  XCODEBUILD_COMMAND="$tool_bin/xcodebuild" MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  bash "$repo_root/scripts/export-ios-release.sh"
+git -C "$fixture_repo" tag -d ios-build-allocations/44 >/dev/null
 
-fake_export_bin="$tmp_dir/build/fake-export-bin"
-fake_xcodebuild_log="$tmp_dir/build/fake-xcodebuild.log"
-mkdir -p "$fake_export_bin"
-{
-  printf '#!/usr/bin/env bash\n'
-  printf 'set -euo pipefail\n'
-  printf 'export_path=""\n'
-  printf 'printf "%%s\\n" "$@" > "${FAKE_XCODEBUILD_LOG:?}"\n'
-  printf 'while (( $# > 0 )); do\n'
-  printf '  case "$1" in\n'
-  printf '    -exportPath)\n'
-  printf '      export_path="$2"\n'
-  printf '      shift 2\n'
-  printf '      ;;\n'
-  printf '    *)\n'
-  printf '      shift\n'
-  printf '      ;;\n'
-  printf '  esac\n'
-  printf 'done\n'
-  printf '[[ -n "$export_path" ]]\n'
-  printf 'mkdir -p "$export_path"\n'
-  printf 'cp "${FAKE_IPA_SOURCE:?}" "$export_path/Merian.ipa"\n'
-  printf 'printf "Fake App Store Connect export completed.\\n"\n'
-} > "$fake_export_bin/xcodebuild"
-chmod +x "$fake_export_bin/xcodebuild"
+assert_fails_with "prepare-ios-release is retired" bash "$repo_root/scripts/prepare-ios-release.sh"
+assert_contains "CURRENT_PROJECT_VERSION: 39" "$fixture_repo/project.yml"
 
-fixture_export_revision="$(git -C "$tmp_dir" rev-parse HEAD)"
-fixture_export_fingerprint="$(
-  MERIAN_PROJECT_ROOT="$tmp_dir" \
-    "$repo_root/scripts/ios-release-source-fingerprint.sh"
-)"
-fixture_archive="$tmp_dir/build/Merian.xcarchive"
-write_export_archive_fixture \
-  "$fixture_archive" \
-  "1.0.0" \
-  "39" \
-  "$fixture_export_revision" \
-  "$fixture_export_fingerprint"
+# API allocation fails closed on malformed payloads and uses the global sorted
+# app build endpoint in read-only plan mode.
+mkdir -p "$test_root/secrets"
+asc_key="$test_root/secrets/AuthKey_FIXTURE123.p8"
+openssl ecparam -name prime256v1 -genkey -noout -out "$asc_key" 2>/dev/null
+asc_response="$test_root/asc-response.json"
+asc_log="$test_root/asc-curl.log"
+asc_header_log="$test_root/asc-header.log"
+asc_tmp="$test_root/asc-tmp"
+mkdir "$asc_tmp"
+printf '%s\n' '{"data":[{"type":"builds","attributes":{"version":"52"}}]}' > "$asc_response"
+cat > "$tool_bin/curl" <<'SHELL'
+#!/usr/bin/env bash
+set -euo pipefail
+output=""
+printf '%s\n' "$@" >> "${FAKE_ASC_LOG:?}"
+while (( $# > 0 )); do
+  case "$1" in
+    -o) output="$2"; shift 2 ;;
+    -H)
+      [[ "$2" == @* ]]
+      printf '%s\n' "$(<"${2#@}")" > "${FAKE_ASC_HEADER_LOG:?}"
+      shift 2
+      ;;
+    *) shift ;;
+  esac
+done
+cp "${FAKE_ASC_RESPONSE:?}" "$output"
+printf '%s' "${FAKE_ASC_HTTP_CODE:-200}"
+SHELL
+chmod +x "$tool_bin/curl"
+asc_plan="$fixture_repo/build/asc-plan.json"
+ASC_APP_ID=1234567890 \
+ASC_KEY_ID=FIXTURE123 \
+ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000 \
+ASC_PRIVATE_KEY_PATH="$asc_key" \
+TMPDIR="$asc_tmp" \
+CURL_COMMAND="$tool_bin/curl" \
+FAKE_ASC_LOG="$asc_log" \
+FAKE_ASC_HEADER_LOG="$asc_header_log" \
+FAKE_ASC_RESPONSE="$asc_response" \
+PUBLISHER_PLAN_PATH="$asc_plan" \
+MERIAN_PROJECT_ROOT="$fixture_repo" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --dry-run >/dev/null
+[[ "$(json_value "$asc_plan" '["build"]')" == "53" ]] || fail "ASC allocation did not select 52 + 1"
+assert_contains "filter[app]=1234567890" "$asc_log"
+assert_contains "sort=-version" "$asc_log"
+assert_contains "limit=1" "$asc_log"
+grep -Fq -- 'Authorization: Bearer ' "$asc_log" \
+  && fail "App Store Connect JWT was exposed on the curl command line"
+assert_contains "merian-asc-auth." "$asc_log"
+asc_jwt="$(awk '/^Authorization: Bearer / { print $3; exit }' "$asc_header_log")"
+ruby -rbase64 -ropenssl -e '
+  token, key_path = ARGV
+  encoded_header, encoded_payload, encoded_signature = token.split(".", 3)
+  abort("invalid JWT shape") unless encoded_signature
+  padding = "=" * ((4 - encoded_signature.length % 4) % 4)
+  signature = Base64.urlsafe_decode64(encoded_signature + padding)
+  abort("invalid ES256 signature width") unless signature.bytesize == 64
+  r = OpenSSL::BN.new(signature.byteslice(0, 32), 2)
+  s = OpenSSL::BN.new(signature.byteslice(32, 32), 2)
+  der_signature = OpenSSL::ASN1::Sequence([
+    OpenSSL::ASN1::Integer(r),
+    OpenSSL::ASN1::Integer(s)
+  ]).to_der
+  signing_input = "#{encoded_header}.#{encoded_payload}"
+  key = OpenSSL::PKey.read(File.binread(key_path))
+  abort("JWT signature verification failed") unless key.verify(OpenSSL::Digest::SHA256.new, der_signature, signing_input)
+' "$asc_jwt" "$asc_key" || fail "publisher generated an invalid App Store Connect JWT"
+printf '%s\n' '{"data":"unknown"}' > "$asc_response"
+assert_fails_with "malformed build-list response" \
+  env ASC_APP_ID=1234567890 ASC_KEY_ID=FIXTURE123 \
+  ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000 ASC_PRIVATE_KEY_PATH="$asc_key" \
+  TMPDIR="$asc_tmp" \
+  CURL_COMMAND="$tool_bin/curl" FAKE_ASC_LOG="$asc_log" FAKE_ASC_HEADER_LOG="$asc_header_log" FAKE_ASC_RESPONSE="$asc_response" \
+  PUBLISHER_PLAN_PATH="$fixture_repo/build/malformed-plan.json" \
+  MERIAN_PROJECT_ROOT="$fixture_repo" bash "$repo_root/scripts/publish-ios-beta.sh" --dry-run
+asc_secret_remainder="$(find "$asc_tmp" \( -name 'merian-asc-auth.*' -o -name 'merian-asc-builds.*' \) -type f -print -quit)"
+[[ -z "$asc_secret_remainder" ]] || fail "App Store Connect lookup left a JWT header or response file: $asc_secret_remainder"
 
-valid_export_source_ipa="$tmp_dir/build/valid-export-source.ipa"
-write_ipa_fixture \
-  "$valid_export_source_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.0" \
-  "39" \
-  "$fixture_export_revision" \
-  "$fixture_export_fingerprint" \
-  "clean"
+# A failed sole archive burns build 40. The next run allocates 41, archives
+# once, exports without renumbering, and publishes one-to-one evidence.
+fake_xcodebuild_log="$test_root/xcodebuild.log"
+cat > "$tool_bin/xcodebuild" <<'SHELL'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ -z "${PUBLISHER_GITHUB_TOKEN:-}" ]] || exit 86
+printf 'COMMAND:%s\n' "${1:-}" >> "${FAKE_XCODEBUILD_LOG:?}"
+if [[ "${1:-}" == "archive" ]]; then
+  if [[ "${FAKE_ARCHIVE_FAIL:-0}" == "1" ]]; then
+    exit 65
+  fi
+  archive_path=""
+  while (( $# > 0 )); do
+    case "$1" in
+      -archivePath) archive_path="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$archive_path" ]]
+  cp -R "${FAKE_ARCHIVE_TEMPLATE:?}" "$archive_path"
+  exit 0
+fi
+if [[ "${1:-}" == "-exportArchive" ]]; then
+  export_path=""
+  while (( $# > 0 )); do
+    case "$1" in
+      -exportPath) export_path="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n "$export_path" ]]
+  cp "${FAKE_IPA_SOURCE:?}" "$export_path/Merian.ipa"
+  exit 0
+fi
+exit 99
+SHELL
+chmod +x "$tool_bin/xcodebuild"
 
-run_export_fixture() {
-  local ipa_source="$1"
-
+run_candidate() {
   env \
-    PATH="$fake_export_bin:$PATH" \
-    FAKE_IPA_SOURCE="$ipa_source" \
-    FAKE_XCODEBUILD_LOG="$fake_xcodebuild_log" \
-    MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
-    MERIAN_UNZIP_COMMAND="$(command -v unzip)" \
-    MERIAN_PROJECT_ROOT="$tmp_dir" \
-    PROJECT_YML="$tmp_dir/project.yml" \
-    IOS_EXPORT_SKIP_PREP_CHECK=1 \
-    ARCHIVE_PATH="$fixture_archive" \
-    EXPORT_PATH="$tmp_dir/build/export-integration" \
-    "$repo_root/scripts/export-ios-release.sh"
-}
-
-assert_succeeds_with "Exported TestFlight-ready IPA" \
-  run_export_fixture "$valid_export_source_ipa"
-assert_contains "manageAppVersionAndBuildNumber" \
-  "$tmp_dir/build/export-integration/exportOptions.plist"
-managed_build_value="$(
-  "$tmp_dir/fake-bin/PlistBuddy" \
-    -c "Print :manageAppVersionAndBuildNumber" \
-    "$tmp_dir/build/export-integration/exportOptions.plist"
-)"
-[[ "$managed_build_value" == "False" ]] \
-  || fail "App Store Connect export must set manageAppVersionAndBuildNumber=false"
-assert_contains "-exportArchive" "$fake_xcodebuild_log"
-
-renumbered_export_source_ipa="$tmp_dir/build/renumbered-export-source.ipa"
-write_ipa_fixture \
-  "$renumbered_export_source_ipa" \
-  "Merian.app" \
-  "app.merian.Merian" \
-  "1.0.0" \
-  "272" \
-  "$fixture_export_revision" \
-  "$fixture_export_fingerprint" \
-  "clean"
-assert_fails_with "main app build 272 does not match expected build 39" \
-  run_export_fixture "$renumbered_export_source_ipa"
-
-assert_fails_with "xcodegen 2.45.4 is required for reproducible release generation; found 9.9.9" \
-  env VERSION=1.2.3 BUILD=40 \
-  PROJECT_YML="$tmp_dir/project.yml" \
-  MERIAN_PROJECT_ROOT="$tmp_dir" \
-  XCODEGEN_COMMAND="$tmp_dir/fake-bin/xcodegen" \
-  "$repo_root/scripts/prepare-ios-release.sh"
-assert_contains "MARKETING_VERSION: 1.0.0" "$tmp_dir/project.yml"
-assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
-
-asc_private_key="$tmp_dir/build/asc-private-key.p8"
-asc_response="$tmp_dir/build/asc-response.json"
-asc_curl_log="$tmp_dir/build/asc-curl.log"
-mkdir -p "$tmp_dir/build"
-openssl ecparam -name prime256v1 -genkey -noout -out "$asc_private_key" 2>/dev/null
-
-run_prepare_with_fake_asc() {
-  local http_code="${1:-200}"
-  local curl_status="${2:-0}"
-
-  env \
-    FAKE_ASC_RESPONSE="$asc_response" \
-    FAKE_ASC_CURL_LOG="$asc_curl_log" \
-    FAKE_ASC_HTTP_CODE="$http_code" \
-    FAKE_ASC_CURL_STATUS="$curl_status" \
-    PATH="$tmp_dir/fake-bin:$PATH" \
-    VERSION=1.2.3 \
-    REVENUECAT_API_KEY="$valid_revenuecat_key" \
-    PROJECT_YML="$tmp_dir/project.yml" \
-    PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" \
-    CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" \
-    LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" \
-    IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" \
-    MERIAN_PROJECT_ROOT="$tmp_dir" \
-    RUN_XCODEGEN=0 \
+    MERIAN_PROJECT_ROOT="$fixture_repo" \
+    PROJECT_YML="$fixture_repo/project.yml" \
+    MERIAN_PUBLISHER_TESTING=1 \
+    PUBLISHER_SKIP_REPOSITORY_GATES=1 \
+    MERIAN_PUBLISHER_SERIALIZED=1 \
+    MERIAN_GREEN_SHA="$fixture_revision" \
+    MERIAN_GREEN_RUN_ID=117 \
+    LATEST_ASC_BUILD=39 \
     ASC_APP_ID=1234567890 \
+    ASC_TEAM_ID=TA8S64ST9W \
+    ASC_KEY_ID=FIXTURE123 \
     ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000 \
-    ASC_KEY_ID=ABC123DEFG \
-    ASC_PRIVATE_KEY_PATH="$asc_private_key" \
-    "$repo_root/scripts/prepare-ios-release.sh"
+    ASC_PRIVATE_KEY_PATH="$asc_key" \
+    PUBLISHER_GITHUB_TOKEN=fixture_workflow_token \
+    XCODEBUILD_COMMAND="$tool_bin/xcodebuild" \
+    XCODEGEN_COMMAND="$tool_bin/xcodegen" \
+    MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+    FAKE_XCODEBUILD_LOG="$fake_xcodebuild_log" \
+    FAKE_ARCHIVE_FAIL="${FAKE_ARCHIVE_FAIL:-0}" \
+    FAKE_ARCHIVE_TEMPLATE="${FAKE_ARCHIVE_TEMPLATE:-$fixture_repo/build/not-yet-created.xcarchive}" \
+    FAKE_IPA_SOURCE="${FAKE_IPA_SOURCE:-$fixture_repo/build/not-yet-created.ipa}" \
+    bash "$repo_root/scripts/publish-ios-beta.sh" --candidate --confirm-external-state
 }
 
-printf '%s\n' \
-  '{"data":[{"type":"builds","id":"fixture-build","attributes":{"version":"909"}}]}' \
-  > "$asc_response"
-write_project_yml "1.0.0" "39"
-run_prepare_with_fake_asc >/dev/null
-assert_contains "CURRENT_PROJECT_VERSION: 910" "$tmp_dir/project.yml"
-assert_contains '--get' "$asc_curl_log"
-assert_contains 'filter[app]=1234567890' "$asc_curl_log"
-assert_contains 'limit=1' "$asc_curl_log"
-assert_contains 'sort=-version' "$asc_curl_log"
-assert_contains 'fields[builds]=version' "$asc_curl_log"
-assert_contains '--connect-timeout' "$asc_curl_log"
-assert_contains '--max-time' "$asc_curl_log"
-assert_contains '--retry-all-errors' "$asc_curl_log"
-assert_contains '--max-filesize' "$asc_curl_log"
+mkdir "$fixture_repo/build/.ios-publisher.lock"
+assert_fails_with "another local publisher holds" run_candidate
+git -C "$fixture_repo" show-ref --verify --quiet refs/tags/ios-build-allocations/40 \
+  && fail "contended publisher reserved build 40 before acquiring the local lock"
+rmdir "$fixture_repo/build/.ios-publisher.lock"
 
-printf '%s\n' '{"unexpected":"success-shape"}' > "$asc_response"
-write_project_yml "1.0.0" "39"
-assert_fails_with "App Store Connect returned a malformed build-list response" \
-  run_prepare_with_fake_asc
-assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
+FAKE_ARCHIVE_FAIL=1 assert_fails_with "sole archive invocation failed" run_candidate
+git -C "$fixture_repo" show-ref --verify --quiet refs/tags/ios-build-allocations/40 \
+  || fail "failed archive did not preserve build 40 reservation"
 
-printf '%s\n' '{"errors":[{"status":"503"}]}' > "$asc_response"
-write_project_yml "1.0.0" "39"
-assert_fails_with "App Store Connect build lookup failed with HTTP 503" \
-  run_prepare_with_fake_asc 503
-assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
+successful_archive_template="$fixture_repo/build/success-template.xcarchive"
+successful_ipa="$fixture_repo/build/success.ipa"
+write_archive_fixture "$successful_archive_template" "1.0.3" "41" "$fixture_revision" "$fixture_fingerprint"
+write_ipa_fixture "$successful_ipa" "1.0.3" "41" "$fixture_revision" "$fixture_fingerprint"
+FAKE_ARCHIVE_TEMPLATE="$successful_archive_template" \
+FAKE_IPA_SOURCE="$successful_ipa" \
+assert_succeeds_with "Beta candidate created without upload" run_candidate
 
-write_project_yml "1.0.0" "39"
-assert_fails_with "App Store Connect build lookup transport failed (curl 28)" \
-  run_prepare_with_fake_asc 200 28
-assert_contains "CURRENT_PROJECT_VERSION: 39" "$tmp_dir/project.yml"
+evidence_path="$(find "$fixture_repo/build/ios-publisher" -path '*-41-*' -name evidence.json -type f)"
+[[ -f "$evidence_path" ]] || fail "successful publisher did not create evidence.json"
+[[ "$(json_value "$evidence_path" '["build"]')" == "41" ]] || fail "candidate reused failed build 40"
+[[ "$(json_value "$evidence_path" '["archive_invocations"]')" == "1" ]] || fail "evidence did not retain sole archive count"
+[[ "$(json_value "$evidence_path" '["source_revision"]')" == "$fixture_revision" ]] || fail "evidence source SHA mismatch"
+[[ "$(json_value "$evidence_path" '["source_fingerprint"]')" == "$fixture_fingerprint" ]] || fail "evidence source fingerprint mismatch"
+[[ "$(json_value "$evidence_path" '["manageAppVersionAndBuildNumber"]')" == "false" ]] || fail "candidate evidence enabled renumbering"
+[[ "$(json_value "$evidence_path" '["promotion_policy"]')" == "same_uploaded_binary_only" ]] \
+  || fail "candidate evidence lost the same-binary promotion policy"
+[[ "$(json_value "$evidence_path" '["retry_policy"]["identical_ipa_after_definitive_failed_upload"]')" == "allowed" ]] \
+  || fail "candidate evidence lost the identical-IPA retry policy"
+[[ "$(json_value "$evidence_path" '["retry_policy"]["rebuild_or_source_or_configuration_change"]')" == "allocate_new_build" ]] \
+  || fail "candidate evidence allowed a changed rebuild to reuse its build"
+evidence_archive_identity="$(json_value "$evidence_path" '["archive_identity"]')"
+evidence_ipa_sha="$(json_value "$evidence_path" '["ipa_sha256"]')"
+[[ "$evidence_archive_identity" =~ ^[0-9a-f]{64}$ && "$evidence_ipa_sha" =~ ^[0-9a-f]{64}$ ]] \
+  || fail "candidate evidence lacks artifact identities"
+git -C "$fixture_repo" show-ref --verify --quiet refs/tags/ios-build-allocations/41 \
+  || fail "candidate allocation tag is missing"
+git -C "$fixture_repo" show-ref --verify --quiet refs/tags/ios-builds/1.0.3-41 \
+  || fail "immutable evidence tag is missing"
+[[ "$(grep -c '^COMMAND:archive$' "$fake_xcodebuild_log")" == "2" ]] \
+  || fail "each of the failed and successful allocations must have exactly one archive invocation"
+[[ "$(grep -c '^COMMAND:-exportArchive$' "$fake_xcodebuild_log")" == "1" ]] \
+  || fail "successful candidate must export exactly once"
 
-write_project_yml "1.0.0" "39"
-VERSION=1.2.3 LATEST_ASC_BUILD=41 run_prepare >/dev/null
-assert_contains "MARKETING_VERSION: 1.2.3" "$tmp_dir/project.yml"
-assert_contains "CURRENT_PROJECT_VERSION: 42" "$tmp_dir/project.yml"
-assert_contains '"build": 42' "$tmp_dir/build/ios-release-prep.json"
-assert_contains '"anchor_build": 41' "$tmp_dir/build/ios-release-prep.json"
-assert_contains '"source_fingerprint": "' "$tmp_dir/build/ios-release-prep.json"
-assert_contains '"prepared_from_sha": "' "$tmp_dir/build/ios-release-prep.json"
-assert_contains "REVENUECAT_API_KEY = $valid_revenuecat_key" "$tmp_dir/Config.local.xcconfig"
+export_options="$(find "$fixture_repo/build/ios-publisher" -path '*-41-*' -name exportOptions.plist -type f)"
+managed_value="$($tool_bin/PlistBuddy -c 'Print :manageAppVersionAndBuildNumber' "$export_options")"
+[[ "$managed_value" == "False" ]] || fail "export options did not disable Xcode renumbering"
 
-write_project_yml "1.0.0" "39"
-VERSION=1.2.4 BUILD=50 run_prepare >/dev/null
-assert_contains "MARKETING_VERSION: 1.2.4" "$tmp_dir/project.yml"
-assert_contains "CURRENT_PROJECT_VERSION: 50" "$tmp_dir/project.yml"
+# A post-signing renumber is rejected by the same evidence-bound exporter.
+publisher_plan="$(find "$fixture_repo/build/ios-publisher" -path '*-41-*' -name plan.json -type f)"
+publisher_archive="$(json_value "$evidence_path" '["archive_path"]')"
+write_ipa_fixture "$fixture_repo/build/post-signing-renumber.ipa" "1.0.3" "272" "$fixture_revision" "$fixture_fingerprint"
+assert_fails_with "main app build 272 does not match expected build 41" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_RELEASE_PUBLISHER=1 MERIAN_PUBLISHER_SERIALIZED=1 \
+  IOS_PUBLISHER_PLAN="$publisher_plan" ARCHIVE_PATH="$publisher_archive" \
+  EXPORT_PATH="$fixture_repo/build/renumber-export" TEAM_ID=TA8S64ST9W \
+  MERIAN_EXPECTED_MARKETING_VERSION=1.0.3 MERIAN_EXPECTED_BUILD_NUMBER=41 \
+  MERIAN_EXPECTED_SOURCE_REVISION="$fixture_revision" MERIAN_EXPECTED_SOURCE_FINGERPRINT="$fixture_fingerprint" \
+  XCODEBUILD_COMMAND="$tool_bin/xcodebuild" MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  FAKE_XCODEBUILD_LOG="$fake_xcodebuild_log" FAKE_IPA_SOURCE="$fixture_repo/build/post-signing-renumber.ipa" \
+  bash "$repo_root/scripts/export-ios-release.sh"
+assert_fails_with "standalone Organizer/manual export is unsupported" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" bash "$repo_root/scripts/export-ios-release.sh"
 
-write_project_yml "1.0.0" "39"
-assert_fails env VERSION=1.2 LATEST_ASC_BUILD=41 PROJECT_YML="$tmp_dir/project.yml" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+# Existing-candidate upload revalidates the exact bytes, does no archive/export,
+# and records a durable upload receipt. Retry needs an independent definitive
+# Failed confirmation.
+assert_fails_with "retry requires --confirm-failed-upload" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_PUBLISHER_SERIALIZED=1 \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --retry-upload "$evidence_path" --confirm-upload
 
-write_project_yml "1.0.0" "39"
-assert_fails env -u ASC_APP_ID -u ASC_ISSUER_ID -u ASC_KEY_ID -u ASC_PRIVATE_KEY_PATH VERSION=1.2.3 PROJECT_YML="$tmp_dir/project.yml" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+xcrun_log="$test_root/xcrun.log"
+upload_tmp="$test_root/upload-tmp"
+mkdir "$upload_tmp"
+cat > "$tool_bin/xcrun" <<'SHELL'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ -z "${PUBLISHER_GITHUB_TOKEN:-}" ]] || exit 86
+printf '%s\n' "$@" >> "${FAKE_XCRUN_LOG:?}"
+asset_file=""
+arguments=("$@")
+for (( argument_index = 0; argument_index < ${#arguments[@]}; argument_index += 1 )); do
+  if [[ "${arguments[$argument_index]}" == "-assetFile" ]]; then
+    asset_file="${arguments[$((argument_index + 1))]}"
+    break
+  fi
+done
+if [[ "${FAKE_XCRUN_MUTATE_ASSET:-0}" == "1" ]]; then
+  [[ -n "$asset_file" ]]
+  printf '%s\n' 'mutated-during-upload' >> "$asset_file"
+fi
+printf '%s\n' 'UPLOAD SUCCEEDED'
+SHELL
+chmod +x "$tool_bin/xcrun"
+commands_before_upload="$(wc -l < "$fake_xcodebuild_log" | tr -d '[:space:]')"
+assert_succeeds_with "exact IPA .* is ready for same-binary promotion" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_PUBLISHER_SERIALIZED=1 \
+  PUBLISHER_GITHUB_TOKEN=fixture_workflow_token \
+  ASC_APP_ID=1234567890 ASC_TEAM_ID=TA8S64ST9W ASC_KEY_ID=FIXTURE123 \
+  ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000 ASC_PRIVATE_KEY_PATH="$asc_key" \
+  TMPDIR="$upload_tmp" XCRUN_COMMAND="$tool_bin/xcrun" FAKE_XCRUN_LOG="$xcrun_log" MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --upload-existing "$evidence_path" --confirm-upload
+commands_after_upload="$(wc -l < "$fake_xcodebuild_log" | tr -d '[:space:]')"
+[[ "$commands_before_upload" == "$commands_after_upload" ]] || fail "existing upload rebuilt or re-exported the candidate"
+assert_contains "iTMSTransporter" "$xcrun_log"
+[[ "$(json_value "$evidence_path" '["status"]')" == "uploaded" ]] || fail "upload did not update receipt evidence"
+git -C "$fixture_repo" show-ref --verify --quiet refs/tags/ios-uploads/1.0.3-41 \
+  || fail "upload receipt tag is missing"
+assert_fails_with "first upload requires untouched candidate evidence" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_PUBLISHER_SERIALIZED=1 \
+  PUBLISHER_GITHUB_TOKEN=fixture_workflow_token \
+  MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --upload-existing "$evidence_path" --confirm-upload
+assert_succeeds_with "exact IPA .* is ready for same-binary promotion" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_PUBLISHER_SERIALIZED=1 \
+  PUBLISHER_GITHUB_TOKEN=fixture_workflow_token \
+  ASC_APP_ID=1234567890 ASC_TEAM_ID=TA8S64ST9W ASC_KEY_ID=FIXTURE123 \
+  ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000 ASC_PRIVATE_KEY_PATH="$asc_key" \
+  TMPDIR="$upload_tmp" XCRUN_COMMAND="$tool_bin/xcrun" FAKE_XCRUN_LOG="$xcrun_log" MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --retry-upload "$evidence_path" --confirm-upload --confirm-failed-upload
+commands_after_retry="$(wc -l < "$fake_xcodebuild_log" | tr -d '[:space:]')"
+[[ "$commands_after_upload" == "$commands_after_retry" ]] || fail "retry rebuilt or re-exported the candidate"
+[[ "$(grep -c '^iTMSTransporter$' "$xcrun_log")" == "2" ]] || fail "fixture did not make exactly one initial and one retry upload attempt"
+[[ "$(json_value "$evidence_path" '["ipa_sha256"]')" == "$evidence_ipa_sha" ]] || fail "retry changed the immutable IPA identity"
+upload_secret_remainder="$(find "$upload_tmp" \( -name 'merian-ios-upload.*' -o -name 'AuthKey_*.p8' \) -print -quit)"
+[[ -z "$upload_secret_remainder" ]] || fail "upload credential workspace was not cleaned: $upload_secret_remainder"
+assert_fails_with "IPA hash does not match immutable evidence" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_PUBLISHER_SERIALIZED=1 \
+  ASC_APP_ID=1234567890 ASC_TEAM_ID=TA8S64ST9W ASC_KEY_ID=FIXTURE123 \
+  ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000 ASC_PRIVATE_KEY_PATH="$asc_key" \
+  TMPDIR="$upload_tmp" XCRUN_COMMAND="$tool_bin/xcrun" FAKE_XCRUN_LOG="$xcrun_log" FAKE_XCRUN_MUTATE_ASSET=1 \
+  MERIAN_PLISTBUDDY_COMMAND="$tool_bin/PlistBuddy" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --retry-upload "$evidence_path" --confirm-upload --confirm-failed-upload
+upload_secret_remainder="$(find "$upload_tmp" \( -name 'merian-ios-upload.*' -o -name 'AuthKey_*.p8' \) -print -quit)"
+[[ -z "$upload_secret_remainder" ]] || fail "failed upload left credential or IPA copies behind: $upload_secret_remainder"
 
-write_project_yml "1.0.0" "39"
-assert_fails env VERSION=1.2.3 BUILD=39 PROJECT_YML="$tmp_dir/project.yml" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+tampered_ipa="$fixture_repo/build/tampered.ipa"
+cp "$(json_value "$evidence_path" '["ipa_path"]')" "$tampered_ipa"
+printf '%s\n' 'tamper' >> "$tampered_ipa"
+assert_fails_with "IPA hash does not match immutable evidence" \
+  env MERIAN_PROJECT_ROOT="$fixture_repo" MERIAN_PUBLISHER_SERIALIZED=1 \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --upload-existing "$evidence_path" --ipa "$tampered_ipa" --confirm-upload
 
-write_project_yml "1.0.2" "39"
-assert_fails_with "VERSION 1.0.1 must not be lower than repo version 1.0.2" \
-  env VERSION=1.0.1 BUILD=40 PROJECT_YML="$tmp_dir/project.yml" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+# Once 41 is reserved, another plan receives 42 even if ASC still reports 39.
+next_plan="$fixture_repo/build/next-plan.json"
+LATEST_ASC_BUILD=39 PUBLISHER_PLAN_PATH="$next_plan" MERIAN_PROJECT_ROOT="$fixture_repo" \
+  bash "$repo_root/scripts/publish-ios-beta.sh" --dry-run >/dev/null
+[[ "$(json_value "$next_plan" '["build"]')" == "42" ]] || fail "publisher attempted to reuse a reserved build"
 
-write_project_yml "1.0.0" "39"
-mv "$tmp_dir/source.swift" "$tmp_dir/renamed-source.swift"
-printf 'let newlyAddedFixture = true\n' > "$tmp_dir/new-source.swift"
-VERSION=1.2.5 LATEST_ASC_BUILD=41 run_prepare >/dev/null
-commit_fixture_source
-MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh" >/dev/null
-CONFIGURATION=Release REVENUECAT_API_KEY="$valid_revenuecat_key" MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh" >/dev/null
-
-local_marker="$tmp_dir/build/ios-release-prep.json"
-local_marker_backup="$tmp_dir/build/ios-release-prep.local.json"
-cp "$local_marker" "$local_marker_backup"
-current_fixture_sha="$(git -C "$tmp_dir" rev-parse HEAD)"
-current_fixture_tree="$(git -C "$tmp_dir" write-tree)"
-
-set_marker_value build string "42" "$local_marker"
-assert_fails_with "release prep marker has no integer build" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-cp "$local_marker_backup" "$local_marker"
-remove_marker_key source_fingerprint "$local_marker"
-assert_fails_with "predates release-source fingerprint binding" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-cp "$local_marker_backup" "$local_marker"
-set_marker_value source_fingerprint bool false "$local_marker"
-assert_fails_with "must be a JSON string" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-cp "$local_marker_backup" "$local_marker"
-set_marker_value ci_validation_only string "true" "$local_marker"
-assert_fails_with "release prep marker has a malformed ci_validation_only flag" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-printf '[]\n' > "$local_marker"
-assert_fails_with "release prep marker is not a valid JSON object" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-cp "$local_marker_backup" "$local_marker"
-unrelated_fixture_sha="$(
-  printf 'unrelated preparation base\n' \
-    | git -C "$tmp_dir" commit-tree "$current_fixture_tree"
-)"
-set_marker_value prepared_from_sha string "$unrelated_fixture_sha" "$local_marker"
-assert_fails_with "does not descend from preparation base" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-cp "$local_marker_backup" "$local_marker"
-set_marker_value prepared_from_sha string "not-a-revision" "$local_marker"
-assert_fails_with "local release marker has no valid preparation-base revision" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-cp "$local_marker_backup" "$local_marker"
-remove_marker_key prepared_from_sha "$local_marker"
-set_marker_value source_sha string "$current_fixture_sha" "$local_marker"
-set_marker_value ci_validation_only bool true "$local_marker"
-MERIAN_FORCE_RELEASE_PREP_CHECK=1 \
-  MERIAN_PROJECT_ROOT="$tmp_dir" \
-  "$repo_root/scripts/check-ios-release-prep.sh" \
-  >/dev/null
-
-set_marker_value \
-  source_sha \
-  string \
-  "0000000000000000000000000000000000000000" \
-  "$local_marker"
-assert_fails_with "CI release marker source" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-set_marker_value source_sha string "not-a-revision" "$local_marker"
-assert_fails_with "CI validation marker has no valid exact source revision" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-cp "$local_marker_backup" "$local_marker"
-assert_succeeds_with "warning: Release archive is using non-production RevenueCat config: REVENUECAT_API_KEY is a RevenueCat Test Store key" \
-  env CONFIGURATION=Release REVENUECAT_API_KEY=test_store_key MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-assert_succeeds_with "warning: Release archive is using non-production RevenueCat config: REVENUECAT_API_KEY should be a RevenueCat iOS production key" \
-  env CONFIGURATION=Release REVENUECAT_API_KEY=rc_unknown_key MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-assert_fails_with "error: Release archive blocked: REVENUECAT_API_KEY is a RevenueCat Test Store key" \
-  env CONFIGURATION=Release REVENUECAT_API_KEY=test_store_key MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-printf 'let changedFixture = true\n' >> "$tmp_dir/source.swift"
-assert_fails_with "source checkout is dirty" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-commit_fixture_source
-assert_fails_with "tracked source changed after release prep" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-rm -f "$tmp_dir/Config.local.xcconfig"
-printf 'REVENUECAT_API_KEY = test_store_key\n' > "$tmp_dir/Config.xcconfig"
-assert_succeeds_with "warning: Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key" \
-  env VERSION=1.2.6 BUILD=44 MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
-assert_fails_with "Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key" \
-  env VERSION=1.2.7 BUILD=45 MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
-assert_fails_with "Release REVENUECAT_API_KEY from REVENUECAT_API_KEY must be a RevenueCat iOS production key" \
-  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=rc_unknown_key MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
-assert_fails_with "Release REVENUECAT_API_KEY from REVENUECAT_API_KEY is still a placeholder" \
-  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=appl_... MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
-
-write_project_yml "1.2.5" "43"
-assert_fails env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-rm -f "$tmp_dir/build/ios-release-prep.json"
-assert_fails_with "error: Release archive blocked: missing release prep marker" \
-  env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
-
-echo "iOS versioning script tests passed."
+echo "iOS versioning and publisher regression tests passed."

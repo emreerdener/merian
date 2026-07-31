@@ -1,5 +1,16 @@
 import Foundation
 
+/// The one retained still image that can replace an unavailable active video.
+enum VideoFallbackImageSource: Equatable {
+    case liveImage(Data)
+    case imagePath(String)
+
+    var imageIdentifier: String? {
+        guard case .imagePath(let path) = self else { return nil }
+        return path
+    }
+}
+
 enum MediaItem: Equatable {
     /// A raw image buffer captured natively, held only during the active live asynchronous evaluation pipeline.
     case liveImage(Data)
@@ -10,7 +21,8 @@ enum MediaItem: Equatable {
     case audio(String)
     /// A persisted historical capture video path resolving locally or remotely.
     /// Video path resolution (temp vs docs directory) MUST be handled by the caller creating this item.
-    case video(String)
+    /// `fallbackImage` is a poster or one middle sampled frame, never a sampled-frame collection.
+    case video(String, fallbackImage: VideoFallbackImageSource? = nil)
     /// A rich textual element carrying explicitly structured user description data or free-form context.
     case description(ObservationContext)
 }
@@ -102,12 +114,14 @@ struct ActiveScanMedia: Equatable {
     ) -> ActiveScanMedia {
         guard case .loaded(let urls) = referenceState else { return self }
 
-        let itemIdentifiers = items.compactMap { item -> String? in
+        let itemIdentifiers = items.flatMap { item -> [String] in
             switch item {
-            case .image(let path), .video(let path):
-                return path
+            case .image(let path):
+                return [path]
+            case .video(let path, let fallbackImage):
+                return [path, fallbackImage?.imageIdentifier].compactMap { $0 }
             case .liveImage, .audio, .description:
-                return nil
+                return []
             }
         }
         let filteredURLs = ReferenceImageDeduplicationPolicy.filteredReferenceURLs(
@@ -144,7 +158,7 @@ struct ActiveScanMedia: Equatable {
     var videoPaths: [String] {
         var paths: [String] = []
         for item in items {
-            if case .video(let path) = item { paths.append(path) }
+            if case .video(let path, _) = item { paths.append(path) }
         }
         return paths
     }

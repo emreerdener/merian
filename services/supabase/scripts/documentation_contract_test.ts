@@ -891,6 +891,9 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     releaseVersioningSource,
     releasePreflightImplementationSource,
     releaseExportImplementationSource,
+    releasePublisherImplementationSource,
+    releasePublisherWorkflowSource,
+    releaseArchiveValidatorSource,
     queueDurabilityImplementationSource,
     settingsImplementationSource,
     settingsReadmeSource,
@@ -1003,6 +1006,9 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read("docs/development-guides/14-ios-release-versioning.md"),
     read("scripts/check-ios-release-prep.sh"),
     read("scripts/export-ios-release.sh"),
+    read("scripts/publish-ios-beta.sh"),
+    read(".github/workflows/ios-testflight-publisher.yml"),
+    read("scripts/validate-ios-archive.sh"),
     read(
       "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift",
     ),
@@ -1348,58 +1354,31 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   ) {
     assertStringIncludes(releaseVersioningSource, provenanceKey);
   }
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "the final `Info.plist` must be a single-link regular file",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "Symbolic links and multiple hard links are rejected before `PlistBuddy` can write through them",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "A marker from an earlier source tree cannot authorize an archive",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "`prepared_from_sha`, the exact commit on which release preparation began",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "valid commit and an ancestor of the final clean checkout",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "parses the marker as typed JSON",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "the marker predates release-source fingerprint binding",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "Do not hand-edit the marker or copy a digest into it",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "Tracked `xcuserdata` or `.xcuserdatad` is also rejected",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "rewrite that per-user scheme metadata asynchronously after project generation",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "CI-only marker instead requires `ci_validation_only: true` and an exact `source_sha`",
-  );
+  for (
+    const releaseInvariant of [
+      "one supported path for a distributable iOS build",
+      "`CURRENT_PROJECT_VERSION` in that file is a repository floor",
+      "`MERIAN_IOS_VALIDATION_ARCHIVE=1`",
+      "max(App Store Connect latest, repository baseline) + 1",
+      "that reservation remains and creates an allowed gap",
+      "archives from a clean exact Git SHA",
+      "`archive_identity`",
+      "stable final `ipa_sha256`",
+      "`ios-builds/<version>-<build>`",
+      "App Store Connect definitively reports upload `Failed`",
+      "internal TestFlight, external TestFlight, and App Review",
+    ]
+  ) {
+    assertStringIncludes(compact(releaseVersioningSource), releaseInvariant);
+  }
   for (
     const implementationFragment of [
-      "read_marker_value prepared_from_sha string",
-      "read_marker_value source_sha string",
-      '--is-ancestor "$marker_prepared_from_sha" "$source_revision"',
-      '"$marker_ci_validation_only" == "true"',
-      "predates release-source fingerprint binding",
-      "must be a JSON string",
+      '"${MERIAN_IOS_VALIDATION_ARCHIVE:-0}" == "1"',
+      '"${MERIAN_RELEASE_PUBLISHER:-0}" == "1"',
+      '"${MERIAN_PUBLISHER_SERIALIZED:-0}" == "1"',
+      "manual Organizer and ad-hoc xcodebuild archives are unsupported",
+      "publisher source fingerprint does not match the clean checkout",
+      "validation archive changed or allocated CURRENT_PROJECT_VERSION",
     ]
   ) {
     assertStringIncludes(
@@ -1407,30 +1386,43 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       implementationFragment,
     );
   }
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "sourceState=clean",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "globally higher App Store Connect build number",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "`EXPORT_PATH` must resolve to a child of this repository's `build/` directory",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "`EXPORT_OPTIONS_PLIST` must resolve inside that export directory",
-  );
-  assertStringIncludes(
-    compact(releaseVersioningSource),
-    "lexical `.`/`..` components—including traversal hidden behind a not-yet-created directory—are rejected",
-  );
+  for (
+    const publisherFragment of [
+      "ios-build-allocations/",
+      "max(app_store_connect_latest, repository_baseline) + 1",
+      "reserve_build",
+      "archive_invocations",
+      "ipa_sha256",
+      "--confirm-failed-upload",
+      "same_uploaded_binary_only",
+    ]
+  ) {
+    assertStringIncludes(
+      releasePublisherImplementationSource,
+      publisherFragment,
+    );
+  }
+  for (
+    const workflowFragment of [
+      "workflow_dispatch:",
+      "group: ios-testflight-publisher",
+      "cancel-in-progress: false",
+      "RESERVE BUILD",
+      "UPLOAD TO APP STORE CONNECT",
+      "FAILED CONFIRMED",
+      "Full iOS unit tests",
+      "Current-SHA Release archive",
+      "Production readiness",
+    ]
+  ) {
+    assertStringIncludes(releasePublisherWorkflowSource, workflowFragment);
+  }
   for (
     const exportImplementationFragment of [
       'reject_dot_path_components "EXPORT_PATH" "$export_path_input"',
-      'reject_dot_path_components "EXPORT_OPTIONS_PLIST" "$export_options_input"',
+      "manageAppVersionAndBuildNumber",
+      "publisher plan does not authorize this exact export",
+      "archive changed while being exported",
     ]
   ) {
     assertStringIncludes(
@@ -1438,28 +1430,33 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       exportImplementationFragment,
     );
   }
-  for (const source of [releaseVersioningSource, shareIncidentSource]) {
-    const canonicalSource = compact(source);
+  for (
+    const archiveValidationFragment of [
+      "Explore widget",
+      "Messages extension",
+      "watch app",
+      "archive_identity=",
+    ]
+  ) {
     assertStringIncludes(
-      canonicalSource,
-      "all 417 retained local",
-    );
-    assertStringIncludes(
-      canonicalSource,
-      "zero archives contained",
+      releaseArchiveValidatorSource,
+      archiveValidationFragment,
     );
   }
+  const canonicalShareIncident = compact(shareIncidentSource);
+  assertStringIncludes(canonicalShareIncident, "all 417 retained local");
+  assertStringIncludes(canonicalShareIncident, "zero archives contained");
   assertStringIncludes(
     compact(loggingSource),
     "`source=unavailable` identifies a build made before provenance embedding",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "stale release-marker rejection after tracked-source changes",
+    "durable failed-archive allocation and higher-build successor",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "typed local-marker preparation ancestry, typed CI-marker exact-SHA enforcement, malformed identity rejection",
+    "exact-IPA existing upload with no archive or export",
   );
   for (
     const source of [
@@ -3413,6 +3410,8 @@ Deno.test("Field Trip documentation preserves the confidence evidence policy", a
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {
   const maintainedFiles = [
     "README.md",
+    "apps/ios/.agents/workflows/deploy_testflight.md",
+    "apps/ios/.agents/workflows/revenuecat_entitlements.md",
     "apps/ios/Merian/Core/AI/README.md",
     "apps/ios/Merian/Core/Network/README.md",
     "apps/ios/Merian/Features/Explore/Feed/README.md",
@@ -3467,6 +3466,8 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/system-architecture/03-image-pipeline.md",
     "docs/system-architecture/04-ai-engineering.md",
     "docs/system-architecture/06-edge-modularization.md",
+    "docs/system-architecture/08-public-brand-compatibility.md",
+    "docs/system-architecture/09-ios-release-publisher.md",
     "docs/system-architecture/system-overview.md",
     "services/supabase/README.md",
     "services/supabase/functions/_shared/README.md",

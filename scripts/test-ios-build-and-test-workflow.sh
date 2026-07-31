@@ -246,7 +246,8 @@ assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
 assert_contains "bash scripts/ios-release-source-fingerprint.sh"
-assert_contains '[[ "$source_fingerprint" =~ ^[0-9a-f]{64}$ ]]'
+assert_contains '[[ "$expected_source_fingerprint" =~ ^[0-9a-f]{64}$ ]]'
+assert_contains "MERIAN_IOS_VALIDATION_ARCHIVE=1"
 assert_contains "source_fingerprint: \$source_fingerprint"
 assert_contains 'MERIAN_EXPECTED_SOURCE_REVISION="$GITHUB_SHA"'
 assert_contains "Print :MERIAN_SOURCE_REVISION"
@@ -287,6 +288,8 @@ assert_contains '"-seedAchievementDetailFlow"'
 assert_contains '"-seedAchievementDeletionRefreshFlow"'
 assert_contains '"-seedQueuedAudioHandoffFlow"'
 assert_contains '"ui_test_queued_audio_handoff.wav"'
+assert_contains '"-seedMissingVideoFallbackFlow"'
+assert_contains '"ui_test_video_fallback.png"'
 assert_count 1 "ios-release-main-binary-strings.txt"
 assert_contains "ui_test_seed_markers_absent: true"
 assert_contains "Debug-only UI-test seed markers: absent"

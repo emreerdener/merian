@@ -71,9 +71,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 enum UITestSeedCoordinator {
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
+    private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
     private static let queuedAudioHandoffAudioFilename = "ui_test_queued_audio_handoff.wav"
     private static let queuedAudioHandoffImageFilename = "ui_test_queued_audio_handoff.webp"
+    private static let missingVideoFallbackScanId = "ui_test_missing_video_fallback"
+    private static let missingVideoFilename = "ui_test_missing_video.mp4"
+    private static let missingVideoFallbackImageFilename = "ui_test_video_fallback.png"
     @MainActor private static var triggeredQueuedAudioHandoffs: Set<String> = []
 
     static var isEnabled: Bool {
@@ -86,7 +90,8 @@ enum UITestSeedCoordinator {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("-seedAchievementDetailFlow") ||
                 arguments.contains(achievementDeletionRefreshArgument) ||
-                arguments.contains(queuedAudioHandoffArgument) else { return }
+                arguments.contains(queuedAudioHandoffArgument) ||
+                arguments.contains(missingVideoFallbackArgument) else { return }
 
         let context = container.mainContext
 
@@ -113,6 +118,11 @@ enum UITestSeedCoordinator {
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
                 triggeredQueuedAudioHandoffs.removeAll(keepingCapacity: false)
                 MerianLog.general.debug("UITestSeedCoordinator seeded queued audio handoff flow.")
+            } else if arguments.contains(missingVideoFallbackArgument) {
+                try prepareMissingVideoFallbackImage()
+                context.insert(missingVideoFallbackRecord())
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+                MerianLog.general.debug("UITestSeedCoordinator seeded missing video fallback flow.")
             }
 
             try context.save()
@@ -347,6 +357,54 @@ enum UITestSeedCoordinator {
             aiReasoning: "Seeded UI test reasoning.",
             habitatDescription: "Seeded UI test habitat.",
             gbifTaxonKey: 2492488,
+            hasBeenViewed: true
+        )
+    }
+
+    private static func prepareMissingVideoFallbackImage() throws {
+        guard let documentsURL = FileManager.default.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first,
+        let imageData = Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        ) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try imageData.write(
+            to: documentsURL.appendingPathComponent(missingVideoFallbackImageFilename),
+            options: .atomic
+        )
+    }
+
+    private static func missingVideoFallbackCapturedMediaJSON() -> String? {
+        let items: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(
+                .documents(missingVideoFilename),
+                thumbnail: .documents(missingVideoFallbackImageFilename)
+            ))
+        ]
+        guard let data = try? JSONEncoder().encode(items) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func missingVideoFallbackRecord() -> LocalScanRecord {
+        LocalScanRecord(
+            id: missingVideoFallbackScanId,
+            speciesId: "ui_test_blue_swallowtail",
+            scientificName: "Battus philenor",
+            commonName: "Blue Swallowtail",
+            timestamp: Date(timeIntervalSince1970: 1_775_000_000),
+            capturedMediaJSON: missingVideoFallbackCapturedMediaJSON(),
+            coverImagePath: missingVideoFallbackImageFilename,
+            hazardType: "none",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "garden",
+            confidenceScore: 0.98,
+            locationName: "UITest Garden",
+            aiReasoning: "Seeded missing-video fallback regression.",
             hasBeenViewed: true
         )
     }

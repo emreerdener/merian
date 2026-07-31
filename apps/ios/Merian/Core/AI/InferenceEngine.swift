@@ -577,8 +577,20 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 }
             case .audio(let audioFilePath):
                 items.append(.audio(resolvedAudioPath(for: audioFilePath)))
-            case .video(let videoFilePath, _, _):
-                items.append(.video(resolvedVideoPath(for: videoFilePath)))
+            case .video(let videoFilePath, let posterImageIndex, _):
+                let fallbackImage = posterImageIndex.flatMap { imageIndex -> VideoFallbackImageSource? in
+                    if let liveImageDatas, liveImageDatas.indices.contains(imageIndex) {
+                        return .liveImage(liveImageDatas[imageIndex])
+                    }
+                    if let persistedImagePaths, persistedImagePaths.indices.contains(imageIndex) {
+                        return .imagePath(persistedImagePaths[imageIndex])
+                    }
+                    return nil
+                }
+                items.append(.video(
+                    resolvedVideoPath(for: videoFilePath),
+                    fallbackImage: fallbackImage
+                ))
             case .description(let context):
                 guard !context.isEmpty else { continue }
                 items.append(.description(context))

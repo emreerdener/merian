@@ -492,7 +492,6 @@ jobs:
             echo "XCODE_BUILD_LOG=$RUNNER_TEMP/ios-release-archive-xcodebuild.log"
             echo "XCODE_PACKAGE_LOG=$RUNNER_TEMP/ios-archive-package-resolution.log"
             echo "XCODE_EVIDENCE=$RUNNER_TEMP/ios-release-archive-evidence.json"
-            echo "IOS_RELEASE_PREP_MARKER=$RUNNER_TEMP/ios-ci-release-prep.json"
           } >> "$GITHUB_ENV"
 
       - name: Verify exact source revision
@@ -561,39 +560,6 @@ jobs:
             exit 1
           fi
 
-      - name: Create validation-only release marker
-        run: |
-          project_version="$(
-            awk '$1 == "MARKETING_VERSION:" { print $2; exit }' project.yml
-          )"
-          project_build="$(
-            awk '$1 == "CURRENT_PROJECT_VERSION:" { print $2; exit }' project.yml
-          )"
-          if [ -z "$project_version" ] || ! [[ "$project_build" =~ ^[0-9]+$ ]]; then
-            echo "Could not resolve the checked-in iOS version/build." >&2
-            exit 1
-          fi
-          source_fingerprint="$(
-            MERIAN_PROJECT_ROOT="$GITHUB_WORKSPACE" \
-              bash scripts/ios-release-source-fingerprint.sh
-          )"
-          if ! [[ "$source_fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
-            echo "Could not create a valid release-source fingerprint." >&2
-            exit 1
-          fi
-          jq -n \
-            --arg version "$project_version" \
-            --argjson build "$project_build" \
-            --arg source_sha "$GITHUB_SHA" \
-            --arg source_fingerprint "$source_fingerprint" \
-            '{
-              version: $version,
-              build: $build,
-              source_sha: $source_sha,
-              source_fingerprint: $source_fingerprint,
-              ci_validation_only: true
-            }' > "$IOS_RELEASE_PREP_MARKER"
-
       - name: Archive unsigned Release from current SHA
         id: xcode-archive
         timeout-minutes: 38
@@ -622,6 +588,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
+            MERIAN_IOS_VALIDATION_ARCHIVE=1 \
             MERIAN_EXPECTED_SOURCE_REVISION="$GITHUB_SHA" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             2>&1 | tee "$XCODE_BUILD_LOG"
@@ -688,6 +655,10 @@ jobs:
             MERIAN_PROJECT_ROOT="$GITHUB_WORKSPACE" \
               bash scripts/ios-release-source-fingerprint.sh
           )"
+          if ! [[ "$expected_source_fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Could not compute a valid checked-out source fingerprint." >&2
+            exit 1
+          fi
           if [ "$archive_source_revision" != "$GITHUB_SHA" ]; then
             echo "Archive source ${archive_source_revision} does not match workflow source ${GITHUB_SHA}." >&2
             exit 1
@@ -724,7 +695,9 @@ jobs:
             "-seedAchievementDetailFlow" \
             "-seedAchievementDeletionRefreshFlow" \
             "-seedQueuedAudioHandoffFlow" \
-            "ui_test_queued_audio_handoff.wav"; do
+            "ui_test_queued_audio_handoff.wav" \
+            "-seedMissingVideoFallbackFlow" \
+            "ui_test_video_fallback.png"; do
             if grep -Fq -- "$forbidden_ui_seed_marker" "$release_strings_file"; then
               echo "Release binary contains Debug-only UI-test seed marker: $forbidden_ui_seed_marker" >&2
               exit 1
@@ -808,7 +781,6 @@ jobs:
           name: ios-release-archive-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/ios-release-archive-evidence.json
-            ${{ runner.temp }}/ios-ci-release-prep.json
             ${{ runner.temp }}/ios-archive-xcode-version.txt
             ${{ runner.temp }}/ios-release-app-uuids.txt
             ${{ runner.temp }}/ios-release-dsym-uuids.txt

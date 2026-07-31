@@ -32,6 +32,11 @@ The `docs/` folder contains the master reference for the application:
 - Refer to `docs/system-architecture/08-public-brand-compatibility.md` before
   changing product names, display names, URLs, email addresses, deep links, App
   Store metadata, legal copy, or stable Merian identifiers.
+- Refer to `docs/system-architecture/09-ios-release-publisher.md` before
+  changing iOS build allocation, publisher authority, archive/export identity,
+  immutable tags, evidence, upload retry, or promotion state.
+- Refer to `docs/development-guides/14-ios-release-versioning.md` for the sole
+  supported iOS candidate, upload, retry, TestFlight, and App Review procedure.
 - Refer to `docs/development-guides/15-naturebook-rebrand-rollout.md` for
   domain, AASA, email, Supabase, App Store, and release verification.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk →
@@ -56,16 +61,19 @@ The `docs/` folder contains the master reference for the application:
 - Do not hardcode a real Apple Developer Team ID in `project.yml` or shared
   tracked config. Signing must flow through `Signing.xcconfig` -> optional
   `Signing.local.xcconfig`, with the local file ignored by git.
-- **Build Versioning**: `project.yml` owns `MARKETING_VERSION` and
-  `CURRENT_PROJECT_VERSION`; `Info.plist` files must strictly inherit
-  `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`. Use
-  `make prepare-ios-release VERSION=x.y.z` before TestFlight archives. If
-  production RevenueCat is ready, pass `REVENUECAT_API_KEY=appl_...` or set the
-  same iOS SDK key in ignored `Config.local.xcconfig`; otherwise archive
-  preflight should warn, not block. Use `agvtool` only as an optional read-only
-  sanity check because XcodeGen overwrites generated-project-only changes. Keep
-  the approved external-beta version train until intentionally starting a new
-  one, and never reuse a TestFlight build number.
+- **Build Versioning**: `project.yml` tracks the reviewed
+  `MARKETING_VERSION` release train and the development/CI build floor;
+  `Info.plist` files must strictly inherit `$(MARKETING_VERSION)` and
+  `$(CURRENT_PROJECT_VERSION)`. Never write a release build with Organizer,
+  `agvtool`, or a prep commit. Manually dispatch **iOS TestFlight Publisher**
+  after the exact SHA passes **iOS Build and Test**. That serialized workflow is
+  the only writer: it queries App Store Connect, reserves the next global build,
+  injects it at the sole archive, preserves it through export, and records the
+  source/archive/IPA mapping. Keep the approved release train until
+  intentionally starting a new one, and never reuse a reserved build for a
+  rebuild. Do not add an independent release recipe to an agent workflow,
+  Fastlane lane, Make target, script, or documentation page; point to the
+  canonical runbook instead.
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`.
   NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
 

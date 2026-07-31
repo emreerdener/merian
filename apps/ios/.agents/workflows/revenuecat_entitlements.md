@@ -1,40 +1,66 @@
 ---
-description: Updating RevenueCat Tiers & Entitlements
+description: Configure and verify Naturebook App Store products and RevenueCat offerings
 ---
 
-# 🚀 Merian RevenueCat Paywall Runbook
+# RevenueCat Products and Offerings
 
-Merian delegates subscription entitlements via RevenueCat natively. Bumping tiers, adding promotional codes, or debugging receipt validation issues requires updating the localized `.storekit` file, `GamificationManager`, and RevenueCat payloads securely. 
+Use the existing App Store Connect app and permanent bundle ID
+`app.merian.Merian`. A new in-app purchase or subscription is a product under
+that app; it is never a reason to create another app record, bundle ID,
+RevenueCat app, customer identity, or Supabase entitlement namespace.
 
-## Step 1: Initialize the New App Store Connect Identifier
-1. If you are launching `merian_pro_yearly_promo_50`, it must first be registered in App Store Connect.
-2. In the Xcode workspace (`apps/ios/Merian/Configuration/StoreKit/`), open the `.storekit` mock file and replicate the identifier verbatim.
+The canonical product, identity, store-testing, and webhook contract is
+[`02-revenue-and-identity.md`](../../../../docs/features-and-hardware/02-revenue-and-identity.md).
+The iOS release path is canonical in
+[`14-ios-release-versioning.md`](../../../../docs/development-guides/14-ios-release-versioning.md).
 
-## Step 2: Bind the RevenueCat Entitlement
-Merian utilizes a standard Entitlement ID (`pro`) across all tiers.
-- In `AppDIContainer.revenueCatManager` or `RevenueCatManager.swift`, locate where the active entitlement check occurs:
+## Current Product Contract
 
-```swift
-let customerInfo = try await Purchases.shared.customerInfo()
-let hasPro = customerInfo.entitlements["pro"]?.isActive == true
-```
-> [!NOTE]
-> Do NOT touch the `pro` entitlement string unless you are introducing a completely new permission level (like `merian_enterprise`). Changing the core string globally strips pro capabilities from legacy users.
+`RevenueCatOfferingPolicy` requires the current offering to resolve both
+existing App Store product identifiers:
 
-## Step 3: Integrate with the Core UI & Paywall
-1. Ensure the `ModelTierBadge` and `PaywallView` logic correctly evaluates the new offering package payload.
-2. Because Merian is offline-first, verify that the active `TelemetryDeck` initialization gracefully reports standard user engagement without sending their precise billing details!
+- `pro_week`: seven-day non-renewing pass; intentionally not a RevenueCat
+  entitlement
+- `pro_annual`: recurring subscription mapped to the existing `pro`
+  entitlement
 
-## Step 4: Simulator Testing using StoreKit Validation
-Instead of running a physical iPad/iPhone test with production Sandbox credentials every time:
+Do not rename these identifiers, the `pro` entitlement, the current offering,
+or package mappings for a routine pricing or localization change. Existing
+customers and webhook history depend on stable identities.
 
-1. Under Xcode 'Edit Scheme' > Options > StoreKit Configuration, ensure it is locked to your `Merian.storekit` mock file.
-2. Run the application locally in the simulator.
-3. Tap the "Subscribe" button on the UI—a native UI alert via StoreKit 2 will trigger immediately. 
+## Adding or Changing a Product
 
-## Step 5: Dashboard Configuration & Deployment
-After successful local validation:
-1. Log in to your RevenueCat Dashboard.
-2. Under "Products", paste the EXACT App Store Connect ID.
-3. Attach the product to an explicit "Offering" so it gets bundled to the SwiftUI Paywall view payload.
-4. If it serves as the new default pricing logic, swap the fallback IDs in your `MerianApp.swift` or `RevenueCatManager` configurations as well.
+1. Make the product change under the existing Naturebook App Store Connect app.
+   Complete agreements, tax/banking, localization, pricing, and product
+   readiness before diagnosing client fetches.
+2. Import/map the exact product in the existing RevenueCat iOS app. Attach it to
+   an explicit package in the approved current offering and preserve the
+   Supabase Auth UUID as RevenueCat App User ID.
+3. If the identifier changes the two-product client policy, update
+   `RevenueCatOfferingPolicy`, paywall presentation, webhook reconciliation,
+   documentation, and unit tests in one reviewed pull request. Dashboard-only
+   changes must not silently diverge from the checked-in policy.
+4. Never put `REVENUECAT_SECRET_API_KEY`, webhook bearer/HMAC values, Apple
+   signing material, or App Store Connect API keys into the iOS target or an
+   app-facing `.xcconfig` file.
+
+## Verification
+
+Choose one store source deliberately:
+
+- local Debug may use RevenueCat Test Store products with a `test_` SDK key;
+- an intentionally attached local `.storekit` file uses the production iOS
+  `appl_` key and the exact policy identifiers; and
+- physical Apple sandbox and TestFlight use the production `appl_` key with
+  App Store Connect products imported into RevenueCat.
+
+The shared scheme currently has no `.storekit` file attached. A successful
+RevenueCat login proves customer identity only. Complete verification requires
+both packages to load in Settings → Plan, purchase and restore to succeed, the
+matching customer to appear under the Supabase Auth UUID, and the signed
+RevenueCat webhook to update durable Supabase access.
+
+Publish any distributable test only with the serialized **iOS TestFlight
+Publisher** after exact-SHA compiled CI passes. Never use a local archive,
+Fastlane lane, or dashboard change as proof that the final signed product
+mapping works.

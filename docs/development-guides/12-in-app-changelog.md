@@ -12,6 +12,9 @@ This file describes how to update the public copy safely.
 - The in-app source of truth is `apps/ios/Merian/Resources/Changelog/changelog.json`.
 - Optional changelog images must reference reusable asset catalog names. Put new reusable 3D artwork under `apps/ios/Merian/Assets.xcassets/Graphics3D/` rather than creating changelog-specific duplicates.
 - The root `CHANGELOG.md` remains developer/release-note source material for TestFlight, App Store, QA, and support notes. It is not parsed by the app.
+- `apps/ios/AppStore/ReleaseNotes/<marketing-version>.md` is the reviewed
+  per-train source for App Store listing metadata and final “What's New” copy.
+  The publisher does not upload or rewrite it.
 
 Xcode currently copies `changelog.json` to the app bundle root. `ChangelogStore`
 checks the root first and keeps `Changelog` / `Resources/Changelog`
@@ -57,15 +60,19 @@ Field rules:
 2. Add or edit an entry in `apps/ios/Merian/Resources/Changelog/changelog.json`.
 3. If an image is needed, reuse an existing asset name when possible. Add new reusable 3D artwork under `apps/ios/Merian/Assets.xcassets/Graphics3D/` and reference only its asset name in JSON.
 4. Update root `CHANGELOG.md` when the change is relevant to TestFlight, App Store, QA, or support.
-5. Run `make xcodegen` if new files or asset sets were added.
-6. Validate JSON:
+5. Update the current `apps/ios/AppStore/ReleaseNotes/<marketing-version>.md`
+   source when the customer-facing App Store summary or listing metadata
+   changes. Do not put TestFlight build numbers in the filename; all beta builds
+   in one train share the marketing-version source.
+6. Run `make xcodegen` if new files or asset sets were added.
+7. Validate JSON:
 
 ```bash
 ruby -rjson -e 'ARGV.each { |path| JSON.parse(File.read(path)); puts "#{path}: OK" }' \
   apps/ios/Merian/Resources/Changelog/changelog.json
 ```
 
-7. Build and run focused tests:
+8. Build and run focused tests:
 
 ```bash
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
@@ -93,4 +100,8 @@ xcodebuild test-without-building -scheme Merian -project Merian.xcodeproj -desti
 When an AI agent makes user-facing changes, it must check whether the bundled
 changelog should be updated. If the user explicitly asks for release notes,
 deployment notes, a changelog update, or a TestFlight-facing summary, update
-both `CHANGELOG.md` and the in-app JSON unless the request says otherwise.
+`CHANGELOG.md` and evaluate both the current App Store release-note source and
+the in-app JSON. Update each customer-visible surface that the request affects
+unless the request says otherwise. Version/build allocation and publisher
+operation remain governed by
+[`14-ios-release-versioning.md`](./14-ios-release-versioning.md).

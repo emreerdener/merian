@@ -89,8 +89,15 @@ struct SerializedMediaItemTests {
         )
 
         #expect(hydrated == manifestItems)
-        #expect(CapturedMediaSnapshot(items: hydrated).activeScanMedia.videoPaths == ["https://cdn.example.com/clip.mp4"])
-        #expect(CapturedMediaSnapshot(items: hydrated).imagePaths.isEmpty)
+        let snapshot = CapturedMediaSnapshot(items: hydrated)
+        #expect(snapshot.activeScanMedia.videoPaths == ["https://cdn.example.com/clip.mp4"])
+        #expect(snapshot.activeScanMedia.items == [
+            .video(
+                "https://cdn.example.com/clip.mp4",
+                fallbackImage: .imagePath("https://cdn.example.com/poster.webp")
+            )
+        ])
+        #expect(snapshot.imagePaths.isEmpty)
     }
 
     @Test func cloudHydrationCollapsesLegacyVideoFramesIntoPlayableVideo() throws {
@@ -105,8 +112,14 @@ struct SerializedMediaItemTests {
 
         #expect(snapshot.items.count == 1)
         #expect(snapshot.imagePaths.isEmpty)
-        #expect(snapshot.thumbnailImagePaths == ["https://cdn.example.com/frame-1.webp"])
+        #expect(snapshot.thumbnailImagePaths == ["https://cdn.example.com/frame-3.webp"])
         #expect(snapshot.videoPaths == ["https://cdn.example.com/clip.mp4"])
+        #expect(snapshot.activeScanMedia.items == [
+            .video(
+                "https://cdn.example.com/clip.mp4",
+                fallbackImage: .imagePath("https://cdn.example.com/frame-3.webp")
+            )
+        ])
     }
 
     @Test func cloudHydrationRepairsImageOnlyManifestWhenVideoURLExists() throws {
@@ -122,8 +135,57 @@ struct SerializedMediaItemTests {
 
         #expect(snapshot.items.count == 1)
         #expect(snapshot.imagePaths.isEmpty)
-        #expect(snapshot.thumbnailImagePaths == ["https://cdn.example.com/frame-1.webp"])
+        #expect(snapshot.thumbnailImagePaths == ["https://cdn.example.com/frame-3.webp"])
         #expect(snapshot.videoPaths == ["https://cdn.example.com/clip.mp4"])
+    }
+
+    @Test func cloudHydrationKeepsStandaloneOrderingWithoutExposingVideoFrames() {
+        let standaloneURL = "https://cdn.example.com/standalone.webp"
+        let frameURLs = (1...5).map { "https://cdn.example.com/frame-\($0).webp" }
+        let audio = SerializedMediaItem.audio(.remoteURL("https://cdn.example.com/call.wav"))
+        let manifestItems: [SerializedMediaItem] = [
+            .image(.remoteURL(standaloneURL))
+        ] + frameURLs.map { .image(.remoteURL($0)) } + [
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/clip.mp4"))),
+            audio
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: [standaloneURL] + frameURLs,
+            videoStorageURLs: ["https://cdn.example.com/clip.mp4"]
+        )
+
+        #expect(hydrated == [
+            .image(.remoteURL(standaloneURL)),
+            .video(StoredVideoMediaReference(
+                .remoteURL("https://cdn.example.com/clip.mp4"),
+                thumbnail: .remoteURL(frameURLs[2])
+            )),
+            audio
+        ])
+    }
+
+    @Test func cloudHydrationUsesLegacyManifestFramesWhenCloudArraysAreUnknown() {
+        let frameReferences = (1...5).map {
+            StoredMediaReference.documents("legacy-frame-\($0).webp")
+        }
+        let manifestItems = frameReferences.map { SerializedMediaItem.image($0) } + [
+            .video(StoredVideoMediaReference(.documents("legacy-clip.mp4")))
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: nil,
+            videoStorageURLs: nil
+        )
+
+        #expect(hydrated == [
+            .video(StoredVideoMediaReference(
+                .documents("legacy-clip.mp4"),
+                thumbnail: frameReferences[2]
+            ))
+        ])
     }
 
     @Test func cloudHydrationFallsBackToMiddleFrameWhenManifestVideoIsMissing() throws {
@@ -155,5 +217,164 @@ struct SerializedMediaItemTests {
         #expect(snapshot.items.count == 1)
         #expect(snapshot.imagePaths == ["https://cdn.example.com/frame-3.webp"])
         #expect(snapshot.videoPaths.isEmpty)
+    }
+
+    @Test func cloudHydrationDemotesMissingManifestVideoToStoredPoster() {
+        let poster = StoredMediaReference.remoteURL("https://cdn.example.com/poster.webp")
+        let manifestItems: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(
+                .remoteURL("https://cdn.example.com/missing.mp4"),
+                thumbnail: poster
+            ))
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: (1...5).map { "https://cdn.example.com/frame-\($0).webp" },
+            videoStorageURLs: []
+        )
+
+        #expect(hydrated == [.image(poster)])
+    }
+
+    @Test func cloudHydrationDemotesMissingManifestVideoToOneMiddleSampledFrame() {
+        let frameURLs = (1...5).map { "https://cdn.example.com/frame-\($0).webp" }
+        let manifestItems: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/missing.mp4")))
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: frameURLs,
+            videoStorageURLs: []
+        )
+
+        #expect(hydrated == [.image(.remoteURL(frameURLs[2]))])
+    }
+
+    @Test func cloudHydrationProducesOneFallbackPerMissingVideoItem() {
+        let frameURLs = (1...10).map { "https://cdn.example.com/frame-\($0).webp" }
+        let firstPoster = StoredMediaReference.remoteURL("https://cdn.example.com/first-poster.webp")
+        let manifestItems: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(
+                .remoteURL("https://cdn.example.com/first-missing.mp4"),
+                thumbnail: firstPoster
+            )),
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/second-missing.mp4")))
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: frameURLs,
+            videoStorageURLs: []
+        )
+
+        #expect(hydrated == [
+            .image(firstPoster),
+            .image(.remoteURL(frameURLs[7]))
+        ])
+    }
+
+    @Test func cloudHydrationRemovesMissingVideoWhenNoFallbackRemains() {
+        let context = ObservationContext(freeText: "Heard calling from the canopy")
+        let manifestItems: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/missing.mp4"))),
+            .audio(.remoteURL("https://cdn.example.com/call.wav")),
+            .description(context)
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: [],
+            videoStorageURLs: []
+        )
+
+        #expect(hydrated == [
+            .audio(.remoteURL("https://cdn.example.com/call.wav")),
+            .description(context)
+        ])
+    }
+
+    @Test func cloudHydrationNeverExposesStaleManifestFramesWhenImagesAreExplicitlyEmpty() {
+        let context = ObservationContext(freeText: "Only the field note remains")
+        let manifestItems = (1...5).map {
+            SerializedMediaItem.image(.remoteURL("https://cdn.example.com/stale-frame-\($0).webp"))
+        } + [
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/missing.mp4"))),
+            .description(context)
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: [],
+            videoStorageURLs: []
+        )
+
+        #expect(hydrated == [.description(context)])
+    }
+
+    @Test func cloudHydrationStripsUnavailableLegacyFramesFromPlayableVideo() {
+        let manifestItems = (1...5).map {
+            SerializedMediaItem.image(.remoteURL("https://cdn.example.com/stale-frame-\($0).webp"))
+        } + [
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/clip.mp4")))
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: [],
+            videoStorageURLs: ["https://cdn.example.com/clip.mp4"]
+        )
+
+        #expect(hydrated == [
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/clip.mp4")))
+        ])
+    }
+
+    @Test func cloudReplacementRepairsCachedRemoteVideoDowngrade() {
+        let existing = CapturedMediaSnapshot(items: [
+            .video(StoredVideoMediaReference(
+                .remoteURL("https://cdn.example.com/missing.mp4"),
+                thumbnail: .remoteURL("https://cdn.example.com/poster.webp")
+            ))
+        ])
+        let fallbackItems: [SerializedMediaItem] = [
+            .image(.remoteURL("https://cdn.example.com/poster.webp"))
+        ]
+
+        #expect(CloudMediaReplacementPolicy.shouldReplace(
+            existing: existing,
+            hydratedItems: fallbackItems,
+            imageStorageURLs: ["https://cdn.example.com/poster.webp"],
+            videoStorageURLs: []
+        ))
+    }
+
+    @Test func cloudReplacementClearsCachedRemoteVisualsButPreservesLocalMedia() {
+        let remote = CapturedMediaSnapshot(items: [
+            .video(StoredVideoMediaReference(.remoteURL("https://cdn.example.com/missing.mp4")))
+        ])
+        let local = CapturedMediaSnapshot(items: [
+            .video(StoredVideoMediaReference(.documents("still-local.mp4")))
+        ])
+
+        #expect(CloudMediaReplacementPolicy.shouldReplace(
+            existing: remote,
+            hydratedItems: [],
+            imageStorageURLs: [],
+            videoStorageURLs: []
+        ))
+        #expect(CloudMediaReplacementPolicy.shouldReplace(
+            existing: remote,
+            hydratedItems: [],
+            imageStorageURLs: ["https://cdn.example.com/unrelated.webp"],
+            videoStorageURLs: []
+        ))
+        #expect(!CloudMediaReplacementPolicy.shouldReplace(
+            existing: local,
+            hydratedItems: [],
+            imageStorageURLs: [],
+            videoStorageURLs: []
+        ))
     }
 }

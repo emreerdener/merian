@@ -108,12 +108,13 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 - Controls Apple ecosystem entitlement bounds governing core app functionality.
 - Initializes via `.configure(withAPIKey:)`, pulling the active iOS
   `ProcessInfo` values mapped to `.xcconfig` secure layers.
-- Development and internal builds can continue using RevenueCat's `test_` Test
-  Store key while purchase flows are being exercised. The store environment does
-  not change Merian's identity contract: the RevenueCat App User ID is the
-  Supabase Auth UUID, and subscriber attributes mirror the user's auth/public
-  identity for manual support lookups. Production App Store export should still
-  resolve to a RevenueCat iOS SDK key beginning with `appl_`.
+- Local Debug and unsigned validation builds may use RevenueCat's `test_` Test
+  Store key while purchase flows are being exercised. This does not include an
+  internal TestFlight build. The store environment does not change Merian's
+  identity contract: the RevenueCat App User ID is the Supabase Auth UUID, and
+  subscriber attributes mirror the user's auth/public identity for manual
+  support lookups. The sole distributable path, **iOS TestFlight Publisher**,
+  requires a RevenueCat iOS SDK key beginning with `appl_`.
 - Uses `logIn(currentAppUserID)` to bind the Supabase Auth UUID.
 - `RevenueCatOfferingPolicy` requires the current offering to contain App Store
   product identifiers `pro_week` and `pro_annual`. Offering fetches emit an

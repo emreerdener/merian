@@ -26,17 +26,24 @@ struct CarouselPageBuilder {
             case .liveImage(let data):
                 let focusRegion = activeMedia.focusRegionsBySourceIndex[stillImageSourceIndex]
                 stillImageSourceIndex += 1
+                let pageID = "liveImage-\(data.hashValue)"
                 pages.append(CarouselPageItem(
-                    id: "liveImage-\(data.hashValue)",
+                    id: pageID,
                     mediaKind: .visual,
                     view: AnyView(LiveCapturePageView(data: data)),
                     imageOrigin: .user,
+                    galleryItem: InsightImageGalleryItem(
+                        id: pageID,
+                        source: .liveImage(data),
+                        referenceAttributionLabel: nil
+                    ),
                     focusRegion: focusRegion
                 ))
             case .image(let path):
                 let focusRegion = activeMedia.focusRegionsBySourceIndex[stillImageSourceIndex]
                 stillImageSourceIndex += 1
-                pages.append(CarouselPageItem(id: "image-\(path)", mediaKind: .visual, view: AnyView(
+                let pageID = "image-\(path)"
+                pages.append(CarouselPageItem(id: pageID, mediaKind: .visual, view: AnyView(
                     AsyncLocalImageView(
                         path: path,
                         fallbackImageUrl: nil,
@@ -44,7 +51,11 @@ struct CarouselPageBuilder {
                         onImageLoaded: { onImageSuccess(path) },
                         onImageLoadFailed: { onImageFailure(path) }
                     )
-                ), imageIdentifier: path, imageOrigin: .user, focusRegion: focusRegion))
+                ), imageIdentifier: path, imageOrigin: .user, galleryItem: InsightImageGalleryItem(
+                    id: pageID,
+                    source: .imagePath(path),
+                    referenceAttributionLabel: nil
+                ), focusRegion: focusRegion))
             case .description(let context):
                 pages.append(CarouselPageItem(
                     id: "description-\(context.serialized())",
@@ -63,7 +74,7 @@ struct CarouselPageBuilder {
                         onAudioBoostToggleRequested: onAudioBoostToggleRequested
                     ))
                 ))
-            case .video(let resolvedPath):
+            case .video(let resolvedPath, let fallbackImage):
                 let pageIndex = pages.count
                 let pageID = "video-\(resolvedPath)"
                 pages.append(CarouselPageItem(
@@ -78,7 +89,20 @@ struct CarouselPageBuilder {
                         onAvailabilityChange: {
                             onVideoAvailabilityChange(pageID, $0)
                         }
-                    ))
+                    )),
+                    imageOrigin: .user,
+                    galleryItem: InsightImageGalleryItem(
+                        id: pageID,
+                        source: .videoPath(resolvedPath),
+                        referenceAttributionLabel: nil
+                    ),
+                    videoFallback: fallbackImage.map {
+                        makeVideoFallback(
+                            source: $0,
+                            onImageSuccess: onImageSuccess,
+                            onImageFailure: onImageFailure
+                        )
+                    }
                 ))
             }
         }
@@ -101,7 +125,8 @@ struct CarouselPageBuilder {
                     wikipediaUrl: referenceWikipediaUrl,
                     index: index
                 )
-                pages.append(CarouselPageItem(id: "reference-\(urlString)", mediaKind: .visual, view: AnyView(
+                let pageID = "reference-\(urlString)"
+                pages.append(CarouselPageItem(id: pageID, mediaKind: .visual, view: AnyView(
                     AsyncLocalImageView(
                         path: nil,
                         fallbackImageUrl: urlString,
@@ -111,11 +136,49 @@ struct CarouselPageBuilder {
                 ),
                 imageIdentifier: urlString,
                 imageOrigin: .reference,
-                referenceAttributionLabel: source.label))
+                referenceAttributionLabel: source.label,
+                galleryItem: InsightImageGalleryItem(
+                    id: pageID,
+                    source: .referenceURL(urlString),
+                    referenceAttributionLabel: source.label
+                )))
             }
         }
         
         return pages
+    }
+
+    private static func makeVideoFallback(
+        source: VideoFallbackImageSource,
+        onImageSuccess: @escaping (String) -> Void,
+        onImageFailure: @escaping (String) -> Void
+    ) -> CarouselVideoFallback {
+        switch source {
+        case .liveImage(let data):
+            return CarouselVideoFallback(
+                source: source,
+                view: AnyView(
+                    LiveCapturePageView(data: data)
+                        .accessibilityIdentifier("InsightVideoFallbackImage")
+                ),
+                imageIdentifier: nil
+            )
+        case .imagePath(let path):
+            return CarouselVideoFallback(
+                source: source,
+                view: AnyView(
+                    AsyncLocalImageView(
+                        path: path,
+                        fallbackImageUrl: nil,
+                        unavailableContext: .originalPhoto,
+                        onImageLoaded: { onImageSuccess(path) },
+                        onImageLoadFailed: { onImageFailure(path) }
+                    )
+                    .accessibilityIdentifier("InsightVideoFallbackImage")
+                ),
+                imageIdentifier: path
+            )
+        }
     }
 }
 
@@ -130,6 +193,31 @@ struct InsightImageGalleryItem: Identifiable, Equatable {
     let id: String
     let source: Source
     let referenceAttributionLabel: String?
+}
+
+struct CarouselVideoFallback: Equatable {
+    let source: VideoFallbackImageSource
+    let view: AnyView
+    let imageIdentifier: String?
+
+    func galleryItem(pageID: String) -> InsightImageGalleryItem {
+        let gallerySource: InsightImageGalleryItem.Source
+        switch source {
+        case .liveImage(let data):
+            gallerySource = .liveImage(data)
+        case .imagePath(let path):
+            gallerySource = .imagePath(path)
+        }
+        return InsightImageGalleryItem(
+            id: pageID,
+            source: gallerySource,
+            referenceAttributionLabel: nil
+        )
+    }
+
+    static func == (lhs: CarouselVideoFallback, rhs: CarouselVideoFallback) -> Bool {
+        lhs.source == rhs.source && lhs.imageIdentifier == rhs.imageIdentifier
+    }
 }
 
 struct InsightImageGalleryPresentation: Identifiable, Equatable {
@@ -171,7 +259,7 @@ struct InsightImageGalleryBuilder {
                     source: .imagePath(path),
                     referenceAttributionLabel: nil
                 ))
-            case .video(let path):
+            case .video(let path, _):
                 items.append(InsightImageGalleryItem(
                     id: "video-\(path)",
                     source: .videoPath(path),
@@ -201,6 +289,22 @@ struct InsightImageGalleryBuilder {
     }
 
     static func presentation(
+        items: [InsightImageGalleryItem],
+        selectedCarouselPageID: String?,
+        isVideoMuted: Bool = true
+    ) -> InsightImageGalleryPresentation? {
+        guard let selectedCarouselPageID,
+              let selectedIndex = items.firstIndex(where: { $0.id == selectedCarouselPageID }) else {
+            return nil
+        }
+        return InsightImageGalleryPresentation(
+            items: items,
+            initialSelectedIndex: selectedIndex,
+            initialVideoMuted: isVideoMuted
+        )
+    }
+
+    static func presentation(
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?,
         selectedCarouselPageID: String?,
@@ -217,14 +321,10 @@ struct InsightImageGalleryBuilder {
         let items = orderedCarouselPageIDs.map { pageIDs in
             pageIDs.compactMap { itemsByID[$0] }
         } ?? allItems
-        guard let selectedIndex = items.firstIndex(where: { $0.id == selectedCarouselPageID }) else {
-            return nil
-        }
-
-        return InsightImageGalleryPresentation(
+        return presentation(
             items: items,
-            initialSelectedIndex: selectedIndex,
-            initialVideoMuted: isVideoMuted
+            selectedCarouselPageID: selectedCarouselPageID,
+            isVideoMuted: isVideoMuted
         )
     }
 }
@@ -647,6 +747,9 @@ struct CarouselPageItem: Identifiable, Equatable {
     let imageIdentifier: String?
     let imageOrigin: CarouselImageOrigin?
     let referenceAttributionLabel: String?
+    let galleryItem: InsightImageGalleryItem?
+    let videoFallback: CarouselVideoFallback?
+    let isUserMediaZeroState: Bool
     let focusRegion: NormalizedImageFocusRegion?
 
     init(
@@ -656,6 +759,9 @@ struct CarouselPageItem: Identifiable, Equatable {
         imageIdentifier: String? = nil,
         imageOrigin: CarouselImageOrigin? = nil,
         referenceAttributionLabel: String? = nil,
+        galleryItem: InsightImageGalleryItem? = nil,
+        videoFallback: CarouselVideoFallback? = nil,
+        isUserMediaZeroState: Bool = false,
         focusRegion: NormalizedImageFocusRegion? = nil
     ) {
         self.id = id
@@ -664,6 +770,9 @@ struct CarouselPageItem: Identifiable, Equatable {
         self.imageIdentifier = imageIdentifier
         self.imageOrigin = imageOrigin
         self.referenceAttributionLabel = referenceAttributionLabel
+        self.galleryItem = galleryItem
+        self.videoFallback = videoFallback
+        self.isUserMediaZeroState = isUserMediaZeroState
         self.focusRegion = focusRegion
     }
 
@@ -678,12 +787,47 @@ enum CarouselImageAvailabilityPolicy {
     static func visiblePages(
         _ pages: [CarouselPageItem],
         unavailableIdentifiers: Set<String>,
-        loadedReferenceIdentifiers: Set<String>
+        loadedReferenceIdentifiers: Set<String>,
+        unavailableVideoPageIDs: Set<String> = []
     ) -> [CarouselPageItem] {
+        let resolvedVideoPages = pages.compactMap { page -> CarouselPageItem? in
+            guard page.mediaKind == .video,
+                  unavailableVideoPageIDs.contains(page.id) else {
+                return page
+            }
+            guard let fallback = page.videoFallback else { return nil }
+            return CarouselPageItem(
+                id: page.id,
+                mediaKind: .visual,
+                view: fallback.view,
+                imageIdentifier: fallback.imageIdentifier,
+                imageOrigin: .user,
+                galleryItem: fallback.galleryItem(pageID: page.id),
+                focusRegion: page.focusRegion
+            )
+        }
         let orderedPages = movingUnavailableImagesToBack(
-            pages,
+            resolvedVideoPages,
             unavailableIdentifiers: unavailableIdentifiers
         )
+        let hasUsableUserVisual = orderedPages.contains { page in
+            guard isUserVisual(page), !page.isUserMediaZeroState else { return false }
+            if page.mediaKind == .video { return true }
+            guard let identifier = page.imageIdentifier else { return true }
+            return !unavailableIdentifiers.contains(identifier)
+        }
+        guard hasUsableUserVisual else {
+            let pagesWithoutFailedUserVisuals = orderedPages.filter {
+                guard !isUserVisual($0), !$0.isUserMediaZeroState else { return false }
+                guard $0.mediaKind == .visual,
+                      let identifier = $0.imageIdentifier else {
+                    return true
+                }
+                return !unavailableIdentifiers.contains(identifier)
+            }
+            return pagesWithoutFailedUserVisuals + [userMediaZeroStatePage]
+        }
+
         let hasLoadedReference = orderedPages.contains { page in
             guard page.imageOrigin == .reference,
                   let identifier = page.imageIdentifier else {
@@ -703,6 +847,24 @@ enum CarouselImageAvailabilityPolicy {
             }
             return !unavailableIdentifiers.contains(identifier)
         }
+    }
+
+    private static func isUserVisual(_ page: CarouselPageItem) -> Bool {
+        guard page.imageOrigin == .user else { return false }
+        return page.mediaKind == .visual || page.mediaKind == .video
+    }
+
+    private static var userMediaZeroStatePage: CarouselPageItem {
+        CarouselPageItem(
+            id: "user-media-unavailable",
+            mediaKind: .visual,
+            view: AnyView(
+                UnavailableVisualsView(isOffline: false, context: .originalPhoto)
+                    .accessibilityIdentifier("InsightUserMediaUnavailableState")
+            ),
+            imageOrigin: .user,
+            isUserMediaZeroState: true
+        )
     }
 
     private static func movingUnavailableImagesToBack(
@@ -885,7 +1047,8 @@ struct ImagesCarousel: View {
         CarouselImageAvailabilityPolicy.visiblePages(
             sourceCarouselPages,
             unavailableIdentifiers: unavailableImageIdentifiers,
-            loadedReferenceIdentifiers: loadedReferenceImageIdentifiers
+            loadedReferenceIdentifiers: loadedReferenceImageIdentifiers,
+            unavailableVideoPageIDs: unavailableVideoPageIDs
         )
     }
 
@@ -941,6 +1104,7 @@ struct ImagesCarousel: View {
     private func handleVisualImageTap() {
         let pages = carouselPages
         guard let selectedPage = pages[safe: selectedIndex] else { return }
+        guard !selectedPage.isUserMediaZeroState else { return }
         guard selectedPage.mediaKind != .video || !isSelectedVideoUnavailable else { return }
         if let imageIdentifier = selectedPage.imageIdentifier,
            unavailableImageIdentifiers.contains(imageIdentifier) {
@@ -948,10 +1112,14 @@ struct ImagesCarousel: View {
         }
 
         guard let presentation = InsightImageGalleryBuilder.presentation(
-            for: activeMedia,
-            referenceWikipediaUrl: referenceWikipediaUrl,
+            items: pages.compactMap { page -> InsightImageGalleryItem? in
+                if let identifier = page.imageIdentifier,
+                   unavailableImageIdentifiers.contains(identifier) {
+                    return nil
+                }
+                return page.galleryItem
+            },
             selectedCarouselPageID: selectedPage.id,
-            orderedCarouselPageIDs: pages.map(\.id),
             isVideoMuted: isVideoMuted
         ) else { return }
 
@@ -960,11 +1128,30 @@ struct ImagesCarousel: View {
     }
 
     private func handleVideoAvailabilityChange(pageID: String, isUnavailable: Bool) {
+        let previousPages = carouselPages
+        let selectedPage = previousPages[safe: selectedIndex]
+        var nextUnavailableVideoPageIDs = unavailableVideoPageIDs
+        let didChange: Bool
         if isUnavailable {
-            unavailableVideoPageIDs.insert(pageID)
+            didChange = nextUnavailableVideoPageIDs.insert(pageID).inserted
         } else {
-            unavailableVideoPageIDs.remove(pageID)
+            didChange = nextUnavailableVideoPageIDs.remove(pageID) != nil
         }
+        guard didChange else { return }
+
+        let updatedPages = CarouselImageAvailabilityPolicy.visiblePages(
+            sourceCarouselPages,
+            unavailableIdentifiers: unavailableImageIdentifiers,
+            loadedReferenceIdentifiers: loadedReferenceImageIdentifiers,
+            unavailableVideoPageIDs: nextUnavailableVideoPageIDs
+        )
+        unavailableVideoPageIDs = nextUnavailableVideoPageIDs
+        selectedIndex = CarouselSelectionResolver.selectedIndex(
+            preserving: selectedPage?.id,
+            previousSelectedIndex: selectedIndex,
+            in: updatedPages,
+            loadedReferenceIdentifiers: loadedReferenceImageIdentifiers
+        )
     }
 
     private func handleImageFailure(identifier: String) {
@@ -980,7 +1167,9 @@ struct ImagesCarousel: View {
         let selectedPage = previousPages[safe: selectedIndex]
         var nextUnavailableIdentifiers = unavailableImageIdentifiers
         var nextLoadedReferenceIdentifiers = loadedReferenceImageIdentifiers
-        let imageOrigin = sourceCarouselPages.first(where: {
+        let imageOrigin = previousPages.first(where: {
+            $0.imageIdentifier == identifier
+        })?.imageOrigin ?? sourceCarouselPages.first(where: {
             $0.imageIdentifier == identifier
         })?.imageOrigin
         var didChange = false
@@ -999,7 +1188,8 @@ struct ImagesCarousel: View {
         let updatedPages = CarouselImageAvailabilityPolicy.visiblePages(
             sourceCarouselPages,
             unavailableIdentifiers: nextUnavailableIdentifiers,
-            loadedReferenceIdentifiers: nextLoadedReferenceIdentifiers
+            loadedReferenceIdentifiers: nextLoadedReferenceIdentifiers,
+            unavailableVideoPageIDs: unavailableVideoPageIDs
         )
         unavailableImageIdentifiers = nextUnavailableIdentifiers
         loadedReferenceImageIdentifiers = nextLoadedReferenceIdentifiers

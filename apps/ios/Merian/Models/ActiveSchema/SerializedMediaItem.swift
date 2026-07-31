@@ -332,7 +332,13 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
             case .audio(let reference):
                 return .audio(reference.resolvedLocalPath ?? reference.serializedPath)
             case .video(let reference):
-                return .video(reference.resolvedLocalPath ?? reference.serializedPath)
+                let fallbackImage = reference.resolvedThumbnailPath.map {
+                    VideoFallbackImageSource.imagePath($0)
+                }
+                return .video(
+                    reference.resolvedLocalPath ?? reference.serializedPath,
+                    fallbackImage: fallbackImage
+                )
             case .description(let context):
                 return .description(context)
             }
@@ -356,9 +362,30 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         if let capturedMediaItems, !capturedMediaItems.isEmpty {
             let snapshot = CapturedMediaSnapshot(items: capturedMediaItems)
             if snapshot.summary.hasVideo {
-                return capturedMediaItems
+                if videoStorageURLs != nil, videoURLs.isEmpty {
+                    return demotingUnavailableVideos(
+                        in: capturedMediaItems,
+                        imageURLs: imageURLs,
+                        imageAvailabilityIsExplicit: imageStorageURLs != nil
+                    )
+                }
+                return addingMissingVideoFallbacks(
+                    to: capturedMediaItems,
+                    imageURLs: imageURLs,
+                    imageAvailabilityIsExplicit: imageStorageURLs != nil
+                )
             }
             if videoURLs.isEmpty {
+                if imageStorageURLs != nil, imageURLs.isEmpty {
+                    return capturedMediaItems.filter { item in
+                        switch item {
+                        case .audio, .description:
+                            return true
+                        case .image, .video:
+                            return false
+                        }
+                    }
+                }
                 return middleFrameFallbackItems(from: capturedMediaItems) ?? capturedMediaItems
             }
         }
@@ -391,10 +418,10 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         let standaloneImageCount = max(availableImageURLs.count - expectedVideoFrameCount, 0)
         let standaloneImages = availableImageURLs.prefix(standaloneImageCount).map { SerializedMediaItem.image(.remoteURL($0)) }
         let videoFrameURLs = Array(availableImageURLs.dropFirst(standaloneImageCount))
-        let fallbackThumbnailURL = videoFrameURLs.first ?? availableImageURLs.first
+        let fallbackThumbnailURL = middleReference(in: videoFrameURLs) ?? middleReference(in: availableImageURLs)
 
         let videos = videoURLs.enumerated().map { index, videoURL in
-            let thumbnailIndex = index * sampledVideoFrameCount
+            let thumbnailIndex = index * sampledVideoFrameCount + sampledVideoFrameCount / 2
             let thumbnailURL = videoFrameURLs.indices.contains(thumbnailIndex)
                 ? videoFrameURLs[thumbnailIndex]
                 : fallbackThumbnailURL
@@ -405,6 +432,116 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         }
 
         return standaloneImages + videos + preservedManifestItems
+    }
+
+    /// Replaces each unavailable video in its original timeline position with one image.
+    /// A persisted poster is authoritative; sampled inference frames are only consulted
+    /// when no poster was retained. Sampled frames are never emitted as independent pages.
+    private static func demotingUnavailableVideos(
+        in items: [SerializedMediaItem],
+        imageURLs: [String],
+        imageAvailabilityIsExplicit: Bool
+    ) -> [SerializedMediaItem] {
+        let videoCount = items.reduce(into: 0) { count, item in
+            if case .video = item { count += 1 }
+        }
+        let manifestImages = items.compactMap { item -> StoredMediaReference? in
+            guard case .image(let reference) = item else { return nil }
+            return reference
+        }
+        let manifestSampledFrames = videoFrameSuffix(in: manifestImages, videoCount: videoCount)
+        let remoteImages = imageURLs.map(StoredMediaReference.remoteURL)
+        let sampledFrames: [StoredMediaReference]
+        if !remoteImages.isEmpty {
+            sampledFrames = videoFrameSuffix(in: remoteImages, videoCount: videoCount)
+        } else if imageAvailabilityIsExplicit {
+            sampledFrames = []
+        } else {
+            sampledFrames = manifestSampledFrames
+        }
+        let sampledFramePaths = Set(
+            (manifestSampledFrames + sampledFrames).map(\.serializedPath)
+        )
+
+        var videoIndex = 0
+        return items.flatMap { item -> [SerializedMediaItem] in
+            switch item {
+            case .video(let reference):
+                defer { videoIndex += 1 }
+                let fallback = reference.thumbnail
+                    ?? middleSampledFrame(in: sampledFrames, videoIndex: videoIndex)
+                return fallback.map { [.image($0)] } ?? []
+            case .image(let reference) where sampledFramePaths.contains(reference.serializedPath):
+                return []
+            case .image, .audio, .description:
+                return [item]
+            }
+        }
+    }
+
+    /// Ensures a playable video also has the same single-image runtime fallback used
+    /// during cloud demotion. Existing posters are preserved unchanged.
+    private static func addingMissingVideoFallbacks(
+        to items: [SerializedMediaItem],
+        imageURLs: [String],
+        imageAvailabilityIsExplicit: Bool
+    ) -> [SerializedMediaItem] {
+        let videoCount = items.reduce(into: 0) { count, item in
+            if case .video = item { count += 1 }
+        }
+        let manifestImages = items.compactMap { item -> StoredMediaReference? in
+            guard case .image(let reference) = item else { return nil }
+            return reference
+        }
+        let manifestSampledFrames = videoFrameSuffix(in: manifestImages, videoCount: videoCount)
+        let remoteImages = imageURLs.map(StoredMediaReference.remoteURL)
+        let sampledFrames: [StoredMediaReference]
+        if !remoteImages.isEmpty {
+            sampledFrames = videoFrameSuffix(in: remoteImages, videoCount: videoCount)
+        } else if imageAvailabilityIsExplicit {
+            sampledFrames = []
+        } else {
+            sampledFrames = manifestSampledFrames
+        }
+        let sampledFramePaths = Set(
+            (manifestSampledFrames + sampledFrames).map(\.serializedPath)
+        )
+
+        var videoIndex = 0
+        return items.flatMap { item -> [SerializedMediaItem] in
+            if case .image(let reference) = item,
+               sampledFramePaths.contains(reference.serializedPath) {
+                return []
+            }
+            guard case .video(let reference) = item else { return [item] }
+            defer { videoIndex += 1 }
+            let fallback = reference.thumbnail
+                ?? middleSampledFrame(in: sampledFrames, videoIndex: videoIndex)
+            return [.video(StoredVideoMediaReference(
+                video: reference.video,
+                thumbnail: fallback,
+                audio: reference.audio
+            ))]
+        }
+    }
+
+    private static func videoFrameSuffix<T>(in values: [T], videoCount: Int) -> [T] {
+        let expectedFrameCount = videoCount * sampledVideoFrameCount
+        guard expectedFrameCount > 0, values.count >= expectedFrameCount else { return [] }
+        return Array(values.suffix(expectedFrameCount))
+    }
+
+    private static func middleSampledFrame(
+        in frames: [StoredMediaReference],
+        videoIndex: Int
+    ) -> StoredMediaReference? {
+        let index = videoIndex * sampledVideoFrameCount + sampledVideoFrameCount / 2
+        return frames.indices.contains(index) ? frames[index] : middleReference(in: frames)
+    }
+
+    private static func middleReference<T>(in values: [T]) -> T? {
+        guard !values.isEmpty else { return nil }
+        return values[values.count / 2]
     }
 
     private static func middleFrameFallbackItems(from items: [SerializedMediaItem]) -> [SerializedMediaItem]? {
@@ -429,6 +566,51 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
     private static func middleFrameFallbackURL(from imageURLs: [String]) -> String? {
         guard imageURLs.count == sampledVideoFrameCount else { return nil }
         return imageURLs[sampledVideoFrameCount / 2]
+    }
+}
+
+enum CloudMediaReplacementPolicy {
+    static func shouldReplace(
+        existing: CapturedMediaSnapshot,
+        hydratedItems: [SerializedMediaItem],
+        imageStorageURLs: [String]?,
+        videoStorageURLs: [String]?
+    ) -> Bool {
+        guard existing.items != hydratedItems else { return false }
+
+        let hydrated = CapturedMediaSnapshot(items: hydratedItems)
+        let existingVisualReferences = existing.imageReferences
+            + existing.videoReferences
+            + existing.videoThumbnailReferences
+        let hasRemoteVisual = existingVisualReferences.contains(where: \.isRemote)
+        let hasRemoteVideo = existing.videoReferences.contains(where: \.isRemote)
+        let onlyLocalOrMissingVisuals = existingVisualReferences.isEmpty || !hasRemoteVisual
+        let repairsMissingVideo = !existing.summary.hasVideo && hydrated.summary.hasVideo
+        let explicitlyRemovedRemoteVideo = videoStorageURLs != nil
+            && normalizedURLs(videoStorageURLs).isEmpty
+            && hasRemoteVideo
+            && !hydrated.summary.hasVideo
+        let explicitlyRemovedAllRemoteVisuals = imageStorageURLs != nil
+            && videoStorageURLs != nil
+            && normalizedURLs(imageStorageURLs).isEmpty
+            && normalizedURLs(videoStorageURLs).isEmpty
+            && hasRemoteVisual
+            && !hydrated.summary.hasImage
+            && !hydrated.summary.hasVideo
+
+        if hydratedItems.isEmpty {
+            return explicitlyRemovedRemoteVideo || explicitlyRemovedAllRemoteVisuals
+        }
+        return onlyLocalOrMissingVisuals
+            || repairsMissingVideo
+            || explicitlyRemovedRemoteVideo
+            || explicitlyRemovedAllRemoteVisuals
+    }
+
+    private static func normalizedURLs(_ values: [String]?) -> [String] {
+        (values ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }
 

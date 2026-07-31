@@ -29,12 +29,12 @@ The rule is scoped to the exact scan, not the author: Naturebook imagery from
 another scan remains eligible, as do unrelated Wikipedia and GBIF images.
 
 Image-load availability is tracked per scan and distinguishes captured user
-photos from reference imagery. A failed user photo remains as the hero fallback
-while references are absent, loading, or failing. Once at least one reference
-image renders successfully, failed user-photo pages are removed from the inline
-carousel and fullscreen gallery. Pagination and selection are derived from this
-visible page order; if every reference later becomes unavailable, the failed
-user-photo fallback returns so the hero never becomes empty.
+photos from reference imagery. Failed visual pages are excluded once no usable
+user image or video remains, and the existing `Original photo unavailable`
+state is appended after every audio, description, reference, and loading page.
+This terminal page never enters the fullscreen gallery. When other usable user
+visuals remain, the established availability ordering still moves failed images
+behind usable visual pages and removes them after a reference renders.
 
 Audio pages expose a filename-scoped playback-control accessibility identifier
 only after the source has produced both a valid `AVAudioPlayer` and decoded
@@ -45,7 +45,11 @@ The outer page identifier alone is not media-readiness evidence because it is
 also present while decoding and in the unavailable state.
 
 Video pages track the underlying `AVPlayerItem` status instead of treating a
-created player as proof that media is playable. Unknown items show loading,
-ready items expose playback and mute controls, and failed or invalid items show
-an accessible `Video Unavailable` state with no dead playback controls. The same
-contract applies in the inline Insight carousel and fullscreen gallery.
+created player as proof that media is playable. Each active video may carry one
+retained image fallback: its stored poster first, otherwise the middle of its
+five sampled inference frames. An explicitly empty cloud video URL manifest
+demotes stale video records to that single image and repairs cached remote
+records. Runtime playback failure performs the same replacement in place with
+the original stable page ID, so selection is preserved, video/mute controls are
+removed, and tapping opens normal fullscreen image zoom. Sampled frames are
+never exposed as a five-page replacement.

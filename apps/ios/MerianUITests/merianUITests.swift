@@ -359,6 +359,44 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testMissingVideoUsesOneZoomableImageFallback() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedMissingVideoFallbackFlow"]
+        )
+
+        let scansButton = app.buttons["MainTabBar_Scans"]
+        XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
+        scansButton.tap()
+
+        let scanTile = app.buttons["ScanTile_ui_test_missing_video_fallback"]
+        XCTAssertTrue(scanTile.waitForExistence(timeout: 8.0), "Seeded missing-video scan was not rendered")
+        scanTile.tap()
+
+        XCTAssertTrue(
+            app.otherElements["InsightSheetView"].waitForExistence(timeout: 8.0),
+            "Missing-video insight failed to open"
+        )
+        let fallback = app.descendants(matching: .any)["InsightVideoFallbackImage"]
+        XCTAssertTrue(
+            fallback.waitForExistence(timeout: 12.0),
+            "Failed playback did not replace the video page with its retained image"
+        )
+        XCTAssertTrue(
+            app.buttons["Video muted"].waitForNonExistence(timeout: 3.0),
+            "Video mute controls remained after the page became an image"
+        )
+        XCTAssertTrue(fallback.isHittable, "Retained fallback image was not tappable")
+        fallback.tap()
+
+        XCTAssertTrue(
+            app.buttons["Close image viewer"].waitForExistence(timeout: 8.0),
+            "Fallback image did not open in the fullscreen zoom gallery"
+        )
+        XCTAssertFalse(app.buttons["Unmute video"].exists, "Image fallback exposed fullscreen video controls")
+        XCTAssertFalse(app.buttons["Mute video"].exists, "Image fallback exposed fullscreen video controls")
+    }
+
+    @MainActor
     func testBackgroundSyncOfflineDisappearance() throws {
         try XCTSkipIf(true, "Offline Simulator execution boundaries trigger severe UI timeout execution flakes randomly.")
         let app = UITestAppLauncher.launchConfiguredApp()

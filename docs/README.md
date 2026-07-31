@@ -39,7 +39,7 @@ as their permanent engineering identity.
   lane is supplementary. See the
   [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
   and
-  [`release runbook`](./development-guides/14-ios-release-versioning.md#current-sha-ci-archive-gate).
+  [`release runbook`](./development-guides/14-ios-release-versioning.md#daily-development-and-ci).
 - **Prelaunch access and purchase QA**: Release and TestFlight use the normal
   free/Pro meter and authoritative server quota; unlimited meter bypasses are
   DEBUG-only. Testers can still open Settings → Plan directly. Debug simulator
@@ -239,8 +239,8 @@ as their permanent engineering identity.
 - **[`/incidents/2026-07-xcode-export-build-number-rewrite.md`](./incidents/2026-07-xcode-export-build-number-rewrite.md)**
   — Root cause and fail-closed remediation for Xcode changing a reviewed
   `1.0.2 (236)` archive into uploaded IPA build `272`, including exact artifact
-  provenance, confirmed Content Delivery acceptance, globally safe recovery,
-  and post-export closure gates.
+  provenance, confirmed Content Delivery acceptance, single-writer publisher
+  prevention, globally safe recovery, and end-to-end closure gates.
 - **[`/incidents/2026-07-queued-insight-same-id-handoff-regression.md`](./incidents/2026-07-queued-insight-same-id-handoff-regression.md)**
   — Hosted Runs 100–103, same-ID route and SwiftUI task root cause, secure
   child-before-parent promotion ordering, scanning-badge accessibility-frame
@@ -310,6 +310,9 @@ as their permanent engineering identity.
   — Canonical Naturebook public values, permanent Merian technical identifiers,
   link/domain compatibility, AASA exceptions, and the allowed-branding audit
   classification.
+- **[`/system-architecture/09-ios-release-publisher.md`](./system-architecture/09-ios-release-publisher.md)**
+  — Single-writer TestFlight publisher decision, authority boundaries, durable
+  state/evidence model, immutable identities, and failure invariants.
 
 ### Backend & Data
 
@@ -400,7 +403,8 @@ as their permanent engineering identity.
   — AVFoundation bindings, LiDAR depth logic, Pro video stabilization
   boundaries, and ViewfinderIntelligence constraints.
 - **[`/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md)**
-  — RevenueCat integration, Pro entitlements, and Ghost Session identity model.
+  — RevenueCat products/offerings, Test Store/StoreKit/TestFlight purchase
+  matrix, durable webhook access, Pro entitlements, and Ghost Session identity.
 - **[`/features-and-hardware/03-gamification-and-telemetry.md`](./features-and-hardware/03-gamification-and-telemetry.md)**
   — Achievement system, scan telemetry capture, and PostHog analytics.
 - **[`/features-and-hardware/04-onboarding.md`](./features-and-hardware/04-onboarding.md)**
@@ -542,15 +546,15 @@ as their permanent engineering identity.
   — SwiftData background synchronization drops, relationship fault boundaries,
   and API envelope parsing constraints.
 - **[`/development-guides/12-in-app-changelog.md`](./development-guides/12-in-app-changelog.md)**
-  — Bundled Settings changelog schema, writing rules, asset handling, and update
-  workflow.
+  — Root release history, per-train App Store note source, bundled Settings
+  changelog schema, writing rules, asset handling, and update workflow.
 - **[`/development-guides/13-asset-catalog.md`](./development-guides/13-asset-catalog.md)**
   — Asset catalog grouping and naming rules for reusable 3D graphics, app
   assets, brand marks, and personas.
 - **[`/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md)**
-  — Semantic app versions, TestFlight build-number prep, exact-source
-  fingerprints, embedded binary provenance, and fail-closed Xcode archive plus
-  signed-IPA export rules.
+  — Complete iOS operator runbook: repository and Apple setup, tracked release
+  trains, serialized global allocation, dispatch inputs, archive/IPA evidence,
+  retries, TestFlight promotion, triage, and emergency recovery.
 - **[`/development-guides/15-naturebook-rebrand-rollout.md`](./development-guides/15-naturebook-rebrand-rollout.md)**
   — Ordered domain, AASA, email, Supabase, App Store, update-continuity, link,
   verification, rollback, and completion checklist for the public rebrand.

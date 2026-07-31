@@ -33,7 +33,7 @@ Do not show a forced rename modal.
 - Web environment template: `apps/web/.env.example`
 - Forward migration:
   `services/supabase/migrations/20260716012046_rebrand_public_surfaces_to_naturebook.sql`
-- App Store notes: `apps/ios/AppStore/ReleaseNotes/1.0.2.md`
+- App Store notes: `apps/ios/AppStore/ReleaseNotes/1.0.3.md`
 - In-app notes: `apps/ios/Merian/Resources/Changelog/changelog.json`
 
 ## Current Rollout Status
@@ -140,13 +140,21 @@ claim that Universal Link without a native species router; the rollout accepts
 this compatibility window. Deploy the browser fallback first and verify the
 current signed app before enabling user-facing species sharing.
 
-After the production app is signed, verify the associated-domain entitlement in
-the archive rather than relying only on the source plist:
+After the publisher signs the production candidate, verify the associated-domain
+entitlement in the retained IPA rather than relying only on the source plist.
+Expand the already validated IPA into a dedicated temporary directory:
 
 ```bash
-codesign -d --entitlements :- \
-  '/path/to/Merian.xcarchive/Products/Applications/Merian.app'
+RELEASE_IPA=/path/to/Naturebook.ipa
+ENTITLEMENT_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naturebook-entitlements.XXXXXX")"
+ditto -x -k "$RELEASE_IPA" "$ENTITLEMENT_WORK_DIR"
+codesign -d --entitlements - \
+  "$ENTITLEMENT_WORK_DIR/Payload/Merian.app"
 ```
+
+Record only the reviewed entitlement values in release evidence, then discard
+the temporary expansion. Do not publish the provisioning profile or unrelated
+signed metadata.
 
 ## Phase 3: Mail and Support
 
@@ -246,7 +254,7 @@ name when App Store Connect requires the account's legal identity.
 
 ### Release notes
 
-Use `apps/ios/AppStore/ReleaseNotes/1.0.2.md` as the reviewed source. Confirm
+Use `apps/ios/AppStore/ReleaseNotes/1.0.3.md` as the reviewed source. Confirm
 the exact transition sentence appears and does not imply a data migration or
 new account.
 
@@ -260,10 +268,18 @@ new account.
    make validate-ios-versioning
    ```
 
-2. Prepare the intended version/build using the normal process in
-   `docs/development-guides/14-ios-release-versioning.md`.
-3. Build the app and embedded targets.
-4. Inspect compiled plists:
+2. Wait for **iOS Build and Test** to pass on the exact intended SHA, then use
+   the serialized **iOS TestFlight Publisher** workflow described in the
+   [operator runbook](./14-ios-release-versioning.md). Confirm both conditional
+   macOS jobs ran; a scope-only success is not release evidence.
+3. Use publisher `candidate` when the signed binary needs review before upload,
+   or use explicitly confirmed `upload` when upload is already authorized. Let
+   the publisher query App Store Connect, reserve the global build, and archive
+   exactly once.
+4. Download the retained artifact and verify `evidence.json`, the final IPA
+   SHA-256, the source SHA/fingerprint, the exact-SHA green run, the one-archive
+   identity, and the `ios-builds/<version>-<build>` annotated tag.
+5. Inspect compiled plists in the retained IPA:
 
    - iOS display name: Naturebook
    - Watch display name: Naturebook
@@ -273,8 +289,13 @@ new account.
    - URL schemes: `naturebook` and `merian`
    - Main bundle ID: `app.merian.Merian`
 
-5. Archive with the production RevenueCat key and upload to the existing App
-   Store Connect record.
+6. After upload, confirm App Store Connect shows the evidence-verified
+   version/build and that `ios-uploads/<version>-<build>` records the same IPA
+   hash and Transporter receipt-log hash.
+7. Complete physical-device update-continuity, purchase/restore, push, link,
+   and scan-flow QA on that build. Promote the same processed binary through
+   internal TestFlight, external TestFlight, and App Review; never rebuild for
+   a stage change.
 
 ## Phase 7: Upgrade and Link QA
 

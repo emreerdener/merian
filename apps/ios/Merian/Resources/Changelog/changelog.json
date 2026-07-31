@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-31-missing-video-fallback",
+      "date": "2026-07-31",
+      "title": "Clearer media recovery",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Video observations whose original clip is no longer available now show one retained photo instead of a black video page. If no original photo or video remains, the media carousel ends with a clear unavailable-photo message."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-29-field-trip-confidence",
       "date": "2026-07-29",
       "title": "Fairer Field trip progress",
