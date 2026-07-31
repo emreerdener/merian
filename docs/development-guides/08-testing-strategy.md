@@ -105,9 +105,11 @@ the production deploy lane.
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
 workflow-level permissions, secret references outside individual steps, and
-unexpected `contents: write`. Keep it in both the complete Edge suite and the
-focused deployment-planner gate so supply-chain regressions fail before any
-production credential or migration is used.
+unexpected `contents: write`. Its exact writer allowlist covers only the
+taxonomy checklist's isolated writer and the manual, serialized iOS publisher
+entry points. Keep it in both the complete Edge suite and the focused
+deployment-planner gate so supply-chain regressions fail before any production
+credential or migration is used.
 
 Explore database fixtures must represent the canonical write model. The shared
 post helper snapshots media through `refresh_explore_post_media`; disable that

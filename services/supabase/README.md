@@ -1486,8 +1486,10 @@ evidence.
 Operational workflows run Deno with frozen dependencies and explicit
 Supabase-host, environment-variable, and output-path permissions. The taxonomy
 import runs with `contents: read` and cannot read a checkout credential; its
-checklist artifact is committed by a separate five-minute job with the sole
-`contents: write` grant. Account deletion, DwC-A, and RevenueCat health clients
+checklist artifact is committed by a separate five-minute writer. The only
+other reviewed `contents: write` paths are the manual, serialized iOS publisher
+entry points, which use the grant for durable release tags. Account deletion,
+DwC-A, and RevenueCat health clients
 additionally enforce a 15-second deadline and streaming 64 KiB response ceiling
 beneath `supabase-js`; the detailed scan-media monitor uses the same deadline
 with a 2 MiB ceiling for its bounded sample report.

@@ -3,6 +3,8 @@ name: TestFlight Beta
 on:
   workflow_dispatch:
 
+# The reusable publisher cannot elevate its caller. This grant is used only to
+# push durable iOS allocation, evidence, and upload tags.
 permissions:
   actions: read
   contents: write
