@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(19);
+SELECT extensions.plan(21);
 
 SELECT extensions.ok(
     (
@@ -82,6 +82,34 @@ SELECT extensions.ok(
         'EXECUTE'
     ),
     'country occurrence RPCs are executable only by the service boundary'
+);
+
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.species_dictionary',
+        'UPDATE'
+    )
+    AND NOT (
+        SELECT function_row.prosecdef
+        FROM pg_catalog.pg_proc AS function_row
+        WHERE function_row.oid =
+            'public.replace_species_country_occurrences(uuid,bigint,jsonb,timestamp with time zone)'::REGPROCEDURE
+    ),
+    'replacement synchronization preserves the invoker and read-only dictionary boundary'
+);
+
+SELECT extensions.ok(
+    (
+        SELECT COALESCE(
+            function_row.proconfig,
+            ARRAY[]::TEXT[]
+        ) @> ARRAY['search_path=""']::TEXT[]
+        FROM pg_catalog.pg_proc AS function_row
+        WHERE function_row.oid =
+            'public.species_dictionary_missing_enrichment_groups(public.species_dictionary)'::REGPROCEDURE
+    ),
+    'the country-aware public definer helper has an empty search path'
 );
 
 INSERT INTO public.species_dictionary (

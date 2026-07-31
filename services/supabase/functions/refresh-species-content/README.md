@@ -125,8 +125,9 @@ Migration `20260731151344_add_species_country_occurrence_index.sql` adds:
 - `species_country_occurrences`, a deny-by-default service-role table keyed by
   species UUID and uppercase ISO 3166-1 alpha-2 country code.
 - `public.replace_species_country_occurrences(...)`, the validated atomic
-  replacement boundary for one GBIF taxon. It row-locks the dictionary identity
-  so concurrent taxon rematches cannot commit stale country rows.
+  replacement boundary for one GBIF taxon. It takes the same transaction-scoped
+  advisory lock as the dictionary identity-change trigger so concurrent taxon
+  rematches cannot commit stale country rows.
 - `public.get_species_dictionary_country_summaries(...)`, the exact-country
   aggregate used by the Dictionary overview.
 - a trigger that purges country rows, invalidates their provenance, and queues

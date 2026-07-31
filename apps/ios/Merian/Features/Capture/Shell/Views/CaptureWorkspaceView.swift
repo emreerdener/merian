@@ -179,12 +179,56 @@ struct CaptureWorkspaceView: View {
         )
     }
 
+    private var isStagedDescriptionSheetPresented: Binding<Bool> {
+        Binding(
+            get: { stagedDescriptionEditIndex != nil },
+            set: { isPresented in
+                if !isPresented {
+                    stagedDescriptionEditIndex = nil
+                }
+            }
+        )
+    }
+
+    private var offlineToastMessageBinding: Binding<String?> {
+        Binding(
+            get: { viewModel.offlineToastMessage },
+            set: { viewModel.offlineToastMessage = $0 }
+        )
+    }
+
+    private var isStagedVideoReviewPresented: Binding<Bool> {
+        Binding(
+            get: { stagedVideoReviewIndex != nil },
+            set: { isPresented in
+                if !isPresented {
+                    stagedVideoReviewIndex = nil
+                }
+            }
+        )
+    }
+
+    private var isCropSheetPresented: Binding<Bool> {
+        Binding(
+            get: { viewModel.imageToCrop != nil },
+            set: { isPresented in
+                if !isPresented {
+                    viewModel.imageToCrop = nil
+                }
+            }
+        )
+    }
+
     // MARK: - View Hierarchy
     var body: some View {
+        workspaceEventContent
+    }
+
+    private var workspaceContent: some View {
         let orderedModes = CaptureMode.userOrder(from: appSettings.captureModeOrderRaw)
         let shouldHideBottomChrome = isKeyboardVisible && captureMode == .describe
 
-        ZStack {
+        return ZStack {
                 // Paged capture mode switcher.
                 // CameraPreviewView lives inside the visual page so the outer horizontal UIScrollView
                 // naturally defers vertical pan gestures to the inner camera pan recognizer
@@ -381,14 +425,14 @@ struct CaptureWorkspaceView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.isEmpty)
                 .opacity(shouldHideBottomChrome ? 0 : 1)
                 .allowsHitTesting(!shouldHideBottomChrome)
-
         } // ZStack
+    }
+
+    private var workspacePresentedContent: some View {
+        workspaceContent
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .merianSystemFeedback(
-            toastMessage: Binding(
-                get: { viewModel.offlineToastMessage },
-                set: { viewModel.offlineToastMessage = $0 }
-            ),
+            toastMessage: offlineToastMessageBinding,
             toastAlignment: .top
         )
         .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
@@ -408,12 +452,7 @@ struct CaptureWorkspaceView: View {
         .task(id: feedbackPromptSignature) {
             await armFeedbackSurveyPromptIfEligible()
         }
-        .sheet(
-            isPresented: Binding(
-                get: { stagedDescriptionEditIndex != nil },
-                set: { if !$0 { stagedDescriptionEditIndex = nil } }
-            )
-        ) {
+        .sheet(isPresented: isStagedDescriptionSheetPresented) {
             let selectedIndex = stagedDescriptionEditIndex ?? 0
             StagedDescriptionSheet(
                 initialText: viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex)
@@ -457,12 +496,7 @@ struct CaptureWorkspaceView: View {
                 }
             )
         }
-        .fullScreenCover(
-            isPresented: Binding(
-                get: { stagedVideoReviewIndex != nil },
-                set: { if !$0 { stagedVideoReviewIndex = nil } }
-            )
-        ) {
+        .fullScreenCover(isPresented: isStagedVideoReviewPresented) {
             if let selectedIndex = stagedVideoReviewIndex,
                viewModel.stagedCapture.videos.indices.contains(selectedIndex) {
                 StagedVideoPreviewModal(
@@ -474,23 +508,14 @@ struct CaptureWorkspaceView: View {
                 )
             }
         }
-        .sheet(isPresented: $showFeedbackSurvey, onDismiss: {
-            guard feedbackSurveyPresentedProactively else { return }
-            feedbackSurveyPresentedProactively = false
-            if appSettings.feedbackSurveySubmittedCampaignId != FeedbackSurveyCampaign.currentId {
-                appSettings.feedbackSurveyDismissedCampaignId = FeedbackSurveyCampaign.currentId
-            }
-        }) {
+        .sheet(isPresented: $showFeedbackSurvey, onDismiss: handleFeedbackSurveyDismissal) {
             FeedbackSurveyView()
         }
 
         // MARK: - View Modifiers
         .cameraSheetRouter(viewModel: viewModel)
         .modifier(CropSheetModifier(
-            isPresented: Binding(
-                get: { viewModel.imageToCrop != nil },
-                set: { if !$0 { viewModel.imageToCrop = nil } }
-            ),
+            isPresented: isCropSheetPresented,
             viewModel: viewModel,
             onRequiredCropReadyForSubmit: {
                 viewModel.submitStagedCapture(
@@ -500,6 +525,10 @@ struct CaptureWorkspaceView: View {
                 cameraManager.resetZoom()
             }
         ))
+    }
+
+    private var workspaceLifecycleContent: some View {
+        workspacePresentedContent
         .onAppear {
             viewModel.updateNotificationSuppression()
             if captureMode == .visual,
@@ -569,6 +598,10 @@ struct CaptureWorkspaceView: View {
         .onChange(of: viewModel.imageToCrop != nil) { _, isCropPresented in
             handleCropPresentationChange(isCropPresented: isCropPresented)
         }
+    }
+
+    private var workspaceStateContent: some View {
+        workspaceLifecycleContent
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhaseChange(
                 newPhase,
@@ -642,6 +675,10 @@ struct CaptureWorkspaceView: View {
             viewModel.activeSheet = .insight
         }
         #endif
+    }
+
+    private var workspaceEventContent: some View {
+        workspaceStateContent
         .onReceive(AppEventPublisher.shared.publisher) { event in
             switch event {
             case .requestIdentifyNatureIntent, .requestOpenScanner:
@@ -717,6 +754,14 @@ struct CaptureWorkspaceView: View {
                        !viewModel.isStagingRefinement
         ) {
             viewModel.executeCapture()
+        }
+    }
+
+    private func handleFeedbackSurveyDismissal() {
+        guard feedbackSurveyPresentedProactively else { return }
+        feedbackSurveyPresentedProactively = false
+        if appSettings.feedbackSurveySubmittedCampaignId != FeedbackSurveyCampaign.currentId {
+            appSettings.feedbackSurveyDismissedCampaignId = FeedbackSurveyCampaign.currentId
         }
     }
 

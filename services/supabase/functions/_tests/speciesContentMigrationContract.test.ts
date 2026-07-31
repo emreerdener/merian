@@ -116,7 +116,9 @@ Deno.test("species country occurrence migration refreshes atomically and reads e
     const fragment of [
       "CREATE OR REPLACE FUNCTION public.replace_species_country_occurrences",
       "SECURITY INVOKER SET search_path = ''",
-      "FROM public.species_dictionary AS species WHERE species.id = p_species_id AND species.gbif_taxon_key::BIGINT = p_gbif_taxon_key FOR SHARE",
+      "'merian-species-country-occurrence:' || p_species_id::TEXT",
+      "'merian-species-country-occurrence:' || NEW.id::TEXT",
+      "pg_catalog.PG_ADVISORY_XACT_LOCK",
       "DELETE FROM public.species_country_occurrences AS occurrence WHERE occurrence.species_id = p_species_id",
       "GROUP BY UPPER(item.value ->> 'country_code')",
       "CREATE OR REPLACE FUNCTION public.get_species_dictionary_country_summaries",
@@ -142,6 +144,15 @@ Deno.test("species country occurrence migration refreshes atomically and reads e
     !/pg_catalog\.(?:GREATEST|LEAST)\s*\(/i.test(sql),
     "PostgreSQL conditional expressions must not be schema-qualified",
   );
+  assert(
+    !sql.includes("FOR SHARE"),
+    "the invoker RPC must not require dictionary UPDATE privilege just to synchronize a refresh",
+  );
+  assertEquals(
+    sql.match(/pg_catalog\.PG_ADVISORY_XACT_LOCK/g)?.length,
+    2,
+    "replacement and GBIF-key invalidation must take the same transaction lock",
+  );
 });
 
 Deno.test("species country occurrence migration reuses the durable GBIF worker and backfills coverage", async () => {
@@ -161,6 +172,7 @@ Deno.test("species country occurrence migration reuses the durable GBIF worker a
       "'species_country_occurrence_backfill'",
       "ARRAY['gbif_wikipedia_reference']::TEXT[]",
       "public.enqueue_species_enrichment_jobs",
+      "CREATE OR REPLACE FUNCTION public.species_dictionary_missing_enrichment_groups( species_row public.species_dictionary ) RETURNS TEXT[] LANGUAGE PLPGSQL STABLE SECURITY DEFINER SET search_path = ''",
     ]
   ) {
     assertStringIncludes(sql, fragment);
@@ -183,10 +195,10 @@ Deno.test("species country occurrence database test covers behavior and lifecycl
     assertStringIncludes(sql, fragment);
   }
 
-  assertStringIncludes(sql, "SELECT extensions.plan(19)");
+  assertStringIncludes(sql, "SELECT extensions.plan(21)");
   assertEquals(
     sql.match(/^SELECT extensions\.(?:ok|is|throws_ok)\(/gm)?.length,
-    19,
+    21,
     "Country occurrence pgTAP plan must match its executable assertions.",
   );
 });

@@ -104,14 +104,20 @@ BEGIN
             USING ERRCODE = '22023';
     END IF;
 
-    -- Serialize against taxon rematches. If a rematch commits first the
-    -- predicate is rechecked and fails; if this refresh locks first, the
-    -- rematch's invalidation trigger deletes these rows after we commit.
+    -- Serialize against taxon rematches without requiring UPDATE privilege on
+    -- the read-only dictionary table merely to take a row lock. The GBIF-key
+    -- invalidation trigger takes this same transaction-scoped lock.
+    PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
+        pg_catalog.HASHTEXTEXTENDED(
+            'merian-species-country-occurrence:' || p_species_id::TEXT,
+            0::BIGINT
+        )
+    );
+
     PERFORM 1
     FROM public.species_dictionary AS species
     WHERE species.id = p_species_id
-      AND species.gbif_taxon_key::BIGINT = p_gbif_taxon_key
-    FOR SHARE;
+      AND species.gbif_taxon_key::BIGINT = p_gbif_taxon_key;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'species_country_occurrences_taxon_mismatch'
@@ -217,6 +223,13 @@ SECURITY INVOKER
 SET search_path = ''
 AS $function$
 BEGIN
+    PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
+        pg_catalog.HASHTEXTEXTENDED(
+            'merian-species-country-occurrence:' || NEW.id::TEXT,
+            0::BIGINT
+        )
+    );
+
     DELETE FROM public.species_country_occurrences AS occurrence
     WHERE occurrence.species_id = NEW.id;
 
@@ -299,7 +312,7 @@ RETURNS TEXT[]
 LANGUAGE PLPGSQL
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $function$
 DECLARE
     missing_groups TEXT[] := ARRAY[]::TEXT[];
