@@ -895,6 +895,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     settingsImplementationSource,
     settingsReadmeSource,
     offlineQueueTestsSource,
+    diagnosticsAvailabilityTestsSource,
   ] = await Promise.all([
     read("README.md"),
     read("docs/README.md"),
@@ -1010,6 +1011,9 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     ),
     read("apps/ios/Merian/Features/Profile/Settings/README.md"),
     read("apps/ios/MerianTests/Core/Data/OfflineQueueManagerTests.swift"),
+    read(
+      "apps/ios/MerianTests/Features/Profile/Shared/ProfileViewModelTests.swift",
+    ),
   ]);
 
   for (const source of [rootSource, documentationSource]) {
@@ -1289,13 +1293,31 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   }
   for (
     const settingsFragment of [
-      "if Self.shouldShowQueueDiagnostics",
+      "if OfflineQueueDiagnosticsAvailability.isEnabledForCurrentBuild(",
+      "email: viewModel.userEmail",
       "Share offline queue diagnostics",
       ".writeQueueDiagnosticsExport()",
+      "enum OfflineQueueDiagnosticsAvailability",
+      "guard isEligibleBuild else { return false }",
+      ".lowercased() == allowedEmail",
+      "#if DEBUG",
       '"sandboxReceipt"',
     ]
   ) {
     assertStringIncludes(settingsImplementationSource, settingsFragment);
+  }
+  for (
+    const availabilityTestFragment of [
+      "allowedUserCanSeeDiagnosticsInAnEligibleBuild",
+      "otherUsersAndGuestsCannotSeeDiagnostics",
+      "diagnosticsRemainHiddenInAppStoreBuilds",
+      "isEligibleBuild: false",
+    ]
+  ) {
+    assertStringIncludes(
+      diagnosticsAvailabilityTestsSource,
+      availabilityTestFragment,
+    );
   }
   for (
     const testFragment of [
