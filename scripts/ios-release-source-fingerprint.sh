@@ -15,6 +15,20 @@ command -v shasum >/dev/null 2>&1 || fail "shasum is unavailable."
 git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || fail "$repo_root is not a git worktree."
 
+tracked_xcode_user_state="$(
+  git -C "$repo_root" ls-files \
+    | awk '
+        $0 ~ "(^|/)xcuserdata/" ||
+        $0 ~ "(^|/)[^/]+[.]xcuserdatad/" {
+          print
+          exit
+        }
+      '
+)"
+if [[ -n "$tracked_xcode_user_state" ]]; then
+  fail "tracked Xcode user state is nondeterministic release source: $tracked_xcode_user_state. Remove it from Git; xcuserdata is already ignored."
+fi
+
 hidden_index_path="$(
   git -C "$repo_root" ls-files -v \
     | awk '

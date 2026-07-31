@@ -107,6 +107,10 @@ Fingerprinting also requires a complete, ordinary Git index. Any tracked path
 marked `assume-unchanged` or `skip-worktree` is rejected before hashing. Clear
 those flags and disable sparse checkout before release preparation; otherwise
 Git can conceal local or omitted source from its normal clean-checkout report.
+Tracked `xcuserdata` or `.xcuserdatad` is also rejected. Xcode and XcodeGen can
+rewrite that per-user scheme metadata asynchronously after project generation,
+making an otherwise identical release fingerprint change during preparation.
+The paths are already ignored; never force-add them to Git.
 
 The local marker also records `prepared_from_sha`, the exact commit on which
 release preparation began. It intentionally differs from the final release

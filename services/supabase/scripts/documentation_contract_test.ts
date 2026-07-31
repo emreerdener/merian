@@ -1360,6 +1360,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(releaseVersioningSource),
+    "Tracked `xcuserdata` or `.xcuserdatad` is also rejected",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
+    "rewrite that per-user scheme metadata asynchronously after project generation",
+  );
+  assertStringIncludes(
+    compact(releaseVersioningSource),
     "CI-only marker instead requires `ci_validation_only: true` and an exact `source_sha`",
   );
   for (

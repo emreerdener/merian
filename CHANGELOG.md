@@ -53,7 +53,9 @@ TestFlight, App Store, support, and QA.
   Release preflight now distinguishes a legacy marker that predates source
   fingerprint binding from a malformed current marker and requires fresh
   higher-build preparation rather than suggesting that the old marker be
-  repaired by hand.
+  repaired by hand. Tracked per-user Xcode scheme metadata has been removed and
+  the fingerprint tool rejects any future `xcuserdata`, preventing asynchronous
+  scheme-order rewrites from invalidating a marker immediately after creation.
 - Scan Library recovery now distinguishes visible needs-attention rows from
   automatic queue work. Stable damaged/beta rows no longer keep the 1.5-second
   queue poll alive or repeatedly wake upload/inference reconciliation, while

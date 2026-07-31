@@ -73,7 +73,7 @@ assert_succeeds_with() {
   shift
   local output
   if ! output="$("$@" 2>&1)"; then
-    fail "Expected command to succeed: $*"
+    fail "Expected command to succeed: $*. Actual output: $output"
   fi
   if ! grep -q -- "$expected" <<<"$output"; then
     fail "Expected command output to contain: $expected"
@@ -129,6 +129,7 @@ git -C "$tmp_dir" config user.email "merian-tests@example.invalid"
 {
   printf 'build/\n'
   printf 'Config.local.xcconfig\n'
+  printf 'xcuserdata/\n'
 } > "$tmp_dir/.gitignore"
 printf 'let fixture = true\n' > "$tmp_dir/source.swift"
 mkdir -p "$tmp_dir/scripts"
@@ -223,6 +224,31 @@ assert_fails_with "tracked source uses assume-unchanged or skip-worktree index s
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
   "$repo_root/scripts/ios-release-source-fingerprint.sh"
 git -C "$tmp_dir" update-index --no-skip-worktree source.swift
+
+tracked_xcode_user_state="$tmp_dir/Merian.xcodeproj/xcuserdata/fixture.xcuserdatad/xcschemes/xcschememanagement.plist"
+mkdir -p "$(dirname "$tracked_xcode_user_state")"
+printf '<plist/>\n' > "$tracked_xcode_user_state"
+git -C "$tmp_dir" add -f "$tracked_xcode_user_state"
+commit_fixture_source
+assert_fails_with "tracked Xcode user state is nondeterministic release source" \
+  env MERIAN_PROJECT_ROOT="$tmp_dir" \
+  "$repo_root/scripts/ios-release-source-fingerprint.sh"
+git -C "$tmp_dir" rm -q "$tracked_xcode_user_state"
+commit_fixture_source
+
+mkdir -p "$(dirname "$tracked_xcode_user_state")"
+printf '<plist><integer>1</integer></plist>\n' > "$tracked_xcode_user_state"
+ignored_user_state_fingerprint_before="$(
+  MERIAN_PROJECT_ROOT="$tmp_dir" \
+    "$repo_root/scripts/ios-release-source-fingerprint.sh"
+)"
+printf '<plist><integer>2</integer></plist>\n' > "$tracked_xcode_user_state"
+ignored_user_state_fingerprint_after="$(
+  MERIAN_PROJECT_ROOT="$tmp_dir" \
+    "$repo_root/scripts/ios-release-source-fingerprint.sh"
+)"
+[[ "$ignored_user_state_fingerprint_before" == "$ignored_user_state_fingerprint_after" ]] \
+  || fail "Ignored Xcode user state changed the release-source fingerprint"
 
 assert_fails_with "expected revision" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
@@ -513,13 +539,13 @@ assert_fails_with "tracked source changed after release prep" \
 rm -f "$tmp_dir/Config.local.xcconfig"
 printf 'REVENUECAT_API_KEY = test_store_key\n' > "$tmp_dir/Config.xcconfig"
 assert_succeeds_with "warning: Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key" \
-  env VERSION=1.2.6 BUILD=44 PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.6 BUILD=44 MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 assert_fails_with "Release REVENUECAT_API_KEY resolves to a RevenueCat Test Store key" \
-  env VERSION=1.2.7 BUILD=45 MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.7 BUILD=45 MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY=1 MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 assert_fails_with "Release REVENUECAT_API_KEY from REVENUECAT_API_KEY must be a RevenueCat iOS production key" \
-  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=rc_unknown_key PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=rc_unknown_key MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 assert_fails_with "Release REVENUECAT_API_KEY from REVENUECAT_API_KEY is still a placeholder" \
-  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=appl_... PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
+  env VERSION=1.2.6 BUILD=45 REVENUECAT_API_KEY=appl_... MERIAN_PROJECT_ROOT="$tmp_dir" PROJECT_YML="$tmp_dir/project.yml" PROJECT_FILE="$tmp_dir/Merian.xcodeproj/project.pbxproj" CONFIG_XCCONFIG="$tmp_dir/Config.xcconfig" LOCAL_CONFIG_FILE="$tmp_dir/Config.local.xcconfig" IOS_RELEASE_PREP_MARKER="$tmp_dir/build/ios-release-prep.json" RUN_XCODEGEN=0 "$repo_root/scripts/prepare-ios-release.sh"
 
 write_project_yml "1.2.5" "43"
 assert_fails env MERIAN_FORCE_RELEASE_PREP_CHECK=1 MERIAN_PROJECT_ROOT="$tmp_dir" "$repo_root/scripts/check-ios-release-prep.sh"
