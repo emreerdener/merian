@@ -12,7 +12,8 @@ struct ProfilePublicScansPreview: View {
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
 
     @State private var remotePosts: [ExplorePost] = []
-    @State private var isLoading = false
+    // Start rendered so SwiftUI mounts the initial preview-loading task reliably.
+    @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var didFail = false
     @State private var isLibraryPresented = false
@@ -21,24 +22,26 @@ struct ProfilePublicScansPreview: View {
     private let columns = ProfilePublishedScanGridStyle.columns
 
     var body: some View {
-        content
-            .task(id: currentUserId) {
-                await loadPreviewPosts(for: currentUserId)
+        VStack(spacing: 0) {
+            content
+        }
+        .task(id: currentUserId) {
+            await loadPreviewPosts(for: currentUserId)
+        }
+        .onChange(of: viewModel.store.changeVersion) {
+            remotePosts.removeAll { viewModel.post(id: $0.id) == nil }
+        }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            handleAppEvent(event)
+        }
+        .navigationDestination(isPresented: $isLibraryPresented) {
+            if let currentUserId {
+                ProfilePublishedScansLibraryView(
+                    viewModel: viewModel,
+                    authorUserId: currentUserId
+                )
             }
-            .onChange(of: viewModel.store.changeVersion) {
-                remotePosts.removeAll { viewModel.post(id: $0.id) == nil }
-            }
-            .onReceive(AppEventPublisher.shared.publisher) { event in
-                handleAppEvent(event)
-            }
-            .navigationDestination(isPresented: $isLibraryPresented) {
-                if let currentUserId {
-                    ProfilePublishedScansLibraryView(
-                        viewModel: viewModel,
-                        authorUserId: currentUserId
-                    )
-                }
-            }
+        }
     }
 
     @ViewBuilder
@@ -50,7 +53,10 @@ struct ProfilePublicScansPreview: View {
                 sectionHeader
 
                 if let recoverySummary {
-                    ProfilePublicationRecoverySummaryView(summary: recoverySummary)
+                    ProfilePublicationRecoverySummaryView(
+                        summary: recoverySummary,
+                        onReview: reviewRecovery
+                    )
                 }
 
                 if isLoading && posts.isEmpty {
@@ -67,6 +73,11 @@ struct ProfilePublicScansPreview: View {
                     viewMoreButton
                 }
             }
+        } else {
+            // Keep lifecycle modifiers mounted while the auth session hydrates.
+            Color.clear
+                .frame(height: 0)
+                .accessibilityHidden(true)
         }
     }
 
@@ -79,15 +90,8 @@ struct ProfilePublicScansPreview: View {
     }
 
     private var recoverySummary: ProfilePublicationRecoverySummary? {
-        guard let stats = profileViewModel.socialStats,
-              stats.recoveryNeededPostCount > 0 else { return nil }
-
-        return ProfilePublicationRecoverySummary(
-            publicationIntentCount: stats.publicationIntentCount,
-            visibleCount: stats.visiblePublishedPostCount,
-            recoveryNeededCount: stats.recoveryNeededPostCount,
-            quarantinedCount: stats.quarantinedPostCount
-        )
+        guard let stats = profileViewModel.socialStats else { return nil }
+        return ProfilePublicationRecoverySummary.publishedOnly(from: stats)
     }
 
     private var shouldShowViewMoreButton: Bool {
@@ -168,11 +172,7 @@ struct ProfilePublicScansPreview: View {
     }
 
     private var emptyState: some View {
-        Text(
-            recoverySummary == nil
-                ? "No published scans yet."
-                : "No published scans are visible while media recovery is pending."
-        )
+        Text(recoverySummary?.userFacingEmptyMessage ?? "No published scans yet.")
             .profileExploreStateStyle()
     }
 
@@ -204,6 +204,20 @@ struct ProfilePublicScansPreview: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private func reviewRecovery() {
+        guard let currentUserId, let recoverySummary else { return }
+        HapticManager.shared.triggerSelectionPulse()
+        AppEventPublisher.shared.send(
+            .requestOpenScansLibraryRecovery(
+                ExploreMediaRecoveryRouteContext(
+                    ownerUserId: currentUserId.lowercased(),
+                    mediaUnavailableScanCount: recoverySummary.recoveryNeededCount,
+                    hiddenScanCount: recoverySummary.quarantinedCount
+                )
+            )
+        )
     }
 
     @MainActor
@@ -317,7 +331,10 @@ private struct ProfilePublishedScansLibraryView: View {
                     .padding(.horizontal, 16)
 
                 if let recoverySummary {
-                    ProfilePublicationRecoverySummaryView(summary: recoverySummary)
+                    ProfilePublicationRecoverySummaryView(
+                        summary: recoverySummary,
+                        onReview: reviewRecovery
+                    )
                         .padding(.horizontal, 16)
                 }
 
@@ -328,11 +345,7 @@ private struct ProfilePublishedScansLibraryView: View {
                         .profileExploreStateStyle()
                         .padding(.horizontal, 16)
                 } else if posts.isEmpty {
-                    Text(
-                        recoverySummary == nil
-                            ? "No published scans yet."
-                            : "No published scans are visible while media recovery is pending."
-                    )
+                    Text(recoverySummary?.userFacingEmptyMessage ?? "No published scans yet.")
                         .profileExploreStateStyle()
                         .padding(.horizontal, 16)
                 } else {
@@ -409,15 +422,8 @@ private struct ProfilePublishedScansLibraryView: View {
     }
 
     private var recoverySummary: ProfilePublicationRecoverySummary? {
-        guard let stats = profileViewModel.socialStats,
-              stats.recoveryNeededPostCount > 0 else { return nil }
-
-        return ProfilePublicationRecoverySummary(
-            publicationIntentCount: stats.publicationIntentCount,
-            visibleCount: stats.visiblePublishedPostCount,
-            recoveryNeededCount: stats.recoveryNeededPostCount,
-            quarantinedCount: stats.quarantinedPostCount
-        )
+        guard let stats = profileViewModel.socialStats else { return nil }
+        return ProfilePublicationRecoverySummary.publishedOnly(from: stats)
     }
 
     private func authorIdentityChangeAffects(
@@ -626,6 +632,20 @@ private struct ProfilePublishedScansLibraryView: View {
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
         return true
     }
+
+    private func reviewRecovery() {
+        guard let recoverySummary else { return }
+        HapticManager.shared.triggerSelectionPulse()
+        AppEventPublisher.shared.send(
+            .requestOpenScansLibraryRecovery(
+                ExploreMediaRecoveryRouteContext(
+                    ownerUserId: authorUserId.lowercased(),
+                    mediaUnavailableScanCount: recoverySummary.recoveryNeededCount,
+                    hiddenScanCount: recoverySummary.quarantinedCount
+                )
+            )
+        )
+    }
 }
 
 struct ProfilePublicationRecoverySummary: Equatable {
@@ -634,50 +654,79 @@ struct ProfilePublicationRecoverySummary: Equatable {
     let recoveryNeededCount: Int
     let quarantinedCount: Int
 
-    var message: String {
-        let intentPhrase = publicationIntentCount == 1
-            ? "1 publication record is preserved"
-            : "\(publicationIntentCount.formatted()) publication records are preserved"
-        let visibleVerb = visibleCount == 1 ? "is" : "are"
-        let recoveryNoun = recoveryNeededCount == 1 ? "post needs" : "posts need"
-        let hiddenSentence: String
-        if quarantinedCount == 1 {
-            hiddenSentence = " One is hidden from Explore until its media is restored."
-        } else if quarantinedCount > 1 {
-            hiddenSentence = " \(quarantinedCount.formatted()) are hidden from Explore until their media is restored."
-        } else {
-            hiddenSentence = ""
+    static func publishedOnly(from stats: ProfileSocialStats) -> Self? {
+        let publicationIntentCount = max(stats.publicationIntentCount, 0)
+        let recoveryNeededCount = min(
+            max(stats.recoveryNeededPostCount, 0),
+            publicationIntentCount
+        )
+        guard recoveryNeededCount > 0 else { return nil }
+
+        return Self(
+            publicationIntentCount: publicationIntentCount,
+            visibleCount: min(
+                max(stats.visiblePublishedPostCount, 0),
+                publicationIntentCount
+            ),
+            recoveryNeededCount: recoveryNeededCount,
+            quarantinedCount: min(
+                max(stats.quarantinedPostCount, 0),
+                recoveryNeededCount
+            )
+        )
+    }
+
+    var userFacingTitle: String {
+        let noun = recoveryNeededCount == 1 ? "scan" : "scans"
+        let verb = recoveryNeededCount == 1 ? "needs" : "need"
+        return "\(recoveryNeededCount.formatted()) published \(noun) \(verb) attention"
+    }
+
+    var userFacingMessage: String {
+        let safetyMessage = "Your posts and activity are safe."
+
+        if quarantinedCount == recoveryNeededCount {
+            let unavailableMessage = recoveryNeededCount == 1
+                ? "Its media isn’t available, so it’s temporarily hidden from Explore."
+                : "Their media isn’t available, so they’re temporarily hidden from Explore."
+            return "\(unavailableMessage) \(safetyMessage)"
         }
 
-        return intentPhrase + "; "
-            + "\(visibleCount.formatted()) \(visibleVerb) visible. "
-            + "\(recoveryNeededCount.formatted()) \(recoveryNoun) media recovery."
-            + hiddenSentence
-            + " Review recovery status in Scan Library."
+        if quarantinedCount > 0 {
+            let hiddenSubject = quarantinedCount == 1
+                ? "one scan is"
+                : "\(quarantinedCount.formatted()) scans are"
+            return "Some media isn’t available, so \(hiddenSubject) temporarily hidden from Explore. "
+                + safetyMessage
+        }
+
+        return "Some media isn’t available, but these scans remain visible in Explore. "
+            + safetyMessage
+    }
+
+    var userFacingEmptyMessage: String {
+        "Your published scans are temporarily hidden until their media is available again."
     }
 }
 
 private struct ProfilePublicationRecoverySummaryView: View {
     let summary: ProfilePublicationRecoverySummary
+    let onReview: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.icloud.fill")
+        HStack {
+            Text("\(summary.recoveryNeededCount.formatted()) media unavailable")
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.orange)
-                .accessibilityHidden(true)
 
-            Text(summary.message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
 
-            Spacer(minLength: 0)
+            Button("Review scans", action: onReview)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.blue)
+                .buttonStyle(.plain)
         }
-        .padding(12)
-        .background(
-            Color.orange.opacity(0.1),
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-        )
+        .frame(maxWidth: .infinity)
     }
 }
 

@@ -3,6 +3,8 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${MERIAN_PROJECT_ROOT:-$(cd "$script_dir/.." && pwd)}"
+ipa_validator="$script_dir/validate-ios-exported-ipa.sh"
+plistbuddy_command="${MERIAN_PLISTBUDDY_COMMAND:-/usr/libexec/PlistBuddy}"
 
 fail() {
   echo "error: $*" >&2
@@ -73,7 +75,7 @@ extract_project_setting() {
 read_plist_value() {
   local plist="$1"
   local key_path="$2"
-  /usr/libexec/PlistBuddy -c "Print :${key_path}" "$plist" 2>/dev/null
+  "$plistbuddy_command" -c "Print :${key_path}" "$plist" 2>/dev/null
 }
 
 newest_archive() {
@@ -111,6 +113,8 @@ write_export_options() {
   <string>app-store-connect</string>
   <key>signingStyle</key>
   <string>automatic</string>
+  <key>manageAppVersionAndBuildNumber</key>
+  <false/>
   <key>teamID</key>
   <string>${team_id}</string>
   <key>uploadSymbols</key>
@@ -152,6 +156,9 @@ repo_root="$(pwd -P)"
 
 project_yml="${PROJECT_YML:-project.yml}"
 [[ -f "$project_yml" ]] || fail "Missing project.yml at $repo_root/$project_yml"
+[[ -f "$ipa_validator" ]] || fail "Missing exported-IPA validator: $ipa_validator"
+[[ "$plistbuddy_command" == /* ]] || fail "PlistBuddy command must be an absolute path."
+[[ -x "$plistbuddy_command" ]] || fail "PlistBuddy is unavailable at $plistbuddy_command."
 
 mkdir -p "$repo_root/build"
 build_root="$(cd "$repo_root/build" && pwd -P)"
@@ -201,6 +208,9 @@ archive_info="$archive_path/Info.plist"
 [[ -f "$archive_info" ]] || fail "Archive is missing Info.plist: $archive_info"
 
 app_path="$(read_plist_value "$archive_info" "ApplicationProperties:ApplicationPath")" || fail "Could not read ApplicationPath from archive Info.plist"
+[[ "$app_path" =~ ^Applications/[A-Za-z0-9][A-Za-z0-9._-]*[.]app$ ]] \
+  || fail "Archive ApplicationPath is malformed: $app_path"
+app_bundle_name="${app_path#Applications/}"
 app_info="$archive_path/Products/$app_path/Info.plist"
 [[ -f "$app_info" ]] || fail "Archive app is missing Info.plist: $app_info"
 
@@ -208,6 +218,7 @@ project_version="$(extract_project_setting MARKETING_VERSION "$project_yml")" ||
 project_build="$(extract_project_setting CURRENT_PROJECT_VERSION "$project_yml")" || fail "Could not read CURRENT_PROJECT_VERSION from $project_yml"
 archive_version="$(read_plist_value "$app_info" "CFBundleShortVersionString")" || fail "Could not read archive CFBundleShortVersionString"
 archive_build="$(read_plist_value "$app_info" "CFBundleVersion")" || fail "Could not read archive CFBundleVersion"
+archive_bundle_id="$(read_plist_value "$app_info" "CFBundleIdentifier")" || fail "Could not read archive CFBundleIdentifier"
 
 if [[ "$archive_version" != "$project_version" || "$archive_build" != "$project_build" ]]; then
   fail "Archive is Merian ${archive_version} (${archive_build}) but release prep is ${project_version} (${project_build}). Archive again before exporting."
@@ -284,8 +295,28 @@ if (( status != 0 )); then
   exit "$status"
 fi
 
-ipa_path="$(find "$export_path" -maxdepth 2 -name "*.ipa" -print -quit)"
-[[ -n "$ipa_path" && -f "$ipa_path" ]] || fail "Export completed but no .ipa was produced in $export_path"
+shopt -s nullglob
+ipa_candidates=(
+  "$export_path"/*.ipa
+  "$export_path"/*/*.ipa
+)
+shopt -u nullglob
+
+(( ${#ipa_candidates[@]} == 1 )) \
+  || fail "Export must produce exactly one .ipa in $export_path; found ${#ipa_candidates[@]}."
+ipa_path="${ipa_candidates[0]}"
+[[ -f "$ipa_path" && ! -L "$ipa_path" ]] \
+  || fail "Exported .ipa must be a regular, non-symbolic-link file: $ipa_path"
+
+MERIAN_PLISTBUDDY_COMMAND="$plistbuddy_command" \
+  bash "$ipa_validator" \
+  "$ipa_path" \
+  "$app_bundle_name" \
+  "$archive_bundle_id" \
+  "$archive_version" \
+  "$archive_build" \
+  "$archive_source_revision" \
+  "$archive_source_fingerprint"
 
 note "Exported TestFlight-ready IPA:"
 note "$ipa_path"

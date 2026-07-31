@@ -13,7 +13,7 @@ not silently waived.
 
 ## Scope
 
-This review covers all 89 deployable Supabase Edge Function entrypoints, their
+This review now inventories all 90 deployable Supabase Edge Function entrypoints, their
 `config.toml` records, isolated deployment graphs, shared authentication/error/
 request-size/outbound/quota boundaries, database migration contracts, and static
 production callers across every application target, workflows, Edge workers,
@@ -159,6 +159,7 @@ export-dwca
 field-trips
 flag-issue
 generate-upload-urls
+get-community-identification-activity
 get-community-identification-detail
 get-community-identification-feed
 get-explore-author-posts
@@ -238,7 +239,7 @@ Repository checks cannot prove hosted regional routing or an authenticated
 customer journey. Before closing the incident:
 
 1. run the production Supabase workflow from the reviewed release SHA and
-   require all 89 graph-derived route probes plus the ten stricter auth probes;
+   require all 90 graph-derived route probes plus the ten stricter auth probes;
 2. require the stable hosted `iOS Build and Test / Production readiness` result
    for the same SHA, including the complete unit-test target, exact queued-scan
    completion UI smoke, and independent unsigned Release archive;

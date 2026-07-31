@@ -7,6 +7,12 @@ enum ScansTab {
 }
 
 struct ScansSheetView: View {
+    let recoveryContext: ExploreMediaRecoveryRouteContext?
+
+    init(recoveryContext: ExploreMediaRecoveryRouteContext? = nil) {
+        self.recoveryContext = recoveryContext
+    }
+
     // MARK: - App State Engines
     @State private var searchManager = ScansManager()
 
@@ -164,6 +170,9 @@ struct ScansSheetView: View {
                     filterCategories: filterCategories,
                     queuedScans: queuedScans,
                     exploreMediaIncidents: exploreMediaIncidents,
+                    recoveryContext: recoveryContext,
+                    isExploreMediaIncidentRefreshRunning: isExploreMediaIncidentRefreshRunning,
+                    onRetryExploreMediaIncidents: retryExploreMediaIncidents,
                     isSearchFocused: $isSearchFocused,
                     onScanSelected: { record in
                         navigationPath.append(ScanInsightRoute(scanId: record.id))
@@ -442,7 +451,8 @@ struct ScansSheetView: View {
 
     private var exploreMediaIncidentRefreshID: String {
         let userId = SupabaseManager.shared.currentUser?.id.uuidString.lowercased() ?? "guest"
-        return "\(userId)|\(offlineQueueManager.isOnline)|\(scenePhase)"
+        let recoveryOwnerId = recoveryContext?.ownerUserId ?? "none"
+        return "\(userId)|\(recoveryOwnerId)|\(offlineQueueManager.isOnline)|\(scenePhase)"
     }
 
     @MainActor
@@ -508,6 +518,12 @@ struct ScansSheetView: View {
                 lastExploreMediaIncidentRefreshAt = .distantPast
                 return
             }
+            if let recoveryContext,
+               recoveryContext.ownerUserId != expectedOwnerId.uuidString.lowercased() {
+                exploreMediaIncidents = []
+                lastExploreMediaIncidentRefreshAt = .distantPast
+                return
+            }
             lastExploreMediaIncidentRefreshAt = Date()
 
             do {
@@ -523,6 +539,9 @@ struct ScansSheetView: View {
                     return
                 }
                 exploreMediaIncidents = incidents
+                MerianLog.network.debug(
+                    "Loaded \(incidents.count, privacy: .public) active Explore media recovery incident(s)."
+                )
             } catch {
                 guard !Task.isCancelled else { return }
                 MerianLog.network.error(
@@ -530,6 +549,13 @@ struct ScansSheetView: View {
                 )
             }
         } while needsTrailingExploreMediaIncidentRefresh && !Task.isCancelled
+    }
+
+    private func retryExploreMediaIncidents() {
+        lastExploreMediaIncidentRefreshAt = .distantPast
+        Task { @MainActor in
+            await refreshExploreMediaIncidents()
+        }
     }
 
     /// Fetches the current `OfflineQueuedScan` list directly from the model context and
@@ -667,6 +693,9 @@ private struct LibraryTabContent: View {
     let filterCategories: [String]
     let queuedScans: [QueuedScanSnapshot]
     let exploreMediaIncidents: [ExploreMediaIncident]
+    let recoveryContext: ExploreMediaRecoveryRouteContext?
+    let isExploreMediaIncidentRefreshRunning: Bool
+    let onRetryExploreMediaIncidents: () -> Void
     @Binding var isSearchFocused: Bool
     let onScanSelected: (LocalScanRecord) -> Void
     let onQueuedScanSelected: (QueuedScanContext) -> Void
@@ -683,6 +712,9 @@ private struct LibraryTabContent: View {
             isSearchFocused: isSearchFocused,
             queuedScans: queuedScans,
             exploreMediaIncidents: exploreMediaIncidents,
+            recoveryContext: recoveryContext,
+            isExploreMediaIncidentRefreshRunning: isExploreMediaIncidentRefreshRunning,
+            onRetryExploreMediaIncidents: onRetryExploreMediaIncidents,
             isSelectionMode: searchManager.isSelectionMode,
             isSelected: { scan in searchManager.selectedScans.contains(scan.id) },
             onSelect: { scan in

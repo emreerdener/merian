@@ -881,6 +881,29 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         XCTAssertNil(viewModel.pendingCommunityIdentificationRequestId)
         XCTAssertNil(viewModel.pendingExplorePostId)
+        XCTAssertNil(viewModel.pendingScansRecoveryContext)
+    }
+
+    func testProfileRecoveryRoutePreservesMediaUnavailableScanContext() async throws {
+        let context = ExploreMediaRecoveryRouteContext(
+            ownerUserId: "5d8372cc-1078-49a4-af27-e32d10290bad",
+            mediaUnavailableScanCount: 5,
+            hiddenScanCount: 5
+        )
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .profile
+        )
+
+        AppEventPublisher.shared.send(.requestOpenScansLibraryRecovery(context))
+        try await waitUntil {
+            viewModel.activeSheet == .scans
+                && viewModel.pendingScansRecoveryContext == context
+        }
+
+        XCTAssertEqual(viewModel.pendingScansRecoveryContext, context)
     }
 
     func testProfileFieldTripsRouteOpensExistingExploreFieldTripsRoot() async throws {
@@ -2074,23 +2097,60 @@ final class ExploreAuthorProfileNavigationPolicyTests: XCTestCase {
 }
 
 final class ProfilePublicationRecoverySummaryTests: XCTestCase {
-    func testRecoveryMessageSeparatesPublicationIntentVisibilityAndQuarantine() {
-        let summary = ProfilePublicationRecoverySummary(
-            publicationIntentCount: 38,
-            visibleCount: 5,
-            recoveryNeededCount: 33,
-            quarantinedCount: 33
+    func testRecoveryNoticeIsHiddenWhenUnavailableScansAreAllPrivate() {
+        let stats = ProfileSocialStats(
+            followerCount: 0,
+            followingCount: 0,
+            visiblePublishedPostCount: 0,
+            publicationIntentCount: 0,
+            recoveryNeededPostCount: 5,
+            degradedPostCount: 0,
+            quarantinedPostCount: 5
         )
 
+        XCTAssertNil(ProfilePublicationRecoverySummary.publishedOnly(from: stats))
+    }
+
+    func testRecoveryNoticeOnlyTalliesPublishedScans() throws {
+        let stats = ProfileSocialStats(
+            followerCount: 0,
+            followingCount: 0,
+            visiblePublishedPostCount: 2,
+            publicationIntentCount: 3,
+            recoveryNeededPostCount: 5,
+            degradedPostCount: 0,
+            quarantinedPostCount: 5
+        )
+
+        let summary = try XCTUnwrap(
+            ProfilePublicationRecoverySummary.publishedOnly(from: stats)
+        )
+
+        XCTAssertEqual(summary.recoveryNeededCount, 3)
+        XCTAssertEqual(summary.quarantinedCount, 3)
+    }
+
+    func testRecoveryNoticeUsesUserFacingCopy() {
+        let summary = ProfilePublicationRecoverySummary(
+            publicationIntentCount: 41,
+            visibleCount: 34,
+            recoveryNeededCount: 5,
+            quarantinedCount: 5
+        )
+
+        XCTAssertEqual(summary.userFacingTitle, "5 published scans need attention")
         XCTAssertEqual(
-            summary.message,
-            "38 publication records are preserved; 5 are visible. "
-                + "33 posts need media recovery. 33 are hidden from Explore until their media is restored. "
-                + "Review recovery status in Scan Library."
+            summary.userFacingMessage,
+            "Their media isn’t available, so they’re temporarily hidden from Explore. "
+                + "Your posts and activity are safe."
+        )
+        XCTAssertEqual(
+            summary.userFacingEmptyMessage,
+            "Your published scans are temporarily hidden until their media is available again."
         )
     }
 
-    func testRecoveryMessageUsesSingularLanguage() {
+    func testRecoveryNoticeUsesSingularLanguage() {
         let summary = ProfilePublicationRecoverySummary(
             publicationIntentCount: 1,
             visibleCount: 0,
@@ -2098,11 +2158,11 @@ final class ProfilePublicationRecoverySummaryTests: XCTestCase {
             quarantinedCount: 1
         )
 
+        XCTAssertEqual(summary.userFacingTitle, "1 published scan needs attention")
         XCTAssertEqual(
-            summary.message,
-            "1 publication record is preserved; 0 are visible. "
-                + "1 post needs media recovery. One is hidden from Explore until its media is restored. "
-                + "Review recovery status in Scan Library."
+            summary.userFacingMessage,
+            "Its media isn’t available, so it’s temporarily hidden from Explore. "
+                + "Your posts and activity are safe."
         )
     }
 }

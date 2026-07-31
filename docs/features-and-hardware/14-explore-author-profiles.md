@@ -16,8 +16,12 @@ achievement evidence.
   preview for currently visible Explore publications. Local files may supply a
   thumbnail fallback for an already-visible server post, but local share cache
   never creates an extra public tile.
-- When preserved publications need media recovery, the owner sees visible,
-  preserved, and recovery-needed totals plus a direction to Scan Library.
+- When a publication needs media recovery, the owner sees concise,
+  anchored copy showing the unavailable-media count and a `Review scans` link.
+  The link opens Scan Library, where a matching compact count and retry action
+  remain anchored above the filters. The retry link becomes an in-line loading
+  indicator while the incident request runs. The grid automatically scopes to
+  local scans with media issues when their incident IDs are available.
 - The user's own Profile tab also shows active and published Field trip modules
   when the Field trips endpoint returns visible summaries, plus lightweight
   Field trip challenge badges when awarded.
@@ -312,8 +316,9 @@ Conversion rules:
   into the public grid.
 - Owner profile stats decode `owner_publication_summary`. A persistent recovery
   explanation appears above both the preview and full grid when
-  `recovery_needed_post_count > 0`; Scan Library remains the actionable repair
-  surface.
+  `recovery_needed_post_count > 0`; its recovery-specific Scan Library route
+  preserves those totals, fetches scan IDs with unavailable media, and enables
+  the media-issue scope by default.
 - Share and unshare flows publish `exploreShareStateChanged` so an already-open Profile tab can refresh its local preview state.
 
 Library pagination behavior:

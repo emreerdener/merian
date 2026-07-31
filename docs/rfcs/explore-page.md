@@ -96,7 +96,20 @@ named DEBUG startup TODO are documented in
 
 The Explore feed and map shell are now live. The current shipped implementation is:
 
-- `ExploreView` uses bottom navigation for `Observations`, `Identify`, `Field trips`, and `Index`. Observations owns a root-only Feed/Map header toggle with Feed first, Field trips opens directly to Outings while Events is disabled and owns the Outings/Events toggle when that preview is available, and Index currently shows the Species Dictionary catalog only. Its unfinished Catalog/Tree header toggle, Tree canvas, and internal taxonomy destination are all guarded by the default-off `.speciesDictionaryTree` release flag in `FeatureFlags`. Completed standard-outing goals resolve their private completion scan ID to a device-local photo/video-poster thumbnail; tapping one pushes the existing Insight view in the same Explore navigation stack and returns to the outing on back.
+- `ExploreView` uses exactly three bottom-navigation items: `Observations`,
+  `Field trips`, and `Identify`. Observations owns a root-only Feed/Map header
+  toggle with Feed first. Identify owns a Requests/Index toggle: Requests is a
+  dashboard with 12 open-request cards followed by 10 recent activity groups,
+  plus stack routes to each complete feed; Index renders the existing Species
+  Dictionary catalog. Species links select Identify/Index before detail and
+  request links select Identify/Requests. The unfinished taxonomy tree/galaxy
+  work and its default-off `.speciesDictionaryTree` flag remain in code but
+  have no MVP root-navigation entry point. Field trips opens directly to
+  Outings while Events is disabled and owns the Outings/Events toggle when that
+  preview is available. Completed standard-outing goals resolve their private
+  completion scan ID to a device-local photo/video-poster thumbnail; tapping one
+  pushes the existing Insight view in the same Explore navigation stack and
+  returns to the outing on back.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
 - Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.

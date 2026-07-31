@@ -597,7 +597,7 @@ Deno.test("fleet review inventory exactly matches configured Edge Functions", as
   assert(inventoryBlock, "Fleet review entrypoint inventory is missing.");
   const documented = inventoryBlock[1].trim().split(/\s+/).sort();
 
-  assertEquals(configured.length, 89);
+  assertEquals(configured.length, 90);
   assertEquals(documented, configured);
   assertStringIncludes(
     compact(reviewSource),
@@ -3419,6 +3419,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/development-guides/09-core-managers.md",
     "docs/development-guides/10-safety-and-moderation.md",
     "docs/development-guides/11-swiftdata-and-api-gotchas.md",
+    "docs/development-guides/14-ios-release-versioning.md",
     "docs/features-and-hardware/05-insight-sheet.md",
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
@@ -3433,6 +3434,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/incidents/2026-07-server-key-authorization-mismatch.md",
     "docs/incidents/2026-07-supabase-edge-route-not-found.md",
     "docs/incidents/2026-07-video-scan-canonical-finalization-regression.md",
+    "docs/incidents/2026-07-xcode-export-build-number-rewrite.md",
     "docs/product/01-master-product-document.md",
     "docs/rfcs/active-capture-goal-context.md",
     "docs/system-architecture/01-system-architecture.md",

@@ -7,6 +7,7 @@ enum ExploreErrorFormatter {
     private static let duplicateScanMessage = "This scan is already saved. Try sharing again."
     private static let mediaPreparationMessage = "We couldn’t prepare this media for sharing. Please try again."
     private static let exploreUnavailableMessage = "Explore is temporarily unavailable. Please try again in a few minutes."
+    private static let recentActivityUnavailableMessage = "Recent activity is temporarily unavailable. Please try again in a few minutes."
     private static let speciesStatsUnavailableMessage = "Live observation statistics are temporarily unavailable. Please try again later."
     private static let scanSyncMessage = "This observation is still syncing. Please wait a moment and try sharing again."
 
@@ -56,6 +57,13 @@ enum ExploreErrorFormatter {
             return speciesStatsUnavailableMessage
         }
         return message(for: error)
+    }
+
+    static func recentActivityMessage(for error: Error) -> String {
+        let formattedMessage = message(for: error)
+        return formattedMessage == exploreUnavailableMessage
+            ? recentActivityUnavailableMessage
+            : formattedMessage
     }
 
     static func fieldTripDetailMessage(for error: Error) -> String {

@@ -3,7 +3,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 export interface ExploreMediaIncidentRow {
   post_id: string;
   scan_id: string;
-  species_common_name: string;
+  species_common_name: string | null;
   media_health_status: "degraded" | "quarantined";
   missing_media_count: number;
   total_media_count: number;

@@ -575,6 +575,10 @@ struct CommunityIdentificationFeedResponse: Decodable {
     let data: [CommunityIdentificationFeedItem]
 }
 
+struct CommunityIdentificationActivityResponse: Decodable {
+    let data: [CommunityIdentificationActivityItem]
+}
+
 enum CommunityIdentificationFeedScope: String, CaseIterable, Hashable {
     case all
     case mine
@@ -650,10 +654,30 @@ struct CommunityIdentificationCursor: Equatable {
     }
 }
 
+struct CommunityIdentificationActivityCursor: Equatable {
+    let beforeActivityAt: String?
+    let beforeActivityId: String?
+
+    static let empty = CommunityIdentificationActivityCursor(
+        beforeActivityAt: nil,
+        beforeActivityId: nil
+    )
+
+    var isEmpty: Bool {
+        beforeActivityAt == nil && beforeActivityId == nil
+    }
+}
+
 enum CommunityIdentificationRequestStatus: String, Decodable, Equatable {
     case needsId = "needs_id"
     case resolved
     case withdrawn
+}
+
+enum CommunityIdentificationActivityType: String, Decodable, Equatable {
+    case suggestionBurst = "suggestion_burst"
+    case consensusChanged = "consensus_changed"
+    case resolved
 }
 
 enum CommunityIdentificationDisagreementMode: String, Codable, Equatable {
@@ -725,6 +749,44 @@ struct CommunityIdentificationFeedItem: Decodable, Identifiable, Equatable {
 
     var publicDisplayLocationLabel: String? {
         ExploreLocationPrivacy.displayLabel(from: publicLocationLabel)
+    }
+}
+
+struct CommunityIdentificationActivityItem: Decodable, Identifiable, Equatable {
+    let activityId: String
+    let activityType: CommunityIdentificationActivityType
+    let requestId: String
+    let postId: String
+    let scanId: String
+    let heroImageUrl: String?
+    let activityAt: String
+    let suggestionCount: Int
+    let recentActorNames: [String]
+    let taxonId: String?
+    let taxonCommonName: String?
+    let taxonScientificName: String?
+    let taxonRank: String?
+    let consensusScore: Double?
+    let requestGroup: CommunityIdentificationRequestGroup?
+    let mediaItems: [ExploreMediaItem]
+
+    var id: String { activityId }
+
+    var displayName: String {
+        CommunityTaxonDisplay.name(
+            commonName: taxonCommonName,
+            scientificName: taxonScientificName
+        )
+    }
+
+    var thumbnailUrl: String? {
+        mediaItems.first?.posterImageUrl(fallback: heroImageUrl ?? "")
+            ?? heroImageUrl
+    }
+
+    var activityDate: Date? {
+        DateUtilities.iso8601FractionalFormatter.date(from: activityAt)
+            ?? DateUtilities.iso8601Formatter.date(from: activityAt)
     }
 }
 
@@ -1385,7 +1447,7 @@ enum ExploreMediaHealthStatus: String, Decodable, Equatable, Sendable {
 struct ExploreMediaIncident: Decodable, Identifiable, Equatable, Sendable {
     let postId: String
     let scanId: String
-    let speciesCommonName: String
+    let speciesCommonName: String?
     let mediaHealthStatus: ExploreMediaHealthStatus
     let missingMediaCount: Int
     let totalMediaCount: Int

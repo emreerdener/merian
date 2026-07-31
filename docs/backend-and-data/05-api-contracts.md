@@ -1525,13 +1525,40 @@ state is cached from that response.
 
 ### `/get-community-identification-feed`
 
-Returns unresolved `needs_id` requests for the Identify tab. Optional `scope`
+Returns unresolved `needs_id` requests for the Identify Requests dashboard and
+full Requests stack page. Optional `scope`
 accepts `all` or `mine` and defaults to `all`; `mine` returns unresolved
 requests created by the authenticated viewer. Optional `latitude` and
 `longitude` sort local public-coordinate requests first, followed by recent
 requests. Cursor fields are `before_requested_at` and `before_request_id`. Rows
 may include `taxonomy_version_id`, `projection_state`, and
 `consensus_processing_state`.
+
+### `/get-community-identification-activity`
+
+Returns privacy-filtered, community-wide Identify activity. Optional `scope`
+and `group` use the same values as the request feed, so `mine` means activity
+for requests created by the authenticated viewer rather than activity performed
+by that viewer. `limit` defaults to 30 and is capped at 100. The paired cursor
+fields are `before_activity_at` and `before_activity_id`; ordering is
+deterministic by `(activity_at DESC, activity_id DESC)`.
+
+Items have type `suggestion_burst`, `consensus_changed`, or `resolved`.
+Suggestions on one request lifecycle chain into the same burst when each
+suggestion is no more than 60 minutes after the prior suggestion, including the
+exact 60-minute boundary. A burst returns its visible suggestion count and up to
+three most recent distinct visible actor names. Consensus caused by a suggestion
+is folded into the burst's latest taxon metadata. Consensus without a new
+suggestion is standalone, and resolution is always a separate immutable
+milestone.
+
+The Edge Function is the only client entry point. Its RPC and internal
+projection are granted to `service_role` only; `PUBLIC`, `anon`, and
+`authenticated` cannot invoke or read them directly. Reads apply the same
+request visibility, blocking, shadowban, tombstone, unshare, moderation, media
+health quarantine, and active-media rules as Identify. Actor names are resolved from
+visible users at read time and are not stored in the projection. Fetching this
+feed does not read or mutate bell unread state.
 
 ### `/get-community-identification-detail`
 

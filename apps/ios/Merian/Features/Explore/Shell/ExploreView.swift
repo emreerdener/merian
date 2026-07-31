@@ -2,30 +2,42 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-enum ExploreTab: Hashable {
+enum ExploreTab: Hashable, CaseIterable {
     case feed
-    case community
     case fieldTrips
-    case dictionary
+    case community
 }
 
 enum ExploreInitialTabPolicy {
     static func resolve(
         requestedTab: ExploreTab,
-        speciesDictionaryRoute: SpeciesDictionaryRoute?
+        speciesDictionaryRoute: SpeciesDictionaryRoute?,
+        communityRequestId: String? = nil
     ) -> ExploreTab {
-        speciesDictionaryRoute == nil ? requestedTab : .dictionary
+        speciesDictionaryRoute == nil && communityRequestId == nil
+            ? requestedTab
+            : .community
+    }
+}
+
+enum ExploreInitialIdentifyModePolicy {
+    static func resolve(
+        speciesDictionaryRoute: SpeciesDictionaryRoute?,
+        communityRequestId: String?
+    ) -> ExploreIdentifyMode {
+        if speciesDictionaryRoute != nil {
+            return .index
+        }
+        if communityRequestId != nil {
+            return .requests
+        }
+        return .requests
     }
 }
 
 private enum ExploreDiscoveryMode: Hashable {
     case feed
     case map
-}
-
-private enum ExploreDictionaryMode: Hashable {
-    case dictionary
-    case tree
 }
 
 struct ExploreView: View {
@@ -40,8 +52,7 @@ struct ExploreView: View {
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
     @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
-    @State private var activeDictionaryMode: ExploreDictionaryMode = .dictionary
-    @State private var activeCommunityMode: CommunityIdentificationMode = .requests
+    @State private var activeIdentifyMode: ExploreIdentifyMode = .requests
     @State private var activeFieldTripsSection: FieldTripsSection = .fieldTrips
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
     @State private var playbackCoordinator = ExploreVideoPlaybackCoordinator()
@@ -89,7 +100,12 @@ struct ExploreView: View {
         self.onOpenOwnedPostInsight = onOpenOwnedPostInsight
         _activeTab = State(initialValue: ExploreInitialTabPolicy.resolve(
             requestedTab: initialTab,
-            speciesDictionaryRoute: initialSpeciesDictionaryRoute
+            speciesDictionaryRoute: initialSpeciesDictionaryRoute,
+            communityRequestId: initialCommunityRequestId
+        ))
+        _activeIdentifyMode = State(initialValue: ExploreInitialIdentifyModePolicy.resolve(
+            speciesDictionaryRoute: initialSpeciesDictionaryRoute,
+            communityRequestId: initialCommunityRequestId
         ))
         if initialTab == .fieldTrips {
             _activeFieldTripsSection = State(initialValue: .fieldTrips)
@@ -149,38 +165,27 @@ struct ExploreView: View {
                     Label("Observations", systemImage: "photo.stack")
                 }
 
-                if FeatureFlags.isEnabled(.fieldTrips) {
-                    FieldTripsView(
-                        userRegion: dictionaryUserRegionIdentifier,
-                        selectedSection: $activeFieldTripsSection,
-                        onOpenTemplate: { templateId in
-                            navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
-                        },
-                        onOpenCompletedScan: openFieldTripCompletedScan,
-                        onOpenPublication: { publicationId in
-                            navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
-                        },
-                        onOpenAuthorProfile: openAuthorProfile
-                    )
-                    .tag(ExploreTab.fieldTrips)
-                    .tabItem {
-                        Label("Field trips", systemImage: "map")
-                    }
+                FieldTripsView(
+                    userRegion: dictionaryUserRegionIdentifier,
+                    selectedSection: $activeFieldTripsSection,
+                    onOpenTemplate: { templateId in
+                        navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
+                    },
+                    onOpenCompletedScan: openFieldTripCompletedScan,
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenAuthorProfile: openAuthorProfile
+                )
+                .tag(ExploreTab.fieldTrips)
+                .tabItem {
+                    Label("Field trips", systemImage: "map")
                 }
 
-                ExploreCommunityIdentificationView(activeMode: $activeCommunityMode) { route in
-                    navigationPath.append(route)
-                }
+                identifyTabContent
                 .tag(ExploreTab.community)
                 .tabItem {
                     Label("Identify", systemImage: "person.crop.badge.magnifyingglass.fill")
-                }
-
-                dictionaryTabContent
-                .background(Color(uiColor: .systemGroupedBackground))
-                .tag(ExploreTab.dictionary)
-                .tabItem {
-                    Label("Index", systemImage: "book.closed")
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
@@ -293,6 +298,22 @@ struct ExploreView: View {
                 ExploreCommunityIdentificationDetailView(requestId: route.requestId)
                     .toolbar(.hidden, for: .tabBar)
             }
+            .navigationDestination(for: ExploreCommunityRequestsFeedRoute.self) { route in
+                ExploreCommunityRequestsFeedView(
+                    initialFilter: route.filter,
+                    onOpenRequest: { navigationPath.append($0) }
+                )
+                .toolbar(.hidden, for: .tabBar)
+                .toolbar {}
+            }
+            .navigationDestination(for: ExploreCommunityActivityFeedRoute.self) { route in
+                ExploreCommunityActivityFeedView(
+                    initialFilter: route.filter,
+                    onOpenRequest: { navigationPath.append($0) }
+                )
+                .toolbar(.hidden, for: .tabBar)
+                .toolbar {}
+            }
             .navigationDestination(for: FieldTripTemplateRoute.self) { route in
                 FieldTripTemplateDetailView(
                     reference: route.reference,
@@ -380,14 +401,15 @@ struct ExploreView: View {
                 AppTelemetry.trackExploreMapOpened()
             }
         }
-        .onChange(of: activeDictionaryMode) { _, _ in
+        .onChange(of: activeIdentifyMode) { _, _ in
             HapticManager.shared.triggerSelectionPulse()
         }
-        .onChange(of: activeCommunityMode) { _, _ in
-            HapticManager.shared.triggerSelectionPulse()
+        .task(id: activeIdentifyMode) {
+            guard activeTab == .community, activeIdentifyMode == .index else { return }
+            await refreshDictionaryUserRegionFromAuthorizedLocation()
         }
         .task(id: activeTab) {
-            guard activeTab == .dictionary else { return }
+            guard activeTab == .community, activeIdentifyMode == .index else { return }
             await refreshDictionaryUserRegionFromAuthorizedLocation()
         }
         .task {
@@ -535,14 +557,15 @@ struct ExploreView: View {
             }
         }
 
-        ToolbarItem(placement: .principal) {
-            ExploreRootModePicker(
-                activeTab: activeTab,
-                activeDiscoveryMode: $activeDiscoveryMode,
-                activeDictionaryMode: $activeDictionaryMode,
-                activeCommunityMode: $activeCommunityMode,
-                activeFieldTripsSection: $activeFieldTripsSection
-            )
+        if shouldShowRootModePicker {
+            ToolbarItem(placement: .principal) {
+                ExploreRootModePicker(
+                    activeTab: activeTab,
+                    activeDiscoveryMode: $activeDiscoveryMode,
+                    activeIdentifyMode: $activeIdentifyMode,
+                    activeFieldTripsSection: $activeFieldTripsSection
+                )
+            }
         }
 
         ToolbarItem(placement: .topBarTrailing) {
@@ -578,19 +601,20 @@ struct ExploreView: View {
     }
 
     @ViewBuilder
-    private var dictionaryTabContent: some View {
-        switch activeDictionaryMode {
-        case .dictionary:
-            SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
-        case .tree:
-            if FeatureFlags.isEnabled(.speciesDictionaryTree) {
-                TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
-                    navigationPath.append(speciesRoute)
-                }
-            } else {
+    private var identifyTabContent: some View {
+        Group {
+            switch activeIdentifyMode {
+            case .requests:
+                ExploreCommunityIdentificationView(
+                    onOpenRequest: { navigationPath.append($0) },
+                    onOpenRequestsFeed: { navigationPath.append($0) },
+                    onOpenActivityFeed: { navigationPath.append($0) }
+                )
+            case .index:
                 SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
             }
         }
+        .background(Color(uiColor: .systemGroupedBackground))
     }
 
     private var shouldShowRootModePicker: Bool {
@@ -670,6 +694,7 @@ struct ExploreView: View {
         var requestPath = NavigationPath()
         requestPath.append(ExploreCommunityRequestRoute(requestId: requestId))
         activeTab = .community
+        activeIdentifyMode = .requests
         navigationPath = requestPath
     }
 
@@ -1486,8 +1511,7 @@ private struct ExploreFeedTabContent: View {
 private struct ExploreRootModePicker: View {
     let activeTab: ExploreTab
     @Binding var activeDiscoveryMode: ExploreDiscoveryMode
-    @Binding var activeDictionaryMode: ExploreDictionaryMode
-    @Binding var activeCommunityMode: CommunityIdentificationMode
+    @Binding var activeIdentifyMode: ExploreIdentifyMode
     @Binding var activeFieldTripsSection: FieldTripsSection
 
     @ViewBuilder
@@ -1506,8 +1530,6 @@ private struct ExploreRootModePicker: View {
         switch activeTab {
         case .fieldTrips:
             FieldTripEventsAvailability.isEnabled
-        case .dictionary:
-            FeatureFlags.isEnabled(.speciesDictionaryTree)
         case .feed, .community:
             true
         }
@@ -1522,8 +1544,8 @@ private struct ExploreRootModePicker: View {
                 Text("Map").tag(ExploreDiscoveryMode.map)
             }
         case .community:
-            Picker("Identify view", selection: $activeCommunityMode) {
-                ForEach(CommunityIdentificationMode.allCases, id: \.self) { mode in
+            Picker("Identify view", selection: $activeIdentifyMode) {
+                ForEach(ExploreIdentifyMode.allCases, id: \.self) { mode in
                     Text(mode.title).tag(mode)
                 }
             }
@@ -1535,11 +1557,6 @@ private struct ExploreRootModePicker: View {
                     Text(section.title).tag(section)
                 }
             }
-        case .dictionary:
-            Picker("Dictionary view", selection: $activeDictionaryMode) {
-                Text("Catalog").tag(ExploreDictionaryMode.dictionary)
-                Text("Tree").tag(ExploreDictionaryMode.tree)
-            }
         }
     }
 
@@ -1549,7 +1566,7 @@ private struct ExploreRootModePicker: View {
             240
         case .fieldTrips:
             240
-        case .feed, .dictionary:
+        case .feed:
             220
         }
     }

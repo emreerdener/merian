@@ -647,6 +647,9 @@ verify_jwt = false
 [functions.get-community-identification-feed]
 verify_jwt = false
 
+[functions.get-community-identification-activity]
+verify_jwt = false
+
 [functions.get-community-identification-detail]
 verify_jwt = false
 

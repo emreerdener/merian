@@ -214,6 +214,11 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-07-xcode-export-build-number-rewrite.md`](./incidents/2026-07-xcode-export-build-number-rewrite.md)**
+  — Root cause and fail-closed remediation for Xcode changing a reviewed
+  `1.0.2 (236)` archive into uploaded IPA build `272`, including exact artifact
+  provenance, confirmed Content Delivery acceptance, globally safe recovery,
+  and post-export closure gates.
 - **[`/incidents/2026-07-queued-insight-same-id-handoff-regression.md`](./incidents/2026-07-queued-insight-same-id-handoff-regression.md)**
   — Hosted Runs 100–103, same-ID route and SwiftUI task root cause, secure
   child-before-parent promotion ordering, scanning-badge accessibility-frame
@@ -351,7 +356,7 @@ as their permanent engineering identity.
   promotion criteria for DwC-A version 2, revocable archive delivery, atomic
   scan finalization, and the public-web Explore boundary.
 - **[`/backend-and-data/15-edge-function-fleet-review-2026-07-28.md`](./backend-and-data/15-edge-function-fleet-review-2026-07-28.md)**
-  — Complete 89-function inventory, corrected cross-cutting findings, boundary
+  — Complete 90-function inventory, corrected cross-cutting findings, boundary
   classification, and required production evidence for the fleet-wide review.
 - **[`/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md)**
   — Normative joined contract for durable scan success, inline and staged media
@@ -513,8 +518,8 @@ as their permanent engineering identity.
   assets, brand marks, and personas.
 - **[`/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md)**
   — Semantic app versions, TestFlight build-number prep, exact-source
-  fingerprints, embedded binary provenance, and Xcode archive/export preflight
-  rules.
+  fingerprints, embedded binary provenance, and fail-closed Xcode archive plus
+  signed-IPA export rules.
 - **[`/development-guides/15-naturebook-rebrand-rollout.md`](./development-guides/15-naturebook-rebrand-rollout.md)**
   — Ordered domain, AASA, email, Supabase, App Store, update-continuity, link,
   verification, rollback, and completion checklist for the public rebrand.

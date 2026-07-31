@@ -458,13 +458,22 @@ preparation ancestry, typed CI-marker exact-SHA enforcement, malformed identity
 rejection, rejection of hidden `assume-unchanged`/`skip-worktree` source state,
 main-target-only preflight/provenance phase attachment, generated-phase
 cardinality and ordering, canonical shell commands, complete-unit and exact
-focused-UI result validation, structured failure-diagnostic extraction, and the
-unconditional final decision. Its generated-project fixtures explicitly detach,
-duplicate, reorder, and replace the release phases. The hosted project-guardrail
-lane runs this target on Ubuntu without booting a simulator. JSON release-marker
+focused-UI result validation, structured failure-diagnostic extraction, Xcode
+automatic build-number management being disabled for App Store export, and
+post-signing IPA version/build plus source-provenance verification before the
+unconditional final decision, including an exact machine-readable
+`ipa_sha256=<64 lowercase hex>` line for the unchanged inspected IPA. Its
+generated-project fixtures explicitly detach,
+duplicate, reorder, and replace the release phases. Generated IPA fixtures
+exercise a valid export and exact digest, the observed archive-to-IPA build
+rewrite, dirty and mismatched provenance, extension/watch build drift, missing
+metadata, duplicate ZIP entries, and multiple root apps; an integration fixture
+drives the complete export helper and rejects a renumbered result. The hosted
+project-guardrail lane runs this target on Ubuntu without booting a simulator.
+JSON release-marker
 validation uses the same strict Ruby parser on Linux and macOS. The portable
-provenance fixture injects a narrow `plistlib` editor; macOS runs additionally
-exercise the real Apple tool. Production archives retain
+provenance and IPA fixtures inject a narrow `plistlib` reader/editor; macOS runs
+additionally exercise the real Apple tool. Production archives retain
 `/usr/libexec/PlistBuddy` as the fail-closed default. This lane does not replace
 compilation or simulator execution.
 

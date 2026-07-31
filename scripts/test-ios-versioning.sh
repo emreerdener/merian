@@ -118,6 +118,154 @@ remove_marker_key() {
   ' "$key" "$file"
 }
 
+write_ipa_fixture() {
+  local ipa_path="$1"
+  local app_bundle_name="$2"
+  local bundle_id="$3"
+  local version="$4"
+  local build="$5"
+  local source_revision="$6"
+  local source_fingerprint="$7"
+  local source_state="$8"
+  local component_build="${9:-$build}"
+  local topology="${10:-normal}"
+
+  mkdir -p "$(dirname "$ipa_path")"
+  python3 - \
+    "$ipa_path" \
+    "$app_bundle_name" \
+    "$bundle_id" \
+    "$version" \
+    "$build" \
+    "$source_revision" \
+    "$source_fingerprint" \
+    "$source_state" \
+    "$component_build" \
+    "$topology" <<'PYTHON'
+import plistlib
+import sys
+import warnings
+import zipfile
+
+(
+    ipa_path,
+    app_bundle_name,
+    bundle_id,
+    version,
+    build,
+    source_revision,
+    source_fingerprint,
+    source_state,
+    component_build,
+    topology,
+) = sys.argv[1:]
+
+root_info = {
+    "CFBundleIdentifier": bundle_id,
+    "CFBundlePackageType": "APPL",
+    "CFBundleShortVersionString": version,
+    "CFBundleVersion": build,
+    "MERIAN_SOURCE_REVISION": source_revision,
+    "MERIAN_SOURCE_FINGERPRINT": source_fingerprint,
+    "MERIAN_SOURCE_STATE": source_state,
+}
+if topology == "missing-fingerprint":
+    del root_info["MERIAN_SOURCE_FINGERPRINT"]
+
+component_info = {
+    "CFBundleIdentifier": f"{bundle_id}.fixture",
+    "CFBundlePackageType": "XPC!",
+    "CFBundleShortVersionString": version,
+    "CFBundleVersion": component_build,
+}
+watch_info = {
+    "CFBundleIdentifier": f"{bundle_id}.watchkitapp",
+    "CFBundlePackageType": "APPL",
+    "CFBundleShortVersionString": version,
+    "CFBundleVersion": component_build,
+}
+
+root_entry = f"Payload/{app_bundle_name}/Info.plist"
+warnings.simplefilter("ignore", UserWarning)
+with zipfile.ZipFile(ipa_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr(root_entry, plistlib.dumps(root_info))
+    archive.writestr(
+        f"Payload/{app_bundle_name}/PlugIns/Fixture.appex/Info.plist",
+        plistlib.dumps(component_info),
+    )
+    archive.writestr(
+        f"Payload/{app_bundle_name}/Watch/FixtureWatch.app/Info.plist",
+        plistlib.dumps(watch_info),
+    )
+    if topology == "duplicate-root":
+        archive.writestr(root_entry, plistlib.dumps(root_info))
+    elif topology == "extra-root":
+        archive.writestr(
+            "Payload/Other.app/Info.plist",
+            plistlib.dumps(
+                {
+                    "CFBundleIdentifier": "invalid.other",
+                    "CFBundlePackageType": "APPL",
+                    "CFBundleShortVersionString": version,
+                    "CFBundleVersion": build,
+                }
+            ),
+        )
+PYTHON
+}
+
+write_export_archive_fixture() {
+  local archive_path="$1"
+  local version="$2"
+  local build="$3"
+  local source_revision="$4"
+  local source_fingerprint="$5"
+
+  mkdir -p "$archive_path/Products/Applications/Merian.app"
+  python3 - \
+    "$archive_path/Info.plist" \
+    "$archive_path/Products/Applications/Merian.app/Info.plist" \
+    "$version" \
+    "$build" \
+    "$source_revision" \
+    "$source_fingerprint" <<'PYTHON'
+import plistlib
+import sys
+
+archive_info_path, app_info_path, version, build, revision, fingerprint = sys.argv[1:]
+
+archive_info = {
+    "ApplicationProperties": {
+        "ApplicationPath": "Applications/Merian.app",
+        "Team": "TA8S64ST9W",
+    }
+}
+app_info = {
+    "CFBundleIdentifier": "app.merian.Merian",
+    "CFBundlePackageType": "APPL",
+    "CFBundleShortVersionString": version,
+    "CFBundleVersion": build,
+    "MERIAN_SOURCE_REVISION": revision,
+    "MERIAN_SOURCE_FINGERPRINT": fingerprint,
+    "MERIAN_SOURCE_STATE": "clean",
+}
+
+with open(archive_info_path, "wb") as handle:
+    plistlib.dump(archive_info, handle)
+with open(app_info_path, "wb") as handle:
+    plistlib.dump(app_info, handle)
+PYTHON
+}
+
+run_exported_ipa_validator() {
+  env \
+    MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
+    MERIAN_UNZIP_COMMAND="$(command -v unzip)" \
+    MERIAN_SHASUM_COMMAND="$(command -v shasum)" \
+    bash "$repo_root/scripts/validate-ios-exported-ipa.sh" \
+    "$@"
+}
+
 commit_fixture_source() {
   git -C "$tmp_dir" add -A
   git -C "$tmp_dir" commit --allow-empty -q -m "fixture source"
@@ -182,23 +330,29 @@ command -v python3 >/dev/null 2>&1 || fail "python3 is required for the portable
   printf 'with open(path, "rb") as handle:\n'
   printf '    document = plistlib.load(handle)\n'
   printf 'operation = command[0] if command else ""\n'
-  printf 'key = command[1].lstrip(":") if len(command) > 1 else ""\n'
-  printf 'if operation == "Print" and len(command) == 2:\n'
-  printf '    if key not in document:\n'
+  printf 'keys = command[1].lstrip(":").split(":") if len(command) > 1 else []\n'
+  printf 'container = document\n'
+  printf 'for key in keys[:-1]:\n'
+  printf '    if not isinstance(container, dict) or key not in container:\n'
   printf '        sys.exit(1)\n'
-  printf '    print(document[key])\n'
+  printf '    container = container[key]\n'
+  printf 'key = keys[-1] if keys else ""\n'
+  printf 'if operation == "Print" and len(command) == 2:\n'
+  printf '    if not isinstance(container, dict) or key not in container:\n'
+  printf '        sys.exit(1)\n'
+  printf '    print(container[key])\n'
   printf '    sys.exit(0)\n'
   printf 'if operation == "Set" and len(command) >= 3:\n'
-  printf '    if key not in document:\n'
+  printf '    if not isinstance(container, dict) or key not in container:\n'
   printf '        sys.exit(1)\n'
   printf '    value = " ".join(command[2:])\n'
   printf 'elif operation == "Add" and len(command) >= 4 and command[2] == "string":\n'
-  printf '    if key in document:\n'
+  printf '    if not isinstance(container, dict) or key in container:\n'
   printf '        sys.exit(1)\n'
   printf '    value = " ".join(command[3:])\n'
   printf 'else:\n'
   printf '    sys.exit(2)\n'
-  printf 'document[key] = value\n'
+  printf 'container[key] = value\n'
   printf 'with open(path, "wb") as handle:\n'
   printf '    plistlib.dump(document, handle, fmt=plistlib.FMT_XML, sort_keys=True)\n'
 } > "$tmp_dir/fake-bin/PlistBuddy"
@@ -210,6 +364,7 @@ bash -n "$repo_root/scripts/prepare-ios-release.sh"
 bash -n "$repo_root/scripts/check-ios-release-prep.sh"
 bash -n "$repo_root/scripts/validate-ios-versioning.sh"
 bash -n "$repo_root/scripts/export-ios-release.sh"
+bash -n "$repo_root/scripts/validate-ios-exported-ipa.sh"
 bash -n "$repo_root/scripts/ios-release-source-fingerprint.sh"
 bash -n "$repo_root/scripts/embed-ios-build-provenance.sh"
 
@@ -320,6 +475,176 @@ if [[ -x /usr/libexec/PlistBuddy ]]; then
   assert_contains "MERIAN_SOURCE_STATE" "$real_provenance_plist"
 fi
 
+ipa_fixture_root="$tmp_dir/build/ipa-fixtures"
+fixture_ipa_revision="1111111111111111111111111111111111111111"
+fixture_ipa_fingerprint="2222222222222222222222222222222222222222222222222222222222222222"
+good_ipa="$ipa_fixture_root/good.ipa"
+write_ipa_fixture \
+  "$good_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint" \
+  "clean"
+assert_succeeds_with "Exported IPA metadata verified for app.merian.Merian 1.0.2 (236)" \
+  run_exported_ipa_validator \
+  "$good_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+good_ipa_sha256="$(shasum -a 256 -- "$good_ipa" | awk 'NR == 1 { print $1 }')"
+assert_succeeds_with "^ipa_sha256=${good_ipa_sha256}$" \
+  run_exported_ipa_validator \
+  "$good_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+
+renumbered_ipa="$ipa_fixture_root/renumbered.ipa"
+write_ipa_fixture \
+  "$renumbered_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "272" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint" \
+  "clean"
+assert_fails_with "main app build 272 does not match expected build 236" \
+  run_exported_ipa_validator \
+  "$renumbered_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+
+assert_fails_with "main app source revision does not match the exported archive" \
+  run_exported_ipa_validator \
+  "$good_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "3333333333333333333333333333333333333333" \
+  "$fixture_ipa_fingerprint"
+
+dirty_ipa="$ipa_fixture_root/dirty.ipa"
+write_ipa_fixture \
+  "$dirty_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint" \
+  "dirty"
+assert_fails_with "main app source state is dirty; expected clean" \
+  run_exported_ipa_validator \
+  "$dirty_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+
+component_mismatch_ipa="$ipa_fixture_root/component-mismatch.ipa"
+write_ipa_fixture \
+  "$component_mismatch_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint" \
+  "clean" \
+  "235"
+assert_fails_with "Fixture.appex/Info.plist build 235 does not match expected build 236" \
+  run_exported_ipa_validator \
+  "$component_mismatch_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+
+duplicate_root_ipa="$ipa_fixture_root/duplicate-root.ipa"
+write_ipa_fixture \
+  "$duplicate_root_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint" \
+  "clean" \
+  "236" \
+  "duplicate-root"
+assert_fails_with "IPA contains a duplicate archive entry" \
+  run_exported_ipa_validator \
+  "$duplicate_root_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+
+extra_root_ipa="$ipa_fixture_root/extra-root.ipa"
+write_ipa_fixture \
+  "$extra_root_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint" \
+  "clean" \
+  "236" \
+  "extra-root"
+assert_fails_with "IPA must contain exactly one root application Info.plist; found 2" \
+  run_exported_ipa_validator \
+  "$extra_root_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+
+missing_fingerprint_ipa="$ipa_fixture_root/missing-fingerprint.ipa"
+write_ipa_fixture \
+  "$missing_fingerprint_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint" \
+  "clean" \
+  "236" \
+  "missing-fingerprint"
+assert_fails_with "main-Info.plist is missing a readable MERIAN_SOURCE_FINGERPRINT" \
+  run_exported_ipa_validator \
+  "$missing_fingerprint_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.2" \
+  "236" \
+  "$fixture_ipa_revision" \
+  "$fixture_ipa_fingerprint"
+
 assert_fails_with "EXPORT_PATH must be a child of" \
   env MERIAN_PROJECT_ROOT="$tmp_dir" \
   PROJECT_YML="$tmp_dir/project.yml" \
@@ -346,6 +671,99 @@ assert_fails_with "EXPORT_OPTIONS_PLIST must not contain . or .. path components
   EXPORT_PATH="$tmp_dir/build/export" \
   EXPORT_OPTIONS_PLIST="$tmp_dir/build/export/missing/../../outside-options.plist" \
   "$repo_root/scripts/export-ios-release.sh"
+
+fake_export_bin="$tmp_dir/build/fake-export-bin"
+fake_xcodebuild_log="$tmp_dir/build/fake-xcodebuild.log"
+mkdir -p "$fake_export_bin"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'set -euo pipefail\n'
+  printf 'export_path=""\n'
+  printf 'printf "%%s\\n" "$@" > "${FAKE_XCODEBUILD_LOG:?}"\n'
+  printf 'while (( $# > 0 )); do\n'
+  printf '  case "$1" in\n'
+  printf '    -exportPath)\n'
+  printf '      export_path="$2"\n'
+  printf '      shift 2\n'
+  printf '      ;;\n'
+  printf '    *)\n'
+  printf '      shift\n'
+  printf '      ;;\n'
+  printf '  esac\n'
+  printf 'done\n'
+  printf '[[ -n "$export_path" ]]\n'
+  printf 'mkdir -p "$export_path"\n'
+  printf 'cp "${FAKE_IPA_SOURCE:?}" "$export_path/Merian.ipa"\n'
+  printf 'printf "Fake App Store Connect export completed.\\n"\n'
+} > "$fake_export_bin/xcodebuild"
+chmod +x "$fake_export_bin/xcodebuild"
+
+fixture_export_revision="$(git -C "$tmp_dir" rev-parse HEAD)"
+fixture_export_fingerprint="$(
+  MERIAN_PROJECT_ROOT="$tmp_dir" \
+    "$repo_root/scripts/ios-release-source-fingerprint.sh"
+)"
+fixture_archive="$tmp_dir/build/Merian.xcarchive"
+write_export_archive_fixture \
+  "$fixture_archive" \
+  "1.0.0" \
+  "39" \
+  "$fixture_export_revision" \
+  "$fixture_export_fingerprint"
+
+valid_export_source_ipa="$tmp_dir/build/valid-export-source.ipa"
+write_ipa_fixture \
+  "$valid_export_source_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.0" \
+  "39" \
+  "$fixture_export_revision" \
+  "$fixture_export_fingerprint" \
+  "clean"
+
+run_export_fixture() {
+  local ipa_source="$1"
+
+  env \
+    PATH="$fake_export_bin:$PATH" \
+    FAKE_IPA_SOURCE="$ipa_source" \
+    FAKE_XCODEBUILD_LOG="$fake_xcodebuild_log" \
+    MERIAN_PLISTBUDDY_COMMAND="$tmp_dir/fake-bin/PlistBuddy" \
+    MERIAN_UNZIP_COMMAND="$(command -v unzip)" \
+    MERIAN_PROJECT_ROOT="$tmp_dir" \
+    PROJECT_YML="$tmp_dir/project.yml" \
+    IOS_EXPORT_SKIP_PREP_CHECK=1 \
+    ARCHIVE_PATH="$fixture_archive" \
+    EXPORT_PATH="$tmp_dir/build/export-integration" \
+    "$repo_root/scripts/export-ios-release.sh"
+}
+
+assert_succeeds_with "Exported TestFlight-ready IPA" \
+  run_export_fixture "$valid_export_source_ipa"
+assert_contains "manageAppVersionAndBuildNumber" \
+  "$tmp_dir/build/export-integration/exportOptions.plist"
+managed_build_value="$(
+  "$tmp_dir/fake-bin/PlistBuddy" \
+    -c "Print :manageAppVersionAndBuildNumber" \
+    "$tmp_dir/build/export-integration/exportOptions.plist"
+)"
+[[ "$managed_build_value" == "False" ]] \
+  || fail "App Store Connect export must set manageAppVersionAndBuildNumber=false"
+assert_contains "-exportArchive" "$fake_xcodebuild_log"
+
+renumbered_export_source_ipa="$tmp_dir/build/renumbered-export-source.ipa"
+write_ipa_fixture \
+  "$renumbered_export_source_ipa" \
+  "Merian.app" \
+  "app.merian.Merian" \
+  "1.0.0" \
+  "272" \
+  "$fixture_export_revision" \
+  "$fixture_export_fingerprint" \
+  "clean"
+assert_fails_with "main app build 272 does not match expected build 39" \
+  run_export_fixture "$renumbered_export_source_ipa"
 
 assert_fails_with "xcodegen 2.45.4 is required for reproducible release generation; found 9.9.9" \
   env VERSION=1.2.3 BUILD=40 \

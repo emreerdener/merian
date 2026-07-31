@@ -602,6 +602,27 @@ Append-only human identification audit rows for community requests.
 A partial unique index enforces one active identification per user per request.
 Changing an ID withdraws the old active row and inserts a new row.
 
+### Internal Community Identify activity projection
+
+`internal.community_identification_activity_groups` stores service-only
+suggestion bursts, standalone consensus changes, and immutable resolution
+milestones for each request generation.
+`internal.community_identification_activity_actors` stores normalized per-burst
+actor IDs, counts, and latest suggestion times; it stores no actor names.
+Suggestions chain into one burst at intervals of up to and including 60
+minutes. Consensus events caused by a suggestion enrich the associated burst,
+while unrelated consensus changes and every resolution remain separate.
+
+Both tables have RLS enabled and no direct `PUBLIC`, `anon`, or
+`authenticated` privileges. Only `service_role` can maintain or read the
+projection. The service-only
+`public.get_community_identification_activity(...)` RPC resolves visible actor
+names at read time, applies the request feed's visibility and shared
+scope/taxonomy filters, and paginates deterministically on
+`(activity_at, activity_id)`. Migration backfill includes only each request's
+current `requested_at` generation; older withdrawn/reopened generations remain
+available through request audit detail.
+
 ### `community_consensus_jobs`, `community_consensus_events`
 
 Consensus recalculation is queued instead of driven by a heavy row trigger.

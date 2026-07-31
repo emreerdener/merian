@@ -399,7 +399,7 @@ struct SpeciesDictionaryTests {
         )
     }
 
-    @Test func testSpeciesDictionaryDeepLinkSelectsDictionaryTab() {
+    @Test func testSpeciesDictionaryDeepLinkSelectsIdentifyIndex() {
         let route = SpeciesDictionaryRoute(
             scientificName: "",
             speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
@@ -410,7 +410,26 @@ struct SpeciesDictionaryTests {
             ExploreInitialTabPolicy.resolve(
                 requestedTab: .feed,
                 speciesDictionaryRoute: route
-            ) == .dictionary
+            ) == .community
+        )
+        #expect(
+            ExploreInitialIdentifyModePolicy.resolve(
+                speciesDictionaryRoute: route,
+                communityRequestId: nil
+            ) == .index
+        )
+        #expect(
+            ExploreInitialIdentifyModePolicy.resolve(
+                speciesDictionaryRoute: nil,
+                communityRequestId: "request-id"
+            ) == .requests
+        )
+        #expect(
+            ExploreInitialTabPolicy.resolve(
+                requestedTab: .feed,
+                speciesDictionaryRoute: nil,
+                communityRequestId: "request-id"
+            ) == .community
         )
         #expect(
             ExploreInitialTabPolicy.resolve(
@@ -418,6 +437,42 @@ struct SpeciesDictionaryTests {
                 speciesDictionaryRoute: nil
             ) == .community
         )
+    }
+
+    @Test func testIdentifyDashboardPreviewLimitsRemainFixedForMVP() {
+        #expect(CommunityIdentificationDashboardPolicy.requestPreviewLimit == 12)
+        #expect(CommunityIdentificationDashboardPolicy.activityPreviewLimit == 10)
+        #expect(CommunityIdentificationDashboardPolicy.fullPageSize == 30)
+    }
+
+    @Test func testIdentifyDashboardSectionsFailIndependently() {
+        var state = IdentifyDashboardLoadState()
+        state.succeed(.requests)
+        state.fail(.activity, message: "Activity unavailable")
+
+        #expect(!state.isLoadingRequests)
+        #expect(state.requestErrorMessage == nil)
+        #expect(!state.isLoadingActivity)
+        #expect(state.activityErrorMessage == "Activity unavailable")
+
+        state.begin(.activity)
+
+        #expect(!state.isLoadingRequests)
+        #expect(state.requestErrorMessage == nil)
+        #expect(state.isLoadingActivity)
+        #expect(state.activityErrorMessage == nil)
+    }
+
+    @Test func testIdentifyFullFeedRoutesCarryTheCurrentFilter() {
+        #expect(ExploreCommunityRequestsFeedRoute(filter: .mine).filter == .mine)
+        #expect(ExploreCommunityActivityFeedRoute(filter: .birds).filter == .birds)
+        #expect(CommunityIdentificationRequestFilter.mine.scope == .mine)
+        #expect(CommunityIdentificationRequestFilter.birds.group == .birds)
+    }
+
+    @Test func testExploreBottomNavigationHasExactlyThreeItems() {
+        #expect(ExploreTab.allCases == [.feed, .fieldTrips, .community])
+        #expect(ExploreIdentifyMode.allCases == [.requests, .index])
     }
 
     @Test func testSpeciesDictionaryTreeRemainsBehindReleaseFlag() {

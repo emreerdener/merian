@@ -2903,8 +2903,34 @@ struct MerianNetworkClientTests {
         )
 
         #expect(incidentResponse.data[0].id == "post-1")
+        #expect(incidentResponse.data[0].speciesCommonName == "White-winged Dove")
         #expect(incidentResponse.data[0].mediaHealthStatus == .quarantined)
         #expect(incidentResponse.data[0].missingMediaUrls.count == 2)
+
+        let nullableSpeciesIncidentData = Data("""
+        {
+          "data": [
+            {
+              "post_id": "post-2",
+              "scan_id": "scan-2",
+              "species_common_name": null,
+              "media_health_status": "degraded",
+              "missing_media_count": 1,
+              "total_media_count": 2,
+              "media_quarantined_at": null,
+              "media_health_updated_at": "2026-07-30T12:10:00Z",
+              "missing_media_urls": [
+                "https://media.merian.app/public_uploads/pro/user/missing.webp"
+              ]
+            }
+          ]
+        }
+        """.utf8)
+        let nullableSpeciesResponse = try decoder.decode(
+            ExploreMediaIncidentsResponse.self,
+            from: nullableSpeciesIncidentData
+        )
+        #expect(nullableSpeciesResponse.data[0].speciesCommonName == nil)
 
         let incidentObject = try #require(
             JSONSerialization.jsonObject(with: incidentData)
@@ -3408,6 +3434,75 @@ struct MerianNetworkClientTests {
         #expect(requests.count == 1)
         #expect(requests[0].id == "request-mine-123")
         #expect(requests[0].requestGroup == .plants)
+    }
+
+    @Test func testGetCommunityIdentificationActivityConstructsCursorPayload() async throws {
+        let testData = Data("""
+        {
+            "data": [
+                {
+                    "activity_id": "activity-123",
+                    "activity_type": "suggestion_burst",
+                    "request_id": "request-123",
+                    "post_id": "post-123",
+                    "scan_id": "scan-123",
+                    "hero_image_url": "https://example.com/community.webp",
+                    "activity_at": "2026-07-30T20:00:00.000Z",
+                    "suggestion_count": 3,
+                    "recent_actor_names": ["Avery", "Morgan"],
+                    "taxon_id": "taxon-1",
+                    "taxon_common_name": "Pinwheel",
+                    "taxon_scientific_name": "Aeonium haworthii",
+                    "taxon_rank": "species",
+                    "consensus_score": 0.82,
+                    "request_group": "plants",
+                    "media_items": [
+                        {
+                            "kind": "image",
+                            "url": "https://example.com/community.webp",
+                            "thumbnail_url": "https://example.com/community-thumb.webp",
+                            "order_index": 0,
+                            "duration_seconds": null,
+                            "has_audio": false
+                        }
+                    ]
+                }
+            ]
+        }
+        """.utf8)
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/get-community-identification-activity"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["limit"] as? Int == 10)
+            #expect(payload["scope"] as? String == "mine")
+            #expect(payload["group"] as? String == "plants")
+            #expect(payload["before_activity_at"] as? String == "2026-07-30T19:00:00.000Z")
+            #expect(payload["before_activity_id"] as? String == "activity-cursor-123")
+            return (mockResponse, testData)
+        }
+
+        let activity = try await MerianNetworkClient.shared.getCommunityIdentificationActivity(
+            limit: 10,
+            scope: .mine,
+            group: .plants,
+            cursor: CommunityIdentificationActivityCursor(
+                beforeActivityAt: "2026-07-30T19:00:00.000Z",
+                beforeActivityId: "activity-cursor-123"
+            )
+        )
+
+        #expect(activity.count == 1)
+        #expect(activity[0].activityType == .suggestionBurst)
+        #expect(activity[0].suggestionCount == 3)
+        #expect(activity[0].recentActorNames == ["Avery", "Morgan"])
+        #expect(activity[0].thumbnailUrl == "https://example.com/community-thumb.webp")
     }
 
     @Test func testUpdateCommunityIdentificationRequestConstructsPayload() async throws {

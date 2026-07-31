@@ -16,6 +16,9 @@ struct LibraryView: View {
     let isSearchFocused: Bool
     var queuedScans: [QueuedScanSnapshot] = []
     var exploreMediaIncidents: [ExploreMediaIncident] = []
+    var recoveryContext: ExploreMediaRecoveryRouteContext?
+    var isExploreMediaIncidentRefreshRunning = false
+    var onRetryExploreMediaIncidents: (() -> Void)?
 
     // MARK: - Component Callbacks
     var isSelectionMode: Bool = false
@@ -32,8 +35,10 @@ struct LibraryView: View {
     // MARK: - Visual Layout
     var body: some View {
         let completedScanIds = Set(searchManager.allScans.map(\.id))
-        let visibleQueuedScans = queuedScans.filter { !completedScanIds.contains($0.id) }
-        let hasContent = !searchManager.filteredScans.isEmpty || !visibleQueuedScans.isEmpty
+        let visibleQueuedScans = isRecoveryFilterEnabled
+            ? []
+            : queuedScans.filter { !completedScanIds.contains($0.id) }
+        let hasContent = !displayedScans.isEmpty || !visibleQueuedScans.isEmpty
         let emptyStateCopy = ScanLibraryEmptyStateCopy.make(
             startupStoreState: startupStoreState,
             hasLibraryContent: !searchManager.allScans.isEmpty || !visibleQueuedScans.isEmpty,
@@ -44,74 +49,94 @@ struct LibraryView: View {
         GeometryReader { proxy in
             ZStack(alignment: .bottom) {
                 ScrollView {
-                    if hasContent {
-                        ScansGrid(
-                            scans: searchManager.filteredScans,
-                            queuedScans: visibleQueuedScans,
-                            onSelect: onSelect,
-                            onDelete: onDelete,
-                            isSelected: isSelected,
-                            onAddScans: nil,
-                            onQueuedScanTapped: { snapshot in
-                                openQueuedScan(snapshot)
-                            },
-                            onQueuedScanDelete: { snapshot in
-                                Task {
-                                    await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
-                                    await MainActor.run {
-                                        withAnimation { toastMessage = "Scan cancelled & deleted" }
-                                    }
-                                }
-                            },
-                            customMenuItems: { scan in
-                                Group {
-                                    if let onShareToExplore, scan.isExploreShareEligible {
-                                        Button {
-                                            onShareToExplore(scan)
-                                        } label: {
-                                            Label("Share to Explore", systemImage: "safari")
-                                        }
-                                    }
-                                }
-                            },
-                            isSelectionMode: isSelectionMode
-                        )
-                    } else if searchManager.isFiltering {
-                        Color.clear
-                            .frame(maxWidth: .infinity, minHeight: proxy.size.height)
-                    } else {
-                        EmptyStateView(
-                            imageName: "fireflies",
-                            title: emptyStateCopy.title,
-                            message: emptyStateCopy.message
-                        ) {
-                            switch emptyStateCopy.action {
-                            case .clearFilters:
-                                Button {
-                                    HapticManager.shared.triggerMediumPulse()
-                                    searchManager.clearFilters()
-                                } label: {
-                                    Text(emptyStateCopy.actionTitle ?? "Clear filters")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
-                            case .dismiss:
-                                Button {
-                                    dismiss()
-                                } label: {
-                                    Text(emptyStateCopy.actionTitle ?? "Start scanning")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
-                            case .none:
-                                EmptyView()
-                            }
+                    LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
+                        if recoveryContext != nil {
+                            recoveryScopeHeader
                         }
-                        .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+
+                        Section {
+                            if hasContent {
+                                ScansGrid(
+                                    scans: displayedScans,
+                                    queuedScans: visibleQueuedScans,
+                                    onSelect: onSelect,
+                                    onDelete: onDelete,
+                                    isSelected: isSelected,
+                                    onAddScans: nil,
+                                    onQueuedScanTapped: { snapshot in
+                                        openQueuedScan(snapshot)
+                                    },
+                                    onQueuedScanDelete: { snapshot in
+                                        Task {
+                                            await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
+                                            await MainActor.run {
+                                                withAnimation { toastMessage = "Scan cancelled & deleted" }
+                                            }
+                                        }
+                                    },
+                                    customMenuItems: { scan in
+                                        Group {
+                                            if let onShareToExplore, scan.isExploreShareEligible {
+                                                Button {
+                                                    onShareToExplore(scan)
+                                                } label: {
+                                                    Label("Share to Explore", systemImage: "safari")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    isSelectionMode: isSelectionMode
+                                )
+                            } else if isRecoveryFilterEnabled {
+                                EmptyStateView(
+                                    imageName: "fireflies",
+                                    title: "No matching scans on this device",
+                                    message: "The published scans with unavailable media aren’t stored "
+                                        + "on this device or don’t match your Library filters."
+                                ) {
+                                    EmptyView()
+                                }
+                                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                            } else if searchManager.isFiltering {
+                                Color.clear
+                                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                            } else {
+                                EmptyStateView(
+                                    imageName: "fireflies",
+                                    title: emptyStateCopy.title,
+                                    message: emptyStateCopy.message
+                                ) {
+                                    switch emptyStateCopy.action {
+                                    case .clearFilters:
+                                        Button {
+                                            HapticManager.shared.triggerMediumPulse()
+                                            searchManager.clearFilters()
+                                        } label: {
+                                            Text(emptyStateCopy.actionTitle ?? "Clear filters")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .controlSize(.regular)
+                                    case .dismiss:
+                                        Button {
+                                            dismiss()
+                                        } label: {
+                                            Text(emptyStateCopy.actionTitle ?? "Start scanning")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .controlSize(.regular)
+                                    case .none:
+                                        EmptyView()
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                            }
+                        } header: {
+                            libraryFilterHeader
+                        }
                     }
                 }
                 .scrollClipDisabled()
@@ -133,9 +158,6 @@ struct LibraryView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .top, spacing: 8) {
-            libraryHeader
-        }
         .task(id: toastMessage) {
             guard toastMessage != nil else { return }
             try? await Task.sleep(nanoseconds: 2_500_000_000)
@@ -152,13 +174,36 @@ struct LibraryView: View {
         .id(ScansTab.library)
     }
 
-    private var libraryHeader: some View {
-        VStack(spacing: 8) {
-            if !exploreMediaIncidents.isEmpty {
-                exploreMediaIncidentBanner
+    private var recoveryScopeHeader: some View {
+        HStack {
+            if let recoveryContext {
+                Text("\(recoveryContext.mediaUnavailableScanCount.formatted()) media unavailable")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
             }
-            libraryFilterHeader
+
+            Spacer()
+
+            if isExploreMediaIncidentRefreshRunning {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Loading…")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .combine)
+            } else {
+                Button("Try again") {
+                    HapticManager.shared.triggerSelectionPulse()
+                    onRetryExploreMediaIncidents?()
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.blue)
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.horizontal, 12)
     }
 
     @ViewBuilder
@@ -195,7 +240,7 @@ struct LibraryView: View {
 
                 Spacer()
 
-                Text("\(searchManager.filteredScans.count) found")
+                Text("\(displayedScans.count) found")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.secondary)
@@ -206,68 +251,26 @@ struct LibraryView: View {
         }
     }
 
-    private var exploreMediaIncidentBanner: some View {
-        let quarantinedCount = exploreMediaIncidents.filter {
-            $0.mediaHealthStatus == .quarantined
-        }.count
-        let title = quarantinedCount > 0
-            ? "\(quarantinedCount) Explore \(quarantinedCount == 1 ? "post" : "posts") hidden"
-            : "Explore media needs attention"
-        let message = quarantinedCount > 0
-            ? "Unavailable media was hidden, but your posts, likes, and comments are safe. We’ll restore each post automatically after repair."
-            : "Unavailable items were hidden while healthy media remains public. We’ll restore them automatically after repair."
+    private var recoveryIncidentScanIds: Set<String> {
+        Set(exploreMediaIncidents.map(\.scanId))
+    }
 
-        return HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.icloud.fill")
-                .font(.title3)
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
+    private var isRecoveryFilterEnabled: Bool {
+        recoveryContext != nil
+            && !recoveryIncidentScanIds.isEmpty
+    }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 4)
-
-            Button("Review") {
-                reviewFirstMediaIncident()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+    private var displayedScans: [LocalScanRecord] {
+        guard isRecoveryFilterEnabled else {
+            return searchManager.filteredScans
         }
-        .padding(12)
-        .background(
-            Color.orange.opacity(0.1),
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.orange.opacity(0.22), lineWidth: 1)
+        return searchManager.filteredScans.filter {
+            recoveryIncidentScanIds.contains($0.id)
         }
-        .padding(.horizontal, 12)
-        .accessibilityElement(children: .combine)
     }
 
     private var headerTitle: String {
         searchManager.searchQuery.isEmpty ? "Search library" : "Search results"
-    }
-
-    private func reviewFirstMediaIncident() {
-        guard let incident = exploreMediaIncidents.first else { return }
-        if let record = localScanRecord(id: incident.scanId) {
-            onSelect(record)
-            return
-        }
-
-        withAnimation {
-            toastMessage = "No local copy is available. We’ll keep checking for a restored cloud copy."
-        }
     }
 
     private func openQueuedScan(_ snapshot: QueuedScanSnapshot) {

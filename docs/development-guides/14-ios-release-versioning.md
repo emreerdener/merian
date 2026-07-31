@@ -137,6 +137,28 @@ binary containing later remediation must use a globally higher App Store
 Connect build number; another local archive labeled `235` does not replace or
 verify the previously uploaded TestFlight binary.
 
+A clean archive created at `2026-07-30T19:56:00-05:00` from exact revision
+`6ce1a56a47aea1deb05353a7714c3f0518aabfac` correctly embedded `1.0.2
+(236)`, fingerprint
+`5c02aec4af0b40f131f127d1d55469f23bf503cb236a4029e87dd1b1946c3b76`,
+and `sourceState=clean`. Xcode's distribution pipeline then emitted an
+App Store-signed IPA labeled build `272`; its cached App Store Connect record
+reported latest build `271`. The source revision and fingerprint were unchanged
+and the main app, widget, Messages extension, and watch app were all rewritten
+to `272`. Xcode Content Delivery then uploaded all `62,122,682` bytes, reported
+`UPLOAD SUCCEEDED with no errors`, returned an empty errors/warnings set, and
+placed `1.0.2 (272)` into App Store Connect processing at
+`2026-07-30T19:59:06-05:00`. This proves an archive identity alone does not
+prove exported or uploaded artifact identity.
+
+The cause was a missing `manageAppVersionAndBuildNumber` export option. Xcode
+documents its default as enabled. The checked-in export helper now sets it to
+`false` and validates the IPA after signing. Build `272` is definitively
+consumed by the successful upload; use `273` or a higher authoritative App Store
+Connect successor for the remediated candidate. Never reuse `236` or hand-edit
+the prep marker. See the
+[export-renumbering incident](../incidents/2026-07-xcode-export-build-number-rewrite.md).
+
 A local archive audit at `2026-07-30T02:13:13Z` inspected all 417 retained local
 `.xcarchive` bundles. Forty-one were labeled `1.0.2 (235)`, and zero archives
 contained `MERIAN_SOURCE_REVISION`, `MERIAN_SOURCE_FINGERPRINT`, or
@@ -333,9 +355,12 @@ Before distributing a Release archive:
 3. Inspect the signed archive and verify `aps-environment` is `production`:
 
 ```bash
-codesign -d --entitlements :- \
+codesign -d --entitlements - \
   /path/to/Merian.xcarchive/Products/Applications/Merian.app
 ```
+
+The `:-` form is deprecated in current `codesign` and can print a misleading
+entitlement-blob warning. Use `-` as the output destination as shown above.
 
 A simulator build can verify the Release build setting and compile-time wiring,
 but it does not prove APNs registration or distribution signing. Complete one
@@ -354,10 +379,14 @@ make export-ios-release
 
 The export step validates that the newest archive matches the prepared
 version/build, checked-out revision, release-source fingerprint, and clean build
-state, then runs App Store Connect export signing. By default it uses the Apple
-account state in Xcode. If Xcode reports `No Accounts`, an invalid keychain
-credential, or a missing `iOS Distribution` certificate, fix Xcode > Settings >
-Accounts for the team or provide App Store Connect API key authentication:
+state, then runs App Store Connect export signing. Its generated
+`exportOptions.plist` explicitly sets `manageAppVersionAndBuildNumber=false`;
+the global build selected by release prep must remain the uploaded build rather
+than being replaced by Xcode during distribution. By default the helper uses the
+Apple account state in Xcode. If Xcode reports `No Accounts`, an invalid
+keychain credential, or a missing `iOS Distribution` certificate, fix Xcode >
+Settings > Accounts for the team or provide App Store Connect API key
+authentication:
 
 ```bash
 export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
@@ -369,6 +398,19 @@ make export-ios-release
 The exported `.ipa`, `exportOptions.plist`, and Xcode export log are written to
 `build/ios-export/`.
 
+Success is reported only after `scripts/validate-ios-exported-ipa.sh` reopens
+the IPA. It requires exactly one regular, non-symlinked IPA and one root
+application `Info.plist`, rejects duplicate ZIP entries, and compares the main
+app's bundle ID, semantic version, build, embedded source revision, source
+fingerprint, and clean source state to the reviewed archive. Every embedded
+Explore widget, Messages extension, and watch app must retain the same
+version/build. Missing, contradictory, ambiguous, oversized, or unreadable
+metadata and Xcode post-signing renumbering all fail closed before the output is
+called TestFlight-ready. The validator computes the IPA SHA-256 before and
+after metadata inspection, rejects a file changed during that interval, and
+reports the stable digest on a dedicated
+`ipa_sha256=<64 lowercase hex>` success line.
+
 The helper canonicalizes its output paths before deleting any previous export.
 `EXPORT_PATH` must resolve to a child of this repository's `build/` directory,
 and `EXPORT_OPTIONS_PLIST` must resolve inside that export directory. Symlink
@@ -376,8 +418,12 @@ escapes and lexical `.`/`..` components—including traversal hidden behind a
 not-yet-created directory—are rejected before prep validation, archive
 selection, directory creation, or file removal.
 
-After uploading, confirm App Store Connect places the processed build under the
-expected semantic version and build number.
+Do not use Organizer's default automatic version-management path as release
+evidence. Use the checked-in helper, retain its validator line with the IPA
+SHA-256, then upload that exact IPA. After processing, confirm App Store Connect
+places it under the expected semantic version and build number. Any discrepancy
+requires a fresh globally higher release-prep build; never rename or patch an
+exported IPA.
 
 ## Naturebook Apple Distribution Metadata Gate
 

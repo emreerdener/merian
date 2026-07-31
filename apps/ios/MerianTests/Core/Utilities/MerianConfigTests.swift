@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import Merian
+import Testing
 
 struct MerianConfigTests {
     
@@ -157,6 +157,15 @@ struct ExploreErrorFormatterTests {
                 for: MerianError.edgeFunctionUnavailable
             )
                 == "Live observation statistics are temporarily unavailable. Please try again later."
+        )
+    }
+
+    @Test func recentActivityUsesContextualTemporaryServiceCopy() {
+        #expect(
+            ExploreErrorFormatter.recentActivityMessage(
+                for: MerianError.edgeFunctionUnavailable
+            )
+                == "Recent activity is temporarily unavailable. Please try again in a few minutes."
         )
     }
 

@@ -806,6 +806,7 @@ final class MerianNetworkClient {
     private static let safelyReplayableReadFunctionNames: Set<String> = [
         "check-public-username",
         "check-scan-status",
+        "get-community-identification-activity",
         "get-community-identification-detail",
         "get-community-identification-feed",
         "get-explore-author-posts",
@@ -2491,6 +2492,37 @@ final class MerianNetworkClient {
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(CommunityIdentificationFeedResponse.self, from: data).data
+    }
+
+    func getCommunityIdentificationActivity(
+        limit: Int = 30,
+        scope: CommunityIdentificationFeedScope = .all,
+        group: CommunityIdentificationRequestGroup = .all,
+        cursor: CommunityIdentificationActivityCursor? = nil
+    ) async throws -> [CommunityIdentificationActivityItem] {
+        let functionUrl = try endpointURL("get-community-identification-activity")
+        var payload: [String: Any] = [
+            "limit": limit,
+            "scope": scope.rawValue,
+            "group": group.rawValue
+        ]
+
+        if let cursor,
+           let beforeActivityAt = cursor.beforeActivityAt,
+           let beforeActivityId = cursor.beforeActivityId {
+            payload["before_activity_at"] = beforeActivityAt
+            payload["before_activity_id"] = beforeActivityId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData
+        )
+        return try makeExploreDecoder()
+            .decode(CommunityIdentificationActivityResponse.self, from: data)
+            .data
     }
 
     func getCommunityIdentificationDetail(requestId: String) async throws -> CommunityIdentificationDetail {

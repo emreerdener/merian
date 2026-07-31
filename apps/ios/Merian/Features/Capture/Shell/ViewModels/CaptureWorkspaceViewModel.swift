@@ -160,6 +160,7 @@ final class CaptureWorkspaceViewModel {
     var pendingExploreTargetReplyParentCommentId: String?
     var pendingCaptureGoalDestination: CaptureGoalDestination?
     var pendingExploreShowsFieldTrips = false
+    var pendingScansRecoveryContext: ExploreMediaRecoveryRouteContext?
     var explorePresentationIdentity = UUID()
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
@@ -318,6 +319,8 @@ final class CaptureWorkspaceViewModel {
                     self?.handleScansLibraryRoute()
                 case .requestOpenScansLibraryIntent:
                     self?.handleScansLibraryRoute()
+                case .requestOpenScansLibraryRecovery(let context):
+                    self?.handleScansLibraryRoute(recoveryContext: context)
                 case .requestOpenCaptureGoal(let destination):
                     self?.openCaptureGoal(destination)
                 case .requestOpenFieldTrips:
@@ -390,6 +393,7 @@ final class CaptureWorkspaceViewModel {
         pendingExploreTargetReplyParentCommentId = nil
         pendingCaptureGoalDestination = nil
         pendingExploreShowsFieldTrips = false
+        pendingScansRecoveryContext = nil
         imageToCrop = nil
         editingCropIndex = nil
 
@@ -485,9 +489,12 @@ final class CaptureWorkspaceViewModel {
         activeSheet = .explore
     }
 
-    private func handleScansLibraryRoute() {
+    private func handleScansLibraryRoute(
+        recoveryContext: ExploreMediaRecoveryRouteContext? = nil
+    ) {
         protectExternalRouteFromImmediateSessionTimeoutReset()
         clearExplorePresentationRoute()
+        pendingScansRecoveryContext = recoveryContext
         activeSheet = .scans
     }
 

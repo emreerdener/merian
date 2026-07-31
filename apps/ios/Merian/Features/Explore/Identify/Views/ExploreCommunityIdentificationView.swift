@@ -4,39 +4,29 @@ struct ExploreCommunityRequestRoute: Hashable {
     let requestId: String
 }
 
-enum CommunityIdentificationMode: Hashable, CaseIterable {
+struct ExploreCommunityRequestsFeedRoute: Hashable {
+    let filter: CommunityIdentificationRequestFilter
+}
+
+struct ExploreCommunityActivityFeedRoute: Hashable {
+    let filter: CommunityIdentificationRequestFilter
+}
+
+enum ExploreIdentifyMode: Hashable, CaseIterable {
     case requests
-    case activity
+    case index
 
     var title: String {
         switch self {
         case .requests:
             "Requests"
-        case .activity:
-            "Activity"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .requests:
-            "Help identify open requests from Naturebook explorers."
-        case .activity:
-            "See recent consensus decisions from Naturebook explorers."
-        }
-    }
-
-    var bannerTitle: String {
-        switch self {
-        case .requests:
-            "Ask the community"
-        case .activity:
-            "Community activity"
+        case .index:
+            "Index"
         }
     }
 }
 
-private enum CommunityIdentificationRequestFilter: Hashable, CaseIterable {
+enum CommunityIdentificationRequestFilter: Hashable, CaseIterable {
     case all
     case mine
     case plants
@@ -96,24 +86,80 @@ private enum CommunityIdentificationRequestFilter: Hashable, CaseIterable {
     }
 }
 
+enum CommunityIdentificationDashboardPolicy {
+    static let requestPreviewLimit = 12
+    static let activityPreviewLimit = 10
+    static let fullPageSize = 30
+}
+
+enum CommunityIdentificationDashboardSection {
+    case requests
+    case activity
+}
+
+struct IdentifyDashboardLoadState: Equatable {
+    private(set) var isLoadingRequests = true
+    private(set) var isLoadingActivity = true
+    private(set) var requestErrorMessage: String?
+    private(set) var activityErrorMessage: String?
+
+    mutating func begin(_ section: CommunityIdentificationDashboardSection) {
+        switch section {
+        case .requests:
+            isLoadingRequests = true
+            requestErrorMessage = nil
+        case .activity:
+            isLoadingActivity = true
+            activityErrorMessage = nil
+        }
+    }
+
+    mutating func beginBoth() {
+        begin(.requests)
+        begin(.activity)
+    }
+
+    mutating func succeed(_ section: CommunityIdentificationDashboardSection) {
+        switch section {
+        case .requests:
+            isLoadingRequests = false
+            requestErrorMessage = nil
+        case .activity:
+            isLoadingActivity = false
+            activityErrorMessage = nil
+        }
+    }
+
+    mutating func fail(
+        _ section: CommunityIdentificationDashboardSection,
+        message: String
+    ) {
+        switch section {
+        case .requests:
+            isLoadingRequests = false
+            requestErrorMessage = message
+        case .activity:
+            isLoadingActivity = false
+            activityErrorMessage = message
+        }
+    }
+}
+
 struct ExploreCommunityIdentificationView: View {
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
 
-    @Binding var activeMode: CommunityIdentificationMode
     let onOpenRequest: (ExploreCommunityRequestRoute) -> Void
+    let onOpenRequestsFeed: (ExploreCommunityRequestsFeedRoute) -> Void
+    let onOpenActivityFeed: (ExploreCommunityActivityFeedRoute) -> Void
 
     @State private var requestFilter: CommunityIdentificationRequestFilter = .all
-    @State private var items: [CommunityIdentificationFeedItem] = []
-    @State private var cursor = CommunityIdentificationCursor.empty
-    @State private var isLoadingInitialPage = true
-    @State private var isLoadingMore = false
-    @State private var hasReachedEnd = false
-    @State private var errorMessage: String?
+    @State private var requestItems: [CommunityIdentificationFeedItem] = []
+    @State private var activityItems: [CommunityIdentificationActivityItem] = []
+    @State private var loadState = IdentifyDashboardLoadState()
+    @State private var loadGeneration = 0
     @AppStorage(UserDefaultsKeys.hasDismissedIdentifyRequestsBanner) private var hasDismissedRequestsBanner = false
-    @AppStorage(UserDefaultsKeys.hasDismissedIdentifyActivityBanner) private var hasDismissedActivityBanner = false
     @State private var isFeedbackPresented = false
 
-    private let pageSize = 30
     private let columns = [
         GridItem(.flexible(), spacing: 10),
         GridItem(.flexible(), spacing: 10)
@@ -124,101 +170,251 @@ struct ExploreCommunityIdentificationView: View {
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
 
-            Group {
-                switch activeMode {
-                case .requests:
-                    requestsContent
-                case .activity:
-                    activityContent
+            ScrollView {
+                VStack(spacing: 0) {
+                    requestFilterBar
+                    requestSection
+                    activitySection
+                    feedbackFooterSection
                 }
+                .padding(.bottom, 18)
+            }
+            .refreshable {
+                await reloadDashboard(clearExisting: false)
             }
         }
         .navigationTitle("Identify")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            guard activeMode == .requests else { return }
-            await loadInitialPage()
+            guard requestItems.isEmpty, activityItems.isEmpty else { return }
+            await reloadDashboard(clearExisting: false)
         }
         .onChange(of: requestFilter) { _, _ in
-            Task { await reloadForScopeChange() }
-        }
-        .onChange(of: activeMode) { _, newValue in
-            guard newValue == .requests, items.isEmpty else { return }
-            Task { await loadInitialPage() }
+            Task { await reloadDashboard(clearExisting: true) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .communityIdentificationRequestDidChange)) { notification in
-            guard activeMode == .requests else { return }
             guard let requestId = notification.object as? String else {
-                Task { await refresh() }
+                Task { await reloadDashboard(clearExisting: false) }
                 return
             }
-            guard items.contains(where: { $0.requestId == requestId }) else { return }
-            Task { await refresh() }
+            let isVisible = requestItems.contains { $0.requestId == requestId }
+                || activityItems.contains { $0.requestId == requestId }
+            guard isVisible else { return }
+            Task { await reloadDashboard(clearExisting: false) }
         }
         .sheet(isPresented: $isFeedbackPresented) {
             CommunityFeedbackSheet()
         }
     }
 
-    private var requestsContent: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                requestFilterBar
-
-                communityBanner
-
-                Group {
-                    if isLoadingInitialPage && items.isEmpty {
-                        loadingState
-                    } else if let errorMessage, items.isEmpty {
-                        errorState(message: errorMessage)
-                    } else if items.isEmpty {
-                        emptyState
-                    } else {
-                        requestGrid
-                    }
-                }
-                .padding(.top, 18)
-
-                feedbackFooterSection
-            }
-            .padding(.bottom, 18)
-        }
-        .refreshable {
-            await refresh()
-        }
-    }
-
-    private var activityContent: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                communityBanner
-
-                ContentUnavailableView(
-                    "Activity",
-                    systemImage: "clock.badge.checkmark",
-                    description: Text("Consensus updates, resolved requests, and identification progress will appear here once activity tracking is ready.")
-                )
-                .padding(.horizontal, 16)
-                .padding(.top, 72)
-
-                feedbackFooterSection
-            }
-            .padding(.bottom, 18)
-        }
+    private var requestFilterBar: some View {
+        CommunityIdentificationFilterBar(filter: $requestFilter)
     }
 
     @ViewBuilder
     private var communityBanner: some View {
-        if isCommunityBannerVisible {
+        if !hasDismissedRequestsBanner {
             CommunityIdentificationBanner(
-                title: activeMode.bannerTitle,
-                description: activeMode.description,
-                onDismiss: dismissActiveBanner
+                title: "Ask the community",
+                description: "Help identify open requests from Naturebook explorers.",
+                onDismiss: {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        hasDismissedRequestsBanner = true
+                    }
+                }
             )
             .padding(.horizontal, 16)
-            .padding(.top, 8)
         }
+    }
+
+    private var requestSection: some View {
+        VStack(spacing: 12) {
+            sectionHeader(
+                title: "Identify requests",
+                isLoading: loadState.isLoadingRequests && !requestItems.isEmpty,
+                actionTitle: "See all requests"
+            ) {
+                onOpenRequestsFeed(ExploreCommunityRequestsFeedRoute(filter: requestFilter))
+            }
+
+            communityBanner
+
+            Group {
+                if loadState.isLoadingRequests, requestItems.isEmpty {
+                    requestLoadingState
+                } else if let requestErrorMessage = loadState.requestErrorMessage,
+                          requestItems.isEmpty {
+                    sectionErrorState(message: requestErrorMessage) {
+                        Task { await reloadRequestsOnly() }
+                    }
+                } else if requestItems.isEmpty {
+                    requestEmptyState
+                } else {
+                    requestGrid
+                }
+            }
+
+            if let requestErrorMessage = loadState.requestErrorMessage,
+               !requestItems.isEmpty {
+                sectionErrorState(message: requestErrorMessage) {
+                    Task { await reloadRequestsOnly() }
+                }
+            }
+        }
+        .padding(.top, 18)
+    }
+
+    private var activitySection: some View {
+        VStack(spacing: 12) {
+            sectionHeader(
+                title: "Recent activity",
+                isLoading: loadState.isLoadingActivity && !activityItems.isEmpty,
+                actionTitle: "See all activity"
+            ) {
+                onOpenActivityFeed(ExploreCommunityActivityFeedRoute(filter: requestFilter))
+            }
+
+            Group {
+                if loadState.isLoadingActivity, activityItems.isEmpty {
+                    CommunityActivityLoadingState(count: 4)
+                } else if let activityErrorMessage = loadState.activityErrorMessage,
+                          activityItems.isEmpty {
+                    sectionErrorState(message: activityErrorMessage) {
+                        Task { await reloadActivityOnly() }
+                    }
+                } else if activityItems.isEmpty {
+                    activityEmptyState
+                } else {
+                    activityList
+                }
+            }
+
+            if let activityErrorMessage = loadState.activityErrorMessage,
+               !activityItems.isEmpty {
+                sectionErrorState(message: activityErrorMessage) {
+                    Task { await reloadActivityOnly() }
+                }
+            }
+        }
+        .padding(.top, 38)
+    }
+
+    private func sectionHeader(
+        title: String,
+        isLoading: Bool,
+        actionTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.title3)
+                .fontWeight(.bold)
+
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            Spacer()
+
+            Button(actionTitle, action: action)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var requestGrid: some View {
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(requestItems) { item in
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    onOpenRequest(ExploreCommunityRequestRoute(requestId: item.requestId))
+                } label: {
+                    CommunityIdentificationGridCard(item: item)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private var requestLoadingState: some View {
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(0..<6, id: \.self) { _ in
+                CommunityIdentificationGridCardSkeleton()
+            }
+        }
+        .padding(.horizontal, 12)
+        .accessibilityLabel("Loading community requests")
+    }
+
+    private var requestEmptyState: some View {
+        CommunityIdentificationCompactEmptyState(
+            title: requestEmptyStateTitle,
+            message: requestEmptyStateDescription,
+            systemImage: "person.2"
+        )
+    }
+
+    private var requestEmptyStateTitle: String {
+        switch requestFilter {
+        case .mine:
+            "No requests from you yet"
+        case .all:
+            "No requests yet"
+        default:
+            "No \(requestFilter.title.lowercased()) requests yet"
+        }
+    }
+
+    private var requestEmptyStateDescription: String {
+        switch requestFilter {
+        case .mine:
+            "Ask the community from an insight when you want help identifying an observation."
+        case .all:
+            "Identification requests will appear here when explorers ask for help."
+        default:
+            "Matching identification requests will appear here."
+        }
+    }
+
+    private var activityEmptyState: some View {
+        CommunityIdentificationCompactEmptyState(
+            title: "No recent activity",
+            message: "Suggestions, consensus changes, and resolved requests will appear here.",
+            systemImage: "clock.badge.checkmark"
+        )
+    }
+
+    private var activityList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(activityItems.enumerated()), id: \.element.id) { index, item in
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    onOpenRequest(ExploreCommunityRequestRoute(requestId: item.requestId))
+                } label: {
+                    CommunityIdentificationActivityRow(item: item)
+                }
+                .buttonStyle(.plain)
+
+                if index < activityItems.count - 1 {
+                    Divider()
+                        .padding(.leading, 92)
+                }
+            }
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 12)
+    }
+
+    private func sectionErrorState(
+        message: String,
+        retry: @escaping () -> Void
+    ) -> some View {
+        CommunityIdentificationSectionErrorView(message: message, retry: retry)
+            .padding(.horizontal, 12)
     }
 
     private var feedbackFooterSection: some View {
@@ -243,39 +439,182 @@ struct ExploreCommunityIdentificationView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .padding(.top, 18)
+        .padding(.top, 24)
         .padding(.bottom, 12)
     }
 
-    private var requestFilterBar: some View {
-        CategoryFilterBar(
-            items: CommunityIdentificationRequestFilter.allCases,
-            activeItem: requestFilter,
-            title: { $0.title },
-            onSelection: { filter in
-                guard filter != requestFilter else { return }
-                requestFilter = filter
-            }
+    private func reloadDashboard(clearExisting: Bool) async {
+        loadGeneration += 1
+        let generation = loadGeneration
+        let filter = requestFilter
+
+        if clearExisting {
+            requestItems = []
+            activityItems = []
+        }
+        loadState.beginBoth()
+
+        async let requestLoad: Void = loadRequestPreview(
+            filter: filter,
+            generation: generation
         )
+        async let activityLoad: Void = loadActivityPreview(
+            filter: filter,
+            generation: generation
+        )
+        await requestLoad
+        await activityLoad
     }
 
-    private var isCommunityBannerVisible: Bool {
-        switch activeMode {
-        case .requests:
-            !hasDismissedRequestsBanner
-        case .activity:
-            !hasDismissedActivityBanner
+    private func reloadRequestsOnly() async {
+        loadState.begin(.requests)
+        await loadRequestPreview(filter: requestFilter, generation: loadGeneration)
+    }
+
+    private func reloadActivityOnly() async {
+        loadState.begin(.activity)
+        await loadActivityPreview(filter: requestFilter, generation: loadGeneration)
+    }
+
+    private func loadRequestPreview(
+        filter: CommunityIdentificationRequestFilter,
+        generation: Int
+    ) async {
+        do {
+            let page = try await MerianNetworkClient.shared.getCommunityIdentificationFeed(
+                limit: CommunityIdentificationDashboardPolicy.requestPreviewLimit,
+                scope: filter.scope,
+                group: filter.group,
+                latitude: communitySortLatitude,
+                longitude: communitySortLongitude,
+                cursor: .empty
+            )
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            requestItems = page
+            loadState.succeed(.requests)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            loadState.fail(
+                .requests,
+                message: ExploreErrorFormatter.message(for: error)
+            )
         }
     }
 
-    private func dismissActiveBanner() {
-        withAnimation(.snappy(duration: 0.2)) {
-            switch activeMode {
-            case .requests:
-                hasDismissedRequestsBanner = true
-            case .activity:
-                hasDismissedActivityBanner = true
+    private func loadActivityPreview(
+        filter: CommunityIdentificationRequestFilter,
+        generation: Int
+    ) async {
+        do {
+            let page = try await MerianNetworkClient.shared.getCommunityIdentificationActivity(
+                limit: CommunityIdentificationDashboardPolicy.activityPreviewLimit,
+                scope: filter.scope,
+                group: filter.group,
+                cursor: .empty
+            )
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            activityItems = page
+            loadState.succeed(.activity)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            loadState.fail(
+                .activity,
+                message: ExploreErrorFormatter.recentActivityMessage(for: error)
+            )
+        }
+    }
+
+    private var communitySortLatitude: Double? {
+        environmentContextManager.lastKnownLocation?.coordinate.latitude
+    }
+
+    private var communitySortLongitude: Double? {
+        environmentContextManager.lastKnownLocation?.coordinate.longitude
+    }
+}
+
+struct ExploreCommunityRequestsFeedView: View {
+    @Environment(EnvironmentContextManager.self) private var environmentContextManager
+
+    let onOpenRequest: (ExploreCommunityRequestRoute) -> Void
+
+    @State private var requestFilter: CommunityIdentificationRequestFilter
+    @State private var items: [CommunityIdentificationFeedItem] = []
+    @State private var cursor = CommunityIdentificationCursor.empty
+    @State private var isLoadingInitialPage = true
+    @State private var isLoadingMore = false
+    @State private var hasReachedEnd = false
+    @State private var errorMessage: String?
+    @State private var loadGeneration = 0
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
+    init(
+        initialFilter: CommunityIdentificationRequestFilter,
+        onOpenRequest: @escaping (ExploreCommunityRequestRoute) -> Void
+    ) {
+        _requestFilter = State(initialValue: initialFilter)
+        self.onOpenRequest = onOpenRequest
+    }
+
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    CommunityIdentificationFilterBar(filter: $requestFilter)
+
+                    Group {
+                        if isLoadingInitialPage, items.isEmpty {
+                            loadingState
+                        } else if let errorMessage, items.isEmpty {
+                            errorState(message: errorMessage)
+                        } else if items.isEmpty {
+                            emptyState
+                        } else {
+                            requestGrid
+                        }
+                    }
+
+                    if let errorMessage, !items.isEmpty {
+                        CommunityIdentificationSectionErrorView(
+                            message: errorMessage,
+                            retry: { Task { await loadMore() } }
+                        )
+                        .padding(.horizontal, 12)
+                    }
+                }
+                .padding(.bottom, 24)
             }
+            .refreshable {
+                await reload()
+            }
+        }
+        .navigationTitle("Identify requests")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard items.isEmpty else { return }
+            await reload()
+        }
+        .onChange(of: requestFilter) { _, _ in
+            Task { await reload() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .communityIdentificationRequestDidChange)) { notification in
+            guard let requestId = notification.object as? String else {
+                Task { await reload() }
+                return
+            }
+            guard items.contains(where: { $0.requestId == requestId }) else { return }
+            Task { await reload() }
         }
     }
 
@@ -290,154 +629,146 @@ struct ExploreCommunityIdentificationView: View {
                 }
                 .buttonStyle(.plain)
                 .onAppear {
-                    Task { await loadMoreIfNeeded(currentItem: item) }
+                    guard shouldLoadMore(after: item) else { return }
+                    Task { await loadMore() }
                 }
             }
 
             if isLoadingMore {
                 ProgressView()
-                    .progressViewStyle(.circular)
                     .frame(maxWidth: .infinity)
                     .gridCellColumns(2)
                     .padding(.vertical, 18)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.bottom, 18)
     }
 
     private var loadingState: some View {
         LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(0..<6, id: \.self) { _ in
+            ForEach(0..<8, id: \.self) { _ in
                 CommunityIdentificationGridCardSkeleton()
             }
         }
         .padding(.horizontal, 12)
-        .padding(.bottom, 18)
         .accessibilityLabel("Loading community requests")
     }
 
     private var emptyState: some View {
-        ContentUnavailableView(
-            emptyStateTitle,
-            systemImage: "person.2",
-            description: Text(emptyStateDescription)
+        CommunityIdentificationCompactEmptyState(
+            title: emptyStateTitle,
+            message: emptyStateDescription,
+            systemImage: "person.2"
         )
-        .padding(.horizontal, 16)
-        .padding(.top, 42)
     }
 
     private var emptyStateTitle: String {
         switch requestFilter {
         case .mine:
-            "No Requests From You Yet"
+            "No requests from you yet"
         case .all:
-            "No Requests Yet"
+            "No requests yet"
         default:
-            "No \(requestFilter.title) Requests Yet"
+            "No \(requestFilter.title.lowercased()) requests yet"
         }
     }
 
     private var emptyStateDescription: String {
-        switch requestFilter {
-        case .mine:
-            "Ask the community from an insight when you want help identifying one of your observations."
-        case .all:
-            "Identification requests will appear here when explorers ask for help."
-        default:
-            "Matching identification requests will appear here when explorers ask for help."
-        }
+        requestFilter == .mine
+            ? "Ask the community from an insight when you want help identifying an observation."
+            : "Matching identification requests will appear here."
     }
 
     private func errorState(message: String) -> some View {
         ExploreUnavailableStateView(
-            title: "Identify unavailable",
+            title: "Requests unavailable",
             message: message
         ) {
-            Task { await refresh() }
+            Task { await reload() }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 42)
+        .padding(.top, 36)
     }
 
-    private func loadInitialPage() async {
-        guard items.isEmpty else { return }
-        await fetchFirstPage()
-    }
+    private func reload() async {
+        loadGeneration += 1
+        let generation = loadGeneration
+        let filter = requestFilter
 
-    private func refresh() async {
+        items = []
         cursor = .empty
         hasReachedEnd = false
-        await fetchFirstPage()
-    }
-
-    private func fetchFirstPage() async {
-        let filter = requestFilter
+        errorMessage = nil
         isLoadingInitialPage = true
-        defer { isLoadingInitialPage = false }
+        isLoadingMore = false
 
         do {
             let page = try await MerianNetworkClient.shared.getCommunityIdentificationFeed(
-                limit: pageSize,
+                limit: CommunityIdentificationDashboardPolicy.fullPageSize,
                 scope: filter.scope,
                 group: filter.group,
                 latitude: communitySortLatitude,
                 longitude: communitySortLongitude,
                 cursor: .empty
             )
-            guard filter == requestFilter else { return }
+            guard generation == loadGeneration, filter == requestFilter else { return }
             items = page
             updateCursor(using: page)
-            hasReachedEnd = page.count < pageSize
-            errorMessage = nil
+            hasReachedEnd = page.count < CommunityIdentificationDashboardPolicy.fullPageSize
+            isLoadingInitialPage = false
+        } catch is CancellationError {
+            return
         } catch {
-            if items.isEmpty {
-                errorMessage = ExploreErrorFormatter.message(for: error)
-            }
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            errorMessage = ExploreErrorFormatter.message(for: error)
+            isLoadingInitialPage = false
         }
     }
 
-    private func loadMoreIfNeeded(currentItem: CommunityIdentificationFeedItem) async {
-        guard !isLoadingInitialPage, !isLoadingMore, !hasReachedEnd else { return }
-        guard let index = items.firstIndex(where: { $0.id == currentItem.id }) else { return }
-        guard index >= max(items.count - 6, 0) else { return }
+    private func shouldLoadMore(after item: CommunityIdentificationFeedItem) -> Bool {
+        guard !isLoadingInitialPage, !isLoadingMore, !hasReachedEnd else { return false }
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return false }
+        return index >= max(items.count - 6, 0)
+    }
 
+    private func loadMore() async {
+        guard !isLoadingInitialPage, !isLoadingMore, !hasReachedEnd else { return }
+        let generation = loadGeneration
+        let filter = requestFilter
+        let currentCursor = cursor
         isLoadingMore = true
-        defer { isLoadingMore = false }
+        errorMessage = nil
 
         do {
-            let filter = requestFilter
             let page = try await MerianNetworkClient.shared.getCommunityIdentificationFeed(
-                limit: pageSize,
+                limit: CommunityIdentificationDashboardPolicy.fullPageSize,
                 scope: filter.scope,
                 group: filter.group,
                 latitude: communitySortLatitude,
                 longitude: communitySortLongitude,
-                cursor: cursor
+                cursor: currentCursor
             )
-            guard filter == requestFilter else { return }
-            let existing = Set(items.map(\.id))
-            items.append(contentsOf: page.filter { !existing.contains($0.id) })
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            let existingIds = Set(items.map(\.id))
+            items.append(contentsOf: page.filter { !existingIds.contains($0.id) })
             updateCursor(using: page)
-            hasReachedEnd = page.count < pageSize
+            hasReachedEnd = page.count < CommunityIdentificationDashboardPolicy.fullPageSize
+            isLoadingMore = false
+        } catch is CancellationError {
+            return
         } catch {
+            guard generation == loadGeneration, filter == requestFilter else { return }
             errorMessage = ExploreErrorFormatter.message(for: error)
+            isLoadingMore = false
         }
     }
 
     private func updateCursor(using page: [CommunityIdentificationFeedItem]) {
+        guard let lastItem = page.last else { return }
         cursor = CommunityIdentificationCursor(
-            beforeRequestedAt: page.last?.requestedAt,
-            beforeRequestId: page.last?.requestId
+            beforeRequestedAt: lastItem.requestedAt,
+            beforeRequestId: lastItem.requestId
         )
-    }
-
-    private func reloadForScopeChange() async {
-        items = []
-        cursor = .empty
-        hasReachedEnd = false
-        errorMessage = nil
-        await fetchFirstPage()
     }
 
     private var communitySortLatitude: Double? {
@@ -446,6 +777,455 @@ struct ExploreCommunityIdentificationView: View {
 
     private var communitySortLongitude: Double? {
         environmentContextManager.lastKnownLocation?.coordinate.longitude
+    }
+}
+
+struct ExploreCommunityActivityFeedView: View {
+    let onOpenRequest: (ExploreCommunityRequestRoute) -> Void
+
+    @State private var requestFilter: CommunityIdentificationRequestFilter
+    @State private var items: [CommunityIdentificationActivityItem] = []
+    @State private var cursor = CommunityIdentificationActivityCursor.empty
+    @State private var isLoadingInitialPage = true
+    @State private var isLoadingMore = false
+    @State private var hasReachedEnd = false
+    @State private var errorMessage: String?
+    @State private var loadGeneration = 0
+
+    init(
+        initialFilter: CommunityIdentificationRequestFilter,
+        onOpenRequest: @escaping (ExploreCommunityRequestRoute) -> Void
+    ) {
+        _requestFilter = State(initialValue: initialFilter)
+        self.onOpenRequest = onOpenRequest
+    }
+
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    CommunityIdentificationFilterBar(filter: $requestFilter)
+
+                    Group {
+                        if isLoadingInitialPage, items.isEmpty {
+                            CommunityActivityLoadingState(count: 8)
+                        } else if let errorMessage, items.isEmpty {
+                            errorState(message: errorMessage)
+                        } else if items.isEmpty {
+                            emptyState
+                        } else {
+                            activityList
+                        }
+                    }
+
+                    if isLoadingMore {
+                        ProgressView()
+                            .padding(.vertical, 18)
+                    } else if let errorMessage, !items.isEmpty {
+                        CommunityIdentificationSectionErrorView(
+                            message: errorMessage,
+                            retry: { Task { await loadMore() } }
+                        )
+                        .padding(.horizontal, 12)
+                    }
+                }
+                .padding(.bottom, 24)
+            }
+            .refreshable {
+                await reload()
+            }
+        }
+        .navigationTitle("Identify activity")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard items.isEmpty else { return }
+            await reload()
+        }
+        .onChange(of: requestFilter) { _, _ in
+            Task { await reload() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .communityIdentificationRequestDidChange)) { _ in
+            Task { await reload() }
+        }
+    }
+
+    private var activityList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    onOpenRequest(ExploreCommunityRequestRoute(requestId: item.requestId))
+                } label: {
+                    CommunityIdentificationActivityRow(item: item)
+                }
+                .buttonStyle(.plain)
+                .onAppear {
+                    guard shouldLoadMore(after: item) else { return }
+                    Task { await loadMore() }
+                }
+
+                if index < items.count - 1 {
+                    Divider()
+                        .padding(.leading, 92)
+                }
+            }
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 12)
+    }
+
+    private var emptyState: some View {
+        CommunityIdentificationCompactEmptyState(
+            title: "No activity yet",
+            message: "Suggestions, consensus changes, and resolved requests will appear here.",
+            systemImage: "clock.badge.checkmark"
+        )
+    }
+
+    private func errorState(message: String) -> some View {
+        ExploreUnavailableStateView(
+            title: "Activity unavailable",
+            message: message
+        ) {
+            Task { await reload() }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 36)
+    }
+
+    private func reload() async {
+        loadGeneration += 1
+        let generation = loadGeneration
+        let filter = requestFilter
+
+        items = []
+        cursor = .empty
+        hasReachedEnd = false
+        errorMessage = nil
+        isLoadingInitialPage = true
+        isLoadingMore = false
+
+        do {
+            let page = try await MerianNetworkClient.shared.getCommunityIdentificationActivity(
+                limit: CommunityIdentificationDashboardPolicy.fullPageSize,
+                scope: filter.scope,
+                group: filter.group,
+                cursor: .empty
+            )
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            items = page
+            updateCursor(using: page)
+            hasReachedEnd = page.count < CommunityIdentificationDashboardPolicy.fullPageSize
+            isLoadingInitialPage = false
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            errorMessage = ExploreErrorFormatter.recentActivityMessage(for: error)
+            isLoadingInitialPage = false
+        }
+    }
+
+    private func shouldLoadMore(after item: CommunityIdentificationActivityItem) -> Bool {
+        guard !isLoadingInitialPage, !isLoadingMore, !hasReachedEnd else { return false }
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return false }
+        return index >= max(items.count - 6, 0)
+    }
+
+    private func loadMore() async {
+        guard !isLoadingInitialPage, !isLoadingMore, !hasReachedEnd else { return }
+        let generation = loadGeneration
+        let filter = requestFilter
+        let currentCursor = cursor
+        isLoadingMore = true
+        errorMessage = nil
+
+        do {
+            let page = try await MerianNetworkClient.shared.getCommunityIdentificationActivity(
+                limit: CommunityIdentificationDashboardPolicy.fullPageSize,
+                scope: filter.scope,
+                group: filter.group,
+                cursor: currentCursor
+            )
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            let existingIds = Set(items.map(\.id))
+            items.append(contentsOf: page.filter { !existingIds.contains($0.id) })
+            updateCursor(using: page)
+            hasReachedEnd = page.count < CommunityIdentificationDashboardPolicy.fullPageSize
+            isLoadingMore = false
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == loadGeneration, filter == requestFilter else { return }
+            errorMessage = ExploreErrorFormatter.recentActivityMessage(for: error)
+            isLoadingMore = false
+        }
+    }
+
+    private func updateCursor(using page: [CommunityIdentificationActivityItem]) {
+        guard let lastItem = page.last else { return }
+        cursor = CommunityIdentificationActivityCursor(
+            beforeActivityAt: lastItem.activityAt,
+            beforeActivityId: lastItem.activityId
+        )
+    }
+}
+
+private struct CommunityIdentificationFilterBar: View {
+    @Binding var filter: CommunityIdentificationRequestFilter
+
+    var body: some View {
+        CategoryFilterBar(
+            items: CommunityIdentificationRequestFilter.allCases,
+            activeItem: filter,
+            title: { $0.title },
+            onSelection: { newFilter in
+                guard newFilter != filter else { return }
+                filter = newFilter
+            }
+        )
+    }
+}
+
+private struct CommunityIdentificationCompactEmptyState: View {
+    let title: String
+    let message: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(.headline)
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 28)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 12)
+    }
+}
+
+private struct CommunityIdentificationSectionErrorView: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Retry", action: retry)
+                .font(.footnote)
+                .fontWeight(.semibold)
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct CommunityIdentificationActivityRow: View {
+    let item: CommunityIdentificationActivityItem
+
+    var body: some View {
+        HStack(spacing: 12) {
+            thumbnail
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: activitySymbol)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(activityColor, in: Circle())
+                        .overlay {
+                            Circle()
+                                .stroke(Color(uiColor: .secondarySystemGroupedBackground), lineWidth: 2)
+                        }
+                        .offset(x: 4, y: 4)
+                }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(summary)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                if hasTaxon {
+                    Text(item.displayName)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if !relativeTimestamp.isEmpty {
+                    Text(relativeTimestamp)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the identification request")
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let thumbnailUrl = item.thumbnailUrl,
+           let url = URL(string: thumbnailUrl) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .empty:
+                    Color(uiColor: .tertiarySystemFill)
+                case .failure:
+                    placeholder
+                @unknown default:
+                    placeholder
+                }
+            }
+            .clipped()
+        } else {
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color(uiColor: .tertiarySystemFill)
+            Image(systemName: "photo")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var summary: String {
+        switch item.activityType {
+        case .suggestionBurst:
+            suggestionSummary
+        case .consensusChanged:
+            "Community consensus changed"
+        case .resolved:
+            "Community identified this request"
+        }
+    }
+
+    private var suggestionSummary: String {
+        let actors = item.recentActorNames
+        let count = max(item.suggestionCount, 1)
+
+        guard !actors.isEmpty else {
+            return count == 1 ? "Someone suggested an ID" : "\(count) new ID suggestions"
+        }
+        if count == 1 {
+            return "\(actors[0]) suggested an ID"
+        }
+        if actors.count == 1 {
+            return "\(actors[0]) added \(count) ID suggestions"
+        }
+        if actors.count == 2 {
+            return "\(actors[0]) and \(actors[1]) added \(count) ID suggestions"
+        }
+        return "\(actors[0]), \(actors[1]), and others added \(count) ID suggestions"
+    }
+
+    private var hasTaxon: Bool {
+        item.taxonCommonName != nil || item.taxonScientificName != nil
+    }
+
+    private var activitySymbol: String {
+        switch item.activityType {
+        case .suggestionBurst:
+            "checkmark.bubble.fill"
+        case .consensusChanged:
+            "arrow.triangle.2.circlepath"
+        case .resolved:
+            "checkmark.seal.fill"
+        }
+    }
+
+    private var activityColor: Color {
+        switch item.activityType {
+        case .suggestionBurst:
+            .blue
+        case .consensusChanged:
+            .orange
+        case .resolved:
+            .green
+        }
+    }
+
+    private var relativeTimestamp: String {
+        guard let date = item.activityDate else { return "" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+private struct CommunityActivityLoadingState: View {
+    let count: Int
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<count, id: \.self) { index in
+                HStack(spacing: 12) {
+                    GlowPulsingSkeletonView(cornerRadius: 12, style: .raisedGrid)
+                        .frame(width: 64, height: 64)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        GlowPulsingSkeletonView(cornerRadius: 5, style: .raisedGrid)
+                            .frame(height: 14)
+                        GlowPulsingSkeletonView(cornerRadius: 5, style: .raisedGrid)
+                            .frame(width: 140, height: 11)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+
+                if index < count - 1 {
+                    Divider()
+                        .padding(.leading, 92)
+                }
+            }
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 12)
+        .accessibilityLabel("Loading identification activity")
     }
 }
 

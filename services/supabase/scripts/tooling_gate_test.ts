@@ -289,6 +289,12 @@ Deno.test("iOS project guardrail runs the DTO contract gate for all app sources"
     workflow,
     /run: bash services\/supabase\/scripts\/validate_edge_dto_contract\.sh/,
   );
+  assertEquals(
+    [...workflow.matchAll(/- "scripts\/validate-ios-exported-ipa[.]sh"/g)]
+      .length,
+    2,
+    "Pull-request and main-push project guardrails must both cover the exported-IPA validator.",
+  );
 });
 
 Deno.test("production deploy plans every runtime change since the last successful release", async () => {

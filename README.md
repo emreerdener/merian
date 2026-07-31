@@ -172,6 +172,26 @@ steps are tracked in the
 > together. See the
 > [queued Insight same-ID handoff incident](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md).
 
+> **App Store export integrity addendum (2026-07-30):** a clean local archive
+> from exact revision `6ce1a56a47aea1deb05353a7714c3f0518aabfac` correctly
+> carried `1.0.2 (236)` and source fingerprint
+> `5c02aec4af0b40f131f127d1d55469f23bf503cb236a4029e87dd1b1946c3b76`.
+> Xcode's distribution pipeline nevertheless emitted an App Store-signed IPA
+> labeled build `272`, matching its cached latest App Store Connect build `271`
+> plus one, while retaining the archive's source provenance. The prior export
+> helper omitted `manageAppVersionAndBuildNumber`, whose Xcode default is
+> enabled, and verified only the archive—not the artifact it called
+> TestFlight-ready. Export now explicitly disables that mutation and validates
+> the signed IPA's root app, embedded app components, version/build, and source
+> provenance. The validator also hashes the IPA before and after inspection,
+> rejects concurrent mutation, and reports the exact SHA-256 to retain as upload
+> evidence. Retained Content Delivery logs prove Xcode uploaded `1.0.2 (272)`
+> successfully with no errors or warnings and App Store Connect accepted it for
+> processing, so `272` is definitively consumed. Prepare a fresh build `273` or
+> an authoritative higher successor; do not reuse `236` or infer upload identity
+> from an archive alone. See the
+> [Xcode export renumbering incident](docs/incidents/2026-07-xcode-export-build-number-rewrite.md).
+
 ---
 
 ## Features
@@ -681,6 +701,7 @@ From the repo root:
 ```bash
 make xcodegen
 make prepare-ios-release VERSION=1.0.2
+make export-ios-release
 make db-push
 make functions-deploy
 ```
@@ -691,6 +712,10 @@ production RevenueCat, pass the real production key as
 `REVENUECAT_API_KEY=appl_...`; release prep writes that public client key into
 ignored `Config.local.xcconfig` so the following archive/export uses it.
 Placeholder values such as the literal `appl_...` are blocked.
+Use the checked-in export helper after creating the fresh signed archive. It
+disables Xcode's automatic build-number management and rejects an IPA that does
+not preserve the prepared build and exact embedded source provenance. Retain
+the validator-reported IPA SHA-256 and upload that exact file.
 
 ### Release Notes & Changelog
 

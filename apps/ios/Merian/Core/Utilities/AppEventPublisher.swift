@@ -6,6 +6,12 @@ enum RefinementEntryPoint: Sendable, Equatable {
     case nonBiologicalCorrection
 }
 
+struct ExploreMediaRecoveryRouteContext: Sendable, Equatable {
+    let ownerUserId: String
+    let mediaUnavailableScanCount: Int
+    let hiddenScanCount: Int
+}
+
 /// Strongly-typed system events replacing legacy `NotificationCenter` broadcasts.
 enum AppEvent {
     /// Dispatched when the user exceeds their scan quota and the paywall must be presented.
@@ -52,6 +58,9 @@ enum AppEvent {
     case requestOpenNonBiologicalScansIntent
     /// Dispatched from external integrations to open the main scan library sheet.
     case requestOpenScansLibraryIntent
+    /// Dispatched by a recovery notice to open Scan Library without discarding
+    /// the unavailable-media counts already known by the presenting surface.
+    case requestOpenScansLibraryRecovery(ExploreMediaRecoveryRouteContext)
 
     /// Dispatched after the app has durably copied an image received through document import.
     case externalImageImportAvailable(importId: UUID)

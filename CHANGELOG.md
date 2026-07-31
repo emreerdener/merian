@@ -6,6 +6,23 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Release Integrity
+
+- App Store Connect export now preserves the deliberately prepared project
+  build number instead of allowing Xcode's default automatic version management
+  to silently replace it. The release helper reopens the resulting IPA and
+  requires exactly one root app whose bundle ID, semantic version, build,
+  embedded revision, source fingerprint, and clean source state match the
+  reviewed archive. The Explore widget, Messages extension, and watch app must
+  carry the same version/build. Ambiguous archives, duplicate IPA entries,
+  symlinked outputs, missing provenance, and post-signing renumbering all fail
+  before an artifact can be called TestFlight-ready. Validation hashes the IPA
+  before and after inspection, rejects concurrent mutation, and reports its
+  exact SHA-256 for upload evidence. Retained Content Delivery evidence confirms
+  Xcode's rewritten `1.0.2 (272)` package uploaded successfully and entered App
+  Store Connect processing, so release recovery advances to build `273` or an
+  authoritative higher successor.
+
 ### Critical Scan Reliability
 
 - The exact-SHA hosted iOS gate now executes the deterministic queued-audio

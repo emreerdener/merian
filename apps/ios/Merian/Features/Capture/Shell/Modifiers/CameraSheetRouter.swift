@@ -58,10 +58,15 @@ struct CameraSheetRouter: ViewModifier {
                                 viewModel.pendingExploreShowsFieldTrips = false
                             }
                     case .scans:
-                        ScansSheetView()
+                        ScansSheetView(
+                            recoveryContext: viewModel.pendingScansRecoveryContext
+                        )
                         .onAppear {
                             appSettings.hasUnseenScan = false
                             AppIconBadgeCoordinator.updateAppIconBadge()
+                        }
+                        .onDisappear {
+                            viewModel.pendingScansRecoveryContext = nil
                         }
                     }
                 }

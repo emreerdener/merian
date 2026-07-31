@@ -401,10 +401,14 @@ The Scans tab is the user's primary offline biological journal.
   non-seekable, while detail retains tap-to-jump, horizontal scrubbing, and
   VoiceOver adjustment.
 - **Explore Root Navigation**: `ExploreView` uses bottom navigation for
-  `Observations`, `Field trips`, `Identify`, and `Index`. The Observations tab
+  exactly `Observations`, `Field trips`, and `Identify`. The Observations tab
   owns a root-only Feed/Map segmented header toggle with Feed first, Field trips
   opens directly to Outings and adds its Outings/Events segmented view only when
-  Events are enabled, and Index keeps its Catalog/Tree header toggle.
+  Events are enabled, and Identify owns Requests/Index. Requests shows shared
+  filters over a 12-card request preview and 10 grouped Activity rows, with
+  stack pages for both complete feeds. Index renders the existing catalog
+  overview. The taxonomy tree/galaxy work remains default-off and disconnected
+  from MVP navigation.
 - **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent
   checklist surface. Standard Outings are released for every user;
   `FieldTripEventsAvailability` stages live/upcoming curated Events for the
@@ -1409,7 +1413,8 @@ on gesture-driven layout abstractions.
   foregrounded.
 - `Explore` uses product-area-first folders inside a single presented Explore
   navigation surface. `Shell/ExploreView.swift` owns the root
-  Feed/Map/Identify/Index/Field trips router, stack-based author-profile routes,
+  Feed/Map/Field trips router and Identify Requests/Index mode, stack-based
+  request/activity feed routes, stack-based author-profile routes,
   and the profile-to-scan nesting cap so author profiles do not layer a second
   sheet over active feed/detail video.
   `AuthorProfile/ExploreAuthorProfileSheet.swift` owns profile content, route
