@@ -18,17 +18,19 @@ fixture_project() {
 }
 
 run_check() {
+  local project_spec="${2:-$repo_root/project.yml}"
   (
     cd "$repo_root"
-    bash scripts/check-ios-project-resources.sh "$1"
+    bash scripts/check-ios-project-resources.sh "$1" "$project_spec"
   )
 }
 
 assert_fails_with() {
   local expected="$1"
   local fixture="$2"
+  local project_spec="${3:-$repo_root/project.yml}"
   local output
-  if output="$(run_check "$fixture" 2>&1)"; then
+  if output="$(run_check "$fixture" "$project_spec" 2>&1)"; then
     fail "Expected project guardrail to reject ${fixture}"
   fi
   if ! grep -Fq "$expected" <<<"$output"; then
@@ -38,6 +40,30 @@ assert_fails_with() {
 
 baseline_fixture="$(fixture_project baseline)"
 run_check "$baseline_fixture"
+
+distribution_identity_fixture="$(fixture_project distribution-identity)"
+perl -0pi -e '
+  my $count = s{
+    (\n[ \t]+)(CODE_SIGN_STYLE[ \t]=[ \t]Automatic;)
+  }{$1CODE_SIGN_IDENTITY = "Apple Distribution";$1$2}x;
+  die "expected one automatic signing setting\n" unless $count == 1;
+' "$distribution_identity_fixture"
+assert_fails_with \
+  "Automatic signing must not force a code-signing identity" \
+  "$distribution_identity_fixture"
+
+distribution_identity_spec="$tmp_dir/distribution-identity-project.yml"
+cp "$repo_root/project.yml" "$distribution_identity_spec"
+perl -0pi -e '
+  my $count = s{
+    ([ \t]+CODE_SIGN_STYLE:[ \t]Automatic\n)
+  }{$1    CODE_SIGN_IDENTITY: "Apple Distribution"\n}x;
+  die "expected one automatic signing setting\n" unless $count == 1;
+' "$distribution_identity_spec"
+assert_fails_with \
+  "Automatic signing must not force a code-signing identity" \
+  "$baseline_fixture" \
+  "$distribution_identity_spec"
 
 detached_provenance_fixture="$(fixture_project detached-provenance)"
 perl -0pi -e '

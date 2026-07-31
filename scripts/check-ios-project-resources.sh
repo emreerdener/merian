@@ -30,7 +30,19 @@ if ! grep -q "SWIFT_OBJC_BRIDGING_HEADER = \"apps/ios/Merian/Configuration/Meria
   exit 1
 fi
 
-project_spec="project.yml"
+project_spec="${2:-project.yml}"
+if [[ ! -f "$project_spec" ]]; then
+  echo "Missing XcodeGen project specification: $project_spec" >&2
+  exit 1
+fi
+
+if grep -qE '^[[:space:]]+CODE_SIGN_IDENTITY:' "$project_spec" \
+  || grep -qE 'CODE_SIGN_IDENTITY = "?Apple Distribution"?;' "$project_file"; then
+  echo "Automatic signing must not force a code-signing identity in project.yml or the generated project." >&2
+  echo "Remove CODE_SIGN_IDENTITY; Xcode selects development signing locally and distribution signing for archives." >&2
+  exit 1
+fi
+
 if ! grep -q 'minimumXcodeGenVersion: 2.45.4' "$project_spec" \
   || ! grep -q 'xcodeVersion: "26.6"' "$project_spec"; then
   echo "project.yml must pin XcodeGen 2.45.4 and Xcode 26.6 generation metadata." >&2

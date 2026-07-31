@@ -7,10 +7,6 @@ settings:
     DEAD_CODE_STRIPPING: YES
     STRING_CATALOG_GENERATE_SYMBOLS: YES
     VERSIONING_SYSTEM: apple-generic
-  configs:
-    Release:
-      CODE_SIGN_IDENTITY: "Apple Distribution"
-
 options:
   minimumXcodeGenVersion: 2.45.4
   xcodeVersion: "26.6"

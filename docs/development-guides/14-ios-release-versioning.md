@@ -121,7 +121,11 @@ and removes the files and temporary keychain on exit.
 The tracked Release configuration must resolve the production RevenueCat iOS
 SDK key beginning with `appl_`. The publisher rejects a Test Store key or a
 placeholder. Apple signing and App Store Connect credentials are server-side CI
-secrets; do not add them to tracked or local app-facing `.xcconfig` files.
+secrets; do not add them to tracked or local app-facing `.xcconfig` files. The
+generated project uses automatic signing without a forced
+`CODE_SIGN_IDENTITY`: local Run/Test actions resolve Apple Development, while
+the serialized publisher supplies the team, credentials, and temporary Apple
+Distribution certificate for its archive and export.
 
 ### Setup Verification
 

@@ -71,7 +71,7 @@ expected version/build and provenance.
 | Compile/test readiness | `iOS Build and Test` | Successful exact-SHA unit, UI smoke, archive, and final decision jobs |
 | Build allocation | Serialized publisher | App Store Connect maximum plus tracked/tag repository baseline |
 | Reservation history | Git tag namespaces | Create-only allocation/evidence/upload refs |
-| Signing | Temporary CI keychain | Approved Apple Distribution certificate and explicit team |
+| Signing | Automatic project signing with a temporary CI keychain | Approved Apple Distribution certificate and explicit team |
 | Export identity | Repository export helper | Automatic version/build management disabled |
 | Binary identity | IPA validator | Stable SHA-256 before and after inspection |
 | Upload | Transporter with API key | Attempt log, definitive process result, and receipt hash |

@@ -682,6 +682,12 @@ Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple
 Developer Team ID before opening the project. This file is ignored by git so
 your local signing choice survives `xcodegen generate`.
 
+Keep the shared project on automatic signing and do not set
+`CODE_SIGN_IDENTITY` in `project.yml` or an `.xcconfig`. Xcode chooses Apple
+Development for local Run/Test actions and Apple Distribution for an authorized
+archive; forcing the distribution identity conflicts with automatic signing on
+the widget, Messages extension, and watch app.
+
 `Merian.xcodeproj` is committed for convenience, but `project.yml` remains the
 source of truth. Regenerate the project after target, package, build setting,
 entitlement, or source-group changes.
