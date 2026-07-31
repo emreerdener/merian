@@ -28,6 +28,11 @@ TestFlight, App Store, support, and QA.
 
 ### Release Integrity
 
+- Routine TestFlight iteration is now a zero-input **TestFlight Beta** dispatch:
+  select `main` and click Run to allocate, archive, validate, and upload one new
+  build. Planning, retained candidates, existing-candidate uploads, and
+  definitive-failure retries remain available through an explicitly advanced
+  form backed by the same serialized publisher core.
 - A manually dispatched, globally serialized publisher is now the sole
   TestFlight build-number writer and signed archive/export/upload path. It
   requires a green exact-SHA iOS run, computes the next build from App Store

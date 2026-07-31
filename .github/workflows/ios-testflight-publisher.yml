@@ -1,4 +1,4 @@
-name: iOS TestFlight Publisher
+name: iOS TestFlight Publisher (Advanced)
 
 on:
   workflow_dispatch:
@@ -38,6 +38,35 @@ on:
         description: "Type FAILED CONFIRMED for retry-upload only"
         required: false
         type: string
+  workflow_call:
+    inputs:
+      action:
+        required: true
+        type: string
+      latest_asc_build:
+        required: false
+        type: string
+        default: ""
+      source_run_id:
+        required: false
+        type: string
+        default: ""
+      candidate_artifact_name:
+        required: false
+        type: string
+        default: ""
+      external_state_confirmation:
+        required: false
+        type: string
+        default: ""
+      upload_confirmation:
+        required: false
+        type: string
+        default: ""
+      failed_upload_confirmation:
+        required: false
+        type: string
+        default: ""
 
 permissions:
   actions: read
@@ -73,6 +102,10 @@ jobs:
           CANDIDATE_ARTIFACT_NAME: ${{ inputs.candidate_artifact_name }}
           LATEST_ASC_BUILD: ${{ inputs.latest_asc_build }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "Publisher requires a manual workflow_dispatch caller." >&2
+            exit 1
+          fi
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "Publisher actions are restricted to protected main." >&2
             exit 1

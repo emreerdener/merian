@@ -170,10 +170,12 @@ every iOS/watch/project build input, merge-queue commit, and manual request to
 pinned Xcode 26.6 jobs that execute the complete unit-test target, then the
 deterministic queued-scan completion UI smoke, and independently create an
 unsigned current-SHA Release archive without allocating a release build.
-Distribution is owned solely by the manually dispatched, globally serialized
+Distribution is owned solely by the globally serialized publisher core in
 `.github/workflows/ios-testflight-publisher.yml` and
-`scripts/publish-ios-beta.sh`. After proving the exact SHA passed the full iOS
-workflow, the publisher selects
+`scripts/publish-ios-beta.sh`. Routine operators use the zero-input
+`.github/workflows/ios-testflight-beta.yml`; advanced operations dispatch the
+core directly. After proving the exact SHA passed the full iOS workflow, the
+publisher selects
 `max(App Store Connect latest, repository allocation baseline) + 1`, pushes a
 durable reservation, injects the build into one signed archive, and never edits
 the checkout. `scripts/check-ios-release-prep.sh`,

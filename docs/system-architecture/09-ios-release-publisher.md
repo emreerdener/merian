@@ -7,11 +7,14 @@ Operator source of truth:
 
 ## Decision
 
-Naturebook uses one manually dispatched, globally serialized GitHub Actions
-publisher as the sole writer of distributable iOS build numbers and the sole
-creator of signed App Store archives, exported IPAs, and upload receipts.
-Development, pull-request CI, unsigned archive validation, TestFlight
-promotion, and App Review selection are deliberately not build-number writers.
+Naturebook uses one globally serialized GitHub Actions publisher core as the
+sole writer of distributable iOS build numbers and the sole creator of signed
+App Store archives, exported IPAs, and upload receipts. Operators reach it
+through a zero-input **TestFlight Beta** dispatch for routine archive-and-upload
+iterations or the direct **iOS TestFlight Publisher (Advanced)** dispatch for
+planning, retained candidates, and immutable recovery. Development,
+pull-request CI, unsigned archive validation, TestFlight promotion, and App
+Review selection are deliberately not build-number writers.
 
 This replaces the project's former sequence of prep commits, local archive
 selection, Organizer/Fastlane export, and independently initiated upload. Those
@@ -38,17 +41,18 @@ administer tester groups, or make App Store metadata changes.
 ```mermaid
 flowchart LR
     A["Protected main SHA"] --> B["Exact-SHA iOS Build and Test"]
-    B --> C["Serialized manual publisher"]
-    C --> D["ASC latest + repository floor"]
-    D --> E["Immutable allocation tag"]
-    E --> F["One signed archive"]
-    F --> G["Archive validation + identity"]
-    G --> H["Export with automatic renumbering off"]
-    H --> I["Signed IPA validation + SHA-256"]
-    I --> J["Evidence tag + retained artifact"]
-    J --> K["Optional Transporter upload"]
-    K --> L["Upload receipt tag"]
-    L --> M["Same binary: internal → external → App Review"]
+    B --> C["Routine or advanced manual entry"]
+    C --> D["One serialized publisher core"]
+    D --> E["ASC latest + repository floor"]
+    E --> F["Immutable allocation tag"]
+    F --> G["One signed archive"]
+    G --> H["Archive validation + identity"]
+    H --> I["Export with automatic renumbering off"]
+    I --> J["Signed IPA validation + SHA-256"]
+    J --> K["Evidence tag + retained artifact"]
+    K --> L["Optional Transporter upload"]
+    L --> M["Upload receipt tag"]
+    M --> N["Same binary: internal → external → App Review"]
 ```
 
 The publisher queries App Store Connect immediately before allocation. It also
@@ -69,7 +73,7 @@ expected version/build and provenance.
 |---|---|---|
 | Source selection | Protected `main` | Checkout SHA, workflow SHA, and `origin/main` are identical |
 | Compile/test readiness | `iOS Build and Test` | Successful exact-SHA unit, UI smoke, archive, and final decision jobs |
-| Build allocation | Serialized publisher | App Store Connect maximum plus tracked/tag repository baseline |
+| Build allocation | Serialized publisher core | App Store Connect maximum plus tracked/tag repository baseline |
 | Reservation history | Git tag namespaces | Create-only allocation/evidence/upload refs |
 | Signing | Automatic project signing with a temporary CI keychain | Approved Apple Distribution certificate and explicit team |
 | Export identity | Repository export helper | Automatic version/build management disabled |
@@ -117,10 +121,14 @@ candidate evidence.
 13. Rebuilt or changed bytes always receive a higher build.
 14. Internal TestFlight, external TestFlight, and App Review use one processed
     binary unless a new candidate is intentionally created.
+15. Routine and advanced operator entry points call the same publisher core and
+    cannot implement independent allocation, archive, export, or upload paths.
 
-Portable repository contracts guard these invariants and reject automatic
-publisher triggers, competing writers, extra archive call sites, mutable export
-settings, stale operator procedures, and incomplete evidence/retry controls.
+Portable repository contracts guard these invariants and require the routine
+entry point to remain zero-input and fixed to a new upload. They reject
+automatic publisher triggers, competing writers, extra archive call sites,
+mutable export settings, stale operator procedures, and incomplete
+evidence/retry controls.
 
 ## Failure Model
 
@@ -157,11 +165,11 @@ authorized retry source.
 
 ## Change Control
 
-A change to writer authority, allocation inputs, archive cardinality, export
-management, artifact identity, tag namespaces, evidence schema, retry states,
-or promotion policy is an architecture change. Update this document, the
-operator runbook, testing strategy, workflow contract fixtures, and incident
-guidance in the same reviewed pull request.
+A change to operator entry points, writer authority, allocation inputs, archive
+cardinality, export management, artifact identity, tag namespaces, evidence
+schema, retry states, or promotion policy is an architecture change. Update
+this document, the operator runbook, testing strategy, workflow contract
+fixtures, and incident guidance in the same reviewed pull request.
 
 For exact setup, dispatch, evidence inspection, retry, promotion, and emergency
 procedures, use the

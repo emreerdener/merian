@@ -6,7 +6,7 @@ help:
 	@printf "Available targets:\n"
 	@printf "  make xcodegen                         Regenerate Merian.xcodeproj from project.yml\n"
 	@printf "  make plan-ios-beta LATEST_ASC_BUILD=N Show the no-write beta allocation/archive/upload plan\n"
-	@printf "  GitHub Actions > iOS TestFlight Publisher is the sole candidate/upload entry point\n"
+	@printf "  GitHub Actions > TestFlight Beta is the one-click routine beta entry point\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-project-resources       Test adversarial generated-project phase fixtures\n"
@@ -35,7 +35,7 @@ prepare-ios-release:
 	@bash scripts/prepare-ios-release.sh
 
 export-ios-release:
-	@printf "error: standalone release export is retired; use the iOS TestFlight Publisher workflow.\n" >&2
+	@printf "error: standalone release export is retired; use GitHub Actions > TestFlight Beta.\n" >&2
 	@exit 2
 
 validate-ios-project:

@@ -1356,7 +1356,8 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   }
   for (
     const releaseInvariant of [
-      "one supported path for a distributable iOS build",
+      "one supported publisher engine for distributable iOS builds",
+      "zero-input **TestFlight Beta** workflow",
       "`CURRENT_PROJECT_VERSION` in that file is a repository floor",
       "`MERIAN_IOS_VALIDATION_ARCHIVE=1`",
       "max(App Store Connect latest, repository baseline) + 1",

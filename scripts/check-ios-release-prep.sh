@@ -3,7 +3,7 @@ set -euo pipefail
 
 fail() {
   echo "error: Release archive blocked: $*" >&2
-  echo "Distributable archives must come from the serialized 'iOS TestFlight Publisher' workflow." >&2
+  echo "Distributable archives must come from the serialized GitHub Actions publisher." >&2
   exit 1
 }
 

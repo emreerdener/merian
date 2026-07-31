@@ -1,9 +1,13 @@
 # iOS Release Versioning and TestFlight Publishing
 
-Naturebook has one supported path for a distributable iOS build: manually
-dispatch **iOS TestFlight Publisher** in GitHub Actions. Xcode Organizer,
-`agvtool`, tracked release-prep commits, Fastlane beta lanes, and separate
-“export the newest archive” operations are not release procedures.
+Naturebook has one supported publisher engine for distributable iOS builds. For
+routine beta testing, manually dispatch the zero-input **TestFlight Beta**
+workflow on `main`; it allocates, archives, exports, validates, and uploads one
+new build. **iOS TestFlight Publisher (Advanced)** exposes read-only planning,
+retained candidates, immutable existing-candidate uploads, and definitive-failure
+retries through the same serialized engine. Xcode Organizer, `agvtool`, tracked
+release-prep commits, Fastlane beta lanes, and separate “export the newest
+archive” operations are not release procedures.
 
 The current release train is tracked as `MARKETING_VERSION: 1.0.3` in
 `project.yml`. Change that value in an ordinary reviewed pull request only when
@@ -61,9 +65,10 @@ The full setup and verification procedure is in
 [Repository Rule Setup](./08-testing-strategy.md#repository-rule-setup).
 
 The repository or organization Actions policy must allow the publisher's
-declared `actions: read` and `contents: write` permissions. Keep the workflow
-manual-only and preserve its global `ios-testflight-publisher` concurrency
-group with `cancel-in-progress: false`.
+declared `actions: read` and `contents: write` permissions and same-repository
+reusable workflows. Keep both operator entry points manual-only and preserve
+the publisher core's global `ios-testflight-publisher` concurrency group with
+`cancel-in-progress: false`.
 
 ### Immutable Release Tags
 
@@ -137,10 +142,10 @@ make validate-ios-versioning
 make test-ios-ci-tooling
 ```
 
-Then manually dispatch **iOS TestFlight Publisher** on `main` with action
-`plan` and a numeric `latest_asc_build`. Verify it creates only the 30-day plan
-artifact described below and creates no release tags. Do not use a live
-candidate as a setup probe.
+Then manually dispatch **iOS TestFlight Publisher (Advanced)** on `main` with
+action `plan` and a numeric `latest_asc_build`. Verify it creates only the
+30-day plan artifact described below and creates no release tags. Do not use a
+live beta or candidate as a setup probe.
 
 ## Version and Build Policy
 
@@ -240,7 +245,8 @@ upload. The plan shows the tentative allocation, source revision and
 fingerprint, single-archive intent, immutable export setting, IPA validation,
 and same-binary promotion policy.
 
-The GitHub workflow's `plan` action has the same no-write contract and retains:
+The advanced GitHub workflow's `plan` action has the same no-write contract and
+retains:
 
 ```text
 ios-beta-publisher-plan-<run_id>-attempt-<attempt>
@@ -253,9 +259,14 @@ accepted.
 
 ## Publisher Actions and Authorization
 
-Dispatch `.github/workflows/ios-testflight-publisher.yml` from protected
-`main`. Every action rejects other refs and requires the checkout, selected
-`origin/main`, and workflow SHA to be identical. In practice, publish the
+For a routine beta, dispatch `.github/workflows/ios-testflight-beta.yml` from
+protected `main`. Its manual Run button is the authorization to reserve one
+new build and upload it to TestFlight; it accepts no form inputs and calls the
+serialized publisher core with the fixed `upload` operation.
+
+Dispatch `.github/workflows/ios-testflight-publisher.yml` directly only for an
+advanced operation. Every entry point rejects other refs and requires the
+checkout, selected `origin/main`, and workflow SHA to be identical. Publish the
 current protected `main` HEAD; do not attempt to publish a historical commit or
 a branch-modified workflow.
 
@@ -267,13 +278,15 @@ a branch-modified workflow.
 | `upload-existing` | Upload a retained untouched candidate without rebuilding | Source run, exact artifact name, and upload confirmation |
 | `retry-upload` | Retry an attempted identical IPA after definitive failure | Source run, exact artifact name, upload confirmation, and `FAILED CONFIRMED` |
 
-Leave inputs unrelated to the selected action blank. Candidate and upload
-actions create durable Git refs, so they require explicit external-state
-authorization. Upload actions additionally require a separate unmistakable
-upload confirmation. Never add a `push`, `pull_request`, `merge_group`,
-schedule, or reusable-workflow trigger to this publisher.
+Leave inputs unrelated to the selected advanced action blank. Advanced
+candidate and upload actions create durable Git refs, so they retain explicit
+typed authorization; advanced upload actions additionally require a separate
+upload confirmation. The routine workflow supplies those fixed authorizations
+to the same core after the operator explicitly clicks Run. Never add a `push`,
+`pull_request`, `merge_group`, or schedule trigger to either entry point or the
+publisher core.
 
-## Routine Candidate Procedure
+## Routine TestFlight Procedure
 
 ### Before Dispatch
 
@@ -287,12 +300,27 @@ schedule, or reusable-workflow trigger to this publisher.
 5. Confirm Apple credentials, the distribution certificate, provisioning
    capabilities, and production RevenueCat configuration are current.
 
-### Create and Retain a Candidate
+### Create and Upload a Routine Beta
+
+Use this path for normal TestFlight iteration:
+
+1. Open **Actions → TestFlight Beta → Run workflow**.
+2. Keep branch `main` selected.
+3. Click **Run workflow**. There are no other fields.
+4. Wait for a terminal result and for App Store Connect to finish processing.
+5. Do not start another publisher run while upload or processing status is
+   unresolved.
+
+The workflow reserves the next global build, archives exactly once, exports and
+validates the IPA, uploads that exact IPA, and retains the candidate plus upload
+evidence for 90 days.
+
+### Create and Retain an Advanced Candidate
 
 Use `candidate` when the release manager wants to inspect and preserve a signed
 binary before authorizing an upload:
 
-1. Open **Actions → iOS TestFlight Publisher → Run workflow**.
+1. Open **Actions → iOS TestFlight Publisher (Advanced) → Run workflow**.
 2. Select branch `main` and action `candidate`.
 3. Enter `RESERVE BUILD` in `external_state_confirmation`.
 4. Leave upload, failed-upload, source-run, artifact, and plan inputs blank.
@@ -309,10 +337,11 @@ an upload receipt. Record the run URL, run ID, artifact name, version/build,
 source SHA, source fingerprint, archive identity, and IPA SHA-256 in the release
 record.
 
-### Create and Upload Directly
+### Create and Upload Through the Advanced Form
 
-Use `upload` only when the same dispatch is already authorized to reserve and
-send a new candidate:
+The zero-input routine workflow is preferred. Use advanced `upload` only when
+an operator specifically needs the advanced form while authorizing the same
+reserve/archive/upload operation:
 
 1. Select action `upload` on branch `main`.
 2. Enter `RESERVE BUILD` in `external_state_confirmation`.
@@ -633,7 +662,8 @@ must update all affected documentation and tests in the same change:
 | Source | Ownership |
 |---|---|
 | `project.yml` | Reviewed marketing train and development build floor |
-| `.github/workflows/ios-testflight-publisher.yml` | Sole manual distribution entry point and permissions |
+| `.github/workflows/ios-testflight-beta.yml` | Zero-input routine TestFlight entry point |
+| `.github/workflows/ios-testflight-publisher.yml` | Serialized publisher core and advanced entry point |
 | `scripts/publish-ios-beta.sh` and validators | Allocation, archive/export, identity, upload, and retry enforcement |
 | This runbook | Canonical operator procedure |
 | `09-ios-release-publisher.md` | Stable architecture and trust boundaries |

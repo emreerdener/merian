@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 workflow="$repo_root/.github/workflows/ios-testflight-publisher.yml"
+routine_workflow="$repo_root/.github/workflows/ios-testflight-beta.yml"
 publisher="$repo_root/scripts/publish-ios-beta.sh"
 exporter="$repo_root/scripts/export-ios-release.sh"
 preflight="$repo_root/scripts/check-ios-release-prep.sh"
@@ -33,12 +34,31 @@ assert_count() {
     || fail "$file expected $expected occurrences of '$pattern', found $actual"
 }
 
-for required_file in "$workflow" "$publisher" "$exporter" "$preflight" "$validation_workflow" "$retired_prep" "$release_guide" "$publisher_architecture" "$agent_workflow"; do
+for required_file in "$workflow" "$routine_workflow" "$publisher" "$exporter" "$preflight" "$validation_workflow" "$retired_prep" "$release_guide" "$publisher_architecture" "$agent_workflow"; do
   [[ -f "$required_file" ]] || fail "missing required release artifact: $required_file"
 done
 
-# The release publisher is deliberately manual and globally serialized.
+# Routine publishing is a zero-input manual dispatch into the same globally
+# serialized core used by advanced recovery operations.
+assert_contains "name: TestFlight Beta" "$routine_workflow"
+assert_contains "workflow_dispatch:" "$routine_workflow"
+if grep -Fq "inputs:" "$routine_workflow"; then
+  fail "routine TestFlight workflow must remain zero-input"
+fi
+if grep -Eq '^[[:space:]]+(push|pull_request|merge_group|schedule):' "$routine_workflow"; then
+  fail "routine TestFlight workflow must not have an automatic trigger"
+fi
+assert_contains "uses: ./.github/workflows/ios-testflight-publisher.yml" "$routine_workflow"
+assert_contains "action: upload" "$routine_workflow"
+assert_contains 'external_state_confirmation: "RESERVE BUILD"' "$routine_workflow"
+assert_contains 'upload_confirmation: "UPLOAD TO APP STORE CONNECT"' "$routine_workflow"
+assert_contains "secrets: inherit" "$routine_workflow"
+assert_contains "actions: read" "$routine_workflow"
+assert_contains "contents: write" "$routine_workflow"
+
+assert_contains "name: iOS TestFlight Publisher (Advanced)" "$workflow"
 assert_contains "workflow_dispatch:" "$workflow"
+assert_contains "workflow_call:" "$workflow"
 if grep -Eq '^[[:space:]]+(push|pull_request|merge_group|schedule):' "$workflow"; then
   fail "publisher workflow must not have an automatic trigger"
 fi
@@ -50,6 +70,7 @@ assert_contains "contents: write" "$workflow"
 assert_contains "persist-credentials: false" "$workflow"
 assert_contains "runs-on: macos-26" "$workflow"
 assert_contains "/Applications/Xcode_26.6.app/Contents/Developer" "$workflow"
+assert_contains 'GITHUB_EVENT_NAME" != "workflow_dispatch' "$workflow"
 assert_contains 'GITHUB_REF" != "refs/heads/main' "$workflow"
 assert_contains "Publisher checkout, selected main, and workflow SHA must be identical" "$workflow"
 
@@ -142,11 +163,12 @@ if grep -Eq '(agvtool[[:space:]]+(new-version|next-version)|write_project_versio
 fi
 
 # The canonical operator guide is itself a guarded release artifact. It must
-# keep one entry point, the current train, immutable retry chaining, and no
-# actionable legacy command.
-assert_contains "one supported path for a distributable iOS build" "$release_guide"
+# keep one publisher engine, the current train, immutable retry chaining, and
+# no actionable legacy command.
+assert_contains "one supported publisher engine" "$release_guide"
 assert_contains "## One-Time Repository and Apple Setup" "$release_guide"
-assert_contains "## Routine Candidate Procedure" "$release_guide"
+assert_contains "## Routine TestFlight Procedure" "$release_guide"
+assert_contains "Actions → TestFlight Beta → Run workflow" "$release_guide"
 assert_contains "## Archive, Export, and Evidence" "$release_guide"
 assert_contains "## Retry Decision Procedure" "$release_guide"
 assert_contains "## TestFlight and App Review Promotion" "$release_guide"

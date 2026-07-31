@@ -983,10 +983,12 @@ the phone receiver and end-to-end tests exist.
 
 ## 16.4 iOS distribution contract
 
-Distributable iOS builds use one manually dispatched, globally serialized
-publisher after compiled CI passes on the exact protected `main` SHA. Marketing
-versions advance through reviewed release trains; TestFlight build numbers
-increase globally and are allocated from App Store Connect plus durable
+Distributable iOS builds use one globally serialized publisher core after
+compiled CI passes on the exact protected `main` SHA. Routine beta iterations
+use a zero-input manual TestFlight dispatch; advanced planning, candidate, and
+recovery operations reach the same core through a separate manual form.
+Marketing versions advance through reviewed release trains; TestFlight build
+numbers increase globally and are allocated from App Store Connect plus durable
 repository reservations. One allocated build maps to one signed archive and one
 final IPA hash. Rebuilt or changed bytes receive a higher build, while the same
 processed binary advances through internal TestFlight, external TestFlight, and

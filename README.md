@@ -726,11 +726,14 @@ make functions-deploy
 ```
 
 Normal local builds never increment the app version or build. The plan command
-is read-only. For an actual beta candidate, manually dispatch **iOS TestFlight
-Publisher** on an exact SHA that has passed **iOS Build and Test**. That workflow
-is the sole supported build-number writer, signed archive, export, and upload
-entry point. It archives once, disables Xcode renumbering, validates every
-embedded target, and retains source/archive/IPA identity evidence. See the
+is read-only. For routine beta testing, manually dispatch the zero-input
+**TestFlight Beta** workflow on `main` after that exact SHA passes **iOS Build
+and Test**. It reserves the next build, archives once, validates the app and
+every embedded target, and uploads the exact IPA. Use **iOS TestFlight Publisher
+(Advanced)** only for planning, retaining a candidate without upload, uploading
+an existing candidate, or retrying a definitive failed upload. Both entry
+points use the same serialized build-number writer and retain
+source/archive/IPA identity evidence. See the
 [iOS publishing runbook](docs/development-guides/14-ios-release-versioning.md)
 for initial repository/Apple setup, exact workflow inputs, retries, promotion,
 and incident-safe recovery.

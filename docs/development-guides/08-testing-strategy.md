@@ -447,10 +447,12 @@ after any workflow or ruleset change.
 
 ### Serialized Publisher Contract
 
-`.github/workflows/ios-testflight-publisher.yml` is a distribution workflow,
-not a pull-request test lane. It is manual-only, restricted to the current
-protected `main` SHA, and globally serialized. Do not add it as a required
-status check or use a live signed candidate as routine CI validation.
+`.github/workflows/ios-testflight-beta.yml` is the zero-input routine
+distribution entry point. It is manual-only and calls
+`.github/workflows/ios-testflight-publisher.yml`, the same globally serialized
+publisher core exposed directly for advanced operations. Both are restricted to
+the current protected `main` SHA. Do not add either as a required status check
+or use a live signed candidate as routine CI validation.
 
 Before the publisher can create a new candidate, it queries the Actions API for
 a successful **iOS Build and Test** run with the same exact SHA and independently
@@ -462,6 +464,10 @@ it does not permit the publisher to reuse or export CI's unsigned archive.
 Among other invariants, it proves:
 
 - there is no automatic trigger and the global concurrency lock is retained;
+- the routine beta entry point has no inputs and is fixed to the canonical new
+  upload operation;
+- routine and advanced operations call one reusable publisher core rather than
+  duplicating allocation or archive logic;
 - external-state and upload confirmations remain independent;
 - live allocation uses App Store Connect plus tracked/tag floors;
 - a durable reservation precedes the sole archive call site;
@@ -484,9 +490,10 @@ renumbering and require it to fail validation.
 
 Repository source tests cannot prove external repository tag rules, current
 Apple credentials, signing profiles, Transporter delivery, processing, or
-physical-device behavior. Administrators verify rules and credentials with a
-read-only publisher `plan`; release managers collect live candidate/upload and
-device evidence only during an authorized release. Follow the
+physical-device behavior. Administrators verify rules and credentials with an
+advanced read-only publisher `plan`; release managers collect live
+beta/candidate/upload and device evidence only during an authorized release.
+Follow the
 [operator runbook](./14-ios-release-versioning.md) for setup, artifact names,
 evidence inspection, retries, promotion, and emergency recovery.
 

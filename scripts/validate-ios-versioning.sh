@@ -81,13 +81,17 @@ publisher_script="scripts/publish-ios-beta.sh"
 export_script="scripts/export-ios-release.sh"
 preflight_script="scripts/check-ios-release-prep.sh"
 publisher_workflow=".github/workflows/ios-testflight-publisher.yml"
+routine_workflow=".github/workflows/ios-testflight-beta.yml"
 validation_workflow=".github/workflows/ios-build-and-test.yml"
 
-for release_file in "$publisher_script" "$export_script" "$preflight_script" "$publisher_workflow" "$validation_workflow"; do
+for release_file in "$publisher_script" "$export_script" "$preflight_script" "$publisher_workflow" "$routine_workflow" "$validation_workflow"; do
   [[ -f "$release_file" ]] || fail "Missing canonical release artifact: $release_file"
 done
 
 require_grep 'workflow_dispatch:' "$publisher_workflow" "iOS publisher must be manually dispatched."
+require_grep 'workflow_call:' "$publisher_workflow" "iOS publisher core must support the zero-input routine caller."
+require_grep 'workflow_dispatch:' "$routine_workflow" "Routine TestFlight publishing must be manually dispatched."
+require_grep 'uses: ./.github/workflows/ios-testflight-publisher.yml' "$routine_workflow" "Routine TestFlight publishing must call the canonical publisher core."
 require_grep 'group: ios-testflight-publisher' "$publisher_workflow" "iOS publisher workflow must use the global publisher concurrency lock."
 require_grep 'cancel-in-progress: false' "$publisher_workflow" "An in-progress publisher must never be cancelled by a later dispatch."
 require_grep 'MERIAN_IOS_VALIDATION_ARCHIVE=1' "$validation_workflow" "Unsigned CI archives must explicitly remain validation-only."

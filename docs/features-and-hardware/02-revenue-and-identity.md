@@ -113,8 +113,9 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   internal TestFlight build. The store environment does not change Merian's
   identity contract: the RevenueCat App User ID is the Supabase Auth UUID, and
   subscriber attributes mirror the user's auth/public identity for manual
-  support lookups. The sole distributable path, **iOS TestFlight Publisher**,
-  requires a RevenueCat iOS SDK key beginning with `appl_`.
+  support lookups. The serialized publisher behind **TestFlight Beta** and
+  **iOS TestFlight Publisher (Advanced)** requires a RevenueCat iOS SDK key
+  beginning with `appl_`.
 - Uses `logIn(currentAppUserID)` to bind the Supabase Auth UUID.
 - `RevenueCatOfferingPolicy` requires the current offering to contain App Store
   product identifiers `pro_week` and `pro_annual`. Offering fetches emit an

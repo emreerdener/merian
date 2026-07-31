@@ -269,12 +269,13 @@ new account.
    ```
 
 2. Wait for **iOS Build and Test** to pass on the exact intended SHA, then use
-   the serialized **iOS TestFlight Publisher** workflow described in the
-   [operator runbook](./14-ios-release-versioning.md). Confirm both conditional
-   macOS jobs ran; a scope-only success is not release evidence.
-3. Use publisher `candidate` when the signed binary needs review before upload,
-   or use explicitly confirmed `upload` when upload is already authorized. Let
-   the publisher query App Store Connect, reserve the global build, and archive
+   zero-input **TestFlight Beta** for the routine archive-and-upload flow
+   described in the [operator runbook](./14-ios-release-versioning.md). Confirm
+   both conditional macOS jobs ran; a scope-only success is not release
+   evidence.
+3. Use **iOS TestFlight Publisher (Advanced)** only when the signed binary must
+   be retained before upload or an immutable upload needs recovery. Let the one
+   publisher core query App Store Connect, reserve the global build, and archive
    exactly once.
 4. Download the retained artifact and verify `evidence.json`, the final IPA
    SHA-256, the source SHA/fingerprint, the exact-SHA green run, the one-archive

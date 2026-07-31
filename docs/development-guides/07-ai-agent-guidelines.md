@@ -65,11 +65,13 @@ The `docs/` folder contains the master reference for the application:
   `MARKETING_VERSION` release train and the development/CI build floor;
   `Info.plist` files must strictly inherit `$(MARKETING_VERSION)` and
   `$(CURRENT_PROJECT_VERSION)`. Never write a release build with Organizer,
-  `agvtool`, or a prep commit. Manually dispatch **iOS TestFlight Publisher**
-  after the exact SHA passes **iOS Build and Test**. That serialized workflow is
-  the only writer: it queries App Store Connect, reserves the next global build,
-  injects it at the sole archive, preserves it through export, and records the
-  source/archive/IPA mapping. Keep the approved release train until
+  `agvtool`, or a prep commit. After the exact SHA passes **iOS Build and Test**,
+  manually dispatch zero-input **TestFlight Beta** for a routine upload or
+  **iOS TestFlight Publisher (Advanced)** for planning and immutable recovery.
+  Both entry points call the same serialized writer: it queries App Store
+  Connect, reserves the next global build, injects it at the sole archive,
+  preserves it through export, and records the source/archive/IPA mapping. Keep
+  the approved release train until
   intentionally starting a new one, and never reuse a reserved build for a
   rebuild. Do not add an independent release recipe to an agent workflow,
   Fastlane lane, Make target, script, or documentation page; point to the
