@@ -191,7 +191,7 @@ AS $function$
     INNER JOIN public.species_dictionary AS species
         ON species.id = occurrence.species_id
        AND species.gbif_taxon_key::BIGINT = occurrence.gbif_taxon_key
-    WHERE occurrence.occurrence_count >= pg_catalog.GREATEST(
+    WHERE occurrence.occurrence_count >= GREATEST(
             COALESCE(p_min_occurrence_count, 1),
             1
         )
@@ -204,8 +204,8 @@ AS $function$
     ORDER BY
         pg_catalog.COUNT(*) DESC,
         occurrence.country_code
-    LIMIT pg_catalog.LEAST(
-        pg_catalog.GREATEST(COALESCE(p_max_rows, 24), 1),
+    LIMIT LEAST(
+        GREATEST(COALESCE(p_max_rows, 24), 1),
         250
     );
 $function$;

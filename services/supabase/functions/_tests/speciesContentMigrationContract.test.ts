@@ -120,6 +120,8 @@ Deno.test("species country occurrence migration refreshes atomically and reads e
       "DELETE FROM public.species_country_occurrences AS occurrence WHERE occurrence.species_id = p_species_id",
       "GROUP BY UPPER(item.value ->> 'country_code')",
       "CREATE OR REPLACE FUNCTION public.get_species_dictionary_country_summaries",
+      "occurrence.occurrence_count >= GREATEST( COALESCE(p_min_occurrence_count, 1), 1 )",
+      "LIMIT LEAST( GREATEST(COALESCE(p_max_rows, 24), 1), 250 )",
       "OR occurrence.country_code = UPPER(pg_catalog.BTRIM(p_country_code))",
       "species.gbif_taxon_key::BIGINT = occurrence.gbif_taxon_key",
       "CREATE OR REPLACE FUNCTION public.invalidate_species_country_occurrences_on_gbif_change",
@@ -135,6 +137,11 @@ Deno.test("species country occurrence migration refreshes atomically and reads e
   ) {
     assertStringIncludes(sql, fragment);
   }
+
+  assert(
+    !/pg_catalog\.(?:GREATEST|LEAST)\s*\(/i.test(sql),
+    "PostgreSQL conditional expressions must not be schema-qualified",
+  );
 });
 
 Deno.test("species country occurrence migration reuses the durable GBIF worker and backfills coverage", async () => {
