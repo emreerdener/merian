@@ -341,7 +341,7 @@ jobs:
       - name: Test public species observation stats boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/config.toml \
+            --allow-read=supabase/functions,supabase/migrations,supabase/tests/species_observation_stats_security.sql,supabase/config.toml \
             supabase/functions/_shared/mediaBudgets_test.ts \
             supabase/functions/species-observation-stats/db.test.ts \
             supabase/functions/species-observation-stats/security.test.ts \

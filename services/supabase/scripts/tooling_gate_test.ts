@@ -181,6 +181,31 @@ Deno.test("focused DwC-A tests can read every transitive contract root", async (
   );
 });
 
+Deno.test("focused species stats tests can read their catalog contract", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const stepStart = workflow.indexOf(
+    "- name: Test public species observation stats boundary",
+  );
+  const stepEnd = workflow.indexOf(
+    "- name: Validate authoritative AI quota coverage",
+    stepStart,
+  );
+
+  assert(
+    stepStart >= 0 && stepEnd > stepStart,
+    "The focused species stats workflow step must exist before its permission contract can be checked.",
+  );
+  const step = workflow.slice(stepStart, stepEnd);
+  assertMatch(
+    step,
+    /--allow-read=[^\n]*supabase\/tests\/species_observation_stats_security\.sql/,
+  );
+  assertMatch(
+    step,
+    /speciesObservationStatsMigrationContract\.test\.ts/,
+  );
+});
+
 Deno.test("GitHub Actions SHA pins receive weekly dependency updates", async () => {
   const dependabot = await Deno.readTextFile(dependabotPath);
 
