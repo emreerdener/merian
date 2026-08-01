@@ -245,11 +245,11 @@ environment variable.**
   runtime. `Config.xcconfig` may carry development defaults, while
   `Config.local.xcconfig` can override local app-facing values without being
   committed. Local development and unsigned validation archives may use a
-  RevenueCat Test Store key. The sole distributable path, **iOS TestFlight
-  Publisher**, requires the tracked Release configuration to resolve to a
-  production iOS SDK key beginning with `appl_`; Test Store and placeholder
-  values are blocked. Do not pass payment or Apple distribution credentials
-  through an app-facing `.xcconfig` file.
+  RevenueCat Test Store key. The sole distributable path, Xcode Organizer,
+  requires the Release configuration to resolve to a production iOS SDK key
+  beginning with `appl_`; Test Store and placeholder values are blocked. Apple
+  account and distribution-signing credentials stay in Xcode and Keychain, not
+  in an app-facing `.xcconfig` file or GitHub Actions.
 
 That means committed client config is acceptable for values in the second group,
 while the first group must stay server-side only.

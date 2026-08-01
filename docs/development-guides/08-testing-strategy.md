@@ -106,10 +106,11 @@ the production deploy lane.
 workflow. It rejects mutable third-party action tags, missing explicit
 workflow-level permissions, secret references outside individual steps, and
 unexpected `contents: write`. Its exact writer allowlist covers only the
-taxonomy checklist's isolated writer and the manual, serialized iOS publisher
-entry points. Keep it in both the complete Edge suite and the focused
-deployment-planner gate so supply-chain regressions fail before any production
-credential or migration is used.
+taxonomy checklist's isolated writer. iOS distribution needs no repository
+write grant because it runs through Xcode Organizer. Keep the security test in
+both the complete Edge suite and the focused deployment-planner gate so
+supply-chain regressions fail before any production credential or migration is
+used.
 
 Explore database fixtures must represent the canonical write model. The shared
 post helper snapshots media through `refresh_explore_post_media`; disable that
@@ -447,61 +448,40 @@ keep that trigger if the merge queue is enabled. A repository administrator
 should verify the rule with one unrelated pull request and one iOS pull request
 after any workflow or ruleset change.
 
-### Serialized Publisher Contract
+### Xcode Organizer Distribution Contract
 
-`.github/workflows/ios-testflight-beta.yml` is the zero-input routine
-distribution entry point. It is manual-only and calls
-`.github/workflows/ios-testflight-publisher.yml`, the same globally serialized
-publisher core exposed directly for advanced operations. Both are restricted to
-the current protected `main` SHA. Do not add either as a required status check
-or use a live signed candidate as routine CI validation.
+Distribution is deliberately outside CI. After exact-SHA **iOS Build and Test**
+passes, an operator archives the clean revision with Xcode and uploads it with
+Organizer **TestFlight & App Store**. Automatic signing and **Manage version and
+build number** remain enabled. Apple credentials stay in Xcode and the macOS
+Keychain; no workflow receives signing certificates or App Store Connect
+private keys.
 
-Before the publisher can create a new candidate, a bounded Ubuntu job polls the
-Actions API for up to 30 minutes for **iOS Build and Test** on the same exact
-SHA. It independently requires the named unit, validation-archive, and final
-readiness jobs to have succeeded before allocating a macOS publisher runner.
-This protects the handoff from compiled assurance to distribution without
-forcing an operator to time the dispatch; it does not permit the publisher to
-reuse or export CI's unsigned archive.
+`scripts/test-ios-xcode-release-workflow.sh` proves that:
 
-`scripts/test-ios-publisher-workflow.sh` guards the publisher at source level.
-Among other invariants, it proves:
+- the retired GitHub TestFlight workflows and publisher/export scripts remain
+  absent;
+- CI's Release archive remains explicitly unsigned and validation-only;
+- the Release preflight authorizes only clean automatic-signing Organizer
+  archives with synchronized version values and production client config;
+- no GitHub workflow contains an Apple signing or upload implementation;
+- the canonical runbook keeps Xcode as the sole distribution authority; and
+- the agent workflow remains a pointer to that runbook rather than a competing
+  release recipe.
 
-- there is no automatic trigger and the global concurrency lock is retained;
-- the routine beta entry point has no inputs and is fixed to the canonical new
-  upload operation;
-- routine and advanced operations call one reusable publisher core rather than
-  duplicating allocation or archive logic;
-- queued or running exact-SHA CI receives a bounded readiness wait on Ubuntu,
-  while completed failures remain blocking;
-- external-state and upload confirmations remain independent;
-- live allocation uses App Store Connect plus tracked/tag floors;
-- a durable reservation precedes the sole archive call site;
-- validation archives and publisher archives cannot impersonate each other;
-- export disables Xcode automatic version/build management;
-- archive and IPA identities are retained in structured evidence and tags;
-- existing-candidate upload and retry do not archive or export again;
-- API, certificate, and repository credentials are constrained to the trusted
-  workflow step; and
-- the architecture, operator runbook, and agent entry point retain one writer
-  and contain no actionable Fastlane or retired local release path.
+`scripts/test-ios-versioning.sh` supplies an isolated Git fixture for the source
+fingerprint and both preflight modes. It proves that CI cannot sign or allocate
+a validation build, Organizer requires automatic signing and a local team, all
+resolved version values match the repository baseline before archive,
+RevenueCat production configuration is present, and dirty or hidden Git source
+is rejected.
 
-`scripts/test-ios-versioning.sh` supplies generated artifacts and isolated Git
-remotes to exercise the runtime contracts without contacting Apple. Its
-publisher fixtures cover a failed archive that consumes one reservation, a
-higher successor, immutable evidence tags, exact-IPA existing upload with zero
-new archive/export calls, hash tampering, and explicit failed-upload retry
-authorization. IPA fixtures also reproduce the observed Xcode post-archive
-renumbering and require it to fail validation.
-
-Repository source tests cannot prove external repository tag rules, current
-Apple credentials, signing profiles, Transporter delivery, processing, or
-physical-device behavior. Administrators verify rules and credentials with an
-advanced read-only publisher `plan`; release managers collect live
-beta/candidate/upload and device evidence only during an authorized release.
-Follow the
-[operator runbook](./14-ios-release-versioning.md) for setup, artifact names,
-evidence inspection, retries, promotion, and emergency recovery.
+Repository source tests cannot prove current Apple account access, signing
+profiles, upload delivery, processing, or physical-device behavior. Release
+managers collect Organizer, App Store Connect, beta, and device evidence during
+an authorized release. Follow the
+[operator runbook](./14-ios-release-versioning.md) for setup, archive, upload,
+promotion, and emergency recovery.
 
 Successful `main` and manual runs retain the unsigned validation archive for
 seven days. Every run retains compact SHA/toolchain/test or archive evidence for
@@ -516,33 +496,16 @@ make test-ios-ci-tooling
 ```
 
 That portable target tests the fail-closed scope detector, immutable action
-pins, exact-SHA checkout, workflow invocation of generated-project source
-membership, full-target unit-test selectors, merge-queue trigger, validation-only
-Release archive, embedded source-provenance and product/dSYM checks, disjoint CI
-and serialized-publisher archive modes, exact-SHA/fingerprint enforcement,
-durable failed-archive allocation and higher-build successor, malformed identity
-rejection, rejection of hidden `assume-unchanged`/`skip-worktree` source state,
-main-target-only preflight/provenance phase attachment, generated-phase
-cardinality and ordering, canonical shell commands, complete-unit and exact
-focused-UI result validation, structured failure-diagnostic extraction, Xcode
-automatic build-number management being disabled for App Store export, and
-post-signing IPA version/build plus source-provenance verification before the
-unconditional final decision, including an exact machine-readable
-`ipa_sha256=<64 lowercase hex>` line for the unchanged inspected IPA. Its
-generated-project fixtures explicitly detach,
-duplicate, reorder, and replace the release phases. Generated IPA fixtures
-exercise a valid export and exact digest, the observed archive-to-IPA build
-rewrite, dirty and mismatched provenance, extension/watch build drift,
-duplicate ZIP entries, archive content identity, one failed archive reservation
-followed by a higher successful build, immutable evidence tags, exact-IPA
-existing upload with no archive or export, tamper rejection, and explicit retry
-confirmation. The hosted project-guardrail lane runs this target on Ubuntu
-without booting a simulator. Portable JSON evidence validation uses the same
-strict Ruby parser on Linux and macOS. The provenance and IPA fixtures inject a
-narrow `plistlib` reader/editor; macOS runs additionally exercise the real Apple
-tool. Production archives retain
-`/usr/libexec/PlistBuddy` as the fail-closed default. This lane does not replace
-compilation or simulator execution.
+pins, exact-SHA checkout, generated-project source membership, full-target unit
+selectors, merge-queue trigger, unsigned validation-only Release archive,
+embedded source provenance, product/dSYM checks, automatic-signing Organizer
+preflight, version-baseline synchronization, rejection of hidden
+`assume-unchanged`/`skip-worktree` source state, generated release-phase
+cardinality and ordering, focused-result validation, and structured failure
+diagnostics. It also proves the retired GitHub signing/upload path remains
+absent. The hosted project-guardrail lane runs this target on Ubuntu without
+booting a simulator; it does not replace compilation, simulator execution,
+Organizer upload validation, or physical-device QA.
 
 The membership implementation and its adversarial missing, unexpected, and
 orphan-source fixtures run in the macOS unit job. They can also be run locally

@@ -54,7 +54,7 @@ when they affect product direction, and are clearly labeled.
 | Public product             | Naturebook               |
 | Subscription               | Naturebook Pro           |
 | iOS marketing version      | 1.0.3                    |
-| iOS tracked build floor    | 275                      |
+| iOS archive build baseline | 275                      |
 | Minimum iOS deployment     | iOS 17.2                 |
 | Device family              | iPhone                   |
 | SwiftData schema           | MerianSchemaV50          |
@@ -983,21 +983,18 @@ the phone receiver and end-to-end tests exist.
 
 ## 16.4 iOS distribution contract
 
-Distributable iOS builds use one globally serialized publisher core after
-compiled CI passes on the exact protected `main` SHA. Routine beta iterations
-use a zero-input manual TestFlight dispatch; advanced planning, candidate, and
-recovery operations reach the same core through a separate manual form.
-Marketing versions advance through reviewed release trains; TestFlight build
-numbers increase globally and are allocated from App Store Connect plus durable
-repository reservations. One allocated build maps to one signed archive and one
-final IPA hash. Rebuilt or changed bytes receive a higher build, while the same
-processed binary advances through internal TestFlight, external TestFlight, and
-App Review.
+Distributable iOS builds use Xcode Organizer after compiled CI passes on the
+exact protected `main` SHA. Marketing versions advance through reviewed release
+trains; the tracked build value is an archive baseline rather than an operator
+counter. Xcode's **Manage version and build number** option and App Store
+Connect own each uploaded TestFlight build number. Rebuilt or changed source
+creates a new archive and upload, while the same processed binary advances
+through internal TestFlight, external TestFlight, and App Review.
 
 This contract is an engineering provenance requirement, not a product-readiness
 shortcut. Device, purchase/restore, push, privacy, migration, and critical
 journey acceptance remain required. See the
-[publisher architecture](../system-architecture/09-ios-release-publisher.md)
+[Xcode release architecture](../system-architecture/09-ios-release-publisher.md)
 and [operator runbook](../development-guides/14-ios-release-versioning.md).
 
 # 17. Roadmap and release posture

@@ -1486,9 +1486,9 @@ evidence.
 Operational workflows run Deno with frozen dependencies and explicit
 Supabase-host, environment-variable, and output-path permissions. The taxonomy
 import runs with `contents: read` and cannot read a checkout credential; its
-checklist artifact is committed by a separate five-minute writer. The only
-other reviewed `contents: write` paths are the manual, serialized iOS publisher
-entry points, which use the grant for durable release tags. Account deletion,
+checklist artifact is committed by a separate five-minute writer. There are no
+other reviewed `contents: write` paths; Xcode Organizer owns iOS distribution
+without repository write access. Account deletion,
 DwC-A, and RevenueCat health clients
 additionally enforce a 15-second deadline and streaming 64 KiB response ceiling
 beneath `supabase-js`; the detailed scan-media monitor uses the same deadline

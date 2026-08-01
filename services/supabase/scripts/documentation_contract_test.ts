@@ -890,9 +890,6 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     testingStrategySource,
     releaseVersioningSource,
     releasePreflightImplementationSource,
-    releaseExportImplementationSource,
-    releasePublisherImplementationSource,
-    releasePublisherWorkflowSource,
     releaseArchiveValidatorSource,
     queueDurabilityImplementationSource,
     settingsImplementationSource,
@@ -1005,9 +1002,6 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read("docs/development-guides/08-testing-strategy.md"),
     read("docs/development-guides/14-ios-release-versioning.md"),
     read("scripts/check-ios-release-prep.sh"),
-    read("scripts/export-ios-release.sh"),
-    read("scripts/publish-ios-beta.sh"),
-    read(".github/workflows/ios-testflight-publisher.yml"),
     read("scripts/validate-ios-archive.sh"),
     read(
       "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift",
@@ -1356,18 +1350,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   }
   for (
     const releaseInvariant of [
-      "one supported publisher engine for distributable iOS builds",
-      "zero-input **TestFlight Beta** workflow",
-      "`CURRENT_PROJECT_VERSION` in that file is a repository floor",
+      "Xcode Organizer is the sole distribution authority",
+      "Apple credentials and private signing material stay in Xcode",
+      "`CURRENT_PROJECT_VERSION` is a positive tracked archive baseline",
       "`MERIAN_IOS_VALIDATION_ARCHIVE=1`",
-      "max(App Store Connect latest, repository baseline) + 1",
-      "that reservation remains and creates an allowed gap",
-      "archives from a clean exact Git SHA",
-      "`archive_identity`",
-      "stable final `ipa_sha256`",
-      "`ios-builds/<version>-<build>`",
-      "App Store Connect definitively reports upload `Failed`",
-      "internal TestFlight, external TestFlight, and App Review",
+      "TestFlight & App Store",
+      "Manage version and build number",
+      "The checkout must be clean",
+      "same uploaded binary",
+      "no GitHub Actions workflow contains Apple signing credentials",
     ]
   ) {
     assertStringIncludes(compact(releaseVersioningSource), releaseInvariant);
@@ -1375,60 +1366,16 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   for (
     const implementationFragment of [
       '"${MERIAN_IOS_VALIDATION_ARCHIVE:-0}" == "1"',
-      '"${MERIAN_RELEASE_PUBLISHER:-0}" == "1"',
-      '"${MERIAN_PUBLISHER_SERIALIZED:-0}" == "1"',
-      "manual Organizer and ad-hoc xcodebuild archives are unsupported",
-      "publisher source fingerprint does not match the clean checkout",
+      "CODE_SIGN_STYLE must remain Automatic for Organizer distribution",
+      "DEVELOPMENT_TEAM is missing or malformed",
+      "source checkout is dirty",
+      "keep Manage version and build number enabled",
       "validation archive changed or allocated CURRENT_PROJECT_VERSION",
     ]
   ) {
     assertStringIncludes(
       releasePreflightImplementationSource,
       implementationFragment,
-    );
-  }
-  for (
-    const publisherFragment of [
-      "ios-build-allocations/",
-      "max(app_store_connect_latest, repository_baseline) + 1",
-      "reserve_build",
-      "archive_invocations",
-      "ipa_sha256",
-      "--confirm-failed-upload",
-      "same_uploaded_binary_only",
-    ]
-  ) {
-    assertStringIncludes(
-      releasePublisherImplementationSource,
-      publisherFragment,
-    );
-  }
-  for (
-    const workflowFragment of [
-      "workflow_dispatch:",
-      "group: ios-testflight-publisher",
-      "cancel-in-progress: false",
-      "RESERVE BUILD",
-      "UPLOAD TO APP STORE CONNECT",
-      "FAILED CONFIRMED",
-      "Full iOS unit tests",
-      "Current-SHA Release archive",
-      "Production readiness",
-    ]
-  ) {
-    assertStringIncludes(releasePublisherWorkflowSource, workflowFragment);
-  }
-  for (
-    const exportImplementationFragment of [
-      'reject_dot_path_components "EXPORT_PATH" "$export_path_input"',
-      "manageAppVersionAndBuildNumber",
-      "publisher plan does not authorize this exact export",
-      "archive changed while being exported",
-    ]
-  ) {
-    assertStringIncludes(
-      releaseExportImplementationSource,
-      exportImplementationFragment,
     );
   }
   for (
@@ -1453,11 +1400,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "durable failed-archive allocation and higher-build successor",
+    "retired GitHub signing/upload path remains absent",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "exact-IPA existing upload with no archive or export",
+    "Organizer upload validation, or physical-device QA",
   );
   for (
     const source of [

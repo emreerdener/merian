@@ -134,17 +134,13 @@ Deno.test("every runner job has an explicit bounded timeout", async () => {
   }
 });
 
-Deno.test("repository write access is limited to reviewed workflow paths", async () => {
+Deno.test("only the isolated checklist writer requests repository write access", async () => {
   const sources = await workflowSources();
   const writers = sources
     .filter(([, source]) => /^[ ]+contents: write$/m.test(source))
     .map(([name]) => name);
 
-  assertEquals(writers, [
-    "import-community-taxonomy.yml",
-    "ios-testflight-beta.yml",
-    "ios-testflight-publisher.yml",
-  ]);
+  assertEquals(writers, ["import-community-taxonomy.yml"]);
   const writeGrants = sources.flatMap(([name, source]) =>
     (source.match(/^[ ]+([a-z-]+): write$/gm) ?? []).map((grant) =>
       `${name}: ${grant.trim()}`
@@ -152,8 +148,6 @@ Deno.test("repository write access is limited to reviewed workflow paths", async
   );
   assertEquals(writeGrants, [
     "import-community-taxonomy.yml: contents: write",
-    "ios-testflight-beta.yml: contents: write",
-    "ios-testflight-publisher.yml: contents: write",
   ]);
 
   const importWorkflow =
@@ -163,26 +157,6 @@ Deno.test("repository write access is limited to reviewed workflow paths", async
   assertMatch(
     importWorkflow,
     /\n[ ]{2}commit-checklist:\n[\s\S]*?\n[ ]{4}permissions:\n[ ]{6}actions: read\n[ ]{6}contents: write\n/,
-  );
-
-  const betaWorkflow =
-    sources.find(([name]) => name === "ios-testflight-beta.yml")?.[1] ?? "";
-  assertMatch(betaWorkflow, /^on:\n[ ]{2}workflow_dispatch:\n/m);
-  assertStringIncludes(
-    betaWorkflow,
-    "uses: ./.github/workflows/ios-testflight-publisher.yml",
-  );
-  assertStringIncludes(betaWorkflow, "action: upload");
-
-  const publisherWorkflow =
-    sources.find(([name]) => name === "ios-testflight-publisher.yml")?.[1] ??
-      "";
-  assertMatch(publisherWorkflow, /^on:\n[ ]{2}workflow_dispatch:/m);
-  assertStringIncludes(publisherWorkflow, "workflow_call:");
-  assertStringIncludes(publisherWorkflow, "group: ios-testflight-publisher");
-  assertStringIncludes(
-    publisherWorkflow,
-    'GITHUB_EVENT_NAME" != "workflow_dispatch"',
   );
 });
 

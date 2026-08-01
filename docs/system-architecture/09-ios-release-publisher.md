@@ -1,190 +1,100 @@
-# iOS Release Publisher Architecture
+# Xcode Organizer iOS Release Architecture
 
-Status: active  
-Effective date: 2026-07-31  
-Operator source of truth:
-[`14-ios-release-versioning.md`](../development-guides/14-ios-release-versioning.md)
+Last updated: July 31, 2026
 
 ## Decision
 
-Naturebook uses one globally serialized GitHub Actions publisher core as the
-sole writer of distributable iOS build numbers and the sole creator of signed
-App Store archives, exported IPAs, and upload receipts. Operators reach it
-through a zero-input **TestFlight Beta** dispatch for routine archive-and-upload
-iterations or the direct **iOS TestFlight Publisher (Advanced)** dispatch for
-planning, retained candidates, and immutable recovery. Development,
-pull-request CI, unsigned archive validation, TestFlight promotion, and App
-Review selection are deliberately not build-number writers.
+Naturebook uses Xcode Organizer as its only signed distribution path. Xcode and
+the local Keychain hold Apple account access, distribution certificates, and
+provisioning state. GitHub Actions does not receive Apple signing or App Store
+Connect upload credentials.
 
-This replaces the project's former sequence of prep commits, local archive
-selection, Organizer/Fastlane export, and independently initiated upload. Those
-steps allowed two authorities—repository state and Xcode/App Store Connect
-automatic version management—to disagree about the shipped build.
+The architecture separates assurance from distribution:
 
-## Goals
-
-- allocate every candidate from one global monotonic sequence;
-- bind one version/build to one clean protected source snapshot;
-- invoke the distributable archive exactly once for that allocation;
-- prove the archive did not change during export;
-- prevent Xcode from changing the build after archive;
-- identify the final signed IPA by SHA-256 before upload;
-- retain a durable source/archive/IPA/upload evidence chain;
-- retry only the identical IPA after a definitive failed upload; and
-- promote the same processed binary through every beta and review stage.
-
-The publisher does not decide product readiness, replace physical-device QA,
-administer tester groups, or make App Store metadata changes.
-
-The manual entry may be dispatched while the exact-SHA iOS check is queued or
-running. A bounded Ubuntu job polls that existing check for up to 30 minutes
-and starts the macOS publisher only after all required jobs pass. It never
-converts a failed or scope-only check into authorization and does not trigger a
-replacement check automatically.
-
-## Components and Data Flow
-
-```mermaid
-flowchart LR
-    A["Protected main SHA"] --> B["Exact-SHA iOS Build and Test"]
-    A --> C["Routine or advanced manual entry"]
-    B --> D["Bounded Ubuntu readiness wait"]
-    C --> D
-    D --> E["One serialized publisher core"]
-    E --> F["ASC latest + repository floor"]
-    F --> G["Immutable allocation tag"]
-    G --> H["One signed archive"]
-    H --> I["Archive validation + identity"]
-    I --> J["Export with automatic renumbering off"]
-    J --> K["Signed IPA validation + SHA-256"]
-    K --> L["Evidence tag + retained artifact"]
-    L --> M["Optional Transporter upload"]
-    M --> N["Upload receipt tag"]
-    N --> O["Same binary: internal → external → App Review"]
+```text
+project.yml ──XcodeGen──> Merian.xcodeproj
+      │                         │
+      ├── GitHub Actions ───────┤ compile, test, unsigned Release archive
+      │                         │
+      └── clean main checkout ──┴──> Xcode Archive
+                                      │ automatic signing
+                                      ▼
+                              Xcode Organizer
+                                      │ managed build number
+                                      ▼
+                              App Store Connect
+                                      │
+                         TestFlight groups / App Review
 ```
 
-The publisher queries App Store Connect immediately before allocation. It also
-reads the tracked `CURRENT_PROJECT_VERSION` floor and every remote
-`ios-build-allocations/*` tag. It reserves the selected global number before
-starting the only archive invocation. The allocation therefore remains durable
-even if every later step fails.
+CI's archive and Organizer's archive have different purposes. The CI archive
+is deliberately unsigned and validation-only. It cannot become a beta. The
+Organizer archive is created after exact-SHA CI succeeds and is the only object
+eligible for distribution.
 
-The checkout remains unchanged. The allocated build is an archive-time build
-setting inherited by the main app, Explore widget, Messages extension, and
-watch app. Source provenance is embedded into the processed main-app plist.
-Archive and IPA validators independently reopen their artifacts and enforce the
-expected version/build and provenance.
+## Authority Boundaries
 
-## Authority and Trust Boundaries
-
-| Boundary | Authority | Required proof |
+| Component | Responsibility | Explicitly does not do |
 |---|---|---|
-| Source selection | Protected `main` | Checkout SHA, workflow SHA, and `origin/main` are identical |
-| Compile/test readiness | `iOS Build and Test` | Successful exact-SHA unit, UI smoke, archive, and final decision jobs |
-| Build allocation | Serialized publisher core | App Store Connect maximum plus tracked/tag repository baseline |
-| Reservation history | Git tag namespaces | Create-only allocation/evidence/upload refs |
-| Signing | Automatic project signing with a temporary CI keychain | Approved Apple Distribution certificate and explicit team |
-| Export identity | Repository export helper | Automatic version/build management disabled |
-| Binary identity | IPA validator | Stable SHA-256 before and after inspection |
-| Upload | Transporter with API key | Attempt log, definitive process result, and receipt hash |
-| Promotion | App Store Connect | Selection of the already processed version/build |
+| `project.yml` | Marketing version, positive build baseline, automatic-signing policy | Allocate every beta build |
+| XcodeGen | Generate synchronized target settings | Upload to Apple |
+| GitHub Actions | Compile, test, validate an unsigned Release archive | Sign, renumber, export, or upload |
+| Release preflight | Prove clean source, synchronized versions, automatic signing, team, and production client configuration | Store Apple credentials |
+| Xcode Organizer | Archive distribution UI, automatic signing, managed uploaded build number | Decide product readiness |
+| App Store Connect | Processing, tester groups, beta review, App Review | Rebuild binaries |
 
-GitHub's workflow token has repository write authority only inside the trusted
-publisher step. Checkout credentials are not persisted, the token is not
-exported to Xcode or build phases, and authenticated Git headers are attached
-only to explicit remote tag operations. Apple keys, certificate bytes, and
-passwords exist only in runner-temporary storage and are removed on exit.
+## Sequential Build Ownership
 
-## State Model
+`CURRENT_PROJECT_VERSION` is a tracked archive baseline. It remains synchronized
+across the app and embedded targets, but operators do not increment it for each
+TestFlight iteration. During **TestFlight & App Store** distribution, Xcode's
+**Manage version and build number** option owns the unique uploaded build
+number. App Store Connect is authoritative after upload.
 
-| State | Durable evidence | Allowed next state |
-|---|---|---|
-| Development baseline | Tracked version/build floor | Read-only plan or exact-SHA CI |
-| Planned | JSON plan artifact; no external write | Re-plan or authorized allocation |
-| Reserved | `ios-build-allocations/<build>` | One archive attempt; never unreserve |
-| Candidate | Evidence JSON, IPA, `ios-builds/<version>-<build>` | Upload exact IPA or retain |
-| Upload attempted | Updated evidence and attempt log | Wait, investigate, or retry exact IPA after definitive failure |
-| Uploaded | `ios-uploads/<version>-<build>` and receipt hash | Same-binary promotion |
-| Promoted | App Store Connect tester/review selection | Wider stage or release of same binary |
+There is therefore one writer for each layer:
 
-The source candidate artifact is immutable. An existing-candidate upload writes
-attempt status only into a new receipt artifact. Consequently a retry follows
-the newest attempt artifact rather than returning to untouched historical
-candidate evidence.
+- repository authors write product versions;
+- Xcode writes distribution-time build numbers; and
+- App Store Connect records accepted builds.
 
-## Non-Negotiable Invariants
+The removed GitHub publisher, reservation tags, command-line exporter, and
+Transporter uploader are intentionally not fallback paths. Restoring one would
+reintroduce a second build-number/signing authority and requires a new
+architecture decision.
 
-1. Only the publisher allocates a distributable build.
-2. Live allocation has no operator-supplied build-number override.
-3. The global sequence spans every marketing-version train.
-4. A reservation is written before archive and is never removed or reused.
-5. One allocation permits one distributable archive invocation.
-6. The selected source is clean, exact, protected `main` and passed compiled CI.
-7. The checkout is not regenerated or modified during publishing.
-8. Every first-party shipped component has one version/build.
-9. Xcode automatic build-number management is disabled during export.
-10. Archive identity is unchanged before and after export.
-11. The inspected final IPA hash is the uploaded-byte identity.
-12. Unknown upload status is not permission to retry.
-13. Rebuilt or changed bytes always receive a higher build.
-14. Internal TestFlight, external TestFlight, and App Review use one processed
-    binary unless a new candidate is intentionally created.
-15. Routine and advanced operator entry points call the same publisher core and
-    cannot implement independent allocation, archive, export, or upload paths.
+## Source Identity
 
-Portable repository contracts guard these invariants and require the routine
-entry point to remain zero-input and fixed to a new upload. They reject
-automatic publisher triggers, competing writers, extra archive call sites,
-mutable export settings, stale operator procedures, and incomplete
-evidence/retry controls.
+The Release prebuild phase rejects a dirty checkout and verifies the tracked
+version baseline. The postbuild phase embeds these values in the app:
 
-## Failure Model
+- `MERIAN_SOURCE_REVISION`
+- `MERIAN_SOURCE_FINGERPRINT`
+- `MERIAN_SOURCE_STATE`
 
-Allocation gaps are the safety mechanism, not an error to repair. A failure
-after reservation consumes that number in repository history. A failed archive
-cannot produce candidate evidence, a failed identity check quarantines its
-output, and a failed evidence-tag publication blocks upload.
+The fingerprint covers nonignored source files and rejects hidden Git index
+state and tracked Xcode user data. Organizer distribution may manage the
+uploaded `CFBundleVersion`, but it does not change the embedded Git source
+identity.
 
-Transporter's exit status and App Store Connect's build state are different
-observations. Any attempt marks evidence before network submission. An
-operator may retry only when App Store Connect definitively reports `Failed`,
-and the retry revalidates the same evidence tag, signed IPA metadata, and
-SHA-256. Processing, an absent UI row, a runner interruption, or a missing
-receipt tag is an ambiguous state that requires investigation.
+## Signing Model
 
-Immutable-tag loss, evidence mismatch, credential compromise, or successful
-upload followed by receipt-tag failure is an incident. Recovery preserves
-existing refs and artifacts; it never lowers a floor, deletes a reservation, or
-relabels bytes.
+All distributable targets use `CODE_SIGN_STYLE=Automatic` and inherit the local
+team through the ignored `Signing.local.xcconfig`. No tracked setting forces an
+Apple Distribution identity. This lets Xcode choose development signing for
+local work and distribution signing for Organizer without contradictory target
+settings.
 
-## Evidence and Retention
+GitHub passes `CODE_SIGNING_ALLOWED=NO`, `CODE_SIGNING_REQUIRED=NO`, an empty
+identity, and an empty development team to its validation archive. The
+`MERIAN_IOS_VALIDATION_ARCHIVE=1` preflight branch verifies that CI cannot
+silently create a signed release.
 
-The architecture deliberately uses two retention classes:
+## Promotion Model
 
-- Git tags retain compact allocation and identity mappings with repository
-  history.
-- GitHub artifacts retain the exact IPA, structured evidence, and Transporter
-  logs for a bounded period.
+The processed App Store Connect build selected for QA is immutable. Internal
+TestFlight, external TestFlight, and App Review promote the same uploaded
+binary. Source or configuration changes create a new Organizer archive and a
+new Xcode-managed build number; stage changes do not.
 
-A successful new-candidate run treats missing IPA/evidence as an artifact
-contract failure. A failed publisher step retains any available candidate,
-plan, archive log, and upload log with warning-only missing-file behavior; this
-prevents artifact cleanup from masking the primary failure. Failures before the
-publisher step do not run candidate artifact collection.
-
-The approved long-term release store must receive exact hash-verified copies
-when legal, support, or audit needs exceed Actions retention. An evidence tag
-alone cannot reconstruct an IPA, and an IPA without matching evidence is not an
-authorized retry source.
-
-## Change Control
-
-A change to operator entry points, writer authority, allocation inputs, archive
-cardinality, export management, artifact identity, tag namespaces, evidence
-schema, retry states, or promotion policy is an architecture change. Update
-this document, the operator runbook, testing strategy, workflow contract
-fixtures, and incident guidance in the same reviewed pull request.
-
-For exact setup, dispatch, evidence inspection, retry, promotion, and emergency
-procedures, use the
-[iOS publishing runbook](../development-guides/14-ios-release-versioning.md).
+The operational procedure lives in
+[`14-ios-release-versioning.md`](../development-guides/14-ios-release-versioning.md).

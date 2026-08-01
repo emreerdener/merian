@@ -312,11 +312,11 @@ ad-hoc repair SQL merely to turn a monitor green.
 
 - Third-party actions are pinned to reviewed 40-character SHAs. Dependabot
   checks GitHub Actions weekly; updates still require review.
-- Workflow permissions default to `contents: read`. Reviewed write grants are
-  limited to the taxonomy checklist's isolated five-minute writer job and the
-  manual, serialized iOS publisher entry points that push durable release tags.
-  The taxonomy import itself cannot read a checkout credential and passes only
-  a one-day artifact to its writer.
+- Workflow permissions default to `contents: read`. The only reviewed write
+  grant is the taxonomy checklist's isolated five-minute writer job. The
+  taxonomy import itself cannot read a checkout credential and passes only a
+  one-day artifact to its writer. Xcode Organizer owns iOS distribution and
+  needs no repository write grant.
 - Every artifact includes `run_attempt` plus a run-specific identity such as
   `run_number` or the exact archive SHA, preventing a rerun from overwriting
   evidence from an earlier attempt.

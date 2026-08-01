@@ -3,7 +3,7 @@ set -euo pipefail
 
 fail() {
   echo "error: Release archive blocked: $*" >&2
-  echo "Distributable archives must come from the serialized GitHub Actions publisher." >&2
+  echo "Use a clean checkout and Xcode Organizer with automatic signing." >&2
   exit 1
 }
 
@@ -81,15 +81,12 @@ source_fingerprint="$(MERIAN_PROJECT_ROOT="$repo_root" bash "$fingerprint_script
 [[ "$source_revision" =~ ^[0-9a-f]{40,64}$ ]] || fail "Git returned a malformed source revision."
 [[ "$source_fingerprint" =~ ^[0-9a-f]{64}$ ]] || fail "release-source fingerprint is malformed."
 
-expected_revision="${MERIAN_EXPECTED_SOURCE_REVISION:-}"
-[[ "$expected_revision" =~ ^[0-9a-f]{40,64}$ ]] \
-  || fail "MERIAN_EXPECTED_SOURCE_REVISION is required for every Release archive."
-[[ "$source_revision" == "$expected_revision" ]] \
-  || fail "checked-out source $source_revision does not match expected source $expected_revision."
-
 if [[ "${MERIAN_IOS_VALIDATION_ARCHIVE:-0}" == "1" ]]; then
-  [[ "${MERIAN_RELEASE_PUBLISHER:-0}" != "1" ]] \
-    || fail "validation and publisher archive modes are mutually exclusive."
+  expected_revision="${MERIAN_EXPECTED_SOURCE_REVISION:-}"
+  [[ "$expected_revision" =~ ^[0-9a-f]{40,64}$ ]] \
+    || fail "MERIAN_EXPECTED_SOURCE_REVISION is required for a validation archive."
+  [[ "$source_revision" == "$expected_revision" ]] \
+    || fail "checked-out source $source_revision does not match expected source $expected_revision."
   [[ "${CODE_SIGNING_ALLOWED:-}" == "NO" && "${CODE_SIGNING_REQUIRED:-}" == "NO" ]] \
     || fail "validation archive mode is restricted to unsigned archives."
   [[ -z "${CODE_SIGN_IDENTITY:-}" && -z "${DEVELOPMENT_TEAM:-}" ]] \
@@ -102,29 +99,17 @@ if [[ "${MERIAN_IOS_VALIDATION_ARCHIVE:-0}" == "1" ]]; then
   exit 0
 fi
 
-[[ "${MERIAN_RELEASE_PUBLISHER:-0}" == "1" ]] \
-  || fail "manual Organizer and ad-hoc xcodebuild archives are unsupported."
-[[ "${MERIAN_PUBLISHER_SERIALIZED:-0}" == "1" ]] \
-  || fail "publisher concurrency lock is not asserted."
-
-expected_version="${MERIAN_EXPECTED_MARKETING_VERSION:-}"
-expected_build="${MERIAN_EXPECTED_BUILD_NUMBER:-}"
-expected_fingerprint="${MERIAN_EXPECTED_SOURCE_FINGERPRINT:-}"
-
-[[ "$expected_version" == "$project_version" ]] \
-  || fail "publisher version must equal tracked MARKETING_VERSION $project_version."
-[[ "$expected_build" =~ ^[1-9][0-9]*$ ]] \
-  || fail "publisher supplied no valid allocated build number."
-(( expected_build > project_baseline )) \
-  || fail "allocated build $expected_build is not higher than tracked baseline $project_baseline."
-[[ "$expected_fingerprint" == "$source_fingerprint" ]] \
-  || fail "publisher source fingerprint does not match the clean checkout."
-[[ "${MARKETING_VERSION:-}" == "$expected_version" ]] \
-  || fail "Xcode resolved MARKETING_VERSION=${MARKETING_VERSION:-missing}; expected $expected_version."
-[[ "${CURRENT_PROJECT_VERSION:-}" == "$expected_build" ]] \
-  || fail "Xcode resolved CURRENT_PROJECT_VERSION=${CURRENT_PROJECT_VERSION:-missing}; expected $expected_build."
+[[ "${CODE_SIGN_STYLE:-}" == "Automatic" ]] \
+  || fail "CODE_SIGN_STYLE must remain Automatic for Organizer distribution."
+[[ "${DEVELOPMENT_TEAM:-}" =~ ^[A-Z0-9]{10}$ ]] \
+  || fail "DEVELOPMENT_TEAM is missing or malformed; configure Signing.local.xcconfig."
+[[ "${MARKETING_VERSION:-}" == "$project_version" ]] \
+  || fail "Xcode resolved MARKETING_VERSION=${MARKETING_VERSION:-missing}; expected tracked version $project_version."
+[[ "${CURRENT_PROJECT_VERSION:-}" == "$project_baseline" ]] \
+  || fail "Xcode resolved CURRENT_PROJECT_VERSION=${CURRENT_PROJECT_VERSION:-missing}; expected tracked baseline $project_baseline."
 
 validate_revenuecat_key
 
-echo "Serialized publisher Release archive authorized for ${expected_version} (${expected_build}) at ${source_revision}."
+echo "Xcode Organizer Release archive authorized for ${project_version} (${project_baseline}) at ${source_revision}."
 echo "Release source fingerprint: ${source_fingerprint}"
+echo "In Organizer choose TestFlight & App Store and keep Manage version and build number enabled."

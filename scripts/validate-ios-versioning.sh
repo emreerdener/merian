@@ -20,49 +20,42 @@ extract_project_setting() {
   local key="$1"
   local file="$2"
   awk -v key="$key" '
-    $1 == key ":" {
-      print $2
-      found = 1
-      exit
-    }
-    END {
-      if (!found) {
-        exit 1
-      }
-    }
+    $1 == key ":" { print $2; found = 1; exit }
+    END { if (!found) exit 1 }
   ' "$file"
 }
 
-is_positive_int() {
-  [[ "$1" =~ ^[1-9][0-9]*$ ]]
-}
-
-is_semantic_version() {
-  [[ "$1" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]]
-}
-
-require_grep() {
-  local pattern="$1"
+require_literal() {
+  local literal="$1"
   local file="$2"
   local message="$3"
-  if ! grep -q -- "$pattern" "$file"; then
-    fail "$message"
-  fi
+  grep -Fq -- "$literal" "$file" || fail "$message"
 }
 
 [[ -f "$PROJECT_YML" ]] || fail "Missing $PROJECT_YML"
-[[ -f "$PROJECT_FILE" ]] || fail "Missing generated project file $PROJECT_FILE. Run make xcodegen."
+[[ -f "$PROJECT_FILE" ]] \
+  || fail "Missing generated project file $PROJECT_FILE. Run make xcodegen."
 
-marketing_version="$(extract_project_setting MARKETING_VERSION "$PROJECT_YML")" || fail "Could not read MARKETING_VERSION from $PROJECT_YML"
-build_number="$(extract_project_setting CURRENT_PROJECT_VERSION "$PROJECT_YML")" || fail "Could not read CURRENT_PROJECT_VERSION from $PROJECT_YML"
+marketing_version="$(extract_project_setting MARKETING_VERSION "$PROJECT_YML")" \
+  || fail "Could not read MARKETING_VERSION from $PROJECT_YML"
+build_baseline="$(extract_project_setting CURRENT_PROJECT_VERSION "$PROJECT_YML")" \
+  || fail "Could not read CURRENT_PROJECT_VERSION from $PROJECT_YML"
 
-is_semantic_version "$marketing_version" || fail "MARKETING_VERSION must be semantic x.y.z with a positive major version, got: $marketing_version"
-is_positive_int "$build_number" || fail "CURRENT_PROJECT_VERSION must be a positive integer, got: $build_number"
+[[ "$marketing_version" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]] \
+  || fail "MARKETING_VERSION must be semantic x.y.z, got: $marketing_version"
+[[ "$build_baseline" =~ ^[1-9][0-9]*$ ]] \
+  || fail "CURRENT_PROJECT_VERSION must be a positive integer, got: $build_baseline"
 
-require_grep "MARKETING_VERSION = ${marketing_version};" "$PROJECT_FILE" "Generated project is not synced with MARKETING_VERSION=${marketing_version}. Run make xcodegen."
-require_grep "CURRENT_PROJECT_VERSION = ${build_number};" "$PROJECT_FILE" "Generated project is not synced with CURRENT_PROJECT_VERSION=${build_number}. Run make xcodegen."
-require_grep 'VERSIONING_SYSTEM = "apple-generic";' "$PROJECT_FILE" "Generated project must keep VERSIONING_SYSTEM=apple-generic."
-require_grep 'scripts/check-ios-release-prep.sh' "$PROJECT_FILE" "Generated project is missing the release versioning preflight script."
+require_literal "MARKETING_VERSION = ${marketing_version};" "$PROJECT_FILE" \
+  "Generated project is not synced with MARKETING_VERSION=${marketing_version}. Run make xcodegen."
+require_literal "CURRENT_PROJECT_VERSION = ${build_baseline};" "$PROJECT_FILE" \
+  "Generated project is not synced with CURRENT_PROJECT_VERSION=${build_baseline}. Run make xcodegen."
+require_literal 'VERSIONING_SYSTEM = "apple-generic";' "$PROJECT_FILE" \
+  "Generated project must keep VERSIONING_SYSTEM=apple-generic."
+require_literal 'scripts/check-ios-release-prep.sh' "$PROJECT_FILE" \
+  "Generated project is missing the Release archive preflight."
+require_literal 'CODE_SIGN_STYLE: Automatic' "$PROJECT_YML" \
+  "project.yml must use automatic signing."
 
 for plist in \
   apps/ios/Merian/Configuration/Info.plist \
@@ -70,46 +63,63 @@ for plist in \
   apps/ios/messages/MerianMessagesExtension/Configuration/Info.plist
 do
   [[ -f "$plist" ]] || fail "Missing Info.plist: $plist"
-  require_grep '<string>$(MARKETING_VERSION)</string>' "$plist" "$plist must inherit CFBundleShortVersionString from MARKETING_VERSION."
-  require_grep '<string>$(CURRENT_PROJECT_VERSION)</string>' "$plist" "$plist must inherit CFBundleVersion from CURRENT_PROJECT_VERSION."
+  require_literal '<string>$(MARKETING_VERSION)</string>' "$plist" \
+    "$plist must inherit CFBundleShortVersionString from MARKETING_VERSION."
+  require_literal '<string>$(CURRENT_PROJECT_VERSION)</string>' "$plist" \
+    "$plist must inherit CFBundleVersion from CURRENT_PROJECT_VERSION."
 done
 
-require_grep 'INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)";' "$PROJECT_FILE" "Watch target must inherit generated CFBundleShortVersionString from MARKETING_VERSION."
-require_grep 'INFOPLIST_KEY_CFBundleVersion = "$(CURRENT_PROJECT_VERSION)";' "$PROJECT_FILE" "Watch target must inherit generated CFBundleVersion from CURRENT_PROJECT_VERSION."
+require_literal 'INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)";' "$PROJECT_FILE" \
+  "Watch target must inherit CFBundleShortVersionString from MARKETING_VERSION."
+require_literal 'INFOPLIST_KEY_CFBundleVersion = "$(CURRENT_PROJECT_VERSION)";' "$PROJECT_FILE" \
+  "Watch target must inherit CFBundleVersion from CURRENT_PROJECT_VERSION."
 
-publisher_script="scripts/publish-ios-beta.sh"
-export_script="scripts/export-ios-release.sh"
 preflight_script="scripts/check-ios-release-prep.sh"
-publisher_workflow=".github/workflows/ios-testflight-publisher.yml"
-routine_workflow=".github/workflows/ios-testflight-beta.yml"
 validation_workflow=".github/workflows/ios-build-and-test.yml"
-
-for release_file in "$publisher_script" "$export_script" "$preflight_script" "$publisher_workflow" "$routine_workflow" "$validation_workflow"; do
-  [[ -f "$release_file" ]] || fail "Missing canonical release artifact: $release_file"
+xcode_contract_test="scripts/test-ios-xcode-release-workflow.sh"
+for release_file in "$preflight_script" "$validation_workflow" "$xcode_contract_test"; do
+  [[ -f "$release_file" ]] || fail "Missing Xcode release guardrail: $release_file"
 done
 
-require_grep 'workflow_dispatch:' "$publisher_workflow" "iOS publisher must be manually dispatched."
-require_grep 'workflow_call:' "$publisher_workflow" "iOS publisher core must support the zero-input routine caller."
-require_grep 'workflow_dispatch:' "$routine_workflow" "Routine TestFlight publishing must be manually dispatched."
-require_grep 'uses: ./.github/workflows/ios-testflight-publisher.yml' "$routine_workflow" "Routine TestFlight publishing must call the canonical publisher core."
-require_grep 'group: ios-testflight-publisher' "$publisher_workflow" "iOS publisher workflow must use the global publisher concurrency lock."
-require_grep 'cancel-in-progress: false' "$publisher_workflow" "An in-progress publisher must never be cancelled by a later dispatch."
-require_grep 'MERIAN_IOS_VALIDATION_ARCHIVE=1' "$validation_workflow" "Unsigned CI archives must explicitly remain validation-only."
-require_grep 'manageAppVersionAndBuildNumber' "$export_script" "Publisher export must explicitly control Xcode version management."
-require_grep '<false/>' "$export_script" "Publisher export must disable Xcode version/build renumbering."
-require_grep 'ios-build-allocations/' "$publisher_script" "Publisher must preserve durable build-number reservations."
-require_grep 'ios-builds/' "$publisher_script" "Publisher must preserve immutable archive/IPA evidence tags."
-require_grep 'prepare-ios-release is retired' scripts/prepare-ios-release.sh "Legacy tracked-build release prep must remain retired."
+for retired_file in \
+  .github/workflows/ios-testflight-beta.yml \
+  .github/workflows/ios-testflight-publisher.yml \
+  scripts/publish-ios-beta.sh \
+  scripts/export-ios-release.sh \
+  scripts/prepare-ios-release.sh \
+  scripts/test-ios-publisher-workflow.sh
+do
+  [[ ! -e "$retired_file" ]] \
+    || fail "Retired GitHub distribution path must remain absent: $retired_file"
+done
 
-if grep -Eq '(agvtool[[:space:]]+(new-version|next-version)|write_project_versions|ios-release-prep[.]json)' \
-  "$publisher_script" "$export_script" "$preflight_script" scripts/prepare-ios-release.sh; then
-  fail "Canonical release path contains a competing project/build writer or stale local-marker flow."
+require_literal 'MERIAN_IOS_VALIDATION_ARCHIVE=1' "$validation_workflow" \
+  "CI Release archives must explicitly remain validation-only."
+require_literal 'CODE_SIGNING_ALLOWED=NO' "$validation_workflow" \
+  "CI Release archives must remain unsigned."
+require_literal 'CODE_SIGN_STYLE must remain Automatic for Organizer distribution' "$preflight_script" \
+  "Release preflight must require Organizer automatic signing."
+require_literal 'keep Manage version and build number enabled' "$preflight_script" \
+  "Release preflight must direct Xcode to manage uploaded build numbers."
+require_literal 'source checkout is dirty' "$preflight_script" \
+  "Release preflight must reject dirty Organizer archives."
+
+if grep -REq --include='*.yml' --include='*.yaml' \
+  '(iTMSTransporter|notarytool|altool|IOS_DISTRIBUTION_CERTIFICATE|ASC_PRIVATE_KEY)' \
+  .github/workflows; then
+  fail "GitHub Actions must not contain an Apple signing or upload path."
+fi
+
+if grep -REq \
+  'CODE_SIGN_IDENTITY[[:space:]]*[:=][[:space:]]*"?(Apple|iPhone) Distribution' \
+  project.yml ./*.xcconfig "$PROJECT_FILE" 2>/dev/null; then
+  fail "Automatic signing must not be combined with a forced distribution identity."
 fi
 
 lowercase_project_refs="$(grep -REIn -- '-project[[:space:]]+merian[.]xcodeproj' Makefile scripts .github 2>/dev/null || true)"
 if [[ -n "$lowercase_project_refs" ]]; then
   echo "$lowercase_project_refs" >&2
-  fail "Automation must resolve the Xcode project path instead of hardcoding lowercase merian.xcodeproj."
+  fail "Automation must resolve the project path instead of hardcoding lowercase merian.xcodeproj."
 fi
 
-echo "iOS versioning guardrails passed for Merian ${marketing_version} (${build_number})."
+echo "iOS versioning guardrails passed for Xcode Organizer baseline ${marketing_version} (${build_baseline})."

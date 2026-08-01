@@ -67,11 +67,10 @@ The workflow performs the following steps:
    explicit `GH_TOKEN`.
    `_tests/workflowSecurity.test.ts` enforces those pins and permissions across
    every checked-in workflow, rejects job-scoped secret references, and limits
-   `contents: write` to reviewed paths: the taxonomy checklist's isolated
-   follow-up job and the manual, serialized iOS publisher entry points. The
+   `contents: write` to the taxonomy checklist's isolated follow-up job. The
    import job itself remains `contents: read` and passes only a one-day artifact
-   to its writer; the iOS publisher uses its grant only for durable release
-   tags.
+   to its writer. iOS distribution runs through Xcode Organizer and requests no
+   repository write access.
 3. Installs the exact reviewed Deno `2.9.2` runtime and Supabase CLI `2.109.1`,
    then executes the repository pin guard before any config parse or mutation.
 4. Fails fast if required deployment, RevenueCat, DwC-A pseudonym, or dedicated

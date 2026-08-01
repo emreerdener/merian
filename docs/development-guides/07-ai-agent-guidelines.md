@@ -33,10 +33,10 @@ The `docs/` folder contains the master reference for the application:
   changing product names, display names, URLs, email addresses, deep links, App
   Store metadata, legal copy, or stable Merian identifiers.
 - Refer to `docs/system-architecture/09-ios-release-publisher.md` before
-  changing iOS build allocation, publisher authority, archive/export identity,
-  immutable tags, evidence, upload retry, or promotion state.
+  changing iOS version/build ownership, CI archive boundaries, Organizer
+  signing, source identity, upload evidence, or promotion state.
 - Refer to `docs/development-guides/14-ios-release-versioning.md` for the sole
-  supported iOS candidate, upload, retry, TestFlight, and App Review procedure.
+  supported iOS archive, upload, recovery, TestFlight, and App Review procedure.
 - Refer to `docs/development-guides/15-naturebook-rebrand-rollout.md` for
   domain, AASA, email, Supabase, App Store, and release verification.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk →
@@ -62,19 +62,15 @@ The `docs/` folder contains the master reference for the application:
   tracked config. Signing must flow through `Signing.xcconfig` -> optional
   `Signing.local.xcconfig`, with the local file ignored by git.
 - **Build Versioning**: `project.yml` tracks the reviewed
-  `MARKETING_VERSION` release train and the development/CI build floor;
+  `MARKETING_VERSION` release train and the archive build baseline;
   `Info.plist` files must strictly inherit `$(MARKETING_VERSION)` and
-  `$(CURRENT_PROJECT_VERSION)`. Never write a release build with Organizer,
-  `agvtool`, or a prep commit. After the exact SHA passes **iOS Build and Test**,
-  manually dispatch zero-input **TestFlight Beta** for a routine upload or
-  **iOS TestFlight Publisher (Advanced)** for planning and immutable recovery.
-  Both entry points call the same serialized writer: it queries App Store
-  Connect, reserves the next global build, injects it at the sole archive,
-  preserves it through export, and records the source/archive/IPA mapping. Keep
-  the approved release train until
-  intentionally starting a new one, and never reuse a reserved build for a
-  rebuild. Do not add an independent release recipe to an agent workflow,
-  Fastlane lane, Make target, script, or documentation page; point to the
+  `$(CURRENT_PROJECT_VERSION)`. After the exact SHA passes **iOS Build and
+  Test**, archive a clean checkout with Xcode Organizer, use **TestFlight & App
+  Store**, and keep **Manage version and build number** enabled. Xcode is the
+  sole signed archive/upload authority and App Store Connect reports the
+  authoritative uploaded build. Keep the approved release train until
+  intentionally starting a new one; do not increment the baseline per beta or
+  add a competing CI, Fastlane, script, or agent upload recipe. Point to the
   canonical runbook instead.
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`.
   NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.

@@ -14,7 +14,7 @@ This file describes how to update the public copy safely.
 - The root `CHANGELOG.md` remains developer/release-note source material for TestFlight, App Store, QA, and support notes. It is not parsed by the app.
 - `apps/ios/AppStore/ReleaseNotes/<marketing-version>.md` is the reviewed
   per-train source for App Store listing metadata and final “What's New” copy.
-  The publisher does not upload or rewrite it.
+  Xcode Organizer does not upload or rewrite this metadata source.
 
 Xcode currently copies `changelog.json` to the app bundle root. `ChangelogStore`
 checks the root first and keeps `Changelog` / `Resources/Changelog`
@@ -102,6 +102,6 @@ changelog should be updated. If the user explicitly asks for release notes,
 deployment notes, a changelog update, or a TestFlight-facing summary, update
 `CHANGELOG.md` and evaluate both the current App Store release-note source and
 the in-app JSON. Update each customer-visible surface that the request affects
-unless the request says otherwise. Version/build allocation and publisher
+unless the request says otherwise. Version/build ownership and Organizer
 operation remain governed by
 [`14-ios-release-versioning.md`](./14-ios-release-versioning.md).

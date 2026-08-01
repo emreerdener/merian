@@ -73,9 +73,9 @@ source_state="$(read_plist_value "$app_info" MERIAN_SOURCE_STATE)"
 [[ "$bundle_id" == "$expected_bundle_id" ]] \
   || fail "main app bundle ID $bundle_id does not match $expected_bundle_id."
 [[ "$source_revision" == "$expected_source_revision" ]] \
-  || fail "embedded source revision does not match the publisher source."
+  || fail "embedded source revision does not match the expected release source."
 [[ "$source_fingerprint" == "$expected_source_fingerprint" ]] \
-  || fail "embedded source fingerprint does not match the publisher source."
+  || fail "embedded source fingerprint does not match the expected release source."
 [[ "$source_state" == "clean" ]] \
   || fail "embedded source state is $source_state; expected clean."
 

@@ -239,8 +239,8 @@ as their permanent engineering identity.
 - **[`/incidents/2026-07-xcode-export-build-number-rewrite.md`](./incidents/2026-07-xcode-export-build-number-rewrite.md)**
   — Root cause and fail-closed remediation for Xcode changing a reviewed
   `1.0.2 (236)` archive into uploaded IPA build `272`, including exact artifact
-  provenance, confirmed Content Delivery acceptance, single-writer publisher
-  prevention, globally safe recovery, and end-to-end closure gates.
+  provenance, confirmed Content Delivery acceptance, the superseded command-line
+  remediation, and the later Xcode-only distribution decision.
 - **[`/incidents/2026-07-queued-insight-same-id-handoff-regression.md`](./incidents/2026-07-queued-insight-same-id-handoff-regression.md)**
   — Hosted Runs 100–103, same-ID route and SwiftUI task root cause, secure
   child-before-parent promotion ordering, scanning-badge accessibility-frame
@@ -311,8 +311,8 @@ as their permanent engineering identity.
   link/domain compatibility, AASA exceptions, and the allowed-branding audit
   classification.
 - **[`/system-architecture/09-ios-release-publisher.md`](./system-architecture/09-ios-release-publisher.md)**
-  — Single-writer TestFlight publisher decision, authority boundaries, durable
-  state/evidence model, immutable identities, and failure invariants.
+  — Xcode Organizer distribution decision, CI boundary, build-number ownership,
+  automatic-signing model, source identity, and promotion invariants.
 
 ### Backend & Data
 

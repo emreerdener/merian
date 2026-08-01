@@ -40,7 +40,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
     open Merian.xcodeproj
     ```
     Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your personal Apple Developer Team ID. Do not hardcode a real team ID into `project.yml` or the shared `Signing.xcconfig`. Keep signing automatic and do not set `CODE_SIGN_IDENTITY`; Xcode selects Apple Development locally and Apple Distribution for an authorized archive.
-4.  **Client Config**: App-facing runtime values live in `Config.xcconfig`, with ignored machine-local overrides in `Config.local.xcconfig`. These values ship in the app bundle and are not backend-only secrets. Backend secrets, including Gemini and service-role keys, belong only in Supabase Edge Function secrets. The tracked defaults currently target production Supabase, so Debug simulator launches warn and still connect; use local/staging overrides for routine work. Set `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1` only for an intentional production smoke run, because it suppresses the warning without sandboxing writes or anonymous users. Local and unsigned validation archives may use a RevenueCat `test_` key; the TestFlight publisher hard-requires the production iOS key beginning with `appl_`.
+4.  **Client Config**: App-facing runtime values live in `Config.xcconfig`, with ignored machine-local overrides in `Config.local.xcconfig`. These values ship in the app bundle and are not backend-only secrets. Backend secrets, including Gemini and service-role keys, belong only in Supabase Edge Function secrets. The tracked defaults currently target production Supabase, so Debug simulator launches warn and still connect; use local/staging overrides for routine work. Set `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1` only for an intentional production smoke run, because it suppresses the warning without sandboxing writes or anonymous users. Local and unsigned validation archives may use a RevenueCat `test_` key; the Xcode Release archive preflight hard-requires the production iOS key beginning with `appl_`.
 5.  **Backend Operations**: Production Supabase deploys run through GitHub Actions using token-based CLI auth, not a developer's interactive local login. See [`docs/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md) for the CI path, required secrets, and smoke checks. From the repo root, the local emergency fallback remains:
     ```bash
     make db-push
@@ -56,22 +56,21 @@ Before contributing, please review our core architectural tenets. Refactoring co
     contract](./backend-and-data/13-server-credentials-and-database-release-safety.md)
     before changing keys, RLS, grants, defaults, migrations, user FKs, or
     destructive queues.
-6.  **TestFlight Publisher**: Do not archive or increment a release build
-    locally. After **iOS Build and Test** is green for the exact intended SHA,
-    manually dispatch the zero-input **TestFlight Beta** workflow for routine
-    testing. It allocates the next global build, archives once, preserves the
-    build through export, uploads the exact IPA, and retains immutable evidence.
-    Use **iOS TestFlight Publisher (Advanced)** only for planning, candidate
-    retention, existing-candidate upload, or definitive-failure retry. Both
-    entry points call the same serialized publisher core. Release/TestFlight
+6.  **TestFlight Distribution**: After **iOS Build and Test** is green for the
+    exact intended SHA, archive a clean `main` checkout with Xcode and upload
+    through Organizer **TestFlight & App Store**. Keep automatic signing and
+    **Manage version and build number** enabled. Do not increment the tracked
+    build baseline for every beta or add a competing GitHub/Fastlane upload
+    path. Promote the same App Store Connect build without rebuilding.
+    Release/TestFlight
     uses the normal advisory free-scan meter; unlimited meter bypasses are
     DEBUG-only and never change authoritative Supabase quota. RevenueCat
     purchase QA must open Settings → Plan directly and follow the documented
     Test Store/StoreKit/TestFlight matrix. Read the
-    [publisher architecture](./system-architecture/09-ios-release-publisher.md)
+    [Xcode release architecture](./system-architecture/09-ios-release-publisher.md)
     before changing the release system and follow the
     [operator runbook](./development-guides/14-ios-release-versioning.md) for
-    setup, dispatch, retry, and promotion. Purchase QA remains defined in
+    setup, upload, recovery, and promotion. Purchase QA remains defined in
     [`02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
 
 ## Testing Protocol
@@ -182,10 +181,10 @@ Before contributing, please review our core architectural tenets. Refactoring co
     `apps/ios/AppStore/ReleaseNotes/<marketing-version>.md` source for App Store
     listing/“What's New” changes. See
     [`docs/development-guides/12-in-app-changelog.md`](./development-guides/12-in-app-changelog.md).
-    A change to iOS publishing inputs, permissions, allocation, tags, artifact
-    names/retention, evidence, signing/export, retry, or promotion must also
-    update the publisher architecture, operator runbook, testing strategy, and
-    portable contract fixtures in the same pull request.
+    A change to iOS version/build ownership, validation archives, Organizer
+    signing/upload, evidence, recovery, or promotion must also update the Xcode
+    release architecture, operator runbook, testing strategy, and portable
+    contract fixtures in the same pull request.
 5.  Push to the branch locally.
 6.  Open a Pull Request describing the changes, explicitly mentioning if you changed any core network layer boundaries or AVFoundation settings.
 

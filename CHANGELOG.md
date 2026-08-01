@@ -28,33 +28,23 @@ TestFlight, App Store, support, and QA.
 
 ### Release Integrity
 
-- Failed TestFlight publisher runs now keep any available candidate bytes and
-  archive/upload diagnostics without emitting a second missing-artifact error
-  that hides the original failure. Successful runs still require complete IPA
-  and evidence artifacts.
-- TestFlight Beta can now be dispatched while same-SHA iOS CI is queued or
-  running. A bounded Ubuntu readiness job waits for all required checks before
-  allocating a macOS publisher runner, eliminating routine dispatch timing
-  failures without bypassing unsuccessful CI.
-- Routine TestFlight iteration is now a zero-input **TestFlight Beta** dispatch:
-  select `main` and click Run to allocate, archive, validate, and upload one new
-  build. Planning, retained candidates, existing-candidate uploads, and
-  definitive-failure retries remain available through an explicitly advanced
-  form backed by the same serialized publisher core.
-- A manually dispatched, globally serialized publisher is now the sole
-  TestFlight build-number writer and signed archive/export/upload path. It
-  requires a green exact-SHA iOS run, computes the next build from App Store
-  Connect and durable repository reservations, injects that build into the app,
-  widget, Messages extension, and watch app at one clean archive, and burns a
-  reservation after any failed archive so a rebuild receives a higher number.
-  Export keeps `manageAppVersionAndBuildNumber=false`; archive and IPA
-  validators prove version/build and source provenance, reject missing embedded
-  products or post-signing renumbering, and retain archive identity plus final
-  IPA SHA-256 in evidence and upload tags. A deliberately retained candidate or
-  definitively failed upload can send the exact hash-verified IPA again without
-  rebuilding, and that same processed binary is promoted through internal and
-  external TestFlight and App Review. PR tests and unsigned validation archives
-  remain on the tracked build floor and allocate nothing.
+- Xcode Organizer is now the sole signed archive, build-number management, and
+  App Store Connect upload path. Apple account access and private signing
+  material remain in Xcode and the local Keychain instead of being duplicated
+  as GitHub secrets.
+- Routine TestFlight uploads use **Product → Archive** followed by Organizer
+  **TestFlight & App Store** with automatic signing and **Manage version and
+  build number** enabled. The tracked `CURRENT_PROJECT_VERSION` remains a
+  synchronized archive baseline, so beta iteration no longer creates manual
+  build-number commits or competing sequential counters.
+- GitHub continues to compile, test, and create an unsigned exact-SHA Release
+  validation archive, but it cannot sign or upload it. Guardrails reject the
+  retired GitHub publisher workflows/scripts and any new CI Apple credential or
+  Transporter path.
+- Release archives retain clean source revision/fingerprint provenance. The
+  processed App Store Connect build is promoted unchanged through internal and
+  external TestFlight and App Review; changed source or configuration receives
+  a fresh Organizer archive and Xcode-managed build number.
 
 ### Critical Scan Reliability
 

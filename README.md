@@ -181,16 +181,12 @@ steps are tracked in the
 > plus one, while retaining the archive's source provenance. The prior export
 > helper omitted `manageAppVersionAndBuildNumber`, whose Xcode default is
 > enabled, and verified only the archive—not the artifact it called
-> TestFlight-ready. Export now explicitly disables that mutation and validates
-> the signed IPA's root app, embedded app components, version/build, and source
-> provenance. The validator also hashes the IPA before and after inspection,
-> rejects concurrent mutation, and reports the exact SHA-256 to retain as upload
-> evidence. Retained Content Delivery logs prove Xcode uploaded `1.0.2 (272)`
+> TestFlight-ready. Retained Content Delivery logs prove Xcode uploaded `1.0.2 (272)`
 > successfully with no errors or warnings and App Store Connect accepted it for
-> processing, so `272` is definitively consumed. The serialized publisher must
-> query App Store Connect and allocate an authoritative globally higher
-> successor; do not target a fixed recovery number, reuse `236`, or infer upload
-> identity from an archive alone. See the
+> processing, so `272` is definitively consumed. The command-line exporter that
+> created competing archive and upload identities is now retired. Xcode
+> Organizer is the sole distribution path, and its Xcode-managed number as
+> reported by App Store Connect is authoritative. See the
 > [Xcode export renumbering incident](docs/incidents/2026-07-xcode-export-build-number-rewrite.md).
 
 ---
@@ -700,9 +696,9 @@ cannot make it merge-blocking by itself; require that exact final check in the
 repository ruleset. See the
 [compiled iOS CI gate](docs/development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
 and
-[release checklist](docs/development-guides/14-ios-release-versioning.md#daily-development-and-ci).
-The stable single-writer design is recorded in the
-[iOS publisher architecture](docs/system-architecture/09-ios-release-publisher.md).
+[release checklist](docs/development-guides/14-ios-release-versioning.md#routine-testflight-upload).
+The authority boundary is recorded in the
+[Xcode release architecture](docs/system-architecture/09-ios-release-publisher.md).
 
 Configure the required app-facing client config in `Config.xcconfig` or ignored
 local overrides in `Config.local.xcconfig`. Public client values like
@@ -710,8 +706,8 @@ local overrides in `Config.local.xcconfig`. Public client values like
 `SUPABASE_ANON_KEY` build setting are used by the app at runtime; use a current
 `sb_publishable_...` value rather than a legacy anon JWT. True backend secrets
 like `GEMINI_API_KEY` must stay server-side only. Unsigned validation archives
-do not ship. The serialized TestFlight publisher requires the production
-RevenueCat iOS SDK key beginning with `appl_`.
+do not ship. Xcode Release archives require the production RevenueCat iOS SDK
+key beginning with `appl_`.
 
 ### Common Shortcuts
 
@@ -719,24 +715,20 @@ From the repo root:
 
 ```bash
 make xcodegen
-make plan-ios-beta LATEST_ASC_BUILD=275
 make validate-ios-versioning
+make test-ios-ci-tooling
 make db-push
 make functions-deploy
 ```
 
-Normal local builds never increment the app version or build. The plan command
-is read-only. For routine beta testing, manually dispatch the zero-input
-**TestFlight Beta** workflow on `main` after that exact SHA passes **iOS Build
-and Test**. It reserves the next build, archives once, validates the app and
-every embedded target, and uploads the exact IPA. Use **iOS TestFlight Publisher
-(Advanced)** only for planning, retaining a candidate without upload, uploading
-an existing candidate, or retrying a definitive failed upload. Both entry
-points use the same serialized build-number writer and retain
-source/archive/IPA identity evidence. See the
+Normal local builds never increment the app version or build. For routine beta
+testing, wait for exact-SHA **iOS Build and Test**, then use Xcode
+**Product → Archive** and Organizer **Distribute App → TestFlight & App Store →
+Upload**. Keep automatic signing and **Manage version and build number**
+enabled. Xcode and App Store Connect own the uploaded build number; promote the
+same processed build through TestFlight and App Review. See the
 [iOS publishing runbook](docs/development-guides/14-ios-release-versioning.md)
-for initial repository/Apple setup, exact workflow inputs, retries, promotion,
-and incident-safe recovery.
+for setup, upload, promotion, and incident-safe recovery.
 
 ### Release Notes & Changelog
 

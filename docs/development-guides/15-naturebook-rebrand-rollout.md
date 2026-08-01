@@ -140,21 +140,18 @@ claim that Universal Link without a native species router; the rollout accepts
 this compatibility window. Deploy the browser fallback first and verify the
 current signed app before enabling user-facing species sharing.
 
-After the publisher signs the production candidate, verify the associated-domain
-entitlement in the retained IPA rather than relying only on the source plist.
-Expand the already validated IPA into a dedicated temporary directory:
+After Xcode creates the production archive, verify the associated-domain
+entitlement in the archived app rather than relying only on the source plist.
+In Organizer, reveal the selected archive in Finder and inspect its app:
 
 ```bash
-RELEASE_IPA=/path/to/Naturebook.ipa
-ENTITLEMENT_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/naturebook-entitlements.XXXXXX")"
-ditto -x -k "$RELEASE_IPA" "$ENTITLEMENT_WORK_DIR"
+RELEASE_ARCHIVE=/path/to/Naturebook.xcarchive
 codesign -d --entitlements - \
-  "$ENTITLEMENT_WORK_DIR/Payload/Merian.app"
+  "$RELEASE_ARCHIVE/Products/Applications/Merian.app"
 ```
 
-Record only the reviewed entitlement values in release evidence, then discard
-the temporary expansion. Do not publish the provisioning profile or unrelated
-signed metadata.
+Record only the reviewed entitlement values in release evidence. Do not
+publish the provisioning profile or unrelated signed metadata.
 
 ## Phase 3: Mail and Support
 
@@ -268,19 +265,16 @@ new account.
    make validate-ios-versioning
    ```
 
-2. Wait for **iOS Build and Test** to pass on the exact intended SHA, then use
-   zero-input **TestFlight Beta** for the routine archive-and-upload flow
-   described in the [operator runbook](./14-ios-release-versioning.md). Confirm
+2. Wait for **iOS Build and Test** to pass on the exact intended SHA. Confirm
    both conditional macOS jobs ran; a scope-only success is not release
    evidence.
-3. Use **iOS TestFlight Publisher (Advanced)** only when the signed binary must
-   be retained before upload or an immutable upload needs recovery. Let the one
-   publisher core query App Store Connect, reserve the global build, and archive
-   exactly once.
-4. Download the retained artifact and verify `evidence.json`, the final IPA
-   SHA-256, the source SHA/fingerprint, the exact-SHA green run, the one-archive
-   identity, and the `ios-builds/<version>-<build>` annotated tag.
-5. Inspect compiled plists in the retained IPA:
+3. In Xcode use **Product → Archive**, then Organizer **Distribute App →
+   TestFlight & App Store → Upload** as described in the
+   [operator runbook](./14-ios-release-versioning.md). Keep automatic signing
+   and **Manage version and build number** enabled.
+4. Record the Organizer archive date, source SHA/fingerprint, and the final
+   version/build reported by App Store Connect.
+5. Inspect the compiled plists in the Organizer archive:
 
    - iOS display name: Naturebook
    - Watch display name: Naturebook
@@ -290,9 +284,9 @@ new account.
    - URL schemes: `naturebook` and `merian`
    - Main bundle ID: `app.merian.Merian`
 
-6. After upload, confirm App Store Connect shows the evidence-verified
-   version/build and that `ios-uploads/<version>-<build>` records the same IPA
-   hash and Transporter receipt-log hash.
+6. After upload, confirm App Store Connect shows the Organizer-managed
+   version/build. Retain the Xcode distribution log with the release record;
+   never record signing credentials or provisioning profiles.
 7. Complete physical-device update-continuity, purchase/restore, push, link,
    and scan-flow QA on that build. Promote the same processed binary through
    internal TestFlight, external TestFlight, and App Review; never rebuild for

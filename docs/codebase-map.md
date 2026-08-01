@@ -170,32 +170,22 @@ every iOS/watch/project build input, merge-queue commit, and manual request to
 pinned Xcode 26.6 jobs that execute the complete unit-test target, then the
 deterministic queued-scan completion UI smoke, and independently create an
 unsigned current-SHA Release archive without allocating a release build.
-Distribution is owned solely by the globally serialized publisher core in
-`.github/workflows/ios-testflight-publisher.yml` and
-`scripts/publish-ios-beta.sh`. Routine operators use the zero-input
-`.github/workflows/ios-testflight-beta.yml`; advanced operations dispatch the
-core directly. After proving the exact SHA passed the full iOS workflow, the
-publisher selects
-`max(App Store Connect latest, repository allocation baseline) + 1`, pushes a
-durable reservation, injects the build into one signed archive, and never edits
-the checkout. `scripts/check-ios-release-prep.sh`,
+Distribution is owned solely by Xcode Organizer after the exact SHA passes the
+full iOS workflow. Operators archive a clean `main` checkout with the Merian
+scheme, choose **TestFlight & App Store**, and leave automatic signing plus
+**Manage version and build number** enabled. Xcode and App Store Connect own
+the unique uploaded build number; GitHub has no Apple signing or upload
+credentials. `scripts/check-ios-release-prep.sh`,
 `scripts/ios-release-source-fingerprint.sh`, and
 `scripts/embed-ios-build-provenance.sh` require a clean exact revision and bind
-its fingerprint/state into the app. `scripts/validate-ios-archive.sh` verifies
-all shipped components and `scripts/hash-ios-archive.sh` records a content
-identity before export. The publisher-bound `scripts/export-ios-release.sh`
-requires an explicit archive, disables Xcode's automatic build-number
-management, proves the archive is unchanged, and calls
-`scripts/validate-ios-exported-ipa.sh`. That validator requires one
-non-symlinked IPA and one unambiguous root app, rechecks bundle, version/build,
-revision, fingerprint, and clean state after signing, requires the widget,
-Messages extension, and watch app to retain the same version/build, and reports
-the stable final IPA SHA-256. Annotated evidence and upload tags map the
-version/build to source SHA/fingerprint, archive identity, IPA hash, and upload
-receipt without rebuilding between TestFlight or App Review stages.
-The stable writer-authority and state-machine decision is documented in
-`docs/system-architecture/09-ios-release-publisher.md`; setup, dispatch,
-verification, retry, promotion, and emergency procedures live only in
+its fingerprint/state into the app. The tracked
+`CURRENT_PROJECT_VERSION` remains a synchronized archive baseline rather than a
+per-beta counter. CI verifies this boundary and produces only an unsigned
+validation archive. The processed App Store Connect build is then promoted
+without rebuilding between TestFlight and App Review stages. The authority
+decision is documented in
+`docs/system-architecture/09-ios-release-publisher.md`; setup, archive,
+verification, upload, promotion, and emergency procedures live only in
 `docs/development-guides/14-ios-release-versioning.md`.
 Fingerprinting rejects tracked
 `assume-unchanged` and `skip-worktree` index state so sparse or locally hidden
