@@ -333,10 +333,6 @@ struct SpeciesDictionaryOverviewView: View {
                     let showsRegionMapCard = regionCategory.map(shouldShowRegionMapCard(for:)) ?? false
                     if showsRegionMapCard || !visibleRegions.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Regions")
-                                .font(.headline)
-                                .padding(.horizontal, 2)
-
                             if let regionCategory, showsRegionMapCard {
                                 if regionCategory.count >= 1 {
                                     NavigationLink(value: route(for: regionCategory)) {
@@ -409,13 +405,6 @@ struct SpeciesDictionaryOverviewView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        SpeciesDictionarySkeletonBlock(
-                            width: 92,
-                            height: 20,
-                            cornerRadius: SpeciesDictionaryCornerRadius.skeletonText
-                        )
-                            .padding(.horizontal, 2)
-
                         SpeciesDictionaryMapSkeletonCard(width: availableWidth)
                         SpeciesDictionaryOverviewRowSkeleton()
                     }

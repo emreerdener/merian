@@ -96,7 +96,7 @@ test("legal and iOS surfaces share the mandatory scientific-retention contract",
 
   assert.ok(
     infoPlist.includes(
-      "the scientific observation record created when you submit a scan",
+      "Location improves identification accuracy and maps your observations. Your scans stay private unless you choose to share them publicly.",
     ),
   );
 });
