@@ -7,6 +7,10 @@ const migrationUrl = new URL(
   "../../migrations/20260724170709_harden_species_observation_stats.sql",
   import.meta.url,
 );
+const catalogTestUrl = new URL(
+  "../../tests/species_observation_stats_security.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -52,6 +56,26 @@ Deno.test("species stats request and cold-population limits are atomic", async (
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("species stats rate-limit catalog follows wall-clock buckets", async () => {
+  const sql = await Deno.readTextFile(catalogTestUrl);
+  const wallClockBuckets = sql.match(
+    /DATE_PART\s*\(\s*'epoch'\s*,\s*pg_catalog\.CLOCK_TIMESTAMP\(\)\s*\)\s*\/\s*60/g,
+  );
+
+  assert(
+    wallClockBuckets?.length === 2,
+    "User and IP fixtures must use the RPCs' wall clock instead of transaction-scoped NOW().",
+  );
+  assert(
+    !/UPDATE\s+internal\.species_observation_stats_rate_counters/i.test(sql),
+    "Rate-limit fixtures must upsert because an earlier call may belong to the preceding minute.",
+  );
+  assertStringIncludes(
+    normalized(sql),
+    "ON CONFLICT (scope_type, scope_key, bucket, window_start) DO UPDATE",
+  );
 });
 
 Deno.test("species stats population is dictionary-bound, distributed, and fenced", async () => {

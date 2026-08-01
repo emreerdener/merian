@@ -430,17 +430,40 @@ BEGIN
         RAISE EXCEPTION 'exact provider miss did not receive its negative TTL';
     END IF;
 
+    -- The RPC buckets against wall-clock time. This transaction can span a
+    -- minute boundary, so seed the same wall-clock bucket and create it when
+    -- the earlier authorization happened in the preceding bucket.
     rate_window_start := pg_catalog.TO_TIMESTAMP(
         pg_catalog.FLOOR(
-            pg_catalog.DATE_PART('epoch', pg_catalog.NOW()) / 60
+            pg_catalog.DATE_PART(
+                'epoch',
+                pg_catalog.CLOCK_TIMESTAMP()
+            ) / 60
         ) * 60
     );
-    UPDATE internal.species_observation_stats_rate_counters AS counters
-    SET request_count = 60
-    WHERE counters.scope_type = 'request_user'
-      AND counters.scope_key = test_user_id::TEXT
-      AND counters.bucket = 'species_stats_request'
-      AND counters.window_start = rate_window_start;
+    INSERT INTO internal.species_observation_stats_rate_counters (
+        scope_type,
+        scope_key,
+        bucket,
+        window_start,
+        window_seconds,
+        request_count,
+        updated_at
+    )
+    VALUES (
+        'request_user',
+        test_user_id::TEXT,
+        'species_stats_request',
+        rate_window_start,
+        60,
+        60,
+        pg_catalog.CLOCK_TIMESTAMP()
+    )
+    ON CONFLICT (scope_type, scope_key, bucket, window_start)
+    DO UPDATE
+    SET window_seconds = EXCLUDED.window_seconds,
+        request_count = EXCLUDED.request_count,
+        updated_at = EXCLUDED.updated_at;
 
     BEGIN
         PERFORM public.authorize_species_observation_stats_request(
@@ -457,12 +480,37 @@ BEGIN
             END IF;
     END;
 
-    UPDATE internal.species_observation_stats_rate_counters AS counters
-    SET request_count = 120
-    WHERE counters.scope_type = 'request_ip'
-      AND counters.scope_key = pg_catalog.REPEAT('a', 64)
-      AND counters.bucket = 'species_stats_request'
-      AND counters.window_start = rate_window_start;
+    rate_window_start := pg_catalog.TO_TIMESTAMP(
+        pg_catalog.FLOOR(
+            pg_catalog.DATE_PART(
+                'epoch',
+                pg_catalog.CLOCK_TIMESTAMP()
+            ) / 60
+        ) * 60
+    );
+    INSERT INTO internal.species_observation_stats_rate_counters (
+        scope_type,
+        scope_key,
+        bucket,
+        window_start,
+        window_seconds,
+        request_count,
+        updated_at
+    )
+    VALUES (
+        'request_ip',
+        pg_catalog.REPEAT('a', 64),
+        'species_stats_request',
+        rate_window_start,
+        60,
+        120,
+        pg_catalog.CLOCK_TIMESTAMP()
+    )
+    ON CONFLICT (scope_type, scope_key, bucket, window_start)
+    DO UPDATE
+    SET window_seconds = EXCLUDED.window_seconds,
+        request_count = EXCLUDED.request_count,
+        updated_at = EXCLUDED.updated_at;
 
     BEGIN
         PERFORM public.preflight_species_observation_stats_request(
