@@ -3203,13 +3203,39 @@ declaring the release healthy.
 
 ## Ghost Account Merge Security Rollout
 
-Migration `20260723043447_secure_atomic_ghost_profile_merge.sql`,
+Migrations `20260723043447_secure_atomic_ghost_profile_merge.sql` and
+`20260801210102_make_ghost_merge_schema_aware.sql`,
 `merge-ghost-profile`, `reconcile-ghost-profile-merges`, and the proof-capable
 iOS client form one security contract. The legacy client switches away from the
 guest session before it can prove source consent, so the backend must never
 accept its arbitrary source UUID payload.
 
+### Release hold
+
+Do not run the production commands in this section until all four requirements
+below have implementation and test evidence in the same exact SHA:
+
+- [ ] Merge completion creates or refreshes an immediately due destination
+  RevenueCat reconciliation row even when no source queue row exists.
+- [ ] `public.apply_revenuecat_reconciliation(...)` locks the user before the
+  queue row and revalidates the claim under lock, matching the merge's
+  parent-before-child order.
+- [ ] The Community activity handler uses update/delete for actor collisions and
+  leaves non-colliding rows for policy reparenting; it does not insert a target
+  actor after taking actor locks.
+- [ ] `user_species_scan_count_underflow` maps to the same HTTP 503
+  `merge_temporarily_unavailable` guest-data-unchanged response as
+  `ghost_merge_species_ledger_mismatch`.
+
+The 2026-08-01 review did not clear this hold. Static migration validation and
+Edge unit/type/format/lint checks passed, but release-equivalent migration replay
+and pgTAP were not run because the available Supabase CLI was `2.101.0`, not the
+repository's exact reviewed `2.109.1`. No production deployment is authorized
+by that partial evidence.
+
 ### Compatibility order
+
+After the release hold is cleared:
 
 1. Release the proof-capable iOS build first. Against the old backend its
    `prepare` request fails before the app switches sessions, preserving guest
@@ -3217,11 +3243,17 @@ accept its arbitrary source UUID payload.
 2. Wait for the required adoption threshold or enforce the existing minimum-app
    version on the OAuth-conflict path. Do not let an old build attempt an
    existing-account conflict after the secure endpoint is live.
-3. Deploy both new Edge Functions. Before the migration, `prepare` safely fails
-   because its RPC is absent.
-4. Apply the migration immediately afterward. This activates the RPCs, revokes
-   the legacy helper from client roles, and installs the five-minute cleanup
-   schedule.
+3. Deploy both Edge Functions from the reviewed SHA. For an initial secure
+   rollout, `prepare` still fails safely until its RPC exists. For an existing
+   installation, deploy the backwards-compatible expanded Edge error mapper
+   before the pending database revisions; the secure baseline can already emit
+   the ledger-underflow diagnostic seen in this incident.
+4. Apply every pending merge migration immediately afterward, including the
+   corrective forward migration required by the release hold. The original
+   secure migration activates the RPCs, revokes the legacy helper from client
+   roles, and installs the five-minute cleanup schedule; the schema-aware and
+   corrective migrations tighten its execution semantics without restoring a
+   client-nominated UUID path.
 5. Smoke-test both the normal direct-link path and the existing-account conflict
    path before lifting the release gate.
 
@@ -3246,6 +3278,7 @@ verify_jwt = false
 Run from the repository root:
 
 ```bash
+bash services/supabase/scripts/require_supabase_cli_version.sh
 make validate-supabase-migrations
 
 deno fmt --check \
@@ -3268,23 +3301,55 @@ deno test \
   services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
 
 supabase --workdir services db reset
-supabase --workdir services test db --local \
-  services/supabase/tests/ghost_profile_merge_security.sql
+make test-supabase-privileged-routines
 supabase --workdir services db lint --local --schema public,internal
 supabase --workdir services db advisors --local --type security
 supabase --workdir services db advisors --local --type performance
 ```
 
-The pgTAP case must prove the attacker/provider mismatch is rejected, the same
-destination replay is idempotent, every source reference is reparented, AI usage
-stays append-only and attributed, client roles lack cleanup grants, and a
-service-role cleanup claim can be finalized. It must also prove a live bulk
-empty-ghost cleanup reservation blocks handoff issuance. After this migration,
-the current audit script must see protected handoff sources and the current
-cleanup script must reserve each candidate; do not execute an older script
-against production.
+The exact-version script must succeed before `db reset`; a replay under another
+CLI is not release evidence. `make test-supabase-privileged-routines` runs every
+checked-in catalog test after the clean replay. A direct focused invocation of
+`ghost_profile_merge_security.sql`, or the static Deno migration contract alone,
+does not replace that full gate.
 
-Before production:
+### Required proof matrix
+
+| Gate | Required automated proof | Required staging proof |
+| --- | --- | --- |
+| Destination RevenueCat repair | Start with no source queue row and an absent, leased, or delayed target row. Completion must upsert one target row with the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields. | Complete a disposable conflict merge with the source queue absent; claim the target through the normal reconciler and confirm it queries the permanent RevenueCat App User ID. |
+| RevenueCat lock order | A static migration contract pins user-lock before queue-lock and claim revalidation. The database fixture proves a claim invalidated by merge cannot write entitlement or watermark state. | Run merge completion and reconciliation apply concurrently in two sessions. Neither may deadlock; a displaced claim must fail closed and the newly due target row must remain claimable. |
+| Community actor lock order | Fixtures cover both a colliding actor group and a non-colliding source group. Counts/timestamps coalesce exactly once, non-colliding rows reparent, and the handler definition contains no actor insert/upsert path. | Run a normal activity append concurrently with completion for a shared group. Neither session may deadlock, duplicate the actor, or lose a suggestion count. |
+| Ledger error response | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction proves failure leaves both profiles and ownership unchanged. | Introduce controlled ledger drift only in disposable staging, attempt completion, and confirm the proof remains queued while source data remains owned by the guest. |
+
+After reset, run the owner-only topology assertion explicitly:
+
+```sql
+SELECT internal.assert_ghost_profile_merge_reference_policy_coverage();
+```
+
+Any `ghost_merge_unclassified_reference`, `ghost_merge_stale_reference_policy`,
+`ghost_merge_schema_requires_composite_fk_policy`, or
+`ghost_merge_blocked_reference` result is a release blocker. Update the reviewed
+policy and any required conflict handler in a new forward migration. Never label
+a relation `reparent` merely to make the assertion pass; first establish whether
+it is canonical ownership, derived state, immutable attribution, or a
+conflict-prone projection.
+
+The pgTAP case must prove the attacker/provider mismatch is rejected, the same
+destination replay is idempotent, every transferable source reference is
+exhausted, AI usage stays append-only and attributed, client roles lack cleanup
+grants, and a service-role cleanup claim can be finalized. It must also prove a
+live bulk
+empty-ghost cleanup reservation blocks handoff issuance, an unclassified user FK
+stops the merge without profile mutation, and duplicate/overlapping species
+produce exact source-free ledger state and the correct target distinct-species
+total. After this migration, the current audit script must see protected handoff
+sources and the current cleanup script must reserve each candidate; do not
+execute an older script against production.
+
+Only after the release hold, full local gate, and staging proof matrix are all
+green for the same exact SHA, run:
 
 ```bash
 supabase --workdir services db push --linked --dry-run
@@ -3312,6 +3377,17 @@ Use disposable staging identities and no real user data:
 - The bound destination completes once, receives HTTP 200, owns scans,
   collections, Explore/Field trip/social rows and AI attribution, and a replay
   reports `already_merged = true`.
+- When both accounts contain scans of the same species, the destination's
+  `total_species_discovered` remains the exact distinct count, its private ledger
+  contains the combined scan counts, and no source ledger row survives.
+- With the source RevenueCat queue deliberately absent, completion creates or
+  refreshes one immediately due, unclaimed target queue row whose lookup is the
+  permanent UUID. The normal reconciler can claim and finish it.
+- A Community activity group containing both actors coalesces counts/timestamps
+  once; a source-only group reparents without creating a duplicate actor.
+- Controlled scan-ledger drift returns 503
+  `merge_temporarily_unavailable`, states that guest data is unchanged, leaves
+  both profiles and ownership intact, and retains the Keychain proof.
 - A transient 503 keeps the iOS Keychain queue item. A terminal 404/410 removes
   only that item; another queued handoff survives.
 - The source public profile disappears in the merge transaction. The source Auth
@@ -3345,12 +3421,32 @@ ORDER BY merged_at;
 SELECT jobname, schedule, active
 FROM cron.job
 WHERE jobname = 'reconcile_ghost_profile_merges_every_five_minutes';
+
+SELECT
+  handoff.id,
+  handoff.target_user_id,
+  queue.lookup_app_user_id,
+  queue.next_reconcile_at,
+  queue.claim_token,
+  queue.last_error_code
+FROM internal.ghost_profile_merge_handoffs AS handoff
+LEFT JOIN internal.revenuecat_reconciliation_queue AS queue
+  ON queue.merian_user_id = handoff.target_user_id
+WHERE handoff.status = 'merged'
+  AND handoff.merged_at >= pg_catalog.NOW() - INTERVAL '24 hours'
+  AND (
+    queue.merian_user_id IS NULL
+    OR queue.lookup_app_user_id IS DISTINCT FROM handoff.target_user_id::TEXT
+  )
+ORDER BY handoff.merged_at;
 ```
 
 Alert when a merged receipt remains without `auth_deleted_at` for more than 20
 minutes, when cleanup attempts continue increasing, or when Edge logs repeatedly
 emit `ghost_profile_merge_auth_cleanup_pending`,
 `ghost_profile_merge_reconciliation_failed`, or `merge_temporarily_unavailable`.
+Also alert on any row returned by the destination-queue audit above; do not wait
+for a webhook to repair a missing or misdirected target queue.
 Investigate the Auth Admin API and database error before manually retrying the
 worker. Do not edit `secret_hash`, `target_user_id`, or receipt status by hand.
 

@@ -8,6 +8,14 @@ obsolete anonymous `auth.users` row. If the request is interrupted, the Auth
 Admin API is temporarily unavailable, or the client never opens again, the
 database receipt remains authoritative and this worker completes the cleanup.
 
+## Scope boundary
+
+This worker repairs only post-commit deletion of the obsolete anonymous Auth
+user. It does not reconcile subscriptions and never reads or writes
+`internal.revenuecat_reconciliation_queue`. A profile merge must independently
+create or refresh an immediately due queue row for the permanent destination;
+successful Auth cleanup is not evidence that RevenueCat state has recovered.
+
 ## Authorization
 
 The function is not a user API. Its `config.toml` entry deliberately uses
@@ -58,15 +66,16 @@ successful HTTP response can still contain retryable row failures; inspect
 ## Verification
 
 ```bash
+bash services/supabase/scripts/require_supabase_cli_version.sh
 deno check \
   --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
   services/supabase/functions/reconcile-ghost-profile-merges/index.ts
 deno test \
   --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
   services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
-supabase --workdir services test db --local \
-  services/supabase/tests/ghost_profile_merge_security.sql
+supabase --workdir services db reset
+make test-supabase-privileged-routines
 ```
 
-Operational SQL and rollout/rollback steps are in
-`docs/backend-and-data/06-supabase-deployment-runbook.md`.
+Operational SQL and rollout/rollback steps are in the
+[Supabase deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).

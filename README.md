@@ -568,7 +568,10 @@ expire, or the deletion backlog breaches its SLA. See the
   `linkIdentityWithIdToken`; existing-account conflicts use a provider-bound,
   one-use `/merge-ghost-profile` handoff, an atomic database merge, and durable
   Auth cleanup. Pending proofs survive restarts in a device-only Keychain queue
-  for the 30-day recovery window.
+  for the 30-day recovery window. The pending schema-aware hardening adds
+  policy-reviewed ownership and durable provider-state repair and remains gated
+  by the
+  [Supabase deployment runbook](docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 - RevenueCat webhook verifies a timestamped raw-body HMAC, reconciles
   authoritative subscriber state, and applies idempotent, monotonically ordered
   `free` ↔ `pro` transitions. Transfers reconcile source and destination in one

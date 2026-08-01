@@ -2471,12 +2471,59 @@ After provider sign-in, the permanent destination calls `operation = complete`.
 2. locks the handoff and source/destination Auth and public-user rows;
 3. proves the source is still anonymous and the destination owns the exact
    provider subject selected by the source;
-4. resolves known uniqueness conflicts, reparents every supported user foreign
-   key, preserves customized guest identity, and deletes the Ghost public row in
-   one transaction;
-5. fails closed if schema drift introduces an unsupported composite user foreign
-   key or leaves a source reference behind; and
-6. records an idempotent merge receipt.
+4. verifies every eligible user foreign key has an explicit source-controlled
+   merge policy before the first mutating helper runs;
+5. resolves known uniqueness conflicts, executes only reviewed ownership moves,
+   preserves customized guest identity, and deletes the Ghost public row in one
+   transaction;
+6. moves scans first so their statement trigger owns species-ledger deltas, then
+   checks the exact ledger against scans for both users;
+7. fails closed on missing/stale/blocked policy, unsupported composite topology,
+   immutable source attribution, or a source reference left behind; and
+8. records an idempotent merge receipt.
+
+The private `internal.ghost_profile_merge_reference_policies` manifest separates
+referential integrity from merge semantics. Catalog inspection verifies complete
+coverage and resolves only reviewed relations; it no longer treats every newly
+discovered foreign key as transferable ownership. Audit, administrator,
+session, and moderator attribution is preserved rather than rewritten. Explicit
+handlers coalesce Community Identify activity actors and normalize RevenueCat
+state before conflict-prone references move. Any migration that changes eligible
+user-FK topology must update the manifest in the same forward change.
+
+### Release-blocking concurrency and repair invariants
+
+The schema-aware migration establishes the policy manifest, scan-first ordering,
+and fail-closed ledger check. The existing-account conflict fallback remains on
+release hold until a forward migration and the Edge Function also satisfy all of
+these invariants:
+
+- Every operation that can touch merge-sensitive RevenueCat state locks the
+  corresponding `public.users` row before the reconciliation queue row. The
+  merge already holds the source/destination users before child state, so
+  `public.apply_revenuecat_reconciliation(...)` must use the same user-first
+  order and revalidate its lease after acquiring the queue lock. A lost lease
+  fails closed without applying stale entitlement state.
+- Completion unconditionally inserts or updates the destination's
+  `internal.revenuecat_reconciliation_queue` row, sets
+  `lookup_app_user_id = target_user_id::text`, makes it due immediately, and
+  clears attempt, claim, and error state. This repair cannot depend on a source
+  queue row: anonymous sources may have none, and the queue is the durable
+  recovery path for a completely missed provider webhook.
+- The Community activity handler coalesces only groups that already contain
+  both a source and destination actor. It updates the destination collision and
+  deletes the redundant source collision; non-colliding source rows remain for
+  the reviewed generic reparent pass. It must not insert destination actor rows
+  while holding actor locks, because normal activity writers lock the activity
+  group before its actor and the inverse order can deadlock.
+- Both `ghost_merge_species_ledger_mismatch` and
+  `user_species_scan_count_underflow` map to HTTP 503
+  `merge_temporarily_unavailable` with the guest-data-unchanged message. The
+  transaction has already rolled back in either case; exposing an unexpected
+  500 would give the client the wrong operational classification.
+
+The exact proof required to clear this hold is in the
+[Ghost Account Merge Security Rollout](./06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 Only after that database transaction commits does the Edge Function delete the
 anonymous Auth user. Failed Auth cleanup returns a retryable response; repeating

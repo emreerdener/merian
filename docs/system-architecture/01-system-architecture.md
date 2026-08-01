@@ -210,8 +210,10 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/enrich-scan`: On-demand background enrichment for historical "Free" tier
     scans upgrading to Pro insight depths.
   - `/merge-ghost-profile`: Handles existing-account OAuth conflicts with a
-    source-issued, provider-bound proof, atomic Ghost-to-account data merge, and
-    an idempotent cleanup receipt.
+    source-issued, provider-bound proof, an atomic Ghost-to-account data merge,
+    and an idempotent cleanup receipt. The pending schema-aware expansion adds
+    manifest-reviewed ownership and durable provider repair behind the rollout
+    gate.
   - `/reconcile-ghost-profile-merges`: Five-minute service-role worker that
     leases incomplete receipts and deletes obsolete anonymous Auth shells.
 - **Export & Storage Orchestration**

@@ -227,7 +227,16 @@ export function mapDatabaseError(
 
   if (
     normalized.includes("ghost_merge_schema_") ||
-    normalized.includes("ghost_merge_unhandled_reference")
+    normalized.includes("ghost_merge_unhandled_reference") ||
+    normalized.includes("ghost_merge_unclassified_reference") ||
+    normalized.includes("ghost_merge_stale_reference_policy") ||
+    normalized.includes("ghost_merge_blocked_reference") ||
+    normalized.includes("ghost_merge_preserved_reference_present") ||
+    normalized.includes("ghost_merge_invalid_source_profile_policy") ||
+    normalized.includes("ghost_merge_invalid_scan_species_policy") ||
+    normalized.includes("ghost_merge_unknown_policy_handler") ||
+    normalized.includes("ghost_merge_orchestrator_") ||
+    normalized.includes("ghost_merge_species_ledger_mismatch")
   ) {
     return new GhostMergeDatabaseError(
       "merge_temporarily_unavailable",

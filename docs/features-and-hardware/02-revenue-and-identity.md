@@ -72,11 +72,24 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     foreground-accessible, device-only Keychain queue. The proof remains valid
     for 30 days. After sign-in, only the permanent account that owns that
     provider identity can consume it. PostgreSQL locks both users, resolves
-    uniqueness conflicts, and re-parents all supported ownership in one
-    transaction; only then does the Edge Function delete the obsolete anonymous
-    Auth shell. The client retains transient failures for idempotent retries,
-    and a five-minute service-role worker finishes Auth cleanup if the client
-    never returns.
+    uniqueness conflicts, and transfers ownership in one transaction; only then
+    does the Edge Function delete the obsolete anonymous Auth shell. The pending
+    schema-aware contract must execute only source-controlled ownership policies
+    within that transaction. The client retains transient failures for
+    idempotent retries, and a five-minute service-role worker finishes Auth
+    cleanup if the client never returns.
+  - For this conflict fallback, client-side `Purchases.logIn` and provider
+    webhooks are acceleration paths, not recovery authority. Merge completion
+    must independently upsert an immediately due RevenueCat reconciliation row
+    for the permanent UUID even when the anonymous source had no queue row.
+    RevenueCat reconciliation and merge both lock the public user before the
+    queue row, and reconciliation revalidates its lease under lock before
+    applying entitlement state.
+  - The schema-aware conflict fallback remains release-gated until that durable
+    queue behavior, RevenueCat and Community lock ordering, both scan-ledger
+    error mappings, exact-version catalog replay, and staging concurrency probes
+    satisfy the
+    [Ghost merge rollout matrix](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
   - Once the `session.user` is generated, `SupabaseManager` pipes the raw
     identity payload into `linkExternalTelemetry(user:)`. This extracts GoTrue
     metadata (`email`, `full_name`, `avatar_url`), performs a best-effort read of

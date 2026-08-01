@@ -1844,6 +1844,38 @@ deno test --frozen --config supabase/functions/deno.json \
   supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
 ```
 
+Before release, Ghost-profile merge evidence must cover four complementary
+layers:
+
+- `_tests/ghostProfileMergeMigrationContract.test.ts` must statically lock the
+  source-controlled policy manifest, pre-mutation topology assertion,
+  scan-first/derived-ledger order, guarded orchestrator rewrite, private helper
+  ACLs, user-before-RevenueCat-queue order, Community collision-only
+  update/delete behavior, and absence of an actor insert/upsert path.
+- `_tests/mergeGhostProfile.test.ts` exercises the real Edge error mapper. It
+  must map both `ghost_merge_species_ledger_mismatch` and
+  `user_species_scan_count_underflow` to HTTP 503
+  `merge_temporarily_unavailable` with the guest-data-unchanged message, while
+  retaining terminal versus retryable Keychain semantics.
+- `tests/ghost_profile_merge_security.sql` must execute provider authorization,
+  replay, topology drift, collision handling, destination-only RevenueCat queue
+  repair, exact species-ledger transfer, immutable attribution, and rollback
+  behavior against the fully migrated disposable catalog. It must include both
+  colliding and non-colliding Community actor groups and a merge-invalidated
+  RevenueCat claim that cannot apply stale state.
+- Two-session staging probes must run merge versus RevenueCat reconciliation and
+  merge versus a normal Community activity append. Neither pairing may
+  deadlock, lose counts, apply a displaced claim, or leave the destination
+  provider queue absent or unclaimable.
+
+Run `bash services/supabase/scripts/require_supabase_cli_version.sh`, then a
+clean `supabase --workdir services db reset`, then
+`make test-supabase-privileged-routines`. Only Supabase CLI `2.109.1` produces
+release-equivalent database evidence. Static/unit checks or a direct focused SQL
+file do not clear the deployment hold. The complete fixture and staging matrix
+is in the
+[Ghost Account Merge Security Rollout](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
+
 Durable account deletion has eleven complementary checks:
 
 - `apps/web/lib/scientificRetentionContract.test.ts` keeps the public Terms,
@@ -1900,9 +1932,10 @@ Durable account deletion has eleven complementary checks:
 - `safe-delete/storageWorker_test.ts` proves one bounded page per claim, delete
   concurrency behavior, empty-prefix advancement, delayed verification,
   idempotent 404 deletion, retry persistence, and claim-token propagation.
-- `tests/ghost_profile_merge_security.sql` runs in the same disposable-catalog
-  gate and proves the restrictive profile/Auth identity key is skipped only for
-  the source profile row while all real Ghost-owned references are reparented.
+- The ghost-merge catalog fixture above also proves the restrictive profile/Auth
+  identity key is skipped only for the source profile row. This is the shared
+  identity-lifecycle boundary needed by account deletion; its broader merge
+  assertions remain part of the separate Ghost release gate.
 - `MerianNetworkClientTests.testSafeDeleteAccountEndpoint` returns
   `202 Accepted` from the mock route and proves the shared authenticated request
   boundary recognizes durable acceptance as a successful 2xx response.

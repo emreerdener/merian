@@ -6256,15 +6256,26 @@ Successful response: HTTP 201.
 ```
 
 The permanent destination is derived from the completion JWT and never from a
-request UUID. In one database transaction, the RPC:
+request UUID. For the pending schema-aware hardening, the completed
+single-transaction RPC contract is:
 
 1. verifies the source remains anonymous and the destination owns the prepared
    provider subject;
 2. serializes concurrent attempts by source and locks both users;
-3. resolves known relationship/progress uniqueness conflicts;
-4. reparents all supported `public.users` and external `auth.users` foreign keys
-   and refuses unknown composite ownership; and
-5. records an idempotent receipt before commit.
+3. verifies the source-controlled policy covers every eligible user foreign key
+   before the first mutating helper;
+4. resolves reviewed uniqueness conflicts, moves scans before other ownership,
+   and verifies the exact per-species ledger for both users;
+5. executes only reviewed reparent/derived/preserve/delete semantics, including
+   conflict-safe Community actor handling and durable destination RevenueCat
+   repair, while refusing stale, blocked, or composite topology; and
+6. records an idempotent receipt before commit.
+
+The current draft implements the policy/topology and scan-ledger parts of that
+contract. Its Community lock order and unconditional destination RevenueCat
+repair remain release blockers; step 5 is not complete until the rollout
+[runbook's proof matrix](./06-supabase-deployment-runbook.md#required-proof-matrix)
+passes.
 
 The Edge Function deletes the anonymous Auth user only after commit. A cleanup
 failure returns a retryable `503`; replay by the same destination is safe. The
@@ -6303,8 +6314,16 @@ Error bodies use `{ "code": "...", "error": "..." }`.
 | 409  | `source_already_merged` / `merge_conflict` | Source already upgraded or conflicting concurrent state                  | Refresh state; do not create an unproved fallback  |
 | 410  | `handoff_expired`                          | 30-day recovery window elapsed                                           | Remove that queued proof                           |
 | 503  | `auth_cleanup_pending`                     | Data merge committed; Auth deletion still pending                        | Retain and retry safely                            |
-| 503  | `merge_temporarily_unavailable`            | Timeout, deadlock, serialization/lock failure, or guarded schema drift   | Retain and retry; alert operations on repetition   |
+| 503  | `merge_temporarily_unavailable`            | Timeout, deadlock, serialization/lock failure, guarded schema drift, or scan-ledger invariant failure | Retain and retry; guest data is unchanged; alert operations on repetition |
 | 500  | `merge_failed`                             | Unexpected server failure                                                | Retain and retry; investigate logs                 |
+
+`ghost_merge_species_ledger_mismatch` and
+`user_species_scan_count_underflow` are internal database diagnostics, not
+public response codes. Both must map to HTTP 503
+`merge_temporarily_unavailable` and the message “Account upgrade is temporarily
+unavailable. Your guest data is unchanged.” This mapping is a release gate: the
+current schema-aware hardening must not be deployed until the Edge mapper and
+its unit test cover both diagnostics.
 
 `{"operation":"refresh_identity"}` is the separate permanent-session operation
 for refreshing public provider identity when no merge is required. It returns

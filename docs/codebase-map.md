@@ -534,8 +534,9 @@ Data lifecycle, identity, and exports:
 
 - `sync-collections`
 - `merge-ghost-profile` — uses a source-issued, provider-bound proof to
-  atomically re-parent every supported guest-owned record before purging the
-  anonymous Auth shell.
+  atomically merge guest data before purging the anonymous Auth shell. Its
+  pending schema-aware hardening must execute source-controlled ownership
+  policies, verify derived scan state, and schedule permanent provider repair.
 - `reconcile-ghost-profile-merges` — scheduled service-role worker that leases
   committed merge receipts and retries obsolete anonymous Auth deletion.
 - `safe-delete` — authenticated intake plus immediate processing for the durable

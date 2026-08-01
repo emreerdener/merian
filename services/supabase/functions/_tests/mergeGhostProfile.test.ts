@@ -3,6 +3,7 @@ import {
   assertEquals,
   assertMatch,
   assertNotEquals,
+  assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   generateHandoffSecret,
@@ -208,5 +209,46 @@ Deno.test("ghost merge database errors expose retryable transaction failures as 
     assert(mapped instanceof GhostMergeDatabaseError);
     assertEquals(mapped.code, "merge_temporarily_unavailable");
     assertEquals(mapped.status, 503);
+  }
+});
+
+Deno.test("ghost merge database errors expose guarded schema drift as 503", () => {
+  for (
+    const message of [
+      "ghost_merge_schema_requires_composite_fk_policy",
+      "ghost_merge_unhandled_reference",
+      "ghost_merge_unclassified_reference",
+      "ghost_merge_stale_reference_policy",
+      "ghost_merge_blocked_reference",
+      "ghost_merge_preserved_reference_present",
+      "ghost_merge_invalid_source_profile_policy",
+      "ghost_merge_invalid_scan_species_policy",
+      "ghost_merge_unknown_policy_handler",
+      "ghost_merge_orchestrator_source_drift",
+      "ghost_merge_species_ledger_mismatch",
+    ]
+  ) {
+    const mapped = mapDatabaseError(
+      {
+        code: "55000",
+        message,
+        details: "",
+        hint: "",
+        name: "PostgrestError",
+        toJSON: () => ({
+          name: "PostgrestError",
+          code: "55000",
+          message,
+          details: "",
+          hint: "",
+        }),
+      },
+      "fallback",
+    );
+
+    assert(mapped instanceof GhostMergeDatabaseError);
+    assertEquals(mapped.code, "merge_temporarily_unavailable");
+    assertEquals(mapped.status, 503);
+    assertStringIncludes(mapped.message, "guest data is unchanged");
   }
 });

@@ -123,6 +123,54 @@ test that forces its deferred check must use
 `SET CONSTRAINTS internal.user_species_scan_counts_species_id_fkey IMMEDIATE`;
 an unqualified name is not visible when `internal` is absent from `search_path`.
 
+### Ghost-profile merge reference policy
+
+Migration `20260801210102_make_ghost_merge_schema_aware.sql` adds the private
+`internal.ghost_profile_merge_reference_policies` manifest. Each current
+single-column foreign key to `public.users` or each non-Auth-internal foreign key
+to `auth.users` is assigned reviewed merge semantics: direct `reparent`,
+`handler_then_reparent`, source-owned `derived`, immutable `preserve`, the sole
+source-profile `delete_source`, or fail-closed `blocked`. The manifest is not an
+API or a dynamic handler registry: RLS is enabled, all API-role table access is
+revoked, and `handler_key` is documentation checked against a fixed allowlist.
+
+Runtime catalog discovery now verifies and resolves reviewed objects; it never
+decides that an arbitrary foreign key represents transferable ownership. A
+missing or stale policy, an unsupported composite reference, a blocked policy,
+or any source row attached to immutable administrative/audit/moderator
+attribution aborts before the first merge helper mutates data. A migration that
+adds, removes, or retargets an eligible user foreign key must update this
+manifest in the same forward change.
+
+`public.scans.user_id` has execution order 100 and moves before ordinary owned
+rows. Its statement trigger is the sole owner of corresponding OLD/NEW deltas in
+`internal.user_species_scan_counts`; that derived relation is never reparented
+directly. Before source deletion, a bounded invariant compares exact per-species
+scan aggregates with ledger rows for both users.
+
+The migration is not production-ready merely because policy coverage passes.
+The completed handler contract must also provide these table-level guarantees:
+
+- `internal.revenuecat_reconciliation_queue` always has a destination row after
+  a merge, even when the anonymous source had no row. The destination lookup is
+  its permanent UUID, `next_reconcile_at` is no later than the transaction time,
+  and attempt, lease, and error fields are reset. Provider recovery therefore
+  does not depend on a source queue row or on receiving a webhook.
+- RevenueCat reconciliation locks `public.users` before its queue row, matching
+  the merge's parent-before-child order. The queue lease is checked again under
+  lock before any entitlement or watermark write.
+- `internal.community_identification_activity_actors` collisions are combined
+  with update/delete only. Non-colliding source rows are left for the manifest's
+  reparent operation; the handler does not insert a target actor after locking
+  actors and thereby invert the activity-group-before-actor order used by normal
+  writers.
+
+These are release-blocking requirements for the pending schema-aware change,
+not guarantees supplied by the current migration draft. They must be added in a
+new forward migration and proven through the
+[deployment runbook](./06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout)
+before production deployment.
+
 ### `users`
 
 Tracks the global state of the anonymous/authenticated user.
@@ -1923,7 +1971,7 @@ a pre-reparent scan fence in the current catalog definition of
 `prepare_scan_ingestions_for_identity_merge(source, target)` visits unfinished
 source generations deterministically, retires ambiguous source staging, refunds
 only an unused reservation, preserves committed provider usage as failed, and
-records `identity_merge_interrupted` before generic ownership reparenting can
+records `identity_merge_interrupted` before policy-driven ownership transfer can
 delete the source profile. The migration aborts if it cannot install that call
 at the exact expected catalog marker.
 
@@ -3727,12 +3775,15 @@ The public-schema RPC names are Data API entrypoints, not public permissions:
   paths, and revoke `PUBLIC` execution.
 
 `internal.perform_ghost_profile_merge` resolves known unique-key conflicts,
-reparents supported single-column foreign keys, verifies no source reference
-remains, preserves customized public identity, and deletes the source
-`public.users` row in one transaction. Unsupported composite ownership or schema
-drift fails closed. The obsolete anonymous `auth.users` row is deleted only
-after commit by Edge Auth Admin, with the scheduled reconciliation worker as
-durable recovery.
+executes only manifest-reviewed ownership moves, verifies no transferable source
+reference remains, preserves customized public identity, and deletes the source
+`public.users` row in one transaction. Unsupported composite ownership, stale
+policy, or schema drift fails closed. The handler-level lock and destination
+repair invariants in the
+[Ghost-profile merge reference policy](#ghost-profile-merge-reference-policy)
+are part of the same release contract. The obsolete anonymous `auth.users` row
+is deleted only after commit by Edge Auth Admin, with the scheduled
+reconciliation worker as durable recovery.
 
 `internal.ghost_user_cleanup_reservations` is the companion safety boundary for
 the manual old-empty-ghost cleanup script. A service-role RPC creates a

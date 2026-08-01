@@ -25,6 +25,17 @@ TestFlight, App Store, support, and QA.
   the existing original-photo-unavailable state after any audio, description,
   and reference pages.
 
+### Account Upgrade Reliability
+
+- The pending anonymous-to-existing-account hardening defines explicit,
+  schema-aware ownership policies. Overlapping species history must merge
+  without corrupting discovery totals, and unsupported database relationships
+  must stop safely before user data changes.
+- The existing-account conflict fallback remains release-gated until its
+  RevenueCat repair queue, RevenueCat and Community lock ordering, ledger-error
+  response mapping, and exact-version database replay have all passed the
+  rollout runbook's evidence gates.
+
 ### Scientific Observation Retention
 
 - Every submitted scan now has an explicit scientific-retention contract.

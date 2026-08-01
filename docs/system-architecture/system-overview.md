@@ -139,10 +139,15 @@ A structured schema built on native SwiftData migrations:
 
 - `DeviceIdentityManager` reads `identifierForVendor` from the OS.
 - Passed into `SupabaseManager.signInAnonymously()` to generate an "Explorer Tier" Ghost identity.
-- Authenticated Apple/Google OAuth flows merge Ghost rows into the permanent
-  Supabase Auth UUID. That UUID becomes the RevenueCat App User ID and PostHog
-  distinct ID; RevenueCat subscriber attributes carry auth email and public
-  identity fields for dashboard support lookups.
+- Apple/Google OAuth normally links the provider to the existing Ghost UUID. If
+  that provider already belongs to another permanent account, only the
+  source-proof fallback may move ownership into the permanent UUID. That UUID
+  becomes the RevenueCat App User ID and PostHog distinct ID;
+  RevenueCat subscriber attributes carry auth email and public identity fields
+  for dashboard support lookups. The pending fallback hardening requires
+  completion to make the permanent RevenueCat reconciliation row due; the client
+  SDK login is not the durable recovery authority, and the rollout remains
+  release-gated until that server repair is proven.
 - RevenueCat webhook delivery is an external-provider boundary, so its Supabase
   JWT check is disabled only for that route. The handler replaces it with a
   configured bearer check and timestamped raw-body HMAC, then fetches

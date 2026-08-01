@@ -1276,7 +1276,9 @@ and `KeychainManager` migration logic. Do not inline
   clear a newer handle after sign-out/re-login. Successful and terminal
   invalid/expired entries are removed individually; transient,
   wrong-destination, and Auth-cleanup failures remain queued for session-restore
-  retries.
+  retries. HTTP 503 `merge_temporarily_unavailable`, including a server-side
+  scan-ledger invariant failure, always remains queued; only the public terminal
+  404/410 handoff codes authorize removal.
 - **`keyWindowAnchor()` helper**: A private
   `keyWindowAnchor() -> ASPresentationAnchor` method was extracted to remove the
   identical implementation that was previously copy-pasted into two separate

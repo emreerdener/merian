@@ -42,12 +42,19 @@ also reconciles committed cleanup receipts every five minutes.
 `public.consume_ghost_profile_merge_handoff` is the sole mutation entrypoint. It
 uses `auth.uid()` as the destination rather than accepting a target UUID.
 
-The transaction:
+The completed transaction contract:
 
 - resolves duplicate likes, follows, blocks, reports, chat conversations, Field
   Trip progress, and other unique-key conflicts;
-- reparents every single-column foreign key that references `public.users` or
-  externally references `auth.users`;
+- requires every eligible single-column user foreign key to match the private,
+  source-controlled merge-policy manifest before the first mutating helper;
+- executes only reviewed ownership moves, preserves immutable administrative,
+  audit, session, and moderator attribution, and fails closed on unsupported,
+  stale, blocked, or composite topology;
+- moves scans first so statement-level OLD/NEW deltas maintain the private
+  species ledger, then verifies exact ledger counts against scans for both users;
+- coalesces conflict-prone Community Identify actors and normalizes RevenueCat
+  event, watermark, and reconciliation state before their references move;
 - adds non-blocking `NOT VALID` Auth foreign keys to pre-profile ingestion
   ledgers, so new writes serialize with a merge while historical orphan cleanup
   remains an independent rollout;
@@ -60,10 +67,51 @@ The transaction:
   deleting `public.users`;
 - records a durable merge receipt for replay and cleanup auditing.
 
-If a future migration introduces an unsupported composite user foreign key or a
-new uniqueness conflict, the transaction fails and rolls back instead of
-cascading user data away. The merge migration must then be extended alongside
-that schema change.
+Catalog discovery verifies coverage and resolves reviewed objects; it never
+chooses merge semantics. If a future migration adds, removes, or retargets an
+eligible user foreign key without updating the manifest, introduces an
+unsupported composite key, or creates a new uniqueness conflict, the transaction
+fails and rolls back instead of cascading or misattributing data. The policy and
+required handler must be extended in the same forward schema change.
+
+## Concurrency and provider-repair contract
+
+Parent identities are locked before merge-sensitive child state. In particular,
+both the merge and `public.apply_revenuecat_reconciliation(...)` must lock
+`public.users` before `internal.revenuecat_reconciliation_queue`. Reconciliation
+must then lock and revalidate its claim before changing entitlement or watermark
+state. If completion resets or replaces the lease first, the stale callback
+fails closed instead of applying an obsolete provider snapshot.
+
+Completion must unconditionally upsert a destination reconciliation row. The
+row uses the permanent UUID as `lookup_app_user_id`, is due immediately, resets
+`attempt_count`, clears all claim/error fields, and exists whether or not the
+anonymous source had a queue row. The foreground RevenueCat `logIn` call and
+webhook delivery are accelerators; this destination queue is the durable repair
+authority for a completely missed webhook.
+
+Community activity actors use the writer-compatible
+activity-group-before-actor order. The merge handler updates the existing target
+actor and deletes the redundant source actor only for collision groups.
+Non-colliding source actors remain for the reviewed reparent pass. The handler
+must not insert/upsert a destination actor after locking actors, because that can
+acquire an activity-group foreign-key lock in the inverse order of a normal
+activity append.
+
+Both scan-ledger invariant diagnostics—`ghost_merge_species_ledger_mismatch`
+and `user_species_scan_count_underflow`—are retryable HTTP 503
+`merge_temporarily_unavailable` responses with the exact guest-data-unchanged
+message. The transaction rolls back before either reaches the Edge mapper.
+
+## Pre-deployment status
+
+The pending schema-aware migration implements the manifest, topology preflight,
+scan-first transfer, and exact ledger check. The current draft does **not** yet
+provide all concurrency/provider-repair guarantees above. Do not deploy or
+enable the existing-account conflict fallback until a new forward migration,
+the Edge error mapping, full pgTAP replay, and staging concurrency probes clear
+the release hold in the
+[deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations
 
@@ -78,6 +126,11 @@ retains the provider-bound handoff secret in Keychain until the endpoint
 confirms cleanup. `reconcile-ghost-profile-merges` leases the same receipts with
 a random claim token, ten-minute stale-lease recovery, and bounded retry
 backoff, so cleanup does not depend on another app launch.
+
+That worker repairs only the obsolete anonymous Auth shell. RevenueCat provider
+state is repaired independently through
+`internal.revenuecat_reconciliation_queue`; a successful Auth cleanup does not
+prove that the destination provider queue exists or has reconciled.
 
 All handoff tables and helper routines are in the unexposed `internal` schema.
 Public RPC wrappers revoke `PUBLIC`/`anon` access and grant only the minimum
@@ -97,11 +150,14 @@ The legacy payload cannot be made backward-compatible: it switches sessions
 before calling the server and carries no source-session proof. Treat this as a
 coordinated security rollout:
 
-1. Ship the proof-capable iOS client (or place the OAuth-conflict path behind a
+1. Clear every release hold and evidence gate in the deployment runbook.
+2. Ship the proof-capable iOS client (or place the OAuth-conflict path behind a
    minimum-version gate).
-2. Apply the database migration and deploy this Edge Function in the same change
+3. Deploy the reviewed Edge Function with the expanded mapper; deploy the Auth
+   cleanup worker from the same SHA.
+4. Apply every pending merge migration immediately afterward in the same change
    window.
-3. Enable the conflict fallback only for proof-capable clients and retire the
+5. Enable the conflict fallback only for proof-capable clients and retire the
    old version according to the release policy.
 
 A new client against the old endpoint fails `prepare` before it switches away
@@ -112,13 +168,19 @@ stranding guest data.
 ## Verification
 
 ```bash
-deno check --config services/supabase/functions/deno.json \
+bash services/supabase/scripts/require_supabase_cli_version.sh
+make validate-supabase-migrations
+
+deno check --config services/supabase/functions/merge-ghost-profile/deno.json \
   services/supabase/functions/merge-ghost-profile/index.ts
-deno test --config services/supabase/functions/deno.json \
+deno test --config services/supabase/functions/merge-ghost-profile/deno.json \
   services/supabase/functions/_tests/mergeGhostProfile.test.ts
 deno test \
   --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
   services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
-supabase --workdir services test db --local \
-  services/supabase/tests/ghost_profile_merge_security.sql
+supabase --workdir services db reset
+make test-supabase-privileged-routines
 ```
+
+Supabase CLI `2.109.1` is exact-pinned. Static migration tests or a focused SQL
+file do not substitute for clean replay plus every checked-in catalog test.

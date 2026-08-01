@@ -242,6 +242,10 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-08-ghost-merge-species-ledger-underflow.md`](./incidents/2026-08-ghost-merge-species-ledger-underflow.md)**
+  — Sanitized 12-hour log evidence, semantic root cause, schema-aware ownership
+  correction, four post-review release blockers, exact-version validation
+  status, and closure gates for repeated Ghost-merge species-ledger underflow.
 - **[`/incidents/2026-07-xcode-export-build-number-rewrite.md`](./incidents/2026-07-xcode-export-build-number-rewrite.md)**
   — Root cause and fail-closed remediation for Xcode changing a reviewed
   `1.0.2 (236)` archive into uploaded IPA build `272`, including exact artifact

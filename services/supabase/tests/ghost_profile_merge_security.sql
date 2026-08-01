@@ -13,9 +13,17 @@ BEGIN
     'authenticated',
     'internal.ghost_user_cleanup_reservations',
     'SELECT'
+  ) OR has_table_privilege(
+    'authenticated',
+    'internal.ghost_profile_merge_reference_policies',
+    'SELECT'
+  ) OR has_table_privilege(
+    'service_role',
+    'internal.ghost_profile_merge_reference_policies',
+    'SELECT'
   ) THEN
     RAISE EXCEPTION
-      'authenticated unexpectedly has direct handoff-table access';
+      'an API role unexpectedly has direct Ghost-merge internal-table access';
   END IF;
 
   IF has_function_privilege(
@@ -100,6 +108,30 @@ BEGIN
       'an API role can execute the trusted identity-refresh implementation';
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+    FROM (
+      VALUES
+        ('internal.assert_ghost_profile_merge_reference_policy_coverage()'),
+        ('internal.assert_ghost_profile_merge_reference_preconditions(uuid)'),
+        ('internal.merge_ghost_community_activity_actors(uuid,uuid)'),
+        ('internal.merge_ghost_revenuecat_state(uuid,uuid)'),
+        ('internal.assert_ghost_profile_merge_species_ledger(uuid[])'),
+        ('internal.reparent_ghost_user_foreign_keys(uuid,uuid)')
+    ) AS routine(routine_signature)
+    CROSS JOIN (
+      VALUES ('anon'), ('authenticated'), ('service_role')
+    ) AS api_role(role_name)
+    WHERE has_function_privilege(
+      api_role.role_name,
+      routine.routine_signature,
+      'EXECUTE'
+    )
+  ) THEN
+    RAISE EXCEPTION
+      'an API role can execute a Ghost-merge policy implementation';
+  END IF;
+
   IF NOT has_function_privilege(
     'service_role',
     'public.claim_ghost_profile_merge_auth_cleanups(integer)',
@@ -135,6 +167,8 @@ BEGIN
     RAISE EXCEPTION
       'AI usage unexpectedly has an Auth FK that bypasses its delete guard';
   END IF;
+
+  PERFORM internal.assert_ghost_profile_merge_reference_policy_coverage();
 END;
 $$;
 
@@ -283,12 +317,82 @@ SET public_author_name = 'Guest Naturalist',
     custom_avatar_updated_at = NOW()
 WHERE id = '00000000-0000-0000-0000-000000000601';
 
-INSERT INTO public.scans (id, user_id, ai_confidence_score)
-VALUES (
-  '00000000-0000-0000-0000-000000000611',
-  '00000000-0000-0000-0000-000000000601',
-  0.92
-);
+INSERT INTO public.species_dictionary (
+  id,
+  scientific_name,
+  common_names,
+  kingdom,
+  phylum,
+  class,
+  "order",
+  family,
+  genus,
+  native_region
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000651',
+    'Mergea prima',
+    '{"en":"Merge first"}'::JSONB,
+    'Animalia',
+    'Chordata',
+    'Aves',
+    'Passeriformes',
+    'Mergeidae',
+    'Mergea',
+    'Test region'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000652',
+    'Mergea secunda',
+    '{"en":"Merge second"}'::JSONB,
+    'Animalia',
+    'Chordata',
+    'Aves',
+    'Passeriformes',
+    'Mergeidae',
+    'Mergea',
+    'Test region'
+  );
+
+INSERT INTO public.scans (id, user_id, species_id, ai_confidence_score)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000611',
+    '00000000-0000-0000-0000-000000000601',
+    NULL,
+    0.92
+  ),
+  (
+    '00000000-0000-0000-0000-000000000612',
+    '00000000-0000-0000-0000-000000000601',
+    '00000000-0000-0000-0000-000000000651',
+    0.91
+  ),
+  (
+    '00000000-0000-0000-0000-000000000613',
+    '00000000-0000-0000-0000-000000000601',
+    '00000000-0000-0000-0000-000000000651',
+    0.90
+  ),
+  (
+    '00000000-0000-0000-0000-000000000614',
+    '00000000-0000-0000-0000-000000000601',
+    '00000000-0000-0000-0000-000000000652',
+    0.89
+  ),
+  (
+    '00000000-0000-0000-0000-000000000615',
+    '00000000-0000-0000-0000-000000000602',
+    '00000000-0000-0000-0000-000000000651',
+    0.88
+  ),
+  (
+    '00000000-0000-0000-0000-000000000616',
+    '00000000-0000-0000-0000-000000000602',
+    NULL,
+    0.87
+  );
 
 INSERT INTO public.collections (id, user_id, name)
 VALUES (
@@ -384,6 +488,136 @@ VALUES (
   'test-model'
 );
 
+INSERT INTO internal.revenuecat_webhook_events (
+  event_id,
+  event_timestamp_ms,
+  event_type,
+  payload_sha256,
+  signature_timestamp_s,
+  outcome,
+  subject_count,
+  applied_count,
+  stale_count
+)
+VALUES
+  (
+    'merge-transfer-event',
+    200,
+    'TRANSFER',
+    REPEAT('1', 64),
+    1,
+    'applied',
+    2,
+    2,
+    0
+  ),
+  (
+    'merge-source-watermark',
+    300,
+    'TEST',
+    REPEAT('2', 64),
+    1,
+    'ignored',
+    0,
+    0,
+    0
+  ),
+  (
+    'merge-target-watermark',
+    100,
+    'TEST',
+    REPEAT('3', 64),
+    1,
+    'ignored',
+    0,
+    0,
+    0
+  );
+
+INSERT INTO internal.revenuecat_webhook_event_subjects (
+  event_id,
+  merian_user_id,
+  subject_kind,
+  authoritative_snapshot_at_ms,
+  target_tier,
+  target_expires_at,
+  outcome,
+  entitlement_version
+)
+VALUES
+  (
+    'merge-transfer-event',
+    '00000000-0000-0000-0000-000000000601',
+    'transfer_source',
+    200,
+    'free',
+    NULL,
+    'applied',
+    1
+  ),
+  (
+    'merge-transfer-event',
+    '00000000-0000-0000-0000-000000000602',
+    'transfer_destination',
+    200,
+    'free',
+    NULL,
+    'applied',
+    1
+  );
+
+INSERT INTO internal.revenuecat_customer_state (
+  merian_user_id,
+  last_event_id,
+  last_event_timestamp_ms,
+  last_authoritative_snapshot_at_ms
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000601',
+    'merge-source-watermark',
+    300,
+    300
+  ),
+  (
+    '00000000-0000-0000-0000-000000000602',
+    'merge-target-watermark',
+    100,
+    100
+  );
+
+INSERT INTO internal.revenuecat_reconciliation_queue (
+  merian_user_id,
+  lookup_app_user_id,
+  next_reconcile_at,
+  attempt_count,
+  claim_token,
+  claimed_at,
+  claim_expires_at,
+  last_error_code
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000601',
+    '00000000-0000-0000-0000-000000000601',
+    NOW() + INTERVAL '5 days',
+    3,
+    '00000000-0000-0000-0000-000000000671',
+    NOW(),
+    NOW() + INTERVAL '10 minutes',
+    'source_failure'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000602',
+    '00000000-0000-0000-0000-000000000602',
+    NOW() + INTERVAL '10 days',
+    2,
+    '00000000-0000-0000-0000-000000000672',
+    NOW(),
+    NOW() + INTERVAL '10 minutes',
+    'target_failure'
+  );
+
 CREATE TEMP TABLE merge_test_handoff (handoff_id UUID NOT NULL);
 GRANT SELECT, INSERT ON merge_test_handoff TO authenticated;
 GRANT SELECT ON merge_test_handoff TO service_role;
@@ -436,6 +670,52 @@ SELECT public.reserve_ghost_user_bulk_cleanup(
   15
 );
 RESET ROLE;
+
+-- A future user FK without a reviewed policy must stop the orchestrator before
+-- its first mutating helper. This fixture represents an independently shipped
+-- schema migration that forgot to classify its ownership semantics.
+CREATE TABLE internal.ghost_merge_unclassified_fixture (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id)
+);
+INSERT INTO internal.ghost_merge_unclassified_fixture (user_id)
+VALUES ('00000000-0000-0000-0000-000000000604');
+
+DO $$
+DECLARE
+  failure_message TEXT;
+BEGIN
+  BEGIN
+    PERFORM internal.perform_ghost_profile_merge(
+      '00000000-0000-0000-0000-000000000604',
+      '00000000-0000-0000-0000-000000000603'
+    );
+    RAISE EXCEPTION 'unclassified user FK did not stop the merge';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    GET STACKED DIAGNOSTICS failure_message = MESSAGE_TEXT;
+    IF failure_message NOT LIKE
+       'ghost_merge_unclassified_reference:%ghost_merge_unclassified_fixture%'
+    THEN
+      RAISE EXCEPTION
+        'unclassified user FK raised an unexpected failure: %',
+        failure_message;
+    END IF;
+  END;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.users
+    WHERE id = '00000000-0000-0000-0000-000000000604'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM public.users
+    WHERE id = '00000000-0000-0000-0000-000000000603'
+  ) THEN
+    RAISE EXCEPTION 'topology failure mutated a source or target profile';
+  END IF;
+END;
+$$;
+
+DROP TABLE internal.ghost_merge_unclassified_fixture;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config(
@@ -614,13 +894,45 @@ BEGIN
       'durable cleanup worker did not finalize its claimed receipt';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
+  IF (
+    SELECT COUNT(*)
     FROM public.scans
-    WHERE id = '00000000-0000-0000-0000-000000000611'
+    WHERE id IN (
+      '00000000-0000-0000-0000-000000000611',
+      '00000000-0000-0000-0000-000000000612',
+      '00000000-0000-0000-0000-000000000613',
+      '00000000-0000-0000-0000-000000000614',
+      '00000000-0000-0000-0000-000000000615',
+      '00000000-0000-0000-0000-000000000616'
+    )
       AND user_id = '00000000-0000-0000-0000-000000000602'
-  ) THEN
-    RAISE EXCEPTION 'source scan was not reparented';
+  ) <> 6 THEN
+    RAISE EXCEPTION 'source scans were not reparented';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM internal.user_species_scan_counts
+    WHERE user_id = '00000000-0000-0000-0000-000000000601'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM internal.user_species_scan_counts
+    WHERE user_id = '00000000-0000-0000-0000-000000000602'
+      AND species_id = '00000000-0000-0000-0000-000000000651'
+      AND scan_count = 3
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM internal.user_species_scan_counts
+    WHERE user_id = '00000000-0000-0000-0000-000000000602'
+      AND species_id = '00000000-0000-0000-0000-000000000652'
+      AND scan_count = 1
+  ) OR (
+    SELECT total_species_discovered
+    FROM public.users
+    WHERE id = '00000000-0000-0000-0000-000000000602'
+  ) <> 2 THEN
+    RAISE EXCEPTION
+      'species ledger or public distinct-species projection drifted during merge';
   END IF;
 
   IF NOT EXISTS (
@@ -718,6 +1030,50 @@ BEGIN
   ) THEN
     RAISE EXCEPTION
       'append-only AI usage attribution was not reparented intact';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_webhook_event_subjects
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000601'
+  ) OR EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_customer_state
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000601'
+  ) OR EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000601'
+  ) THEN
+    RAISE EXCEPTION 'source RevenueCat state survived the merge';
+  END IF;
+
+  IF (
+    SELECT COUNT(*)
+    FROM internal.revenuecat_webhook_event_subjects
+    WHERE event_id = 'merge-transfer-event'
+      AND merian_user_id = '00000000-0000-0000-0000-000000000602'
+  ) <> 1 OR NOT EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_customer_state
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000602'
+      AND last_event_id = 'merge-source-watermark'
+      AND last_event_timestamp_ms = 300
+      AND last_authoritative_snapshot_at_ms = 300
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000602'
+      AND lookup_app_user_id =
+          '00000000-0000-0000-0000-000000000602'
+      AND next_reconcile_at <= NOW()
+      AND attempt_count = 0
+      AND claim_token IS NULL
+      AND claimed_at IS NULL
+      AND claim_expires_at IS NULL
+      AND last_error_code IS NULL
+  ) THEN
+    RAISE EXCEPTION 'RevenueCat conflict state was not normalized';
   END IF;
 
   IF NOT EXISTS (

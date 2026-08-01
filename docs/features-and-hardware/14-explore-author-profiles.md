@@ -217,12 +217,13 @@ Public avatar extension:
 
 Ghost-account merge repair:
 
-- `merge-ghost-profile` now re-parents Explore ownership, Community requests,
-  follows, and every other supported user foreign key inside one transaction.
-  It resolves duplicate relationships before deleting the Ghost profile, so
-  public identity and the Yours filters remain aligned without cascade loss.
-  The source-issued proof is provider-bound and the scheduled cleanup worker
-  removes only the now-empty anonymous Auth shell after commit.
+- The pending schema-aware `merge-ghost-profile` hardening defines explicit,
+  source-controlled policies for Explore ownership, Community requests, follows,
+  and every other eligible user foreign key inside one transaction. It must
+  resolve reviewed duplicate relationships before deleting the Ghost profile,
+  so public identity and the Yours filters remain aligned without cascade loss.
+  The source-issued proof remains provider-bound and the scheduled cleanup
+  worker removes only the now-empty anonymous Auth shell after commit.
 - `20260511143000_reparent_explore_posts_after_scan_owner_transfer.sql` repairs existing posts whose scan owner changed during an earlier ghost merge.
 - `20260622010000_reparent_community_requests_after_identity_merge.sql` repairs existing Community requests whose requester no longer matches the backing scan owner.
 - This keeps own-profile Explore previews, author sheets, `is_owned_by_viewer` checks, and Identify's Yours filter aligned with the current Supabase account.

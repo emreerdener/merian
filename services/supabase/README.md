@@ -1352,8 +1352,24 @@ recovery worker for interrupted cleanup. It has `verify_jwt = false` solely for
 policy, accepting an opaque key only in `apikey`. See the two function READMEs
 and the deployment runbook before changing this protocol.
 `tests/ghost_profile_merge_security.sql` runs in the disposable catalog through
-`make test-supabase-privileged-routines` and protects the exact profile/Auth-FK
-exclusion used by generic ownership reparenting.
+`make test-supabase-privileged-routines`. Ownership transfer is driven by the
+private, source-controlled `internal.ghost_profile_merge_reference_policies`
+manifest; runtime catalog discovery verifies complete coverage but never invents
+merge semantics for a new foreign key. The pgTAP suite protects that fail-closed
+topology boundary and exact scan/species-ledger behavior. The static
+`ghostProfileMergeMigrationContract.test.ts` enters
+`make validate-supabase-migrations` automatically.
+
+The pending schema-aware change is on release hold. Before production, its
+forward migration must unconditionally make the permanent RevenueCat queue row
+due, all RevenueCat paths must lock user-before-queue and revalidate claims, the
+Community actor handler must avoid insert/upsert after actor locks, and both
+scan-ledger invariant diagnostics must map to the same retryable 503
+guest-data-unchanged response. Run a clean replay and every catalog test with
+the exact Supabase CLI `2.109.1`; static contracts or a focused SQL test are not
+release-equivalent evidence. The function README and
+`docs/backend-and-data/06-supabase-deployment-runbook.md` contain the canonical
+proof matrix.
 
 ### Public Species-Stats Resource Boundary
 
