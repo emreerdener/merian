@@ -5,9 +5,8 @@
 // put backend-only secrets such as GEMINI_API_KEY, SUPABASE_SERVER_API_KEY, or
 // the legacy SUPABASE_SERVICE_ROLE_KEY here.
 //
-// TestFlight/App Store export should use a RevenueCat production iOS key.
-// Release archives warn when they still use a test_ key; placeholder values
-// such as appl_... are blocked when supplied as a release override.
+// Xcode Organizer Release archives require a RevenueCat production iOS key.
+// The archive preflight blocks test_ and placeholder values such as appl_....
 //
 // REVENUECAT_API_KEY = appl_replace_with_revenuecat_ios_public_sdk_key
 
