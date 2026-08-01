@@ -2916,7 +2916,7 @@ struct FieldTripLevelArtworkExpandedView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 0) {
                     ForEach(items) { item in
-                        ZoomableScrollView {
+                        ZoomableScrollView(onSwipeDown: { dismiss() }) {
                             Image(item.imageName)
                                 .resizable()
                                 .scaledToFit()
@@ -2935,8 +2935,6 @@ struct FieldTripLevelArtworkExpandedView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Spacer()
-
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
@@ -2947,6 +2945,8 @@ struct FieldTripLevelArtworkExpandedView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close patch viewer")
+
+                    Spacer()
                 }
                 .padding(.top, 12)
                 .padding(.horizontal, 16)

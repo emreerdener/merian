@@ -2,9 +2,11 @@ import SwiftUI
 
 struct ZoomableScrollView<Content: View>: UIViewControllerRepresentable {
     private var content: Content
+    private var onSwipeDown: (() -> Void)?
     
-    init(@ViewBuilder content: () -> Content) {
+    init(onSwipeDown: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
         self.content = content()
+        self.onSwipeDown = onSwipeDown
     }
     
     func makeUIViewController(context: Context) -> UIViewController {
@@ -49,20 +51,37 @@ struct ZoomableScrollView<Content: View>: UIViewControllerRepresentable {
         let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
         doubleTap.numberOfTapsRequired = 2
         scrollView.addGestureRecognizer(doubleTap)
+
+        if onSwipeDown != nil {
+            let swipeDown = UISwipeGestureRecognizer(
+                target: context.coordinator,
+                action: #selector(Coordinator.handleSwipeDown(_:))
+            )
+            swipeDown.direction = .down
+            swipeDown.cancelsTouchesInView = false
+            swipeDown.delegate = context.coordinator
+            scrollView.addGestureRecognizer(swipeDown)
+        }
         
         return vc
     }
     
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
         context.coordinator.hostingController?.rootView = content
+        context.coordinator.onSwipeDown = onSwipeDown
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(onSwipeDown: onSwipeDown)
     }
     
-    class Coordinator: NSObject, UIScrollViewDelegate {
+    class Coordinator: NSObject, UIScrollViewDelegate, UIGestureRecognizerDelegate {
         var hostingController: UIHostingController<Content>?
+        var onSwipeDown: (() -> Void)?
+
+        init(onSwipeDown: (() -> Void)?) {
+            self.onSwipeDown = onSwipeDown
+        }
         
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
             return hostingController?.view
@@ -87,6 +106,25 @@ struct ZoomableScrollView<Content: View>: UIViewControllerRepresentable {
                 let origin = CGPoint(x: point.x - size.width / 2.0, y: point.y - size.height / 2.0)
                 scrollView.zoom(to: CGRect(origin: origin, size: size), animated: true)
             }
+        }
+
+        @objc func handleSwipeDown(_ recognizer: UISwipeGestureRecognizer) {
+            onSwipeDown?()
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer is UISwipeGestureRecognizer,
+                  let scrollView = gestureRecognizer.view as? UIScrollView else {
+                return true
+            }
+            return scrollView.zoomScale <= scrollView.minimumZoomScale + 0.01
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer is UISwipeGestureRecognizer
         }
     }
 }
