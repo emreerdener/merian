@@ -47,7 +47,7 @@ struct PhotoLibraryPermissionSheetView: View {
             case .importPhotos:
                 return "Naturebook needs access to your Photo Library to upload your images to be analyzed."
             case .saveToCameraRoll:
-                return "Naturebook can save new scan photos to your library without seeing your existing photos."
+                return "Naturebook can save new scan photos and videos to your library without seeing your existing media."
             }
         }
 

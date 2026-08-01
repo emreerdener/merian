@@ -344,7 +344,7 @@ struct ScansSheetView: View {
 
     private func downloadSelectedScans() {
         let selectedScans = selectedLocalRecordsFromStore()
-        Task { await searchManager.batchSavePhotos(scans: selectedScans) }
+        Task { await searchManager.batchSaveMedia(scans: selectedScans) }
     }
     
     // MARK: - Data Refresh

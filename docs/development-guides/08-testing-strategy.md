@@ -1078,9 +1078,19 @@ MerianTests/
   `UIImpactFeedbackGenerator` buffers without stalling threads. Asserts that
   setting `UserDefaults.standard.set(false, forKey: "isHapticsEnabled")`
   prevents sequence triggers without causing hardware memory faults.
-- **`PhotoLibraryManagerTests.swift`**: Validates that toggling
-  `UserDefaults("saveToCameraRoll")` drops the payload without triggering
-  `PHPhotoLibrary` memory allocations.
+- **`PhotoLibraryManagerTests.swift`**: Validates that the injected default-off
+  `saveToCameraRoll` preference drops automatic photo and video payloads before
+  Photos authorization, photos map to `.photo`, videos map to `.video`, video
+  processing preserves the source file, and photo processing still removes GPS
+  metadata.
+- **`InsightMediaExportManagerTests.swift`**: Validates local image/video URL
+  resolution, exact-host approval for HTTPS `media.merian.app` resources,
+  rejection of unapproved remote video hosts, and separate mixed-media
+  attempted/saved counts with partial-failure copy.
+
+PhotoKit completion, recorded-video audio, source-file lifetime during an
+actual import, and permission-denial UI require the physical-device checklist in
+[Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md).
 
 ### Security, Network & Identity
 

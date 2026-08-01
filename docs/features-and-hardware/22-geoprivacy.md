@@ -66,6 +66,13 @@ visibility decisions:
   location for `private`; `obscured` stores the sanitized public label.
 - `MerianNetworkClient` sends `geoprivacy` with identify payloads and omits
   `publicLocationLabel` for private scans.
+- Automatic camera-roll saves remain an owner-controlled local Photos export,
+  not a public projection. When that separate default-off preference is
+  enabled, the established capture behavior assigns the resolved shutter
+  location to the Photos asset regardless of public geoprivacy. Explicit later
+  Downloads do not inject `LocalScanRecord` telemetry into the exported asset.
+  See
+  [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
 
 Local SwiftData still stores exact telemetry owned by the user. Do not treat
 `LocalScanRecord.locationName`, `gpsLatitude`, or `gpsLongitude` as display-safe

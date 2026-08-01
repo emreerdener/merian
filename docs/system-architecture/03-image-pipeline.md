@@ -389,13 +389,16 @@ were `nonisolated` instance methods on an `actor` — an `actor` with exclusivel
 call sites use `ImageDownsampler.downsample(...)` directly with no `.shared`
 singleton reference.
 
-**Full-resolution preservation**: The unmodified 12 MP sensor buffer is saved to
-the user's Camera Roll by `PhotoLibraryManager` _before_ any downsampling
-occurs, so no image quality is permanently lost regardless of which path is
-used. When the save originates from a file URL rather than already-loaded
-`Data`, `PhotoLibraryManager` now strips GPS metadata by streaming
-`CGImageSourceCreateWithURL` into a temporary scrubbed file. This avoids reading
-the full asset into RAM just to remove EXIF coordinates.
+**Optional full-resolution Photos export**: When the default-off
+`saveToCameraRoll` setting is enabled, the full-resolution camera buffer is
+handed to `PhotoLibraryManager` before identification downsampling. The manager
+removes inherited GPS metadata from the encoded photo and assigns the resolved
+shutter location through `PHAssetCreationRequest.location`. When a photo save
+originates from a file URL rather than already-loaded `Data`, GPS stripping
+streams through `CGImageSourceCreateWithURL` into a temporary scrubbed file.
+This avoids reading the full asset into RAM just to remove EXIF coordinates.
+Automatic video and later retained-clip Downloads follow the separate
+[Camera Roll and Captured-Media Export contract](../features-and-hardware/27-camera-roll-media-export.md).
 
 ### 3. Write to Documents Directory (`FileIOActor`)
 
@@ -775,11 +778,12 @@ populate `httpBody`.
 images only (768 px for Flash/free, 1024 px for Pro — whichever was applied at
 capture time). When an offline scan is reprocessed,
 `InferenceProcessingActor.parseAndSave` receives `displayDatas = []` and falls
-back to writing the inference-quality files to disk. This is a deliberate
-trade-off: the full-resolution photo is already saved to Camera Roll at capture
-time, so inference-quality on-disk files are an acceptable fallback for the
-subset of scans that passed through the offline queue. Live captures and gallery
-picks both produce display-quality on-disk files.
+back to writing the inference-quality files to disk. This bounded representation
+is an intentional queue-memory trade-off. A full-resolution Photos copy exists
+only when the user had the default-off **Save to camera roll** preference
+enabled; it must not be assumed as a durability prerequisite. Live captures and
+gallery picks both produce display-quality on-disk files during the normal
+foreground path.
 
 **Auth-state race condition (cold background relaunch)**: `generate-upload-urls`
 is authoritative for the owner segment of every staged key. Current background

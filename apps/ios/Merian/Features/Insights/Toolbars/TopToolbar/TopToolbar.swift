@@ -80,11 +80,11 @@ struct TopToolbar: ToolbarContent {
     
     let commonName: String
     let isCommonNameScrolledPast: Bool
-    @Binding var isSavingPhotos: Bool
+    @Binding var isSavingMedia: Bool
     @Binding var showDeleteConfirmation: Bool
-    let hasUserPhotos: Bool
+    let hasUserMedia: Bool
     var leadingControl: LeadingControl = .close
-    let onSavePhotos: () -> Void
+    let onSaveMedia: () -> Void
     let allowsFieldNotes: Bool
     let hasFieldNotes: Bool
     let onFieldNotes: () -> Void
@@ -111,11 +111,11 @@ struct TopToolbar: ToolbarContent {
     init(
         commonName: String,
         isCommonNameScrolledPast: Bool,
-        isSavingPhotos: Binding<Bool>,
+        isSavingMedia: Binding<Bool>,
         showDeleteConfirmation: Binding<Bool>,
-        hasUserPhotos: Bool,
+        hasUserMedia: Bool,
         leadingControl: LeadingControl = .close,
-        onSavePhotos: @escaping () -> Void,
+        onSaveMedia: @escaping () -> Void,
         allowsFieldNotes: Bool = true,
         hasFieldNotes: Bool,
         onFieldNotes: @escaping () -> Void,
@@ -141,11 +141,11 @@ struct TopToolbar: ToolbarContent {
     ) {
         self.commonName = commonName
         self.isCommonNameScrolledPast = isCommonNameScrolledPast
-        self._isSavingPhotos = isSavingPhotos
+        self._isSavingMedia = isSavingMedia
         self._showDeleteConfirmation = showDeleteConfirmation
-        self.hasUserPhotos = hasUserPhotos
+        self.hasUserMedia = hasUserMedia
         self.leadingControl = leadingControl
-        self.onSavePhotos = onSavePhotos
+        self.onSaveMedia = onSaveMedia
         self.allowsFieldNotes = allowsFieldNotes
         self.hasFieldNotes = hasFieldNotes
         self.onFieldNotes = onFieldNotes
@@ -249,8 +249,8 @@ struct TopToolbar: ToolbarContent {
             }
         }
 
-        if hasUserPhotos {
-            Button(action: { onSavePhotos() }) {
+        if hasUserMedia {
+            Button(action: { onSaveMedia() }) {
                 Label("Download scan", systemImage: "arrow.down.circle")
             }
         }

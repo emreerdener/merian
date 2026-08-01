@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-01-save-photos-and-videos",
+      "date": "2026-08-01",
+      "title": "Save photos and videos",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Save to camera roll can now automatically preserve new camera photos and original-quality video recordings in Photos.",
+            "Download scan and batch Download now save retained videos alongside photos, with clear counts and failure feedback."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-31-missing-video-fallback",
       "date": "2026-07-31",
       "title": "Clearer media recovery",

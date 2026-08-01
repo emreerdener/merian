@@ -15,6 +15,7 @@ struct UserProfile: View {
     @State private var isShowingAvatarError = false
     var totalScans: Int = 0
     var completedAchievements: Int = 0
+    var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
     
     var body: some View {
         VStack {
@@ -77,6 +78,11 @@ struct UserProfile: View {
             identityHeader
             Divider()
             summaryCountsRow
+
+            if !earnedFieldTripPatches.isEmpty {
+                Divider()
+                EarnedFieldTripPatchCarousel(patches: earnedFieldTripPatches)
+            }
         }
         .padding(12)
         .background(

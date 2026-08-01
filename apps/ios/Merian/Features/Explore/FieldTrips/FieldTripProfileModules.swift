@@ -58,6 +58,127 @@ enum ActiveFieldTripProfilePresentation {
     }
 }
 
+struct EarnedFieldTripPatch: Identifiable, Equatable {
+    let id: String
+    let imageName: String
+    let templateTitle: String
+    let levelTitle: String
+
+    var title: String {
+        "\(templateTitle) · \(levelTitle)"
+    }
+
+    var galleryItem: FieldTripLevelArtworkGalleryItem {
+        FieldTripLevelArtworkGalleryItem(
+            id: id,
+            imageName: imageName,
+            title: title
+        )
+    }
+}
+
+enum EarnedFieldTripPatchPresentation {
+    static func items(templates: [FieldTripTemplate]) -> [EarnedFieldTripPatch] {
+        templates.flatMap { template -> [EarnedFieldTripPatch] in
+            guard let progress = template.viewerProgress else { return [] }
+
+            let earnedThroughLevel = progress.currentLevelNumber - (progress.isComplete ? 0 : 1)
+            guard earnedThroughLevel > 0 else { return [] }
+
+            return template.levels
+                .filter { $0.levelNumber <= earnedThroughLevel }
+                .sorted { $0.levelNumber < $1.levelNumber }
+                .compactMap { level in
+                    guard let imageName = FieldTripLevelArtwork.imageName(
+                        templateSlug: template.slug,
+                        levelNumber: level.levelNumber
+                    ) else {
+                        return nil
+                    }
+
+                    return EarnedFieldTripPatch(
+                        id: "\(template.templateId):\(level.levelId)",
+                        imageName: imageName,
+                        templateTitle: FieldTripTemplatePresentation.title(
+                            template.title,
+                            slug: template.slug
+                        ),
+                        levelTitle: level.title
+                    )
+                }
+        }
+    }
+
+    static func items(profileSummaries: [FieldTripProfileActiveSummary]) -> [EarnedFieldTripPatch] {
+        profileSummaries.flatMap { summary -> [EarnedFieldTripPatch] in
+            let earnedThroughLevel = summary.currentLevelNumber - (summary.isComplete ? 0 : 1)
+            guard earnedThroughLevel > 0 else { return [] }
+
+            return (1...earnedThroughLevel).compactMap { levelNumber in
+                guard let imageName = FieldTripLevelArtwork.imageName(
+                    templateSlug: summary.slug,
+                    levelNumber: levelNumber
+                ) else {
+                    return nil
+                }
+
+                return EarnedFieldTripPatch(
+                    id: "\(summary.userFieldTripId):\(levelNumber)",
+                    imageName: imageName,
+                    templateTitle: FieldTripTemplatePresentation.title(
+                        summary.title,
+                        slug: summary.slug
+                    ),
+                    levelTitle: "Level \(levelNumber)"
+                )
+            }
+        }
+    }
+}
+
+struct EarnedFieldTripPatchCarousel: View {
+    let patches: [EarnedFieldTripPatch]
+
+    @State private var selectedPatch: EarnedFieldTripPatch?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(patches.count) earned")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    ForEach(patches) { patch in
+                        Button {
+                            HapticManager.shared.triggerSelectionPulse()
+                            selectedPatch = patch
+                        } label: {
+                            Image(patch.imageName)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 64, height: 64)
+                                .scaleEffect(1.08)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(patch.title) patch")
+                        .accessibilityHint("Opens the patch gallery at this patch")
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.horizontal, -12)
+        }
+        .fullScreenCover(item: $selectedPatch) { patch in
+            FieldTripLevelArtworkExpandedView(
+                items: patches.map(\.galleryItem),
+                initialItemID: patch.id
+            )
+        }
+    }
+}
+
 enum FieldTripProfilePresentation {
     static func visibleChallengeBadges(
         in summaries: FieldTripProfileSummaries,
@@ -88,6 +209,7 @@ struct ActiveFieldTripsProfilePreview: View {
     let onOpenTemplate: (String) -> Void
     let onOpenCompletedScan: (String) -> Void
     let onViewAll: () -> Void
+    let onEarnedPatchesChange: ([EarnedFieldTripPatch]) -> Void
 
     @Environment(SupabaseManager.self) private var supabase
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
@@ -179,6 +301,7 @@ struct ActiveFieldTripsProfilePreview: View {
     private func load() async {
         guard currentUserId != nil else {
             items = []
+            onEarnedPatchesChange([])
             hasLoaded = true
             isLoading = false
             return
@@ -198,10 +321,14 @@ struct ActiveFieldTripsProfilePreview: View {
             let loadedItems = ActiveFieldTripProfilePresentation.items(
                 templates: templates
             )
+            let loadedPatches = EarnedFieldTripPatchPresentation.items(
+                templates: templates
+            )
             guard !Task.isCancelled else { return }
             items = loadedItems
+            onEarnedPatchesChange(loadedPatches)
             MerianLog.network.debug(
-                "Loaded \(loadedItems.count, privacy: .public) active Profile Field trips."
+                "Loaded \(loadedItems.count, privacy: .public) active Profile Field trips and \(loadedPatches.count, privacy: .public) earned patches."
             )
         } catch {
             MerianLog.network.warning("Failed to load active Profile Field trips: \(error.localizedDescription, privacy: .private)")

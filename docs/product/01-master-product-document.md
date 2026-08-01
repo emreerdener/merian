@@ -264,6 +264,12 @@ falls back to JPEG with controlled quality. The user interface should use the
 prepared representations rather than decoding unbounded originals on the main
 thread.
 
+**Save to camera roll** is a separate, default-off export preference. When it is
+enabled, the full-resolution camera photo is sent to the add-only PhotoKit
+bridge before identification downsampling. Naturebook removes inherited image
+GPS metadata and assigns the resolved shutter location to the Photos asset in a
+controlled field.
+
 ## 4.5 Photo import - Implemented
 
 The app accepts one image through the `public.image` document association and
@@ -287,6 +293,13 @@ contains one playable clip with its poster; sampled inference frames are not
 separate Insight or Explore media. Backend completion requires the exact owner's
 ready playback representation before Field Chat or Explore can consume the
 scan.
+
+When **Save to camera roll** is enabled, Naturebook starts a file-backed
+PhotoKit import from the original camera recording while sampled frames, audio,
+and the retained playback representation are prepared. The original cannot be
+deleted until that import finishes. A later explicit Download saves the
+retained playback clip rather than implying that Naturebook permanently stores
+every original recording.
 
 ## 4.7 Audio capture - Implemented on iPhone
 
@@ -392,6 +405,12 @@ privacy, and field-trip membership.
 
 Search and filtering should prioritize the mental model of "what I saw, where,
 and when" rather than expose backend taxonomy mechanics.
+
+Insight offers **Download scan**, and Scan Library selection offers batch
+**Download**. These explicit actions can save local or Naturebook-hosted photos
+and retained videos to iOS Photos even when automatic camera-roll saving is
+off. Feedback distinguishes photo and video counts and reports a clear failure
+when no media is saved.
 
 ## 6.2 Field trips - Implemented
 
@@ -590,6 +609,9 @@ until onboarding is complete. The older six-step flow is retired.
 - Explain the immediate benefit before requesting a system permission.
 - Do not request photo access solely because capture exists; request it when the
   user imports.
+- Request add-only Photos access when the user enables automatic camera-roll
+  saving or explicitly Downloads media; this write permission must not grant
+  Naturebook access to browse existing media.
 - Do not request notifications until a notification benefit is understandable.
 - Location remains optional for identification, though it improves context and
   record quality.
@@ -971,12 +993,14 @@ Each release should exercise at minimum:
 4. Pro entitlement activation and restoration.
 5. Short video and audio limits.
 6. Image import with and without EXIF context.
-7. Open, obscured, and private public projections.
-8. Explore post, report, block, and moderator handling.
-9. Field-trip assignment and goal progress.
-10. Individual scan deletion and account deletion.
-11. Personal and public export generation.
-12. Thermal, background, constrained-network, and low-storage behavior.
+7. Automatic photo/video Photos saves with the preference on and off, plus
+   video-only, mixed, local, cloud, single, and batch explicit Downloads.
+8. Open, obscured, and private public projections.
+9. Explore post, report, block, and moderator handling.
+10. Field-trip assignment and goal progress.
+11. Individual scan deletion and account deletion.
+12. Personal and public export generation.
+13. Thermal, background, constrained-network, and low-storage behavior.
 
 Apple Watch capture should not enter the release-critical "complete" set until
 the phone receiver and end-to-end tests exist.
@@ -1167,15 +1191,18 @@ repository-relative.
 
 ## iOS application and capture
 
+- `docs/features-and-hardware/27-camera-roll-media-export.md`
 - `apps/ios/Merian/App/`
 - `apps/ios/Merian/Features/Capture/`
-- `apps/ios/Merian/Features/Audio/`
-- `apps/ios/Merian/Features/Describe/`
-- `apps/ios/Merian/Services/CameraManager.swift`
-- `apps/ios/Merian/Services/HardwareOrchestrator.swift`
-- `apps/ios/Merian/Services/MediaPreparationActor.swift`
-- `apps/ios/Merian/Services/UsageManager.swift`
-- `apps/ios/Merian/Services/Sync/`
+- `apps/ios/Merian/Features/Capture/Record/`
+- `apps/ios/Merian/Features/Capture/Describe/`
+- `apps/ios/Merian/Core/Hardware/CameraManager.swift`
+- `apps/ios/Merian/Core/Hardware/HardwareOrchestrator.swift`
+- `apps/ios/Merian/Core/Data/Images/MediaPreparationActor.swift`
+- `apps/ios/Merian/Core/Data/Images/PhotoLibraryManager.swift`
+- `apps/ios/Merian/Core/Analytics/UsageManager.swift`
+- `apps/ios/Merian/Core/Data/OfflineSync/`
+- `apps/ios/Merian/Features/Insights/Media/Utilities/InsightMediaExportManager.swift`
 
 ## Product surfaces
 

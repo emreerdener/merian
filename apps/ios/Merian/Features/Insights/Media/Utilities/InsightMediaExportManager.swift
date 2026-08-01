@@ -1,6 +1,6 @@
 import SwiftUI
 
-private enum ApprovedRemoteMedia {
+enum ApprovedRemoteMedia {
     private static let approvedHosts: Set<String> = ["media.merian.app"]
 
     static func urls(from rawValue: String?) -> [URL] {
@@ -27,6 +27,81 @@ private enum ApprovedRemoteMedia {
     }
 }
 
+enum ExportMediaURLResolver {
+    static func localURL(from rawValue: String) -> URL? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed)
+        }
+        if let url = URL(string: trimmed), url.isFileURL {
+            return url
+        }
+        if URLComponents(string: trimmed)?.scheme != nil {
+            return nil
+        }
+        return URL.documentsDirectory.appendingPathComponent(trimmed)
+    }
+}
+
+struct MediaSaveResult: Sendable, Equatable {
+    private(set) var photosAttempted = 0
+    private(set) var photosSaved = 0
+    private(set) var videosAttempted = 0
+    private(set) var videosSaved = 0
+
+    var totalAttempted: Int {
+        photosAttempted + videosAttempted
+    }
+
+    var totalSaved: Int {
+        photosSaved + videosSaved
+    }
+
+    var hasFailures: Bool {
+        totalSaved < totalAttempted
+    }
+
+    var successMessage: String {
+        var components: [String] = []
+        if photosSaved > 0 {
+            components.append("\(photosSaved) photo\(photosSaved == 1 ? "" : "s")")
+        }
+        if videosSaved > 0 {
+            components.append("\(videosSaved) video\(videosSaved == 1 ? "" : "s")")
+        }
+
+        let savedDescription: String
+        if components.count == 2 {
+            savedDescription = "\(components[0]) and \(components[1])"
+        } else {
+            savedDescription = components.first ?? "media"
+        }
+
+        let baseMessage = "Saved \(savedDescription) to your camera roll."
+        return hasFailures ? "\(baseMessage) Some items couldn't be saved." : baseMessage
+    }
+
+    mutating func record(_ mediaKind: PhotoLibraryMediaKind, success: Bool) {
+        switch mediaKind {
+        case .photo:
+            photosAttempted += 1
+            if success { photosSaved += 1 }
+        case .video:
+            videosAttempted += 1
+            if success { videosSaved += 1 }
+        }
+    }
+
+    mutating func merge(_ other: MediaSaveResult) {
+        photosAttempted += other.photosAttempted
+        photosSaved += other.photosSaved
+        videosAttempted += other.videosAttempted
+        videosSaved += other.videosSaved
+    }
+}
+
 // MARK: - Core Discovery Media Export Engine
 @MainActor
 final class InsightMediaExportManager {
@@ -34,18 +109,25 @@ final class InsightMediaExportManager {
     static let shared = InsightMediaExportManager()
     
     // MARK: - Single Item Export
-    func saveUserPhotos(liveData: Data?, validPaths: [String], referenceImageUrl: String?, completion: @escaping (Int) -> Void) {
-        let approvedRemoteURLs = validPaths.flatMap { ApprovedRemoteMedia.urls(from: $0) }
-            + ApprovedRemoteMedia.urls(from: referenceImageUrl)
-        let localPaths = validPaths.filter { ApprovedRemoteMedia.firstURL(from: $0) == nil }
-        
+    func saveUserMedia(
+        liveData: Data?,
+        imagePaths: [String],
+        videoPaths: [String],
+        referenceImageUrl: String?,
+        completion: @escaping (MediaSaveResult) -> Void
+    ) {
+        let payload = Self.makeSaveMediaPayload(
+            imagePaths: imagePaths,
+            videoPaths: videoPaths,
+            referenceImageUrl: referenceImageUrl
+        )
+
         Task {
-            let photosSaved = await ExportProcessingActor.shared.saveUserPhotos(
+            let result = await ExportProcessingActor.shared.saveUserMedia(
                 liveData: liveData,
-                validPaths: localPaths,
-                remoteURLs: approvedRemoteURLs
+                payload: payload
             )
-            completion(photosSaved)
+            completion(result)
         }
     }
     
@@ -77,10 +159,11 @@ final class InsightMediaExportManager {
     }
 
     // MARK: - Sendable Transport Payloads
-    struct SavePhotosPayload: Sendable {
-        let localImagePath: String?
-        let additionalImagePaths: [String]?
-        let approvedRemoteURLs: [URL]
+    struct SaveMediaPayload: Sendable, Equatable {
+        let localImageURLs: [URL]
+        let approvedRemotePhotoURLs: [URL]
+        let localVideoURLs: [URL]
+        let approvedRemoteVideoURLs: [URL]
     }
 
     struct SharePayload: Sendable {
@@ -91,20 +174,43 @@ final class InsightMediaExportManager {
     }
 
     // MARK: - Batch Item Export
-    func batchSaveUserPhotos(records: [LocalScanRecord], completion: @escaping (Int) -> Void) {
-        let payloads = records.map { scan -> SavePhotosPayload in
-            let paths = scan.capturedMediaSnapshot.imagePaths
-            return SavePhotosPayload(
-                localImagePath: paths.first,
-                additionalImagePaths: paths.count > 1 ? Array(paths.dropFirst()) : nil,
-                approvedRemoteURLs: ApprovedRemoteMedia.urls(from: scan.referenceImageUrl)
+    func batchSaveUserMedia(
+        records: [LocalScanRecord],
+        completion: @escaping (MediaSaveResult) -> Void
+    ) {
+        let payloads = records.map { scan -> SaveMediaPayload in
+            let media = scan.capturedMediaSnapshot.activeScanMedia
+            return Self.makeSaveMediaPayload(
+                imagePaths: media.imagePathsForUpload,
+                videoPaths: media.videoPaths,
+                referenceImageUrl: scan.referenceImageUrl
             )
         }
         
         Task {
-            let photosSaved = await ExportProcessingActor.shared.batchSaveUserPhotos(payloads: payloads)
-            completion(photosSaved)
+            let result = await ExportProcessingActor.shared.batchSaveUserMedia(payloads: payloads)
+            completion(result)
         }
+    }
+
+    nonisolated static func makeSaveMediaPayload(
+        imagePaths: [String],
+        videoPaths: [String],
+        referenceImageUrl: String?
+    ) -> SaveMediaPayload {
+        SaveMediaPayload(
+            localImageURLs: imagePaths.compactMap { path in
+                guard ApprovedRemoteMedia.firstURL(from: path) == nil else { return nil }
+                return ExportMediaURLResolver.localURL(from: path)
+            },
+            approvedRemotePhotoURLs: imagePaths.flatMap { ApprovedRemoteMedia.urls(from: $0) }
+                + ApprovedRemoteMedia.urls(from: referenceImageUrl),
+            localVideoURLs: videoPaths.compactMap { path in
+                guard ApprovedRemoteMedia.firstURL(from: path) == nil else { return nil }
+                return ExportMediaURLResolver.localURL(from: path)
+            },
+            approvedRemoteVideoURLs: videoPaths.flatMap { ApprovedRemoteMedia.urls(from: $0) }
+        )
     }
     
     // MARK: - Batch Item Sharing
@@ -174,42 +280,56 @@ actor ExportProcessingActor {
         return URLSession(configuration: config)
     }()
     
-    func saveUserPhotos(liveData: Data?, validPaths: [String], remoteURLs: [URL]) async -> Int {
-        var photosSaved = 0
+    func saveUserMedia(
+        liveData: Data?,
+        payload: InsightMediaExportManager.SaveMediaPayload
+    ) async -> MediaSaveResult {
+        await saveMedia(liveData: liveData, payload: payload)
+    }
+
+    func batchSaveUserMedia(
+        payloads: [InsightMediaExportManager.SaveMediaPayload]
+    ) async -> MediaSaveResult {
+        var result = MediaSaveResult()
+
+        for payload in payloads {
+            result.merge(await saveMedia(liveData: nil, payload: payload))
+        }
+        return result
+    }
+
+    private func saveMedia(
+        liveData: Data?,
+        payload: InsightMediaExportManager.SaveMediaPayload
+    ) async -> MediaSaveResult {
+        var result = MediaSaveResult()
         
         if let data = liveData {
             let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
-            if success { photosSaved += 1 }
+            result.record(.photo, success: success)
         }
         
-        for path in validPaths {
-            let url = URL.documentsDirectory.appendingPathComponent(path)
+        for url in payload.localImageURLs {
             let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: url)
-            if success { photosSaved += 1 }
+            result.record(.photo, success: success)
         }
 
-        photosSaved += await saveApprovedRemotePhotos(from: remoteURLs)
-        
-        return photosSaved
-    }
-    
-    func batchSaveUserPhotos(payloads: [InsightMediaExportManager.SavePhotosPayload]) async -> Int {
-        var photosSaved = 0
-        
-        for payload in payloads {
-            var validPaths: [String] = []
-            if let p = payload.localImagePath { validPaths.append(p) }
-            if let extras = payload.additionalImagePaths { validPaths.append(contentsOf: extras) }
-            
-            for path in validPaths {
-                let url = URL.documentsDirectory.appendingPathComponent(path)
-                let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: url)
-                if success { photosSaved += 1 }
-            }
+        result.merge(await saveApprovedRemoteMedia(
+            from: payload.approvedRemotePhotoURLs,
+            mediaKind: .photo
+        ))
 
-            photosSaved += await saveApprovedRemotePhotos(from: payload.approvedRemoteURLs)
+        for url in payload.localVideoURLs {
+            let success = await PhotoLibraryManager.shared.saveVideoManual(fileURL: url)
+            result.record(.video, success: success)
         }
-        return photosSaved
+
+        result.merge(await saveApprovedRemoteMedia(
+            from: payload.approvedRemoteVideoURLs,
+            mediaKind: .video
+        ))
+
+        return result
     }
     
     func extractImage(liveData: Data?, historicPath: String?) -> UIImage? {
@@ -256,26 +376,38 @@ actor ExportProcessingActor {
         }
     }
 
-    private func saveApprovedRemotePhotos(from remoteURLs: [URL]) async -> Int {
-        var photosSaved = 0
+    private func saveApprovedRemoteMedia(
+        from remoteURLs: [URL],
+        mediaKind: PhotoLibraryMediaKind
+    ) async -> MediaSaveResult {
+        var result = MediaSaveResult()
 
         for remoteURL in remoteURLs {
+            let success: Bool
             do {
                 let (fileURL, response) = try await ExportProcessingActor.mediaSession.download(from: remoteURL)
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
                 guard let httpResponse = response as? HTTPURLResponse,
                       (200...299).contains(httpResponse.statusCode) else {
+                    result.record(mediaKind, success: false)
                     continue
                 }
 
-                let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
-                if success { photosSaved += 1 }
+                switch mediaKind {
+                case .photo:
+                    success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
+                case .video:
+                    success = await PhotoLibraryManager.shared.saveVideoManual(fileURL: fileURL)
+                }
             } catch {
                 MerianLog.network.error("Failed to download R2 media asset: \(error, privacy: .private)")
+                result.record(mediaKind, success: false)
+                continue
             }
+            result.record(mediaKind, success: success)
         }
 
-        return photosSaved
+        return result
     }
 }

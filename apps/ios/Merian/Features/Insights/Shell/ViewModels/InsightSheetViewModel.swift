@@ -97,7 +97,8 @@ final class InsightSheetViewModel {
         var fieldNotesPresentationGeneration: UInt64?
         var isFlagIssuePresented = false
         var showDeleteConfirmation = false
-        var showSaveSuccessAlert = false
+        var showMediaSaveAlert = false
+        var lastMediaSaveResult = MediaSaveResult()
         var showNewCollectionAlert = false
         var isInsightChatSheetPresented = false
         var isCandidateSwipePresented = false
@@ -114,7 +115,7 @@ final class InsightSheetViewModel {
         var selectedWikiURL: URL?
         var safariPresentationScanId: String?
         var safariPresentationGeneration: UInt64?
-        var isSavingPhotos = false
+        var isSavingMedia = false
         var isAudioBoostEnabled = false
         var audioBoostActionToken: UUID?
         var isSharingToExplore = false

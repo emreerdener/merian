@@ -6,6 +6,17 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Save Photos and Videos to Photos
+
+- **Save to camera roll** now applies to new camera photos and original-quality
+  video recordings. The preference remains off by default and uses add-only
+  Photos access.
+- Single and batch **Download** actions now include retained video clips from
+  local scans and approved Naturebook cloud media, with accurate photo/video
+  counts and clear partial- or zero-save feedback.
+- Video exports stay file-backed to avoid large memory spikes, and temporary or
+  original source files remain available until Photos finishes importing them.
+
 ### Insight Media Fallbacks
 
 - Video scans whose original clip is no longer available now retain one photo

@@ -775,6 +775,7 @@ extension CaptureWorkspaceViewModel {
         videoRecordingTask = Task { [weak self] in
             guard let self else { return }
             var recordedFileURL: URL?
+            var cameraRollSaveTask: Task<Void, Never>?
             defer {
                 self.finishVideoCaptureUI(resetProgress: true)
             }
@@ -808,6 +809,12 @@ extension CaptureWorkspaceViewModel {
                 }
                 let resolvedShutterLocation = await shutterLocation
                 let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
+                cameraRollSaveTask = Task { @MainActor in
+                    await self.diContainer.photoLibraryManager.saveVideoToLibrary(
+                        fileURL: recording.fileURL,
+                        location: instantLocation
+                    )
+                }
                 let isProActive = diContainer.revenueCatManager.isProActive
                 let preparedFrames = try await Self.withTimeout(
                     seconds: Self.videoFramePreparationTimeout,
@@ -869,15 +876,21 @@ extension CaptureWorkspaceViewModel {
                     )
                     AppDIContainer.shared.hapticManager.triggerSuccessPulse()
                 }
+                await cameraRollSaveTask?.value
                 if playbackClip.isCompressed {
                     try? FileManager.default.removeItem(at: recording.fileURL)
                 }
             } catch is CancellationError {
+                await cameraRollSaveTask?.value
                 if let recordedFileURL {
                     try? FileManager.default.removeItem(at: recordedFileURL)
                 }
                 diContainer.cameraManager.cancelVideoRecording()
             } catch {
+                await cameraRollSaveTask?.value
+                if let recordedFileURL {
+                    try? FileManager.default.removeItem(at: recordedFileURL)
+                }
                 MerianLog.hardware.error("Video shutter failure: \(error, privacy: .private)")
                 await MainActor.run {
                     self.offlineToastMessage = Self.videoStagingFailureMessage

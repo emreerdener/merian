@@ -220,6 +220,11 @@ steps are tracked in the
   frames plus accompanying audio when available, then stores an upload-bounded
   playback clip for library review and Explore sharing while keeping sampled
   frames out of the user-visible media carousel.
+- Optional **Save to camera roll** uses add-only Photos access to preserve new
+  camera photos and original video recordings. Explicit Insight and Scan Library
+  Downloads can save retained local or approved cloud videos alongside photos
+  even when automatic saving is off; video writes remain file-backed. See the
+  [camera-roll media export contract](docs/features-and-hardware/27-camera-roll-media-export.md).
 - Audio Listen Mode records a 15-second WAV clip with live spectrogram and SNR
   feedback.
 - Describe Mode supports typed observations and live voice dictation through

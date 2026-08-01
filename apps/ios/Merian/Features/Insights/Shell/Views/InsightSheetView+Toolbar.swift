@@ -46,13 +46,13 @@ extension InsightSheetView {
         TopToolbar(
             commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.state.isCommonNameScrolledPast,
-            isSavingPhotos: $viewModel.state.isSavingPhotos,
+            isSavingMedia: $viewModel.state.isSavingMedia,
             showDeleteConfirmation: toolbarDeleteBinding,
-            hasUserPhotos: viewModel.hasUserPhotos,
+            hasUserMedia: viewModel.hasUserMedia,
             leadingControl: presentationStyle.isEmbedded ? .back : .close,
-            onSavePhotos: {
+            onSaveMedia: {
                 guard let scanId = toolbarLocalScanId else { return }
-                viewModel.saveUserPhotos(
+                viewModel.saveUserMedia(
                     expectedScanId: scanId,
                     expectedGeneration: toolbarGeneration,
                     inferenceEngine: inferenceEngine

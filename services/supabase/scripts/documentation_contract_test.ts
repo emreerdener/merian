@@ -1661,7 +1661,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(toolbarImplementationSource),
-    "viewModel.saveUserPhotos( expectedScanId: scanId, expectedGeneration: toolbarGeneration",
+    "viewModel.saveUserMedia( expectedScanId: scanId, expectedGeneration: toolbarGeneration",
   );
   assertStringIncludes(
     compact(toolbarImplementationSource),
@@ -1719,7 +1719,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   for (
     const mediaExportEntryPoint of [
-      "func saveUserPhotos( expectedScanId: String, expectedGeneration: UInt64",
+      "func saveUserMedia( expectedScanId: String, expectedGeneration: UInt64",
       "func shareDiscovery( expectedScanId: String, expectedGeneration: UInt64",
     ]
   ) {

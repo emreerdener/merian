@@ -56,7 +56,7 @@ enum UserDefaultsKeys {
     static let zoomSideLeft = "zoomSideLeft"
     /// Whether the zoom slider overlay is visible on the camera viewfinder.
     static let zoomSliderVisible = "zoomSliderVisible"
-    /// Whether captured images should also be saved to the iOS camera roll.
+    /// Whether captured photos and videos should also be saved to the iOS camera roll.
     static let saveToCameraRoll = "saveToCameraRoll"
     /// Whether live audio placement hints are visible while recording.
     static let audioHintsEnabled = "audioHintsEnabled"

@@ -7,6 +7,20 @@ import Photos
 import UIKit
 import UniformTypeIdentifiers
 
+enum PhotoLibraryMediaKind: Sendable, Equatable {
+    case photo
+    case video
+
+    var resourceType: PHAssetResourceType {
+        switch self {
+        case .photo:
+            return .photo
+        case .video:
+            return .video
+        }
+    }
+}
+
 // MARK: - Core Camera Roll Bridge
 /// Manages fetching the most recent photo thumbnail from the user's camera roll securely without extracting PII.
 @MainActor
@@ -81,17 +95,22 @@ import UniformTypeIdentifiers
     }
     
     // MARK: - Hardware Write Orchestration
-    private enum ResourcePayload: Sendable {
+    enum ResourcePayload: Sendable, Equatable {
         case data(Data)
         case url(URL)
     }
 
-    private enum ProcessedResourcePayload: Sendable {
+    enum ProcessedResourcePayload: Sendable, Equatable {
         case data(Data)
         case fileURL(URL, deleteAfterUse: Bool)
     }
 
-    private func executePhotoLibraryWrite(payload: ResourcePayload, location: CLLocation?, accessLevel: PHAccessLevel) async -> Bool {
+    private func executePhotoLibraryWrite(
+        payload: ResourcePayload,
+        mediaKind: PhotoLibraryMediaKind,
+        location: CLLocation?,
+        accessLevel: PHAccessLevel
+    ) async -> Bool {
         let currentStatus = PHPhotoLibrary.authorizationStatus(for: accessLevel)
         let status: PHAuthorizationStatus
         
@@ -102,13 +121,13 @@ import UniformTypeIdentifiers
         }
         
         guard status == .authorized || status == .limited else {
-            MerianLog.data.debug("⚠️ Insufficient permissions to securely persist array into Camera Roll.")
+            MerianLog.data.debug("⚠️ Insufficient permissions to save media to the camera roll.")
             return false
         }
         
         do {
             let processedPayload = await Task.detached(priority: .utility) {
-                Self.process(payload: payload)
+                Self.process(payload: payload, mediaKind: mediaKind)
             }.value
             defer {
                 if case .fileURL(let url, true) = processedPayload {
@@ -118,12 +137,13 @@ import UniformTypeIdentifiers
             
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()
-                // Directly pass the stripped privacy safe buffers natively avoiding GPS PII persistence.
+                // Photo resources are scrubbed before this point. Video resources stay
+                // file-backed and untouched so their tracks and original quality survive.
                 switch processedPayload {
                 case .data(let data):
-                    request.addResource(with: .photo, data: data, options: nil)
+                    request.addResource(with: mediaKind.resourceType, data: data, options: nil)
                 case .fileURL(let url, _):
-                    request.addResource(with: .photo, fileURL: url, options: nil)
+                    request.addResource(with: mediaKind.resourceType, fileURL: url, options: nil)
                 }
                 
                 if let validLocation = location {
@@ -132,7 +152,7 @@ import UniformTypeIdentifiers
             }
             return true
         } catch {
-            MerianLog.data.debug("⚠️ Failed to natively save image to photo library bounds: \(error, privacy: .private)")
+            MerianLog.data.debug("⚠️ Failed to save media to the photo library: \(error, privacy: .private)")
             return false
         }
     }
@@ -141,18 +161,56 @@ import UniformTypeIdentifiers
         let shouldSave = appSettings.saveToCameraRoll
         guard shouldSave else { return }
         
-        let success = await executePhotoLibraryWrite(payload: .data(imageData), location: location, accessLevel: .addOnly)
+        let success = await executePhotoLibraryWrite(
+            payload: .data(imageData),
+            mediaKind: .photo,
+            location: location,
+            accessLevel: .addOnly
+        )
         if success {
             MerianLog.data.debug("📸 Captured image efficiently pushed down into native Camera Roll.")
         }
     }
+
+    func saveVideoToLibrary(fileURL: URL, location: CLLocation? = nil) async {
+        guard appSettings.saveToCameraRoll else { return }
+
+        let success = await executePhotoLibraryWrite(
+            payload: .url(fileURL),
+            mediaKind: .video,
+            location: location,
+            accessLevel: .addOnly
+        )
+        if success {
+            MerianLog.data.debug("🎥 Captured video saved to the native Camera Roll.")
+        }
+    }
     
     func saveImageManual(imageData: Data) async -> Bool {
-        return await executePhotoLibraryWrite(payload: .data(imageData), location: nil, accessLevel: .addOnly)
+        return await executePhotoLibraryWrite(
+            payload: .data(imageData),
+            mediaKind: .photo,
+            location: nil,
+            accessLevel: .addOnly
+        )
     }
     
     func saveImageManual(fileURL: URL) async -> Bool {
-        return await executePhotoLibraryWrite(payload: .url(fileURL), location: nil, accessLevel: .addOnly)
+        return await executePhotoLibraryWrite(
+            payload: .url(fileURL),
+            mediaKind: .photo,
+            location: nil,
+            accessLevel: .addOnly
+        )
+    }
+
+    func saveVideoManual(fileURL: URL) async -> Bool {
+        return await executePhotoLibraryWrite(
+            payload: .url(fileURL),
+            mediaKind: .video,
+            location: nil,
+            accessLevel: .addOnly
+        )
     }
     
     // MARK: - Privacy & EXIF Scrubbing
@@ -173,7 +231,8 @@ import UniformTypeIdentifiers
                 return nil
             }
             
-            properties[kCGImagePropertyGPSDictionary] = nil
+            properties[kCGImagePropertyGPSDictionary] = kCFNull
+            properties[kCGImageMetadataShouldExcludeGPS] = kCFBooleanTrue
             
             CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
             guard CGImageDestinationFinalize(destination) else { return nil }
@@ -182,7 +241,19 @@ import UniformTypeIdentifiers
         }
     }
 
-    nonisolated private static func process(payload: ResourcePayload) -> ProcessedResourcePayload {
+    nonisolated static func process(
+        payload: ResourcePayload,
+        mediaKind: PhotoLibraryMediaKind
+    ) -> ProcessedResourcePayload {
+        if mediaKind == .video {
+            switch payload {
+            case .data(let data):
+                return .data(data)
+            case .url(let url):
+                return .fileURL(url, deleteAfterUse: false)
+            }
+        }
+
         switch payload {
         case .data(let data):
             return .data(Self.stripGPS(from: data) ?? data)
@@ -202,7 +273,8 @@ import UniformTypeIdentifiers
                 return nil
             }
 
-            properties[kCGImagePropertyGPSDictionary] = nil
+            properties[kCGImagePropertyGPSDictionary] = kCFNull
+            properties[kCGImageMetadataShouldExcludeGPS] = kCFBooleanTrue
 
             let fileExtension = preferredFilenameExtension(for: type, fallbackURL: url)
             let outputURL = FileManager.default.temporaryDirectory

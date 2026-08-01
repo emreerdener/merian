@@ -151,6 +151,12 @@ as their permanent engineering identity.
   preparation; the normal required crop, confirmation preference, inference, and
   offline queue then apply. This path has no Share Extension, App Group handoff,
   backend import endpoint, or new Photo Library permission.
+- **Camera-roll media export contract**: The default-off **Save to camera roll**
+  preference automatically writes camera photos and original video recordings
+  through add-only PhotoKit access. Explicit single and batch Downloads work
+  independently of that preference, include retained local or approved
+  `media.merian.app` video clips, and keep remote work file-backed. See the
+  [canonical export contract](./features-and-hardware/27-camera-roll-media-export.md).
 - **Fresh-launch presentation contract**: The Capture workspace remains the app
   root. After onboarding, the default-off **Open Explore on launch** preference
   can present the generic Explore feed once when a new process starts. It is not
@@ -496,6 +502,11 @@ as their permanent engineering identity.
   — Single-photo document import from the iOS Photos share sheet, including URL
   routing, durable inbox ownership, EXIF context, capture staging, privacy,
   blocking/retry behavior, and physical-device QA.
+- **[`/features-and-hardware/27-camera-roll-media-export.md`](./features-and-hardware/27-camera-roll-media-export.md)**
+  — Automatic and explicit photo/video writes to iOS Photos, including
+  default-off preference semantics, add-only permission, original-recording
+  lifetime, file-backed cloud downloads, approved-host policy, cleanup,
+  feedback counts, and physical-device QA.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

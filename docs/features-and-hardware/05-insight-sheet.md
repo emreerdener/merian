@@ -1500,7 +1500,7 @@ directly below Add/Update field notes in this menu, reusing the same Favorites,
 existing-collection toggles, and New Collection flow previously hosted in the
 bottom toolbar:
 
-1. Base Export (Save photos)
+1. Base Export (Download photos and videos)
 2. Identification Section (Confirm species, Review alternatives, Reanalyze
    species, Ask the community)
 3. Destructive Section (Delete scan) The middle tier ("Identification") is
@@ -1569,11 +1569,16 @@ complete.
 
 `InsightMediaExportManager.shared` handles two export paths:
 
-- **Save to Photos**: passes live capture data, valid historic file paths, and
-  any R2-hosted reference URLs (filtered to the exact `media.merian.app` host
-  only) to `ExportProcessingActor.shared.saveUserPhotos`. Each image is saved to
-  Camera Roll via `PhotoLibraryManager.shared.saveImageManual`. On completion,
-  `showSaveSuccessAlert` is set to `true`.
+- **Save to Photos**: passes live capture data, valid historic local or approved
+  cloud image/video paths, and the existing approved reference-photo URL to
+  `ExportProcessingActor.shared.saveUserMedia`. Images are saved through
+  `PhotoLibraryManager.shared.saveImageManual`, while retained playback clips
+  use the file-backed `.video` resource path. Cloud URLs require HTTPS and the
+  exact `media.merian.app` host. Completion returns separate photo and video
+  counts so alerts and batch toasts describe what was actually saved.
+  See
+  [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md)
+  for URL approval, temporary-file ownership, and failure semantics.
 - **Share Sheet**: constructs a share payload with the species common name,
   scientific name, and the best available image (live > historic > reference),
   then presents `UIActivityViewController` via `ShareSheetUtility.present`.

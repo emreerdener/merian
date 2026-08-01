@@ -62,6 +62,16 @@ only a camera/performance setting.
 - The active level header uses the shared circular `GoalProgressRing` at its
   trailing edge, showing completed/total outing progress consistently with
   the Scan target capsule.
+- Backyard Safari and Park Pollinators level headers place the level's bundled
+  collectible patch to the left of one centered, stacked title-and-description
+  column. The enlarged patch and trailing progress/status accessory have the
+  same circular footprint; locked levels render the lock inside a matching ring
+  so the header remains balanced. Tapping a patch opens its full-screen viewer
+  with pinch and double-tap zoom.
+- The authenticated user's profile summary card lists earned standard-outing
+  patches beneath the stats and a divider. Tapping any patch opens the same
+  zoomable full-screen viewer at that selection; when more patches are earned,
+  the viewer supports horizontal paging and shows page dots.
 - A saved scan that completes at least one current-level goal queues one
   progress toast for every credited standard outing and joined live Seasonal
   Challenge. Each toast shows **Field trip progress**, contextual species/trip

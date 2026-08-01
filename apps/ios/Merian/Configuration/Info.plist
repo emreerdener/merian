@@ -71,7 +71,7 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Naturebook uses speech recognition when you dictate descriptions or field notes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Naturebook saves new scan photos to your library when you turn on Save to camera roll.</string>
+	<string>Naturebook saves new scan photos and videos to your library when you turn on Save to camera roll.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Naturebook lets you choose photos from your library for identification and profile pictures.</string>
 	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>

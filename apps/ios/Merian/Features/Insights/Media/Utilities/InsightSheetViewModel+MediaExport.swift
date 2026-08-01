@@ -11,7 +11,7 @@ extension InsightSheetViewModel {
         return inferenceEngine.speciesData?.referenceImageUrl
     }
 
-    func saveUserPhotos(
+    func saveUserMedia(
         expectedScanId: String,
         expectedGeneration: UInt64,
         inferenceEngine: InferenceEngine
@@ -22,30 +22,36 @@ extension InsightSheetViewModel {
         ),
               inferenceEngine.speciesData?.scanId?
                 .caseInsensitiveCompare(expectedScanId) == .orderedSame,
-              !state.isSavingPhotos else {
+              !state.isSavingMedia else {
             return
         }
-        state.isSavingPhotos = true
+        state.isSavingMedia = true
 
         let exportMedia = activeMedia
         let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
-        let validPaths = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
+        let imagePaths = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
+        let videoPaths = exportMedia.items.compactMap { if case .video(let path, _) = $0 { return path } else { return nil } }
 
-        InsightMediaExportManager.shared.saveUserPhotos(
+        InsightMediaExportManager.shared.saveUserMedia(
             liveData: liveData,
-            validPaths: validPaths,
+            imagePaths: imagePaths,
+            videoPaths: videoPaths,
             referenceImageUrl: exportReferenceImageUrl(for: inferenceEngine)
-        ) { photosSaved in
+        ) { result in
             guard self.isPresentingLocalRecord(
                 scanId: expectedScanId,
                 generation: expectedGeneration
             ) else {
                 return
             }
-            self.state.isSavingPhotos = false
-            if photosSaved > 0 {
+            self.state.isSavingMedia = false
+            self.state.lastMediaSaveResult = result
+            if result.totalSaved > 0 {
                 HapticManager.shared.triggerSuccessPulse()
-                self.state.showSaveSuccessAlert = true
+                self.state.showMediaSaveAlert = true
+            } else {
+                HapticManager.shared.triggerErrorThump()
+                self.state.toastMessage = "No photos or videos could be saved"
             }
         }
     }

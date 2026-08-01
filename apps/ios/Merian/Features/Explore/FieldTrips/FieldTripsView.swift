@@ -1462,6 +1462,13 @@ private enum FieldTripScanPreviewLayout {
     static let imagePadding: CGFloat = 12
 }
 
+private enum FieldTripLevelHeaderLayout {
+    static let accessorySize: CGFloat = 76
+    static let ringLineWidth: CGFloat = 5.5
+    static let ringLabelFontSize: CGFloat = 14
+    static let artworkScale: CGFloat = 1.1
+}
+
 // Bundled objective artwork. Capture surfaces intentionally use only exact
 // template mappings; richer Field trip grids may use semantic fallback art.
 enum FieldTripObjectiveArtwork {
@@ -1541,6 +1548,29 @@ enum FieldTripObjectiveArtwork {
         }
         return nil
     }
+}
+
+enum FieldTripLevelArtwork {
+    static func imageName(templateSlug: String?, levelNumber: Int) -> String? {
+        switch (templateSlug, levelNumber) {
+        case (FieldTripTemplatePresentation.backyardSafariSlug, 1):
+            "fieldtrip-backyard-level-1-patch"
+        case (FieldTripTemplatePresentation.backyardSafariSlug, 2):
+            "fieldtrip-backyard-level-2-patch"
+        case (FieldTripTemplatePresentation.parkPollinatorsSlug, 1):
+            "fieldtrip-park-level-1-patch"
+        case (FieldTripTemplatePresentation.parkPollinatorsSlug, 2):
+            "fieldtrip-park-level-2-patch"
+        default:
+            nil
+        }
+    }
+}
+
+struct FieldTripLevelArtworkGalleryItem: Identifiable, Equatable {
+    let id: String
+    let imageName: String
+    let title: String
 }
 
 private struct FieldTripTemplateCard: View {
@@ -2668,33 +2698,77 @@ private struct FieldTripLevelSection: View {
     let onOpenCompletedScan: (String) -> Void
     let onOpenGuide: (FieldTripChecklistItem) -> Void
 
+    @State private var isLevelArtworkExpanded = false
+
     private var rowStartIndices: [Int] {
         Array(stride(from: 0, to: level.items.count, by: 2))
+    }
+
+    private var levelArtworkImageName: String? {
+        FieldTripLevelArtwork.imageName(
+            templateSlug: templateSlug,
+            levelNumber: level.levelNumber
+        )
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 8) {
+                if let levelArtworkImageName {
+                    Button {
+                        HapticManager.shared.triggerSelectionPulse()
+                        isLevelArtworkExpanded = true
+                    } label: {
+                        Image(levelArtworkImageName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(
+                                width: FieldTripLevelHeaderLayout.accessorySize,
+                                height: FieldTripLevelHeaderLayout.accessorySize
+                            )
+                            .scaleEffect(FieldTripLevelHeaderLayout.artworkScale)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("View \(level.title) patch")
+                    .accessibilityHint("Opens a larger, zoomable image")
+                    .fullScreenCover(isPresented: $isLevelArtworkExpanded) {
+                        FieldTripLevelArtworkExpandedView(
+                            items: [
+                                FieldTripLevelArtworkGalleryItem(
+                                    id: levelArtworkImageName,
+                                    imageName: levelArtworkImageName,
+                                    title: level.title
+                                )
+                            ],
+                            initialItemID: levelArtworkImageName
+                        )
+                    }
+                }
+
+                VStack(alignment: .center, spacing: 8) {
                     Text(level.title)
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.primary)
                         .lineLimit(2)
+                        .multilineTextAlignment(.center)
 
                     if let description = level.description {
                         Text(description)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .layoutPriority(1)
 
                 switch presentationState {
                 case .current:
                     if progressPlacement == .headerRing, let progress {
                         progressRing(progress)
+                    } else if levelArtworkImageName != nil {
+                        trailingAccessorySpacer
                     }
                 case .completed:
                     if progressPlacement == .headerRing, let progress {
@@ -2703,12 +2777,13 @@ private struct FieldTripLevelSection: View {
                         Text("Completed")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
+                            .frame(
+                                width: FieldTripLevelHeaderLayout.accessorySize,
+                                height: FieldTripLevelHeaderLayout.accessorySize
+                            )
                     }
                 case .locked:
-                    Image(systemName: "lock")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Locked")
+                    lockedIndicator
                 }
             }
 
@@ -2761,11 +2836,14 @@ private struct FieldTripLevelSection: View {
         GoalProgressRing(
             completedCount: progress.completedCount,
             targetCount: progress.targetCount,
-            lineWidth: 4.5,
-            labelFontSize: 11,
+            lineWidth: FieldTripLevelHeaderLayout.ringLineWidth,
+            labelFontSize: FieldTripLevelHeaderLayout.ringLabelFontSize,
             tint: .accentColor
         )
-        .frame(width: 52, height: 52)
+        .frame(
+            width: FieldTripLevelHeaderLayout.accessorySize,
+            height: FieldTripLevelHeaderLayout.accessorySize
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Level progress")
         .accessibilityValue(
@@ -2773,6 +2851,159 @@ private struct FieldTripLevelSection: View {
         )
     }
 
+    private var lockedIndicator: some View {
+        ZStack {
+            Circle()
+                .stroke(
+                    .secondary.opacity(0.28),
+                    lineWidth: FieldTripLevelHeaderLayout.ringLineWidth
+                )
+
+            Image(systemName: "lock")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(2)
+        .frame(
+            width: FieldTripLevelHeaderLayout.accessorySize,
+            height: FieldTripLevelHeaderLayout.accessorySize
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Locked")
+    }
+
+    private var trailingAccessorySpacer: some View {
+        Color.clear
+            .frame(
+                width: FieldTripLevelHeaderLayout.accessorySize,
+                height: FieldTripLevelHeaderLayout.accessorySize
+            )
+            .accessibilityHidden(true)
+    }
+
+}
+
+struct FieldTripLevelArtworkExpandedView: View {
+    let items: [FieldTripLevelArtworkGalleryItem]
+    let initialItemID: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedItemID: String?
+
+    init(items: [FieldTripLevelArtworkGalleryItem], initialItemID: String) {
+        self.items = items
+        self.initialItemID = initialItemID
+        _selectedItemID = State(initialValue: initialItemID)
+    }
+
+    private var selectedItem: FieldTripLevelArtworkGalleryItem? {
+        items.first(where: { $0.id == selectedItemID })
+            ?? items.first(where: { $0.id == initialItemID })
+            ?? items.first
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(items) { item in
+                        ZoomableScrollView {
+                            Image(item.imageName)
+                                .resizable()
+                                .scaledToFit()
+                                .padding(24)
+                                .accessibilityLabel("\(item.title) patch")
+                        }
+                        .containerRelativeFrame(.horizontal)
+                        .id(item.id)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $selectedItemID)
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(14)
+                            .background(Circle().fill(.white.opacity(0.14)))
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close patch viewer")
+                }
+                .padding(.top, 12)
+                .padding(.horizontal, 16)
+
+                Spacer()
+
+                VStack(spacing: 10) {
+                    if let selectedItem {
+                        Text(selectedItem.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+
+                    if items.count > 1 {
+                        HStack(spacing: 8) {
+                            ForEach(items) { item in
+                                Circle()
+                                    .fill(
+                                        item.id == selectedItem?.id
+                                            ? Color.white
+                                            : Color.white.opacity(0.35)
+                                    )
+                                    .frame(width: 7, height: 7)
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Patch \(selectedPageNumber) of \(items.count)")
+                    }
+
+                    Text(viewerHint)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 20)
+                .allowsHitTesting(false)
+            }
+        }
+        .onAppear {
+            if !items.contains(where: { $0.id == selectedItemID }) {
+                selectedItemID = items.first?.id
+            }
+        }
+    }
+
+    private var selectedPageNumber: Int {
+        guard let selectedItem,
+              let index = items.firstIndex(where: { $0.id == selectedItem.id }) else {
+            return items.isEmpty ? 0 : 1
+        }
+        return index + 1
+    }
+
+    private var viewerHint: String {
+        if items.count > 1 {
+            return "Swipe for more · Pinch or double-tap to zoom"
+        }
+        return "Pinch or double-tap to zoom"
+    }
 }
 
 private struct FieldTripChecklistGridRow: View {

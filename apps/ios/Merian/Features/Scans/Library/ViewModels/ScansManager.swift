@@ -874,20 +874,25 @@ struct ScanLibraryFilters: Equatable, Sendable {
         }
     }
     
-    func batchSavePhotos(scans: [LocalScanRecord]) async {
+    func batchSaveMedia(scans: [LocalScanRecord]) async {
         await MainActor.run { isDownloading = true }
         
-        let savedCount = await withCheckedContinuation { continuation in
-            InsightMediaExportManager.shared.batchSaveUserPhotos(records: scans) { count in
-                continuation.resume(returning: count)
+        let result = await withCheckedContinuation { continuation in
+            InsightMediaExportManager.shared.batchSaveUserMedia(records: scans) { result in
+                continuation.resume(returning: result)
             }
         }
         
         await MainActor.run {
             isDownloading = false
             exitSelectionMode()
-            HapticManager.shared.triggerSuccessPulse()
-            showToast(message: "Saved \(savedCount) photo\(savedCount == 1 ? "" : "s") to your Camera Roll")
+            if result.totalSaved > 0 {
+                HapticManager.shared.triggerSuccessPulse()
+                showToast(message: result.successMessage)
+            } else {
+                HapticManager.shared.triggerErrorThump()
+                showToast(message: "No photos or videos could be saved")
+            }
         }
     }
 

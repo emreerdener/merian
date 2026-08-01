@@ -238,6 +238,33 @@ triggering excessive SwiftUI view rebuilds.
   typically 300–800 ms each — run in parallel, cutting total context-fetch
   latency by 300–1000 ms per shutter press.
 
+### `PhotoLibraryManager`
+
+- `@MainActor @Observable final class` at
+  `apps/ios/Merian/Core/Data/Images/PhotoLibraryManager.swift`. It retains the
+  production `.shared` singleton and accepts injected `AppSettings` for tests.
+- Owns two distinct Photos boundaries: read/write access for the latest gallery
+  thumbnail and add-only access for photo/video writes. Saving media must not
+  broaden add-only authorization into library reads.
+- Routes writes through one media-aware PhotoKit helper.
+  `PhotoLibraryMediaKind.photo` creates a `.photo` resource after GPS scrubbing;
+  `.video` creates a file-backed `.video` resource without decoding or rewriting
+  the clip.
+- `saveImageToLibrary` and `saveVideoToLibrary` are automatic capture methods
+  and return immediately when `AppSettings.saveToCameraRoll` is false. The
+  setting key and default-off behavior are stable.
+- `saveImageManual` and `saveVideoManual` represent explicit Downloads and do
+  not consult the automatic-save setting. They still require add-only Photos
+  permission and report success as `Bool`.
+- Awaits `PHPhotoLibrary.performChanges` before returning. The caller must keep
+  an input video alive through that await. The manager deletes only temporary
+  scrubbed photos that it created; it never deletes retained playback clips.
+- Automatic camera writes assign the resolved shutter location to the Photos
+  asset. Manual exports do not inject persisted scan telemetry as location.
+- The complete contract, including capture ownership, approved cloud-host
+  policy, count formatting, failure behavior, and device QA, is in
+  [Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md).
+
 ### `HapticManager`
 
 - Governs `UIImpactFeedbackGenerator` tactile feedback.

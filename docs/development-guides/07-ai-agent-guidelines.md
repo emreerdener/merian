@@ -171,6 +171,13 @@ dependency audit, tests, type-check, and production build; preserve the required
   broad Photo Library permission for this path. Pending files remain durable
   across onboarding and temporary quota/capacity blocks and are removed only
   after staging or terminal decode failure.
+- **Photos export must stay file-backed and add-only.** Never load a retained or
+  remote video into `Data` to save it. Use `URLSession.download`, pass the file
+  URL to the `.video` PhotoKit resource, await `performChanges`, and only then
+  delete export-owned temporary files. Keep the automatic setting default-off,
+  let explicit Downloads bypass that setting, and accept remote media only from
+  the exact approved `media.merian.app` host. Follow
+  [Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md).
 - **UI Lifecycle Triggers for Hardware**: Never bind `AVCaptureSession` or heavy
   hardware drivers to Swift UI sheet closures like `.onAppear` or `.onDismiss`.
   In iOS 16+, rapid presentation state changes or `.scenePhase` background

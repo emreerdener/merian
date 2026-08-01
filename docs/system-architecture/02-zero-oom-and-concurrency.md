@@ -1058,7 +1058,7 @@ then dismisses the UI overlay and syncs the pending offline deletion queue.
 
 ### Bulk Export OOM Exhaustion (`InsightMediaExportManager` & `PhotoLibraryManager`)
 
-When executing `saveUserPhotos()` across the historical file cache and external
+When executing `saveUserMedia()` across the historical file cache and external
 Cloudflare URLs, loading via `Data(contentsOf: url)` placed multi-megabyte
 uncompressed JPEGs directly into active RAM. For power users running global bulk
 exports, this breached iOS memory ceilings and triggered JetSam terminations.
@@ -1070,7 +1070,11 @@ already resident. File-backed payloads, however, no longer round-trip through
 and `CGImageDestinationCreateWithURL`, producing a temporary scrubbed file that
 `PHAssetCreationRequest` imports directly. This removes the worst-case "full
 file read + scrubbed copy + PhotoKit copy" triple-buffer spike while preserving
-the metadata-scrub guarantee.
+the metadata-scrub guarantee. Video resources stay file-backed from source to
+PhotoKit. Automatic capture retains the original until its PhotoKit transaction
+finishes; approved cloud Downloads use `URLSession.download` and delete the
+temporary file only after the awaited import returns. See
+[Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md).
 
 This OOM boundary also affected `ScansSheetView` multi-select. Allowing "Select
 All" on 2,000 entries would map entirely uncompressed `UIImage` data into the
@@ -1082,7 +1086,7 @@ trigger an `ErrorThump` alert.
 
 ### Swift 6 Sendable Violation Crash & Media Export RAM Spikes (`InsightMediaExportManager`)
 
-When executing `batchSaveUserPhotos` and `batchShareDiscovery` iteratively,
+When executing `batchSaveUserMedia` and `batchShareDiscovery` iteratively,
 passing an array of `[LocalScanRecord]` (`@Model` / `@MainActor` bound) directly
 into a `Task.detached` closure violated Swift 6 Sendable boundaries, causing
 `EXC_BAD_ACCESS` crashes under high load.
@@ -1133,7 +1137,7 @@ warehousing operations.
 
 **The Refactor**: The processing boundary decouples the `@MainActor` SQLite
 arrays. `.map` executes on the UI Thread to create lightweight, `Sendable`
-structs (`SavePhotosPayload` and `SharePayload`). These pure primitive payloads
+structs (`SaveMediaPayload` and `SharePayload`). These pure primitive payloads
 then flow through `ExportProcessingActor` and the bounded media pipeline rather
 than ad hoc raw detached closures, resolving thread violations and eliminating
 crashes.
@@ -1521,9 +1525,9 @@ When the shutter fires, `CaptureWorkspaceViewModel.executeCapture` starts
 That one-shot request temporarily raises `desiredAccuracy` to
 `kCLLocationAccuracyBest`, calls `requestLocation()`, and then restores the
 coarse composing profile after all pending continuations resolve. The resolved
-shutter fix is used for Camera Roll EXIF and deferred WeatherKit/geocode
-context; if it times out, `lastKnownLocation` still provides the latest coarse
-fallback.
+shutter fix is used for the Photos asset location and deferred
+WeatherKit/geocode context; if it times out, `lastKnownLocation` still provides
+the latest coarse fallback.
 
 ### Synchronous SQLite on the Launch Path (`ScanRepository`)
 

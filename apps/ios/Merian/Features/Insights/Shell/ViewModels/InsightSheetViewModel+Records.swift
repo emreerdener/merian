@@ -289,7 +289,9 @@ extension InsightSheetViewModel {
         boundFieldNotesScanId = nil
         state.showBottomBarTools = false
         state.showDeleteConfirmation = false
-        state.showSaveSuccessAlert = false
+        state.showMediaSaveAlert = false
+        state.lastMediaSaveResult = MediaSaveResult()
+        state.isSavingMedia = false
         state.showNewCollectionAlert = false
         state.isFieldNotesSheetPresented = false
         state.fieldNotesPresentationScanId = nil

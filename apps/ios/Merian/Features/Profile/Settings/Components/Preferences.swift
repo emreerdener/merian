@@ -603,7 +603,7 @@ struct CameraSettingsView: View {
             Section {
                 SettingsToggleRow(
                     title: "Save to camera roll",
-                    description: "Automatically save each captured photo to your iPhone's Photos library.",
+                    description: "Automatically save captured photos and videos to your iPhone's Photos library.",
                     isOn: Binding(
                         get: { appSettings.saveToCameraRoll },
                         set: { newValue in

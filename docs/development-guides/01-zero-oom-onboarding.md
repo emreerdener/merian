@@ -22,6 +22,7 @@ To maintain strict bounds against the 2GB iPhone memory ceiling, **you may never
 | SQLite `FileManager` I/O | `Task { await FileIOActor.shared }` | Synchronously deleting files from a `ModelContext` lock causes the SwiftData Persistence Store to deadlock, interrupting camera feed logic. Always use `FileIOActor`. |
 | `.sheet(isPresented:)` without `@MainActor` delays | `DispatchQueue.main.async { activeSheet = ... }` | Emitting UIKit-backed modals concurrently while `AVCaptureSession` tears down locks the hardware GPU thread and produces black screens. |
 | `PHAsset` Image Retrieval loops | `PHAssetCreationRequest` temporary URLs | Fetching `.imageManager` loads full-fidelity photo-library proxies. Instead, stream data into `URL.documentsDirectory` off-thread. |
+| `Data(contentsOf:)` / `URLSession.data(...)` for photo or video exports | `URLSession.download(...)` → `PHAssetCreationRequest.addResource(with:fileURL:options:)` | A batch of retained or cloud video clips can duplicate every compressed file in resident memory. Keep exports file-backed and retain each source URL until the awaited PhotoKit transaction returns. |
 | Catch-all `Task { ... }` blocks | Structured `Task { ... }` + actor/repository-owned work; if a true detached bridge is required, route it through `DetachedWork` / `Task.detached` only for narrow `Sendable`-only bridges | Inheriting `@MainActor` accidentally blocks the viewport, while overusing detached tasks drops cancellation and isolation guarantees. |
 
 ---
@@ -73,6 +74,10 @@ If you suspect an issue:
 - Never call `fatalError` from auth, configuration, or persistence bootstrap paths. `MerianEnvironment.load()` returns typed diagnostics, optional SDKs skip missing-key setup, Supabase endpoint construction throws, and `ModelContainer` recovery must log, quarantine or rescue legacy stores, fall back to in-memory safe mode, or show startup-blocked UI.
 - Camera shutter ImageIO work must run through `DetachedWork.value(category: .imagePreparation)`. `Task {}` inside a `@MainActor` view model is orchestration only; it must not synchronously downsample, crop, or encode 12MP buffers.
 - File-backed still-image imports must enter through `MediaPreparationActor`.
+- Photo/video writes to iOS Photos must follow the file ownership and cleanup
+  rules in
+  [Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md): never materialize a video as `Data`, and never delete its source before
+  `PHPhotoLibrary.performChanges` finishes.
   Gallery staging, Photos document imports, refinement staging, and avatar crop
   previews use bounded ImageIO passes before any SwiftUI `UIImage` is created.
   Shared Photos files must first be copied through `ExternalImageImportStore`

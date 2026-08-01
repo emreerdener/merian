@@ -1519,6 +1519,194 @@ struct ActiveFieldTripProfilePresentationTests {
     }
 }
 
+struct EarnedFieldTripPatchPresentationTests {
+    @Test func profilePatchesIncludeFinishedLevelsAndTheFinalCompletedLevel() {
+        let templates = [
+            makeTemplate(
+                id: "unstarted",
+                slug: FieldTripTemplatePresentation.backyardSafariSlug,
+                currentLevelNumber: nil
+            ),
+            makeTemplate(
+                id: "level-one-in-progress",
+                slug: FieldTripTemplatePresentation.parkPollinatorsSlug,
+                currentLevelNumber: 1
+            ),
+            makeTemplate(
+                id: "backyard",
+                slug: FieldTripTemplatePresentation.backyardSafariSlug,
+                currentLevelNumber: 2
+            ),
+            makeTemplate(
+                id: "park",
+                slug: FieldTripTemplatePresentation.parkPollinatorsSlug,
+                currentLevelNumber: 2,
+                isComplete: true
+            ),
+            makeTemplate(
+                id: "unbundled",
+                slug: "forest_edges",
+                currentLevelNumber: 2,
+                isComplete: true
+            )
+        ]
+
+        let patches = EarnedFieldTripPatchPresentation.items(templates: templates)
+
+        #expect(
+            patches.map(\.imageName) == [
+                "fieldtrip-backyard-level-1-patch",
+                "fieldtrip-park-level-1-patch",
+                "fieldtrip-park-level-2-patch"
+            ]
+        )
+        #expect(
+            patches.map(\.title) == [
+                "Backyard Safari · Level 1",
+                "Park Pollinators · Level 1",
+                "Park Pollinators · Level 2"
+            ]
+        )
+        #expect(patches.map(\.galleryItem.id) == patches.map(\.id))
+    }
+
+    @Test func stoppedOutingRetainsPatchesForLevelsItAlreadyFinished() {
+        let template = makeTemplate(
+            id: "stopped-backyard",
+            slug: FieldTripTemplatePresentation.backyardSafariSlug,
+            currentLevelNumber: 2,
+            usesStoppedProgress: true
+        )
+
+        let patches = EarnedFieldTripPatchPresentation.items(templates: [template])
+
+        #expect(patches.map(\.imageName) == ["fieldtrip-backyard-level-1-patch"])
+    }
+
+    @Test func publicProfileSummariesIncludeOnlyLevelsTheAuthorFinished() {
+        let summaries = [
+            makeProfileSummary(
+                id: "level-one-in-progress",
+                slug: FieldTripTemplatePresentation.parkPollinatorsSlug,
+                currentLevelNumber: 1
+            ),
+            makeProfileSummary(
+                id: "backyard",
+                slug: FieldTripTemplatePresentation.backyardSafariSlug,
+                currentLevelNumber: 2
+            ),
+            makeProfileSummary(
+                id: "park",
+                slug: FieldTripTemplatePresentation.parkPollinatorsSlug,
+                currentLevelNumber: 2,
+                isComplete: true
+            ),
+            makeProfileSummary(
+                id: "unbundled",
+                slug: "forest_edges",
+                currentLevelNumber: 2,
+                isComplete: true
+            )
+        ]
+
+        let patches = EarnedFieldTripPatchPresentation.items(profileSummaries: summaries)
+
+        #expect(
+            patches.map(\.imageName) == [
+                "fieldtrip-backyard-level-1-patch",
+                "fieldtrip-park-level-1-patch",
+                "fieldtrip-park-level-2-patch"
+            ]
+        )
+        #expect(
+            patches.map(\.title) == [
+                "Backyard Safari · Level 1",
+                "Park Pollinators · Level 1",
+                "Park Pollinators · Level 2"
+            ]
+        )
+    }
+
+    private func makeProfileSummary(
+        id: String,
+        slug: String,
+        currentLevelNumber: Int,
+        isComplete: Bool = false
+    ) -> FieldTripProfileActiveSummary {
+        FieldTripProfileActiveSummary(
+            userFieldTripId: "outing-\(id)",
+            templateId: "template-\(id)",
+            slug: slug,
+            title: slug == FieldTripTemplatePresentation.parkPollinatorsSlug
+                ? "Park Pollinators"
+                : "Backyard Safari",
+            startedAt: "2026-07-18T19:00:00Z",
+            currentLevelNumber: currentLevelNumber,
+            currentLevelTitle: "Level \(currentLevelNumber)",
+            completedCount: isComplete ? 6 : 0,
+            targetCount: isComplete ? 6 : 4,
+            isComplete: isComplete
+        )
+    }
+
+    private func makeTemplate(
+        id: String,
+        slug: String,
+        currentLevelNumber: Int?,
+        isComplete: Bool = false,
+        usesStoppedProgress: Bool = false
+    ) -> FieldTripTemplate {
+        let progress = currentLevelNumber.map { levelNumber in
+            FieldTripProgress(
+                userFieldTripId: "outing-\(id)",
+                startedAt: "2026-07-18T19:00:00Z",
+                currentLevelNumber: levelNumber,
+                completedAt: isComplete ? "2026-07-18T20:00:00Z" : nil,
+                isProfileVisible: true,
+                completedCount: isComplete ? 6 : 0,
+                targetCount: isComplete ? 6 : 4,
+                publicationId: nil,
+                publishedAt: nil,
+                stoppedAt: usesStoppedProgress ? "2026-07-18T20:30:00Z" : nil
+            )
+        }
+
+        return FieldTripTemplate(
+            templateId: "template-\(id)",
+            slug: slug,
+            title: slug == FieldTripTemplatePresentation.parkPollinatorsSlug
+                ? "Park Pollinators"
+                : "Backyard Safari",
+            subtitle: nil,
+            description: nil,
+            coverImageUrl: nil,
+            estimatedDurationMinutes: nil,
+            guideWhereToLook: nil,
+            guideWhyItMatters: nil,
+            guideSafetyEthics: nil,
+            regionTags: [],
+            seasonTags: [],
+            habitatTags: [],
+            difficulty: "starter",
+            isProOnly: false,
+            isRotatingFree: false,
+            viewerHasAccess: true,
+            accessKind: "free",
+            activeProgress: usesStoppedProgress ? nil : progress,
+            stoppedProgress: usesStoppedProgress ? progress : nil,
+            levels: [1, 2].map { levelNumber in
+                FieldTripLevel(
+                    levelId: "level-\(id)-\(levelNumber)",
+                    levelNumber: levelNumber,
+                    title: "Level \(levelNumber)",
+                    description: nil,
+                    items: []
+                )
+            }
+        )
+    }
+}
+
 @MainActor
 struct ActiveCaptureGoalStoreTests {
     @Test func fieldTripsUsesOutingsAndEventsFeatureLabels() {
@@ -1946,6 +2134,39 @@ struct ActiveCaptureGoalStoreTests {
             FieldTripObjectiveArtwork.exactImageName(
                 for: "Unknown future target",
                 templateSlug: "backyard_safari"
+            ) == nil
+        )
+    }
+
+    @Test func levelArtworkMapsBundledPatchesByOutingAndLevel() {
+        #expect(
+            FieldTripLevelArtwork.imageName(
+                templateSlug: "backyard_safari",
+                levelNumber: 1
+            ) == "fieldtrip-backyard-level-1-patch"
+        )
+        #expect(
+            FieldTripLevelArtwork.imageName(
+                templateSlug: "backyard_safari",
+                levelNumber: 2
+            ) == "fieldtrip-backyard-level-2-patch"
+        )
+        #expect(
+            FieldTripLevelArtwork.imageName(
+                templateSlug: "park_pollinators",
+                levelNumber: 1
+            ) == "fieldtrip-park-level-1-patch"
+        )
+        #expect(
+            FieldTripLevelArtwork.imageName(
+                templateSlug: "park_pollinators",
+                levelNumber: 2
+            ) == "fieldtrip-park-level-2-patch"
+        )
+        #expect(
+            FieldTripLevelArtwork.imageName(
+                templateSlug: "forest_edges",
+                levelNumber: 1
             ) == nil
         )
     }

@@ -87,7 +87,17 @@ Each permission step presents the rationale for the request before triggering th
 - **Location**: Required for GPS telemetry that improves AI accuracy (regional species ranges, invasive tracking) and populates the scan location metadata.
 
 > [!NOTE]
-> **Progressive Disclosure**: Push Notification and Photo Library permissions are deliberately omitted from the initial onboarding flow to reduce drop-off. Notifications are conditionally requested via a half-sheet after the first successful scan resolve, or if the user actively flips the Discovery/Achievement toggles in Settings. Photo Library permissions are conditionally requested via a half-sheet when the user specifically toggles "Save to camera roll" or taps the gallery import button. Receiving a file explicitly shared from Photos is a document import and adds no Photo Library permission request.
+> **Progressive Disclosure**: Push Notification and Photo Library permissions
+> are deliberately omitted from the initial onboarding flow to reduce drop-off.
+> Notifications are conditionally requested via a half-sheet after the first
+> successful scan resolve, or if the user actively flips the
+> Discovery/Achievement toggles in Settings. Enabling **Save to camera roll**
+> presents the add-only Photos explainer for automatic photo and video writes;
+> gallery import separately requests read/write access. Explicitly Downloading
+> media also uses add-only access but does not require the automatic setting to
+> be enabled. Receiving a file explicitly shared from Photos is a document
+> import and adds no Photo Library permission request. See
+> [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
 
 ---
 

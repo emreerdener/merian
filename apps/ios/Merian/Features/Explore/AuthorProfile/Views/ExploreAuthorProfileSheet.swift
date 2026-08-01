@@ -241,8 +241,7 @@ struct ExploreAuthorProfileContent: View {
     private var navigationTitle: String {
         switch mode {
         case .profile:
-            guard let profile else { return "Profile" }
-            return profile.publicUsernameDisplayName ?? "Profile"
+            return ""
         case .library:
             if route.authorUserId.lowercased() == SupabaseManager.shared.currentUser?.id.uuidString.lowercased() {
                 return "Your published scans"
@@ -293,8 +292,12 @@ struct ExploreAuthorProfileContent: View {
     private var loadingState: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 24) {
-                ExploreAuthorProfileSkeletonHeader()
-                ExploreAuthorProfileSkeletonFollowButton()
+                ExploreAuthorProfileSkeletonCard()
+
+                if !isCurrentUserRoute {
+                    ExploreAuthorProfileSkeletonFollowButton()
+                }
+
                 ExploreAuthorProfileSkeletonStats()
                 ExploreAuthorProfileSkeletonHeatmap()
                 ExploreAuthorProfileSkeletonGrid()
@@ -361,35 +364,64 @@ struct ExploreAuthorProfileContent: View {
     }
 
     private func authorHeader(_ profile: ExploreAuthorProfile) -> some View {
-        VStack(spacing: 12) {
-            authorAvatar(url: profile.authorAvatarURL, size: 112)
+        let earnedPatches = earnedFieldTripPatches(for: profile)
 
-            VStack(spacing: 16) {
-                VStack(spacing: 6) {
+        return VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                authorAvatar(url: profile.authorAvatarURL, size: 48)
+                    .frame(width: 56, height: 56)
+
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .center, spacing: 6) {
                         Text(profile.profileTitle)
-                            .font(.system(.largeTitle, design: .serif).weight(.bold))
+                            .font(.title3)
+                            .fontWeight(.semibold)
                             .foregroundStyle(.primary)
-                            .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                             .accessibilityAddTraits(.isHeader)
 
                         if shouldShowProBadge(for: profile) {
                             ExploreProBadge()
                         }
                     }
-                    .frame(maxWidth: .infinity)
 
-                    Text(UserPersona(speciesCount: profile.speciesCount).title)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if let username = profile.publicUsernameDisplayName {
+                        Text(username)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
 
-                profileSummaryCountsRow(profile)
+                Spacer(minLength: 0)
+            }
+
+            Divider()
+
+            profileSummaryCountsRow(profile)
+
+            if !earnedPatches.isEmpty {
+                Divider()
+                EarnedFieldTripPatchCarousel(patches: earnedPatches)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+    }
+
+    private func earnedFieldTripPatches(for profile: ExploreAuthorProfile) -> [EarnedFieldTripPatch] {
+        guard FeatureFlags.isEnabled(.fieldTrips), let fieldTrips = profile.fieldTrips else { return [] }
+        return EarnedFieldTripPatchPresentation.items(profileSummaries: fieldTrips.active)
+    }
+
+    private var isCurrentUserRoute: Bool {
+        SupabaseManager.shared.currentUser?.id.uuidString.lowercased()
+            == route.authorUserId.lowercased()
     }
 
     private func shouldShowProBadge(for profile: ExploreAuthorProfile) -> Bool {
@@ -992,41 +1024,64 @@ private struct ExploreReportUserSheet: View {
     }
 }
 
-private struct ExploreAuthorProfileSkeletonHeader: View {
+private struct ExploreAuthorProfileSkeletonCard: View {
     var body: some View {
         VStack(spacing: 12) {
-            Circle()
-                .fill(Color.clear)
-                .overlay {
-                    GlowPulsingSkeletonView(cornerRadius: 56)
-                        .clipShape(Circle())
-                }
-                .frame(width: 112, height: 112)
+            HStack(spacing: 12) {
+                GlowPulsingSkeletonView(cornerRadius: 24)
+                    .frame(width: 48, height: 48)
+                    .clipShape(Circle())
+                    .frame(width: 56, height: 56)
 
-            VStack(spacing: 16) {
-                VStack(spacing: 8) {
-                    GlowPulsingSkeletonView(cornerRadius: 8)
-                        .frame(width: 188, height: 42)
-
+                VStack(alignment: .leading, spacing: 5) {
                     GlowPulsingSkeletonView(cornerRadius: 6)
-                        .frame(width: 124, height: 18)
+                        .frame(width: 156, height: 22)
+
+                    GlowPulsingSkeletonView(cornerRadius: 5)
+                        .frame(width: 92, height: 15)
                 }
 
-                HStack(spacing: 0) {
-                    ForEach(0..<4, id: \.self) { _ in
-                        VStack(spacing: 6) {
-                            GlowPulsingSkeletonView(cornerRadius: 5)
-                                .frame(width: 38, height: 22)
-                            GlowPulsingSkeletonView(cornerRadius: 4)
-                                .frame(width: 64, height: 14)
+                Spacer(minLength: 0)
+            }
+
+            Divider()
+
+            HStack(spacing: 0) {
+                ForEach(0..<4, id: \.self) { _ in
+                    VStack(spacing: 4) {
+                        GlowPulsingSkeletonView(cornerRadius: 5)
+                            .frame(width: 38, height: 20)
+                        GlowPulsingSkeletonView(cornerRadius: 4)
+                            .frame(width: 64, height: 13)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+
+            if FeatureFlags.isEnabled(.fieldTrips) {
+                Divider()
+
+                VStack(alignment: .trailing, spacing: 8) {
+                    GlowPulsingSkeletonView(cornerRadius: 4)
+                        .frame(width: 58, height: 13)
+
+                    HStack(spacing: 12) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            GlowPulsingSkeletonView(cornerRadius: 32)
+                                .frame(width: 64, height: 64)
+                                .clipShape(Circle())
                         }
-                        .frame(maxWidth: .infinity)
+
+                        Spacer(minLength: 0)
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
         .accessibilityHidden(true)
     }
 }

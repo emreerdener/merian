@@ -8,7 +8,7 @@ enum InsightShareRecommendation: Equatable {
 }
 
 extension InsightSheetViewModel {
-    var hasUserPhotos: Bool {
+    var hasUserMedia: Bool {
         activeMedia.hasUserImage
     }
 
@@ -440,7 +440,7 @@ extension InsightSheetViewModel {
     }
 
     var canRequestCommunityIdentification: Bool {
-        canShareToExplore && hasUserPhotos
+        canShareToExplore && hasUserMedia
     }
 
     var shareRecommendation: InsightShareRecommendation {

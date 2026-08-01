@@ -81,8 +81,10 @@ The Scans tab is the user's primary offline biological journal.
   preserved to prevent accidental re-queues during the async batch append to
   `PHPhotoLibrary`. When the loop completes on the `@MainActor`, the loader
   dismisses, selections clear, a success haptic pulses, and a
-  `.ultraThinMaterial` capsule notification (e.g. "Saved X photos to your Camera
-  Roll") appears.
+  `.ultraThinMaterial` capsule notification describing the number of photos and
+  videos saved to the Camera Roll appears.
+  The shared single/batch result and cleanup contract is defined in
+  [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
 
 ### Search & Filtering
 
@@ -680,7 +682,7 @@ an Edge API response or opened offline via the Scans library.
   helpers, and the main `InsightSheetViewModel`; `Content/` owns
   biological/non-biological results, queued lifecycle presentation, foreground
   analysis, and their shared `ScanningExperienceView`; `Media/` owns the
-  carousel, fullscreen gallery, and photo export utilities;
+  carousel, fullscreen gallery, and photo/video export utilities;
   `IdentificationReview/` owns candidates, swipe review, candidate state models,
   and confidence explanation UI.
   - Foreground and queued processing use one visible scanning contract: dynamic
@@ -932,11 +934,13 @@ an Edge API response or opened offline via the Scans library.
   "Rich Link Bubble", the `https://naturebook.earth/explore/post/{postId}` share
   URL is folded into the same `String` rather than passed as a standalone `URL`
   object.
-- **Exporting Raw Photography (`Save my photos`)**: Users can extract biological
-  captures directly to the iOS Camera Roll via
-  `PhotoLibraryManager.saveImageManual(imageData:)` with `.addOnly` permissions.
-  This requires `.documentsDirectory` resolution across iOS sandbox boundaries
-  to exclude Wikipedia/GBIF external references.
+- **Exporting Captured Media (`Download scan`)**: Users can extract biological
+  photos and retained video clips directly to the iOS Camera Roll through
+  `PhotoLibraryManager` with `.addOnly` permissions. Local files resolve across
+  iOS sandbox boundaries, while remote exports are restricted to the approved
+  `media.merian.app` host so Wikipedia/GBIF references remain excluded.
+  Automatic-save preference semantics and exact source ownership are documented
+  in [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
 - **Optimistic UX (Deletions)**: Users can delete scans via `.contextMenu`
   bounds (Library, Collections) or the Toolbar `Menu` inside Insight bounds.
   Pressing "Delete" removes the item from the local UI immediately, triggers
@@ -1201,11 +1205,11 @@ on gesture-driven layout abstractions.
   testers can send more feedback without the proactive prompt returning.
   Responses submit through `/submit-feedback-survey` and are stored as private
   product feedback in Supabase.
-- **System Haptics & Camera Roll**: `UserDefaults` bindings skip `HapticManager`
-  calls or prevent `PhotoLibraryManager` from pushing raw buffer bytes into the
-  iOS Photos ecosystem. Haptic interactions overlay `.heavy` feedback on the
-  Camera Shutter and `.medium` responses on hardware triggers like the Flash
-  toggle.
+- **System Haptics & Camera Roll**: Typed `AppSettings` bindings let
+  `HapticManager` suppress feedback and let `PhotoLibraryManager` skip automatic
+  photo/video writes when their preferences are disabled. Haptic interactions
+  overlay `.heavy` feedback on the Camera Shutter and `.medium` responses on
+  hardware triggers like the Flash toggle.
 - **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` &
   `requiresScanConfirmation`)**: Defaults to `false` (instant 1-capture mode).
   When disabled, a single camera capture is submitted to the AI inference

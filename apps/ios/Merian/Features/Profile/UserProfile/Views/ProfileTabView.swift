@@ -33,6 +33,7 @@ struct ProfileTabView: View {
     @State private var selectedFieldTripPublicationRoute: FieldTripPublicationRoute?
     @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
+    @State private var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
     @State private var profileRefreshToken = UUID()
     
     var body: some View {
@@ -46,7 +47,8 @@ struct ProfileTabView: View {
                         isShowingDisplayNameEditor: $isShowingDisplayNameEditor,
                         isShowingUsernameEditor: $isShowingUsernameEditor,
                         totalScans: totalCaptures,
-                        completedAchievements: visibleAwards.completedCount
+                        completedAchievements: visibleAwards.completedCount,
+                        earnedFieldTripPatches: earnedFieldTripPatches
                     )
 
                     // MARK: - Stats
@@ -62,6 +64,9 @@ struct ProfileTabView: View {
                         onOpenCompletedScan: openFieldTripCompletedScan,
                         onViewAll: {
                             AppEventPublisher.shared.send(.requestOpenFieldTrips)
+                        },
+                        onEarnedPatchesChange: { patches in
+                            earnedFieldTripPatches = patches
                         }
                     )
                 }

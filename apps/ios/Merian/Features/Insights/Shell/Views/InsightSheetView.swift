@@ -331,10 +331,10 @@ struct InsightSheetView: View {
                 ? "Are you sure you want to cancel this upload? The scan will be permanently deleted from your device."
                 : "This permanently removes the scan, photo, and cloud data. If it is published to Explore, that post, its likes, and its comments will also be permanently removed.")
         }
-        .alert("Photos saved", isPresented: $viewModel.state.showSaveSuccessAlert) {
+        .alert("Saved to Photos", isPresented: $viewModel.state.showMediaSaveAlert) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Your photos have been securely saved to your camera roll.")
+            Text(viewModel.state.lastMediaSaveResult.successMessage)
         }
         .newCollectionAlert(
             isPresented: newCollectionAlertBinding,

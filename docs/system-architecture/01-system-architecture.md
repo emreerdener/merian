@@ -71,8 +71,11 @@ orphaned object does not reconstruct its relational context.
   Glassmorphism `.ultraThinMaterial` overlays dynamically to prevent critical
   heat loads in outdoor environments.
 - **Native Camera Roll Integration (`PhotoLibraryManager`):** Persists
-  unmodified `12MP` output into the user's local iOS `PHPhotoLibrary` on
-  capture, avoiding iCloud sync delays.
+  privacy-processed camera photos and original short video recordings into the
+  user's local iOS `PHPhotoLibrary` when Save to camera roll is enabled. Later
+  manual video exports use the retained playback clip. See
+  [Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md)
+  for the normative permission, lifetime, and cleanup contract.
 - **Photos Document Import (`ExternalImageImportStore`):** The app advertises
   `public.image` as an alternate viewer. `MerianApp.onOpenURL` copies a shared
   Photos file out of its security-scoped or temporary source into an Application
@@ -91,9 +94,10 @@ orphaned object does not reconstruct its relational context.
   `CoreLocation` and `WeatherKit` with coarse, pausable location updates while
   the camera is active, then fires a one-shot high-accuracy `requestLocation()`
   when the shutter is pressed. Heading updates are not started because compass
-  telemetry is not part of the active inference payload. The shutter location is
-  used for Camera Roll EXIF and deferred weather/geocode context, while stale
-  cached coordinates remain a fallback if GPS cannot settle within the timeout.
+  telemetry is not part of the active inference payload. The shutter location
+  is used for the Photos asset location and deferred weather/geocode context,
+  while stale cached coordinates remain a fallback if GPS cannot settle within
+  the timeout.
   It also backfills historical edge metadata (GPS and past WeatherKit
   conditions) from `PHAsset` context for in-app gallery picks or embedded
   ImageIO metadata for Photos document imports prior to inference. Date-only and
