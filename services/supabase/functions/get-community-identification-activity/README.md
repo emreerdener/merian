@@ -65,7 +65,7 @@ The request uses the bounded `small` JSON ingress class.
       "hero_image_url": "https://media.example/request.jpg",
       "activity_at": "2026-07-30T20:00:00.000Z",
       "suggestion_count": 3,
-      "recent_actor_names": ["Explorer A", "Explorer B"],
+      "recent_actor_names": ["river_wren", "moss_grove"],
       "taxon_id": "00000000-0000-4000-8000-000000000014",
       "taxon_common_name": "White-tailed Eagle",
       "taxon_scientific_name": "Haliaeetus albicilla",
@@ -95,7 +95,9 @@ timestamp-only cursor; equal timestamps are disambiguated by UUID.
 ## Projection semantics
 
 Migration `20260731050009_add_community_identification_activity.sql` owns the
-projection:
+projection. Migration
+`20260801145720_use_usernames_for_community_identification_activity.sql` owns
+public-username attribution in its read RPC:
 
 - Suggestions for one request `requested_at` generation chain into one burst
   while each adjacent suggestion occurs no more than 60 minutes after the prior
@@ -104,7 +106,7 @@ projection:
   are normalized separately from the group.
 - The actor table tracks every distinct actor's count and `last_suggested_at`;
   the read RPC returns up to the three most recent visible actors and resolves
-  their names at that time.
+  their public usernames at that time.
 - A consensus event caused by `identification_submitted` enriches the associated
   suggestion burst's latest taxon/score metadata.
 - A consensus change without an associated submission is a standalone
@@ -140,8 +142,9 @@ Every read reapplies current visibility rather than trusting projection state:
 
 Burst suggestion counts and recent actors additionally exclude blocked or
 shadowbanned actors. A burst with no visible actor suggestions is omitted.
-Visible actor names are resolved from `public_author_name` at read time with the
-generic Naturebook explorer fallback.
+Visible actors are attributed by the non-null `public_username` at read time;
+profile/display names are not returned. The legacy `recent_actor_names` wire
+field is retained for compatibility, but its values are public usernames.
 
 Both internal projection tables have RLS enabled. `PUBLIC`, `anon`, and
 `authenticated` have no direct table privileges. Only `service_role` can

@@ -310,7 +310,7 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/get-community-identification-activity`: Authenticated service-backed feed
     of one-hour suggestion bursts, standalone consensus changes, and immutable
     resolutions. It uses a service-role-only projection/RPC, resolves visible
-    actor labels at read time, and paginates by
+    actor public usernames at read time, and paginates by
     `(activity_at, activity_id)`.
   - `/get-community-identification-detail`: Authenticated privacy-filtered
     request detail and identification audit timeline.

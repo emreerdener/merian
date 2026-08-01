@@ -34,6 +34,7 @@ struct ProfileTabView: View {
     @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
+    @State private var isLoadingEarnedFieldTripPatches = FeatureFlags.isEnabled(.fieldTrips)
     @State private var profileRefreshToken = UUID()
     
     var body: some View {
@@ -48,7 +49,8 @@ struct ProfileTabView: View {
                         isShowingUsernameEditor: $isShowingUsernameEditor,
                         totalScans: totalCaptures,
                         completedAchievements: visibleAwards.completedCount,
-                        earnedFieldTripPatches: earnedFieldTripPatches
+                        earnedFieldTripPatches: earnedFieldTripPatches,
+                        isLoadingEarnedFieldTripPatches: isLoadingEarnedFieldTripPatches
                     )
 
                     // MARK: - Stats
@@ -67,6 +69,9 @@ struct ProfileTabView: View {
                         },
                         onEarnedPatchesChange: { patches in
                             earnedFieldTripPatches = patches
+                        },
+                        onEarnedPatchesLoadingChange: { isLoading in
+                            isLoadingEarnedFieldTripPatches = isLoading
                         }
                     )
                 }

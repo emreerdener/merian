@@ -565,11 +565,17 @@ enum FieldTripDetailPrimaryAction: Equatable {
 }
 
 enum FieldTripDetailLifecyclePresentation {
-    static func primaryAction(for template: FieldTripTemplate) -> FieldTripDetailPrimaryAction {
+    static func primaryAction(
+        for template: FieldTripTemplate,
+        sharingEnabled: Bool = FieldTripSharingAvailability.isEnabled
+    ) -> FieldTripDetailPrimaryAction? {
         guard template.viewerHasAccess else { return .unlock }
         if template.isStopped { return .resume }
         guard let progress = template.viewerProgress else { return .start }
-        return progress.isComplete ? .publish : .scan
+        guard !progress.isComplete else {
+            return sharingEnabled ? .publish : nil
+        }
+        return .scan
     }
 
     static func canStop(_ template: FieldTripTemplate) -> Bool {

@@ -475,6 +475,8 @@ projection, triggers, shared request classifier, service-only RPC, and current
 generation backfill.
 `20260731063804_index_community_identification_activity_actor_user_fk.sql` owns
 the actor-to-user reverse FK index used by deletion and identity maintenance.
+`20260801145720_use_usernames_for_community_identification_activity.sql` owns
+public-username attribution in the Activity read RPC.
 Tree/galaxy code remains under
 `Features/SpeciesDictionary/Tree/` but has no MVP navigation entry point.
 

@@ -1581,7 +1581,7 @@ The success envelope is:
       "hero_image_url": "https://media.example/request.jpg",
       "activity_at": "2026-07-30T20:00:00.000Z",
       "suggestion_count": 3,
-      "recent_actor_names": ["Explorer A", "Explorer B"],
+      "recent_actor_names": ["river_wren", "moss_grove"],
       "taxon_id": "00000000-0000-4000-8000-000000000014",
       "taxon_common_name": "White-tailed Eagle",
       "taxon_scientific_name": "Haliaeetus albicilla",
@@ -1598,17 +1598,19 @@ Items have type `suggestion_burst`, `consensus_changed`, or `resolved`.
 Suggestions on one request lifecycle chain into the same burst when each
 suggestion is no more than 60 minutes after the prior suggestion, including the
 exact 60-minute boundary. A burst returns its visible suggestion count and up to
-three most recent distinct visible actor names. Consensus caused by a suggestion
-is folded into the burst's latest taxon metadata. Consensus without a new
-suggestion is standalone, and resolution is always a separate immutable
-milestone.
+three most recent distinct visible actor public usernames. The legacy
+`recent_actor_names` key is retained for wire compatibility, but its values are
+usernames, not profile/display names. Consensus caused by a suggestion is folded
+into the burst's latest taxon metadata. Consensus without a new suggestion is
+standalone, and resolution is always a separate immutable milestone.
 
 The Edge Function is the only client entry point. Its RPC and internal
 projection are granted to `service_role` only; `PUBLIC`, `anon`, and
 `authenticated` cannot invoke or read them directly. Reads apply the same
 request visibility, blocking, shadowban, tombstone, unshare, moderation, media
-health quarantine, and active-media rules as Identify. Actor names are resolved
-from visible users at read time and are not stored in the projection. A
+health quarantine, and active-media rules as Identify. Actor attribution is
+resolved from visible users' non-null `public_username` values at read time and
+is not stored in the projection. Profile/display names are not returned. A
 suggestion burst with no actors visible to the viewer is omitted. Fetching this
 feed does not read or mutate bell unread state.
 

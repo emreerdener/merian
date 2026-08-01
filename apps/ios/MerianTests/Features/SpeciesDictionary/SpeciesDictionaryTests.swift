@@ -1062,6 +1062,20 @@ struct SpeciesDictionaryTests {
         #expect(response.data.regions.first?.code == "US")
     }
 
+    @Test func testSpeciesDictionaryRegionFlagNormalizesValidCountryCodes() {
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: "US") == "🇺🇸")
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: "ca") == "🇨🇦")
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: "  mx\n") == "🇲🇽")
+    }
+
+    @Test func testSpeciesDictionaryRegionFlagRejectsMissingOrInvalidCountryCodes() {
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: nil) == nil)
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: "") == nil)
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: "USA") == nil)
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: "ZZ") == nil)
+        #expect(SpeciesDictionaryRegionFlag.emoji(for: "1A") == nil)
+    }
+
     @Test func testGetSpeciesDictionaryCatalogConstructsPayloadAndParsesResponse() async throws {
         let testData = Data("""
         {

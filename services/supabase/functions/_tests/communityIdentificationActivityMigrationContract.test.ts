@@ -7,6 +7,10 @@ const migrationUrl = new URL(
   "../../migrations/20260731050009_add_community_identification_activity.sql",
   import.meta.url,
 );
+const usernameMigrationUrl = new URL(
+  "../../migrations/20260801145720_use_usernames_for_community_identification_activity.sql",
+  import.meta.url,
+);
 const edgeDbUrl = new URL(
   "../get-community-identification-activity/db.ts",
   import.meta.url,
@@ -131,6 +135,25 @@ Deno.test("Community Identify activity read applies shared filters, visibility, 
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("Community Identify activity attributes suggestions by public username", async () => {
+  const sql = compact(await Deno.readTextFile(usernameMigrationUrl));
+
+  assertStringIncludes(
+    sql,
+    "actor_user.public_username AS actor_username",
+  );
+  assert(
+    !sql.includes("actor_user.public_author_name"),
+    "Activity attribution must not expose profile/display names.",
+  );
+  assertStringIncludes(sql, "SECURITY INVOKER SET search_path = ''");
+  assertStringIncludes(
+    sql,
+    "REVOKE ALL ON FUNCTION public.get_community_identification_activity",
+  );
+  assertStringIncludes(sql, "TO service_role");
 });
 
 Deno.test("Community Identify activity Edge function validates paired cursors and calls only its RPC", async () => {

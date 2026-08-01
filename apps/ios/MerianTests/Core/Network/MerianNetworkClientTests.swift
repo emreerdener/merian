@@ -3518,7 +3518,7 @@ struct MerianNetworkClientTests {
                     "hero_image_url": "https://example.com/community.webp",
                     "activity_at": "2026-07-30T20:00:00.000Z",
                     "suggestion_count": 3,
-                    "recent_actor_names": ["Avery", "Morgan"],
+                    "recent_actor_names": ["avery_wren", "morgan_moss"],
                     "taxon_id": "taxon-1",
                     "taxon_common_name": "Pinwheel",
                     "taxon_scientific_name": "Aeonium haworthii",
@@ -3570,7 +3570,7 @@ struct MerianNetworkClientTests {
         #expect(activity.count == 1)
         #expect(activity[0].activityType == .suggestionBurst)
         #expect(activity[0].suggestionCount == 3)
-        #expect(activity[0].recentActorNames == ["Avery", "Morgan"])
+        #expect(activity[0].recentActorNames == ["avery_wren", "morgan_moss"])
         #expect(activity[0].thumbnailUrl == "https://example.com/community-thumb.webp")
     }
 

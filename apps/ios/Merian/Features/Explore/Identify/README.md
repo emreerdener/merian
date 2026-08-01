@@ -108,8 +108,8 @@ with a service-role client. Projection tables and the RPC deny direct
 Activity reads apply request withdrawal/unshare/moderation, owner shadowban,
 viewer blocking, scan tombstone, aggregate media quarantine, and active-media
 rules. Actor IDs/counts are stored in the internal projection; actor names are
-resolved and visibility-filtered at read time. Activity does not affect the
-Explore bell feed or unread state.
+not stored. Public usernames are resolved and visibility-filtered at read time.
+Activity does not affect the Explore bell feed or unread state.
 
 Suggestions on the same request generation chain into one burst when every
 adjacent suggestion is at most 60 minutes apart. The exact 60-minute boundary

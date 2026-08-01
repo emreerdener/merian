@@ -502,9 +502,9 @@ The stale "react-only" description is retired. Conversation and relationship
 features are part of the current codebase.
 
 Identify Activity is a request-discovery summary, not the Explore notifications
-feed. It does not create or update bell unread state. Visible actor labels are
-resolved at read time, and request/media visibility plus blocking rules apply
-before an Activity row is returned.
+feed. It does not create or update bell unread state. Visible actors are shown
+by public username rather than profile/display name, and request/media
+visibility plus blocking rules apply before an Activity row is returned.
 
 ## 7.3 Reporting and blocking - Implemented
 

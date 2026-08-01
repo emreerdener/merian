@@ -18,6 +18,38 @@ private enum SpeciesDictionaryCornerRadius {
     static let chevronSkeleton: CGFloat = 4
 }
 
+private enum SpeciesDictionaryRegionMapLayout {
+    static func imageHeight(for width: CGFloat) -> CGFloat {
+        max(210, min(260, width * 0.60))
+    }
+}
+
+enum SpeciesDictionaryRegionFlag {
+    static func emoji(for countryCode: String?) -> String? {
+        guard let normalizedCode = countryCode?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased(),
+              Locale.Region.isoRegions.contains(Locale.Region(normalizedCode))
+        else {
+            return nil
+        }
+
+        let asciiScalars = Array(normalizedCode.unicodeScalars)
+        guard asciiScalars.count == 2,
+              asciiScalars.allSatisfy({ (65...90).contains($0.value) })
+        else {
+            return nil
+        }
+
+        let regionalIndicatorScalars = asciiScalars.compactMap { scalar in
+            UnicodeScalar(127_397 + scalar.value)
+        }
+        guard regionalIndicatorScalars.count == 2 else { return nil }
+
+        return regionalIndicatorScalars.map(String.init).joined()
+    }
+}
+
 struct SpeciesDictionaryCatalogView: View {
     let isSearchEnabled: Bool
     let isBottomSearchEnabled: Bool
@@ -265,24 +297,6 @@ struct SpeciesDictionaryOverviewView: View {
                         .buttonStyle(.plain)
                     }
 
-                    if let regionCategory = category(.yourRegion, in: overview),
-                       shouldShowRegionMapCard(for: regionCategory) {
-                        if regionCategory.count >= 1 {
-                            NavigationLink(value: route(for: regionCategory)) {
-                                SpeciesDictionaryRegionMapCard(
-                                    category: regionCategory,
-                                    width: availableWidth
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            SpeciesDictionaryRegionMapCard(
-                                category: regionCategory,
-                                width: availableWidth
-                            )
-                        }
-                    }
-
                     if !overview.groups.isEmpty {
                         VStack(spacing: gridSpacing) {
                             ForEach(groupRowIndices(for: overview.groups), id: \.self) { rowIndex in
@@ -315,35 +329,37 @@ struct SpeciesDictionaryOverviewView: View {
                     }
 
                     let visibleRegions = visibleRegions(in: overview)
-                    if !visibleRegions.isEmpty {
+                    let regionCategory = category(.yourRegion, in: overview)
+                    let showsRegionMapCard = regionCategory.map(shouldShowRegionMapCard(for:)) ?? false
+                    if showsRegionMapCard || !visibleRegions.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Regions")
                                 .font(.headline)
                                 .padding(.horizontal, 2)
 
-                            NavigationLink(value: SpeciesDictionaryCategoryRoute.regions) {
-                                SpeciesDictionaryRegionRow(
-                                    title: "Browse all regions",
-                                    count: visibleRegions.count,
-                                    referenceImageUrl: visibleRegions.first?.referenceImageUrl,
-                                    systemImage: "globe.americas"
-                                )
-                            }
-                            .buttonStyle(.plain)
-
-                            ForEach(visibleRegions) { region in
-                                NavigationLink(
-                                    value: SpeciesDictionaryCategoryRoute.catalog(
-                                        title: region.title,
-                                        category: .region,
-                                        region: region.code ?? region.title
+                            if let regionCategory, showsRegionMapCard {
+                                if regionCategory.count >= 1 {
+                                    NavigationLink(value: route(for: regionCategory)) {
+                                        SpeciesDictionaryRegionMapCard(
+                                            category: regionCategory,
+                                            width: availableWidth
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                } else {
+                                    SpeciesDictionaryRegionMapCard(
+                                        category: regionCategory,
+                                        width: availableWidth
                                     )
-                                ) {
+                                }
+                            }
+
+                            if !visibleRegions.isEmpty {
+                                NavigationLink(value: SpeciesDictionaryCategoryRoute.regions) {
                                     SpeciesDictionaryRegionRow(
-                                        title: region.title,
-                                        count: region.count,
-                                        referenceImageUrl: region.referenceImageUrl,
-                                        systemImage: "mappin.and.ellipse"
+                                        title: "Browse all regions",
+                                        count: visibleRegions.count,
+                                        thumbnail: .browseAll
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -382,7 +398,6 @@ struct SpeciesDictionaryOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SpeciesDictionaryFeaturedSkeletonCard(width: availableWidth)
-                    SpeciesDictionaryMapSkeletonCard(width: availableWidth)
 
                     VStack(spacing: gridSpacing) {
                         ForEach(0..<2, id: \.self) { _ in
@@ -401,12 +416,13 @@ struct SpeciesDictionaryOverviewView: View {
                         )
                             .padding(.horizontal, 2)
 
-                        ForEach(0..<3, id: \.self) { _ in
-                            SpeciesDictionaryOverviewRowSkeleton()
-                        }
+                        SpeciesDictionaryMapSkeletonCard(width: availableWidth)
+                        SpeciesDictionaryOverviewRowSkeleton()
                     }
 
-                    SpeciesDictionaryOverviewRowSkeleton()
+                    ForEach(0..<2, id: \.self) { _ in
+                        SpeciesDictionaryOverviewRowSkeleton()
+                    }
                 }
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, 12)
@@ -521,7 +537,7 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
         .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous)
-                .strokeBorder(.black.opacity(0.8), lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
         }
         .contentShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
@@ -610,7 +626,7 @@ private struct SpeciesDictionaryRegionMapCard: View {
     @State private var isLoadingSnapshot = false
 
     private var imageHeight: CGFloat {
-        max(150, min(190, width * 0.44))
+        SpeciesDictionaryRegionMapLayout.imageHeight(for: width)
     }
 
     private var regionTitle: String {
@@ -642,54 +658,35 @@ private struct SpeciesDictionaryRegionMapCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            mapImage
-                .frame(width: width, height: imageHeight)
-                .clipped()
+            ZStack(alignment: .topLeading) {
+                mapImage
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Your Region")
-                    .font(.caption.weight(.bold))
+                Text("Your region")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.black.opacity(0.42), in: Capsule(style: .continuous))
+                    .padding(14)
+            }
+            .frame(width: width, height: imageHeight)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(regionTitle)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text(
+                    category.count >= 1
+                        ? "\(category.count.formatted()) species recorded"
+                        : "Coverage updating"
+                )
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(uiColor: .tertiarySystemGroupedBackground))
-                    .clipShape(Capsule())
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(regionTitle)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
-
-                        Text(
-                            category.count >= 1
-                                ? "\(category.count.formatted()) species recorded"
-                                : "Coverage updating"
-                        )
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if category.count >= 1 {
-                        Image(systemName: "chevron.right")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-
-                if let subtitle = category.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
+                    .lineLimit(1)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -964,15 +961,19 @@ private struct SpeciesDictionaryGroupCard: View {
     private static let bottomInset: CGFloat = 12
 }
 
+private enum SpeciesDictionaryRegionThumbnail {
+    case browseAll
+    case country(code: String?)
+}
+
 private struct SpeciesDictionaryRegionRow: View {
     let title: String
     let count: Int
-    let referenceImageUrl: String?
-    let systemImage: String
+    let thumbnail: SpeciesDictionaryRegionThumbnail
 
     var body: some View {
         HStack(spacing: 12) {
-            thumbnail
+            thumbnailView
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -996,36 +997,36 @@ private struct SpeciesDictionaryRegionRow: View {
             RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var thumbnailView: some View {
+        RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous)
+            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+            .frame(width: 48, height: 48)
+            .overlay {
+                thumbnailContent
+            }
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
-    private var thumbnail: some View {
-        if let url = ExternalReferenceImagePolicy.url(from: referenceImageUrl) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    placeholderThumbnail
-                }
-            }
-            .frame(width: 48, height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous))
-        } else {
-            placeholderThumbnail
-                .frame(width: 48, height: 48)
-        }
-    }
-
-    private var placeholderThumbnail: some View {
-        RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous)
-            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-            .overlay {
-                Image(systemName: systemImage)
+    private var thumbnailContent: some View {
+        switch thumbnail {
+        case .browseAll:
+            Image(systemName: "globe.americas")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.secondary)
+        case .country(let code):
+            if let flag = SpeciesDictionaryRegionFlag.emoji(for: code) {
+                Text(flag)
+                    .font(.system(size: 27))
+            } else {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
+        }
     }
 }
 
@@ -1063,22 +1064,25 @@ private struct SpeciesDictionaryMapSkeletonCard: View {
     let width: CGFloat
 
     private var imageHeight: CGFloat {
-        max(150, min(190, width * 0.44))
+        SpeciesDictionaryRegionMapLayout.imageHeight(for: width)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SpeciesDictionarySkeletonBlock(width: width, height: imageHeight, cornerRadius: 0)
+            ZStack(alignment: .topLeading) {
+                SpeciesDictionarySkeletonBlock(width: width, height: imageHeight, cornerRadius: 0)
 
-            VStack(alignment: .leading, spacing: 8) {
                 SpeciesDictionarySkeletonBlock(
                     width: 92,
-                    height: 20,
+                    height: 24,
                     cornerRadius: SpeciesDictionaryCornerRadius.skeletonPill
                 )
+                    .padding(14)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 SpeciesDictionarySkeletonBlock(width: width * 0.46, height: 20)
                 SpeciesDictionarySkeletonBlock(width: width * 0.28, height: 14)
-                SpeciesDictionarySkeletonBlock(width: width * 0.72, height: 12)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1275,8 +1279,7 @@ struct SpeciesDictionaryRegionsView: View {
                         SpeciesDictionaryRegionRow(
                             title: region.title,
                             count: region.count,
-                            referenceImageUrl: region.referenceImageUrl,
-                            systemImage: "mappin.and.ellipse"
+                            thumbnail: .country(code: region.code)
                         )
                     }
                     .buttonStyle(.plain)

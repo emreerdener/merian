@@ -904,7 +904,7 @@ struct FieldTripAPIModelsTests {
         )
     }
 
-    @Test func fieldTripCardTagsReflectLifecycleAndPreserveMetadata() {
+    @Test func fieldTripCardTagsHidePublicationStateAndPreserveMetadata() {
         let locked = makeCardTemplate(viewerHasAccess: false, isProOnly: true)
         let privateActive = makeCardTemplate(
             activeProgress: makeCardProgress(completedCount: 0, targetCount: 4)
@@ -914,6 +914,13 @@ struct FieldTripAPIModelsTests {
                 completedCount: 0,
                 targetCount: 4,
                 stoppedAt: "2026-07-18T12:30:00Z"
+            )
+        )
+        let completed = makeCardTemplate(
+            activeProgress: makeCardProgress(
+                isComplete: true,
+                completedCount: 4,
+                targetCount: 4
             )
         )
         let published = makeCardTemplate(
@@ -959,33 +966,48 @@ struct FieldTripAPIModelsTests {
         )
         #expect(
             privateActiveTags.map(\.title) == [
-                "Active", "Private", "Starter", "Level 1"
+                "Active", "Starter", "Level 1"
             ]
         )
-        #expect(
-            privateActiveTags.first(where: { $0.kind == .visibility })?.systemImage ==
-                "eye.slash.fill"
-        )
+        #expect(privateActiveTags.allSatisfy { $0.kind != .visibility })
         let stoppedTags = FieldTripTemplatePresentation.cardTags(
             for: stopped,
             locationLabel: nil
         )
         #expect(
             stoppedTags.map(\.title) == [
-                "Stopped", "Private", "Starter", "Level 1"
+                "Stopped", "Starter", "Level 1"
             ]
         )
+        #expect(stoppedTags.allSatisfy { $0.kind != .visibility })
+        let completedTags = FieldTripTemplatePresentation.cardTags(
+            for: completed,
+            locationLabel: nil
+        )
+        #expect(
+            completedTags.map(\.title) == [
+                "Completed", "Starter", "Level 1"
+            ]
+        )
+        #expect(completedTags.allSatisfy { $0.kind != .visibility })
         let publishedTags = FieldTripTemplatePresentation.cardTags(
             for: published,
             locationLabel: nil
         )
         #expect(
             publishedTags.map(\.title) == [
-                "Completed", "Public", "Starter", "Level 1"
+                "Completed", "Starter", "Level 1"
             ]
         )
+        #expect(publishedTags.allSatisfy { $0.kind != .visibility })
+
+        let sharingEnabledTags = FieldTripTemplatePresentation.cardTags(
+            for: published,
+            locationLabel: nil,
+            sharingEnabled: true
+        )
         #expect(
-            publishedTags.first(where: { $0.kind == .visibility })?.systemImage ==
+            sharingEnabledTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.fill"
         )
     }
@@ -1082,7 +1104,13 @@ struct FieldTripAPIModelsTests {
         #expect(FieldTripDetailLifecyclePresentation.primaryAction(for: stopped) == .resume)
         #expect(!FieldTripDetailLifecyclePresentation.canStop(stopped))
         #expect(FieldTripDetailLifecyclePresentation.canReset(stopped))
-        #expect(FieldTripDetailLifecyclePresentation.primaryAction(for: completed) == .publish)
+        #expect(FieldTripDetailLifecyclePresentation.primaryAction(for: completed) == nil)
+        #expect(
+            FieldTripDetailLifecyclePresentation.primaryAction(
+                for: completed,
+                sharingEnabled: true
+            ) == .publish
+        )
         #expect(!FieldTripDetailLifecyclePresentation.showsOptionsMenu(completed))
     }
 

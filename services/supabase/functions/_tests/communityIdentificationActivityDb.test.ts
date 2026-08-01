@@ -15,6 +15,10 @@ const migrationUrl = new URL(
   "../../migrations/20260731050009_add_community_identification_activity.sql",
   import.meta.url,
 );
+const usernameMigrationUrl = new URL(
+  "../../migrations/20260801145720_use_usernames_for_community_identification_activity.sql",
+  import.meta.url,
+);
 
 type ActivityRow = {
   activity_id: string;
@@ -57,6 +61,7 @@ Deno.test("Community Identify activity DB - bursts, milestones, filters, cursor,
         `);
         await client.queryArray(await Deno.readTextFile(migrationUrl));
       }
+      await client.queryArray(await Deno.readTextFile(usernameMigrationUrl));
 
       const ownerId = crypto.randomUUID();
       const viewerId = crypto.randomUUID();
@@ -75,6 +80,23 @@ Deno.test("Community Identify activity DB - bursts, milestones, filters, cursor,
       await insertUser(client, actorBId, "Actor B");
       await insertUser(client, actorCId, "Actor C");
       await insertUser(client, actorDId, "Actor D");
+      await client.queryArray(
+        `
+          UPDATE public.users AS app_user
+          SET public_username = username_update.public_username
+          FROM (
+            VALUES
+              ($1::uuid, 'activity_owner'),
+              ($2::uuid, 'activity_viewer'),
+              ($3::uuid, 'actor_a'),
+              ($4::uuid, 'actor_b'),
+              ($5::uuid, 'actor_c'),
+              ($6::uuid, 'actor_d')
+          ) AS username_update(user_id, public_username)
+          WHERE app_user.id = username_update.user_id
+        `,
+        [ownerId, viewerId, actorAId, actorBId, actorCId, actorDId],
+      );
       await insertSpecies(client, speciesId, "Rosa activitatis");
       await insertScan(client, {
         id: scanId,
@@ -346,7 +368,7 @@ Deno.test("Community Identify activity DB - bursts, milestones, filters, cursor,
       assert(groupedBurst != null, "Missing grouped suggestion burst.");
       assertEquals(
         groupedBurst.recent_actor_names,
-        ["Actor B", "Actor C", "Actor D"],
+        ["actor_b", "actor_c", "actor_d"],
       );
       assertEquals(groupedBurst.request_group, "plants");
       assertEquals(Number(groupedBurst.consensus_score), 0.44);

@@ -644,7 +644,11 @@ Migration
 this projection. Companion migration
 `20260731063804_index_community_identification_activity_actor_user_fk.sql` adds
 the reverse `user_id` lookup needed for actor foreign-key enforcement during
-account deletion and identity maintenance.
+account deletion and identity maintenance. Migration
+`20260801145720_use_usernames_for_community_identification_activity.sql`
+switches read-time actor attribution from profile/display names to public
+usernames.
+
 `internal.community_identification_activity_groups` stores service-only
 suggestion bursts, standalone consensus changes, and immutable resolution
 milestones for each request generation.
@@ -668,7 +672,7 @@ Both tables have RLS enabled and no direct `PUBLIC`, `anon`, or
 `authenticated` privileges. Only `service_role` can maintain or read the
 projection. The service-only
 `public.get_community_identification_activity(...)` RPC resolves visible actor
-names at read time, applies the request feed's visibility and shared
+public usernames at read time, applies the request feed's visibility and shared
 scope/taxonomy filters, and paginates deterministically on
 `(activity_at, activity_id)`. Migration backfill includes only each request's
 current `requested_at` generation; older withdrawn/reopened generations remain

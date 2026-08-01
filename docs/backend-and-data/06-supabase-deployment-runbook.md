@@ -4030,7 +4030,9 @@ Close the incident only after:
 Migration
 `20260731050009_add_community_identification_activity.sql`, companion actor-FK
 index migration
-`20260731063804_index_community_identification_activity_actor_user_fk.sql`, the
+`20260731063804_index_community_identification_activity_actor_user_fk.sql`,
+public-username attribution migration
+`20260801145720_use_usernames_for_community_identification_activity.sql`, the
 `get-community-identification-activity` Edge Function, and the matching iOS
 Identify dashboard are one compatibility-ordered release unit. The change is
 additive: the migration is safe for the currently live client, and Requests
@@ -4044,8 +4046,8 @@ Deploy in this order:
 2. Run `make test-supabase-privileged-routines` against a complete fresh
    disposable catalog. Confirm the migration backfill and triggers complete
    inside normal migration timeouts.
-3. Push both migrations in timestamp order. Wait for
-   `NOTIFY pgrst, 'reload schema'` propagation and confirm both release
+3. Push all three migrations in timestamp order. Wait for
+   `NOTIFY pgrst, 'reload schema'` propagation and confirm all three release
    migrations appear at the linked-project head. Verify
    `idx_community_identification_activity_actors_user_id` exists before
    exercising deletion or identity-maintenance paths.
@@ -4083,6 +4085,7 @@ Smoke matrix:
 | Two rows share one timestamp; next request uses final paired cursor | No duplicate or skipped UUID tie |
 | User key invokes the RPC directly | Permission denied |
 | Request owner or actor is blocked/shadowbanned | Request or actor contribution omitted as appropriate |
+| Suggestion burst has visible actors | `recent_actor_names` contains their public usernames, never profile/display names |
 | Post is withdrawn, unshared, moderated, tombstoned, quarantined, or has no usable media | Activity omitted |
 | Activity feed is read | Bell unread count is unchanged |
 
@@ -4093,6 +4096,8 @@ After the iOS rollout, verify:
 - the Requests dashboard caps previews at 12 request cards and 10 Activity
   groups under one filter;
 - Requests and Activity expose independent loading/error/Retry states;
+- suggestion summaries attribute contributors by public username rather than
+  first and last name;
 - **See all requests** and **See all activity** inherit the filter and open
   stack pages titled **Identify requests** and **Identify activity**;
 - Back returns to the dashboard without exposing root chrome on the pushed

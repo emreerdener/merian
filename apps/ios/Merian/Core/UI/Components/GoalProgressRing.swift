@@ -6,6 +6,7 @@ struct GoalProgressRing: View {
     var lineWidth: CGFloat = 3.5
     var labelFontSize: CGFloat = 9
     var tint: Color = .primary
+    var showsCompletionCheckmark = false
 
     private var fractionComplete: CGFloat {
         guard targetCount > 0 else { return 0 }
@@ -13,6 +14,18 @@ struct GoalProgressRing: View {
             max(CGFloat(completedCount) / CGFloat(targetCount), 0),
             1
         )
+    }
+
+    private var isComplete: Bool {
+        targetCount > 0 && completedCount >= targetCount
+    }
+
+    private var completionIndicatorSize: CGFloat {
+        max(24, labelFontSize * 2.25)
+    }
+
+    private var completionIconSize: CGFloat {
+        max(10, labelFontSize * 1.15)
     }
 
     var body: some View {
@@ -28,12 +41,20 @@ struct GoalProgressRing: View {
                 )
                 .rotationEffect(.degrees(-90))
 
-            Text("\(completedCount)/\(targetCount)")
-                .font(.system(size: labelFontSize, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-                .padding(5)
+            if showsCompletionCheckmark && isComplete {
+                Image(systemName: "checkmark")
+                    .font(.system(size: completionIconSize, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: completionIndicatorSize, height: completionIndicatorSize)
+                    .background(Circle().fill(Color.green))
+            } else {
+                Text("\(completedCount)/\(targetCount)")
+                    .font(.system(size: labelFontSize, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .padding(5)
+            }
         }
         .padding(2)
     }

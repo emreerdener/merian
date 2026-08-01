@@ -212,9 +212,10 @@ failed.
 Shadowbanned users are not informed of that account state. Public Explore,
 Community Identification, notification, and related projections exclude
 shadowbanned authors server-side. Identify Activity also omits requests owned
-by a shadowbanned user. Its suggestion counts and recent-actor labels are
+by a shadowbanned user. Its suggestion counts and recent public usernames are
 resolved at read time and exclude shadowbanned actors without storing actor
-names in the internal projection.
+names in the internal projection. Profile/display names are not returned for
+Activity attribution.
 
 The moderation helper sets this flag after the third unsafe submission, but it
 does not currently read the flag as a blanket veto for every later safe scan

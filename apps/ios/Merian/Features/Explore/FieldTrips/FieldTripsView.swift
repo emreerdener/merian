@@ -73,7 +73,8 @@ enum FieldTripTemplatePresentation {
 
     static func cardTags(
         for template: FieldTripTemplate,
-        locationLabel: String?
+        locationLabel: String?,
+        sharingEnabled: Bool = FieldTripSharingAvailability.isEnabled
     ) -> [FieldTripTemplateTagPresentation] {
         var tags: [FieldTripTemplateTagPresentation] = []
 
@@ -82,7 +83,7 @@ enum FieldTripTemplatePresentation {
             title: statusTitle(for: template)
         ))
 
-        if let progress = template.viewerProgress {
+        if sharingEnabled, let progress = template.viewerProgress {
             if progress.isPublished {
                 tags.append(.init(kind: .visibility, title: "Public", systemImage: "eye.fill"))
             } else {
@@ -620,8 +621,11 @@ struct FieldTripTemplateDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let template {
-                    primaryActionBar(template)
+                if let template,
+                   let primaryAction = FieldTripDetailLifecyclePresentation.primaryAction(
+                       for: template
+                   ) {
+                    primaryActionBar(template, action: primaryAction)
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
                         .padding(.bottom, 8)
@@ -668,7 +672,8 @@ struct FieldTripTemplateDetailView: View {
         case .objectives:
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
-                    if let progress = template.viewerProgress {
+                    if FieldTripSharingAvailability.isEnabled,
+                       let progress = template.viewerProgress {
                         FieldTripPublicationStatusBadge(isPublished: progress.isPublished)
                     }
 
@@ -848,8 +853,11 @@ struct FieldTripTemplateDetailView: View {
     }
 
     @ViewBuilder
-    private func primaryActionBar(_ template: FieldTripTemplate) -> some View {
-        switch FieldTripDetailLifecyclePresentation.primaryAction(for: template) {
+    private func primaryActionBar(
+        _ template: FieldTripTemplate,
+        action: FieldTripDetailPrimaryAction
+    ) -> some View {
+        switch action {
         case .unlock:
             FieldTripDetailPrimaryActionBar(
                 title: "Unlock with Pro",
@@ -1463,9 +1471,9 @@ private enum FieldTripScanPreviewLayout {
 }
 
 private enum FieldTripLevelHeaderLayout {
-    static let accessorySize: CGFloat = 76
-    static let ringLineWidth: CGFloat = 5.5
-    static let ringLabelFontSize: CGFloat = 14
+    static let accessorySize: CGFloat = 52
+    static let ringLineWidth: CGFloat = 4.5
+    static let ringLabelFontSize: CGFloat = 11
     static let artworkScale: CGFloat = 1.1
 }
 
@@ -1592,6 +1600,14 @@ private struct FieldTripTemplateCard: View {
         previewTargetCount > 0
     }
 
+    private var currentLevelPatchImageName: String? {
+        guard let currentLevel = FieldTripTemplatePresentation.currentLevel(for: template) else { return nil }
+        return FieldTripLevelArtwork.imageName(
+            templateSlug: template.slug,
+            levelNumber: currentLevel.levelNumber
+        )
+    }
+
     private var tags: [FieldTripTemplateTagPresentation] {
         FieldTripTemplatePresentation.cardTags(
             for: template,
@@ -1614,20 +1630,6 @@ private struct FieldTripTemplateCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
                 HStack(alignment: .top, spacing: 16) {
-                    GoalProgressRing(
-                        completedCount: FieldTripTemplatePresentation.completedCount(for: template),
-                        targetCount: previewTargetCount,
-                        lineWidth: 4.5,
-                        labelFontSize: 16,
-                        tint: .accentColor
-                    )
-                    .frame(width: 64, height: 64)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Field trip progress")
-                    .accessibilityValue(
-                        "\(FieldTripTemplatePresentation.completedCount(for: template)) of \(previewTargetCount) goals complete"
-                    )
-
                     VStack(alignment: .leading, spacing: 4) {
                         Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
                             .font(.title3.weight(.bold))
@@ -1645,10 +1647,14 @@ private struct FieldTripTemplateCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .layoutPriority(1)
 
-                    Image(systemName: "chevron.right")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .accessibilityHidden(true)
+                    if let currentLevelPatchImageName {
+                        Image(currentLevelPatchImageName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 64, height: 64)
+                            .scaleEffect(1.08)
+                            .accessibilityHidden(true)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -2838,7 +2844,8 @@ private struct FieldTripLevelSection: View {
             targetCount: progress.targetCount,
             lineWidth: FieldTripLevelHeaderLayout.ringLineWidth,
             labelFontSize: FieldTripLevelHeaderLayout.ringLabelFontSize,
-            tint: .accentColor
+            tint: .accentColor,
+            showsCompletionCheckmark: true
         )
         .frame(
             width: FieldTripLevelHeaderLayout.accessorySize,
@@ -3717,15 +3724,6 @@ private struct FieldTripTemplateSkeletonCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 16) {
-                Circle()
-                    .stroke(Color.secondary.opacity(0.18), lineWidth: 4.5)
-                    .frame(width: 64, height: 64)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(Color.secondary.opacity(0.14))
-                            .frame(width: 30, height: 17)
-                    }
-
                 VStack(alignment: .leading, spacing: 4) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.secondary.opacity(0.16))
@@ -3740,10 +3738,11 @@ private struct FieldTripTemplateSkeletonCard: View {
                         .fill(Color.secondary.opacity(0.12))
                         .frame(width: 140, height: 12)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color.secondary.opacity(0.16))
-                    .frame(width: 7, height: 18)
+                Circle()
+                    .fill(Color.secondary.opacity(0.14))
+                    .frame(width: 64, height: 64)
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)

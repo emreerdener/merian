@@ -379,8 +379,11 @@ service-role client. The internal tables have RLS enabled; table and RPC access
 is revoked from `PUBLIC`, `anon`, and `authenticated`. Every read reapplies
 request ownership scope/group filters, withdrawal, unshare, moderation,
 shadowban, blocking, tombstone, media quarantine, and usable-media rules.
-Visible actor labels are resolved at read time. This feed never reads or
-changes Explore notification unread state.
+Visible actors are attributed by `public_username` at read time rather than by
+profile/display name. Migration
+`20260801145720_use_usernames_for_community_identification_activity.sql` owns
+that read-RPC behavior. This feed never reads or changes Explore notification
+unread state.
 
 The route-local request/response, grouping, security, tests, and compatibility
 deployment contract is in

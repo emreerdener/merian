@@ -1145,10 +1145,11 @@ resolution remains separate.
 `withEdgeHandler`, derives the viewer ID from that JWT, and calls the
 service-role-only `get_community_identification_activity(...)` RPC. Projection
 tables have RLS enabled and no direct client privileges. Names are not stored;
-up to three visible actor labels are resolved at read time after blocking and
-shadowban checks. Request owner visibility, withdrawal, unshare, moderation,
-tombstone, media quarantine, and usable-media rules are reapplied for every
-read. This endpoint never reads or changes notification unread state.
+up to three visible actors are attributed by `public_username` at read time
+after blocking and shadowban checks. Profile/display names are not returned.
+Request owner visibility, withdrawal, unshare, moderation, tombstone, media
+quarantine, and usable-media rules are reapplied for every read. This endpoint
+never reads or changes notification unread state.
 
 The authenticated `/field-trips` catalog and template-detail actions use a
 private viewer-specific projection that is intentionally different from public

@@ -1798,6 +1798,8 @@ TestFlight, App Store, support, and QA.
   consensus changes, and immutable resolution milestones. Requests and Activity
   load independently, share All/Yours/organism filters, refresh together, and
   keep request browsing available when only Activity fails.
+- Identify Activity now attributes ID suggestions with each contributor's
+  public username instead of their first and last name.
 - Updated Recent activity outage copy so Activity failures no longer identify
   the unavailable section as Explore.
 - Added owner-only Community request options with an Edit Request sheet for

@@ -1060,21 +1060,7 @@ private struct ExploreAuthorProfileSkeletonCard: View {
 
             if FeatureFlags.isEnabled(.fieldTrips) {
                 Divider()
-
-                VStack(alignment: .trailing, spacing: 8) {
-                    GlowPulsingSkeletonView(cornerRadius: 4)
-                        .frame(width: 58, height: 13)
-
-                    HStack(spacing: 12) {
-                        ForEach(0..<3, id: \.self) { _ in
-                            GlowPulsingSkeletonView(cornerRadius: 32)
-                                .frame(width: 64, height: 64)
-                                .clipShape(Circle())
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-                }
+                EarnedFieldTripPatchCarouselSkeleton()
             }
         }
         .padding(12)

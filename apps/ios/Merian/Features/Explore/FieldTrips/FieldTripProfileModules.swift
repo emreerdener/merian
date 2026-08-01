@@ -142,40 +142,51 @@ struct EarnedFieldTripPatchCarousel: View {
     @State private var selectedPatch: EarnedFieldTripPatch?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("\(patches.count) earned")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.tertiary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    ForEach(patches) { patch in
-                        Button {
-                            HapticManager.shared.triggerSelectionPulse()
-                            selectedPatch = patch
-                        } label: {
-                            Image(patch.imageName)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 64, height: 64)
-                                .scaleEffect(1.08)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(patch.title) patch")
-                        .accessibilityHint("Opens the patch gallery at this patch")
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 12) {
+                ForEach(patches) { patch in
+                    Button {
+                        HapticManager.shared.triggerSelectionPulse()
+                        selectedPatch = patch
+                    } label: {
+                        Image(patch.imageName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 64, height: 64)
+                            .scaleEffect(1.08)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(patch.title) patch")
+                    .accessibilityHint("Opens the patch gallery at this patch")
                 }
-                .padding(.horizontal, 12)
             }
-            .padding(.horizontal, -12)
+            .padding(.horizontal, 12)
         }
+        .padding(.horizontal, -12)
         .fullScreenCover(item: $selectedPatch) { patch in
             FieldTripLevelArtworkExpandedView(
                 items: patches.map(\.galleryItem),
                 initialItemID: patch.id
             )
         }
+    }
+}
+
+struct EarnedFieldTripPatchCarouselSkeleton: View {
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 12) {
+                ForEach(0..<3, id: \.self) { _ in
+                    GlowPulsingSkeletonView(cornerRadius: 32)
+                        .frame(width: 64, height: 64)
+                        .clipShape(Circle())
+                }
+            }
+            .padding(.horizontal, 12)
+        }
+        .padding(.horizontal, -12)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -210,6 +221,7 @@ struct ActiveFieldTripsProfilePreview: View {
     let onOpenCompletedScan: (String) -> Void
     let onViewAll: () -> Void
     let onEarnedPatchesChange: ([EarnedFieldTripPatch]) -> Void
+    let onEarnedPatchesLoadingChange: (Bool) -> Void
 
     @Environment(SupabaseManager.self) private var supabase
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
@@ -302,6 +314,7 @@ struct ActiveFieldTripsProfilePreview: View {
         guard currentUserId != nil else {
             items = []
             onEarnedPatchesChange([])
+            onEarnedPatchesLoadingChange(false)
             hasLoaded = true
             isLoading = false
             return
@@ -310,10 +323,12 @@ struct ActiveFieldTripsProfilePreview: View {
 
         isLoadInFlight = true
         isLoading = true
+        onEarnedPatchesLoadingChange(true)
         defer {
             isLoadInFlight = false
             isLoading = false
             hasLoaded = true
+            onEarnedPatchesLoadingChange(false)
         }
 
         do {

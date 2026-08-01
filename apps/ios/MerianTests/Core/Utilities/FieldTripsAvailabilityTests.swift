@@ -13,6 +13,10 @@ struct FieldTripsAvailabilityTests {
         #expect(!FieldTripEventsAvailability.isReleased)
     }
 
+    @Test func standardOutingSharingRemainsDeferredUntilTheExperienceIsReady() {
+        #expect(!FieldTripSharingAvailability.isEnabled)
+    }
+
     @Test func registryContainsEveryReleaseGateAndItsProductionDefault() {
         #expect(FeatureFlag.allCases == [
             .speciesDictionaryTree,

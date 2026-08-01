@@ -16,6 +16,7 @@ struct UserProfile: View {
     var totalScans: Int = 0
     var completedAchievements: Int = 0
     var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
+    var isLoadingEarnedFieldTripPatches = false
     
     var body: some View {
         VStack {
@@ -82,6 +83,9 @@ struct UserProfile: View {
             if !earnedFieldTripPatches.isEmpty {
                 Divider()
                 EarnedFieldTripPatchCarousel(patches: earnedFieldTripPatches)
+            } else if isLoadingEarnedFieldTripPatches {
+                Divider()
+                EarnedFieldTripPatchCarouselSkeleton()
             }
         }
         .padding(12)
