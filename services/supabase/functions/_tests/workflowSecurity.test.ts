@@ -109,6 +109,21 @@ Deno.test("workflow secrets are scoped below the job environment", async () => {
   }
 });
 
+Deno.test("production Supabase CLI telemetry is disabled at job scope", async () => {
+  const deployWorkflow = await Deno.readTextFile(
+    new URL("deploy.yml", workflowsDirectory),
+  );
+  const telemetryOptOut = deployWorkflow.indexOf(
+    '      SUPABASE_TELEMETRY_DISABLED: "1"',
+  );
+  const steps = deployWorkflow.indexOf("    steps:");
+
+  assert(
+    telemetryOptOut >= 0 && telemetryOptOut < steps,
+    "The production job must disable Supabase telemetry before any CLI step runs.",
+  );
+});
+
 Deno.test("every runner job has an explicit bounded timeout", async () => {
   const sources = await workflowSources();
 

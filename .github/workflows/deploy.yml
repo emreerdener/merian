@@ -32,6 +32,9 @@ jobs:
 
     env:
       PROJECT_ID: qlarqavoqhkuwzmevrmf
+      # CI must not fail an otherwise successful CLI command while PostHog
+      # telemetry is flushing during process shutdown.
+      SUPABASE_TELEMETRY_DISABLED: "1"
       SUPABASE_DB_POOLER_PORT: ${{ vars.SUPABASE_DB_POOLER_PORT }}
       SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
 
