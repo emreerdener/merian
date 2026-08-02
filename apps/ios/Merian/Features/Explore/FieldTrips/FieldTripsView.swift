@@ -2989,6 +2989,7 @@ struct FieldTripLevelArtworkExpandedView: View {
                 .padding(.bottom, 20)
                 .allowsHitTesting(false)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
             if !items.contains(where: { $0.id == selectedItemID }) {

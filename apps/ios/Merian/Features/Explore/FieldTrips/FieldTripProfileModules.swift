@@ -149,11 +149,8 @@ struct EarnedFieldTripPatchCarousel: View {
                         HapticManager.shared.triggerSelectionPulse()
                         selectedPatch = patch
                     } label: {
-                        Image(patch.imageName)
-                            .resizable()
-                            .scaledToFit()
+                        FieldTripPatchArtwork(imageName: patch.imageName)
                             .frame(width: 64, height: 64)
-                            .scaleEffect(1.08)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(patch.title) patch")
@@ -169,6 +166,22 @@ struct EarnedFieldTripPatchCarousel: View {
                 initialItemID: patch.id
             )
         }
+    }
+}
+
+/// A square canvas that preserves the silhouette supplied by each patch asset.
+/// Patch artwork is intentionally not clipped to a circle so future shapes render as designed.
+private struct FieldTripPatchArtwork: View {
+    let imageName: String
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+            }
     }
 }
 
