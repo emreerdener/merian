@@ -116,9 +116,9 @@ source contracts, and `ghostProfileMergeConcurrencyDb.test.ts` provides the two
 session deadlock schedules. `ghostProfileMergeClientContract.test.ts` pins proof
 persistence before the session switch, retry on permanent-session restoration,
 device-only Keychain storage, and terminal-only deletion. Do not deploy or
-enable the existing-account conflict fallback until exact-CLI clean replay, the
-complete catalog suite, advisors, and every staging proof clear the release hold
-in the
+enable the existing-account conflict fallback until the production workflow's
+exact-CLI disposable replay, complete catalog and Edge suites, two-session
+schedules, strict lint, and advisors clear the release hold in the
 [deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations
@@ -171,11 +171,11 @@ The legacy payload cannot be made backward-compatible: it switches sessions
 before calling the server and carries no source-session proof. Treat this as a
 coordinated security rollout:
 
-1. Clear every release hold and evidence gate in the deployment runbook. Only
-   after the complete staging matrix passes, set the GitHub `Production`
-   environment variable `GHOST_MERGE_STAGING_APPROVED_SHA` to the exact reviewed
-   lowercase 40-character release SHA. The variable links evidence to the
-   workflow but is not evidence itself.
+1. Clear every release hold and disposable-CI evidence gate in the deployment
+   runbook. The production workflow must pass the fresh database replay,
+   complete catalog and Edge suites, two-session concurrency schedules, strict
+   lint, and advisors for the exact release SHA. No hosted staging project or
+   manual SHA variable is required.
 2. Ship the proof-capable iOS client (or place the OAuth-conflict path behind a
    minimum-version gate).
 3. Deploy the reviewed Edge Function with the expanded mapper; deploy the Auth

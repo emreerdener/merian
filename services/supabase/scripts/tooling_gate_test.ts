@@ -526,30 +526,32 @@ Deno.test("production deploy predeploys the Ghost mapper before Ghost migrations
   );
 });
 
-Deno.test("production deploy requires exact-SHA Ghost staging approval", async () => {
+Deno.test("production deploy records disposable-CI Ghost proof without hosted staging", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
 
   for (
     const requiredFragment of [
-      "- name: Enforce Ghost merge same-SHA staging approval",
+      "- name: Record Ghost merge disposable-CI proof",
       "if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'",
-      "GHOST_MERGE_STAGING_APPROVED_SHA: ${{ vars.GHOST_MERGE_STAGING_APPROVED_SHA }}",
-      '[[ ! "$approved_sha" =~ ^[0-9a-f]{40}$ ]]',
-      '[ "$approved_sha" != "$RELEASE_SHA" ]',
-      "only after the complete staging proof matrix passes",
+      "The exact release SHA passed the disposable database replay",
+      "No hosted staging project or operator-managed SHA variable is required.",
     ]
   ) {
     assert(
       workflow.includes(requiredFragment),
-      `Ghost staging approval fence is missing: ${requiredFragment}`,
+      `Ghost disposable-CI proof is missing: ${requiredFragment}`,
     );
   }
+  assert(
+    !workflow.includes("GHOST_MERGE_STAGING_APPROVED_SHA"),
+    "Production deploy must not require a paid hosted staging project or manual SHA attestation.",
+  );
 
   const planIndex = workflow.indexOf(
     "- name: Plan affected Edge Function deployment",
   );
-  const approvalIndex = workflow.indexOf(
-    "- name: Enforce Ghost merge same-SHA staging approval",
+  const proofIndex = workflow.indexOf(
+    "- name: Record Ghost merge disposable-CI proof",
   );
   const ghostPredeployIndex = workflow.indexOf(
     "- name: Deploy Ghost merge mapper before Ghost merge migrations",
@@ -559,10 +561,10 @@ Deno.test("production deploy requires exact-SHA Ghost staging approval", async (
   );
   assert(
     planIndex >= 0 &&
-      approvalIndex > planIndex &&
-      ghostPredeployIndex > approvalIndex &&
+      proofIndex > planIndex &&
+      ghostPredeployIndex > proofIndex &&
       databasePushIndex > ghostPredeployIndex,
-    "Exact-SHA staging approval must pass before the Ghost predeploy and database mutation.",
+    "Disposable-CI proof must finish before the Ghost predeploy and database mutation.",
   );
 });
 

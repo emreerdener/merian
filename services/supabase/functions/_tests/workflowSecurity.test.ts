@@ -231,8 +231,8 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
   const compatibilityPredeploy = deployWorkflow.indexOf(
     "- name: Deploy fail-closed recovery consumers before compatibility migrations",
   );
-  const stagingApproval = deployWorkflow.indexOf(
-    "- name: Enforce Ghost merge same-SHA staging approval",
+  const ghostMergeCiProof = deployWorkflow.indexOf(
+    "- name: Record Ghost merge disposable-CI proof",
   );
   const ghostMergePredeploy = deployWorkflow.indexOf(
     "- name: Deploy Ghost merge mapper before Ghost merge migrations",
@@ -269,8 +269,8 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
       catalogValidation < completeEdgeSuite &&
       completeEdgeSuite < databaseAdvisors &&
       databaseAdvisors < deploymentPlan &&
-      deploymentPlan < stagingApproval &&
-      stagingApproval < compatibilityPredeploy &&
+      deploymentPlan < ghostMergeCiProof &&
+      ghostMergeCiProof < compatibilityPredeploy &&
       compatibilityPredeploy < ghostMergePredeploy &&
       ghostMergePredeploy < migrationPush &&
       migrationPush < functionDeploy &&

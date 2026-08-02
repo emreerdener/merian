@@ -33,11 +33,11 @@ TestFlight, App Store, support, and QA.
   species history must merge without corrupting discovery totals, and
   unsupported database relationships must stop safely before user data changes.
 - The existing-account conflict fallback remains release-gated until its
-  exact-version clean database replay, complete catalog and concurrency suites,
-  advisors, and staging proof matrix have all passed the rollout runbook's
-  evidence gates.
+  exact-version disposable database replay, complete catalog, Edge, and
+  concurrency suites, strict lint, and advisors have all passed the rollout
+  runbook's automated evidence gates.
 - Production now predeploys the compatible Ghost merge mapper before related
-  migrations, requires an exact-SHA staging approval, and runs a privacy-safe
+  migrations, records exact-SHA disposable-CI proof, and runs a privacy-safe
   post-deploy and scheduled health audit for prepared receipts, Auth cleanup,
   and destination RevenueCat repair. Rolling audit windows remain index-backed
   as merge history grows.

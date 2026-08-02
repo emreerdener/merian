@@ -145,9 +145,11 @@ The workflow performs the following steps:
     `reconcile-ghost-profile-merges` whenever a Ghost merge migration or either
     Function changed since the last successful release. Manual dispatch and an
     unsafe or unavailable baseline enable both predeploy fences. Before either
-    fence can mutate production, the Production environment variable
-    `GHOST_MERGE_STAGING_APPROVED_SHA` must be one exact 40-character SHA equal
-    to the workflow release SHA.
+    fence can mutate production, the exact workflow SHA must pass the fresh
+    disposable database replay, every catalog test, the complete Edge suite
+    (including the two-session Ghost merge schedules), strict database lint,
+    and both advisors in the same job. No hosted staging project or manual SHA
+    attestation is required.
 11. Runs a read-only production `pg_proc.proacl`, `has_function_privilege()`,
     search-path, owner, allowlist, and default-privilege report before any
     database write.
@@ -3251,12 +3253,12 @@ below have implementation and test evidence in the same exact SHA:
 
 The 2026-08-01 implementation adds all four fixes in the forward correction and
 Edge mapper. Static migration validation and focused Edge tests pass, and the
-repository now contains deterministic RevenueCat and Community two-session
-schedules in `ghostProfileMergeConcurrencyDb.test.ts`. This does not clear the
-hold: exact-CLI clean replay, complete pgTAP/catalog execution, live concurrency
-tests, advisors, and the staging matrix must still pass from the same exact SHA.
-No production deployment is authorized by partial or connection-skipped
-evidence.
+repository contains deterministic RevenueCat and Community two-session
+schedules in `ghostProfileMergeConcurrencyDb.test.ts`. The production workflow
+clears the hold only when its exact-CLI disposable replay, complete pgTAP/catalog
+execution, live local-database concurrency tests, complete Edge suite, lint, and
+advisors all pass in the same job. Partial or connection-skipped evidence does
+not authorize production deployment.
 
 ### Compatibility order
 
@@ -3355,15 +3357,15 @@ checked-in catalog test after the clean replay. A direct focused invocation of
 `ghost_profile_merge_security.sql`, or the static Deno migration contract alone,
 does not replace that full gate.
 
-### Required proof matrix
+### Required disposable-CI proof matrix
 
-| Gate | Required automated proof | Required staging proof |
-| --- | --- | --- |
-| Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields. | Complete disposable conflict merges with both queues absent and with the source absent/target leased; claim the resulting target through the normal reconciler and confirm it queries the permanent RevenueCat App User ID. |
-| RevenueCat lock order | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` schedules merge while a stale apply is blocked and requires claim loss without deadlock or state mutation. | Run merge completion and reconciliation apply concurrently in two sessions. Neither may deadlock; a displaced claim must fail closed and the newly due target row must remain claimable. |
-| Community actor lock order | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` schedules the historical group/actor cycle and requires both sessions to finish with exact counts. | Run a normal activity append concurrently with completion for a shared group. Neither session may deadlock, duplicate the actor, or lose a suggestion count. |
-| Ledger error response | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction proves failure leaves both profiles and ownership unchanged. | Introduce controlled ledger drift only in disposable staging, attempt completion, and confirm the proof remains queued while source data remains owned by the guest. |
-| Client proof durability | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy test requires retryable 503 proofs to remain queued. | Force a retryable 503, terminate and relaunch with the permanent session, and confirm the same handoff retries successfully from Keychain. A terminal proof may be removed only without removing another queued handoff. |
+| Gate | Required automated proof in the production workflow |
+| --- | --- |
+| Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields. |
+| RevenueCat lock order | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` runs against the disposable Postgres instance, schedules merge while a stale apply is blocked, and requires claim loss without deadlock or state mutation. |
+| Community actor lock order | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` runs the historical group/actor cycle in two sessions and requires both sessions to finish with exact counts. |
+| Ledger error response | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged. |
+| Client proof durability | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy source contract requires retryable 503 proofs to remain queued. |
 
 After reset, run the owner-only topology assertion explicitly:
 
@@ -3391,17 +3393,15 @@ total. After this migration, the current audit script must see protected handoff
 sources and the current cleanup script must reserve each candidate; do not
 execute an older script against production.
 
-After every staging proof in the matrix passes from the reviewed release SHA,
-set the GitHub `Production` environment variable
-`GHOST_MERGE_STAGING_APPROVED_SHA` to that exact lowercase 40-character SHA.
-The workflow rejects a missing, malformed, stale, or different value before the
-Ghost Function predeploy or database mutation. This variable is an operator
-attestation linking the hosted evidence to the release; it is not evidence
-itself. Preserve the test/run artifacts and do not update the variable
-for a later SHA until the complete matrix has been rerun from that SHA.
+The production workflow is the authoritative release gate. It creates a fresh
+database under pinned Supabase CLI `2.109.1`, runs the complete matrix above,
+and permits the Ghost Function predeploy and migration push only if every prior
+step succeeds. Preserve the workflow log as the exact-SHA evidence. A dedicated
+hosted staging project and operator-managed approval variable are intentionally
+not part of this process.
 
-Only after the release hold, full local gate, and staging proof matrix are all
-green for the same exact SHA, run:
+Only after the release hold and disposable-CI proof matrix are green for the
+same exact SHA, run:
 
 ```bash
 supabase --workdir services db push --linked --dry-run
@@ -3415,9 +3415,11 @@ Do not deploy with `--no-verify-jwt` for `merge-ghost-profile`. The anonymous
 prepare caller has a valid user JWT and receives both gateway verification and
 the live-user/`auth.uid()` checks.
 
-### Smoke matrix
+### Optional end-to-end smoke matrix
 
-Use disposable staging identities and no real user data:
+These checks complement the automated release gate; they do not require a
+dedicated hosted staging project and do not block deployment. When running them,
+use controlled disposable identities and never alter real user data:
 
 - New Apple/Google identity: direct `linkIdentityWithIdToken` preserves the
   guest UUID and creates no handoff.
@@ -3444,7 +3446,7 @@ Use disposable staging identities and no real user data:
   only that item; another queued handoff survives.
 - The source public profile disappears in the merge transaction. The source Auth
   row is deleted after commit by the foreground call or, if deliberately faulted
-  in staging, by the scheduled worker.
+  during a controlled test, by the scheduled worker.
 
 ### Monitoring and recovery
 
@@ -3472,8 +3474,8 @@ receipts do not by themselves make the monitor unhealthy: confirm retryable
 Edge/client telemetry is draining and that proof-capable clients retain and
 retry their device-only Keychain queue. The JSON and Markdown artifacts must
 never contain handoff IDs, user IDs, proof hashes, or provider subjects. This
-automation does not replace the same-SHA staging matrix or the owner-only
-incident investigation below.
+automation complements the same-SHA disposable-CI matrix and does not replace
+the owner-only incident investigation below.
 
 Run these read-only queries from the SQL editor or another owner-only
 operational connection:

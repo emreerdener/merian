@@ -1863,8 +1863,9 @@ layers:
   behavior against the fully migrated disposable catalog. It must include both
   colliding and non-colliding Community actor groups and a merge-invalidated
   RevenueCat claim that cannot apply stale state.
-- Two-session staging probes must run merge versus RevenueCat reconciliation and
-  merge versus a normal Community activity append. Neither pairing may
+- Two-session disposable-database probes must run merge versus RevenueCat
+  reconciliation and merge versus a normal Community activity append in the
+  production workflow. Neither pairing may
   deadlock, lose counts, apply a displaced claim, or leave the destination
   provider queue absent or unclaimable.
 
@@ -1872,8 +1873,8 @@ Run `bash services/supabase/scripts/require_supabase_cli_version.sh`, then a
 clean `supabase --workdir services db reset`, then
 `make test-supabase-privileged-routines`. Only Supabase CLI `2.109.1` produces
 release-equivalent database evidence. Static/unit checks or a direct focused SQL
-file do not clear the deployment hold. The complete fixture and staging matrix
-is in the
+file do not clear the deployment hold. The complete disposable-CI matrix is in
+the
 [Ghost Account Merge Security Rollout](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 Durable account deletion has eleven complementary checks:

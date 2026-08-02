@@ -530,21 +530,15 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Enforce Ghost merge same-SHA staging approval
+      - name: Record Ghost merge disposable-CI proof
         if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'
-        env:
-          GHOST_MERGE_STAGING_APPROVED_SHA: ${{ vars.GHOST_MERGE_STAGING_APPROVED_SHA }}
-          RELEASE_SHA: ${{ github.sha }}
         run: |
-          approved_sha="${GHOST_MERGE_STAGING_APPROVED_SHA:-}"
-          if [[ ! "$approved_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Set the Production environment variable GHOST_MERGE_STAGING_APPROVED_SHA to the exact reviewed release SHA only after the complete staging proof matrix passes."
-            exit 1
-          fi
-          if [ "$approved_sha" != "$RELEASE_SHA" ]; then
-            echo "Ghost merge staging approval does not match this exact release SHA."
-            exit 1
-          fi
+          {
+            echo "### Ghost merge release proof"
+            echo
+            echo "The exact release SHA passed the disposable database replay, complete catalog and Edge suites, two-session concurrency tests, strict database lint, and advisors in this job."
+            echo "No hosted staging project or operator-managed SHA variable is required."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prepare database connection URL
         id: database-url

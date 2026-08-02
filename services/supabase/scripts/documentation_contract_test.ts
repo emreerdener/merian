@@ -3400,8 +3400,8 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
   for (const source of [backend, functionReadme, runbook, incident]) {
     assertStringIncludes(source, "predeploy");
     assertStringIncludes(source, "before `db push`");
-    assertStringIncludes(source, "GHOST_MERGE_STAGING_APPROVED_SHA");
-    assertStringIncludes(source, "not evidence itself");
+    assertStringIncludes(source, "hosted staging project");
+    assertStringIncludes(source, "disposable");
   }
 
   for (
@@ -3429,7 +3429,7 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
   }
 
   assertStringIncludes(changelog, "durable RevenueCat destination repair");
-  assertStringIncludes(changelog, "staging proof matrix");
+  assertStringIncludes(changelog, "disposable-CI proof");
   assertStringIncludes(changelog, "privacy-safe post-deploy and scheduled");
   for (
     const fragment of [
@@ -3438,14 +3438,14 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
       "aggregate counts only",
       "unrefreshed destination RevenueCat",
       "do not by themselves make the monitor unhealthy",
-      "does not replace the same-SHA staging matrix",
+      "complements the same-SHA disposable-CI matrix",
     ]
   ) {
     assertStringIncludes(`${functionReadme} ${runbook}`, fragment);
   }
   assertStringIncludes(
     incident,
-    "does not satisfy the required 12-hour hosted audit yet",
+    "audit remains a post-deploy closure check, not a staging-project prerequisite",
   );
   assertStringIncludes(
     incident,

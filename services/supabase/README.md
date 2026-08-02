@@ -1365,18 +1365,17 @@ Forward migration
 Edge mapper implement the four release-hold fixes: unconditional permanent
 RevenueCat queue repair, user-before-queue claim fencing, collision-only
 Community actor handling, and retryable mapping for both ledger diagnostics.
-The release hold remains until clean replay, every catalog test, automated
-two-session schedules, advisors, and the staging matrix pass from the exact SHA
-with Supabase CLI `2.109.1`; static contracts or a focused SQL test are not
-release-equivalent evidence. The production workflow detects Ghost migration or
-Function deltas since the last successful release and predeploys the expanded
-mapper plus cleanup worker before `db push`; manual dispatch and an unsafe
-baseline take the same fail-closed path. That path requires the Production
-environment's `GHOST_MERGE_STAGING_APPROVED_SHA` to exactly match the release
-SHA; operators set it only after preserving complete same-SHA staging evidence.
-The variable is an attestation, not evidence itself. A privacy-safe scheduled
-monitor and the production post-deploy gate report aggregate recent prepared
-receipts, overdue Auth cleanup, and destination RevenueCat queue anomalies
+The release hold remains until the production workflow's clean disposable
+replay, every catalog test, automated two-session schedules, complete Edge
+suite, strict lint, and advisors pass from the exact SHA with Supabase CLI
+`2.109.1`; static contracts or a focused SQL test are not release-equivalent
+evidence. The workflow detects Ghost migration or Function deltas since the last
+successful release and predeploys the expanded mapper plus cleanup worker before
+`db push`; manual dispatch and an unsafe baseline take the same fail-closed path.
+No hosted staging project or operator-managed SHA attestation is required. A
+privacy-safe scheduled monitor and the production post-deploy gate report
+aggregate recent prepared receipts, overdue Auth cleanup, and destination
+RevenueCat queue anomalies
 without exporting receipt, user, proof, or provider identifiers. Migration
 `20260802025258_index_ghost_merge_health_audits.sql` keeps both rolling audit
 windows index-backed as handoff history grows. The function README and

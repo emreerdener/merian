@@ -101,7 +101,7 @@ It is not yet sufficient for production deployment.
 
 The 2026-08-01 review found four additional requirements. They are implemented
 in the forward hardening migration and Edge mapper, but remain release-blocking
-until the database and staging proof gates pass:
+until the disposable-CI database and release proof gates pass:
 
 1. **Destination RevenueCat repair must be unconditional.** Anonymous sources
    may legitimately have no reconciliation row. Completion must upsert an
@@ -124,7 +124,7 @@ until the database and staging proof gates pass:
    HTTP 503 `merge_temporarily_unavailable` with the exact statement that guest
    data is unchanged.
 
-The authoritative implementation and staging evidence is the
+The authoritative implementation and automated release evidence is the
 [Ghost Account Merge Security Rollout](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Verification status
@@ -150,22 +150,22 @@ merge monitor. It reports aggregate recent receipt counts, overdue Auth cleanup,
 and missing, misdirected, or unrefreshed destination RevenueCat queues. Its
 focused unit tests pass, and
 `20260802025258_index_ghost_merge_health_audits.sql` adds indexes matched to its
-rolling predicates. It has not run against production in this sandbox and
-therefore does not satisfy the required 12-hour hosted audit yet.
+rolling predicates. It has not run against production in this sandbox; that
+audit remains a post-deploy closure check, not a staging-project prerequisite.
 
 Forward migration
 `20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql` and the
 expanded Edge mapper implement all four code corrections. The repository also
 contains deterministic RevenueCat and Community schedules in
-`ghostProfileMergeConcurrencyDb.test.ts`. Their live database bodies have not
-run in this sandbox: a connection skip is not release evidence.
+`ghostProfileMergeConcurrencyDb.test.ts`. The production workflow runs their
+live bodies against its disposable Postgres instance and treats a connection
+skip as failed release evidence.
 
-Release-equivalent database evidence is still missing. The repository exact-pins
-Supabase CLI `2.109.1`; the available local PATHs resolved to `2.101.0` from the
-repository root and `2.90.0` from the Supabase worktree. Neither is acceptable
-for replay or pgTAP evidence. Before deployment, install the exact pin, perform
-a clean local reset, run every checked-in catalog test, and execute the
-two-session RevenueCat and Community staging probes from the rollout matrix.
+The repository exact-pins Supabase CLI `2.109.1`, and the production workflow
+installs that pin before starting a fresh database, running every checked-in
+catalog test, and executing the two-session RevenueCat and Community probes. A
+passing exact-SHA workflow run is the release-equivalent database evidence; a
+developer's older local CLI does not block deployment.
 
 ## Safety, rollout, and recovery
 
@@ -177,10 +177,10 @@ two-session RevenueCat and Community staging probes from the rollout matrix.
   emit the ledger-underflow diagnostic recorded here. The production workflow
   detects Ghost migration/Function deltas, manual dispatch, and an unsafe
   baseline and predeploys both Ghost Functions before `db push`.
-- Set `GHOST_MERGE_STAGING_APPROVED_SHA` in the GitHub `Production` environment
-  only after the complete matrix passes from that exact lowercase 40-character
-  SHA. The workflow rejects missing, stale, or different approval before
-  mutation; the variable links preserved evidence but is not evidence itself.
+- Require the exact-SHA production workflow to pass its fresh disposable
+  database replay, complete catalog and Edge suites, two-session concurrency
+  probes, strict lint, and advisors before mutation. No hosted staging project
+  or manual SHA attestation is required.
 - Never restore the arbitrary source-UUID payload or client execution of legacy
   reparent helpers.
 - Do not roll back an applied migration or manually reparent scans/ledger rows.
