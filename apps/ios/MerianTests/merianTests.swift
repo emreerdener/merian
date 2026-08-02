@@ -884,6 +884,23 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertNil(viewModel.pendingScansRecoveryContext)
     }
 
+    func testNonBiologicalLibraryRoutePreservesCollectionDestination() async throws {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .insight
+        )
+
+        AppEventPublisher.shared.send(.requestOpenNonBiologicalScansIntent)
+        try await waitUntil {
+            viewModel.activeSheet == .scans &&
+                viewModel.pendingScansShowsNonBiologicalCollection
+        }
+
+        XCTAssertNil(viewModel.pendingScansRecoveryContext)
+    }
+
     func testProfileRecoveryRoutePreservesOwnerFilterContext() async throws {
         let context = ExploreMediaRecoveryRouteContext(
             ownerUserId: "5d8372cc-1078-49a4-af27-e32d10290bad"

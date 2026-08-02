@@ -19,6 +19,7 @@ actor ProfileDatabaseActor {
         let weatherTemperatureF: Double?
         let gpsElevation: Double?
         let timestamp: Date
+        let isBiological: Bool
         let isInvasive: Bool
         let iucnRedListStatus: String?
         let hazardType: String
@@ -38,6 +39,7 @@ actor ProfileDatabaseActor {
         let ecologyType: String
         let weatherTemperatureF: Double?
         let gpsElevation: Double?
+        let isBiological: Bool
         let isInvasive: Bool
         let iucnRedListStatus: String?
         let hazardType: String
@@ -183,7 +185,7 @@ actor ProfileDatabaseActor {
         descriptor.propertiesToFetch = [
             \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId, \.captureDate,
             \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
-            \.gpsElevation, \.timestamp, \.isInvasive, \.iucnRedListStatus, \.hazardType,
+            \.gpsElevation, \.timestamp, \.isBiological, \.isInvasive, \.iucnRedListStatus, \.hazardType,
             \.confidenceScore
         ]
 
@@ -202,6 +204,7 @@ actor ProfileDatabaseActor {
                 weatherTemperatureF: $0.weatherTemperatureF,
                 gpsElevation: $0.gpsElevation,
                 timestamp: $0.timestamp,
+                isBiological: $0.isBiological,
                 isInvasive: $0.isInvasive,
                 iucnRedListStatus: $0.iucnRedListStatus,
                 hazardType: $0.hazardType,
@@ -241,6 +244,7 @@ actor ProfileDatabaseActor {
                 ecologyType: record.ecologyType,
                 weatherTemperatureF: record.weatherTemperatureF,
                 gpsElevation: record.gpsElevation,
+                isBiological: record.isBiological,
                 isInvasive: record.isInvasive,
                 iucnRedListStatus: record.iucnRedListStatus,
                 hazardType: record.hazardType,

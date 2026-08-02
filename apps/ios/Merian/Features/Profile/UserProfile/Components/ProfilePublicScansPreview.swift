@@ -51,7 +51,7 @@ struct ProfilePublicScansPreview: View {
     private var content: some View {
         let posts = previewPosts
 
-        if currentUserId != nil, isLoading || !posts.isEmpty || hasLoaded || didFail {
+        if currentUserId != nil, isLoading || !posts.isEmpty || didFail || recoverySummary != nil {
             VStack(alignment: .leading, spacing: 14) {
                 sectionHeader
 

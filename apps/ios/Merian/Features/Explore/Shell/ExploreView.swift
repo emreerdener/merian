@@ -224,6 +224,9 @@ struct ExploreView: View {
                     },
                     onOpenPublication: { publicationId in
                         navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenTemplate: { templateId in
+                        navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
                     }
                 )
                 .toolbar(.hidden, for: .tabBar)

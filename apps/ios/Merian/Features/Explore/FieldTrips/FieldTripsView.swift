@@ -1470,6 +1470,11 @@ private enum FieldTripScanPreviewLayout {
     static let imagePadding: CGFloat = 12
 }
 
+private enum FieldTripTemplateCardLayout {
+    static let artworkSize: CGFloat = 80
+    static let previewTileSize: CGFloat = 80
+}
+
 private enum FieldTripLevelHeaderLayout {
     static let accessorySize: CGFloat = 52
     static let ringLineWidth: CGFloat = 4.5
@@ -1631,10 +1636,41 @@ private struct FieldTripTemplateCard: View {
         }
     }
 
+    @ViewBuilder
+    private var identityArtwork: some View {
+        if let currentLevelPatchImageName {
+            Image(currentLevelPatchImageName)
+                .resizable()
+                .scaledToFit()
+                .frame(
+                    width: FieldTripTemplateCardLayout.artworkSize,
+                    height: FieldTripTemplateCardLayout.artworkSize
+                )
+                .scaleEffect(1.08)
+        } else {
+            FieldTripCoverImage(
+                urlString: template.coverImageUrl,
+                templateSlug: template.slug
+            )
+            .frame(
+                width: FieldTripTemplateCardLayout.artworkSize,
+                height: FieldTripTemplateCardLayout.artworkSize
+            )
+            .clipShape(Circle())
+            .overlay {
+                Circle()
+                    .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1)
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
-                HStack(alignment: .top, spacing: 16) {
+                HStack(alignment: .center, spacing: 16) {
+                    identityArtwork
+                        .accessibilityHidden(true)
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
                             .font(.title3.weight(.bold))
@@ -1651,15 +1687,6 @@ private struct FieldTripTemplateCard: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .layoutPriority(1)
-
-                    if let currentLevelPatchImageName {
-                        Image(currentLevelPatchImageName)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 64, height: 64)
-                            .scaleEffect(1.08)
-                            .accessibilityHidden(true)
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -1669,6 +1696,9 @@ private struct FieldTripTemplateCard: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
 
+            FieldTripTemplateTagRow(tags: tags)
+                .padding(.bottom, 12)
+
             if showsScanPreview {
                 FieldTripScanPreviewStrip(
                     targetCount: previewTargetCount,
@@ -1676,13 +1706,11 @@ private struct FieldTripTemplateCard: View {
                     items: previewItems,
                     localScansById: localScansById,
                     onOpenTemplate: onOpenTemplate,
-                    onOpenCompletedScan: onOpenCompletedScan
+                    onOpenCompletedScan: onOpenCompletedScan,
+                    tileSize: FieldTripTemplateCardLayout.previewTileSize
                 )
                 .padding(.bottom, 12)
             }
-
-            FieldTripTemplateTagRow(tags: tags)
-                .padding(.bottom, 12)
 
             if template.catalogState == .incomplete {
                 Button(action: onOpenTemplate) {
@@ -1702,6 +1730,7 @@ private struct FieldTripTemplateCard: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
+                .tint(.primary)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
             }
@@ -1767,6 +1796,25 @@ struct FieldTripScanPreviewStrip: View {
     let localScansById: [String: LocalScanRecord]
     let onOpenTemplate: () -> Void
     let onOpenCompletedScan: (String) -> Void
+    let tileSize: CGFloat
+
+    init(
+        targetCount: Int,
+        templateSlug: String,
+        items: [FieldTripChecklistItem],
+        localScansById: [String: LocalScanRecord],
+        onOpenTemplate: @escaping () -> Void,
+        onOpenCompletedScan: @escaping (String) -> Void,
+        tileSize: CGFloat = 96
+    ) {
+        self.targetCount = targetCount
+        self.templateSlug = templateSlug
+        self.items = items
+        self.localScansById = localScansById
+        self.onOpenTemplate = onOpenTemplate
+        self.onOpenCompletedScan = onOpenCompletedScan
+        self.tileSize = tileSize
+    }
 
     private var visibleTargetCount: Int {
         max(0, targetCount)
@@ -1781,7 +1829,7 @@ struct FieldTripScanPreviewStrip: View {
             }
             .padding(.horizontal, 16)
         }
-        .frame(height: FieldTripScanPreviewLayout.tileSize)
+        .frame(height: tileSize)
     }
 
     @ViewBuilder
@@ -1828,8 +1876,8 @@ struct FieldTripScanPreviewStrip: View {
                 }
             }
             .frame(
-                width: FieldTripScanPreviewLayout.tileSize,
-                height: FieldTripScanPreviewLayout.tileSize
+                width: tileSize,
+                height: tileSize
             )
             .clipShape(shape)
             .overlay {
@@ -3729,11 +3777,19 @@ private struct FieldTripUnavailableCard: View {
 private struct FieldTripTemplateSkeletonCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .center, spacing: 16) {
+                Circle()
+                    .fill(Color.secondary.opacity(0.14))
+                    .frame(
+                        width: FieldTripTemplateCardLayout.artworkSize,
+                        height: FieldTripTemplateCardLayout.artworkSize
+                    )
+
                 VStack(alignment: .leading, spacing: 4) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.secondary.opacity(0.16))
-                        .frame(width: 172, height: 19)
+                        .frame(maxWidth: 172)
+                        .frame(height: 19)
 
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.secondary.opacity(0.12))
@@ -3742,43 +3798,13 @@ private struct FieldTripTemplateSkeletonCard: View {
 
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.secondary.opacity(0.12))
-                        .frame(width: 140, height: 12)
+                        .frame(maxWidth: 140)
+                        .frame(height: 12)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                Circle()
-                    .fill(Color.secondary.opacity(0.14))
-                    .frame(width: 64, height: 64)
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
-            .padding(.bottom, 12)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: FieldTripScanPreviewLayout.spacing) {
-                    ForEach(0..<4, id: \.self) { _ in
-                        RoundedRectangle(
-                            cornerRadius: FieldTripScanPreviewLayout.cornerRadius,
-                            style: .continuous
-                        )
-                        .fill(Color.secondary.opacity(0.12))
-                        .frame(
-                            width: FieldTripScanPreviewLayout.tileSize,
-                            height: FieldTripScanPreviewLayout.tileSize
-                        )
-                        .overlay {
-                            RoundedRectangle(
-                                cornerRadius: FieldTripScanPreviewLayout.cornerRadius,
-                                style: .continuous
-                            )
-                            .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-            .frame(height: FieldTripScanPreviewLayout.tileSize)
-            .scrollDisabled(true)
             .padding(.bottom, 12)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -3789,12 +3815,39 @@ private struct FieldTripTemplateSkeletonCard: View {
                             .frame(width: width, height: 27)
                             .overlay {
                                 Capsule()
-                                    .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
+                                    .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1)
                             }
                     }
                 }
                 .padding(.horizontal, 16)
             }
+            .scrollDisabled(true)
+            .padding(.bottom, 12)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: FieldTripScanPreviewLayout.spacing) {
+                    ForEach(0..<5, id: \.self) { _ in
+                        RoundedRectangle(
+                            cornerRadius: FieldTripScanPreviewLayout.cornerRadius,
+                            style: .continuous
+                        )
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(
+                            width: FieldTripTemplateCardLayout.previewTileSize,
+                            height: FieldTripTemplateCardLayout.previewTileSize
+                        )
+                        .overlay {
+                            RoundedRectangle(
+                                cornerRadius: FieldTripScanPreviewLayout.cornerRadius,
+                                style: .continuous
+                            )
+                            .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            .frame(height: FieldTripTemplateCardLayout.previewTileSize)
             .scrollDisabled(true)
             .padding(.bottom, 12)
 

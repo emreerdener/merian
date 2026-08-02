@@ -161,6 +161,7 @@ final class CaptureWorkspaceViewModel {
     var pendingCaptureGoalDestination: CaptureGoalDestination?
     var pendingExploreShowsFieldTrips = false
     var pendingScansRecoveryContext: ExploreMediaRecoveryRouteContext?
+    var pendingScansShowsNonBiologicalCollection = false
     var explorePresentationIdentity = UUID()
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
@@ -316,7 +317,7 @@ final class CaptureWorkspaceViewModel {
                         entryPoint: entryPoint
                     )
                 case .requestOpenNonBiologicalScansIntent:
-                    self?.handleScansLibraryRoute()
+                    self?.handleScansLibraryRoute(showsNonBiologicalCollection: true)
                 case .requestOpenScansLibraryIntent:
                     self?.handleScansLibraryRoute()
                 case .requestOpenScansLibraryRecovery(let context):
@@ -490,11 +491,13 @@ final class CaptureWorkspaceViewModel {
     }
 
     private func handleScansLibraryRoute(
-        recoveryContext: ExploreMediaRecoveryRouteContext? = nil
+        recoveryContext: ExploreMediaRecoveryRouteContext? = nil,
+        showsNonBiologicalCollection: Bool = false
     ) {
         protectExternalRouteFromImmediateSessionTimeoutReset()
         clearExplorePresentationRoute()
         pendingScansRecoveryContext = recoveryContext
+        pendingScansShowsNonBiologicalCollection = showsNonBiologicalCollection
         activeSheet = .scans
     }
 

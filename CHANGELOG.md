@@ -6,6 +6,24 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Non-biological Scan Navigation
+
+- Non-biological scan notices now link directly to their collection in the
+  scans library.
+
+### Field Trip Card Layout
+
+- Field trip catalog cards now place a larger current patch beside the title, show
+  status pills before a compact goal preview strip, and finish with the
+  existing state-aware action.
+- Active Field trips on Explore profiles now show the current-level patch and
+  open the corresponding Field trip page when the card is tapped.
+
+### Biological Achievement Eligibility
+
+- Scans identified as non-biological no longer advance, unlock, or appear in
+  the qualifying details for nature and species achievements.
+
 ### Simpler Starter Outings
 
 - Backyard Safari and Park Pollinators now start with 2 goals, expand to 4 in

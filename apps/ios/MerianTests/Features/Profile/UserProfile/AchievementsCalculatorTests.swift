@@ -17,6 +17,7 @@ final class AchievementsCalculatorTests: XCTestCase {
         taxonomyKingdom: String? = nil,
         taxonomyClass: String? = nil,
         ecologyType: String = "unknown",
+        isBiological: Bool = true,
         isInvasive: Bool = false,
         hazardType: String = "none",
         confidenceScore: Double? = nil,
@@ -32,6 +33,7 @@ final class AchievementsCalculatorTests: XCTestCase {
             timestamp: timestamp,
             captureDate: captureDate,
             hazardType: hazardType,
+            isBiological: isBiological,
             isInvasive: isInvasive,
             ecologyType: ecologyType,
             confidenceScore: confidenceScore,
@@ -74,6 +76,75 @@ final class AchievementsCalculatorTests: XCTestCase {
         let perfectLensAward = awards.first { $0.type == .perfectLens }
 
         XCTAssertEqual(perfectLensAward?.currentCount, 2, "Only 98%+ confidence scores evaluate correctly")
+    }
+
+    func testNonBiologicalScanDoesNotAdvanceAnyScanBackedAchievement() {
+        let afterDark = Calendar.current.date(
+            bySettingHour: 23,
+            minute: 0,
+            second: 0,
+            of: Date()
+        )!
+        let scan = mockScan(
+            id: "dog_figurine",
+            scientificName: "Canis lupus familiaris",
+            timestamp: afterDark,
+            weatherTemperatureF: 10,
+            gpsElevation: 3_000,
+            taxonomyKingdom: "plantae",
+            taxonomyClass: "insecta",
+            ecologyType: "urban",
+            isBiological: false,
+            isInvasive: true,
+            hazardType: "venomous",
+            confidenceScore: 0.99,
+            iucnRedListStatus: "EN"
+        )
+
+        let awards = AchievementsCalculator.calculate(from: [scan])
+
+        for award in awards where award.type != .firstFieldTrip {
+            XCTAssertEqual(
+                award.currentCount,
+                0,
+                "Non-biological scans must not advance \(award.type.rawValue)."
+            )
+            XCTAssertNil(award.unlockedAt)
+        }
+
+        for type in AchievementType.allCases where type != .firstFieldTrip {
+            XCTAssertTrue(
+                AchievementsCalculator.detail(for: type, from: [scan])?.contributions.isEmpty == true,
+                "Non-biological scans must not appear in \(type.rawValue) achievement details."
+            )
+        }
+    }
+
+    func testFirstScanUsesOldestBiologicalScan() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let scans = [
+            mockScan(
+                id: "figurine",
+                scientificName: "Dog Figurine",
+                timestamp: base,
+                isBiological: false,
+                confidenceScore: 0.99
+            ),
+            mockScan(
+                id: "dog",
+                scientificName: "Canis lupus familiaris",
+                timestamp: base.addingTimeInterval(60),
+                confidenceScore: 0.99
+            )
+        ]
+
+        let firstScan = AchievementsCalculator.detail(for: .firstScan, from: scans)
+        let perfectLens = AchievementsCalculator.detail(for: .perfectLens, from: scans)
+
+        XCTAssertEqual(firstScan?.contributions.map(\.scanID), ["dog"])
+        XCTAssertEqual(firstScan?.award.unlockedAt, base.addingTimeInterval(60))
+        XCTAssertEqual(perfectLens?.award.currentCount, 1)
+        XCTAssertEqual(perfectLens?.contributions.map(\.scanID), ["dog"])
     }
 
     func testAlpineNaturalist() {

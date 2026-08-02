@@ -9,8 +9,13 @@ enum ScansTab {
 struct ScansSheetView: View {
     let recoveryContext: ExploreMediaRecoveryRouteContext?
 
-    init(recoveryContext: ExploreMediaRecoveryRouteContext? = nil) {
+    init(
+        recoveryContext: ExploreMediaRecoveryRouteContext? = nil,
+        initiallyShowsNonBiologicalScans: Bool = false
+    ) {
         self.recoveryContext = recoveryContext
+        _activeTab = State(initialValue: initiallyShowsNonBiologicalScans ? .collections : .library)
+        _isNonBiologicalScansPresented = State(initialValue: initiallyShowsNonBiologicalScans)
     }
 
     // MARK: - App State Engines

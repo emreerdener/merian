@@ -281,6 +281,7 @@ protocol AchievementRecordRepresentable {
     var ecologyType: String { get }
     var weatherTemperatureF: Double? { get }
     var gpsElevation: Double? { get }
+    var isBiological: Bool { get }
     var isInvasive: Bool { get }
     var iucnRedListStatus: String? { get }
     var hazardType: String { get }

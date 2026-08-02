@@ -443,6 +443,7 @@ struct FieldTripProfilePreview: View {
     let summaries: FieldTripProfileSummaries
     var allowsPinManagement = false
     var isUpdatingPins = false
+    let onOpenTemplate: (String) -> Void
     let onOpenPublication: (String) -> Void
     var onTogglePinned: ((FieldTripProfilePublishedSummary) -> Void)?
 
@@ -501,7 +502,14 @@ struct FieldTripProfilePreview: View {
             if !summaries.active.isEmpty {
                 VStack(spacing: 8) {
                     ForEach(summaries.active.prefix(3)) { trip in
-                        FieldTripActiveProfileRow(trip: trip)
+                        Button {
+                            HapticManager.shared.triggerSelectionPulse()
+                            onOpenTemplate(trip.templateId)
+                        } label: {
+                            FieldTripActiveProfileRow(trip: trip)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens this Field trip")
                     }
                 }
             }
@@ -623,6 +631,13 @@ private struct FieldTripBadgeTagRow: View {
 private struct FieldTripActiveProfileRow: View {
     let trip: FieldTripProfileActiveSummary
 
+    private var patchImageName: String? {
+        FieldTripLevelArtwork.imageName(
+            templateSlug: trip.slug,
+            levelNumber: trip.currentLevelNumber
+        )
+    }
+
     private var fractionComplete: Double {
         guard trip.targetCount > 0 else { return 0 }
         return min(1, max(0, Double(trip.completedCount) / Double(trip.targetCount)))
@@ -630,23 +645,30 @@ private struct FieldTripActiveProfileRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+            HStack(alignment: .center, spacing: 12) {
+                FieldTripActiveProfilePatch(imageName: patchImageName)
+                    .frame(width: 52, height: 52)
+                    .accessibilityHidden(true)
 
-                    Text("Level \(trip.currentLevelNumber)")
-                        .font(.caption.weight(.semibold))
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Text("Level \(trip.currentLevelNumber)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Text("\(trip.completedCount)/\(trip.targetCount)")
+                        .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
                 }
-
-                Spacer(minLength: 8)
-
-                Text("\(trip.completedCount)/\(trip.targetCount)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
             }
 
             GeometryReader { proxy in
@@ -669,6 +691,30 @@ private struct FieldTripActiveProfileRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct FieldTripActiveProfilePatch: View {
+    let imageName: String?
+
+    var body: some View {
+        if let imageName {
+            FieldTripPatchArtwork(imageName: imageName)
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+
+                Image(systemName: "rosette")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .overlay {
+                Circle()
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            }
+        }
     }
 }
 

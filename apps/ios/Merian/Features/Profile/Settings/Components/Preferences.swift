@@ -258,6 +258,13 @@ struct Preferences: View {
                 Label("Preview notification stack", systemImage: "square.3.layers.3d")
             }
             .accessibilityIdentifier("Settings_PreviewNotificationStack")
+
+            NavigationLink {
+                FieldTripCommunityCardDeveloperPreview()
+            } label: {
+                Label("Preview field trip community card", systemImage: "person.3.fill")
+            }
+            .accessibilityIdentifier("Settings_PreviewFieldTripCommunityCard")
             
             Button {
                 showPaywall = true
@@ -285,6 +292,73 @@ struct Preferences: View {
 }
 
 #if DEBUG
+private struct FieldTripCommunityCardDeveloperPreview: View {
+    private static let samplePublication: FieldTripRecentPublication? = {
+        let json = """
+        {
+          "publicationId": "community-card-preview",
+          "templateId": "backyard-safari-preview",
+          "title": "A Morning in My Backyard",
+          "description": "A few familiar visitors showed up before breakfast.",
+          "publishedAt": "2026-08-02T12:00:00Z",
+          "likeCount": 24,
+          "commentCount": 6,
+          "slug": "backyard_safari",
+          "templateTitle": "Backyard Safari",
+          "regionTags": ["North America"],
+          "seasonTags": ["Summer"],
+          "habitatTags": ["Backyard"],
+          "coverImageUrl": null,
+          "itemCount": 4,
+          "viewerHasLiked": true,
+          "authorUserId": "community-preview-author",
+          "authorName": "Nature Neighbor",
+          "authorUsername": "nature_neighbor",
+          "authorAvatarUrl": null,
+          "isPinned": false,
+          "pinPosition": null,
+          "rankBucket": 1,
+          "communityReason": "near_you",
+          "viewerIsFollowingAuthor": false
+        }
+        """
+
+        return try? JSONDecoder().decode(
+            FieldTripRecentPublication.self,
+            from: Data(json.utf8)
+        )
+    }()
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Production card with representative preview data.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if let publication = Self.samplePublication {
+                    FieldTripCommunityPublicationCard(
+                        publication: publication,
+                        onOpenPublication: { _ in },
+                        onOpenAuthorProfile: { _ in }
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Preview unavailable",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("The sample Community card could not be created.")
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Community Card")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 private struct FeatureFlagDeveloperControls: View {
     @State private var refreshToken = 0
 

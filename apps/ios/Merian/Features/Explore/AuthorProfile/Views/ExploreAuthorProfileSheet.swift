@@ -94,6 +94,9 @@ struct ExploreAuthorProfileSheet: View {
                 },
                 onOpenPublication: { publicationId in
                     navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                },
+                onOpenTemplate: { templateId in
+                    navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
                 }
             )
             .navigationDestination(for: ExplorePostRoute.self) { route in
@@ -120,6 +123,17 @@ struct ExploreAuthorProfileSheet: View {
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in
                 FieldTripPublicationDetailView(publicationId: route.publicationId)
             }
+            .navigationDestination(for: FieldTripTemplateRoute.self) { route in
+                FieldTripTemplateDetailView(
+                    reference: route.reference,
+                    focusedChecklistItemId: route.focusedChecklistItemId,
+                    onOpenCompletedScan: { _ in },
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenAuthorProfile: { _ in }
+                )
+            }
         }
         .presentationBackground(Color(uiColor: .systemGroupedBackground))
     }
@@ -142,6 +156,7 @@ struct ExploreAuthorProfileContent: View {
     let onClose: () -> Void
     let onOpenPostRoute: (ExplorePostRoute) -> Void
     let onOpenPublication: (String) -> Void
+    let onOpenTemplate: (String) -> Void
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
@@ -341,9 +356,11 @@ struct ExploreAuthorProfileContent: View {
                        fieldTrips,
                        eventsEnabled: FieldTripEventsAvailability.isEnabled
                    ) {
-                    FieldTripProfilePreview(summaries: fieldTrips, onOpenPublication: { publicationId in
-                        onOpenPublication(publicationId)
-                    })
+                    FieldTripProfilePreview(
+                        summaries: fieldTrips,
+                        onOpenTemplate: onOpenTemplate,
+                        onOpenPublication: onOpenPublication
+                    )
                 }
 
                 publishedPreview(profile)

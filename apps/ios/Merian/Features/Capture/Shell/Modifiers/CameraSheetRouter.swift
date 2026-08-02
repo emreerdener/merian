@@ -59,7 +59,9 @@ struct CameraSheetRouter: ViewModifier {
                             }
                     case .scans:
                         ScansSheetView(
-                            recoveryContext: viewModel.pendingScansRecoveryContext
+                            recoveryContext: viewModel.pendingScansRecoveryContext,
+                            initiallyShowsNonBiologicalScans:
+                                viewModel.pendingScansShowsNonBiologicalCollection
                         )
                         .onAppear {
                             appSettings.hasUnseenScan = false
@@ -67,6 +69,7 @@ struct CameraSheetRouter: ViewModifier {
                         }
                         .onDisappear {
                             viewModel.pendingScansRecoveryContext = nil
+                            viewModel.pendingScansShowsNonBiologicalCollection = false
                         }
                     }
                 }

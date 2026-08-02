@@ -22,6 +22,7 @@ struct AchievementsCalculator {
     private static func evaluations<Record: AchievementRecordRepresentable>(
         from allRecords: [Record]
     ) -> [AchievementDetailPayload] {
+        let eligibleRecords = allRecords.filter(\.isBiological)
         var accumulators = Dictionary(
             uniqueKeysWithValues: AchievementType.allCases.compactMap { type -> (AchievementType, AchievementAccumulator)? in
                 switch type.definition.contributionKind {
@@ -35,7 +36,7 @@ struct AchievementsCalculator {
             }
         )
 
-        for record in allRecords {
+        for record in eligibleRecords {
             for type in AchievementType.allCases {
                 switch type.definition.contributionKind {
                 case .firstScan:
@@ -56,7 +57,7 @@ struct AchievementsCalculator {
         return AchievementType.allCases.map { type in
             switch type.definition.contributionKind {
             case .firstScan(let reasonText):
-                return firstScanDetail(from: allRecords, reasonText: reasonText)
+                return firstScanDetail(from: eligibleRecords, reasonText: reasonText)
             case .externalMilestone:
                 return AchievementDetailPayload(
                     award: AwardPayload(type: type, currentCount: 0, lastInteractionDate: nil),

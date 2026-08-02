@@ -70,6 +70,9 @@ struct ExploreCommentsSheet: View {
                     },
                     onOpenPublication: { publicationId in
                         navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenTemplate: { templateId in
+                        navigationPath.append(FieldTripTemplateRoute(templateId: templateId))
                     }
                 )
             }
@@ -102,6 +105,17 @@ struct ExploreCommentsSheet: View {
             }
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in
                 FieldTripPublicationDetailView(publicationId: route.publicationId)
+            }
+            .navigationDestination(for: FieldTripTemplateRoute.self) { route in
+                FieldTripTemplateDetailView(
+                    reference: route.reference,
+                    focusedChecklistItemId: route.focusedChecklistItemId,
+                    onOpenCompletedScan: { _ in },
+                    onOpenPublication: { publicationId in
+                        navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+                    },
+                    onOpenAuthorProfile: { _ in }
+                )
             }
         }
         .presentationDetents([.fraction(0.6), .large])

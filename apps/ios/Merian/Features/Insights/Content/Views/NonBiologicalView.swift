@@ -73,11 +73,30 @@ struct NonBiologicalView: View {
                 .foregroundStyle(.orange)
                 .padding(.top, 1)
 
-            Text("You can find this scan in the Non-biological collection. Naturebook automatically deletes non-biological scans after \(MerianConfig.nonBiologicalRetentionDays) days.")
-                .font(.footnote)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("You can find this scan in the Non-biological collection. Naturebook automatically deletes non-biological scans after \(MerianConfig.nonBiologicalRetentionDays) days.")
+                    .font(.footnote)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    AppEventPublisher.shared.send(.requestOpenNonBiologicalScansIntent)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Open collection")
+                            .underline()
+                        Image(systemName: "arrow.right")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open Non-biological collection")
+                .accessibilityHint("Opens the collection in the scans library")
+            }
 
             Spacer(minLength: 0)
         }
@@ -91,6 +110,6 @@ struct NonBiologicalView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.orange.opacity(0.24), lineWidth: 1)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
