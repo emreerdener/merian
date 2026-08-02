@@ -12,6 +12,8 @@ TestFlight, App Store, support, and QA.
   Level 2, and finish with a new Level 3 while keeping valid credited scans.
 - Backyard Safari's first goals are now Bird and Dog, with Dog requiring an
   exact domestic-dog identification instead of any domesticated animal.
+- All six collectible level patches have refreshed embroidered artwork that
+  reflects each level's updated discoveries.
 
 ### Save Photos and Videos to Photos
 
