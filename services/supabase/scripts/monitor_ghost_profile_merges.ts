@@ -135,22 +135,25 @@ export async function inspectGhostMergeHealth(
                 WHERE handoff.status = 'prepared'
               ) IS NULL THEN NULL
               ELSE pg_catalog.FLOOR(
-                pg_catalog.EXTRACT(
-                  EPOCH FROM clock.observed_at - MIN(handoff.created_at)
-                    FILTER (WHERE handoff.status = 'prepared')
+                pg_catalog.DATE_PART(
+                  'epoch',
+                  clock.observed_at - (
+                    MIN(handoff.created_at)
+                      FILTER (WHERE handoff.status = 'prepared')
+                  )
                 )
               )::INTEGER
             END AS oldest_recent_prepared_age_seconds
-          FROM internal.ghost_profile_merge_handoffs AS handoff
-          CROSS JOIN health_clock AS clock
-          WHERE handoff.status IN ('prepared', 'merged', 'expired')
-            AND handoff.created_at
-            >= clock.observed_at - INTERVAL '12 hours'
+          FROM health_clock AS clock
+          LEFT JOIN internal.ghost_profile_merge_handoffs AS handoff
+            ON handoff.status IN ('prepared', 'merged', 'expired')
+           AND handoff.created_at
+             >= clock.observed_at - INTERVAL '12 hours'
           GROUP BY clock.observed_at
         ),
         cleanup_health AS (
           SELECT
-            COUNT(*)::INTEGER AS cleanup_pending_count,
+            COUNT(handoff.id)::INTEGER AS cleanup_pending_count,
             (
               COUNT(*) FILTER (
                 WHERE handoff.merged_at
@@ -166,44 +169,45 @@ export async function inspectGhostMergeHealth(
             CASE
               WHEN MIN(handoff.merged_at) IS NULL THEN NULL
               ELSE pg_catalog.FLOOR(
-                pg_catalog.EXTRACT(
-                  EPOCH FROM clock.observed_at - MIN(handoff.merged_at)
+                pg_catalog.DATE_PART(
+                  'epoch',
+                  clock.observed_at - MIN(handoff.merged_at)
                 )
               )::INTEGER
             END AS oldest_cleanup_age_seconds
-          FROM internal.ghost_profile_merge_handoffs AS handoff
-          CROSS JOIN health_clock AS clock
-          WHERE handoff.status = 'merged'
-            AND handoff.auth_deleted_at IS NULL
+          FROM health_clock AS clock
+          LEFT JOIN internal.ghost_profile_merge_handoffs AS handoff
+            ON handoff.status = 'merged'
+           AND handoff.auth_deleted_at IS NULL
           GROUP BY clock.observed_at
         ),
         destination_queue_health AS (
           SELECT
             (
-              COUNT(*) FILTER (
+              COUNT(handoff.id) FILTER (
                 WHERE queue.merian_user_id IS NULL
               )
             )::INTEGER AS missing_destination_queue_count,
             (
-              COUNT(*) FILTER (
+              COUNT(handoff.id) FILTER (
                 WHERE queue.merian_user_id IS NOT NULL
                   AND queue.lookup_app_user_id
                     IS DISTINCT FROM handoff.target_user_id::TEXT
               )
             )::INTEGER AS misdirected_destination_queue_count,
             (
-              COUNT(*) FILTER (
+              COUNT(handoff.id) FILTER (
                 WHERE queue.merian_user_id IS NOT NULL
                   AND queue.updated_at < handoff.merged_at
               )
             )::INTEGER AS unrefreshed_destination_queue_count
-          FROM internal.ghost_profile_merge_handoffs AS handoff
-          CROSS JOIN health_clock AS clock
+          FROM health_clock AS clock
+          LEFT JOIN internal.ghost_profile_merge_handoffs AS handoff
+            ON handoff.status = 'merged'
+           AND handoff.merged_at
+             >= clock.observed_at - INTERVAL '24 hours'
           LEFT JOIN internal.revenuecat_reconciliation_queue AS queue
             ON queue.merian_user_id = handoff.target_user_id
-          WHERE handoff.status = 'merged'
-            AND handoff.merged_at
-              >= clock.observed_at - INTERVAL '24 hours'
         )
         SELECT
           clock.observed_at::TEXT AS generated_at,

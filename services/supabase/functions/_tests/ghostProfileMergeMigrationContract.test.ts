@@ -239,11 +239,11 @@ Deno.test("Ghost merge health indexes match the recurring audit predicates", asy
   }
   assertStringIncludes(
     monitor,
-    "WHERE handoff.status IN ('prepared', 'merged', 'expired') AND handoff.created_at >= clock.observed_at - INTERVAL '12 hours'",
+    "ON handoff.status IN ('prepared', 'merged', 'expired') AND handoff.created_at >= clock.observed_at - INTERVAL '12 hours'",
   );
   assertStringIncludes(
     monitor,
-    "WHERE handoff.status = 'merged' AND handoff.merged_at >= clock.observed_at - INTERVAL '24 hours'",
+    "ON handoff.status = 'merged' AND handoff.merged_at >= clock.observed_at - INTERVAL '24 hours'",
   );
 });
 

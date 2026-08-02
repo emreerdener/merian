@@ -55,6 +55,15 @@ Deno.test("Ghost merge database audit is bounded and read-only", async () => {
   assertStringIncludes(source, "INTERVAL '12 hours'");
   assertStringIncludes(source, "INTERVAL '24 hours'");
   assertEquals(source.match(/GROUP BY clock\.observed_at/g)?.length, 2);
+  assertEquals(source.match(/pg_catalog\.DATE_PART\(/g)?.length, 2);
+  assert(!source.includes("pg_catalog.EXTRACT("));
+  assertEquals(
+    source.match(
+      /LEFT JOIN internal\.ghost_profile_merge_handoffs AS handoff/g,
+    )?.length,
+    3,
+  );
+  assertStringIncludes(source, "COUNT(handoff.id)::INTEGER");
   assertStringIncludes(source, "max: 1");
   assertStringIncludes(source, "prepare: false");
   assertStringIncludes(source, "queue.updated_at < handoff.merged_at");
