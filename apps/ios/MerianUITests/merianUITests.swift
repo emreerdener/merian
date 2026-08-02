@@ -397,6 +397,48 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testConfidenceSheetShowsReanalysisAndCommunityActions() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedMissingVideoFallbackFlow"]
+        )
+
+        let scansButton = app.buttons["MainTabBar_Scans"]
+        XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
+        scansButton.tap()
+
+        let scanTile = app.buttons["ScanTile_ui_test_missing_video_fallback"]
+        XCTAssertTrue(scanTile.waitForExistence(timeout: 8.0), "Seeded biological scan was not rendered")
+        scanTile.tap()
+
+        XCTAssertTrue(
+            app.otherElements["InsightSheetView"].waitForExistence(timeout: 8.0),
+            "Seeded insight failed to open"
+        )
+
+        let confidenceBadge = app.buttons["Strong match"]
+        XCTAssertTrue(confidenceBadge.waitForExistence(timeout: 8.0), "Confidence badge did not render")
+        confidenceBadge.tap()
+
+        let reanalyzeButton = app.buttons["ConfidenceSheetReanalyzeButton"]
+        let askCommunityButton = app.buttons["ConfidenceSheetAskCommunityButton"]
+        XCTAssertTrue(
+            reanalyzeButton.waitForExistence(timeout: 8.0),
+            "Confidence sheet did not expose reanalysis"
+        )
+        XCTAssertTrue(
+            askCommunityButton.waitForExistence(timeout: 8.0),
+            "Confidence sheet did not expose community identification"
+        )
+        XCTAssertEqual(reanalyzeButton.label, "Reanalyze species")
+        XCTAssertEqual(askCommunityButton.label, "Ask the community")
+        XCTAssertGreaterThanOrEqual(
+            askCommunityButton.frame.minY,
+            reanalyzeButton.frame.maxY,
+            "Confidence actions were not stacked in the requested order"
+        )
+    }
+
+    @MainActor
     func testBackgroundSyncOfflineDisappearance() throws {
         try XCTSkipIf(true, "Offline Simulator execution boundaries trigger severe UI timeout execution flakes randomly.")
         let app = UITestAppLauncher.launchConfiguredApp()

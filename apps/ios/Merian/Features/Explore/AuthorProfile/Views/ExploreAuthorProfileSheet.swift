@@ -421,7 +421,10 @@ struct ExploreAuthorProfileContent: View {
 
             if !earnedPatches.isEmpty {
                 Divider()
-                EarnedFieldTripPatchCarousel(patches: earnedPatches)
+                EarnedFieldTripPatchCarousel(
+                    patches: earnedPatches,
+                    onOpenFieldTrip: onOpenTemplate
+                )
             }
         }
         .padding(12)

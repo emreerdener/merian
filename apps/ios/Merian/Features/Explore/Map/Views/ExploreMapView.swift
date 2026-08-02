@@ -240,6 +240,7 @@ struct ExploreMapView: View {
                     title: viewModel.hasActiveFilters
                         ? "Filters \(viewModel.activeFilterCount.formatted())"
                         : "Filters",
+                    systemImage: "line.3.horizontal.decrease",
                     isSelected: viewModel.hasActiveFilters
                 ) {
                     isShowingFilterSheet = true
@@ -270,6 +271,7 @@ struct ExploreMapView: View {
 
     private func mapFilterPill(
         title: String,
+        systemImage: String? = nil,
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -277,7 +279,15 @@ struct ExploreMapView: View {
             HapticManager.shared.triggerSelectionPulse()
             action()
         }) {
-            Text(title)
+            HStack(spacing: 6) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .imageScale(.small)
+                        .accessibilityHidden(true)
+                }
+
+                Text(title)
+            }
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .lineLimit(1)

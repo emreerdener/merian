@@ -50,7 +50,12 @@ struct ProfileTabView: View {
                         totalScans: totalCaptures,
                         completedAchievements: visibleAwards.completedCount,
                         earnedFieldTripPatches: earnedFieldTripPatches,
-                        isLoadingEarnedFieldTripPatches: isLoadingEarnedFieldTripPatches
+                        isLoadingEarnedFieldTripPatches: isLoadingEarnedFieldTripPatches,
+                        onOpenFieldTrip: { templateId in
+                            selectedFieldTripTemplateRoute = FieldTripTemplateRoute(
+                                templateId: templateId
+                            )
+                        }
                     )
 
                     // MARK: - Stats

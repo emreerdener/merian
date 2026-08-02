@@ -60,6 +60,7 @@ enum ActiveFieldTripProfilePresentation {
 
 struct EarnedFieldTripPatch: Identifiable, Equatable {
     let id: String
+    let templateId: String
     let imageName: String
     let templateTitle: String
     let levelTitle: String
@@ -98,6 +99,7 @@ enum EarnedFieldTripPatchPresentation {
 
                     return EarnedFieldTripPatch(
                         id: "\(template.templateId):\(level.levelId)",
+                        templateId: template.templateId,
                         imageName: imageName,
                         templateTitle: FieldTripTemplatePresentation.title(
                             template.title,
@@ -124,6 +126,7 @@ enum EarnedFieldTripPatchPresentation {
 
                 return EarnedFieldTripPatch(
                     id: "\(summary.userFieldTripId):\(levelNumber)",
+                    templateId: summary.templateId,
                     imageName: imageName,
                     templateTitle: FieldTripTemplatePresentation.title(
                         summary.title,
@@ -138,6 +141,7 @@ enum EarnedFieldTripPatchPresentation {
 
 struct EarnedFieldTripPatchCarousel: View {
     let patches: [EarnedFieldTripPatch]
+    let onOpenFieldTrip: (String) -> Void
 
     @State private var selectedPatch: EarnedFieldTripPatch?
 
@@ -163,7 +167,13 @@ struct EarnedFieldTripPatchCarousel: View {
         .fullScreenCover(item: $selectedPatch) { patch in
             FieldTripLevelArtworkExpandedView(
                 items: patches.map(\.galleryItem),
-                initialItemID: patch.id
+                initialItemID: patch.id,
+                onOpenFieldTrip: { item in
+                    guard let selectedPatch = patches.first(where: { $0.id == item.id }) else {
+                        return
+                    }
+                    onOpenFieldTrip(selectedPatch.templateId)
+                }
             )
         }
     }
@@ -638,49 +648,37 @@ private struct FieldTripActiveProfileRow: View {
         )
     }
 
-    private var fractionComplete: Double {
-        guard trip.targetCount > 0 else { return 0 }
-        return min(1, max(0, Double(trip.completedCount) / Double(trip.targetCount)))
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 12) {
-                FieldTripActiveProfilePatch(imageName: patchImageName)
-                    .frame(width: 52, height: 52)
-                    .accessibilityHidden(true)
+        HStack(alignment: .center, spacing: 12) {
+            FieldTripActiveProfilePatch(imageName: patchImageName)
+                .frame(width: 52, height: 52)
+                .accessibilityHidden(true)
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-                        Text("Level \(trip.currentLevelNumber)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Text("\(trip.completedCount)/\(trip.targetCount)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
+                Text("Level \(trip.currentLevelNumber)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-                    Capsule()
-                        .fill(Color.accentColor)
-                        .frame(width: max(6, proxy.size.width * fractionComplete))
-                }
-            }
-            .frame(height: 7)
+            GoalProgressRing(
+                completedCount: trip.completedCount,
+                targetCount: trip.targetCount,
+                lineWidth: 4.5,
+                labelFontSize: 11,
+                tint: .accentColor
+            )
+            .frame(width: 52, height: 52)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Field trip progress")
+            .accessibilityValue(
+                "\(trip.completedCount) of \(trip.targetCount) goals complete"
+            )
         }
         .padding(12)
         .background(

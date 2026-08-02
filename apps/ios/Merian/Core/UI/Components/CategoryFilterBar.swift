@@ -11,6 +11,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
     let activeItem: Item?
     let title: (Item) -> String
     let leadingTitle: String?
+    let leadingSystemImage: String?
     let isLeadingSelected: Bool
     let loadingItem: Item?
     let presentation: CategoryFilterBarPresentation
@@ -24,6 +25,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
         activeItem: Item?,
         title: @escaping (Item) -> String,
         leadingTitle: String? = nil,
+        leadingSystemImage: String? = nil,
         isLeadingSelected: Bool = false,
         loadingItem: Item? = nil,
         presentation: CategoryFilterBarPresentation = .standard,
@@ -34,6 +36,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
         self.activeItem = activeItem
         self.title = title
         self.leadingTitle = leadingTitle
+        self.leadingSystemImage = leadingSystemImage
         self.isLeadingSelected = isLeadingSelected
         self.loadingItem = loadingItem
         self.presentation = presentation
@@ -48,6 +51,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
                 if let leadingTitle, let onLeadingSelection {
                     filterButton(
                         title: leadingTitle,
+                        systemImage: leadingSystemImage,
                         isSelected: isLeadingSelected,
                         action: onLeadingSelection
                     )
@@ -70,6 +74,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
 
     private func filterButton(
         title: String,
+        systemImage: String? = nil,
         isSelected: Bool,
         isLoading: Bool = false,
         action: @escaping () -> Void
@@ -80,7 +85,15 @@ struct CategoryFilterBar<Item: Hashable>: View {
             }
         } label: {
             ZStack {
-                Text(title)
+                HStack(spacing: 6) {
+                    if let systemImage {
+                        Image(systemName: systemImage)
+                            .imageScale(.small)
+                            .accessibilityHidden(true)
+                    }
+
+                    Text(title)
+                }
                     .opacity(isLoading ? 0 : 1)
 
                 if isLoading {

@@ -6,7 +6,6 @@ struct AllCandidatesReviewedView: View {
     let candidatesCount: Int
     let onReviewAgain: () -> Void
     let onReset: () -> Void
-    var onAskCommunity: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -46,26 +45,6 @@ struct AllCandidatesReviewedView: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 4)
-
-            if let onAskCommunity {
-                Button {
-                    HapticManager.shared.triggerMediumPulse()
-                    onAskCommunity()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "person.2")
-                        Text("Ask the community")
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.blue.opacity(0.12))
-                    .foregroundColor(.blue)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(20)
         .background(Color(UIColor.secondarySystemBackground))

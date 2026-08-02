@@ -16,8 +16,9 @@ TestFlight, App Store, support, and QA.
 - Field trip catalog cards now place a larger current patch beside the title, show
   status pills before a compact goal preview strip, and finish with the
   existing state-aware action.
-- Active Field trips on Explore profiles now show the current-level patch and
-  open the corresponding Field trip page when the card is tapped.
+- Active Field trips on Explore profiles now pair the current-level patch and
+  title with trailing circular goal progress, and open the corresponding Field
+  trip page when the card is tapped.
 
 ### Biological Achievement Eligibility
 

@@ -1275,6 +1275,7 @@ private struct ExploreFeedTabContent: View {
             leadingTitle: viewModel.hasActiveAdvancedFilters
                 ? "Filters \(viewModel.activeAdvancedFilterCount.formatted())"
                 : "Filters",
+            leadingSystemImage: "line.3.horizontal.decrease",
             isLeadingSelected: viewModel.hasActiveAdvancedFilters,
             loadingItem: isResolvingNearbyLocation ? .nearby : nil,
             onSelection: { filter in

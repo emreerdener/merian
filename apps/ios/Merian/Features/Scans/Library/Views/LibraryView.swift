@@ -235,6 +235,7 @@ struct LibraryView: View {
                 leadingTitle: searchManager.hasActiveFilters
                     ? "Filters \(searchManager.activeFilterCount.formatted())"
                     : "Filters",
+                leadingSystemImage: "line.3.horizontal.decrease",
                 isLeadingSelected: searchManager.hasActiveFilters,
                 presentation: .overContent,
                 onSelection: { category in

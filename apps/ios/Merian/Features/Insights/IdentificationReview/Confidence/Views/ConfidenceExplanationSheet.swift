@@ -92,6 +92,18 @@ struct ConfidenceExplanationSheet: View {
                 .caseInsensitiveCompare(scanId) == .orderedSame
     }
 
+    private var communityRequestAction: (() -> Void)? {
+        onAskCommunity.map { action in
+            {
+                openCommunityRequestAfterDismiss(
+                    action,
+                    expectedScanId: scanId,
+                    expectedGeneration: presentationGeneration
+                )
+            }
+        }
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
@@ -116,15 +128,6 @@ struct ConfidenceExplanationSheet: View {
                                 await inferenceEngine.resetIdentificationReview(
                                     expectedScanId: scanId,
                                     modelContext: modelContext
-                                )
-                            }
-                        },
-                        onAskCommunity: onAskCommunity.map { action in
-                            {
-                                openCommunityRequestAfterDismiss(
-                                    action,
-                                    expectedScanId: scanId,
-                                    expectedGeneration: presentationGeneration
                                 )
                             }
                         }
@@ -172,18 +175,21 @@ struct ConfidenceExplanationSheet: View {
                         aiScientificName: aiScientificName ?? "Unknown subject",
                         inferenceTier: inferenceTier,
                         confirmButtonTitle: confirmButtonTitle,
-                        onAskCommunity: onAskCommunity.map { action in
-                            {
-                                openCommunityRequestAfterDismiss(
-                                    action,
-                                    expectedScanId: scanId,
-                                    expectedGeneration: presentationGeneration
-                                )
-                            }
-                        },
+                        onAskCommunity: communityRequestAction,
                         onMatchConfirmed: nil,
                         onRefineScan: refinementAction,
                         showDismissButton: false
+                    )
+                    .padding(.horizontal, 16)
+                }
+
+                let onReanalyze = refinementAction
+                let onAskCommunity = communityRequestAction
+                if onReanalyze != nil || onAskCommunity != nil {
+                    ConfidenceSheetActionButtons(
+                        isReanalyzeLocked: !revenueCatManager.isProActive,
+                        onReanalyze: onReanalyze,
+                        onAskCommunity: onAskCommunity
                     )
                     .padding(.horizontal, 16)
                 }
@@ -220,15 +226,7 @@ struct ConfidenceExplanationSheet: View {
                         )
                     }
                 },
-                onAskCommunity: onAskCommunity.map { action in
-                    {
-                        openCommunityRequestAfterDismiss(
-                            action,
-                            expectedScanId: scanId,
-                            expectedGeneration: presentationGeneration
-                        )
-                    }
-                },
+                onAskCommunity: communityRequestAction,
                 onRefineScan: refinementAction
             )
         }
@@ -289,5 +287,50 @@ struct ConfidenceExplanationSheet: View {
                 isSwipeModalPresented = isPresented
             }
         )
+    }
+}
+
+private struct ConfidenceSheetActionButtons: View {
+    let isReanalyzeLocked: Bool
+    var onReanalyze: (() -> Void)?
+    var onAskCommunity: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if let onReanalyze {
+                Button(action: onReanalyze) {
+                    Label(
+                        "Reanalyze species",
+                        systemImage: isReanalyzeLocked ? "lock.fill" : "arrow.2.circlepath"
+                    )
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.orange.opacity(0.14))
+                    .foregroundColor(.orange)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("ConfidenceSheetReanalyzeButton")
+            }
+
+            if let onAskCommunity {
+                Button {
+                    HapticManager.shared.triggerMediumPulse()
+                    onAskCommunity()
+                } label: {
+                    Label("Ask the community", systemImage: "person.2")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.blue.opacity(0.14))
+                        .foregroundColor(.blue)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("ConfidenceSheetAskCommunityButton")
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }

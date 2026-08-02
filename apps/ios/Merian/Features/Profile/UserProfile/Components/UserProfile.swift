@@ -17,6 +17,7 @@ struct UserProfile: View {
     var completedAchievements: Int = 0
     var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
     var isLoadingEarnedFieldTripPatches = false
+    let onOpenFieldTrip: (String) -> Void
     
     var body: some View {
         VStack {
@@ -82,7 +83,10 @@ struct UserProfile: View {
 
             if !earnedFieldTripPatches.isEmpty {
                 Divider()
-                EarnedFieldTripPatchCarousel(patches: earnedFieldTripPatches)
+                EarnedFieldTripPatchCarousel(
+                    patches: earnedFieldTripPatches,
+                    onOpenFieldTrip: onOpenFieldTrip
+                )
             } else if isLoadingEarnedFieldTripPatches {
                 Divider()
                 EarnedFieldTripPatchCarouselSkeleton()

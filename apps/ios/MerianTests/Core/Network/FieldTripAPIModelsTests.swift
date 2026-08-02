@@ -1595,6 +1595,13 @@ struct EarnedFieldTripPatchPresentationTests {
                 "Park Pollinators · Level 2"
             ]
         )
+        #expect(
+            patches.map(\.templateId) == [
+                "template-backyard",
+                "template-park",
+                "template-park"
+            ]
+        )
         #expect(patches.map(\.galleryItem.id) == patches.map(\.id))
     }
 
@@ -1651,6 +1658,13 @@ struct EarnedFieldTripPatchPresentationTests {
                 "Backyard Safari · Level 1",
                 "Park Pollinators · Level 1",
                 "Park Pollinators · Level 2"
+            ]
+        )
+        #expect(
+            patches.map(\.templateId) == [
+                "template-backyard",
+                "template-park",
+                "template-park"
             ]
         )
     }
