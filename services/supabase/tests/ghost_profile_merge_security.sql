@@ -999,7 +999,12 @@ BEGIN
         failure_message;
     END IF;
   END;
+END;
+$$;
+RESET ROLE;
 
+DO $$
+BEGIN
   IF EXISTS (
     SELECT 1
     FROM public.users
@@ -1015,7 +1020,6 @@ BEGIN
   END IF;
 END;
 $$;
-RESET ROLE;
 
 CREATE TEMP TABLE merge_test_cleanup_claim (
   handoff_id UUID NOT NULL,

@@ -248,6 +248,25 @@ Deno.test("Ghost merge pgTAP covers topology, ledger, actor, and provider repair
     assertStringIncludes(sql, fragment);
   }
 
+  const displacedClaimProbe = sql.indexOf(
+    "displaced RevenueCat claim unexpectedly applied state",
+  );
+  const ownerStateVerification = sql.indexOf(
+    "IF EXISTS ( SELECT 1 FROM public.users WHERE id = '00000000-0000-0000-0000-000000000602' AND subscription_tier",
+    displacedClaimProbe,
+  );
+  const resetAfterClaimProbe = sql.indexOf(
+    "RESET ROLE;",
+    displacedClaimProbe,
+  );
+
+  assert(
+    displacedClaimProbe >= 0 &&
+      resetAfterClaimProbe > displacedClaimProbe &&
+      ownerStateVerification > resetAfterClaimProbe,
+    "service_role must exercise the RPC before the test owner verifies private table state",
+  );
+
   assertEquals(
     sql.match(/ghost_merge_unclassified_fixture/g)?.length,
     4,
