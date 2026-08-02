@@ -1496,6 +1496,7 @@ enum FieldTripObjectiveArtwork {
         "spider": "fieldtrip-backyard-spider",
         "flowering plant": "fieldtrip-backyard-flowers",
         "fungus": "fieldtrip-backyard-mushrooms",
+        "dog": "fieldtrip-backyard-dog",
         "domesticated animal": "fieldtrip-backyard-dog",
         "insect": "fieldtrip-backyard-bee",
         "urban wild animal": "fieldtrip-backyard-squirrel",
@@ -1565,10 +1566,14 @@ enum FieldTripLevelArtwork {
             "fieldtrip-backyard-level-1-patch"
         case (FieldTripTemplatePresentation.backyardSafariSlug, 2):
             "fieldtrip-backyard-level-2-patch"
+        case (FieldTripTemplatePresentation.backyardSafariSlug, 3):
+            "fieldtrip-backyard-level-3-patch"
         case (FieldTripTemplatePresentation.parkPollinatorsSlug, 1):
             "fieldtrip-park-level-1-patch"
         case (FieldTripTemplatePresentation.parkPollinatorsSlug, 2):
             "fieldtrip-park-level-2-patch"
+        case (FieldTripTemplatePresentation.parkPollinatorsSlug, 3):
+            "fieldtrip-park-level-3-patch"
         default:
             nil
         }

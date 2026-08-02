@@ -1655,6 +1655,60 @@ struct EarnedFieldTripPatchPresentationTests {
         )
     }
 
+    @Test func completedThreeLevelOutingsIncludeTheirFinalPatches() {
+        let templates = [
+            makeTemplate(
+                id: "backyard-complete-three",
+                slug: FieldTripTemplatePresentation.backyardSafariSlug,
+                currentLevelNumber: 3,
+                isComplete: true
+            ),
+            makeTemplate(
+                id: "park-complete-three",
+                slug: FieldTripTemplatePresentation.parkPollinatorsSlug,
+                currentLevelNumber: 3,
+                isComplete: true
+            )
+        ]
+
+        #expect(
+            EarnedFieldTripPatchPresentation.items(templates: templates).map(\.imageName) == [
+                "fieldtrip-backyard-level-1-patch",
+                "fieldtrip-backyard-level-2-patch",
+                "fieldtrip-backyard-level-3-patch",
+                "fieldtrip-park-level-1-patch",
+                "fieldtrip-park-level-2-patch",
+                "fieldtrip-park-level-3-patch"
+            ]
+        )
+
+        let summaries = [
+            makeProfileSummary(
+                id: "backyard-complete-three",
+                slug: FieldTripTemplatePresentation.backyardSafariSlug,
+                currentLevelNumber: 3,
+                isComplete: true
+            ),
+            makeProfileSummary(
+                id: "park-complete-three",
+                slug: FieldTripTemplatePresentation.parkPollinatorsSlug,
+                currentLevelNumber: 3,
+                isComplete: true
+            )
+        ]
+
+        #expect(
+            EarnedFieldTripPatchPresentation.items(profileSummaries: summaries).map(\.imageName) == [
+                "fieldtrip-backyard-level-1-patch",
+                "fieldtrip-backyard-level-2-patch",
+                "fieldtrip-backyard-level-3-patch",
+                "fieldtrip-park-level-1-patch",
+                "fieldtrip-park-level-2-patch",
+                "fieldtrip-park-level-3-patch"
+            ]
+        )
+    }
+
     private func makeProfileSummary(
         id: String,
         slug: String,
@@ -1722,7 +1776,7 @@ struct EarnedFieldTripPatchPresentationTests {
             accessKind: "free",
             activeProgress: usesStoppedProgress ? nil : progress,
             stoppedProgress: usesStoppedProgress ? progress : nil,
-            levels: [1, 2].map { levelNumber in
+            levels: [1, 2, 3].map { levelNumber in
                 FieldTripLevel(
                     levelId: "level-\(id)-\(levelNumber)",
                     levelNumber: levelNumber,
@@ -1786,17 +1840,15 @@ struct ActiveCaptureGoalStoreTests {
 
         #expect(context.goals.isEmpty)
         #expect(introduction.headline == "Start an outing")
-        #expect(introduction.subheadline == "Backyard Safari · 4 goals")
-        #expect(introduction.progress == CaptureGoalProgress(completedCount: 0, targetCount: 4))
+        #expect(introduction.subheadline == "Backyard Safari · 2 goals")
+        #expect(introduction.progress == CaptureGoalProgress(completedCount: 0, targetCount: 2))
         #expect(introduction.artworks == [
-            .bundledImage(name: "fieldtrip-backyard-butterfly"),
             .bundledImage(name: "fieldtrip-backyard-cardinal"),
-            .bundledImage(name: "fieldtrip-backyard-cat"),
-            .bundledImage(name: "fieldtrip-backyard-spider")
+            .bundledImage(name: "fieldtrip-backyard-dog")
         ])
         #expect(introduction.destination == .fieldTripTemplate(slug: "backyard_safari"))
-        #expect(introduction.accessibilityLabel == "Start an outing. Backyard Safari, 4 goals.")
-        #expect(introduction.accessibilityValue == "0 of 4 goals complete.")
+        #expect(introduction.accessibilityLabel == "Start an outing. Backyard Safari, 2 goals.")
+        #expect(introduction.accessibilityValue == "0 of 2 goals complete.")
         #expect(introduction.accessibilityHint == "Opens outing details.")
     }
 
@@ -2148,6 +2200,12 @@ struct ActiveCaptureGoalStoreTests {
         )
         #expect(
             FieldTripObjectiveArtwork.exactImageName(
+                for: "Dog",
+                templateSlug: "backyard_safari"
+            ) == "fieldtrip-backyard-dog"
+        )
+        #expect(
+            FieldTripObjectiveArtwork.exactImageName(
                 for: "Spider",
                 templateSlug: "park_pollinators"
             ) == "fieldtrip-park-spider"
@@ -2181,6 +2239,12 @@ struct ActiveCaptureGoalStoreTests {
         )
         #expect(
             FieldTripLevelArtwork.imageName(
+                templateSlug: "backyard_safari",
+                levelNumber: 3
+            ) == "fieldtrip-backyard-level-3-patch"
+        )
+        #expect(
+            FieldTripLevelArtwork.imageName(
                 templateSlug: "park_pollinators",
                 levelNumber: 1
             ) == "fieldtrip-park-level-1-patch"
@@ -2190,6 +2254,12 @@ struct ActiveCaptureGoalStoreTests {
                 templateSlug: "park_pollinators",
                 levelNumber: 2
             ) == "fieldtrip-park-level-2-patch"
+        )
+        #expect(
+            FieldTripLevelArtwork.imageName(
+                templateSlug: "park_pollinators",
+                levelNumber: 3
+            ) == "fieldtrip-park-level-3-patch"
         )
         #expect(
             FieldTripLevelArtwork.imageName(
@@ -2251,17 +2321,15 @@ struct ActiveCaptureGoalStoreTests {
             id: "field_trip_introduction:backyard_safari",
             sourceKind: .fieldTrip,
             headline: "Start an outing",
-            subheadline: "Backyard Safari · 4 goals",
-            progress: CaptureGoalProgress(completedCount: 0, targetCount: 4),
+            subheadline: "Backyard Safari · 2 goals",
+            progress: CaptureGoalProgress(completedCount: 0, targetCount: 2),
             artworks: [
-                .bundledImage(name: "fieldtrip-backyard-butterfly"),
                 .bundledImage(name: "fieldtrip-backyard-cardinal"),
-                .bundledImage(name: "fieldtrip-backyard-cat"),
-                .bundledImage(name: "fieldtrip-backyard-spider")
+                .bundledImage(name: "fieldtrip-backyard-dog")
             ],
             destination: .fieldTripTemplate(slug: "backyard_safari"),
-            accessibilityLabel: "Start an outing. Backyard Safari, 4 goals.",
-            accessibilityValue: "0 of 4 goals complete.",
+            accessibilityLabel: "Start an outing. Backyard Safari, 2 goals.",
+            accessibilityValue: "0 of 2 goals complete.",
             accessibilityHint: "Opens outing details."
         )
     }
@@ -2270,7 +2338,7 @@ struct ActiveCaptureGoalStoreTests {
         viewerHasAccess: Bool = true,
         activeProgress: FieldTripProgress? = nil,
         stoppedProgress: FieldTripProgress? = nil,
-        prompts: [String] = ["Butterfly", "Bird", "Cat", "Spider"]
+        prompts: [String] = ["Bird", "Dog"]
     ) -> FieldTripTemplate {
         FieldTripTemplate(
             templateId: "template-backyard",

@@ -40,7 +40,7 @@ only a camera/performance setting.
   excluded from this first capture integration. Joining a challenge does not
   hide the linked standard outing or its normal progress.
 - When no active goal exists, the same Scan position can introduce an accessible,
-  unstarted Backyard Safari as an outing with four goals. This introduction is
+  unstarted Backyard Safari as an outing with two goals. This introduction is
   validated from template detail and remains distinct from progress-bearing goals.
 - Users can explicitly start an outing from the template detail page before
   their first matching scan.
@@ -162,7 +162,7 @@ migration filenames may still use `objective` or `challenge`:
   **Resume outing**, and **Publish outing**. Never use **Start challenge** or
   **Publish challenge** for a standard outing.
 - The active Scan capsule uses **Goal: {target}**. The empty introduction uses
-  **Start an outing** with **Backyard Safari · 4 goals**.
+  **Start an outing** with **Backyard Safari · 2 goals**.
 - Standard catalog cards show an accent progress ring beside the title and a
   current-level subtitle: **Observe {target count} local species often found in
   your own backyard.** The thumbnail strip remains horizontally scrollable and
@@ -320,10 +320,10 @@ Presentation contract:
   it off removes the entire target capsule from Scan without changing outing
   progress, cached goal context, or server state.
 - For the validated unstarted Backyard Safari zero state, show **Start an outing**
-  over **Backyard Safari · 4 goals**, rotate the first-level artwork by cross-fade
-  every three seconds, and show `0/4` in the shared progress ring. Reduce Motion
+  over **Backyard Safari · 2 goals**, rotate the Bird and Dog artwork by cross-fade
+  every three seconds, and show `0/2` in the shared progress ring. Reduce Motion
   keeps the first artwork static. VoiceOver announces “Start an outing. Backyard
-  Safari, 4 goals.”, “0 of 4 goals complete.”, and “Opens outing details.”
+  Safari, 2 goals.”, “0 of 2 goals complete.”, and “Opens outing details.”
 
 Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
 flattens the server-ordered outing response into `CaptureGoal` values containing
@@ -481,26 +481,26 @@ constraint to match; missing required evidence fails closed.
 
 | Outing | Level | Goal | Server-required match |
 | --- | ---: | --- | --- |
-| Backyard Safari | 1 | Butterfly | Class `Insecta` + order `Lepidoptera` + semantic category `butterfly` |
 | Backyard Safari | 1 | Bird | Class `Aves` |
-| Backyard Safari | 1 | Cat | Exact scientific name `Felis catus` |
-| Backyard Safari | 1 | Spider | Class `Arachnida` + order `Araneae` |
+| Backyard Safari | 1 | Dog | Exact scientific name `Canis lupus familiaris` |
+| Backyard Safari | 2 | Butterfly | Class `Insecta` + order `Lepidoptera` + semantic category `butterfly` |
+| Backyard Safari | 2 | Cat | Exact scientific name `Felis catus` |
+| Backyard Safari | 2 | Spider | Class `Arachnida` + order `Araneae` |
 | Backyard Safari | 2 | Flowering plant | Kingdom `Plantae` + semantic category `flower` |
-| Backyard Safari | 2 | Fungus | Kingdom `Fungi` |
-| Backyard Safari | 2 | Domesticated animal | Kingdom `Animalia` + scan ecology `domesticated` |
-| Backyard Safari | 2 | Insect | Class `Insecta` |
-| Backyard Safari | 2 | Urban wild animal | Kingdom `Animalia` + scan ecology `urban` |
-| Backyard Safari | 2 | Moss or lichen | Semantic category `moss` only; there is no broad taxonomy fallback |
+| Backyard Safari | 3 | Fungus | Kingdom `Fungi` |
+| Backyard Safari | 3 | Insect | Class `Insecta` |
+| Backyard Safari | 3 | Urban wild animal | Kingdom `Animalia` + scan ecology `urban` |
+| Backyard Safari | 3 | Moss or lichen | Semantic category `moss` only; there is no broad taxonomy fallback |
 | Park Pollinators | 1 | Flowering plant | Kingdom `Plantae` + semantic category `flower` |
 | Park Pollinators | 1 | Butterfly or moth | Class `Insecta` + order `Lepidoptera` |
-| Park Pollinators | 1 | Bee or wasp | Class `Insecta` + order `Hymenoptera` + either semantic category `bee` or `wasp` |
-| Park Pollinators | 1 | Fly | Class `Insecta` + order `Diptera` |
+| Park Pollinators | 2 | Bee or wasp | Class `Insecta` + order `Hymenoptera` + either semantic category `bee` or `wasp` |
+| Park Pollinators | 2 | Fly | Class `Insecta` + order `Diptera` |
 | Park Pollinators | 2 | Beetle | Class `Insecta` + order `Coleoptera` |
 | Park Pollinators | 2 | Spider | Class `Arachnida` + order `Araneae` |
-| Park Pollinators | 2 | Seed or fruiting plant | Kingdom `Plantae` + semantic category `fruit` |
-| Park Pollinators | 2 | Bird | Class `Aves` |
-| Park Pollinators | 2 | Wild plant | Kingdom `Plantae` + scan ecology `wild` |
-| Park Pollinators | 2 | Meadow plant | Kingdom `Plantae` + habitat token/category `meadow` |
+| Park Pollinators | 3 | Seed or fruiting plant | Kingdom `Plantae` + semantic category `fruit` |
+| Park Pollinators | 3 | Bird | Class `Aves` |
+| Park Pollinators | 3 | Wild plant | Kingdom `Plantae` + scan ecology `wild` |
+| Park Pollinators | 3 | Meadow plant | Kingdom `Plantae` + habitat token/category `meadow` |
 
 Semantic categories come from the resolved species' enriched `group_tags`, with
 the existing exact scientific/common-name fallback. Compound semantic criteria

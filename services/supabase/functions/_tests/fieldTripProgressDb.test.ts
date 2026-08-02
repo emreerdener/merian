@@ -929,7 +929,7 @@ Deno.test("Park Pollinators Bee or wasp rejects ants and sawflies", async () => 
         JOIN public.field_trip_templates AS template ON template.id = level.template_id
         CROSS JOIN public.species_dictionary AS species
         WHERE template.slug = 'park_pollinators'
-          AND level.level_number = 1
+          AND level.level_number = 2
           AND item.prompt = 'Bee or wasp'
           AND species.id = ANY($1::uuid[])
         ORDER BY species.id
@@ -955,7 +955,7 @@ Deno.test("Park Pollinators Bee or wasp rejects ants and sawflies", async () => 
         JOIN public.field_trip_levels AS level ON level.id = item.level_id
         JOIN public.field_trip_templates AS template ON template.id = level.template_id
         WHERE template.slug = 'park_pollinators'
-          AND level.level_number = 1
+          AND level.level_number = 2
           AND item.prompt = 'Bee or wasp'
         `,
       );
@@ -967,7 +967,7 @@ Deno.test("Park Pollinators Bee or wasp rejects ants and sawflies", async () => 
           id, user_id, template_id, started_at, current_level_number,
           is_profile_visible, hidden_at
         )
-        VALUES ($1, $2, $3, NOW() - INTERVAL '1 hour', 1, TRUE, NULL)
+        VALUES ($1, $2, $3, NOW() - INTERVAL '1 hour', 2, TRUE, NULL)
         `,
         [userFieldTripId, userId, templateId],
       );
@@ -1017,6 +1017,72 @@ Deno.test("Park Pollinators Bee or wasp rejects ants and sawflies", async () => 
           ?.newly_completed_items.map((item) => item.item_id),
         [itemId],
       );
+    },
+  );
+});
+
+Deno.test("Active starter outings expose exact 2/4/4 goal progressions", async () => {
+  await withExploreDbTest(
+    "fieldTripCuratedProgressionDb.test",
+    async (client: Client) => {
+      const result = await client.queryObject<{
+        slug: string;
+        level_number: number;
+        prompts: string[];
+      }>(
+        `
+        SELECT
+          template.slug,
+          level.level_number,
+          ARRAY_AGG(item.prompt ORDER BY item.sort_order, item.id) AS prompts
+        FROM public.field_trip_templates AS template
+        JOIN public.field_trip_levels AS level
+          ON level.template_id = template.id
+        JOIN public.field_trip_checklist_items AS item
+          ON item.level_id = level.id
+        WHERE template.slug IN ('backyard_safari', 'park_pollinators')
+        GROUP BY template.slug, level.level_number
+        ORDER BY template.slug, level.level_number
+        `,
+      );
+
+      assertEquals(result.rows, [
+        {
+          slug: "backyard_safari",
+          level_number: 1,
+          prompts: ["Bird", "Dog"],
+        },
+        {
+          slug: "backyard_safari",
+          level_number: 2,
+          prompts: ["Butterfly", "Cat", "Spider", "Flowering plant"],
+        },
+        {
+          slug: "backyard_safari",
+          level_number: 3,
+          prompts: ["Fungus", "Insect", "Urban wild animal", "Moss or lichen"],
+        },
+        {
+          slug: "park_pollinators",
+          level_number: 1,
+          prompts: ["Flowering plant", "Butterfly or moth"],
+        },
+        {
+          slug: "park_pollinators",
+          level_number: 2,
+          prompts: ["Bee or wasp", "Fly", "Beetle", "Spider"],
+        },
+        {
+          slug: "park_pollinators",
+          level_number: 3,
+          prompts: [
+            "Seed or fruiting plant",
+            "Bird",
+            "Wild plant",
+            "Meadow plant",
+          ],
+        },
+      ]);
     },
   );
 });
@@ -1111,11 +1177,11 @@ Deno.test("Active Field Trip goals reject broader taxonomic and ecological looka
           },
         },
         {
-          label: "Domesticated animal accepts a dog",
+          label: "Dog accepts the canonical domestic dog",
           expected: true,
           input: {
             templateSlug: "backyard_safari",
-            prompt: "Domesticated animal",
+            prompt: "Dog",
             scientificName: "Canis lupus familiaris",
             commonName: "Dog",
             kingdom: "Animalia",
@@ -1124,15 +1190,15 @@ Deno.test("Active Field Trip goals reject broader taxonomic and ecological looka
           },
         },
         {
-          label: "Domesticated animal rejects a cultivated plant",
+          label: "Dog rejects another domesticated animal",
           expected: false,
           input: {
             templateSlug: "backyard_safari",
-            prompt: "Domesticated animal",
-            scientificName: "Solanum lycopersicum",
-            commonName: "Tomato",
-            kingdom: "Plantae",
-            className: "Magnoliopsida",
+            prompt: "Dog",
+            scientificName: "Felis catus",
+            commonName: "Cat",
+            kingdom: "Animalia",
+            className: "Mammalia",
             ecologyType: "domesticated",
           },
         },

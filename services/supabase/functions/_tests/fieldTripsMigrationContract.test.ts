@@ -184,6 +184,58 @@ Deno.test("Active Field Trip goals use narrow, verifiable compound rules", async
   }
 });
 
+Deno.test("Backyard Safari and Park Pollinators use identity-preserving 2/4/4 progressions", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260802053044_simplify_backyard_and_pollinator_levels.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "('backyard_safari', 'Bird', 1, 10)",
+      "('backyard_safari', 'Domesticated animal', 1, 20)",
+      "('backyard_safari', 'Butterfly', 2, 10)",
+      "('backyard_safari', 'Flowering plant', 2, 40)",
+      "('backyard_safari', 'Fungus', 3, 10)",
+      "('backyard_safari', 'Moss or lichen', 3, 40)",
+      "('park_pollinators', 'Flowering plant', 1, 10)",
+      "('park_pollinators', 'Butterfly or moth', 1, 20)",
+      "('park_pollinators', 'Bee or wasp', 2, 10)",
+      "('park_pollinators', 'Spider', 2, 40)",
+      "('park_pollinators', 'Seed or fruiting plant', 3, 10)",
+      "('park_pollinators', 'Meadow plant', 3, 40)",
+      "SET prompt = 'Dog'",
+      "match_type = 'scientific_name'",
+      "scientific_name = 'Canis lupus familiaris'",
+      "CREATE TEMP TABLE invalid_dog_standard_completions",
+      "CREATE TEMP TABLE invalid_dog_challenge_completions",
+      "DELETE FROM public.user_field_trip_item_completions",
+      "DELETE FROM public.field_trip_challenge_item_completions",
+      "BOOL_AND(progress.completed_count >= progress.target_count)",
+      "UPDATE public.field_trip_publications",
+      "DELETE FROM public.field_trip_challenge_badges",
+      "UPDATE public.field_trip_challenge_entries",
+      "DELETE FROM public.field_trip_scan_progress_receipts",
+      "ON CONFLICT(user_id, challenge_id) DO NOTHING",
+      "failed to preserve checklist identities",
+      "retained non-Dog completion credit",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("DELETE FROM public.field_trip_scan_goal_preferences"),
+    "Pending Capture goal preferences must survive the progression repair",
+  );
+  assert(
+    !sql.includes("DELETE FROM public.field_trip_checklist_items") &&
+      !sql.includes("INSERT INTO public.field_trip_checklist_items"),
+    "The progression repair must move existing checklist rows in place",
+  );
+});
+
 Deno.test("Field trips migration preserves privacy and Explore separation contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),

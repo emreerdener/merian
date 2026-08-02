@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-02-simpler-starter-outings",
+      "date": "2026-08-02",
+      "title": "Simpler starter outings",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Backyard Safari and Park Pollinators now start with 2 goals, expand to 4 in Level 2, and finish with a new Level 3 while keeping valid credited scans.",
+            "Backyard Safari now begins with Bird and Dog, and Dog requires an exact domestic-dog identification."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-01-save-photos-and-videos",
       "date": "2026-08-01",
       "title": "Save photos and videos",

@@ -84,8 +84,8 @@ supported.
 
 After a complete successful empty context, the provider looks up the accessible
 unstarted `backyard_safari` template by slug. It then supplies the non-selectable
-**Start an outing** / **Backyard Safari · 4 goals** introduction with a `0/4`
-ring. Its leading artwork cross-fades through the first-level goals every three
+**Start an outing** / **Backyard Safari · 2 goals** introduction with a `0/2`
+ring. Its leading artwork cross-fades between Bird and Dog every three
 seconds and stays static under Reduce Motion. A started, completed, locked,
 missing, or empty template produces no introduction. The introduction has no
 swipe or adjustable action and opens outing detail without starting it.

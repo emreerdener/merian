@@ -6,6 +6,13 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Simpler Starter Outings
+
+- Backyard Safari and Park Pollinators now start with 2 goals, expand to 4 in
+  Level 2, and finish with a new Level 3 while keeping valid credited scans.
+- Backyard Safari's first goals are now Bird and Dog, with Dog requiring an
+  exact domestic-dog identification instead of any domesticated animal.
+
 ### Save Photos and Videos to Photos
 
 - **Save to camera roll** now applies to new camera photos and original-quality

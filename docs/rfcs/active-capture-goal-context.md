@@ -298,8 +298,8 @@ meet that bar, prefer bounded vertical growth over shrinking the tap target or
 hiding the outing context.
 
 The initial Field trip introduction renders **Start an outing** over
-**Backyard Safari · 4 goals**, cycles through the first level's exact artwork by
-three-second cross-fades, and shows the shared `0/4` progress ring. It is not a
+**Backyard Safari · 2 goals**, cycles between the exact Bird and Dog artwork by
+three-second cross-fades, and shows the shared `0/2` progress ring. It is not a
 selectable goal and therefore has no horizontal drag or VoiceOver adjustable
 action. Reduce Motion keeps the first image static. Tapping opens outing detail
 without starting it; started, completed, inaccessible, missing, and empty
