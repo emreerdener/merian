@@ -37,7 +37,7 @@ final class PostHogManager {
         }
 
         let configuration = PostHogConfig(
-            apiKey: MerianEnvironment.postHogApiKey,
+            projectToken: MerianEnvironment.postHogApiKey,
             host: "https://us.i.posthog.com"
         )
 

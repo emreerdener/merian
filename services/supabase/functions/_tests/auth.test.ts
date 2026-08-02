@@ -1,7 +1,4 @@
-import {
-  assert,
-  assertEquals,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "@std/assert";
 import {
   authFailureCode,
   bearerTokenFromAuthorizationHeader,
@@ -120,7 +117,7 @@ Deno.test("claims authentication shares the pinned SDK and remains opt-in", asyn
 
   assertEquals(
     denoConfig.imports?.["@supabase/supabase-js"],
-    "npm:@supabase/supabase-js@2.110.6",
+    "npm:@supabase/supabase-js@2.110.8",
   );
   assertEquals(claimsAuthSource.includes("@supabase/supabase-js"), true);
   assertEquals(authSource.includes("@supabase/supabase-js"), true);

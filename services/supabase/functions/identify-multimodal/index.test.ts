@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertThrows,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 
 import { sanitizeScientificName } from "../identify/sanitize.ts";
 import { resolveAIRequestId } from "../_shared/aiQuota.ts";

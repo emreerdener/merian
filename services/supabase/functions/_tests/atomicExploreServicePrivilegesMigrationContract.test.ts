@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260729044500_grant_atomic_explore_service_privileges.sql",

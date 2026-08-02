@@ -1,7 +1,4 @@
-import {
-  assert,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertStringIncludes } from "@std/assert";
 
 const handlerUrl = new URL("../revenuecat-webhook/handler.ts", import.meta.url);
 const indexUrl = new URL("../revenuecat-webhook/index.ts", import.meta.url);

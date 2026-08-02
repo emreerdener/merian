@@ -1,7 +1,4 @@
-import {
-  assert,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertStringIncludes } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260727013416_future_proof_server_key_boundaries.sql",

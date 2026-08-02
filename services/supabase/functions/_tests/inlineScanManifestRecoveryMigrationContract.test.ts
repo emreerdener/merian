@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertStringIncludes,
-  assertThrows,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertStringIncludes, assertThrows } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260728230000_recover_inline_scan_ingestion_completions.sql",

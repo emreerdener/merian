@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { timingSafeCompare } from "../_shared/http.ts";
 
 Deno.test("timingSafeCompare — equal strings return true", () => {

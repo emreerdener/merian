@@ -3,7 +3,7 @@ import {
   assertRejects,
   assertStringIncludes,
   assertThrows,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+} from "@std/assert";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {

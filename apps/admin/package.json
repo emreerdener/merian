@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,26 +16,26 @@
     "audit:dependencies": "npm audit --audit-level=high"
   },
   "dependencies": {
-    "@mantine/core": "9.4.1",
-    "@mantine/hooks": "9.4.1",
-    "@supabase/ssr": "0.12.3",
-    "@supabase/supabase-js": "2.110.6",
+    "@mantine/core": "9.5.0",
+    "@mantine/hooks": "9.5.0",
+    "@supabase/ssr": "0.12.4",
+    "@supabase/supabase-js": "2.111.0",
     "next": "16.2.12",
-    "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "postcss": "8.5.18",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "postcss": "8.5.25",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
-    "typescript": "^5.9.3"
+    "typescript": "5.9.3"
   },
   "overrides": {
     "next": {
-      "postcss": "8.5.18",
+      "postcss": "8.5.25",
       "sharp": "0.35.3"
     }
   }

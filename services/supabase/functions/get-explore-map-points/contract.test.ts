@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "@std/assert";
 import { normalizeExploreMapRows } from "./contract.ts";
 import { normalizeMediaTypes, normalizeSpeciesCategories } from "./input.ts";
 import type { ExploreMapPostRow } from "./types.ts";

@@ -1,7 +1,4 @@
-import {
-  assert,
-  assertFalse,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertFalse } from "@std/assert";
 import { isExplorePostChatContextAvailable } from "./eligibility.ts";
 import type { ExplorePostChatContext } from "./types.ts";
 

@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const functionsRoot = new URL("../", import.meta.url);
 const authHelperUrl = new URL(

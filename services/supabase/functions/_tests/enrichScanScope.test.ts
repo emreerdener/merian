@@ -5,10 +5,7 @@
 //
 // All logic is inline-stubbed — no live Supabase client required.
 
-import {
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 
 // ---------------------------------------------------------------------------
 // Inline stubs: types

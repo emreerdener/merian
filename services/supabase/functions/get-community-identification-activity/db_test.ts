@@ -1,8 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import {
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals, assertRejects } from "@std/assert";
 import { fetchCommunityIdentificationActivity } from "./db.ts";
 
 Deno.test("Community Identify activity forwards filters and deterministic cursor", async () => {

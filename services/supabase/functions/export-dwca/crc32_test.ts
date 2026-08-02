@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertThrows,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertThrows } from "@std/assert";
 import { calculateCrc32, combineCrc32, combineCrc32Parts } from "./crc32.ts";
 
 const encoder = new TextEncoder();

@@ -1,11 +1,11 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260801210102_make_ghost_merge_schema_aware.sql",
+  import.meta.url,
+);
+const hardeningMigrationUrl = new URL(
+  "../../migrations/20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql",
   import.meta.url,
 );
 const pgTapUrl = new URL(
@@ -111,12 +111,10 @@ Deno.test("Ghost merge installs preconditions and explicit conflict handlers", a
 
   for (
     const fragment of [
-      "ON CONFLICT (activity_group_id, user_id) DO UPDATE SET suggestion_count = target_actor.suggestion_count + EXCLUDED.suggestion_count",
       "ORDER BY actor.activity_group_id, actor.user_id FOR UPDATE",
       "DELETE FROM internal.revenuecat_webhook_event_subjects AS source_subject USING internal.revenuecat_webhook_event_subjects AS target_subject",
       "DELETE FROM internal.revenuecat_customer_state AS source_state USING internal.revenuecat_customer_state AS target_state",
       "SET lookup_app_user_id = p_target_user_id::TEXT",
-      "next_reconcile_at = LEAST( source_queue.next_reconcile_at, pg_catalog.NOW() )",
       "claim_token = NULL, claimed_at = NULL, claim_expires_at = NULL",
       "ghost_merge_orchestrator_source_drift",
       "REVOKE ALL ON FUNCTION internal.perform_ghost_profile_merge(UUID, UUID) FROM PUBLIC, anon, authenticated, service_role",
@@ -126,7 +124,96 @@ Deno.test("Ghost merge installs preconditions and explicit conflict handlers", a
   }
 });
 
-Deno.test("Ghost merge pgTAP covers topology drift and species overlap", async () => {
+Deno.test("Ghost merge forward hardening enforces collision and lock-order contracts", async () => {
+  const sql = normalized(await Deno.readTextFile(hardeningMigrationUrl));
+  const communityStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.merge_ghost_community_activity_actors",
+  );
+  const revenueCatStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.merge_ghost_revenuecat_state",
+    communityStart,
+  );
+  const applyStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.apply_revenuecat_reconciliation",
+    revenueCatStart,
+  );
+  const commentsStart = sql.indexOf(
+    "COMMENT ON FUNCTION internal.merge_ghost_community_activity_actors",
+    applyStart,
+  );
+
+  assert(
+    communityStart >= 0 &&
+      revenueCatStart > communityStart &&
+      applyStart > revenueCatStart &&
+      commentsStart > applyStart,
+    "all three corrected routine definitions must be present in forward order",
+  );
+
+  const communityRoutine = sql.slice(communityStart, revenueCatStart);
+  for (
+    const fragment of [
+      "ORDER BY actor.activity_group_id, actor.user_id FOR UPDATE",
+      "UPDATE internal.community_identification_activity_actors AS target_actor SET suggestion_count = target_actor.suggestion_count + source_actor.suggestion_count",
+      "DELETE FROM internal.community_identification_activity_actors AS source_actor USING internal.community_identification_activity_actors AS target_actor",
+      "target_actor.activity_group_id = source_actor.activity_group_id",
+    ]
+  ) {
+    assertStringIncludes(communityRoutine, fragment);
+  }
+  assert(
+    !communityRoutine.includes(
+      "INSERT INTO internal.community_identification_activity_actors",
+    ) && !communityRoutine.includes("ON CONFLICT"),
+    "the active Community handler must never insert/upsert after actor locks",
+  );
+
+  const revenueCatRoutine = sql.slice(revenueCatStart, applyStart);
+  for (
+    const fragment of [
+      "ORDER BY queue.merian_user_id FOR UPDATE",
+      "INSERT INTO internal.revenuecat_reconciliation_queue AS destination_queue",
+      "VALUES ( p_target_user_id, p_target_user_id::TEXT, pg_catalog.NOW(), 0, NULL, NULL, NULL",
+      "ON CONFLICT (merian_user_id) DO UPDATE SET lookup_app_user_id = EXCLUDED.lookup_app_user_id, next_reconcile_at = pg_catalog.NOW(), attempt_count = 0, claim_token = NULL, claimed_at = NULL, claim_expires_at = NULL",
+      "DELETE FROM internal.revenuecat_reconciliation_queue AS source_queue WHERE source_queue.merian_user_id = p_ghost_user_id",
+    ]
+  ) {
+    assertStringIncludes(revenueCatRoutine, fragment);
+  }
+
+  const applyRoutine = sql.slice(applyStart, commentsStart);
+  const userLock = applyRoutine.indexOf(
+    "PERFORM users.id FROM public.users AS users WHERE users.id = p_user_id FOR UPDATE",
+  );
+  const queueLock = applyRoutine.indexOf(
+    "SELECT queue.* INTO queue_row FROM internal.revenuecat_reconciliation_queue AS queue",
+  );
+  assert(
+    userLock >= 0 && queueLock > userLock,
+    "RevenueCat apply must lock the parent user before revalidating/locking its queue claim",
+  );
+  assertStringIncludes(
+    applyRoutine,
+    "WHERE queue.merian_user_id = p_user_id AND queue.claim_token = p_claim_token AND queue.claim_expires_at > pg_catalog.CLOCK_TIMESTAMP()",
+  );
+  assertEquals(
+    applyRoutine.match(
+      /queue\.claim_expires_at > pg_catalog\.CLOCK_TIMESTAMP\(\)/g,
+    )?.length,
+    2,
+    "claim expiry must be checked under lock and again in the completion write",
+  );
+  assertStringIncludes(
+    sql,
+    "REVOKE ALL ON FUNCTION public.apply_revenuecat_reconciliation( UUID, UUID, BIGINT, TEXT, TIMESTAMPTZ ) FROM PUBLIC, anon, authenticated, service_role",
+  );
+  assertStringIncludes(
+    sql,
+    "GRANT EXECUTE ON FUNCTION public.apply_revenuecat_reconciliation( UUID, UUID, BIGINT, TEXT, TIMESTAMPTZ ) TO service_role",
+  );
+});
+
+Deno.test("Ghost merge pgTAP covers topology, ledger, actor, and provider repair", async () => {
   const sql = normalized(await Deno.readTextFile(pgTapUrl));
 
   for (
@@ -144,8 +231,18 @@ Deno.test("Ghost merge pgTAP covers topology drift and species overlap", async (
       "INSERT INTO internal.revenuecat_webhook_event_subjects",
       "INSERT INTO internal.revenuecat_customer_state",
       "INSERT INTO internal.revenuecat_reconciliation_queue",
+      "DELETE FROM internal.revenuecat_reconciliation_queue WHERE merian_user_id = '00000000-0000-0000-0000-000000000601'",
+      "ON CONFLICT (merian_user_id) DO UPDATE",
+      "displaced RevenueCat claim unexpectedly applied state",
+      "revenuecat_reconciliation_claim_lost",
       "source RevenueCat state survived the merge",
       "RevenueCat conflict state was not normalized",
+      "INSERT INTO internal.community_identification_activity_actors",
+      "AND suggestion_count = 5",
+      "AND suggestion_count = 4",
+      "Community activity actors were not coalesced and reparented exactly",
+      "user_species_scan_count_underflow",
+      "species ledger failure did not roll back the merge",
     ]
   ) {
     assertStringIncludes(sql, fragment);

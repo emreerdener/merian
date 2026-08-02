@@ -73,7 +73,7 @@ test("the lockfile excludes known-vulnerable PostCSS and Sharp releases", () => 
 
 test("Next transitive security overrides remain explicit", () => {
   assert.deepEqual(packageManifest.overrides?.next, {
-    postcss: "8.5.18",
+    postcss: "8.5.25",
     sharp: "0.35.3",
   });
 });

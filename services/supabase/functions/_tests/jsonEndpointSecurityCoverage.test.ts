@@ -1,7 +1,4 @@
-import {
-  assert,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertStringIncludes } from "@std/assert";
 
 const functionsRoot = new URL("../", import.meta.url);
 const sharedHttpUrl = new URL("../_shared/http.ts", import.meta.url);

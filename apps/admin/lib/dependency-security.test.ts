@@ -93,9 +93,9 @@ test("the frozen admin graph excludes reviewed vulnerable dependency ranges", ()
 
 test("Next.js transitive security overrides remain explicit", () => {
   assert.equal(packageManifest.dependencies?.next, "16.2.12");
-  assert.equal(packageManifest.devDependencies?.postcss, "8.5.18");
+  assert.equal(packageManifest.devDependencies?.postcss, "8.5.25");
   assert.deepEqual(packageManifest.overrides?.next, {
-    postcss: "8.5.18",
+    postcss: "8.5.25",
     sharp: "0.35.3",
   });
 });

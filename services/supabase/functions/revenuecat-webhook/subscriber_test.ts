@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals, assertRejects } from "@std/assert";
 import { SEVEN_DAY_PASS_PRODUCT_ID } from "../_shared/subscriptionPass.ts";
 import { RevenueCatWebhookEvent } from "./protocol.ts";
 import {

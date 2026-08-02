@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 import {
   insertExplorePost,

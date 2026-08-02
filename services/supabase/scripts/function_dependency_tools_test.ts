@@ -1,8 +1,5 @@
 import { join } from "node:path";
-import {
-  assert,
-  assertEquals,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "@std/assert";
 import {
   buildAllFunctionGraphs,
   configuredFunctionNames,

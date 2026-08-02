@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertLessOrEqual,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals, assertLessOrEqual } from "@std/assert";
 import { buildExplorePostChatPromptSuggestions } from "./promptSuggestions.ts";
 
 Deno.test("Explore prompt suggestions preserve safe species names and categories", () => {

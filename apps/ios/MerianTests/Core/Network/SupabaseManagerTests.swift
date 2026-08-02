@@ -154,6 +154,10 @@ final class SupabaseManagerTests: XCTestCase {
             code: 503,
             data: Data(#"{"code":"auth_cleanup_pending"}"#.utf8)
         )
+        let mergeTemporarilyUnavailable = FunctionsError.httpError(
+            code: 503,
+            data: Data(#"{"code":"merge_temporarily_unavailable"}"#.utf8)
+        )
 
         XCTAssertTrue(
             SupabaseManager.shouldDiscardPendingGhostProfileMerge(
@@ -173,6 +177,11 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertFalse(
             SupabaseManager.shouldDiscardPendingGhostProfileMerge(
                 after: cleanupPending
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldDiscardPendingGhostProfileMerge(
+                after: mergeTemporarilyUnavailable
             )
         )
         XCTAssertFalse(

@@ -52,7 +52,8 @@ The completed transaction contract:
   audit, session, and moderator attribution, and fails closed on unsupported,
   stale, blocked, or composite topology;
 - moves scans first so statement-level OLD/NEW deltas maintain the private
-  species ledger, then verifies exact ledger counts against scans for both users;
+  species ledger, then verifies exact ledger counts against scans for both
+  users;
 - coalesces conflict-prone Community Identify actors and normalizes RevenueCat
   event, watermark, and reconciliation state before their references move;
 - adds non-blocking `NOT VALID` Auth foreign keys to pre-profile ingestion
@@ -80,37 +81,41 @@ Parent identities are locked before merge-sensitive child state. In particular,
 both the merge and `public.apply_revenuecat_reconciliation(...)` must lock
 `public.users` before `internal.revenuecat_reconciliation_queue`. Reconciliation
 must then lock and revalidate its claim before changing entitlement or watermark
-state. If completion resets or replaces the lease first, the stale callback
-fails closed instead of applying an obsolete provider snapshot.
+state. Claim expiry uses the wall clock both under the queue lock and in the
+completion write; transaction-start time is not a valid final lease fence. If
+completion resets or replaces the lease first, the stale callback fails closed
+instead of applying an obsolete provider snapshot.
 
-Completion must unconditionally upsert a destination reconciliation row. The
-row uses the permanent UUID as `lookup_app_user_id`, is due immediately, resets
+Completion must unconditionally upsert a destination reconciliation row. The row
+uses the permanent UUID as `lookup_app_user_id`, is due immediately, resets
 `attempt_count`, clears all claim/error fields, and exists whether or not the
 anonymous source had a queue row. The foreground RevenueCat `logIn` call and
 webhook delivery are accelerators; this destination queue is the durable repair
 authority for a completely missed webhook.
 
-Community activity actors use the writer-compatible
-activity-group-before-actor order. The merge handler updates the existing target
-actor and deletes the redundant source actor only for collision groups.
-Non-colliding source actors remain for the reviewed reparent pass. The handler
-must not insert/upsert a destination actor after locking actors, because that can
-acquire an activity-group foreign-key lock in the inverse order of a normal
-activity append.
+Community activity actors use the writer-compatible activity-group-before-actor
+order. The merge handler updates the existing target actor and deletes the
+redundant source actor only for collision groups. Non-colliding source actors
+remain for the reviewed reparent pass. The handler must not insert/upsert a
+destination actor after locking actors, because that can acquire an
+activity-group foreign-key lock in the inverse order of a normal activity
+append.
 
-Both scan-ledger invariant diagnostics—`ghost_merge_species_ledger_mismatch`
-and `user_species_scan_count_underflow`—are retryable HTTP 503
+Both scan-ledger invariant diagnostics—`ghost_merge_species_ledger_mismatch` and
+`user_species_scan_count_underflow`—are retryable HTTP 503
 `merge_temporarily_unavailable` responses with the exact guest-data-unchanged
 message. The transaction rolls back before either reaches the Edge mapper.
 
 ## Pre-deployment status
 
-The pending schema-aware migration implements the manifest, topology preflight,
-scan-first transfer, and exact ledger check. The current draft does **not** yet
-provide all concurrency/provider-repair guarantees above. Do not deploy or
-enable the existing-account conflict fallback until a new forward migration,
-the Edge error mapping, full pgTAP replay, and staging concurrency probes clear
-the release hold in the
+Forward migration
+`20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql` and the
+Edge mapper implement the four concurrency/provider-repair requirements above
+without editing committed migration history. Static and Edge tests cover their
+source contracts, and `ghostProfileMergeConcurrencyDb.test.ts` provides the two
+session deadlock schedules. Do not deploy or enable the existing-account
+conflict fallback until exact-CLI clean replay, the complete catalog suite,
+advisors, and every staging proof clear the release hold in the
 [deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations
@@ -175,6 +180,12 @@ deno check --config services/supabase/functions/merge-ghost-profile/deno.json \
   services/supabase/functions/merge-ghost-profile/index.ts
 deno test --config services/supabase/functions/merge-ghost-profile/deno.json \
   services/supabase/functions/_tests/mergeGhostProfile.test.ts
+SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  deno test \
+  --config services/supabase/functions/deno.json \
+  --allow-env=SUPABASE_DB_TEST_URL,PGAPPNAME,PGDATABASE,PGHOST,PGOPTIONS,PGPASSWORD,PGPORT,PGUSER \
+  --allow-net=127.0.0.1:54322 \
+  services/supabase/functions/_tests/ghostProfileMergeConcurrencyDb.test.ts
 deno test \
   --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
   services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
@@ -183,4 +194,6 @@ make test-supabase-privileged-routines
 ```
 
 Supabase CLI `2.109.1` is exact-pinned. Static migration tests or a focused SQL
-file do not substitute for clean replay plus every checked-in catalog test.
+file do not substitute for clean replay plus every checked-in catalog test. A
+database-test connection skip is not proof; release validation sets
+`SUPABASE_DB_TEST_URL` so a connection failure is fatal.

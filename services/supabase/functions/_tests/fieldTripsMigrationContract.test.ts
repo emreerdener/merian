@@ -1,7 +1,4 @@
-import {
-  assert,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertStringIncludes } from "@std/assert";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
 const fieldTripsFunctionDir = new URL("../field-trips/", import.meta.url);

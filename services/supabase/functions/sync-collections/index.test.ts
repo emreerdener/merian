@@ -1,8 +1,5 @@
 // services/supabase/functions/sync-collections/index.test.ts
-import {
-  assert,
-  assertEquals,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals } from "@std/assert";
 
 /**
  * Exercises the request-to-upsert mapping without conditionally writing to an

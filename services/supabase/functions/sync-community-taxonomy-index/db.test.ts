@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "@std/assert";
 import { parseCommunityTaxonomyIndexSyncRequest } from "./db.ts";
 
 Deno.test("community taxonomy index sync - parses defaults and aliases", () => {

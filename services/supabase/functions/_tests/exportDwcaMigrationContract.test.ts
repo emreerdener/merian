@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260724230849_harden_dwca_export_jobs.sql",

@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const repositoryRoot = new URL("../../../", import.meta.url);
 
@@ -3353,6 +3349,77 @@ Deno.test("Field Trip documentation preserves the confidence evidence policy", a
   const releaseCopy = compact(JSON.stringify(releaseEntry));
   assertStringIncludes(releaseCopy, "Possible match");
   assertStringIncludes(releaseCopy, "A Weak match stays pending");
+});
+
+Deno.test("Ghost merge documentation preserves the release proof and recovery contract", async () => {
+  const [
+    backendSource,
+    functionSource,
+    runbookSource,
+    changelogSource,
+    incidentSource,
+  ] = await Promise.all([
+    read("services/supabase/README.md"),
+    read("services/supabase/functions/merge-ghost-profile/README.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("CHANGELOG.md"),
+    read("docs/incidents/2026-08-ghost-merge-species-ledger-underflow.md"),
+  ]);
+  const backend = compact(backendSource);
+  const functionReadme = compact(functionSource);
+  const runbook = compact(runbookSource);
+  const changelog = compact(changelogSource);
+  const incident = compact(incidentSource);
+
+  for (const source of [backend, functionReadme, runbook, incident]) {
+    assertStringIncludes(
+      source,
+      "20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql",
+    );
+    assertStringIncludes(source, "2.109.1");
+  }
+
+  for (const source of [functionReadme, runbook]) {
+    assertStringIncludes(
+      source,
+      "--allow-env=SUPABASE_DB_TEST_URL,PGAPPNAME,PGDATABASE,PGHOST,PGOPTIONS,PGPASSWORD,PGPORT,PGUSER",
+    );
+    assertStringIncludes(source, "--allow-net=127.0.0.1:54322");
+  }
+
+  for (
+    const fragment of [
+      "ghostProfileMergeConcurrencyDb.test.ts",
+      "user_species_scan_count_underflow",
+      "merge_temporarily_unavailable",
+      "The release hold remains",
+    ]
+  ) {
+    assertStringIncludes(`${backend} ${functionReadme} ${runbook}`, fragment);
+  }
+
+  for (
+    const fragment of [
+      "status = 'prepared'",
+      "INTERVAL '12 hours'",
+      "Do not select the proof hash or provider subject into an incident artifact.",
+      "Do not edit `secret_hash`, `target_user_id`, or receipt status by hand.",
+      "Do not roll back the migration, recreate the arbitrary UUID API, drop receipt rows, or reparent data manually.",
+    ]
+  ) {
+    assertStringIncludes(runbook, fragment);
+  }
+
+  assertStringIncludes(changelog, "durable RevenueCat destination repair");
+  assertStringIncludes(changelog, "staging proof matrix");
+  assertStringIncludes(
+    incident,
+    "retains HTTP 503 `merge_temporarily_unavailable` proofs",
+  );
+  assertStringIncludes(
+    incident,
+    "Only `handoff_expired` and `handoff_invalid` discard a proof.",
+  );
 });
 
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {

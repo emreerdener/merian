@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deleteMergedGhostAuthUser } from "../merge-ghost-profile/db.ts";
 import type { GhostMergeCleanupClaim } from "./db.ts";

@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   annotationLabelFor,
   buildAnnotationSeries,

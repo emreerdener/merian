@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertObjectMatch,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertObjectMatch } from "@std/assert";
 import { OutboundRequestTimeoutError } from "../_shared/outbound.ts";
 import type { PushDeviceRow } from "./db.ts";
 import { apnsDeliveryExceptionReason, sendApnsPush } from "./delivery.ts";

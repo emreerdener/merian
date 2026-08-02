@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "@std/assert";
 import {
   applyFieldTripScanProgress,
   fetchFirstFieldTripAchievementProgress,

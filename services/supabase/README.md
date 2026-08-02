@@ -86,7 +86,7 @@ profile updates, and Explore feed projections.
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
-  `@supabase/supabase-js@2.110.6` graph; `_shared/claimsAuth.ts` remains the
+  `@supabase/supabase-js@2.110.8` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification, not
   a second SDK dependency. Generated configs explicitly retain Deno's one-day
   minimum dependency age; reviewed versions already present in the frozen lock
@@ -1360,13 +1360,14 @@ topology boundary and exact scan/species-ledger behavior. The static
 `ghostProfileMergeMigrationContract.test.ts` enters
 `make validate-supabase-migrations` automatically.
 
-The pending schema-aware change is on release hold. Before production, its
-forward migration must unconditionally make the permanent RevenueCat queue row
-due, all RevenueCat paths must lock user-before-queue and revalidate claims, the
-Community actor handler must avoid insert/upsert after actor locks, and both
-scan-ledger invariant diagnostics must map to the same retryable 503
-guest-data-unchanged response. Run a clean replay and every catalog test with
-the exact Supabase CLI `2.109.1`; static contracts or a focused SQL test are not
+Forward migration
+`20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql` and the
+Edge mapper implement the four release-hold fixes: unconditional permanent
+RevenueCat queue repair, user-before-queue claim fencing, collision-only
+Community actor handling, and retryable mapping for both ledger diagnostics.
+The release hold remains until clean replay, every catalog test, automated
+two-session schedules, advisors, and the staging matrix pass from the exact SHA
+with Supabase CLI `2.109.1`; static contracts or a focused SQL test are not
 release-equivalent evidence. The function README and
 `docs/backend-and-data/06-supabase-deployment-runbook.md` contain the canonical
 proof matrix.

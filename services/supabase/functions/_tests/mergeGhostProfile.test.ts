@@ -4,7 +4,7 @@ import {
   assertMatch,
   assertNotEquals,
   assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+} from "@std/assert";
 import {
   generateHandoffSecret,
   isSecretHash,
@@ -226,6 +226,7 @@ Deno.test("ghost merge database errors expose guarded schema drift as 503", () =
       "ghost_merge_unknown_policy_handler",
       "ghost_merge_orchestrator_source_drift",
       "ghost_merge_species_ledger_mismatch",
+      "user_species_scan_count_underflow",
     ]
   ) {
     const mapped = mapDatabaseError(

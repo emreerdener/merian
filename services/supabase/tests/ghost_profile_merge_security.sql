@@ -394,6 +394,85 @@ VALUES
     0.87
   );
 
+-- The collision group exercises the handler's UPDATE/DELETE path. The
+-- source-only group must remain untouched by the handler so the reviewed
+-- generic reparent pass can move it without taking a group lock after an
+-- actor lock.
+INSERT INTO public.explore_posts (id, user_id, scan_id)
+VALUES (
+  '00000000-0000-0000-0000-000000000631',
+  '00000000-0000-0000-0000-000000000601',
+  '00000000-0000-0000-0000-000000000611'
+);
+
+INSERT INTO public.explore_community_requests (
+  id,
+  post_id,
+  scan_id,
+  requested_by
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000632',
+  '00000000-0000-0000-0000-000000000631',
+  '00000000-0000-0000-0000-000000000611',
+  '00000000-0000-0000-0000-000000000601'
+);
+
+INSERT INTO internal.community_identification_activity_groups (
+  id,
+  request_id,
+  post_id,
+  request_generation_at,
+  activity_type,
+  burst_started_at,
+  activity_at
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000641',
+    '00000000-0000-0000-0000-000000000632',
+    '00000000-0000-0000-0000-000000000631',
+    NOW() - INTERVAL '2 hours',
+    'suggestion_burst',
+    NOW() - INTERVAL '90 minutes',
+    NOW() - INTERVAL '60 minutes'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000642',
+    '00000000-0000-0000-0000-000000000632',
+    '00000000-0000-0000-0000-000000000631',
+    NOW() - INTERVAL '2 hours',
+    'suggestion_burst',
+    NOW() - INTERVAL '45 minutes',
+    NOW() - INTERVAL '30 minutes'
+  );
+
+INSERT INTO internal.community_identification_activity_actors (
+  activity_group_id,
+  user_id,
+  suggestion_count,
+  last_suggested_at
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000641',
+    '00000000-0000-0000-0000-000000000601',
+    2,
+    NOW() - INTERVAL '70 minutes'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000641',
+    '00000000-0000-0000-0000-000000000602',
+    3,
+    NOW() - INTERVAL '65 minutes'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000642',
+    '00000000-0000-0000-0000-000000000601',
+    4,
+    NOW() - INTERVAL '35 minutes'
+  );
+
 INSERT INTO public.collections (id, user_id, name)
 VALUES (
   '00000000-0000-0000-0000-000000000621',
@@ -586,6 +665,11 @@ VALUES
     100
   );
 
+-- Deliberately leave the source queue absent. Completion must still repair a
+-- pre-existing delayed and leased destination queue.
+DELETE FROM internal.revenuecat_reconciliation_queue
+WHERE merian_user_id = '00000000-0000-0000-0000-000000000601';
+
 INSERT INTO internal.revenuecat_reconciliation_queue (
   merian_user_id,
   lookup_app_user_id,
@@ -596,27 +680,24 @@ INSERT INTO internal.revenuecat_reconciliation_queue (
   claim_expires_at,
   last_error_code
 )
-VALUES
-  (
-    '00000000-0000-0000-0000-000000000601',
-    '00000000-0000-0000-0000-000000000601',
-    NOW() + INTERVAL '5 days',
-    3,
-    '00000000-0000-0000-0000-000000000671',
-    NOW(),
-    NOW() + INTERVAL '10 minutes',
-    'source_failure'
-  ),
-  (
-    '00000000-0000-0000-0000-000000000602',
-    '00000000-0000-0000-0000-000000000602',
-    NOW() + INTERVAL '10 days',
-    2,
-    '00000000-0000-0000-0000-000000000672',
-    NOW(),
-    NOW() + INTERVAL '10 minutes',
-    'target_failure'
-  );
+VALUES (
+  '00000000-0000-0000-0000-000000000602',
+  '00000000-0000-0000-0000-000000000602',
+  NOW() + INTERVAL '10 days',
+  2,
+  '00000000-0000-0000-0000-000000000672',
+  NOW(),
+  NOW() + INTERVAL '10 minutes',
+  'target_failure'
+)
+ON CONFLICT (merian_user_id) DO UPDATE
+SET lookup_app_user_id = EXCLUDED.lookup_app_user_id,
+    next_reconcile_at = EXCLUDED.next_reconcile_at,
+    attempt_count = EXCLUDED.attempt_count,
+    claim_token = EXCLUDED.claim_token,
+    claimed_at = EXCLUDED.claimed_at,
+    claim_expires_at = EXCLUDED.claim_expires_at,
+    last_error_code = EXCLUDED.last_error_code;
 
 CREATE TEMP TABLE merge_test_handoff (handoff_id UUID NOT NULL);
 GRANT SELECT, INSERT ON merge_test_handoff TO authenticated;
@@ -754,6 +835,69 @@ SELECT public.finish_ghost_user_bulk_cleanup(
 );
 RESET ROLE;
 
+-- A corrupted private species ledger must make the scan reparent fail with
+-- the guarded diagnostic, and the whole merge subtransaction must roll back.
+INSERT INTO public.scans (id, user_id, species_id, ai_confidence_score)
+VALUES (
+  '00000000-0000-0000-0000-000000000617',
+  '00000000-0000-0000-0000-000000000604',
+  '00000000-0000-0000-0000-000000000651',
+  0.86
+);
+
+DELETE FROM internal.user_species_scan_counts
+WHERE user_id = '00000000-0000-0000-0000-000000000604'
+  AND species_id = '00000000-0000-0000-0000-000000000651';
+
+DO $$
+DECLARE
+  failure_message TEXT;
+BEGIN
+  BEGIN
+    PERFORM internal.perform_ghost_profile_merge(
+      '00000000-0000-0000-0000-000000000604',
+      '00000000-0000-0000-0000-000000000603'
+    );
+    RAISE EXCEPTION 'species ledger underflow did not stop the merge';
+  EXCEPTION WHEN SQLSTATE '23514' THEN
+    GET STACKED DIAGNOSTICS failure_message = MESSAGE_TEXT;
+    IF failure_message <> 'user_species_scan_count_underflow' THEN
+      RAISE EXCEPTION
+        'species ledger underflow raised an unexpected failure: %',
+        failure_message;
+    END IF;
+  END;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.users
+    WHERE id = '00000000-0000-0000-0000-000000000604'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM public.users
+    WHERE id = '00000000-0000-0000-0000-000000000603'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM public.scans
+    WHERE id = '00000000-0000-0000-0000-000000000617'
+      AND user_id = '00000000-0000-0000-0000-000000000604'
+  ) THEN
+    RAISE EXCEPTION 'species ledger failure did not roll back the merge';
+  END IF;
+END;
+$$;
+
+INSERT INTO internal.user_species_scan_counts (
+  user_id,
+  species_id,
+  scan_count
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000604',
+  '00000000-0000-0000-0000-000000000651',
+  1
+);
+
 -- An authenticated permanent account with the wrong provider subject cannot
 -- consume a valid source-issued handoff even when it knows the full verifier.
 SET LOCAL ROLE authenticated;
@@ -829,6 +973,48 @@ BEGIN
 END;
 $$;
 
+RESET ROLE;
+
+-- The merge displaced this old destination lease. A stale worker must not be
+-- able to apply provider state after completion reset the queue claim.
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE
+  failure_message TEXT;
+BEGIN
+  BEGIN
+    PERFORM public.apply_revenuecat_reconciliation(
+      '00000000-0000-0000-0000-000000000602',
+      '00000000-0000-0000-0000-000000000672',
+      999,
+      'pro',
+      NULL
+    );
+    RAISE EXCEPTION 'displaced RevenueCat claim unexpectedly applied state';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    GET STACKED DIAGNOSTICS failure_message = MESSAGE_TEXT;
+    IF failure_message <> 'revenuecat_reconciliation_claim_lost' THEN
+      RAISE EXCEPTION
+        'displaced RevenueCat claim raised an unexpected failure: %',
+        failure_message;
+    END IF;
+  END;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.users
+    WHERE id = '00000000-0000-0000-0000-000000000602'
+      AND subscription_tier = 'pro'::public.subscription_tier_enum
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_customer_state
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000602'
+      AND last_authoritative_snapshot_at_ms = 300
+  ) THEN
+    RAISE EXCEPTION 'displaced RevenueCat claim mutated provider state';
+  END IF;
+END;
+$$;
 RESET ROLE;
 
 CREATE TEMP TABLE merge_test_cleanup_claim (
@@ -988,6 +1174,37 @@ BEGIN
           ANY(recent_actor_ids)
   ) THEN
     RAISE EXCEPTION 'derived source notification survived the merge';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM internal.community_identification_activity_actors
+    WHERE user_id = '00000000-0000-0000-0000-000000000601'
+  ) OR (
+    SELECT COUNT(*)
+    FROM internal.community_identification_activity_actors
+    WHERE user_id = '00000000-0000-0000-0000-000000000602'
+      AND activity_group_id IN (
+        '00000000-0000-0000-0000-000000000641',
+        '00000000-0000-0000-0000-000000000642'
+      )
+  ) <> 2 OR NOT EXISTS (
+    SELECT 1
+    FROM internal.community_identification_activity_actors
+    WHERE activity_group_id =
+          '00000000-0000-0000-0000-000000000641'
+      AND user_id = '00000000-0000-0000-0000-000000000602'
+      AND suggestion_count = 5
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM internal.community_identification_activity_actors
+    WHERE activity_group_id =
+          '00000000-0000-0000-0000-000000000642'
+      AND user_id = '00000000-0000-0000-0000-000000000602'
+      AND suggestion_count = 4
+  ) THEN
+    RAISE EXCEPTION
+      'Community activity actors were not coalesced and reparented exactly';
   END IF;
 
   IF (

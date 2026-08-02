@@ -37,7 +37,7 @@ async function main(): Promise<void> {
       "functions/deno.json must keep minimumDependencyAge at P1D.",
     );
   }
-  const expectedSupabaseSpecifier = "npm:@supabase/supabase-js@2.110.6";
+  const expectedSupabaseSpecifier = "npm:@supabase/supabase-js@2.110.8";
   if (imports["@supabase/supabase-js"] !== expectedSupabaseSpecifier) {
     throw new Error(
       `@supabase/supabase-js must resolve exactly to ${expectedSupabaseSpecifier}`,

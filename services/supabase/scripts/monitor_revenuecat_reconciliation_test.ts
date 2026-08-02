@@ -1,8 +1,4 @@
-import {
-  assertEquals,
-  assertStringIncludes,
-  assertThrows,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   assertRevenueCatReconciliationHealth,
   buildRevenueCatMonitorSummary,

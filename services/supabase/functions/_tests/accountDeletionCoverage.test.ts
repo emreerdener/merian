@@ -1,7 +1,4 @@
-import {
-  assert,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertStringIncludes } from "@std/assert";
 
 const handlerUrl = new URL("../safe-delete/handler.ts", import.meta.url);
 const workerUrl = new URL("../safe-delete/worker.ts", import.meta.url);

@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260727233841_add_public_web_explore_boundary_and_immutable_dwca_rows.sql",

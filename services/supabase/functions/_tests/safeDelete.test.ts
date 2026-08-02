@@ -1,9 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  assert,
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { AccountDeletionClaim } from "../safe-delete/db.ts";
 import { handleSafeDelete } from "../safe-delete/handler.ts";
 import { processAccountDeletionJobs } from "../safe-delete/worker.ts";

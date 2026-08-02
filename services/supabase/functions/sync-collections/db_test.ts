@@ -7,10 +7,7 @@
 //
 // These tests mock the SupabaseClient interface to avoid live DB access.
 
-import {
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertRejects } from "@std/assert";
 import {
   syncMembershipDelta,
   upsertCollectionsAndFetchMemberships,

@@ -1,8 +1,4 @@
-import {
-  assertEquals,
-  assertExists,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { ExternalEnrichmentData } from "../_shared/external.ts";
 import {

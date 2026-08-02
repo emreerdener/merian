@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { MEDIA_BUDGETS } from "./mediaBudgets.ts";

@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertThrows,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertThrows } from "@std/assert";
 import { parseFeedbackSurveyPayload, VALID_CAMPAIGN_ID } from "./validation.ts";
 
 const validPayload = {

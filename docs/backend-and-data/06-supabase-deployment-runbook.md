@@ -71,7 +71,7 @@ The workflow performs the following steps:
    import job itself remains `contents: read` and passes only a one-day artifact
    to its writer. iOS distribution runs through Xcode Organizer and requests no
    repository write access.
-3. Installs the exact reviewed Deno `2.9.2` runtime and Supabase CLI `2.109.1`,
+3. Installs the exact reviewed Deno `2.9.4` runtime and Supabase CLI `2.109.1`,
    then executes the repository pin guard before any config parse or mutation.
 4. Fails fast if required deployment, RevenueCat, DwC-A pseudonym, or dedicated
    R2 Object Read credentials are missing; if either webhook credential is
@@ -3160,7 +3160,7 @@ the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
 discovers the function-local config while bundling. Do not pass the retired
 `--import-map` flag. Runtime code imports configured aliases; direct esm.sh,
 deno.land, npm, and JSR specifiers are rejected from production graphs. The
-fleet uses one exact `@supabase/supabase-js@2.110.6` dependency for both
+fleet uses one exact `@supabase/supabase-js@2.110.8` dependency for both
 `getUser` and `getClaims`. `_shared/claimsAuth.ts` remains opt-in to avoid
 silently changing authentication policy for unrelated routes, not to isolate a
 second SDK. `functions/dependencies.lock` is the only lockfile; do not add a
@@ -3204,7 +3204,8 @@ declaring the release healthy.
 ## Ghost Account Merge Security Rollout
 
 Migrations `20260723043447_secure_atomic_ghost_profile_merge.sql` and
-`20260801210102_make_ghost_merge_schema_aware.sql`,
+`20260801210102_make_ghost_merge_schema_aware.sql` plus forward correction
+`20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql`,
 `merge-ghost-profile`, `reconcile-ghost-profile-merges`, and the proof-capable
 iOS client form one security contract. The legacy client switches away from the
 guest session before it can prove source consent, so the backend must never
@@ -3227,11 +3228,14 @@ below have implementation and test evidence in the same exact SHA:
   `merge_temporarily_unavailable` guest-data-unchanged response as
   `ghost_merge_species_ledger_mismatch`.
 
-The 2026-08-01 review did not clear this hold. Static migration validation and
-Edge unit/type/format/lint checks passed, but release-equivalent migration replay
-and pgTAP were not run because the available Supabase CLI was `2.101.0`, not the
-repository's exact reviewed `2.109.1`. No production deployment is authorized
-by that partial evidence.
+The 2026-08-01 implementation adds all four fixes in the forward correction and
+Edge mapper. Static migration validation and focused Edge tests pass, and the
+repository now contains deterministic RevenueCat and Community two-session
+schedules in `ghostProfileMergeConcurrencyDb.test.ts`. This does not clear the
+hold: exact-CLI clean replay, complete pgTAP/catalog execution, live concurrency
+tests, advisors, and the staging matrix must still pass from the same exact SHA.
+No production deployment is authorized by partial or connection-skipped
+evidence.
 
 ### Compatibility order
 
@@ -3296,6 +3300,12 @@ deno check \
 deno test \
   --config services/supabase/functions/merge-ghost-profile/deno.json \
   services/supabase/functions/_tests/mergeGhostProfile.test.ts
+SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  deno test \
+  --config services/supabase/functions/deno.json \
+  --allow-env=SUPABASE_DB_TEST_URL,PGAPPNAME,PGDATABASE,PGHOST,PGOPTIONS,PGPASSWORD,PGPORT,PGUSER \
+  --allow-net=127.0.0.1:54322 \
+  services/supabase/functions/_tests/ghostProfileMergeConcurrencyDb.test.ts
 deno test \
   --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
   services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
@@ -3318,8 +3328,8 @@ does not replace that full gate.
 | Gate | Required automated proof | Required staging proof |
 | --- | --- | --- |
 | Destination RevenueCat repair | Start with no source queue row and an absent, leased, or delayed target row. Completion must upsert one target row with the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields. | Complete a disposable conflict merge with the source queue absent; claim the target through the normal reconciler and confirm it queries the permanent RevenueCat App User ID. |
-| RevenueCat lock order | A static migration contract pins user-lock before queue-lock and claim revalidation. The database fixture proves a claim invalidated by merge cannot write entitlement or watermark state. | Run merge completion and reconciliation apply concurrently in two sessions. Neither may deadlock; a displaced claim must fail closed and the newly due target row must remain claimable. |
-| Community actor lock order | Fixtures cover both a colliding actor group and a non-colliding source group. Counts/timestamps coalesce exactly once, non-colliding rows reparent, and the handler definition contains no actor insert/upsert path. | Run a normal activity append concurrently with completion for a shared group. Neither session may deadlock, duplicate the actor, or lose a suggestion count. |
+| RevenueCat lock order | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` schedules merge while a stale apply is blocked and requires claim loss without deadlock or state mutation. | Run merge completion and reconciliation apply concurrently in two sessions. Neither may deadlock; a displaced claim must fail closed and the newly due target row must remain claimable. |
+| Community actor lock order | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` schedules the historical group/actor cycle and requires both sessions to finish with exact counts. | Run a normal activity append concurrently with completion for a shared group. Neither session may deadlock, duplicate the actor, or lose a suggestion count. |
 | Ledger error response | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction proves failure leaves both profiles and ownership unchanged. | Introduce controlled ledger drift only in disposable staging, attempt completion, and confirm the proof remains queued while source data remains owned by the guest. |
 
 After reset, run the owner-only topology assertion explicitly:
@@ -3400,10 +3410,22 @@ Run these read-only queries from the SQL editor or another owner-only
 operational connection:
 
 ```sql
-SELECT status, COUNT(*)
+SELECT
+  status,
+  COUNT(*),
+  MIN(created_at) AS first_created_at,
+  MAX(created_at) AS last_created_at
 FROM internal.ghost_profile_merge_handoffs
+WHERE created_at >= pg_catalog.NOW() - INTERVAL '12 hours'
 GROUP BY status
 ORDER BY status;
+
+-- Do not select the proof hash or provider subject into an incident artifact.
+SELECT id, ghost_user_id, expected_provider, created_at, expires_at
+FROM internal.ghost_profile_merge_handoffs
+WHERE status = 'prepared'
+  AND created_at >= pg_catalog.NOW() - INTERVAL '12 hours'
+ORDER BY created_at;
 
 SELECT
   id,

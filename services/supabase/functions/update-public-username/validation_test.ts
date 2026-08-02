@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { publicUsernameValidationError } from "./validation.ts";
 
 Deno.test("Naturebook and legacy Merian usernames remain reserved", () => {

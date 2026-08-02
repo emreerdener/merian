@@ -1,8 +1,4 @@
-import {
-  assertEquals,
-  assertRejects,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { encodeExportBatch } from "./archive.ts";
 import { calculateCrc32 } from "./crc32.ts";
 import { MULTIMEDIA_HEADERS, OCCURRENCE_HEADERS } from "./dwca.ts";

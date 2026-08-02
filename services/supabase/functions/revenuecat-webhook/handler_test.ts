@@ -1,5 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "@std/assert";
 import { createRevenueCatWebhookHandler } from "./handler.ts";
 import { MAX_REVENUECAT_WEBHOOK_BYTES } from "./protocol.ts";
 import { createRevenueCatSignature } from "./signature.ts";

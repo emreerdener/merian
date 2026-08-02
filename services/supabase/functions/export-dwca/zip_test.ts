@@ -1,8 +1,4 @@
-import {
-  assertEquals,
-  assertGreater,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertGreater, assertRejects } from "@std/assert";
 import JSZip from "jszip";
 import { calculateCrc32, combineCrc32Parts } from "./crc32.ts";
 import { ExportWorkerError } from "./types.ts";

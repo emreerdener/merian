@@ -10,10 +10,7 @@
 //   - exportScope enum guard + includePreciseCoordinates type check (request-export-dwca)
 //   - atomic export-request disposition validation (request-export-dwca/db.ts)
 
-import {
-  assert,
-  assertEquals,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "@std/assert";
 
 // ---------------------------------------------------------------------------
 // UUID format validation

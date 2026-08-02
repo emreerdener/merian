@@ -3,7 +3,7 @@ import {
   assertEquals,
   assertRejects,
   assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+} from "@std/assert";
 
 const guardedRoutes = new Map<string, string[]>([
   ["../identify/index.ts", ["scan_identification"]],

@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "@std/assert";
 import { communityRequestMatchesIdentity } from "./db.ts";
 
 Deno.test("Community response identity accepts UUID case normalization only", () => {

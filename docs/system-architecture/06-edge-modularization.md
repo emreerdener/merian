@@ -308,7 +308,7 @@ direct esm.sh, deno.land, npm, or JSR specifiers. Test-only Deno std assert
 imports remain acceptable because they are not bundled into production
 functions.
 
-The entire fleet uses one exact `@supabase/supabase-js@2.110.6` dependency.
+The entire fleet uses one exact `@supabase/supabase-js@2.110.8` dependency.
 `_shared/claimsAuth.ts` is still imported only by latency-sensitive routes, but
 that isolation protects authentication semantics rather than carrying a second
 SDK: the universal `edgeHandler.ts` retains the established Auth-server

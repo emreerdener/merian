@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { processExpiredSubscriptionPasses } from "./worker.ts";
 
 Deno.test("processExpiredSubscriptionPasses: downgrades expired timed pro users", async () => {

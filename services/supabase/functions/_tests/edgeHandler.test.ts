@@ -1,8 +1,5 @@
-import {
-  assert,
-  assertEquals,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import {
   jsonResponse,
   logStructuredError,

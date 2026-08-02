@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { calculateCrc32 } from "./crc32.ts";
 import { ExportWorkerServices, processExportJobStep } from "./worker.ts";

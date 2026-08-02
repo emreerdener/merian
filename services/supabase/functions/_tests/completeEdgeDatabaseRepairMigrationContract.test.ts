@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertStringIncludes } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260725045544_repair_complete_edge_database_contracts.sql",

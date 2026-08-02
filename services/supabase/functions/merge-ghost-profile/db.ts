@@ -236,7 +236,8 @@ export function mapDatabaseError(
     normalized.includes("ghost_merge_invalid_scan_species_policy") ||
     normalized.includes("ghost_merge_unknown_policy_handler") ||
     normalized.includes("ghost_merge_orchestrator_") ||
-    normalized.includes("ghost_merge_species_ledger_mismatch")
+    normalized.includes("ghost_merge_species_ledger_mismatch") ||
+    normalized.includes("user_species_scan_count_underflow")
   ) {
     return new GhostMergeDatabaseError(
       "merge_temporarily_unavailable",

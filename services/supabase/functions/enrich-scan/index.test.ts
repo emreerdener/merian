@@ -3,7 +3,7 @@
 // Unit tests for enrich-scan business logic that does not require a live
 // Supabase client. All Postgres interactions are replaced with inline stubs.
 
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "@std/assert";
 import { resolveLookalikesToJoinTable } from "./db.ts";
 import { LookalikeSummary } from "./types.ts";
 import { SimilarSpeciesEntry } from "../_shared/biology.ts";

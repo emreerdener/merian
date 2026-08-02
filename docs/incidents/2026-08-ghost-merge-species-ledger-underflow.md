@@ -120,10 +120,19 @@ The authoritative implementation and staging evidence is the
 
 Evidence completed on the reviewed working tree:
 
-- `make validate-supabase-migrations`: 210 passed;
+- `make validate-supabase-migrations`: 211 passed;
 - `make test-supabase-tooling`: 112 standard tests plus isolated suites passed;
-- focused merge Edge tests: 9 passed; and
+- the complete Edge suite: 1,468 passed with zero failures;
+- the documentation contract: 14 passed with zero failures;
+- the iOS proof-capable client completed `build-for-testing`; and
 - Deno type, format, and lint checks plus `git diff --check` passed.
+
+Forward migration
+`20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql` and the
+expanded Edge mapper implement all four code corrections. The repository also
+contains deterministic RevenueCat and Community schedules in
+`ghostProfileMergeConcurrencyDb.test.ts`. Their live database bodies have not
+run in this sandbox: a connection skip is not release evidence.
 
 Release-equivalent database evidence is still missing. The repository exact-pins
 Supabase CLI `2.109.1`; the available local CLI was `2.101.0`. A replay or pgTAP
@@ -146,6 +155,9 @@ rollout matrix.
   Correct database behavior with a reviewed forward migration.
 - Do not delete or edit handoff receipts/secrets to recover an attempt. Preserve
   queued proofs and let the idempotent completion and Auth cleanup worker retry.
+- The iOS client retains HTTP 503 `merge_temporarily_unavailable` proofs in its
+  device-only Keychain queue and retries them after permanent-session
+  restoration. Only `handoff_expired` and `handoff_invalid` discard a proof.
 
 ## Closure criteria
 

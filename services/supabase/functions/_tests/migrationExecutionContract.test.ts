@@ -1,4 +1,4 @@
-import { assert } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert } from "@std/assert";
 
 const migrationsDirectoryUrl = new URL("../../migrations/", import.meta.url);
 

@@ -9,7 +9,7 @@
 //   - Blocked user exclusion: feed query excludes blocked user IDs
 //   - user_blocks query bounded at 10000 (V8 heap protection)
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 
 // ---------------------------------------------------------------------------
 // Feed limit sanitization

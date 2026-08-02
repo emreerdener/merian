@@ -139,7 +139,7 @@ versions. Keep the overrides until a stable Next.js release declares equal or
 newer versions. Do not remove them merely because image optimization is disabled
 or CSS inputs are currently trusted.
 
-The PostCSS 8.5.18 floor covers both
+The PostCSS 8.5.25 pin covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).

@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertRejects } from "@std/assert";
 import r2Lifecycle from "../../../../docs/r2-lifecycle.json" with {
   type: "json",
 };

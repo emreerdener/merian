@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
 const countryOccurrenceDatabaseTest = new URL(

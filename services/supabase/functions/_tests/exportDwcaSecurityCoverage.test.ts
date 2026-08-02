@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const exportRoot = new URL("../export-dwca/", import.meta.url);
 const deploymentWorkflow = new URL(

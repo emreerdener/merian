@@ -1,8 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const enumMigrationUrl = new URL(
   "../../migrations/20260726144647_add_explore_media_quarantine_lifecycle.sql",

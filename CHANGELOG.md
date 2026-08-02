@@ -27,14 +27,15 @@ TestFlight, App Store, support, and QA.
 
 ### Account Upgrade Reliability
 
-- The pending anonymous-to-existing-account hardening defines explicit,
-  schema-aware ownership policies. Overlapping species history must merge
-  without corrupting discovery totals, and unsupported database relationships
-  must stop safely before user data changes.
+- Anonymous-to-existing-account hardening now includes explicit schema-aware
+  ownership policies, durable RevenueCat destination repair, consistent child
+  lock ordering, and safe retry responses for species-ledger drift. Overlapping
+  species history must merge without corrupting discovery totals, and
+  unsupported database relationships must stop safely before user data changes.
 - The existing-account conflict fallback remains release-gated until its
-  RevenueCat repair queue, RevenueCat and Community lock ordering, ledger-error
-  response mapping, and exact-version database replay have all passed the
-  rollout runbook's evidence gates.
+  exact-version clean database replay, complete catalog and concurrency suites,
+  advisors, and staging proof matrix have all passed the rollout runbook's
+  evidence gates.
 
 ### Scientific Observation Retention
 

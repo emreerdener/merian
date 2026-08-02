@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { collectScanMediaUrls } from "./scanMediaDeletion.ts";
 
 Deno.test("collectScanMediaUrls includes source media and derived thumbnails", () => {
