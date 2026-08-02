@@ -12,6 +12,10 @@ const reconciliationScaleMigrationUrl = new URL(
   "../../migrations/20260726031502_scale_revenuecat_reconciliation.sql",
   import.meta.url,
 );
+const reconciliationSeedRepairMigrationUrl = new URL(
+  "../../migrations/20260802203802_fix_revenuecat_zero_subject_reconciliation_seed.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -156,5 +160,42 @@ Deno.test("RevenueCat reconciliation drains against a deadline and exposes index
       sql,
     ),
     "PostgreSQL conditional and extraction expressions cannot be schema-qualified.",
+  );
+});
+
+Deno.test("RevenueCat reconciliation seed repair is forward-only and source-guarded", async () => {
+  const historicalSql = normalized(
+    await Deno.readTextFile(reconciliationMigrationUrl),
+  );
+  const repairSource = await Deno.readTextFile(
+    reconciliationSeedRepairMigrationUrl,
+  );
+  const repairSql = normalized(repairSource);
+
+  assertStringIncludes(historicalSql, "'applied', 0, 0, 0");
+  for (
+    const fragment of [
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '30s'",
+      "pg_catalog.PG_GET_FUNCTIONDEF",
+      "public.apply_revenuecat_reconciliation(uuid,uuid,bigint,text,timestamp with time zone)",
+      "target_occurrences <> 1",
+      "revenuecat_reconciliation_seed_source_drift",
+      "pg_catalog.REPLACE( function_sql, old_seed_values, new_seed_values )",
+      "EXECUTE patched_sql",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(repairSql, fragment);
+  }
+
+  assertStringIncludes(repairSource, "''applied''");
+  assertStringIncludes(repairSource, "''ignored''");
+  assert(
+    !/^\s*(?:BEGIN|START\s+TRANSACTION|COMMIT)\s*;/im.test(
+      repairSource,
+    ),
+    "The forward repair must leave transaction ownership to the Supabase CLI.",
   );
 });

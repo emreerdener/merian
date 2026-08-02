@@ -9,6 +9,7 @@ DECLARE
     destination_user_id UUID := '00000000-0000-0000-0000-00000000b401';
     source_user_id UUID := '00000000-0000-0000-0000-00000000b402';
     missing_user_id UUID := '00000000-0000-0000-0000-00000000b403';
+    seed_user_id UUID := '00000000-0000-0000-0000-00000000b404';
     initial_entitlement_version BIGINT;
     transition RECORD;
     receipt RECORD;
@@ -187,6 +188,10 @@ BEGIN
             (
                 source_user_id,
                 'revenuecat-source-test@example.invalid'
+            ),
+            (
+                seed_user_id,
+                'revenuecat-seed-test@example.invalid'
             )
     ) AS seed(user_id, email);
 
@@ -215,6 +220,14 @@ BEGIN
         'alias',
         NOW() - INTERVAL '30 days',
         'pro'
+    ), (
+        seed_user_id,
+        'revenuecat-seed-test@example.invalid',
+        'rc_seed_b404',
+        'RevenueCat Seed Test',
+        'alias',
+        NOW() - INTERVAL '30 days',
+        'free'
     )
     ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email,
@@ -707,6 +720,79 @@ BEGIN
         WHERE subjects.merian_user_id = destination_user_id
     ) <> 6 THEN
         RAISE EXCEPTION 'RevenueCat event ledger lost idempotency';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM internal.revenuecat_customer_state AS states
+        WHERE states.merian_user_id = seed_user_id
+    ) THEN
+        RAISE EXCEPTION
+            'RevenueCat seed test unexpectedly started with a watermark';
+    END IF;
+
+    UPDATE internal.revenuecat_reconciliation_queue AS queue
+    SET next_reconcile_at = pg_catalog.NOW()
+    WHERE queue.merian_user_id = seed_user_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'RevenueCat seed test user was not enqueued for reconciliation';
+    END IF;
+
+    SELECT *
+    INTO STRICT reconciliation_claim
+    FROM public.claim_revenuecat_reconciliations(1);
+
+    IF reconciliation_claim.user_id <> seed_user_id
+       OR reconciliation_claim.allow_non_subscription_pass_grant IS NOT TRUE
+    THEN
+        RAISE EXCEPTION
+            'RevenueCat missing-watermark claim was not selected safely';
+    END IF;
+
+    reconciliation_applied := public.apply_revenuecat_reconciliation(
+        reconciliation_claim.user_id,
+        reconciliation_claim.claim_token,
+        14000,
+        'pro',
+        NULL
+    );
+
+    IF reconciliation_applied IS NOT TRUE OR NOT EXISTS (
+        SELECT 1
+        FROM public.users AS users
+        JOIN internal.revenuecat_customer_state AS states
+          ON states.merian_user_id = users.id
+        JOIN internal.revenuecat_reconciliation_queue AS queue
+          ON queue.merian_user_id = users.id
+        JOIN internal.revenuecat_webhook_events AS events
+          ON events.event_id = states.last_event_id
+        WHERE users.id = seed_user_id
+          AND users.subscription_tier =
+                'pro'::public.subscription_tier_enum
+          AND states.last_event_id =
+                'reconcile-seed:' || seed_user_id::TEXT
+          AND states.last_authoritative_snapshot_at_ms = 14000
+          AND events.event_type = 'RECONCILIATION'
+          AND events.outcome = 'ignored'
+          AND events.subject_count = 0
+          AND events.applied_count = 0
+          AND events.stale_count = 0
+          AND queue.claim_token IS NULL
+          AND queue.last_snapshot_at_ms = 14000
+          AND queue.last_reconciled_at IS NOT NULL
+          AND queue.attempt_count = 0
+          AND queue.last_error_code IS NULL
+          AND queue.next_reconcile_at > pg_catalog.NOW()
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.revenuecat_webhook_event_subjects AS subjects
+        WHERE subjects.event_id =
+                'reconcile-seed:' || seed_user_id::TEXT
+    ) THEN
+        RAISE EXCEPTION
+            'missing-watermark reconciliation did not seed atomically';
     END IF;
 END;
 $test$;

@@ -235,6 +235,8 @@ struct OfflineQueuedScanDeletionTests {
         try ctx.save()
         
         let queueManager = OfflineQueueManager.shared
+        let originalContext = queueManager.modelContext
+        defer { queueManager.modelContext = originalContext }
         queueManager.modelContext = ctx
         
         // Inject a mock task into the backgroundSession manually
@@ -242,7 +244,15 @@ struct OfflineQueuedScanDeletionTests {
         let mockDataURL = URL.cachesDirectory.appendingPathComponent("mock_upload.webp")
         try? Data("fake".utf8).write(to: mockDataURL)
         let mockTask = queueManager.backgroundSession.uploadTask(with: request, fromFile: mockDataURL)
-        mockTask.taskDescription = "\(scanId)_0"
+        let taskDescription = MediaStagingContract.uploadTaskDescription(
+            scanId: scanId,
+            uploadIndex: 0
+        )
+        mockTask.taskDescription = taskDescription
+        defer {
+            mockTask.cancel()
+            try? FileManager.default.removeItem(at: mockDataURL)
+        }
         
         // Since we are mocking an in-flight upload, we must resume it to populate background tasks actively
         mockTask.resume()
@@ -251,7 +261,7 @@ struct OfflineQueuedScanDeletionTests {
         mockTask.suspend()
         
         let tasksBefore = await queueManager.backgroundSession.allTasks
-        #expect(tasksBefore.contains(where: { $0.taskDescription == "\(scanId)_0" }) == true)
+        #expect(tasksBefore.contains(where: { $0.taskDescription == taskDescription }) == true)
         
         // Act
         await queueManager.deleteQueuedScan(scanId: scanId)
@@ -261,14 +271,12 @@ struct OfflineQueuedScanDeletionTests {
         
         // Assert
         let tasksAfter = await queueManager.backgroundSession.allTasks
-        let specificTaskStatus = tasksAfter.first(where: { $0.taskDescription == "\(scanId)_0" })?.state
+        let specificTaskStatus = tasksAfter.first(where: { $0.taskDescription == taskDescription })?.state
         
-        // URLSession keeps tracking tasks immediately post-cancel, but their state should be 'canceling' or 'completed/cancelled'
+        // If URLSession still tracks the task post-cancel, it must be canceling or completed.
+        // Complete removal is also acceptable.
         if let state = specificTaskStatus {
             #expect(state == .canceling || state == .completed, "The specific URLSession task MUST be cancelled explicitly")
-        } else {
-            // Task got entirely removed which is also acceptable
-            #expect(true)
         }
     }
 }
