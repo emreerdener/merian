@@ -135,6 +135,52 @@ BEGIN
         RAISE EXCEPTION
             'materialize_dwca_export_source_snapshot lacks an explicit cursor cast';
     END IF;
+
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(
+        pg_catalog.TO_REGPROCEDURE(
+            'public.apply_revenuecat_reconciliation(uuid,uuid,bigint,text,timestamp with time zone)'
+        )
+    )
+    INTO STRICT function_definition;
+    IF function_definition ~* '\mqueue_row\M' THEN
+        RAISE EXCEPTION
+            'apply_revenuecat_reconciliation retains its unread lock row';
+    END IF;
+
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(
+        pg_catalog.TO_REGPROCEDURE(
+            'public.release_export_job_step(uuid,uuid,text,boolean)'
+        )
+    )
+    INTO STRICT function_definition;
+    IF function_definition ~* '\m(job_row|work_row)\M' THEN
+        RAISE EXCEPTION
+            'release_export_job_step retains an unread lock row';
+    END IF;
+
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(
+        pg_catalog.TO_REGPROCEDURE(
+            'public.complete_prepared_export_job(uuid,uuid)'
+        )
+    )
+    INTO STRICT function_definition;
+    IF function_definition ~* '\mjob_row\M' THEN
+        RAISE EXCEPTION
+            'complete_prepared_export_job retains its unread lock row';
+    END IF;
+
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(
+        pg_catalog.TO_REGPROCEDURE(
+            'public.ensure_scan_user_profile(uuid)'
+        )
+    )
+    INTO STRICT function_definition;
+    IF function_definition ~* '\musername_attempt\M'
+       OR function_definition !~* 'FOR profile_attempt IN 1[.][.]5 LOOP'
+       OR function_definition !~* 'scan_user_profile_creation_failed' THEN
+        RAISE EXCEPTION
+            'ensure_scan_user_profile lacks its fail-closed terminal path';
+    END IF;
 END;
 $test$;
 
