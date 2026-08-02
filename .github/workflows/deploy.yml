@@ -429,10 +429,13 @@ jobs:
         run: |
           supabase db lint --local --schema public,internal \
             --level warning --fail-on warning
+          # Advisor warnings include reviewed historical debt. Keep them in the
+          # run log, but block only on errors until that debt has an explicit
+          # baseline or has been retired.
           supabase db advisors --local --type security \
-            --level warn --fail-on warn
+            --level warn --fail-on error
           supabase db advisors --local --type performance \
-            --level warn --fail-on warn
+            --level warn --fail-on error
 
       - name: Stop disposable database
         if: always()

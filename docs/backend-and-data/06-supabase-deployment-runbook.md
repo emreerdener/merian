@@ -116,7 +116,10 @@ The workflow performs the following steps:
    be omitted by a curated CI list and database-backed tests cannot silently
    skip. While that database is still running, it executes `db lint` for the
    `public` and `internal` schemas plus both security and performance advisors;
-   every command fails the job on a warning. The workflow-security contract
+   lint warnings fail the job, advisor warnings remain visible as reviewed
+   historical debt, and advisor errors fail the job. Warning-level advisor
+   blocking requires an explicit baseline so existing debt cannot strand a
+   deployment. The workflow-security contract
    reads the exact Deno task definition, rejects a filtered or non-recursive
    complete task, and requires disposable database startup, all discovered
    catalogs, the complete Edge suite, lint, and both advisors to finish before
@@ -3341,9 +3344,9 @@ make test-supabase-privileged-routines
 supabase --workdir services db lint --local --schema public,internal \
   --level warning --fail-on warning
 supabase --workdir services db advisors --local --type security \
-  --level warn --fail-on warn
+  --level warn --fail-on error
 supabase --workdir services db advisors --local --type performance \
-  --level warn --fail-on warn
+  --level warn --fail-on error
 ```
 
 The exact-version script must succeed before `db reset`; a replay under another

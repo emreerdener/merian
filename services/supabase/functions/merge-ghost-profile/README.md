@@ -217,10 +217,15 @@ make test-supabase-privileged-routines
 supabase --workdir services db lint --local --schema public,internal \
   --level warning --fail-on warning
 supabase --workdir services db advisors --local --type security \
-  --level warn --fail-on warn
+  --level warn --fail-on error
 supabase --workdir services db advisors --local --type performance \
-  --level warn --fail-on warn
+  --level warn --fail-on error
 ```
+
+Database lint warnings block release. Advisor warnings remain visible for the
+reviewed historical backlog, while advisor errors block release. Warning-level
+advisor blocking requires an explicit baseline so existing debt cannot strand
+deploys.
 
 Supabase CLI `2.109.1` is exact-pinned. Static migration tests or a focused SQL
 file do not substitute for clean replay plus every checked-in catalog test. A

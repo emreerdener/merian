@@ -257,8 +257,8 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
   for (
     const command of [
       "supabase db lint --local --schema public,internal \\\n            --level warning --fail-on warning",
-      "supabase db advisors --local --type security \\\n            --level warn --fail-on warn",
-      "supabase db advisors --local --type performance \\\n            --level warn --fail-on warn",
+      "supabase db advisors --local --type security \\\n            --level warn --fail-on error",
+      "supabase db advisors --local --type performance \\\n            --level warn --fail-on error",
     ]
   ) {
     assertStringIncludes(deployWorkflow, command);

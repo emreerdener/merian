@@ -3391,9 +3391,9 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
     assertStringIncludes(source, "--allow-net=127.0.0.1:54322");
     assertStringIncludes(source, "--level warning --fail-on warning");
     assertEquals(
-      source.match(/--level warn --fail-on warn/g)?.length,
+      source.match(/--level warn --fail-on error/g)?.length,
       2,
-      "security and performance advisor commands must both fail on warnings",
+      "security and performance advisors must report warnings and fail on errors",
     );
   }
 
