@@ -8,6 +8,14 @@ const hardeningMigrationUrl = new URL(
   "../../migrations/20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql",
   import.meta.url,
 );
+const healthIndexMigrationUrl = new URL(
+  "../../migrations/20260802025258_index_ghost_merge_health_audits.sql",
+  import.meta.url,
+);
+const healthMonitorUrl = new URL(
+  "../../scripts/monitor_ghost_profile_merges.ts",
+  import.meta.url,
+);
 const pgTapUrl = new URL(
   "../../tests/ghost_profile_merge_security.sql",
   import.meta.url,
@@ -213,6 +221,32 @@ Deno.test("Ghost merge forward hardening enforces collision and lock-order contr
   );
 });
 
+Deno.test("Ghost merge health indexes match the recurring audit predicates", async () => {
+  const [migration, monitor] = await Promise.all([
+    Deno.readTextFile(healthIndexMigrationUrl).then(normalized),
+    Deno.readTextFile(healthMonitorUrl).then(normalized),
+  ]);
+
+  for (
+    const fragment of [
+      "CREATE INDEX ghost_profile_merge_recent_receipts_idx ON internal.ghost_profile_merge_handoffs (created_at) WHERE status IN ('prepared', 'merged', 'expired')",
+      "CREATE INDEX ghost_profile_merge_recent_destinations_idx ON internal.ghost_profile_merge_handoffs (merged_at, target_user_id) WHERE status = 'merged'",
+      "RESET lock_timeout",
+      "RESET statement_timeout",
+    ]
+  ) {
+    assertStringIncludes(migration, fragment);
+  }
+  assertStringIncludes(
+    monitor,
+    "WHERE handoff.status IN ('prepared', 'merged', 'expired') AND handoff.created_at >= clock.observed_at - INTERVAL '12 hours'",
+  );
+  assertStringIncludes(
+    monitor,
+    "WHERE handoff.status = 'merged' AND handoff.merged_at >= clock.observed_at - INTERVAL '24 hours'",
+  );
+});
+
 Deno.test("Ghost merge pgTAP covers topology, ledger, actor, and provider repair", async () => {
   const sql = normalized(await Deno.readTextFile(pgTapUrl));
 
@@ -232,6 +266,7 @@ Deno.test("Ghost merge pgTAP covers topology, ledger, actor, and provider repair
       "INSERT INTO internal.revenuecat_customer_state",
       "INSERT INTO internal.revenuecat_reconciliation_queue",
       "DELETE FROM internal.revenuecat_reconciliation_queue WHERE merian_user_id = '00000000-0000-0000-0000-000000000601'",
+      "destination queue was not created from an entirely absent queue pair",
       "ON CONFLICT (merian_user_id) DO UPDATE",
       "displaced RevenueCat claim unexpectedly applied state",
       "revenuecat_reconciliation_claim_lost",

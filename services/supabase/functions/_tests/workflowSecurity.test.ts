@@ -222,11 +222,20 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
   const completeEdgeSuite = deployWorkflow.indexOf(
     "- name: Test complete Edge Function suite",
   );
+  const databaseAdvisors = deployWorkflow.indexOf(
+    "- name: Validate database lint and advisors",
+  );
   const deploymentPlan = deployWorkflow.indexOf(
     "- name: Plan affected Edge Function deployment",
   );
   const compatibilityPredeploy = deployWorkflow.indexOf(
     "- name: Deploy fail-closed recovery consumers before compatibility migrations",
+  );
+  const stagingApproval = deployWorkflow.indexOf(
+    "- name: Enforce Ghost merge same-SHA staging approval",
+  );
+  const ghostMergePredeploy = deployWorkflow.indexOf(
+    "- name: Deploy Ghost merge mapper before Ghost merge migrations",
   );
   const migrationPush = deployWorkflow.indexOf(
     "- name: Push Database Migrations",
@@ -234,20 +243,40 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
   const functionDeploy = deployWorkflow.indexOf(
     "- name: Deploy affected Edge Functions",
   );
+  const productionSmoke = deployWorkflow.indexOf(
+    "- name: Smoke test production backend endpoints",
+  );
+  const ghostMergeHealthAudit = deployWorkflow.indexOf(
+    "- name: Audit Ghost merge health after deployment",
+  );
 
   assertMatch(
     deployWorkflow,
     /- name: Test complete Edge Function suite\n\s+env:\n\s+SUPABASE_DB_TEST_URL:[^\n]+\n\s+run: deno task --config supabase\/functions\/deno\.json test/,
   );
+  for (
+    const command of [
+      "supabase db lint --local --schema public,internal \\\n            --level warning --fail-on warning",
+      "supabase db advisors --local --type security \\\n            --level warn --fail-on warn",
+      "supabase db advisors --local --type performance \\\n            --level warn --fail-on warn",
+    ]
+  ) {
+    assertStringIncludes(deployWorkflow, command);
+  }
   assert(
     databaseStart >= 0 &&
       databaseStart < catalogValidation &&
       catalogValidation < completeEdgeSuite &&
-      completeEdgeSuite < deploymentPlan &&
-      deploymentPlan < compatibilityPredeploy &&
-      compatibilityPredeploy < migrationPush &&
-      migrationPush < functionDeploy,
-    "Disposable-database catalogs and the complete Edge suite must pass before the compatibility predeploy, the first possible production mutation.",
+      completeEdgeSuite < databaseAdvisors &&
+      databaseAdvisors < deploymentPlan &&
+      deploymentPlan < stagingApproval &&
+      stagingApproval < compatibilityPredeploy &&
+      compatibilityPredeploy < ghostMergePredeploy &&
+      ghostMergePredeploy < migrationPush &&
+      migrationPush < functionDeploy &&
+      functionDeploy < productionSmoke &&
+      productionSmoke < ghostMergeHealthAudit,
+    "Disposable-database catalogs, the complete Edge suite, lint, and advisors must pass before the compatibility predeploy, the first possible production mutation.",
   );
 });
 
@@ -377,6 +406,26 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
       `${name} contains an unrestricted Deno permission.`,
     );
   }
+
+  const ghostMergeMonitor = sources.get(
+    "ghost-profile-merge-health-monitor.yml",
+  ) ?? "";
+  assertStringIncludes(ghostMergeMonitor, "persist-credentials: false");
+  assertStringIncludes(ghostMergeMonitor, '--allow-net="$database_endpoint"');
+  assertStringIncludes(
+    ghostMergeMonitor,
+    "--allow-env=MERIAN_DATABASE_URL",
+  );
+  assertStringIncludes(ghostMergeMonitor, '--allow-write="$RUNNER_TEMP"');
+  assertStringIncludes(
+    ghostMergeMonitor,
+    "services/supabase/scripts/monitor_ghost_profile_merges.ts",
+  );
+  assertMatch(ghostMergeMonitor, /deno run --frozen/);
+  assert(
+    !/--allow-(?:net|env|read|write)(?:\s|\\)/.test(ghostMergeMonitor),
+    "Ghost merge monitor contains an unrestricted Deno permission.",
+  );
 
   const importWorkflow = sources.get("import-community-taxonomy.yml") ?? "";
   assertStringIncludes(importWorkflow, "persist-credentials: false");

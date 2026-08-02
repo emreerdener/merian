@@ -4,24 +4,27 @@
 **Severity:** Release-blocking account-upgrade reliability  
 **Affected flow:** Anonymous Ghost session → existing Apple/Google account
 conflict → `/merge-ghost-profile` completion  
-**Repository status:** Core schema-aware remediation drafted; four hardening
-requirements remain open  
-**Production status:** No deployment from this remediation; incident remains
-open until the closure gates below pass
+**Repository status:** Core schema-aware remediation and all four hardening
+requirements are implemented; release-proof gates remain open
+
+**Production status:** Deployment status is unverified from this environment;
+the incident remains open until the closure gates below pass
 
 ## Summary
 
-The supplied 12-hour Supabase log export contains ten failed Ghost-profile merge
-attempts with the database diagnostic `user_species_scan_count_underflow`.
-Retries can produce more than one entry for the same upgrade, so this count does
-not establish ten affected users.
+The supplied Supabase exports contain ten distinct failed Ghost-profile merge
+executions with the database diagnostic `user_species_scan_count_underflow`
+between 06:14 and 20:22 UTC on 2026-08-01. All ten carry the same anonymized
+subject, so this count does not establish ten affected users.
 
 The merge ran inside one database transaction and failed while scan ownership
 triggers were maintaining the private per-user/per-species ledger. PostgreSQL
 rolled the transaction back, so the failure is fail-safe for ownership data, but
-the user could not complete the existing-account upgrade. The current Edge
-mapper can also expose this exact invariant failure as an unexpected HTTP 500
-instead of the intended retryable 503 guest-data-unchanged response.
+the user could not complete the existing-account upgrade. The incident-baseline
+Edge mapper exposed this exact invariant failure as an unexpected HTTP 500
+instead of the intended retryable 503 guest-data-unchanged response. The
+expanded mapper fixes that behavior in the repository; its production status
+is not verified here.
 
 Normal provider linking is unaffected. When Apple or Google can attach to the
 anonymous Auth user, `linkIdentityWithIdToken` preserves the Ghost UUID and no
@@ -30,8 +33,15 @@ data merge occurs. This incident concerns only the exact
 
 ## Sanitized evidence
 
-- Ten `user_species_scan_count_underflow` failures appear in the provided
-  12-hour export reviewed on 2026-08-01.
+- Ten `user_species_scan_count_underflow` failures with ten distinct Edge
+  execution identifiers appear in the runtime export reviewed on 2026-08-01.
+  They span 06:14–20:22 UTC and carry one anonymized subject, proving repeated
+  executions but not the client-side mechanism that initiated them.
+- The unified request export contains the final four corresponding HTTP 500
+  responses. Each is followed by an HTTP 200 merge POST 695–1,438 milliseconds
+  later, but the rows have neither an authenticated user nor an Edge execution
+  identifier. That temporal adjacency does not prove a same-client retry, a
+  matching handoff receipt, or a successful prepared-to-merged transition.
 - The failures occur in the Ghost merge database transaction, not in a provider
   API, direct-link request, or Auth cleanup worker.
 - The error is emitted when a negative scan delta exceeds a still-live owner's
@@ -65,7 +75,7 @@ a conflict-prone projection.
 
 ## Core repository remediation
 
-Pending migration
+Schema-aware migration
 [`20260801210102_make_ghost_merge_schema_aware.sql`](../../services/supabase/migrations/20260801210102_make_ghost_merge_schema_aware.sql)
 establishes the core long-term correction:
 
@@ -89,8 +99,9 @@ It is not yet sufficient for production deployment.
 
 ## Double-check findings and release hold
 
-The 2026-08-01 review found four additional requirements that must be completed
-without weakening the schema-aware design:
+The 2026-08-01 review found four additional requirements. They are implemented
+in the forward hardening migration and Edge mapper, but remain release-blocking
+until the database and staging proof gates pass:
 
 1. **Destination RevenueCat repair must be unconditional.** Anonymous sources
    may legitimately have no reconciliation row. Completion must upsert an
@@ -98,10 +109,10 @@ without weakening the schema-aware design:
    absent, or a completely missed webhook can remain unrepaired until a later
    scheduled sweep.
 2. **RevenueCat must use one lock order.** Merge holds `public.users` before the
-   reconciliation queue, while the current apply callback locks queue before
-   user. The callback must lock user first, then lock and revalidate its claim,
-   so concurrent completion cannot deadlock or apply a displaced provider
-   snapshot.
+   reconciliation queue, while the incident-baseline apply callback locked
+   queue before user. The callback must lock user first, then lock and revalidate
+   its claim, so concurrent completion cannot deadlock or apply a displaced
+   provider snapshot.
 3. **Community actor handling must not invert writer locks.** Normal activity
    append locks the activity group before its actor. The merge handler must
    coalesce only existing source/target collisions with update/delete and leave
@@ -121,11 +132,26 @@ The authoritative implementation and staging evidence is the
 Evidence completed on the reviewed working tree:
 
 - `make validate-supabase-migrations`: 211 passed;
-- `make test-supabase-tooling`: 112 standard tests plus isolated suites passed;
+- `make test-supabase-tooling`: 121 standard tests plus isolated suites passed;
 - the complete Edge suite: 1,468 passed with zero failures;
 - the documentation contract: 14 passed with zero failures;
 - the iOS proof-capable client completed `build-for-testing`; and
-- Deno type, format, and lint checks plus `git diff --check` passed.
+- Deno type checks, formatting across 700 files, lint across 542 files, and
+  `git diff --check` passed.
+
+The production workflow now keeps its disposable database alive for strict
+`public`/`internal` lint plus security and performance advisors. Each command
+fails on warnings and must finish before deployment planning or any production
+mutation. This is a fail-closed release gate, not evidence that the live
+database checks have already passed for this SHA.
+
+The repository also contains a privacy-safe scheduled and post-deploy Ghost
+merge monitor. It reports aggregate recent receipt counts, overdue Auth cleanup,
+and missing, misdirected, or unrefreshed destination RevenueCat queues. Its
+focused unit tests pass, and
+`20260802025258_index_ghost_merge_health_audits.sql` adds indexes matched to its
+rolling predicates. It has not run against production in this sandbox and
+therefore does not satisfy the required 12-hour hosted audit yet.
 
 Forward migration
 `20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql` and the
@@ -135,11 +161,11 @@ contains deterministic RevenueCat and Community schedules in
 run in this sandbox: a connection skip is not release evidence.
 
 Release-equivalent database evidence is still missing. The repository exact-pins
-Supabase CLI `2.109.1`; the available local CLI was `2.101.0`. A replay or pgTAP
-run under the wrong CLI is not acceptable evidence. Before deployment, install
-the exact pin, perform a clean local reset, run every checked-in catalog test,
-and execute the two-session RevenueCat and Community staging probes from the
-rollout matrix.
+Supabase CLI `2.109.1`; the available local PATHs resolved to `2.101.0` from the
+repository root and `2.90.0` from the Supabase worktree. Neither is acceptable
+for replay or pgTAP evidence. Before deployment, install the exact pin, perform
+a clean local reset, run every checked-in catalog test, and execute the
+two-session RevenueCat and Community staging probes from the rollout matrix.
 
 ## Safety, rollout, and recovery
 
@@ -148,7 +174,13 @@ rollout matrix.
 - Deploy the backwards-compatible expanded Edge error mapper before the pending
   database revisions, then apply the schema-aware and corrective forward
   migrations immediately in the same window. The secure baseline can already
-  emit the ledger-underflow diagnostic recorded here.
+  emit the ledger-underflow diagnostic recorded here. The production workflow
+  detects Ghost migration/Function deltas, manual dispatch, and an unsafe
+  baseline and predeploys both Ghost Functions before `db push`.
+- Set `GHOST_MERGE_STAGING_APPROVED_SHA` in the GitHub `Production` environment
+  only after the complete matrix passes from that exact lowercase 40-character
+  SHA. The workflow rejects missing, stale, or different approval before
+  mutation; the variable links preserved evidence but is not evidence itself.
 - Never restore the arbitrary source-UUID payload or client execution of legacy
   reparent helpers.
 - Do not roll back an applied migration or manually reparent scans/ledger rows.
@@ -177,5 +209,6 @@ Close this incident only when one exact SHA proves all of the following:
    without deadlock, stale claim application, duplicate actors, or lost counts;
 7. completion replay is idempotent and the obsolete anonymous Auth shell is
    deleted only after data commit; and
-8. production monitoring shows no repeated ledger underflow, missing destination
-   queue audit row, or cleanup receipt beyond its alert window.
+8. production monitoring shows no repeated ledger underflow; missing,
+   misdirected, or unrefreshed destination queue audit row; or cleanup receipt
+   beyond its alert window.

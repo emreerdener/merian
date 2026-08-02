@@ -113,9 +113,12 @@ Forward migration
 Edge mapper implement the four concurrency/provider-repair requirements above
 without editing committed migration history. Static and Edge tests cover their
 source contracts, and `ghostProfileMergeConcurrencyDb.test.ts` provides the two
-session deadlock schedules. Do not deploy or enable the existing-account
-conflict fallback until exact-CLI clean replay, the complete catalog suite,
-advisors, and every staging proof clear the release hold in the
+session deadlock schedules. `ghostProfileMergeClientContract.test.ts` pins proof
+persistence before the session switch, retry on permanent-session restoration,
+device-only Keychain storage, and terminal-only deletion. Do not deploy or
+enable the existing-account conflict fallback until exact-CLI clean replay, the
+complete catalog suite, advisors, and every staging proof clear the release hold
+in the
 [deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations
@@ -137,6 +140,19 @@ state is repaired independently through
 `internal.revenuecat_reconciliation_queue`; a successful Auth cleanup does not
 prove that the destination provider queue exists or has reconciled.
 
+The scheduled **Ghost Profile Merge Health Monitor** and the production
+post-deploy audit call
+`services/supabase/scripts/monitor_ghost_profile_merges.ts` through one
+short-lived, read-only owner connection. They publish aggregate 12-hour receipt
+counts, overdue Auth-cleanup counts/ages, and 24-hour missing, misdirected, or
+unrefreshed destination RevenueCat queue anomalies without emitting handoff/user
+IDs, proof hashes, or provider subjects. Migration
+`20260802025258_index_ghost_merge_health_audits.sql` supplies predicate-matched
+time indexes for both rolling windows. A prepared receipt is a prompt to confirm
+Edge telemetry and proof-capable Keychain retries; it is not permission to edit
+a receipt or manually reparent data. See the deployment runbook for thresholds
+and recovery.
+
 All handoff tables and helper routines are in the unexposed `internal` schema.
 Public RPC wrappers revoke `PUBLIC`/`anon` access and grant only the minimum
 required role.
@@ -155,11 +171,18 @@ The legacy payload cannot be made backward-compatible: it switches sessions
 before calling the server and carries no source-session proof. Treat this as a
 coordinated security rollout:
 
-1. Clear every release hold and evidence gate in the deployment runbook.
+1. Clear every release hold and evidence gate in the deployment runbook. Only
+   after the complete staging matrix passes, set the GitHub `Production`
+   environment variable `GHOST_MERGE_STAGING_APPROVED_SHA` to the exact reviewed
+   lowercase 40-character release SHA. The variable links evidence to the
+   workflow but is not evidence itself.
 2. Ship the proof-capable iOS client (or place the OAuth-conflict path behind a
    minimum-version gate).
 3. Deploy the reviewed Edge Function with the expanded mapper; deploy the Auth
-   cleanup worker from the same SHA.
+   cleanup worker from the same SHA. The production workflow detects any Ghost
+   merge migration or Function delta since the last successful release and
+   predeploys both Functions before `db push`; manual dispatch and an unsafe
+   baseline do the same.
 4. Apply every pending merge migration immediately afterward in the same change
    window.
 5. Enable the conflict fallback only for proof-capable clients and retire the
@@ -191,6 +214,12 @@ deno test \
   services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
 supabase --workdir services db reset
 make test-supabase-privileged-routines
+supabase --workdir services db lint --local --schema public,internal \
+  --level warning --fail-on warning
+supabase --workdir services db advisors --local --type security \
+  --level warn --fail-on warn
+supabase --workdir services db advisors --local --type performance \
+  --level warn --fail-on warn
 ```
 
 Supabase CLI `2.109.1` is exact-pinned. Static migration tests or a focused SQL

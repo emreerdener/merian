@@ -309,6 +309,48 @@ VALUES
   )
 ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
 
+-- Exercise the unconditional INSERT path independently of the later full
+-- merge fixture: neither source nor destination has a queue row.
+DELETE FROM internal.revenuecat_reconciliation_queue
+WHERE merian_user_id IN (
+  '00000000-0000-0000-0000-000000000601',
+  '00000000-0000-0000-0000-000000000602'
+);
+
+SELECT internal.merge_ghost_revenuecat_state(
+  '00000000-0000-0000-0000-000000000601',
+  '00000000-0000-0000-0000-000000000602'
+);
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000601'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue
+    WHERE merian_user_id = '00000000-0000-0000-0000-000000000602'
+      AND lookup_app_user_id =
+          '00000000-0000-0000-0000-000000000602'
+      AND next_reconcile_at <= pg_catalog.NOW()
+      AND attempt_count = 0
+      AND claim_token IS NULL
+      AND claimed_at IS NULL
+      AND claim_expires_at IS NULL
+      AND last_error_code IS NULL
+  ) THEN
+    RAISE EXCEPTION
+      'destination queue was not created from an entirely absent queue pair';
+  END IF;
+END;
+$$;
+
+-- Restore the empty baseline expected by the later transfer-state fixture.
+DELETE FROM internal.revenuecat_reconciliation_queue
+WHERE merian_user_id = '00000000-0000-0000-0000-000000000602';
+
 UPDATE public.users
 SET public_author_name = 'Guest Naturalist',
     public_identity_source = 'display_name',

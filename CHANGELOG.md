@@ -36,6 +36,11 @@ TestFlight, App Store, support, and QA.
   exact-version clean database replay, complete catalog and concurrency suites,
   advisors, and staging proof matrix have all passed the rollout runbook's
   evidence gates.
+- Production now predeploys the compatible Ghost merge mapper before related
+  migrations, requires an exact-SHA staging approval, and runs a privacy-safe
+  post-deploy and scheduled health audit for prepared receipts, Auth cleanup,
+  and destination RevenueCat repair. Rolling audit windows remain index-backed
+  as merge history grows.
 
 ### Scientific Observation Retention
 

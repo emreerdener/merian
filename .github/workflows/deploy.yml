@@ -423,6 +423,17 @@ jobs:
           SUPABASE_DB_TEST_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: deno task --config supabase/functions/deno.json test
 
+      - name: Validate database lint and advisors
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          supabase db lint --local --schema public,internal \
+            --level warning --fail-on warning
+          supabase db advisors --local --type security \
+            --level warn --fail-on warn
+          supabase db advisors --local --type performance \
+            --level warn --fail-on warn
+
       - name: Stop disposable database
         if: always()
         env:
@@ -439,9 +450,11 @@ jobs:
         run: |
           plan_file="$RUNNER_TEMP/merian-supabase-functions.txt"
           recovery_predeploy_required=false
+          ghost_merge_predeploy_required=false
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             recovery_predeploy_required=true
+            ghost_merge_predeploy_required=true
             deno run --frozen --config supabase/functions/deno.json \
               --allow-read=supabase \
               supabase/scripts/plan_function_deploy.ts \
@@ -474,6 +487,12 @@ jobs:
                 ":(top)services/supabase/migrations/20260729200000_harden_media_abandoned_scan_recovery_proof.sql"; then
                 recovery_predeploy_required=true
               fi
+              if ! git diff --quiet "$last_success_sha" "$HEAD_SHA" -- \
+                ":(glob,top)services/supabase/migrations/*ghost*merge*.sql" \
+                ":(top)services/supabase/functions/merge-ghost-profile" \
+                ":(top)services/supabase/functions/reconcile-ghost-profile-merges"; then
+                ghost_merge_predeploy_required=true
+              fi
               deno run --frozen --config supabase/functions/deno.json \
                 --allow-read=supabase \
                 --allow-run=git \
@@ -483,6 +502,7 @@ jobs:
             else
               echo "Unable to resolve a safe successful deploy baseline; planning a full deployment."
               recovery_predeploy_required=true
+              ghost_merge_predeploy_required=true
               deno run --frozen --config supabase/functions/deno.json \
                 --allow-read=supabase \
                 supabase/scripts/plan_function_deploy.ts \
@@ -494,16 +514,34 @@ jobs:
           echo "plan_file=$plan_file" >> "$GITHUB_OUTPUT"
           echo "count=$function_count" >> "$GITHUB_OUTPUT"
           echo "recovery_predeploy_required=$recovery_predeploy_required" >> "$GITHUB_OUTPUT"
+          echo "ghost_merge_predeploy_required=$ghost_merge_predeploy_required" >> "$GITHUB_OUTPUT"
 
           {
             echo "### Edge Function deployment plan"
             echo
             echo "Functions selected: $function_count"
             echo "Fail-closed recovery consumer predeploy: $recovery_predeploy_required"
+            echo "Ghost merge compatibility predeploy: $ghost_merge_predeploy_required"
             if [ "$function_count" -gt 0 ]; then
               sed 's/^/- /' "$plan_file"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce Ghost merge same-SHA staging approval
+        if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'
+        env:
+          GHOST_MERGE_STAGING_APPROVED_SHA: ${{ vars.GHOST_MERGE_STAGING_APPROVED_SHA }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          approved_sha="${GHOST_MERGE_STAGING_APPROVED_SHA:-}"
+          if [[ ! "$approved_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Set the Production environment variable GHOST_MERGE_STAGING_APPROVED_SHA to the exact reviewed release SHA only after the complete staging proof matrix passes."
+            exit 1
+          fi
+          if [ "$approved_sha" != "$RELEASE_SHA" ]; then
+            echo "Ghost merge staging approval does not match this exact release SHA."
+            exit 1
+          fi
 
       - name: Prepare database connection URL
         id: database-url
@@ -536,6 +574,20 @@ jobs:
             share-scan-to-explore > "$pre_migration_plan"
           bash supabase/scripts/deploy_function_batches.sh \
             "$pre_migration_plan" \
+            "$PROJECT_ID"
+
+      - name: Deploy Ghost merge mapper before Ghost merge migrations
+        if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          ghost_merge_plan="$RUNNER_TEMP/merian-ghost-merge-functions.txt"
+          printf '%s\n' \
+            merge-ghost-profile \
+            reconcile-ghost-profile-merges > "$ghost_merge_plan"
+          bash supabase/scripts/deploy_function_batches.sh \
+            "$ghost_merge_plan" \
             "$PROJECT_ID"
 
       - name: Audit production privileged routine ACLs before migration
@@ -1305,3 +1357,29 @@ jobs:
               '{"self_id":"00000000-0000-0000-0000-000000000000"}'
           )"
           echo "$owned_incidents_response" | jq -e 'type == "array"'
+
+      - name: Audit Ghost merge health after deployment
+        env:
+          MERIAN_DATABASE_URL: ${{ steps.database-url.outputs.url }}
+        run: |
+          database_endpoint="$(
+            python3 -c \
+              'import os; from urllib.parse import urlsplit; url = urlsplit(os.environ["MERIAN_DATABASE_URL"]); print(f"{url.hostname}:{url.port or 5432}")'
+          )"
+          if [ -z "$database_endpoint" ] || [[ "$database_endpoint" == None:* ]]; then
+            echo "Unable to resolve the configured database endpoint."
+            exit 1
+          fi
+
+          summary_md="${RUNNER_TEMP}/ghost-profile-merge-health-postdeploy.md"
+          deno run --frozen \
+            --config supabase/functions/deno.json \
+            --allow-net="$database_endpoint" \
+            --allow-env=MERIAN_DATABASE_URL \
+            --allow-write="$RUNNER_TEMP" \
+            supabase/scripts/monitor_ghost_profile_merges.ts \
+            --cleanup-warning-after-minutes 20 \
+            --cleanup-critical-after-minutes 60 \
+            --fail-on warning \
+            --summary-md "$summary_md"
+          cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"

@@ -114,10 +114,13 @@ The workflow performs the following steps:
    new security contract is added. It then invokes the checked-in recursive
    `deno task test` with an explicit database URL, so route-local tests cannot
    be omitted by a curated CI list and database-backed tests cannot silently
-   skip. The workflow-security contract reads the exact Deno task definition,
-   rejects a filtered or non-recursive complete task, and requires disposable
-   database startup, all discovered catalogs, and that complete Edge suite to
-   finish before deployment planning, migration push, or Function deployment.
+   skip. While that database is still running, it executes `db lint` for the
+   `public` and `internal` schemas plus both security and performance advisors;
+   every command fails the job on a warning. The workflow-security contract
+   reads the exact Deno task definition, rejects a filtered or non-recursive
+   complete task, and requires disposable database startup, all discovered
+   catalogs, the complete Edge suite, lint, and both advisors to finish before
+   deployment planning, migration push, or Function deployment.
 9. Builds an affected-function deployment plan across the cumulative Git range
    from the most recent successful production workflow SHA through the current
    exact SHA—not merely the triggering commit. The baseline must be a
@@ -133,7 +136,15 @@ The workflow performs the following steps:
 10. Prepares a Postgres connection string for database migrations without
     calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
     can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
-    `SUPABASE_DB_PASSWORD`.
+    `SUPABASE_DB_PASSWORD`. Before any database write, independent compatibility
+    flags predeploy the fail-closed scan-recovery consumers when their migration
+    pair is pending and predeploy `merge-ghost-profile` plus
+    `reconcile-ghost-profile-merges` whenever a Ghost merge migration or either
+    Function changed since the last successful release. Manual dispatch and an
+    unsafe or unavailable baseline enable both predeploy fences. Before either
+    fence can mutate production, the Production environment variable
+    `GHOST_MERGE_STAGING_APPROVED_SHA` must be one exact 40-character SHA equal
+    to the workflow release SHA.
 11. Runs a read-only production `pg_proc.proacl`, `has_function_privilege()`,
     search-path, owner, allowlist, and default-privilege report before any
     database write.
@@ -172,6 +183,13 @@ The workflow performs the following steps:
     variable header value is printed. Every production smoke `curl` has explicit
     connect and whole-request timeouts plus `--max-filesize 1048576`; an
     oversized response fails closed without printing its body.
+23. Runs the aggregate Ghost profile merge health audit after the production
+    smoke suite. The read-only, single-connection query reports only counts and
+    ages for recent prepared receipts, pending Auth cleanup, and missing or
+    misdirected destination RevenueCat queues. A warning fails the deployment
+    workflow after mutation so the release cannot be declared healthy while an
+    invariant is degraded; the scheduled monitor continues the same audit every
+    15 minutes.
 
 Local and CI database rebuilds use the exact reviewed Supabase CLI `2.109.1`.
 The CLI owns migration transaction and history boundaries. Its normal apply path
@@ -3252,6 +3270,10 @@ After the release hold is cleared:
    installation, deploy the backwards-compatible expanded Edge error mapper
    before the pending database revisions; the secure baseline can already emit
    the ledger-underflow diagnostic seen in this incident.
+   The production workflow detects Ghost merge migration and Function changes
+   since the last successful release and enforces this predeploy before
+   `db push`; manual dispatch or an unsafe baseline takes the same fail-closed
+   path.
 4. Apply every pending merge migration immediately afterward, including the
    corrective forward migration required by the release hold. The original
    secure migration activates the RPCs, revokes the legacy helper from client
@@ -3300,6 +3322,10 @@ deno check \
 deno test \
   --config services/supabase/functions/merge-ghost-profile/deno.json \
   services/supabase/functions/_tests/mergeGhostProfile.test.ts
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/functions,apps/ios \
+  services/supabase/functions/_tests/ghostProfileMergeClientContract.test.ts
 SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
   deno test \
   --config services/supabase/functions/deno.json \
@@ -3312,9 +3338,12 @@ deno test \
 
 supabase --workdir services db reset
 make test-supabase-privileged-routines
-supabase --workdir services db lint --local --schema public,internal
-supabase --workdir services db advisors --local --type security
-supabase --workdir services db advisors --local --type performance
+supabase --workdir services db lint --local --schema public,internal \
+  --level warning --fail-on warning
+supabase --workdir services db advisors --local --type security \
+  --level warn --fail-on warn
+supabase --workdir services db advisors --local --type performance \
+  --level warn --fail-on warn
 ```
 
 The exact-version script must succeed before `db reset`; a replay under another
@@ -3327,10 +3356,11 @@ does not replace that full gate.
 
 | Gate | Required automated proof | Required staging proof |
 | --- | --- | --- |
-| Destination RevenueCat repair | Start with no source queue row and an absent, leased, or delayed target row. Completion must upsert one target row with the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields. | Complete a disposable conflict merge with the source queue absent; claim the target through the normal reconciler and confirm it queries the permanent RevenueCat App User ID. |
+| Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields. | Complete disposable conflict merges with both queues absent and with the source absent/target leased; claim the resulting target through the normal reconciler and confirm it queries the permanent RevenueCat App User ID. |
 | RevenueCat lock order | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` schedules merge while a stale apply is blocked and requires claim loss without deadlock or state mutation. | Run merge completion and reconciliation apply concurrently in two sessions. Neither may deadlock; a displaced claim must fail closed and the newly due target row must remain claimable. |
 | Community actor lock order | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` schedules the historical group/actor cycle and requires both sessions to finish with exact counts. | Run a normal activity append concurrently with completion for a shared group. Neither session may deadlock, duplicate the actor, or lose a suggestion count. |
 | Ledger error response | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction proves failure leaves both profiles and ownership unchanged. | Introduce controlled ledger drift only in disposable staging, attempt completion, and confirm the proof remains queued while source data remains owned by the guest. |
+| Client proof durability | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy test requires retryable 503 proofs to remain queued. | Force a retryable 503, terminate and relaunch with the permanent session, and confirm the same handoff retries successfully from Keychain. A terminal proof may be removed only without removing another queued handoff. |
 
 After reset, run the owner-only topology assertion explicitly:
 
@@ -3357,6 +3387,15 @@ produce exact source-free ledger state and the correct target distinct-species
 total. After this migration, the current audit script must see protected handoff
 sources and the current cleanup script must reserve each candidate; do not
 execute an older script against production.
+
+After every staging proof in the matrix passes from the reviewed release SHA,
+set the GitHub `Production` environment variable
+`GHOST_MERGE_STAGING_APPROVED_SHA` to that exact lowercase 40-character SHA.
+The workflow rejects a missing, malformed, stale, or different value before the
+Ghost Function predeploy or database mutation. This variable is an operator
+attestation linking the hosted evidence to the release; it is not evidence
+itself. Preserve the test/run artifacts and do not update the variable
+for a later SHA until the complete matrix has been rerun from that SHA.
 
 Only after the release hold, full local gate, and staging proof matrix are all
 green for the same exact SHA, run:
@@ -3406,6 +3445,33 @@ Use disposable staging identities and no real user data:
 
 ### Monitoring and recovery
 
+The **Ghost Profile Merge Health Monitor** runs at minutes 4, 19, 34, and 49 of
+every hour and supports manual dispatch with bounded cleanup thresholds. It uses
+one short-lived, read-only owner connection through the configured session
+pooler or full database URL. The production deployment runs the same monitor
+after its smoke suite. Both paths call
+`services/supabase/scripts/monitor_ghost_profile_merges.ts` and emit aggregate
+counts only. Forward migration
+`20260802025258_index_ghost_merge_health_audits.sql` adds predicate-matched
+recent-receipt and completed-destination indexes so these rolling audits do not
+scan all historical handoffs:
+
+- prepared, merged, and expired receipts created in the last 12 hours;
+- the count and oldest age of committed merges awaiting Auth cleanup;
+- pending cleanup error count; and
+- missing, UUID-misdirected, or unrefreshed destination RevenueCat queues for
+  merges completed in the last 24 hours. An unrefreshed row predates the merge
+  and proves completion did not perform the required unconditional upsert.
+
+The default warning and critical cleanup ages are 20 and 60 minutes. Any
+missing, misdirected, or unrefreshed destination queue is critical. Prepared
+receipts do not by themselves make the monitor unhealthy: confirm retryable
+Edge/client telemetry is draining and that proof-capable clients retain and
+retry their device-only Keychain queue. The JSON and Markdown artifacts must
+never contain handoff IDs, user IDs, proof hashes, or provider subjects. This
+automation does not replace the same-SHA staging matrix or the owner-only
+incident investigation below.
+
 Run these read-only queries from the SQL editor or another owner-only
 operational connection:
 
@@ -3450,7 +3516,8 @@ SELECT
   queue.lookup_app_user_id,
   queue.next_reconcile_at,
   queue.claim_token,
-  queue.last_error_code
+  queue.last_error_code,
+  queue.updated_at
 FROM internal.ghost_profile_merge_handoffs AS handoff
 LEFT JOIN internal.revenuecat_reconciliation_queue AS queue
   ON queue.merian_user_id = handoff.target_user_id
@@ -3459,6 +3526,7 @@ WHERE handoff.status = 'merged'
   AND (
     queue.merian_user_id IS NULL
     OR queue.lookup_app_user_id IS DISTINCT FROM handoff.target_user_id::TEXT
+    OR queue.updated_at < handoff.merged_at
   )
 ORDER BY handoff.merged_at;
 ```
@@ -3468,7 +3536,7 @@ minutes, when cleanup attempts continue increasing, or when Edge logs repeatedly
 emit `ghost_profile_merge_auth_cleanup_pending`,
 `ghost_profile_merge_reconciliation_failed`, or `merge_temporarily_unavailable`.
 Also alert on any row returned by the destination-queue audit above; do not wait
-for a webhook to repair a missing or misdirected target queue.
+for a webhook to repair a missing, misdirected, or unrefreshed target queue.
 Investigate the Auth Admin API and database error before manually retrying the
 worker. Do not edit `secret_hash`, `target_user_id`, or receipt status by hand.
 

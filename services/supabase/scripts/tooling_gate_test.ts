@@ -461,6 +461,111 @@ Deno.test("production deploy fences the separate scan-recovery migration transac
   );
 });
 
+Deno.test("production deploy predeploys the Ghost mapper before Ghost migrations", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+
+  for (
+    const requiredFragment of [
+      "ghost_merge_predeploy_required=false",
+      ":(glob,top)services/supabase/migrations/*ghost*merge*.sql",
+      ":(top)services/supabase/functions/merge-ghost-profile",
+      ":(top)services/supabase/functions/reconcile-ghost-profile-merges",
+      'echo "ghost_merge_predeploy_required=$ghost_merge_predeploy_required" >> "$GITHUB_OUTPUT"',
+      "if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'",
+    ]
+  ) {
+    assert(
+      workflow.includes(requiredFragment),
+      `Ghost merge compatibility fence is missing: ${requiredFragment}`,
+    );
+  }
+
+  const enabledBranches =
+    workflow.match(/ghost_merge_predeploy_required=true/g)?.length ?? 0;
+  assert(
+    enabledBranches >= 3,
+    "Manual, Ghost-diff, and unsafe-baseline paths must all predeploy the Ghost mapper.",
+  );
+
+  const predeployIndex = workflow.indexOf(
+    "- name: Deploy Ghost merge mapper before Ghost merge migrations",
+  );
+  const databasePushIndex = workflow.indexOf(
+    "- name: Push Database Migrations",
+  );
+  const finalDeployIndex = workflow.indexOf(
+    "- name: Deploy affected Edge Functions",
+  );
+  assert(
+    predeployIndex >= 0 &&
+      databasePushIndex > predeployIndex &&
+      finalDeployIndex > databasePushIndex,
+    "The Ghost mapper and cleanup worker must deploy before Ghost migrations; the cumulative exact-SHA plan deploys afterward.",
+  );
+
+  const predeployEnd = workflow.indexOf(
+    "\n      - name:",
+    predeployIndex + 1,
+  );
+  assert(predeployEnd > predeployIndex);
+  const predeployBlock = workflow.slice(predeployIndex, predeployEnd);
+  for (
+    const functionName of [
+      "merge-ghost-profile",
+      "reconcile-ghost-profile-merges",
+    ]
+  ) {
+    assert(
+      predeployBlock.includes(functionName),
+      `Ghost compatibility predeploy is missing ${functionName}.`,
+    );
+  }
+  assertMatch(
+    predeployBlock,
+    /deploy_function_batches\.sh[\s\S]*"\$ghost_merge_plan"[\s\S]*"\$PROJECT_ID"/,
+  );
+});
+
+Deno.test("production deploy requires exact-SHA Ghost staging approval", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+
+  for (
+    const requiredFragment of [
+      "- name: Enforce Ghost merge same-SHA staging approval",
+      "if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'",
+      "GHOST_MERGE_STAGING_APPROVED_SHA: ${{ vars.GHOST_MERGE_STAGING_APPROVED_SHA }}",
+      '[[ ! "$approved_sha" =~ ^[0-9a-f]{40}$ ]]',
+      '[ "$approved_sha" != "$RELEASE_SHA" ]',
+      "only after the complete staging proof matrix passes",
+    ]
+  ) {
+    assert(
+      workflow.includes(requiredFragment),
+      `Ghost staging approval fence is missing: ${requiredFragment}`,
+    );
+  }
+
+  const planIndex = workflow.indexOf(
+    "- name: Plan affected Edge Function deployment",
+  );
+  const approvalIndex = workflow.indexOf(
+    "- name: Enforce Ghost merge same-SHA staging approval",
+  );
+  const ghostPredeployIndex = workflow.indexOf(
+    "- name: Deploy Ghost merge mapper before Ghost merge migrations",
+  );
+  const databasePushIndex = workflow.indexOf(
+    "- name: Push Database Migrations",
+  );
+  assert(
+    planIndex >= 0 &&
+      approvalIndex > planIndex &&
+      ghostPredeployIndex > approvalIndex &&
+      databasePushIndex > ghostPredeployIndex,
+    "Exact-SHA staging approval must pass before the Ghost predeploy and database mutation.",
+  );
+});
+
 Deno.test("production deploy reports aggregate Explore publication health", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
   const synchronizeIndex = workflow.indexOf(

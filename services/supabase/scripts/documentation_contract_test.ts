@@ -3376,6 +3376,10 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
       source,
       "20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql",
     );
+    assertStringIncludes(
+      source,
+      "20260802025258_index_ghost_merge_health_audits.sql",
+    );
     assertStringIncludes(source, "2.109.1");
   }
 
@@ -3385,11 +3389,25 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
       "--allow-env=SUPABASE_DB_TEST_URL,PGAPPNAME,PGDATABASE,PGHOST,PGOPTIONS,PGPASSWORD,PGPORT,PGUSER",
     );
     assertStringIncludes(source, "--allow-net=127.0.0.1:54322");
+    assertStringIncludes(source, "--level warning --fail-on warning");
+    assertEquals(
+      source.match(/--level warn --fail-on warn/g)?.length,
+      2,
+      "security and performance advisor commands must both fail on warnings",
+    );
+  }
+
+  for (const source of [backend, functionReadme, runbook, incident]) {
+    assertStringIncludes(source, "predeploy");
+    assertStringIncludes(source, "before `db push`");
+    assertStringIncludes(source, "GHOST_MERGE_STAGING_APPROVED_SHA");
+    assertStringIncludes(source, "not evidence itself");
   }
 
   for (
     const fragment of [
       "ghostProfileMergeConcurrencyDb.test.ts",
+      "ghostProfileMergeClientContract.test.ts",
       "user_species_scan_count_underflow",
       "merge_temporarily_unavailable",
       "The release hold remains",
@@ -3412,6 +3430,35 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
 
   assertStringIncludes(changelog, "durable RevenueCat destination repair");
   assertStringIncludes(changelog, "staging proof matrix");
+  assertStringIncludes(changelog, "privacy-safe post-deploy and scheduled");
+  for (
+    const fragment of [
+      "Ghost Profile Merge Health Monitor",
+      "monitor_ghost_profile_merges.ts",
+      "aggregate counts only",
+      "unrefreshed destination RevenueCat",
+      "do not by themselves make the monitor unhealthy",
+      "does not replace the same-SHA staging matrix",
+    ]
+  ) {
+    assertStringIncludes(`${functionReadme} ${runbook}`, fragment);
+  }
+  assertStringIncludes(
+    incident,
+    "does not satisfy the required 12-hour hosted audit yet",
+  );
+  assertStringIncludes(
+    incident,
+    "proving repeated executions but not the client-side mechanism",
+  );
+  assertStringIncludes(
+    incident,
+    "does not prove a same-client retry",
+  );
+  assertStringIncludes(
+    incident,
+    "Deployment status is unverified from this environment",
+  );
   assertStringIncludes(
     incident,
     "retains HTTP 503 `merge_temporarily_unavailable` proofs",

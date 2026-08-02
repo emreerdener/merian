@@ -1,0 +1,123 @@
+name: Ghost Profile Merge Health Monitor
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub scheduled jobs may be delayed under load.
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+    inputs:
+      cleanup_warning_after_minutes:
+        description: Oldest pending Auth cleanup age that produces a warning.
+        required: true
+        default: "20"
+        type: choice
+        options:
+          - "10"
+          - "20"
+          - "30"
+      cleanup_critical_after_minutes:
+        description: Oldest pending Auth cleanup age that produces a critical result.
+        required: true
+        default: "60"
+        type: choice
+        options:
+          - "45"
+          - "60"
+          - "90"
+      fail_on:
+        description: Monitor severity that should fail the workflow.
+        required: true
+        default: warning
+        type: choice
+        options:
+          - warning
+          - critical
+          - never
+
+concurrency:
+  group: ghost-profile-merge-health-monitor
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: Production
+
+    env:
+      PROJECT_ID: qlarqavoqhkuwzmevrmf
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.9.4
+
+      - name: Run aggregate Ghost profile merge health audit
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_POOLER_HOST: ${{ secrets.SUPABASE_DB_POOLER_HOST }}
+          SUPABASE_DB_POOLER_PORT: ${{ vars.SUPABASE_DB_POOLER_PORT }}
+          SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+          INPUT_CLEANUP_WARNING_AFTER_MINUTES: ${{ inputs.cleanup_warning_after_minutes || '20' }}
+          INPUT_CLEANUP_CRITICAL_AFTER_MINUTES: ${{ inputs.cleanup_critical_after_minutes || '60' }}
+          INPUT_FAIL_ON: ${{ inputs.fail_on || 'warning' }}
+        run: |
+          database_url="$(bash scripts/supabase-db-url.sh --require)"
+          echo "::add-mask::$database_url"
+          database_endpoint="$(
+            MERIAN_DATABASE_URL="$database_url" python3 -c \
+              'import os; from urllib.parse import urlsplit; url = urlsplit(os.environ["MERIAN_DATABASE_URL"]); print(f"{url.hostname}:{url.port or 5432}")'
+          )"
+          if [ -z "$database_endpoint" ] || [[ "$database_endpoint" == None:* ]]; then
+            echo "Unable to resolve the configured database endpoint."
+            exit 1
+          fi
+
+          summary_json="${RUNNER_TEMP}/ghost-profile-merge-health.json"
+          summary_md="${RUNNER_TEMP}/ghost-profile-merge-health.md"
+          warning_after="${INPUT_CLEANUP_WARNING_AFTER_MINUTES:-20}"
+          critical_after="${INPUT_CLEANUP_CRITICAL_AFTER_MINUTES:-60}"
+          fail_on="${INPUT_FAIL_ON:-warning}"
+
+          set +e
+          MERIAN_DATABASE_URL="$database_url" deno run --frozen \
+            --config services/supabase/functions/deno.json \
+            --allow-net="$database_endpoint" \
+            --allow-env=MERIAN_DATABASE_URL \
+            --allow-write="$RUNNER_TEMP" \
+            services/supabase/scripts/monitor_ghost_profile_merges.ts \
+            --cleanup-warning-after-minutes "$warning_after" \
+            --cleanup-critical-after-minutes "$critical_after" \
+            --fail-on "$fail_on" \
+            --summary-json "$summary_json" \
+            --summary-md "$summary_md"
+          exit_code=$?
+          set -e
+          unset database_url
+
+          if [ -f "$summary_md" ]; then
+            cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$exit_code"
+
+      - name: Upload Ghost profile merge health summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ghost-profile-merge-health-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ghost-profile-merge-health.json
+            ${{ runner.temp }}/ghost-profile-merge-health.md
+          if-no-files-found: warn
+          retention-days: 30
