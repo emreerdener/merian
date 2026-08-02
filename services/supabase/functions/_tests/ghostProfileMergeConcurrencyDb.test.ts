@@ -151,9 +151,8 @@ async function waitUntilBlocked(
 
 async function configureTransaction(client: Client): Promise<void> {
   await client.queryArray("BEGIN");
-  await client.queryArray(
-    "SELECT pg_catalog.SET_CONFIG('deadlock_timeout', '100ms', TRUE)",
-  );
+  // lock_timeout bounds a regressed schedule without requiring elevated SET
+  // privileges for deadlock_timeout on the disposable database role.
   await client.queryArray(
     "SELECT pg_catalog.SET_CONFIG('lock_timeout', '4s', TRUE)",
   );
