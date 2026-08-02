@@ -410,12 +410,15 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
   const ghostMergeMonitor = sources.get(
     "ghost-profile-merge-health-monitor.yml",
   ) ?? "";
+  const deployWorkflow = sources.get("deploy.yml") ?? "";
   assertStringIncludes(ghostMergeMonitor, "persist-credentials: false");
   assertStringIncludes(ghostMergeMonitor, '--allow-net="$database_endpoint"');
-  assertStringIncludes(
-    ghostMergeMonitor,
-    "--allow-env=MERIAN_DATABASE_URL",
-  );
+  for (const source of [ghostMergeMonitor, deployWorkflow]) {
+    assertStringIncludes(
+      source,
+      '--allow-env="MERIAN_DATABASE_URL,PG*"',
+    );
+  }
   assertStringIncludes(ghostMergeMonitor, '--allow-write="$RUNNER_TEMP"');
   assertStringIncludes(
     ghostMergeMonitor,

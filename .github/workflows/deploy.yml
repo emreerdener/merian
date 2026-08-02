@@ -1372,7 +1372,7 @@ jobs:
           deno run --frozen \
             --config supabase/functions/deno.json \
             --allow-net="$database_endpoint" \
-            --allow-env=MERIAN_DATABASE_URL \
+            --allow-env="MERIAN_DATABASE_URL,PG*" \
             --allow-write="$RUNNER_TEMP" \
             supabase/scripts/monitor_ghost_profile_merges.ts \
             --cleanup-warning-after-minutes 20 \
