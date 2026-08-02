@@ -43,7 +43,7 @@ jobs:
           cache-dependency-path: apps/admin/package-lock.json
 
       - name: Install frozen dependencies
-        run: npm ci
+        run: npm ci --include=dev
 
       - name: Audit dependencies
         run: npm run audit:dependencies

@@ -62,18 +62,18 @@ npm run dev
 Before opening a pull request or deploying:
 
 ```bash
-npm ci
+npm ci --include=dev
 npm run audit:dependencies
 npm test
 npm run typecheck
 npm run build
 ```
 
-`.github/workflows/admin-quality.yml` runs `npm ci` followed by that complete
-sequence for every pull request and every affected `main` push. It deliberately
-reports on every pull request so GitHub can require a stable check without
-path-filtered changes remaining pending. The currently protected graph pins
-Next.js 16.2.12 and PostCSS 8.5.25 and overrides Next.js's private Sharp
+`.github/workflows/admin-quality.yml` runs `npm ci --include=dev` followed by
+that complete sequence for every pull request and every affected `main` push. It
+deliberately reports on every pull request so GitHub can require a stable check
+without path-filtered changes remaining pending. The currently protected graph
+pins Next.js 16.2.12 and PostCSS 8.5.25 and overrides Next.js's private Sharp
 dependency to 0.35.3. `lib/dependency-security.test.ts`
 rejects a lockfile below those floors or a workflow that drops or reorders the
 frozen install, blocking audit, tests, type-check, and production build. Keep

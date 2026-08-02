@@ -100,6 +100,12 @@ test("Next.js transitive security overrides remain explicit", () => {
   });
 });
 
+test("the admin build installs its pinned TypeScript compiler API", () => {
+  assert.equal(packageManifest.devDependencies?.typescript, "5.9.3");
+  assert.deepEqual(packageVersions("typescript"), ["5.9.3"]);
+  assert.match(adminQualityWorkflow, /run: npm ci --include=dev/);
+});
+
 test("admin quality gates the frozen graph before test, type-check, and build", () => {
   assert.equal(
     packageManifest.scripts?.["audit:dependencies"],

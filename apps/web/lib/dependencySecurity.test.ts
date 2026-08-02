@@ -11,6 +11,7 @@ type PackageLock = {
 };
 
 type PackageManifest = {
+  devDependencies?: Record<string, string>;
   scripts?: Record<string, string>;
   overrides?: {
     next?: Record<string, string>;
@@ -76,6 +77,12 @@ test("Next transitive security overrides remain explicit", () => {
     postcss: "8.5.25",
     sharp: "0.35.3",
   });
+});
+
+test("the Next build uses the pinned TypeScript compiler API", () => {
+  assert.equal(packageManifest.devDependencies?.typescript, "6.0.3");
+  assert.deepEqual(packageVersions("typescript"), ["6.0.3"]);
+  assert.match(webQualityWorkflow, /run: npm ci --include=dev/);
 });
 
 test("web quality runs the blocking dependency audit after frozen install", () => {

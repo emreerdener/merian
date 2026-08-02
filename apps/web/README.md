@@ -233,7 +233,7 @@ Configure the Vercel project as a monorepo app:
 - **Root Directory**: `apps/web`
 - **Framework Preset**: Next.js
 - **Build Command**: `npm run build`
-- **Install Command**: `npm ci`
+- **Install Command**: `npm ci --include=dev`
 - **Canonical production domain**: `naturebook.earth`
 - **Redirect aliases**: `naturebook.app`, `www.naturebook.app`,
   `www.naturebook.earth`, `merian.earth`, and `www.merian.earth`
@@ -294,9 +294,10 @@ npm run build
 npm run audit:dependencies
 ```
 
-`.github/workflows/web-quality.yml` runs a frozen install, a registry-backed
-dependency audit that blocks high and critical findings, unit tests, TypeScript,
-and a production build when the web route, its security helpers, the waitlist
+`.github/workflows/web-quality.yml` runs a frozen install that explicitly
+includes the pinned TypeScript build toolchain, a registry-backed dependency
+audit that blocks high and critical findings, unit tests, TypeScript, and a
+production build when the web route, its security helpers, the waitlist
 migration, or the workflow changes. A registry outage is a failed security gate,
 not an implicit pass.
 
