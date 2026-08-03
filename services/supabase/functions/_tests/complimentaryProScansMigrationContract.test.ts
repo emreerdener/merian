@@ -119,6 +119,27 @@ Deno.test("reservation and settlement keep credit linkage separate from provider
   );
 });
 
+Deno.test("ledger transitions cannot predate wall-clock hold creation", async () => {
+  const sql = compact(await Deno.readTextFile(migrationUrl));
+  assertEquals(
+    (sql.match(/settlement_now := pg_catalog[.]CLOCK_TIMESTAMP[(][)]/g) ?? [])
+      .length,
+    2,
+  );
+  for (
+    const fragment of [
+      "settled_at = settlement_now",
+      "updated_at = settlement_now",
+      "merge_now := pg_catalog.CLOCK_TIMESTAMP()",
+      "settled_at = merge_now",
+      "updated_at = merge_now",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+  assertEquals(sql.includes("settled_at = pg_catalog.NOW()"), false);
+});
+
 Deno.test("all complimentary mutations acquire the user lock before quota, job, scan, and ledger locks", async () => {
   const sql = compact(await Deno.readTextFile(migrationUrl));
   const reservation = routineSection(

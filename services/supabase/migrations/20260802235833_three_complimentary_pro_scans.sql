@@ -1033,6 +1033,7 @@ AS $$
 DECLARE
     usage_released BOOLEAN := FALSE;
     entitlement_after RECORD;
+    settlement_now TIMESTAMPTZ;
 BEGIN
     PERFORM internal.require_service_role();
 
@@ -1064,6 +1065,7 @@ BEGIN
         p_user_id::TEXT || ':' || p_scan_id::TEXT,
         TRUE
     );
+    settlement_now := pg_catalog.CLOCK_TIMESTAMP();
 
     UPDATE public.scan_ingestion_jobs AS jobs
     SET status = 'failed_terminal',
@@ -1074,16 +1076,16 @@ BEGIN
         locked_at = NULL,
         lock_expires_at = NULL,
         completed_at = NULL,
-        updated_at = pg_catalog.NOW()
+        updated_at = settlement_now
     WHERE jobs.scan_id = p_scan_id::TEXT
       AND jobs.user_id = p_user_id
       AND jobs.status NOT IN ('complete', 'failed_terminal');
 
     UPDATE internal.complimentary_scan_usage AS usage
     SET state = 'released',
-        settled_at = pg_catalog.NOW(),
+        settled_at = settlement_now,
         settlement_reason = p_terminal_reason_code,
-        updated_at = pg_catalog.NOW()
+        updated_at = settlement_now
     WHERE usage.user_id = p_user_id
       AND usage.client_scan_id = p_scan_id
       AND usage.state = 'held';
@@ -1159,6 +1161,7 @@ DECLARE
     enriched_response JSONB;
     stored_response JSONB;
     response_is_required BOOLEAN;
+    settlement_now TIMESTAMPTZ;
 BEGIN
     PERFORM internal.require_service_role();
 
@@ -1247,27 +1250,28 @@ BEGIN
     WHERE usage.user_id = p_user_id
       AND usage.client_scan_id = p_scan_id
     FOR UPDATE;
+    settlement_now := pg_catalog.CLOCK_TIMESTAMP();
 
     IF FOUND AND usage_row.state = 'held' THEN
         IF app_user.subscription_tier =
                 'pro'::public.subscription_tier_enum
            AND (
                 app_user.subscription_expires_at IS NULL
-                OR app_user.subscription_expires_at > pg_catalog.NOW()
+                OR app_user.subscription_expires_at > settlement_now
            ) THEN
             UPDATE internal.complimentary_scan_usage AS usage
             SET state = 'released',
-                settled_at = pg_catalog.NOW(),
+                settled_at = settlement_now,
                 settlement_reason = 'paid_before_completion',
-                updated_at = pg_catalog.NOW()
+                updated_at = settlement_now
             WHERE usage.user_id = p_user_id
               AND usage.client_scan_id = p_scan_id;
         ELSE
             UPDATE internal.complimentary_scan_usage AS usage
             SET state = 'consumed',
-                settled_at = pg_catalog.NOW(),
+                settled_at = settlement_now,
                 settlement_reason = 'durable_result_complete',
-                updated_at = pg_catalog.NOW()
+                updated_at = settlement_now
             WHERE usage.user_id = p_user_id
               AND usage.client_scan_id = p_scan_id;
             credit_consumed := TRUE;
@@ -1343,7 +1347,7 @@ BEGIN
         updated_at = CASE
             WHEN jobs.response_envelope IS NULL
               OR NOT jobs.response_envelope ? 'entitlement'
-                THEN pg_catalog.NOW()
+                THEN settlement_now
             ELSE jobs.updated_at
         END
     WHERE jobs.scan_id = p_scan_id::TEXT
@@ -1872,6 +1876,7 @@ SET statement_timeout = '10s'
 AS $$
 DECLARE
     source_usage_count INTEGER;
+    merge_now TIMESTAMPTZ;
 BEGIN
     IF p_ghost_user_id IS NULL
        OR p_target_user_id IS NULL
@@ -1897,6 +1902,7 @@ BEGIN
     )
     ORDER BY usage.user_id, usage.client_scan_id
     FOR UPDATE;
+    merge_now := pg_catalog.CLOCK_TIMESTAMP();
 
     -- Resolve only duplicate original analyses. Distinct consumed rows from
     -- both profiles remain historical evidence; derived balances clamp the
@@ -1927,7 +1933,7 @@ BEGIN
                 ),
                 target_usage.settled_at,
                 source_usage.settled_at,
-                pg_catalog.NOW()
+                merge_now
             )
         END,
         settlement_reason = CASE
@@ -1950,7 +1956,7 @@ BEGIN
             target_usage.created_at,
             source_usage.created_at
         ),
-        updated_at = pg_catalog.NOW()
+        updated_at = merge_now
     FROM internal.complimentary_scan_usage AS source_usage
     WHERE target_usage.user_id = p_target_user_id
       AND source_usage.user_id = p_ghost_user_id
@@ -1964,7 +1970,7 @@ BEGIN
 
     UPDATE internal.complimentary_scan_usage AS usage
     SET user_id = p_target_user_id,
-        updated_at = pg_catalog.NOW()
+        updated_at = merge_now
     WHERE usage.user_id = p_ghost_user_id;
 
     -- A merge combines history, not grants. Keep only the oldest in-flight
@@ -1991,9 +1997,9 @@ BEGIN
     )
     UPDATE internal.complimentary_scan_usage AS usage
     SET state = 'released',
-        settled_at = pg_catalog.NOW(),
+        settled_at = merge_now,
         settlement_reason = 'ghost_merge_grant_cap',
-        updated_at = pg_catalog.NOW()
+        updated_at = merge_now
     FROM ranked_holds
     WHERE usage.user_id = p_target_user_id
       AND usage.client_scan_id = ranked_holds.client_scan_id
