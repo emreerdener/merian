@@ -42,7 +42,7 @@ struct ModelTierBadge: View {
             paywallButton(text: proScansRemainingText)
         } else if !isSubscribed,
                   isComplimentaryExhausted {
-            paywallButton(text: "All 3 Pro scans used — upgrade")
+            paywallButton(text: label)
         } else if !isProActive, let score = confidenceScore {
             let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
             if score >= bands.possible && score < bands.strong {

@@ -81,7 +81,7 @@ the normal result of retrying a completed scan.
 ## Complimentary Entitlement
 
 After the atomic entitlement cutover, every public request must include
-`X-Merian-Entitlement-Protocol: 2`. A missing or obsolete protocol returns
+`X-Merian-Entitlement-Protocol: 3`. A missing or obsolete protocol returns
 `426 client_update_required` before provider dispatch. An authenticated
 service-role replay may omit the public header, but it must preserve the
 original `client_scan_id` and analysis linkage.

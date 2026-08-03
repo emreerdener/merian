@@ -14,6 +14,23 @@ cards are server-backed and are intentionally not cached in SwiftData.
 
 ## Offline Scan Durability Boundary
 
+Admission is durable state, not a read of an entitlement boolean. Before this
+layer writes capture files or allows foreground inference, `EntitlementManager`
+claims an account/scan-keyed `ScanFundingReservation`. The corresponding
+`OfflineJobRecord.metadataJSON` can contain both `funding_reservation` and
+`inference_generation`; property-specific helpers preserve the other value
+during generation handoff or funding reclassification. Relaunch restores
+nonterminal claims and conservatively treats active pre-protocol-3 jobs without
+funding metadata as potential complimentary blockers.
+
+A proven pre-dispatch local failure first removes the funding payload and saves
+`funding_reservation_released: true` while preserving unrelated metadata. If
+that save fails, the reservation remains in memory and capacity stays blocked.
+An explicit retry of a released job derives exact Flash eligibility from the
+persisted capture timeline and makes a new synchronous funding claim before it
+clears needs-attention. Ambiguous network outcomes never use this local release
+path.
+
 A completed background PUT is evidence for one upload member, not permission to
 start analysis. The generation accumulator must equal the duplicate-free exact
 expected key set; missing, extra, or duplicate manifest members fail closed.

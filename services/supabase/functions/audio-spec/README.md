@@ -18,7 +18,7 @@ insert so account retirement or merge cannot be crossed silently.
 
 ## Authoritative AI Quota
 
-After cutover, public callers must send `X-Merian-Entitlement-Protocol: 2`;
+After cutover, public callers must send `X-Merian-Entitlement-Protocol: 3`;
 otherwise the route returns `426 client_update_required` before provider work.
 An authenticated internal replay bypasses only this header check and preserves
 the original analysis linkage. A single standalone-audio request is

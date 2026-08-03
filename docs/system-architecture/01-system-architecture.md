@@ -252,7 +252,9 @@ single-responsibility functions under `/services/supabase/functions/`.
     proxy memory.
 - **Data Lifecycle & Offline Sync**
   - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the
-    Postgres single source of truth.
+    Postgres source of truth through an atomic owner-admitting collection RPC
+    and an owner-joined membership RPC. Foreign collection IDs and unavailable
+    scans are skipped; cross-owner rows cannot be reparented or inserted.
   - `/delete-scan`: Owner-bound fast path that fences the scan generation before
     Cloudflare R2 and database erasure. Storage signing additionally requires
     the canonical owner UUID in a flat free/Pro object key; prefix-only

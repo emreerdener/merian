@@ -84,6 +84,18 @@ actor InferenceProcessingActor {
                         metadata.planUsed,
                         scanId: scanId
                     )
+                    EntitlementManager.shared.recordCompletedFunding(
+                        planUsed: metadata.planUsed,
+                        creditConsumed: metadata.creditConsumed,
+                        scanId: scanId
+                    )
+                    Task { @MainActor in
+                        await OfflineQueueManager.shared
+                            .reconcileDeferredFundingReservations()
+                        OfflineQueueManager.shared.syncPendingScans()
+                        OfflineQueueManager.shared
+                            .replayInferenceForUploadedScans()
+                    }
                 }
             }
         }

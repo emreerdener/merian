@@ -572,7 +572,10 @@ ledger terminology remain internal.
 Storefront pricing and paid-product eligibility ultimately come from the store
 and RevenueCat; fixed display strings must be audited before release in every
 region. The complimentary offer becomes current only after the schema,
-protocol-2 client, and backend pass the documented atomic cutover.
+reservation-safe protocol-3 client, and backend pass the documented atomic
+cutover. Before that cutover, complimentary availability is never an offline
+authorization snapshot: the client serializes one stable scan/account funding
+claim and subtracts unresolved local claims from verified server capacity.
 
 ## 8.3 Pro capability set
 

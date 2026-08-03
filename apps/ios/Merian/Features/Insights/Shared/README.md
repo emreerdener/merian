@@ -14,8 +14,9 @@ shows exhaustion and the upgrade action on that result; it does not hide or
 redact the stored Pro content.
 
 The customer-facing pill reads “3 Pro scans remain” or “1 Pro scan remains”; it
-never displays the internal word “complimentary.” The exhausted pill reads “All
-3 Pro scans used — upgrade.”
+never displays the internal word “complimentary.” Once exhausted, the pill
+reuses `ModelTierBadge`'s existing upgrade label, which defaults to “Upgrade for
+advanced analysis.”
 
 Results and Settings are the only countdown surfaces. Capture and public
 profile/Explore badges do not expose complimentary status, and paid accounts do

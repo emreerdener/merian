@@ -837,8 +837,8 @@ API responses for:
 
 Do not recover availability by granting the RPCs to `authenticated`, lowering
 caller checks, restoring a process-local cache, or treating database failure as
-functional Pro. If a partial function deployment leaves an older unguarded provider
-route live, stop the release and fail provider access closed (including
+functional Pro. If a partial function deployment leaves an older unguarded
+provider route live, stop the release and fail provider access closed (including
 temporarily removing the provider secret if necessary) until every affected
 route is on the guarded bundle. Fix forward; keep the quota schema and durable
 reservation evidence.
@@ -4620,43 +4620,86 @@ Expired-counter maintenance is capped at 500 rows per call and uses
 `FOR UPDATE SKIP LOCKED`; lock-timeout alerts should be investigated rather than
 worked around by raising the public request limits.
 
+## Security and Reliability Remediation Rollout
+
+The joined implementation contract, evidence boundary, and monitor definitions
+are in
+[`19-security-and-reliability-remediation-2026-08-03.md`](./19-security-and-reliability-remediation-2026-08-03.md).
+Repository tests are not proof that production has been promoted; capture the
+exact deployed SHA and live smoke evidence for each phase.
+
+1. Replay the complete migration fleet and pgTAP catalog. Apply
+   `20260803180211_harden_collection_ownership_and_memberships.sql` before
+   deploying `sync-collections`. Verify foreign collection IDs are skipped and
+   never reparented, cross-owner memberships fail through the RPC, direct
+   service access, and authenticated RLS, table-wide service-role owner updates
+   fail, and the reviewed Ghost merge still reparents in one transaction.
+2. Apply `20260803181936_add_reservation_safe_entitlement_protocol.sql`, then
+   deploy the protocol-2/3-compatible entitlement and `check-scan-status` Edge
+   changes while the required protocol remains unchanged. Follow the dedicated
+   entitlement sequence below before requiring protocol 3.
+3. Deploy the admin callback and public-web canonical redirect helpers. Verify
+   valid internal paths preserve their intended query/hash behavior, while
+   absolute, protocol-relative, slash/backslash, recursively encoded separator,
+   and hostile Host-header cases remain on the configured admin or canonical
+   origin.
+4. Deploy taxonomy checkpointing independently. Prove that a raw nonempty page
+   with zero normalized taxa checkpoints and continues, a terminal raw empty
+   page stops, a later failure resumes after the prior checkpoint, dry runs
+   write nothing, and an all-empty run skips coverage refresh.
+
+Upload compatibility is intentionally ordered: first distribute the iOS build
+that applies every response-declared `requiredHeaders` value, then deploy exact
+`Content-Length`/`Content-Type` signing and legacy-manifest rejection in
+`generate-upload-urls`. Do not reverse those two steps. The release smoke must
+perform an exact signed PUT, reject a changed size and MIME type, and confirm by
+`HEAD` that the stored object length equals the signing-time declaration.
+
+During rollout, monitor rejected/skipped collection IDs, R2 signature failures,
+the oldest deferred-funding reservation age, `402` and `426` rates by client
+protocol, and fetched taxonomy pages with a zero normalized count. A rise in any
+signal is a release hold until ownership, request headers, reservation ordering,
+or checkpoint progress is verified.
+
 ## Complimentary Pro Scan Entitlement Rollout
 
-Treat the complimentary-entitlement schema, protocol-2 backend, protocol-2 iOS
-build, and atomic cutover as one ordered release. Do not enable protocol 2 when
-the migration is applied.
+Treat the complimentary-entitlement schema, protocol-3-compatible backend,
+reservation-safe protocol-3 iOS build, and atomic cutover as one ordered
+release. Do not require protocol 3 when the migration is applied.
 
 The normative product, ledger, balance, settlement, security, merge, and client
-contract is
-[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md). This section
-is the operator sequence; neither document independently authorizes deployment.
+contract is [`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
+This section is the operator sequence; neither document independently authorizes
+deployment.
 
 1. Use the repository-pinned Supabase CLI `2.109.1`. Run
    `make validate-supabase-migrations`,
    `make test-supabase-privileged-routines`, `make test-supabase-tooling`, the
    database advisors, the complete Edge suite, DTO validation, and the full iOS
    simulator/archive gates against a disposable catalog.
-2. Apply `20260802235833_three_complimentary_pro_scans.sql`, deploy the
+2. Apply `20260802235833_three_complimentary_pro_scans.sql` and
+   `20260803181936_add_reservation_safe_entitlement_protocol.sql`, deploy the
    dual-mode Edge functions, and deploy the admin aggregate/UI while
    `internal.entitlement_rollout_config` remains `legacy_trial` with
    `required_client_protocol = 0`. Verify current clients retain legacy
-   behavior, protocol-2 clients accept entitlement metadata, historical success
-   envelopes without metadata still decode, and the private ledger/config have
-   no direct API-role ACLs.
-3. Distribute a TestFlight build that sends `X-Merian-Entitlement-Protocol: 2`
+   behavior, supported protocol-2 and protocol-3 clients accept entitlement
+   metadata, historical success envelopes without metadata still decode, and the
+   private ledger/config have no direct API-role ACLs.
+3. Distribute a TestFlight build that sends `X-Merian-Entitlement-Protocol: 3`
    on `identify`, `identify-describe`, `identify-multimodal`, and `audio-spec`.
    Verify all four routes, internal replay, online/offline entitlement behavior,
    cold-launch buffering of replayed historical metadata, stale-response
-   rejection, the third-result persistence path, Flash fallback, and paid-only
+   rejection, local complimentary reservation/deferred ordering, relaunch
+   restoration, the third-result persistence path, Flash fallback, and paid-only
    badges.
 4. In one owner-authorized transaction, run
    `services/supabase/scripts/cutover_complimentary_entitlements.sql`. Confirm
-   the singleton row is now `complimentary` with `required_client_protocol = 2`,
+   the singleton row is now `complimentary` with `required_client_protocol = 3`,
    its `mode_version` advanced, no current resolver emits `pro_trial`, and an
    obsolete public client receives `426 client_update_required` before provider
    dispatch. Authenticated internal replay must continue to bypass only the
    public protocol fence while retaining its original analysis linkage.
-5. Expire older TestFlight builds only after the protocol-2 build is verified.
+5. Expire older TestFlight builds only after the protocol-3 build is verified.
    This is distribution cleanup, not the compatibility boundary: Apple's
    [TestFlight guidance](https://developer.apple.com/help/app-store-connect/test-a-beta-version/stop-testing-a-build)
    describes expiration as preventing further installs, while server-side
@@ -5243,6 +5286,13 @@ exact legacy service-role fallback) at runtime and constructs
 `https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref, so operators do
 not need to paste server credentials locally.
 
+The live call is still required when a fetched raw page is nonempty but every
+row normalizes out: that page must advance the stored cursor and the worker must
+continue. An all-empty run correctly performs no coverage refresh. Compare the
+response `next_offset` with the coverage status cursor after each first-page
+smoke; omit an explicit offset during ordinary continuation so the stored cursor
+is exercised.
+
 For routine runs after the first clean production import, `dry_run = false` is
 acceptable. The workflow uploads a JSON/Markdown summary artifact for every run
 and, when `update_checklist = true`, commits
@@ -5665,7 +5715,11 @@ After deployment:
   evidence, then verify composer/share payloads preserve `has_audio = true` and
   `false` respectively.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
-  request without advancing `taxonomy_coverage_targets.next_import_offset`.
+  request without advancing `taxonomy_coverage_targets.next_import_offset`,
+  while its returned simulated `next_offset` advances. In a disposable or
+  mocked staging case, also prove a raw nonempty/normalized-empty live page
+  checkpoints and fetches the following page, and that an all-empty run does not
+  refresh coverage.
 - Smoke-test `/insight-chat` with `action: "load"` and
   `action:
   "suggest_prompts"` against an owned completed biological scan.

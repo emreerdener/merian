@@ -93,7 +93,8 @@ Bulk probes use the same fields per scan and are capped at 50 entries:
   "job_stage": null,
   "job_attempt_count": null,
   "retry_after": null,
-  "last_error": null
+  "last_error": null,
+  "complimentary_state": "consumed"
 }
 ```
 
@@ -106,7 +107,8 @@ or:
   "job_stage": "video_promotion_started",
   "job_attempt_count": 1,
   "retry_after": null,
-  "last_error": null
+  "last_error": null,
+  "complimentary_state": "held"
 }
 ```
 
@@ -122,7 +124,8 @@ Bulk responses include the probed scan id on each result:
       "job_stage": null,
       "job_attempt_count": null,
       "retry_after": null,
-      "last_error": null
+      "last_error": null,
+      "complimentary_state": "consumed"
     }
   ]
 }
@@ -131,6 +134,18 @@ Bulk responses include the probed scan id on each result:
 ## Rules
 
 - Requires an authenticated user through `withEdgeHandler`.
+- `complimentary_state` is additive and is `held`, `consumed`, `released`, or
+  `null`. Bulk requests obtain all requested values through one
+  `get_complimentary_scan_states_service(p_user_id, p_scan_ids)` call, capped at
+  50 IDs. The service-only definer uses an empty search path, checks service
+  authority in its body, joins ledger rows to the authenticated owner supplied
+  by Edge, and has explicit `service_role`-only execute ACL.
+- This state read does not refresh the public entitlement snapshot. A terminal
+  `consumed` value proves settlement, but iOS must keep its local blocker until a
+  later successful `get_my_entitlement()` proves the installed balance includes
+  it. A terminal `released` value—or `null` after terminalization—also requires
+  an authoritative entitlement refresh before deferred work is reclassified.
+  Nonterminal absence remains uncertainty and cannot create capacity.
 - `scan_id` must belong to the current user; ownership is enforced in the DB
   query and non-owned rows are indistinguishable from missing rows.
 - A single request with `recovery_scan` may idempotently recreate an absent

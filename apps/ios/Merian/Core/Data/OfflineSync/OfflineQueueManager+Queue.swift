@@ -8,6 +8,135 @@ import UIKit
 
 extension OfflineQueueManager {
 
+    /// Restores durable admission decisions after relaunch. Active jobs from a
+    /// pre-protocol-3 build have no funding property and are conservatively
+    /// treated as potential complimentary blockers until server state resolves.
+    func restoreFundingReservationsForCurrentAccount() {
+        guard EntitlementManager.shared.activeAccountID != nil,
+              let context = modelContext else {
+            return
+        }
+        let descriptor = FetchDescriptor<OfflineJobRecord>()
+        guard let jobs = try? context.fetch(descriptor) else { return }
+        let nonterminal: Set<String> = [
+            OfflineJobStatus.pending.rawValue,
+            OfflineJobStatus.running.rawValue,
+            OfflineJobStatus.waiting.rawValue,
+            OfflineJobStatus.needsAttention.rawValue
+        ]
+        for job in jobs where
+            job.kindRaw == OfflineJobKind.scanIngestion.rawValue &&
+            nonterminal.contains(job.statusRaw) {
+            guard let scanId = job.subjectId?.lowercased(), !scanId.isEmpty else {
+                continue
+            }
+            if let funding = OfflineScanJobMetadataContract.funding(
+                in: job.metadataJSON
+            ), funding.scanId.caseInsensitiveCompare(scanId) == .orderedSame {
+                EntitlementManager.shared.restoreFundingReservation(funding)
+            } else if !OfflineScanJobMetadataContract.fundingWasReleased(
+                in: job.metadataJSON
+            ) {
+                EntitlementManager.shared.restoreLegacyPotentialBlocker(
+                    scanId: scanId,
+                    createdAt: job.createdAt
+                )
+            }
+        }
+    }
+
+    /// Performs one bulk status lookup for all deferred blockers in a scheduler
+    /// pass, then persists any safe reclassification before dispatch begins.
+    func reconcileDeferredFundingReservations() async {
+        restoreFundingReservationsForCurrentAccount()
+        let blockers = Array(
+            EntitlementManager.shared.fundingBlockerScanIds.prefix(50)
+        )
+        if !blockers.isEmpty {
+            let requirements = Dictionary(
+                uniqueKeysWithValues: blockers.map { ($0, 0) }
+            )
+            let responses: [String: ScanStatusResponse]
+            do {
+                responses = try await MerianNetworkClient.shared.checkScanStatuses(
+                    requirements
+                )
+            } catch {
+                MerianLog.data.debug(
+                    "Deferred funding-state lookup failed: \(error.localizedDescription, privacy: .private)"
+                )
+                return
+            }
+            for blocker in blockers {
+                guard let response = responses[blocker] else { continue }
+                EntitlementManager.shared.applyComplimentaryState(
+                    response.complimentaryState,
+                    scanId: blocker,
+                    terminalized: response.isFound ||
+                        localFundingBlockerIsTerminal(scanId: blocker) ||
+                        response.jobStatus == .failed ||
+                        response.jobStatus == .complete
+                )
+            }
+        }
+
+        if EntitlementManager.shared.hasReleasedDeferredBlocker ||
+            EntitlementManager.shared.needsTerminalSettlementEntitlementRefresh {
+            let refreshed = await EntitlementManager.shared.refreshCurrentSession()
+            if refreshed {
+                EntitlementManager.shared
+                    .confirmTerminalSettlementsAfterEntitlementRefresh()
+            }
+        }
+
+        let previous = EntitlementManager.shared.deferredFundingReservations
+        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        guard !changes.isEmpty, let context = modelContext else { return }
+        do {
+            for reservation in changes {
+                guard let job = try fetchOfflineJob(
+                    id: Self.scanIngestionJobId(scanId: reservation.scanId),
+                    context: context
+                ) else {
+                    throw CocoaError(.fileNoSuchFile)
+                }
+                job.metadataJSON = OfflineScanJobMetadataContract.settingFunding(
+                    reservation,
+                    in: job.metadataJSON
+                )
+                job.updatedAt = Date()
+            }
+            try context.save()
+            // Deferred Flash admissions reserve the advisory local Flash
+            // meter. Once a blocker is authoritatively reclassified and
+            // durably persisted as paid or complimentary Pro, return that
+            // meter; final server-plan reconciliation will consume it again if
+            // a cross-device race ultimately selects Flash.
+            for reservation in changes
+            where reservation.source == .complimentaryPro ||
+                reservation.source == .paidPro {
+                UsageManager.shared.refundScan(scanId: reservation.scanId)
+            }
+        } catch {
+            context.rollback()
+            for reservation in previous {
+                EntitlementManager.shared.restoreFundingReservation(reservation)
+            }
+            MerianLog.data.error(
+                "Deferred funding reclassification could not be persisted: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    private func localFundingBlockerIsTerminal(scanId: String) -> Bool {
+        guard let context = modelContext else { return false }
+        let jobId = Self.scanIngestionJobId(scanId: scanId)
+        guard let job = try? fetchOfflineJob(id: jobId, context: context) else {
+            return true
+        }
+        return job.status == .complete || job.status == .cancelled
+    }
+
     private func deletePreferredGoalHint(scanId: String, in context: ModelContext) {
         var descriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
             predicate: #Predicate { $0.scanId == scanId }
@@ -879,6 +1008,7 @@ extension OfflineQueueManager {
     private func replayInferenceStagedScans() {
         guard isOnline else { return }
         guard let context = modelContext else { return }
+        restoreFundingReservationsForCurrentAccount()
         let container = context.container
 
         let stagedRaw = ScanQueueState.staged.rawValue
@@ -895,8 +1025,25 @@ extension OfflineQueueManager {
                 activeInferenceGenerations[scan.id] == nil &&
                 inferencePreparationGenerations[scan.id] == nil &&
                 inferenceCompletionGenerations[scan.id] == nil &&
+                EntitlementManager.shared.fundingAllowsDispatch(
+                    scanId: scan.id
+                ) &&
                 !scan.queueNeedsAttention &&
                 (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
+        }.sorted { lhs, rhs in
+            let leftPriority = EntitlementManager.shared.fundingPriority(
+                scanId: lhs.id
+            )
+            let rightPriority = EntitlementManager.shared.fundingPriority(
+                scanId: rhs.id
+            )
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            if lhs.timestamp != rhs.timestamp {
+                return lhs.timestamp < rhs.timestamp
+            }
+            return lhs.id < rhs.id
         }
         guard !staged.isEmpty else {
             MerianLog.data.debug("replayInferenceStagedScans: no staged scans ready for retry")
@@ -1038,11 +1185,22 @@ extension OfflineQueueManager {
             audioFilePaths: audioFilePaths,
             videoFilePaths: videoFilePaths
         )
+        guard let funding = claimFundingAdmission(
+            scanId: resolvedScanId,
+            timeline: timeline
+        ) else {
+            if let onQueued { onQueued(false) }
+            return
+        }
+        let admittedForegroundGeneration = funding.allowsForegroundInference
+            ? foregroundInferenceGeneration
+            : nil
         let displayBytes = displayImageDatas.map { $0.reduce(0) { $0 + $1.count } } ?? 0
         let estimatedPayloadBytes = Int64(imageDatas.reduce(0) { $0 + $1.count })
             + Int64(displayBytes)
             + estimatedFileBytes(audioFilePaths + videoFilePaths)
         guard OfflineQueueStoragePolicy.canAdmitNewPayload(estimatedBytes: estimatedPayloadBytes) else {
+            rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueCapture: storage pressure blocked queue insert scanId=\(resolvedScanId, privacy: .public) bytes=\(estimatedPayloadBytes, privacy: .public)")
             if let onQueued {
                 onQueued(false)
@@ -1052,8 +1210,16 @@ extension OfflineQueueManager {
 
         BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { [weak self] _ in
             guard let self else {
-                if let onQueued {
-                    await MainActor.run { onQueued(false) }
+                await MainActor.run {
+                    if funding.source == .immediateFlash ||
+                        funding.source == .deferredFlash {
+                        UsageManager.shared.refundScan(scanId: funding.scanId)
+                    }
+                    EntitlementManager.shared
+                        .releaseFundingAfterProvenLocalFailure(
+                            scanId: funding.scanId
+                        )
+                    if let onQueued { onQueued(false) }
                 }
                 return
             }
@@ -1063,6 +1229,9 @@ extension OfflineQueueManager {
                 fileURLs.append(contentsOf: inferenceFileNames.map { documentsDirectory.appendingPathComponent($0) })
                 guard inferenceFileNames.count == imageDatas.count else {
                     await self.cleanupPersistedCaptureFiles(fileURLs)
+                    await MainActor.run {
+                        self.rollbackFundingAdmission(funding)
+                    }
                     MerianLog.data.error("enqueueCapture: failed to persist the full staged image set — scan will not be queued.")
                     if let onQueued {
                         await MainActor.run { onQueued(false) }
@@ -1078,6 +1247,9 @@ extension OfflineQueueManager {
                     fileURLs.append(contentsOf: persistedDisplayNames.map { documentsDirectory.appendingPathComponent($0) })
                     guard persistedDisplayNames.count == resolvedDisplayImageDatas.count else {
                         await self.cleanupPersistedCaptureFiles(fileURLs)
+                        await MainActor.run {
+                            self.rollbackFundingAdmission(funding)
+                        }
                         MerianLog.data.error("enqueueCapture: failed to persist the full display media set — scan will not be queued.")
                         if let onQueued {
                             await MainActor.run { onQueued(false) }
@@ -1125,7 +1297,8 @@ extension OfflineQueueManager {
                     telemetry: telemetry,
                     blurScore: blurScore,
                     timestamp: captureDate,
-                    foregroundInferenceGeneration: foregroundInferenceGeneration,
+                    funding: funding,
+                    foregroundInferenceGeneration: admittedForegroundGeneration,
                     startSyncImmediately: startSyncImmediately
                 )
                 if let onQueued {
@@ -1138,6 +1311,9 @@ extension OfflineQueueManager {
                 MerianLog.data.error("enqueueCapture: image write to disk failed — scan will not be queued: \(error, privacy: .private)")
                 if !fileURLs.isEmpty {
                     await self.cleanupPersistedCaptureFiles(fileURLs)
+                }
+                await MainActor.run {
+                    self.rollbackFundingAdmission(funding)
                 }
                 if let onQueued {
                     await MainActor.run { onQueued(false) }
@@ -1175,6 +1351,99 @@ extension OfflineQueueManager {
     }
 
     // MARK: - Enqueue Helpers
+
+    private func claimFundingAdmission(
+        scanId: String,
+        timeline: [CaptureSubmissionMediaItem]
+    ) -> ScanFundingReservation? {
+        guard let funding = EntitlementManager.shared.claimFunding(
+            scanId: scanId,
+            flashFallbackEligible: isFlashFallbackEligible(timeline)
+        ) else {
+            UsageManager.shared.showPaywall = true
+            return nil
+        }
+        if funding.source == .immediateFlash ||
+            funding.source == .deferredFlash {
+            guard UsageManager.shared.canPerformScan(isProActive: false) else {
+                EntitlementManager.shared.releaseFundingAfterProvenLocalFailure(
+                    scanId: funding.scanId
+                )
+                UsageManager.shared.showPaywall = true
+                return nil
+            }
+            UsageManager.shared.consumeScan(scanId: funding.scanId)
+        }
+        return funding
+    }
+
+    private func rollbackFundingAdmission(_ funding: ScanFundingReservation) {
+        if funding.source == .immediateFlash ||
+            funding.source == .deferredFlash {
+            UsageManager.shared.refundScan(scanId: funding.scanId)
+        }
+        EntitlementManager.shared.releaseFundingAfterProvenLocalFailure(
+            scanId: funding.scanId
+        )
+    }
+
+    @discardableResult
+    func releaseFundingForProvenPredispatchFailure(scanId: String) -> Bool {
+        guard let context = modelContext else { return false }
+        let job: OfflineJobRecord?
+        do {
+            job = try fetchOfflineJob(
+                id: Self.scanIngestionJobId(scanId: scanId),
+                context: context
+            )
+        } catch {
+            MerianLog.data.error(
+                "Could not persist local funding release for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+
+        if let job {
+            guard let releasedMetadata = OfflineScanJobMetadataContract
+                .markingFundingReleased(in: job.metadataJSON) else {
+                return false
+            }
+            job.metadataJSON = releasedMetadata
+            job.updatedAt = Date()
+            do {
+                try context.save()
+            } catch {
+                context.rollback()
+                MerianLog.data.error(
+                    "Could not save local funding release for \(scanId, privacy: .private): \(error, privacy: .private)"
+                )
+                return false
+            }
+        }
+
+        if let funding = EntitlementManager.shared.fundingReservation(
+            scanId: scanId
+        ), funding.source == .immediateFlash ||
+            funding.source == .deferredFlash {
+            UsageManager.shared.refundScan(scanId: funding.scanId)
+        }
+        EntitlementManager.shared.releaseFundingAfterProvenLocalFailure(
+            scanId: scanId
+        )
+        return true
+    }
+
+    private func isFlashFallbackEligible(
+        _ timeline: [CaptureSubmissionMediaItem]
+    ) -> Bool {
+        guard timeline.count == 1 else { return false }
+        switch timeline[0] {
+        case .image, .audio, .description:
+            return true
+        case .video:
+            return false
+        }
+    }
 
     private func cleanupPersistedCaptureFiles(_ urls: [URL]) async {
         await FileIOActor.shared.deleteFiles(at: urls.map(\.path))
@@ -1240,8 +1509,19 @@ extension OfflineQueueManager {
         )
 
         guard !timeline.isEmpty else { return false }
+        let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
+        guard let funding = claimFundingAdmission(
+            scanId: resolvedScanId,
+            timeline: timeline
+        ) else {
+            return false
+        }
+        let admittedForegroundGeneration = funding.allowsForegroundInference
+            ? foregroundInferenceGeneration
+            : nil
         let estimatedPayloadBytes = estimatedFileBytes(filteredAudioFileNames + filteredVideoFilePaths)
         guard OfflineQueueStoragePolicy.canAdmitNewPayload(estimatedBytes: estimatedPayloadBytes) else {
+            rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueNonVisualCapture: storage pressure blocked queue insert bytes=\(estimatedPayloadBytes, privacy: .public)")
             return false
         }
@@ -1253,6 +1533,7 @@ extension OfflineQueueManager {
                 documentsDirectory: URL.documentsDirectory
             )
         } catch {
+            rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueNonVisualCapture: failed to persist audio file — scan not queued: \(error, privacy: .private)")
             return false
         }
@@ -1268,6 +1549,7 @@ extension OfflineQueueManager {
             for persistedAudioName in persistedAudioNamesBySourcePath.values {
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
             }
+            rollbackFundingAdmission(funding)
             return false
         }
 
@@ -1279,24 +1561,8 @@ extension OfflineQueueManager {
             for persistedVideoName in persistedVideoNamesBySourcePath.values {
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedVideoName))
             }
+            rollbackFundingAdmission(funding)
             return false
-        }
-
-        let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
-        var didConsumeQuota = false
-        if !RevenueCatManager.shared.canStartProScan {
-            guard UsageManager.shared.canPerformScan(isProActive: false) else {
-                for persistedAudioName in persistedAudioNamesBySourcePath.values {
-                    try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
-                }
-                for persistedVideoName in persistedVideoNamesBySourcePath.values {
-                    try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedVideoName))
-                }
-                MerianLog.data.debug("enqueueNonVisualCapture: free user scan quota exhausted — scan not queued")
-                return false
-            }
-            UsageManager.shared.consumeScan(scanId: resolvedScanId)
-            didConsumeQuota = true
         }
 
         let capturedMediaJSON = makeCapturedMediaJSON(
@@ -1348,9 +1614,10 @@ extension OfflineQueueManager {
                 }),
                 requiresUnconstrainedNetwork: !persistedVideoNamesBySourcePath.isEmpty,
                 allowsCellular: persistedVideoNamesBySourcePath.isEmpty,
-                metadataJSON: foregroundInferenceGeneration.map {
-                    InferenceGenerationMetadataContract.json(for: $0)
-                }
+                metadataJSON: OfflineScanJobMetadataContract.json(
+                    generation: admittedForegroundGeneration,
+                    funding: funding
+                )
             )
             modelContext.insert(OfflineQueueEvent(
                 jobId: job.id,
@@ -1360,9 +1627,7 @@ extension OfflineQueueManager {
             ))
         } catch {
             modelContext.rollback()
-            if didConsumeQuota {
-                UsageManager.shared.refundScan(scanId: resolvedScanId)
-            }
+            rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueNonVisualCapture: failed to create offline job: \(error, privacy: .private)")
             for persistedAudioName in persistedAudioNamesBySourcePath.values {
                 try? FileManager.default.removeItem(
@@ -1382,25 +1647,23 @@ extension OfflineQueueManager {
         }
         do {
             try modelContext.save()
-            if let foregroundInferenceGeneration {
+            if let admittedForegroundGeneration {
                 foregroundInferenceRetirementTasks.cancel(resolvedScanId)
                 startedForegroundInferenceGenerations[resolvedScanId] = nil
                 foregroundInferenceGenerations[resolvedScanId] =
-                    foregroundInferenceGeneration
+                    admittedForegroundGeneration
             }
             updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
-            if hasUploadableMedia {
+            if hasUploadableMedia && funding.allowsDispatch {
                 syncPendingScans()
-            } else if isOnline {
+            } else if isOnline && funding.allowsDispatch {
                 replayInferenceForUploadedScans()
             }
             return true
         } catch {
             modelContext.rollback()
-            if didConsumeQuota {
-                UsageManager.shared.refundScan(scanId: resolvedScanId)
-            }
+            rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueNonVisualCapture: context.save() failed: \(error, privacy: .private)")
             for persistedAudioName in persistedAudioNamesBySourcePath.values {
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
@@ -1554,6 +1817,7 @@ extension OfflineQueueManager {
         telemetry: CaptureTelemetry,
         blurScore: Double?,
         timestamp: Date,
+        funding: ScanFundingReservation,
         foregroundInferenceGeneration: UUID?,
         startSyncImmediately: Bool
     ) async -> Bool {
@@ -1565,18 +1829,8 @@ extension OfflineQueueManager {
                 "insertAndPersistRecord: modelContext missing scanId=\(scanId, privacy: .public)"
             )
             await cleanupPersistedCaptureFiles(fileURLs)
+            rollbackFundingAdmission(funding)
             return false
-        }
-
-        var didConsumeQuota = false
-        if !RevenueCatManager.shared.canStartProScan {
-            guard UsageManager.shared.canPerformScan(isProActive: false) else {
-                MerianLog.data.debug("enqueueCapture: free user scan quota exhausted — scan not enqueued")
-                await cleanupPersistedCaptureFiles(fileURLs)
-                return false
-            }
-            UsageManager.shared.consumeScan(scanId: scanId)
-            didConsumeQuota = true
         }
         
         let scan = OfflineQueuedScan(
@@ -1623,9 +1877,10 @@ extension OfflineQueueManager {
                 approximateBytes: approximateBytes(for: fileURLs),
                 requiresUnconstrainedNetwork: scan.capturedMediaSnapshot.videoPaths.isEmpty == false,
                 allowsCellular: scan.capturedMediaSnapshot.videoPaths.isEmpty,
-                metadataJSON: foregroundInferenceGeneration.map {
-                    InferenceGenerationMetadataContract.json(for: $0)
-                }
+                metadataJSON: OfflineScanJobMetadataContract.json(
+                    generation: foregroundInferenceGeneration,
+                    funding: funding
+                )
             )
             modelContext.insert(OfflineQueueEvent(
                 jobId: job.id,
@@ -1635,9 +1890,7 @@ extension OfflineQueueManager {
             ))
         } catch {
             modelContext.rollback()
-            if didConsumeQuota {
-                UsageManager.shared.refundScan(scanId: scanId)
-            }
+            rollbackFundingAdmission(funding)
             await cleanupPersistedCaptureFiles(fileURLs)
             MerianLog.data.error("insertAndPersistRecord: failed to create offline job: \(error, privacy: .private)")
             return false
@@ -1656,9 +1909,9 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "insertAndPersistRecord: saved queue scanId=\(scanId, privacy: .public) state=pending images=\(fileURLs.count, privacy: .public)"
             )
-            if startSyncImmediately {
+            if startSyncImmediately && funding.allowsDispatch {
                 syncPendingScans()
-            } else {
+            } else if funding.allowsDispatch {
                 deferredLiveUploadScanIds.insert(scanId)
                 MerianLog.data.debug(
                     "insertAndPersistRecord: deferring duplicate live upload scanId=\(scanId, privacy: .public)"
@@ -1667,9 +1920,7 @@ extension OfflineQueueManager {
             return true
         } catch {
             modelContext.rollback()
-            if didConsumeQuota {
-                UsageManager.shared.refundScan(scanId: scanId)
-            }
+            rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
             await cleanupPersistedCaptureFiles(fileURLs)
             return false
@@ -1722,7 +1973,10 @@ extension OfflineQueueManager {
         scanId: String,
         generation: UUID
     ) -> Bool {
-        foregroundInferenceGenerations[scanId] == generation &&
+        EntitlementManager.shared.fundingAllowsForegroundInference(
+            scanId: scanId
+        ) &&
+            foregroundInferenceGenerations[scanId] == generation &&
             startedForegroundInferenceGenerations[scanId] == nil &&
             !foregroundInferenceRetirementTasks.isOwned(
                 scanId,
@@ -1848,12 +2102,15 @@ extension OfflineQueueManager {
                     id: jobId,
                     context: context
                 ) {
-                    let expectedMetadata =
-                        InferenceGenerationMetadataContract.json(
-                            for: generation
-                        )
-                    if job.metadataJSON == expectedMetadata {
-                        job.metadataJSON = nil
+                    if InferenceGenerationMetadataContract.matches(
+                        generation,
+                        in: job.metadataJSON
+                    ) {
+                        job.metadataJSON =
+                            InferenceGenerationMetadataContract.removing(
+                                generation,
+                                from: job.metadataJSON
+                            )
                         job.updatedAt = Date()
                         do {
                             try context.save()
@@ -1864,7 +2121,9 @@ extension OfflineQueueManager {
                                 "endForegroundInference: durable handoff failed scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
                             )
                         }
-                    } else if job.metadataJSON != nil {
+                    } else if InferenceGenerationMetadataContract.generation(
+                        in: job.metadataJSON
+                    ) != nil {
                         didClearDurableOwner = false
                     }
                     // A different durable generation has already replaced this

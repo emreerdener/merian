@@ -874,7 +874,10 @@ MerianTests/
     soft-deleted items are removed while undeleted items persist).
   - **Media staging contract drift**: Loads
     `docs/contracts/media-staging-upload-manifest.json` and asserts
-    `MerianConfig` matches the documented file, audio, and video budgets. Also
+    `MerianConfig` matches the documented file, audio, and video budgets and
+    locks the exact signed `Content-Length`/`Content-Type` response contract.
+    File-mutation coverage proves a signing-time size mismatch is discarded for
+    re-signing before task creation. Also
     covers the canonical video scan upload shape: five sampled inference frame
     files plus one playback video file must fit in one signing batch.
   - **Background task identity and single-flight ownership**: Verifies current
@@ -1799,6 +1802,9 @@ production checks:
   user-FK indexes, orphan triage, run-attempt-specific operational evidence, the
   active DwC-A/public-web release-hold navigation, and local links across the
   maintained product, feature, architecture, operator, and service docs.
+  It also locks the joined 2026-08-03 remediation record against the canonical
+  collection RPC/ACL, exact upload-header, durable funding-reservation,
+  fixed-origin redirect, and raw-page taxonomy-checkpoint contracts.
 - `tests/privileged_routine_security.sql` verifies the same effective ACL and
   transport policy against a fully migrated disposable catalog under real
   `anon`, `authenticated`, and `service_role` database roles. It scans current
@@ -2048,7 +2054,7 @@ Authoritative AI quota and entitlement security has four complementary base
 checks:
 
 - `_shared/entitlement_test.ts` proves paid, complimentary, pre-cutover trial,
-  expired, and free resolution; protocol-2 enforcement/internal replay bypass;
+  expired, and free resolution; dual-mode protocol 2–3 enforcement/internal replay bypass;
   database errors and missing rows failing closed; and absence of isolate-local
   reuse.
 - `_shared/aiQuota_test.ts` locks UUID request-key validation, trusted proxy
@@ -3003,13 +3009,25 @@ deployment runbook; it is not inferred from the launch-disabled posture.
 
 ### `sync-collections/db_test.ts`
 
-- **`syncMembershipDelta` error propagation**: Verifies the function throws (not
-  `console.error`-swallows) when the scan validation query fails, when a
-  membership delete operation is rejected, and resolves cleanly on success. Also
-  asserts the early-return path for empty `ownedIds` makes no DB calls.
+- **Atomic collection admission**: Verifies RPC errors throw and cannot trigger
+  membership hydration or writes; accepted IDs continue while rejected foreign
+  IDs remain skippable; duplicate input IDs use the database result rather than
+  a client-side ownership guess.
+- **Owner-joined membership writes**: Verifies additions call
+  `insert_owned_collection_scans` with the authenticated owner, count skipped
+  missing/foreign parents without failing unrelated work, and throw on RPC or
+  membership-delete errors. The empty-accepted-ID path makes no membership DB
+  calls.
 - **Composite membership cursor**: Verifies the existing-membership reader
   advances from the final `(collection_id, scan_id)` key of a full page and
   never falls back to range/OFFSET pagination before calculating the delta.
+- **Fresh-catalog security**:
+  `functions/_tests/collectionOwnershipMigrationContract.test.ts` locks the
+  migration shape, invoker/empty-search-path routines, ACLs, column update
+  grant, owner-match trigger, cleanup, and split RLS. Executable
+  `tests/collection_ownership_security.sql` proves foreign collisions, direct
+  service owner-update denial, RPC/direct/RLS membership rejection, and Ghost
+  merge compatibility against PostgreSQL.
 
 ### `_shared/entitlement_test.ts` and `_shared/aiQuota_test.ts`
 

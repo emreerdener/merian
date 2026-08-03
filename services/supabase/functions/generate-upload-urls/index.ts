@@ -52,7 +52,10 @@ Deno.serve((req: Request) =>
     const parsed = parseStagingUploadFiles(body);
     if (parsed.error || !parsed.files) {
       return jsonResponse(
-        { error: parsed.error ?? "Invalid upload manifest" },
+        {
+          error: parsed.error ?? "Invalid upload manifest",
+          ...(parsed.code ? { code: parsed.code } : {}),
+        },
         parsed.status ?? 400,
       );
     }

@@ -33,14 +33,30 @@ durable app-sandbox copy before Capture begins this pipeline:
    read-back before `200`. iOS persists and renders `speciesData` only after that
    durable success. Analytics, group tags, candidate enrichment, awards, and
    Field trips remain secondary work.
-5. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing uses `UsageManager.canPerformScan` as an advisory capture/paywall gate; queued rows upload unconditionally. On reconnection, Supabase atomically applies the authoritative entitlement and UTC-day/user/IP quota before provider dispatch, so clearing local state cannot create model capacity. Complimentary-only modes remain locked until the current launch verifies online; RevenueCat paid-offline access and ordinary Flash queuing retain their existing behavior. Successful non-biological results count; the scoped correction flow bypasses only its Pro UI gate.
+5. **Offline Resilience**: If a user is off-grid, capture first makes a
+   serialized account/scan funding claim, then writes media to
+   `.documentDirectory` and inserts a `SwiftData` row with `scanStateRaw = 0`
+   (`.pending`). Verified complimentary availability is reduced by unresolved
+   local claims; eligible later Flash work can be durably deferred behind an
+   earlier blocker rather than over-admitted as Pro. `UsageManager` owns only
+   the advisory Flash token. Funding and inference generation coexist in job
+   metadata, survive relaunch, and are released only after proven pre-dispatch
+   failure is durably marked. Apple's background `URLSession` triggers eligible
+   upload when connectivity returns. On reconnection, one bulk status read and
+   authoritative entitlement refresh safely resolve deferred order, while
+   Supabase atomically applies server entitlement and UTC-day/user/IP quota
+   before provider dispatch. Clearing local state cannot create model capacity.
+   Complimentary-only modes remain locked until the current launch verifies
+   online; RevenueCat paid-offline access and ordinary Flash queuing retain
+   their existing behavior. Successful non-biological results count; the scoped
+   correction flow bypasses only its Pro UI gate.
 
 Free inference remains `gemini-2.5-flash` and Pro remains
 `gemini-2.5-pro`. The latency path does not change prompts, schema, thinking
 budgets, image resolution, output limits, or the one-model-call contract.
 The staged introductory offer derives three lifetime complimentary Pro scans
 from a private held/consumed/released ledger, separate from the daily Flash scan
-and provider-cost counters. It activates only with the atomic protocol-2
+and provider-cost counters. It activates only with the atomic protocol-3
 cutover described in the
 [`normative entitlement contract`](../backend-and-data/18-complimentary-pro-scans.md).
 

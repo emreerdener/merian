@@ -31,6 +31,7 @@ final class OfflineJobScheduler {
         // deletion backlog, for example, must not delay a scan retry that
         // becomes eligible while that drain is still in flight.
         scheduleNextPersistedWake(using: manager)
+        await manager.reconcileDeferredFundingReservations()
         manager.syncPendingScans()
         manager.replayInferenceForUploadedScans()
         await manager.replayPendingFieldTripProgress()

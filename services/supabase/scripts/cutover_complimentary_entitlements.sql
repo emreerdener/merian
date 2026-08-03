@@ -1,4 +1,4 @@
--- Run only after the protocol-2 TestFlight build has been distributed and
+-- Run only after the reservation-safe protocol-3 TestFlight build has been distributed and
 -- verified. This owner-only transaction switches functional entitlement and
 -- public protocol enforcement together. The table trigger advances the global
 -- mode version, so every subsequent entitlement snapshot supersedes legacy
@@ -11,10 +11,13 @@ SET LOCAL statement_timeout = '30s';
 
 UPDATE internal.entitlement_rollout_config
 SET entitlement_mode = 'complimentary',
-    required_client_protocol = 2
+    required_client_protocol = 3
 WHERE config_key = 'current'
-  AND entitlement_mode = 'legacy_trial'
-  AND required_client_protocol = 0;
+  AND (
+      (entitlement_mode = 'legacy_trial' AND required_client_protocol = 0)
+      OR
+      (entitlement_mode = 'complimentary' AND required_client_protocol = 2)
+  );
 
 DO $cutover$
 BEGIN
@@ -23,7 +26,7 @@ BEGIN
         FROM internal.entitlement_rollout_config AS config
         WHERE config.config_key = 'current'
           AND config.entitlement_mode = 'complimentary'
-          AND config.required_client_protocol = 2
+          AND config.required_client_protocol = 3
     ) THEN
         RAISE EXCEPTION 'complimentary_entitlement_cutover_failed'
             USING ERRCODE = '55000';

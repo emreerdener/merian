@@ -1,4 +1,5 @@
 import { generatePresignedPutUrl, getR2Config } from "../_shared/aws.ts";
+import type { R2Config } from "../_shared/aws.ts";
 import {
   MEDIA_BUDGETS,
   STAGING_ALLOWED_CONTENT_TYPES,
@@ -22,7 +23,7 @@ export interface StagingUploadFile {
   fileName: string;
   mediaKind: StagingMediaKind;
   contentType: string;
-  sizeBytes?: number;
+  sizeBytes: number;
   clientScanId?: string;
   mediaRole?: ScanMediaAssetRole;
   uploadPurpose?: StagingUploadPurpose;
@@ -32,6 +33,10 @@ export interface PresignedUrlPayload {
   fileName: string;
   signedUrl: string;
   objectKey: string;
+  requiredHeaders: {
+    "Content-Type": string;
+    "Content-Length": string;
+  };
   mediaAssetId?: string;
   mediaSessionId?: string;
 }
@@ -40,6 +45,7 @@ export interface ParseStagingUploadFilesResult {
   files?: StagingUploadFile[];
   error?: string;
   status?: number;
+  code?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -49,20 +55,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function sanitizeStagingFileName(fileName: string): string {
   const safe = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_");
   return safe.length > 0 ? safe : "upload";
-}
-
-function legacyContentTypeForFileName(fileName: string): string {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".mp4")) return "video/mp4";
-  if (lower.endsWith(".wav")) return "audio/wav";
-  if (lower.endsWith(".m4a")) return "audio/mp4";
-  return "image/webp";
-}
-
-function legacyMediaKindForFileName(fileName: string): StagingMediaKind {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".mp4")) return "video";
-  return lower.endsWith(".wav") || lower.endsWith(".m4a") ? "audio" : "image";
 }
 
 function allowedContentTypesForKind(kind: StagingMediaKind): Set<string> {
@@ -192,8 +184,12 @@ function maxBytesForKind(kind: StagingMediaKind): number {
   return MAX_STAGED_IMAGE_BYTES;
 }
 
-function error(status: number, message: string): ParseStagingUploadFilesResult {
-  return { status, error: message };
+function error(
+  status: number,
+  message: string,
+  code?: string,
+): ParseStagingUploadFilesResult {
+  return { status, error: message, ...(code ? { code } : {}) };
 }
 
 function validateStructuredUploadFiles(
@@ -300,6 +296,14 @@ function validateStructuredUploadFiles(
       );
     }
 
+    if (sizeBytes == null) {
+      return error(
+        400,
+        "Bad Request: sizeBytes is required for every file.",
+        "size_bytes_required",
+      );
+    }
+
     if (
       typeof sizeBytes !== "number" ||
       !Number.isInteger(sizeBytes) ||
@@ -356,59 +360,23 @@ function validateStructuredUploadFiles(
   return { files };
 }
 
-function parseLegacyFileNames(
-  fileNames: unknown[],
-): ParseStagingUploadFilesResult {
-  const files: StagingUploadFile[] = [];
-  const seenFileNames = new Set<string>();
-  let imageFileCount = 0;
-  let audioFileCount = 0;
-  let videoFileCount = 0;
-  for (const fileName of fileNames) {
-    if (typeof fileName !== "string" || fileName.trim().length === 0) {
-      return error(
-        400,
-        "Bad Request: fileNames must contain non-empty strings.",
-      );
-    }
-
-    const safeFileName = sanitizeStagingFileName(fileName);
-    if (seenFileNames.has(safeFileName)) {
-      return error(400, "Bad Request: fileName values must be unique.");
-    }
-    seenFileNames.add(safeFileName);
-    const mediaKind = legacyMediaKindForFileName(safeFileName);
-    if (mediaKind === "image") {
-      imageFileCount += 1;
-      if (imageFileCount > MAX_STAGED_IMAGE_FILES) {
-        return error(400, "Bad Request: too many staged image files.");
-      }
-    } else if (mediaKind === "audio") {
-      audioFileCount += 1;
-      if (audioFileCount > MAX_STAGED_AUDIO_FILES) {
-        return error(400, "Bad Request: too many staged audio files.");
-      }
-    } else {
-      videoFileCount += 1;
-      if (videoFileCount > MAX_STAGED_VIDEO_FILES) {
-        return error(400, "Bad Request: too many staged video files.");
-      }
-    }
-    files.push({
-      fileName: safeFileName,
-      mediaKind,
-      contentType: legacyContentTypeForFileName(safeFileName),
-    });
-  }
-
-  return { files };
-}
-
 export function parseStagingUploadFiles(
   body: unknown,
 ): ParseStagingUploadFilesResult {
   if (!isRecord(body)) {
-    return error(400, "Invalid JSON body");
+    return error(
+      400,
+      "Bad Request: expected a structured 'files' manifest with sizeBytes.",
+      "size_bytes_required",
+    );
+  }
+
+  if (Object.hasOwn(body, "fileNames")) {
+    return error(
+      400,
+      "Bad Request: legacy fileNames manifests cannot declare upload sizes.",
+      "size_bytes_required",
+    );
   }
 
   if (Array.isArray(body.files)) {
@@ -421,27 +389,19 @@ export function parseStagingUploadFiles(
     return validateStructuredUploadFiles(body.files);
   }
 
-  if (Array.isArray(body.fileNames)) {
-    if (
-      body.fileNames.length === 0 || body.fileNames.length > MAX_STAGING_FILES
-    ) {
-      return error(
-        400,
-        `Bad Request: 'fileNames' must be an array of 1 to ${MAX_STAGING_FILES} values.`,
-      );
-    }
-    return parseLegacyFileNames(body.fileNames);
-  }
-
-  return error(400, "Bad Request: expected 'files' or legacy 'fileNames'.");
+  return error(
+    400,
+    "Bad Request: expected a structured 'files' manifest with sizeBytes.",
+    "size_bytes_required",
+  );
 }
 
 export async function generateStagingUrls(
   userId: string,
   files: StagingUploadFile[],
+  r2Config: R2Config = getR2Config(),
+  signPut: typeof generatePresignedPutUrl = generatePresignedPutUrl,
 ): Promise<PresignedUrlPayload[]> {
-  const r2Config = getR2Config();
-
   const urls = await Promise.all(
     files.map(async (file: StagingUploadFile) => {
       const safeFileName = sanitizeStagingFileName(file.fileName);
@@ -449,13 +409,18 @@ export async function generateStagingUrls(
 
       return {
         fileName: safeFileName,
-        signedUrl: await generatePresignedPutUrl(
+        signedUrl: await signPut(
           r2Config,
           key,
           86400,
           file.contentType,
+          file.sizeBytes,
         ),
         objectKey: key,
+        requiredHeaders: {
+          "Content-Type": file.contentType,
+          "Content-Length": String(file.sizeBytes),
+        },
       };
     }),
   );

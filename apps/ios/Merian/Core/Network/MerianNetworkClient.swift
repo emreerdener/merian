@@ -14,6 +14,7 @@ struct PreSignedURL: Codable {
     let fileName: String
     let signedUrl: String
     let objectKey: String
+    let requiredHeaders: [String: String]
     let mediaAssetId: String?
     let mediaSessionId: String?
 }
@@ -81,6 +82,12 @@ enum ScanIngestionJobStatus: String, Decodable, Equatable, Sendable {
     }
 }
 
+enum ComplimentaryScanState: String, Decodable, Equatable, Sendable {
+    case held
+    case consumed
+    case released
+}
+
 struct ScanStatusResponse: Decodable, Equatable, Sendable {
     let scanId: String?
     let status: ScanCloudStatus
@@ -89,6 +96,7 @@ struct ScanStatusResponse: Decodable, Equatable, Sendable {
     let jobAttemptCount: Int?
     let retryAfter: String?
     let lastError: String?
+    let complimentaryState: ComplimentaryScanState?
 
     var isFound: Bool { status == .found }
 
@@ -99,7 +107,8 @@ struct ScanStatusResponse: Decodable, Equatable, Sendable {
         jobStage: String?,
         jobAttemptCount: Int?,
         retryAfter: String?,
-        lastError: String?
+        lastError: String?,
+        complimentaryState: ComplimentaryScanState? = nil
     ) {
         self.scanId = scanId
         self.status = status
@@ -108,6 +117,7 @@ struct ScanStatusResponse: Decodable, Equatable, Sendable {
         self.jobAttemptCount = jobAttemptCount
         self.retryAfter = retryAfter
         self.lastError = lastError
+        self.complimentaryState = complimentaryState
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -118,6 +128,7 @@ struct ScanStatusResponse: Decodable, Equatable, Sendable {
         case jobAttemptCount = "job_attempt_count"
         case retryAfter = "retry_after"
         case lastError = "last_error"
+        case complimentaryState = "complimentary_state"
     }
 }
 
@@ -1386,7 +1397,7 @@ final class MerianNetworkClient {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2", forHTTPHeaderField: "X-Merian-Entitlement-Protocol")
+        request.setValue("3", forHTTPHeaderField: "X-Merian-Entitlement-Protocol")
         if let idempotencyKey {
             request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
         }
@@ -1418,7 +1429,7 @@ final class MerianNetworkClient {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2", forHTTPHeaderField: "X-Merian-Entitlement-Protocol")
+        request.setValue("3", forHTTPHeaderField: "X-Merian-Entitlement-Protocol")
         if let idempotencyKey {
             request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
         }
@@ -1540,6 +1551,14 @@ final class MerianNetworkClient {
                 }
 
                 throw MerianError.edgeFunctionUnavailable
+            }
+
+            if httpResponse.statusCode == 402 {
+                await MainActor.run {
+                    EntitlementManager.shared
+                        .invalidateComplimentaryProofAfterPaymentRequired()
+                }
+                await EntitlementManager.shared.refreshCurrentSession()
             }
 
             if httpResponse.statusCode == 401 && !isRetry {
@@ -2062,43 +2081,65 @@ final class MerianNetworkClient {
         return try JSONDecoder().decode(PreSignedURLResponse.self, from: data).urls
     }
 
-    func generateUploadURLs(fileNames: [String]) async throws -> [PreSignedURL] {
-        let functionUrl = try endpointURL("generate-upload-urls")
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let userId = (authUserId ?? deviceId).lowercased()
-        let payload: [String: Any] = ["fileNames": fileNames, "user_id": userId]
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try JSONDecoder().decode(PreSignedURLResponse.self, from: data).urls
-    }
-
-    func uploadToR2(url: String, data: Data, mimeType: String = "image/webp") async throws {
-        guard let signedUrl = URL(string: url) else { throw MerianError.invalidURL }
-
-        var request = URLRequest(url: signedUrl)
-        request.httpMethod = "PUT"
-        request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
+    func uploadToR2(
+        uploadURL: PreSignedURL,
+        data: Data,
+        contentType: String
+    ) async throws {
+        let request = try r2UploadRequest(
+            uploadURL: uploadURL,
+            contentType: contentType,
+            contentLength: data.count
+        )
+        var bodyRequest = request
+        bodyRequest.httpBody = data
 
         let uploadStart = CFAbsoluteTimeGetCurrent()
-        let (responseData, response) = try await activeSession.data(for: request)
+        let (responseData, response) = try await activeSession.data(for: bodyRequest)
         MerianLog.network.debug("R2 upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
         try validateR2UploadResponse(responseData: responseData, response: response)
     }
 
-    func uploadToR2(url: String, fileURL: URL, mimeType: String = "image/webp") async throws {
-        guard let signedUrl = URL(string: url) else { throw MerianError.invalidURL }
-
-        var request = URLRequest(url: signedUrl)
-        request.httpMethod = "PUT"
-        request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+    func uploadToR2(
+        uploadURL: PreSignedURL,
+        fileURL: URL,
+        contentType: String
+    ) async throws {
+        let currentSize = try MediaStagingContract.fileSizeBytes(at: fileURL)
+        let request = try r2UploadRequest(
+            uploadURL: uploadURL,
+            contentType: contentType,
+            contentLength: currentSize
+        )
 
         let uploadStart = CFAbsoluteTimeGetCurrent()
         let (responseData, response) = try await activeSession.upload(for: request, fromFile: fileURL)
         MerianLog.network.debug("R2 file upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
         try validateR2UploadResponse(responseData: responseData, response: response)
+    }
+
+    private func r2UploadRequest(
+        uploadURL: PreSignedURL,
+        contentType: String,
+        contentLength: Int
+    ) throws -> URLRequest {
+        guard let signedURL = URL(string: uploadURL.signedUrl) else {
+            throw MerianError.invalidURL
+        }
+        guard uploadURL.requiredHeaders.count == 2,
+              uploadURL.requiredHeaders["Content-Type"] == contentType,
+              uploadURL.requiredHeaders["Content-Length"] == String(contentLength),
+              MediaStagingContract.signedHeaders(from: signedURL)
+                == "content-length;content-type;host" else {
+            throw MerianError.invalidResponse
+        }
+
+        var request = URLRequest(url: signedURL)
+        request.httpMethod = "PUT"
+        for (field, value) in uploadURL.requiredHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        return request
     }
 
     func inspectScanImageCloudStatus(sourceUrl: String) async throws -> ScanImageCloudInspection {
@@ -2158,8 +2199,7 @@ final class MerianNetworkClient {
         }
 
         let uploadFiles = try videoFileURLs.map { fileURL in
-            let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-            let sizeBytes = (attributes[.size] as? NSNumber)?.intValue
+            let sizeBytes = try MediaStagingContract.fileSizeBytes(at: fileURL)
             return StagingUploadFile(
                 fileName: MediaStagingContract.stagingFileName(scanId: scanId, localPath: fileURL.lastPathComponent),
                 mediaKind: .video,
@@ -2175,9 +2215,8 @@ final class MerianNetworkClient {
             throw MerianError.payloadTooLarge
         }
         for uploadFile in uploadFiles {
-            guard let sizeBytes = uploadFile.sizeBytes,
-                  sizeBytes > 0,
-                  sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
+            guard uploadFile.sizeBytes > 0,
+                  uploadFile.sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
                 throw MerianError.payloadTooLarge
             }
         }
@@ -2189,9 +2228,9 @@ final class MerianNetworkClient {
 
         for (fileURL, uploadURL) in zip(videoFileURLs, uploadURLs) {
             try await uploadToR2(
-                url: uploadURL.signedUrl,
+                uploadURL: uploadURL,
                 fileURL: fileURL,
-                mimeType: StagedMediaKind.video.contentType(for: fileURL.path)
+                contentType: StagedMediaKind.video.contentType(for: fileURL.path)
             )
         }
 
@@ -5020,7 +5059,11 @@ final class MerianNetworkClient {
             guard let uploadUrl = uploadUrls.first else {
                 throw MerianError.invalidResponse
             }
-            try await uploadToR2(url: uploadUrl.signedUrl, data: fallbackImageData, mimeType: "image/webp")
+            try await uploadToR2(
+                uploadURL: uploadUrl,
+                data: fallbackImageData,
+                contentType: "image/webp"
+            )
             return [uploadUrl.objectKey]
         }
 
@@ -5059,9 +5102,9 @@ final class MerianNetworkClient {
                     group.addTask { [self] in
                         let fileURL = localExploreRestoreFileURL(for: path)
                         try await uploadToR2(
-                            url: uploadUrl.signedUrl,
+                            uploadURL: uploadUrl,
                             fileURL: fileURL,
-                            mimeType: exploreRestoreMimeType(for: fileURL)
+                            contentType: exploreRestoreMimeType(for: fileURL)
                         )
                     }
                 }
@@ -5114,9 +5157,9 @@ final class MerianNetworkClient {
         for (path, uploadUrl) in zip(localVideoPaths, uploadUrls) {
             let fileURL = localExploreRestoreFileURL(for: path)
             try await uploadToR2(
-                url: uploadUrl.signedUrl,
+                uploadURL: uploadUrl,
                 fileURL: fileURL,
-                mimeType: StagedMediaKind.video.contentType(for: fileURL.path)
+                contentType: StagedMediaKind.video.contentType(for: fileURL.path)
             )
         }
 
@@ -5160,9 +5203,9 @@ final class MerianNetworkClient {
         for (path, uploadUrl) in zip(localAudioPaths, uploadUrls) {
             let fileURL = localExploreRestoreFileURL(for: path)
             try await uploadToR2(
-                url: uploadUrl.signedUrl,
+                uploadURL: uploadUrl,
                 fileURL: fileURL,
-                mimeType: StagedMediaKind.audio.contentType(for: fileURL.path)
+                contentType: StagedMediaKind.audio.contentType(for: fileURL.path)
             )
         }
 

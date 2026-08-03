@@ -121,7 +121,10 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   SDK-owned HTTP transport has a 90-second hard timeout so model calls cannot
   wait for the Edge worker shutdown ceiling.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
-  and batch deletion helpers. `deleteR2ObjectIfPresent(...)` is the strict
+  and batch deletion helpers. Presigned PUT generation requires a positive safe
+  content length and signs exact `Content-Length`, `Content-Type`, and `host`
+  through `allHeaders: true`; callers must return those required headers with
+  each URL. `deleteR2ObjectIfPresent(...)` is the strict
   completion-boundary helper: it accepts only 2xx or idempotent 404 and rejects
   every other provider response. `deleteR2Objects` uses
   `mapWithConcurrencyLimit` internally so lifecycle workers do not run unbounded
@@ -287,7 +290,7 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   check; validates plan/tier, paid status, derived balances, in-flight count,
   and monotonic `entitlement_version`; and returns
   `503 ai_entitlement_unavailable` on a query error, missing row, or malformed
-  relationship. It also owns the rollout read and protocol-2 `426` response.
+  relationship. It also owns the rollout read and dual-mode protocol-2-to-3 `426` response.
   Edge isolate memory is never an entitlement authority.
 - **`posthog.ts`**: Best-effort PostHog HTTP capture helpers with a 2.5-second
   deadline so telemetry cannot consume request-critical Edge wall-clock time.

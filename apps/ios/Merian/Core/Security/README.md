@@ -17,7 +17,9 @@ used by that manager.
 - `EntitlementManager` owns the authenticated, current-launch server proof for
   complimentary and other functional entitlement. It exposes the total
   remaining grant, unheld capacity available to start, in-flight holds, and the
-  monotonic entitlement version.
+  monotonic entitlement version. It also serializes stable scan/account funding
+  reservations on `@MainActor`; the exposed booleans are UI hints, not an
+  admission transaction.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor
   connectivity into continuous foreground retries.
@@ -74,7 +76,35 @@ The client distinguishes three questions:
   current-launch server proof. An active hold can preserve this access.
 - `RevenueCatManager.canStartProScan`: capacity to fund a new Pro scan. A
   complimentary account needs `scansAvailableToStart > 0`; an existing hold is
-  not reusable capacity.
+  not reusable capacity. This value is advisory until `claimFunding` reserves a
+  class for the stable scan ID.
+
+Every capture path calls `EntitlementManager.claimFunding(scanId:flashFallbackEligible:)`
+synchronously before writing files or starting foreground inference. The claim
+is idempotent for one active account and scan and records paid Pro, locally
+reserved complimentary Pro, immediate Flash, or deferred Flash with earlier
+blocker scan IDs. Locally available complimentary capacity is the verified
+server availability minus every unresolved local complimentary reservation and
+conservative pre-protocol-3 blocker. This is the concurrency boundary that
+prevents one stale remaining credit from admitting multiple offline Pro scans.
+
+Only exactly one image, one standalone audio clip, or one description—and no
+video—is eligible for Flash. Eligible later work becomes deferred when earlier
+complimentary assumptions are unresolved and cannot start foreground inference.
+The scheduler reads blocker funding state in one bulk status call, refreshes
+authoritative entitlement after released/absent terminal state and terminal
+consumption, and persists any paid, complimentary, or immediate-Flash
+reclassification before dispatch.
+
+Funding lives in `OfflineJobRecord.metadataJSON` beside
+`inference_generation`. A proven pre-dispatch failure is released only after a
+durable `funding_reservation_released` marker is saved; ambiguous network
+outcomes remain reserved. Relaunch restores nonterminal claims, while that
+marker prevents an intentionally released legacy job from being restored as a
+blocker. Manual retry of released work makes a fresh synchronous claim. A 402
+invalidates complimentary proof until an authoritative refresh. Completion uses
+both `plan_used` and `credit_consumed`; `pro_complimentary` with
+`credit_consumed = false` releases the local assumption.
 
 Scan response metadata cannot establish a launch baseline. If a stored or live
 response arrives first, the manager buffers only the newest valid snapshot,

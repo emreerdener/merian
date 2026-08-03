@@ -241,7 +241,9 @@ Configure the Vercel project as a monorepo app:
 All aliases must be assigned to the same Vercel project that builds from
 `apps/web`; do not configure provider-level redirects in front of the app.
 `naturebook.earth` must be the project's primary production domain. `proxy.ts`
-issues permanent path- and query-preserving redirects to `naturebook.earth`. The
+issues permanent path- and query-preserving redirects to `naturebook.earth`. It
+constructs every destination from the fixed canonical origin and assigns the
+pathname and query independently, so path syntax cannot replace that origin. The
 two Apple App Site Association paths on the exact `naturebook.earth` and
 `merian.earth` hosts are served directly with HTTP 200. They must never pass
 through a host redirect. A plain Vercel response like:

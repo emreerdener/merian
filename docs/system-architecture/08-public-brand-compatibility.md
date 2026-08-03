@@ -139,6 +139,13 @@ All hosts must be assigned to the same deployed Next.js project so
 a Vercel domain redirect that runs before the application cannot implement the
 AASA exception below.
 
+The redirect helper starts from fixed `CANONICAL_ORIGIN`, then assigns the
+untrusted request `pathname` and `search` separately. It never passes an
+attacker-controlled path string to the URL constructor, so `//evil.example`,
+backslash variants, encoded separators, and a hostile `Host` cannot replace the
+origin. Focused tests must preserve path/query behavior while asserting that
+every alias destination remains `naturebook.earth`.
+
 ### Apple App Site Association exception
 
 The following endpoints must return HTTP 200 directly on both

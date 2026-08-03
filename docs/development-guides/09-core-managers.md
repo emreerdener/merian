@@ -629,8 +629,12 @@ triggering excessive SwiftUI view rebuilds.
   authority. The same manifest is sent to `/generate-upload-urls`, whose Edge
   parser validates kind/type/size/role before signing and creates staged
   media-asset session rows for scan uploads. The complete position-aligned
-  signed response is validated before any PUT, and its exact server keys—not
-  locally predicted owner segments—travel in task descriptions. Swift and Deno
+  signed response is validated before any PUT. Every response item declares
+  the exact signed `Content-Type` and `Content-Length`; iOS applies both, and a
+  signing-time file-size snapshot is rechecked immediately before task creation.
+  Changed files discard their URL and re-sign on the next scheduler pass. Exact
+  server keys—not locally predicted owner segments—travel in task descriptions.
+  Swift and Deno
   tests both load `docs/contracts/media-staging-upload-manifest.json` to catch
   drift in limits, allowed content types, and optional session fields. This
   prevents upload completion, replay, request construction, and Edge signing
@@ -643,25 +647,34 @@ triggering excessive SwiftUI view rebuilds.
   tombstoning) remain serial; only the NVMe write (`FileManager.copyItem`) and
   task creation are concurrent. For a 3-image scan this eliminates 500 ms–2 s of
   head-of-line blocking before the OS background session takes over.
-- **Advisory meter at enqueue time**: `insertAndPersistRecord` and
-  `enqueueNonVisualCapture` first check
-  `RevenueCatManager.shared.canStartProScan`. When no paid or verified unheld
-  complimentary capacity can fund a new Pro analysis, they gate and reserve the
-  separate daily Flash meter before inserting a new `OfflineQueuedScan`. If the
-  meter is exhausted the scan is rejected and any files written to disk are
-  cleaned up atomically —
-  `AppTelemetry.trackOfflineQueued()` is **not** fired on rejection. If the
-  check passes, `UsageManager.shared.consumeScan()` reserves the token before
-  the record enters SwiftData; if `modelContext.save()` fails, the queue
-  rollback path calls `UsageManager.shared.refundScan()` before deleting staged
-  files. `syncPendingScans` has no local-meter checks or `consumeScan` calls;
-  queued scans upload unconditionally regardless of `freeScansRemaining`.
-  Supabase still applies the authoritative entitlement and quota reservation
-  before provider dispatch. A final `plan_used` of paid or complimentary refunds
-  an optimistic local Flash reservation; a real Flash fallback consumes it.
-  Valid non-biological results count under whichever plan funded them. A
-  correction reanalysis for a non-biological result can bypass the Pro feature
-  gate, but not daily free-scan accounting.
+- **Serialized funding admission at enqueue time**: before writing files or
+  allowing foreground inference, `insertAndPersistRecord` and
+  `enqueueNonVisualCapture` synchronously call
+  `EntitlementManager.claimFunding` for the active account and stable scan ID.
+  Observable entitlement booleans remain UI hints. The manager subtracts
+  unresolved local complimentary/legacy blockers from verified server
+  availability and records paid Pro, complimentary Pro, immediate Flash, or
+  deferred Flash. Only one image, standalone audio, or description with no
+  video is Flash-eligible; mixed/multi-item/video work without Pro funding is
+  rejected rather than queued. Immediate and deferred Flash reserve the
+  advisory daily token before SwiftData commit. Save failure rolls back and
+  refunds both local admissions before deleting staged files;
+  `AppTelemetry.trackOfflineQueued()` is not fired on rejection.
+- **Durable funding lifecycle**: the scan job persists
+  `funding_reservation` beside `inference_generation`. Relaunch restores active
+  claims; legacy jobs without funding are conservative blockers. Proven
+  pre-dispatch failure first saves `funding_reservation_released: true`; a failed
+  marker save keeps capacity reserved. Ambiguous delivery remains reserved, and
+  manual retry of released work makes a fresh exact-shape claim. The scheduler
+  dispatches complimentary claims first, uses one bulk funding-state read,
+  refreshes entitlement for released/absent or terminal-consumed blockers, and
+  persists paid/complimentary/immediate-Flash reclassification before dispatch.
+  `syncPendingScans` performs no second advisory admission check. Supabase still
+  applies authoritative entitlement and quota before provider work. Completion
+  reconciles both `plan_used` and `credit_consumed`; paid or truly
+  complimentary funding refunds an optimistic Flash token. Valid
+  non-biological results count under their funding plan, and correction
+  reanalysis does not bypass daily accounting.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through
   `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the
   pipeline progresses.
@@ -1417,6 +1430,16 @@ and `KeychainManager` migration logic. Do not inline
 - An active hold grants functional Pro access for recovery and capped non-scan
   actions but cannot fund another analysis. Paid RevenueCat offline access is
   unchanged.
+- Serializes idempotent `ScanFundingReservation` values on `@MainActor` by
+  account and scan. `locallyAvailableComplimentaryCredits` subtracts unresolved
+  local and conservative legacy blockers from verified server availability.
+- Owns deferred ordering and blocker state. A terminal consumed state is not
+  removed until a later successful entitlement refresh; released/absent
+  terminal state also requires refresh, while current paid proof safely promotes
+  deferred work to paid Pro.
+- Releases proven local pre-dispatch failures only after the durable job marker
+  is saved. HTTP 402 invalidates current complimentary proof. Successful scan
+  metadata is reconciled from `plan_used` plus `credit_consumed`.
 - Full contract documented in
   [18-complimentary-pro-scans.md](../backend-and-data/18-complimentary-pro-scans.md).
 
@@ -1426,16 +1449,17 @@ and `KeychainManager` migration logic. Do not inline
   free-tier capture/paywall meter; Supabase owns provider authorization.
 - `canPerformScan(isProActive:) -> Bool` — returns
   `isProActive || freeScansRemaining > 0`. Capture controls use
-  `RevenueCatManager.canStartProScan` for the first argument; queue insertion
-  repeats the authoritative local transaction gate before reserving Flash.
-- `consumeScan()` — called once at enqueue time inside
+  `RevenueCatManager.canStartProScan` for presentation, while actual queue
+  admission uses `EntitlementManager.claimFunding` before reserving Flash.
+- `consumeScan(scanId:)` — called once at enqueue time inside
   `OfflineQueueManager.insertAndPersistRecord` / `enqueueNonVisualCapture`,
-  before the `OfflineQueuedScan` record is committed. `syncPendingScans` has no
-  second local check.
-- `refundScan()` — restores an optimistic local token when queue insertion
-  fails or when the server reports that paid or complimentary Pro actually
-  funded the result. It does not refund a charged provider reservation or settle
-  a complimentary hold.
+  only for an immediate/deferred Flash funding claim and before the
+  `OfflineQueuedScan` record is committed. `syncPendingScans` has no second
+  local check.
+- `refundScan(scanId:)` — idempotently restores an optimistic local token when
+  queue persistence/local pre-dispatch work fails or when durable
+  reclassification proves paid/complimentary Pro. It does not refund a charged
+  provider reservation or settle a complimentary hold.
 - Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from

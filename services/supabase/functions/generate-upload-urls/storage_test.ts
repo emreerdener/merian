@@ -4,6 +4,7 @@ import mediaStagingContract from "../../../../docs/contracts/media-staging-uploa
 };
 
 import {
+  generateStagingUrls,
   MAX_STAGED_AUDIO_BYTES,
   MAX_STAGED_AUDIO_FILES,
   MAX_STAGED_IMAGE_BYTES,
@@ -12,9 +13,9 @@ import {
   MAX_STAGED_VIDEO_FILES,
   MAX_STAGING_FILES,
   parseStagingUploadFiles,
-  sanitizeStagingFileName,
   STAGING_ALLOWED_CONTENT_TYPES,
 } from "./storage.ts";
+import type { R2Config } from "../_shared/aws.ts";
 
 interface MediaStagingUploadManifestContract {
   schemaVersion: number;
@@ -35,8 +36,12 @@ interface MediaStagingUploadManifestContract {
   canonicalQueuedM4AContentType: string;
   canonicalQueuedVideoContentType: string;
   optionalRequestFields: string[];
+  requiredPerFileFields: string[];
   uploadPurposes: string[];
   optionalResponseFields: string[];
+  requiredResponseFields: string[];
+  requiredSignedHeaders: string[];
+  signedHeaderSet: string;
   mediaRolesByKind: Record<string, string[]>;
   fileNameSafeCharacterPattern: string;
   fileNamesMustBeUnique: boolean;
@@ -47,7 +52,7 @@ Deno.test("media staging constants match the documented cross-language contract"
   const contract = mediaStagingContract as MediaStagingUploadManifestContract;
 
   assertEquals(contract.endpoint, "/generate-upload-urls");
-  assertEquals(contract.schemaVersion, 4);
+  assertEquals(contract.schemaVersion, 5);
   assertEquals(contract.minFileBytes, 1);
   assertEquals(MAX_STAGING_FILES, contract.maxFilesPerRequest);
   assertEquals(MAX_STAGED_IMAGE_BYTES, contract.maxImageBytes);
@@ -73,11 +78,28 @@ Deno.test("media staging constants match the documented cross-language contract"
     "mediaRole",
     "uploadPurpose",
   ]);
+  assertEquals(contract.requiredPerFileFields, [
+    "fileName",
+    "mediaKind",
+    "contentType",
+    "sizeBytes",
+  ]);
   assertEquals(contract.uploadPurposes, ["scan_share_restore"]);
   assertEquals(contract.optionalResponseFields, [
     "mediaAssetId",
     "mediaSessionId",
   ]);
+  assertEquals(contract.requiredResponseFields, [
+    "fileName",
+    "signedUrl",
+    "objectKey",
+    "requiredHeaders",
+  ]);
+  assertEquals(contract.requiredSignedHeaders, [
+    "Content-Type",
+    "Content-Length",
+  ]);
+  assertEquals(contract.signedHeaderSet, "content-length;content-type;host");
   assertEquals(contract.mediaRolesByKind.video, ["playback"]);
   assertEquals(contract.mediaRolesByKind.audio, ["audio"]);
   assertEquals(contract.mediaRolesByKind.image, [
@@ -85,8 +107,47 @@ Deno.test("media staging constants match the documented cross-language contract"
     "thumbnail",
     "inference_frame",
   ]);
-  assertEquals(contract.legacyFileNamesAccepted, true);
+  assertEquals(contract.legacyFileNamesAccepted, false);
   assertEquals(contract.fileNamesMustBeUnique, true);
+});
+
+Deno.test("generateStagingUrls declares the exact headers bound by the signer", async () => {
+  const calls: unknown[][] = [];
+  const config = {
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    bucketName: "media",
+    s3Client: {},
+  } as unknown as R2Config;
+  const files = [{
+    fileName: "scan.webp",
+    mediaKind: "image" as const,
+    contentType: "image/webp",
+    sizeBytes: 12_345,
+  }];
+
+  const urls = await generateStagingUrls(
+    "user-1",
+    files,
+    config,
+    (...args) => {
+      calls.push(args);
+      return Promise.resolve(
+        "https://account.r2.cloudflarestorage.com/media/staging/user-1/scan.webp?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
+      );
+    },
+  );
+
+  assertEquals(calls, [[
+    config,
+    "staging/user-1/scan.webp",
+    86_400,
+    "image/webp",
+    12_345,
+  ]]);
+  assertEquals(urls[0].requiredHeaders, {
+    "Content-Type": "image/webp",
+    "Content-Length": "12345",
+  });
 });
 
 Deno.test("parseStagingUploadFiles accepts structured mixed-media manifests", () => {
@@ -457,50 +518,53 @@ Deno.test("parseStagingUploadFiles reserves the sixth slot for non-image media",
       }),
     ),
   });
-  const legacy = parseStagingUploadFiles({
-    fileNames: Array.from(
-      { length: MAX_STAGED_IMAGE_FILES + 1 },
-      (_, index) => `legacy_${index}.webp`,
-    ),
-  });
-
   assertEquals(structured.status, 400);
   assertEquals(
     structured.error,
     "Bad Request: too many staged image files.",
   );
-  assertEquals(legacy.status, 400);
-  assertEquals(
-    legacy.error,
-    "Bad Request: too many staged image files.",
-  );
 });
 
-Deno.test("parseStagingUploadFiles keeps legacy fileNames compatible", () => {
+Deno.test("parseStagingUploadFiles rejects legacy fileNames with a stable code", () => {
   const parsed = parseStagingUploadFiles({
     fileNames: ["scan image.webp", "scan/audio.wav", "scan/video.mp4"],
   });
-
-  assertEquals(parsed.error, undefined);
-  assertEquals(parsed.files?.map((file) => file.fileName), [
-    sanitizeStagingFileName("scan image.webp"),
-    sanitizeStagingFileName("scan/audio.wav"),
-    sanitizeStagingFileName("scan/video.mp4"),
-  ]);
-  assertEquals(parsed.files?.[1].mediaKind, "audio");
-  assertEquals(parsed.files?.[1].contentType, "audio/wav");
-  assertEquals(parsed.files?.[2].mediaKind, "video");
-  assertEquals(parsed.files?.[2].contentType, "video/mp4");
-});
-
-Deno.test("parseStagingUploadFiles rejects legacy names that sanitize to one key", () => {
-  const parsed = parseStagingUploadFiles({
-    fileNames: ["scan image.webp", "scan/image.webp"],
+  const mixedShape = parseStagingUploadFiles({
+    fileNames: ["legacy.webp"],
+    files: [{
+      fileName: "scan.webp",
+      mediaKind: "image",
+      contentType: "image/webp",
+      sizeBytes: 10,
+    }],
   });
 
   assertEquals(parsed.status, 400);
-  assertEquals(
-    parsed.error,
-    "Bad Request: fileName values must be unique.",
-  );
+  assertEquals(parsed.code, "size_bytes_required");
+  assertEquals(mixedShape.status, 400);
+  assertEquals(mixedShape.code, "size_bytes_required");
+});
+
+Deno.test("parseStagingUploadFiles rejects missing per-file sizes with a stable code", () => {
+  const parsed = parseStagingUploadFiles({
+    files: [{
+      fileName: "scan.webp",
+      mediaKind: "image",
+      contentType: "image/webp",
+    }],
+  });
+
+  assertEquals(parsed.status, 400);
+  assertEquals(parsed.code, "size_bytes_required");
+  assertEquals(parsed.files, undefined);
+});
+
+Deno.test("parseStagingUploadFiles rejects old manifest shapes with a stable code", () => {
+  const parsed = parseStagingUploadFiles({ file_names: ["scan.webp"] });
+  const topLevelArray = parseStagingUploadFiles(["scan.webp"]);
+
+  assertEquals(parsed.status, 400);
+  assertEquals(parsed.code, "size_bytes_required");
+  assertEquals(topLevelArray.status, 400);
+  assertEquals(topLevelArray.code, "size_bytes_required");
 });

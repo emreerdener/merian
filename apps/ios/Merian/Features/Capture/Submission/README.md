@@ -44,17 +44,32 @@ Capture never shows the complimentary countdown. It uses
 Pro-funded analysis. Video, multiple or mixed evidence, refinement, and other
 Pro-only entry points open the soft paywall when unavailable.
 
+Actual admission is a synchronous `@MainActor` funding claim keyed by the stable
+scan ID and active account before any source file is written or foreground
+inference starts. The claim subtracts unresolved local complimentary
+reservations from the verified server snapshot; entitlement booleans do not
+authorize queue insertion. One remaining credit can therefore create only one
+local complimentary reservation. Its funding payload is saved on the durable
+scan-ingestion job in the same acceptance flow.
+
 An ordinary single-image, standalone-audio, or Describe submission can still
-start under the advisory daily meter. The server automatically selects paid
-Pro, then complimentary Pro, then—only after complimentary capacity is
-unavailable—the separate daily Flash policy. The client cannot ask to preserve
-a complimentary credit or claim Flash eligibility.
+start under the advisory daily meter. The local claim mirrors the server
+evidence shape: exactly one image, one standalone audio clip, or one description
+with no video may reserve immediate or deferred Flash. When an earlier local
+complimentary scan is unresolved, a later eligible scan is queued as deferred
+and cannot run foreground inference. The scheduler establishes earlier holds,
+performs one bulk funding-state read, and persists safe reclassification before
+dispatch. The server still automatically selects paid Pro, then complimentary
+Pro, then the independent daily Flash policy. The client cannot ask to preserve
+a complimentary credit or override server fallback.
 
 Complimentary-only modes stay locked until online entitlement verification
 succeeds on every launch. RevenueCat paid-offline behavior remains available,
 and ordinary offline Flash work continues to queue durably. A queued retry keeps
 the same `scan_id`, so server replay and recovery reuse the original hold rather
-than spending another complimentary scan. See
+than spending another complimentary scan. Proven local pre-dispatch failures
+are durably released; ambiguous delivery stays reserved, and manual retry of
+released work must make a fresh funding claim. See
 [Three Complimentary Pro Scans](../../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Field Trip Goal Preference

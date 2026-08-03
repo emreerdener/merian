@@ -33,6 +33,10 @@ The admin deployment has exactly three application variables:
 All three are public browser configuration. Do not add
 `SUPABASE_SERVICE_ROLE_KEY`, a secret API key, direct database credentials,
 Gemini credentials, PostHog, or another analytics token to this project.
+`NEXT_PUBLIC_ADMIN_ORIGIN` must be one HTTP(S) origin with no credentials,
+pathname, query, or fragment. OAuth initiation and callback destinations are
+built from this validated value, never from `request.url`, `Host`, or forwarding
+headers.
 
 In Supabase Auth:
 
@@ -255,6 +259,18 @@ Use disposable staff test accounts and records where mutation is required.
   production settings.
 - Attempt to demote/disable the final active owner and confirm rejection.
 
+### OAuth redirect confinement
+
+- Confirm a valid single-leading-slash `next` path returns to the configured
+  admin origin and preserves its path, query, and fragment.
+- Exercise absolute URLs, `//evil.example`, leading slash/backslash forms,
+  literal backslashes, and single- and recursively encoded separator variants.
+  Every case must remain on `NEXT_PUBLIC_ADMIN_ORIGIN`.
+- Repeat a valid and an invalid callback while sending a hostile `Host` and
+  `X-Forwarded-Host`. Neither header may select the redirect origin.
+- A malformed `NEXT_PUBLIC_ADMIN_ORIGIN` is a configuration failure, not a
+  reason to fall back to the request origin.
+
 ### Security headers and caching
 
 For `/overview`, `/reviews`, and one detail route, verify:
@@ -463,7 +479,7 @@ criteria are in the
 
 | Symptom | Check |
 |---|---|
-| OAuth returns to login | Exact redirect allowlist, Google provider config, callback `code`, public URL/key |
+| OAuth returns to login | Exact redirect allowlist, Google provider config, callback `code`, public URL/key, and valid origin-only `NEXT_PUBLIC_ADMIN_ORIGIN` |
 | Repeated anonymous `admin_get_access_state` 401/42501 logs | Confirm the deployed admin includes the server-side `auth.getUser()` preflight and that middleware/routes use `getAccessState()` rather than calling the RPC directly |
 | Member sees “not authorized” | Exact Auth UUID, active membership, confirmed email, non-anonymous account, Google identity |
 | User loops through MFA | Factor status, `currentLevel`, fresh token after verify, browser cookie domain |

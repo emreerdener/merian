@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct ReadyStepView: View {
+    // MARK: - Agreement State
+    @State private var hasAgreedToTerms = false
+
     // MARK: - Callbacks
     let onFinish: () -> Void
     
@@ -13,7 +16,12 @@ struct ReadyStepView: View {
             primaryButtonTitle: "Start scanning",
             primaryButtonTextColor: Color(uiColor: .systemBackground),
             primaryButtonColor: Color.primary,
-            primaryAction: onFinish
+            primaryAction: {
+                guard hasAgreedToTerms else { return }
+                onFinish()
+            },
+            termsAgreement: $hasAgreedToTerms,
+            termsURL: PublicBrand.websiteURL(path: "terms")
         )
     }
 }

@@ -51,6 +51,10 @@ Allowed application callbacks are:
 - `https://admin.naturebook.earth/auth/callback`
 
 Keep production redirects exact; do not add a broad admin-host wildcard.
+The OAuth initiation and callback route both construct destinations from this
+validated origin. Callback `next` values must be single-leading-slash paths;
+absolute, protocol-relative, backslash, and encoded-separator forms fall back
+to the fixed local destination.
 
 ## Local commands
 

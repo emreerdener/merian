@@ -16,7 +16,7 @@ validated response through the user-first entitlement completion orchestrator.
 
 ## Complimentary Entitlement
 
-After cutover, public requests require `X-Merian-Entitlement-Protocol: 2` or
+After cutover, public requests require `X-Merian-Entitlement-Protocol: 3` or
 receive `426 client_update_required` before provider dispatch. The original
 `client_scan_id` creates or reuses at most one complimentary hold. A text-only
 request with exactly one description is Flash-fallback-compatible after credit

@@ -511,6 +511,12 @@ actor and trigger frame drops or OOM spikes on big libraries.
 - At the Edge boundary, hydrate existing `collection_scans` rows with the
   `(collection_id, scan_id)` keyset cursor and write only the computed
   membership delta. Do not reintroduce progressively slower range/offset pages.
+- Admit collection ownership through the atomic
+  `upsert_owned_collections` result, never a SELECT-then-service-role-upsert
+  preflight. Use only accepted IDs downstream. Add memberships through
+  `insert_owned_collection_scans`, which joins both parents to the caller;
+  missing/foreign parents are skippable, while RPC/read/write errors must remain
+  retryable failures.
 - Recovery sweeps such as lookalike-cache clearing must include a predicate and
   fetch limit; unbounded full-library fetches are zero-OOM violations.
 

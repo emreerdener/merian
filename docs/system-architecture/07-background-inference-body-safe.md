@@ -12,7 +12,8 @@ May 2026 zero-OOM hardening pass.
   the sanitized filename/object-key manifest, includes `sizeBytes` in the
   `/generate-upload-urls` request, validates byte budgets and audio-file count
   locally and on the Edge before signing, uploads the WAV/M4A file with the
-  correct signed `Content-Type`, persists the resulting staging key in
+  response-declared signed `Content-Type` and `Content-Length`, persists the
+  resulting staging key in
   `stagedR2Keys`, and sends `audioR2ObjectKeys` to `/identify-multimodal`.
 - Live foreground audio remains inline as `audioBase64s`, but
   `MerianNetworkClient` preflights file byte size before reading or
@@ -94,11 +95,16 @@ bounded.
 - Queue upload code must sign and dispatch only scan IDs returned by
   `BackgroundDatabaseActor.markScansAsUploading(scanIds:)`; if the
   `.pending → .uploading` save rolls back, no R2 upload task should be created.
-- `/generate-upload-urls` must prefer the structured `files` manifest over
-  legacy `fileNames`; structured entries must validate `mediaKind`,
-  `contentType`, `sizeBytes`, and optional `clientScanId`/`mediaRole` before
-  returning a signed PUT URL. Scan uploads with those optional fields must
-  create staged `scan_media_assets` rows and return optional `mediaAssetId` /
+- `/generate-upload-urls` accepts only the structured `files` manifest;
+  `fileNames` and missing-size requests fail with `400 size_bytes_required`.
+  Entries must validate `mediaKind`, `contentType`, `sizeBytes`, and optional
+  `clientScanId`/`mediaRole` before returning a signed PUT URL with exact
+  required `Content-Type` and `Content-Length` headers. The signature uses the
+  exact `content-length;content-type;host` set. Every iOS data, file, repair,
+  restore, avatar, foreground, and background PUT applies the response map; a
+  file-backed PUT re-stats immediately before task creation and re-signs when
+  size changed. Scan uploads with `clientScanId`/`mediaRole` must create staged
+  `scan_media_assets` rows and return optional `mediaAssetId` /
   `mediaSessionId` fields.
 
 ## Regression Coverage

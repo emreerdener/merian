@@ -8,6 +8,10 @@ const ghostMergeMigrationUrl = new URL(
   "../../migrations/20260801210102_make_ghost_merge_schema_aware.sql",
   import.meta.url,
 );
+const reservationSafeMigrationUrl = new URL(
+  "../../migrations/20260803181936_add_reservation_safe_entitlement_protocol.sql",
+  import.meta.url,
+);
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
@@ -75,9 +79,27 @@ Deno.test("rollout starts legacy and atomically fences functional mode, protocol
   assertStringIncludes(cutover, "BEGIN");
   assertStringIncludes(
     cutover,
-    "SET entitlement_mode = 'complimentary', required_client_protocol = 2",
+    "SET entitlement_mode = 'complimentary', required_client_protocol = 3",
   );
   assertStringIncludes(cutover, "COMMIT");
+});
+
+Deno.test("protocol 3 rollout is dual-mode before the reservation-safe cutover", async () => {
+  const sql = compact(await Deno.readTextFile(reservationSafeMigrationUrl));
+  for (
+    const fragment of [
+      "required_client_protocol IN (2, 3)",
+      "p_client_protocol < rollout.required_client_protocol",
+      "p_client_protocol > 3",
+      "CREATE OR REPLACE FUNCTION public.get_complimentary_scan_states_service",
+      "PERFORM internal.require_service_role()",
+      "usage.user_id = p_user_id",
+      "GRANT EXECUTE ON FUNCTION public.get_complimentary_scan_states_service( UUID, UUID[] ) TO service_role",
+      "public.get_complimentary_scan_states_service(uuid,uuid[])",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
 });
 
 Deno.test("functional entitlement rewrites preserve volatile snapshot visibility", async () => {

@@ -32,6 +32,7 @@ final class ScanRepository {
     func configure(with modelContext: ModelContext) {
         offlineQueue.modelContext = modelContext
         offlineQueue.bootstrapOfflineJobBridgeIfNeeded()
+        offlineQueue.restoreFundingReservationsForCurrentAccount()
         Task { @MainActor in
             self.seedFavoritesIfNeeded(modelContext: modelContext)
         }

@@ -1070,8 +1070,9 @@ Bounded taxonomy-completeness targets for future gamification. Added in
 - `indexed_species_count`, `dictionary_species_count`, `coverage_ratio`:
   Coverage metric where enriched Dictionary species are compared with indexed
   GBIF species in the target scope.
-- `last_imported_offset`: Most recent GBIF page offset that successfully wrote
-  rows for the target.
+- `last_imported_offset`: Most recent GBIF page offset that was successfully
+  fetched and checkpointed for the target. It advances even when a raw
+  nonempty page produces zero normalized taxa.
 - `next_import_offset`: Machine cursor used by `sync-community-taxonomy-index`
   when `offset` is omitted. This is the preferred continuation pointer for
   operator scripts and cron.
@@ -1081,12 +1082,16 @@ Bounded taxonomy-completeness targets for future gamification. Added in
 - `last_computed_at`: Freshness marker for
   `refresh_taxonomy_coverage_targets()`.
 
-The Birds target is populated by bounded `sync-community-taxonomy-index` imports
-and recomputed by `refresh_taxonomy_coverage_targets()` after each successful
-worker run, not after every page. Individual GBIF upsert pages pass
-`refresh_coverage = false` so larger batches do not repeatedly recompute the
-same coverage counts. Do not show gamified completion claims until the target's
-`indexed_species_count` has been seeded from the bounded import.
+The Birds target is populated by bounded `sync-community-taxonomy-index`
+imports. Every successfully fetched live page checkpoints its raw next offset,
+including pages whose results all normalize out; a later failure retains those
+earlier checkpoints. Dry runs advance only a simulated response cursor and
+write none of these fields. Individual GBIF upsert pages pass
+`refresh_coverage = false`, and the worker calls
+`refresh_taxonomy_coverage_targets()` once only when the completed run imported
+at least one row and requested a refresh. Do not show gamified completion claims
+until the target's `indexed_species_count` has been seeded from the bounded
+import.
 
 ### `scans`
 
@@ -1335,6 +1340,56 @@ fabric, prepared food, toys, artwork, ornaments, and species depictions to
 These demotions retain the object display name when useful, clear source-species
 scientific names and candidates, and do not trigger
 `is_new_to_merian_dictionary`.
+
+### `collections` and `collection_scans`
+
+`collections` stores cloud-backed custom albums; `collection_scans` is their
+many-to-many membership table. They were introduced by
+`20260322161804_collections_sync.sql` and hardened by
+`20260803180211_harden_collection_ownership_and_memberships.sql`.
+
+- `collections.id` (UUID): client-stable primary key.
+- `collections.user_id` (UUID FK -> `auth.users.id`, cascade delete): immutable
+  owner under normal table access. Ownership may be reparented only by the
+  existing reviewed Ghost merge function.
+- `collections.name` (TEXT) and `created_at` (TIMESTAMPTZ): the only mutable
+  fields accepted by the synchronization upsert.
+- `collection_scans.collection_id` (UUID FK -> `collections.id`, cascade
+  delete) and `scan_id` (UUID FK -> `scans.id`, cascade delete): composite
+  primary key. Every valid row must join parents with the same non-null owner.
+
+The hardening migration removes historical rows whose two parent owners
+provably differ, then installs `enforce_collection_scan_owner_match` before
+insert or parent-ID update. The trigger is `SECURITY INVOKER`, has an empty
+search path, and rejects missing or differently owned parents with SQLSTATE
+`23514`. It protects direct service access in addition to RLS.
+
+Authenticated `collection_scans` policies are operation-specific:
+
+- select and delete require the parent collection owner to equal
+  `(SELECT auth.uid())`;
+- insert requires both the parent collection and parent scan owners to equal
+  `(SELECT auth.uid())`; and
+- update has no policy and is unsupported.
+
+The route uses two service-only invoker RPCs rather than a privileged
+SELECT-then-upsert preflight:
+
+- `public.upsert_owned_collections(p_user_id UUID, p_collections JSONB)` accepts
+  at most 200 rows and performs one atomic `INSERT ... ON CONFLICT ... DO
+  UPDATE`. It updates only `name` and `created_at` when the existing owner
+  matches, and returns `(collection_id, accepted)` for every deduplicated input.
+  A foreign or concurrent UUID collision is rejected without mutation.
+- `public.insert_owned_collection_scans(p_user_id UUID, p_rows JSONB)` accepts
+  at most 1,000 rows, joins both parents to `p_user_id`, inserts the admitted
+  deduplicated pairs, and returns inserted pairs. Missing or foreign parents are
+  skipped for later offline ordering.
+
+Both functions use empty search paths and schema-qualified objects. Execute is
+revoked from `PUBLIC`, `anon`, and `authenticated`, then granted explicitly to
+`service_role`. `service_role` has no table-level UPDATE on `collections`; its
+direct column-level UPDATE grant is limited to `name` and `created_at`. RPC
+errors remain failures and must never be interpreted as an empty accepted set.
 
 ### `insight_chat_conversations`, `insight_chat_messages`, `insight_chat_message_feedback`, `insight_chat_feature_feedback`
 
@@ -1918,7 +1973,9 @@ it through AI inference, moderation, media promotion, scan insert, and failure
 paths. `/check-scan-status` keeps returning `status: "found" | "not_found"` for
 client compatibility, and includes optional `job_status`, `job_stage`,
 `job_attempt_count`, `retry_after`, and failed-job `last_error` fields when a
-scan row is not yet complete. RLS allows owners to read their own job rows;
+scan row is not yet complete. It also exposes additive owner-scoped
+`complimentary_state` (`held`, `consumed`, `released`, or null) through one
+bulk service RPC. RLS allows owners to read their own job rows;
 service-role writers own mutation, and the claim RPC is executable only by
 `service_role`.
 
@@ -3615,7 +3672,8 @@ rows to normal pruning.
 
 ### Complimentary entitlement rollout and lifetime usage
 
-Migration `20260802235833_three_complimentary_pro_scans.sql` adds the following
+Migrations `20260802235833_three_complimentary_pro_scans.sql` and
+`20260803181936_add_reservation_safe_entitlement_protocol.sql` add the following
 current entitlement state:
 
 - `public.users.complimentary_entitlement_epoch`: protected mutation epoch.
@@ -3623,9 +3681,10 @@ current entitlement state:
   advances the account's monotonic `entitlement_version`. Browser roles cannot
   update it.
 - `internal.entitlement_rollout_config`: one owner-only `current` row containing
-  `legacy_trial`/protocol `0` or `complimentary`/protocol `2`, fixed grant `3`,
-  and monotonic `mode_version`. The migration inserts legacy mode so schema
-  deployment alone cannot strand older clients.
+  `legacy_trial`/protocol `0` or `complimentary`/protocol `2` or `3`, fixed grant
+  `3`, and monotonic `mode_version`. Protocol 2 is the dual-mode rollout state;
+  protocol 3 requires reservation-safe clients. The migration inserts legacy
+  mode so schema deployment alone cannot strand older clients.
 - `internal.complimentary_scan_usage`: private ledger keyed by
   `(user_id, client_scan_id)`, with `held`, `consumed`, or `released` state;
   hold/settlement times; validated `settlement_reason`; and reacquisition count.
@@ -4346,7 +4405,17 @@ values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
   mirrors for scan jobs.
 - `requiresUnconstrainedNetwork`, `allowsCellular`: Bool policy hints.
 - `approximateBytes`: Int64 redacted local footprint estimate.
-- `metadataJSON`: String? reserved for non-media scheduler metadata.
+- `metadataJSON`: String? object for non-media scheduler metadata. Scan-ingestion
+  jobs may carry `inference_generation` and `funding_reservation` at the same
+  time. `funding_reservation` encodes account ID, stable scan ID, source
+  (`paid_pro`, `complimentary_pro`, `immediate_flash`, or `deferred_flash`),
+  earlier blocker scan IDs, and creation time. Generation and funding helpers
+  remove only the property they own. A proven pre-dispatch local failure removes
+  the reservation and durably sets `funding_reservation_released: true` while
+  preserving all other metadata. A fresh claim removes that marker. Relaunch
+  restores nonterminal reservations; a pre-protocol-3 job lacking funding is a
+  conservative potential complimentary blocker unless the durable release
+  marker proves otherwise.
 
 ### `OfflineQueueEvent`
 

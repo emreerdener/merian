@@ -4,9 +4,9 @@ import { parseJsonBody } from "../_shared/http.ts";
 import { SyncCollectionPayload } from "./types.ts";
 import {
   deleteCollections,
-  filterOwnedCollections,
+  fetchCollectionMemberships,
   syncMembershipDelta,
-  upsertCollectionsAndFetchMemberships,
+  upsertOwnedCollections,
 } from "./db.ts";
 
 Deno.serve((req: Request) =>
@@ -57,22 +57,20 @@ Deno.serve((req: Request) =>
     const allValidCollections = collections.filter((c) => !isDeletedFlag(c));
     const deletedCollections = collections.filter((c) => isDeletedFlag(c));
 
-    // IDOR guard: resolve which incoming collection IDs are owned by this user.
-    // All downstream calls receive pre-filtered collections so no function needs
-    // to re-implement the ownership check independently.
-    const { ownedCollections, ownedIds } = await filterOwnedCollections(
+    // The RPC performs the ownership decision inside the same atomic statement
+    // as the insert/update. Concurrent UUID collisions and foreign stale IDs are
+    // rejected without modifying their rows.
+    const { ownedCollections, ownedIds } = await upsertOwnedCollections(
       user.id,
       allValidCollections,
       supabaseAdmin,
     );
 
-    // 0. Process explicit deletions first (scoped to user_id by deleteCollections).
+    // Do not perform downstream membership work if the guarded upsert failed.
+    // Explicit deletes remain owner-scoped and foreign IDs stay skippable.
     await deleteCollections(deletedCollections, user.id, supabaseAdmin);
 
-    // 1. Batch upsert active owned collections + fetch existing memberships concurrently.
-    const existingMemberships = await upsertCollectionsAndFetchMemberships(
-      user.id,
-      ownedCollections,
+    const existingMemberships = await fetchCollectionMemberships(
       ownedIds,
       supabaseAdmin,
     );
@@ -81,6 +79,7 @@ Deno.serve((req: Request) =>
     //    Both ownedCollections and ownedIds are already scoped to this user so
     //    syncMembershipDelta cannot touch foreign collections.
     await syncMembershipDelta(
+      user.id,
       ownedCollections,
       existingMemberships,
       ownedIds,

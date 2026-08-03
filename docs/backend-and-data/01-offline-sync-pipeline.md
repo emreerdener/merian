@@ -356,33 +356,60 @@ timeouts cross a threshold, the circuit "trips", routing all new captures
 straight to the offline queue and bypassing useless network connections for a
 guaranteed zero-latency shutter experience.
 
-**Advisory Free-Tier Capture Meter**: The local UX meter is applied at enqueue
-time, not upload time. `insertAndPersistRecord` and `enqueueNonVisualCapture`
-first check `RevenueCatManager.shared.canStartProScan`. If no paid or verified
-unheld complimentary capacity is available, they check and reserve the separate
-daily Flash meter before the `OfflineQueuedScan` record is inserted. If that
-meter is exhausted, the scan is rejected and any files already written to disk
-are cleaned up atomically—`AppTelemetry.trackOfflineQueued()` is **not** fired
-in this case. If the quota check passes, `UsageManager.shared.consumeScan()`
-reserves the slot before the record enters the queue; if the subsequent
-SwiftData save fails, `modelContext.rollback()` runs and
-`UsageManager.shared.refundScan()` restores the slot. This ensures every scan
-that reaches `syncPendingScans` uploads without another local check, while
-failed local inserts do not change the advisory meter. It is not provider
-authorization: on upload, the Edge Function uses the stable scan UUID as its
-idempotency key and atomically reserves the database UTC-day/user/IP quota and
-any required lifetime hold before Gemini. A modified client or cleared
-`UserDefaults` cannot bypass that boundary. Provider attempts, including
-non-biological outcomes or malformed responses, consume the server reservation;
-only a proven pre-provider no-op may refund it. Provider failures move to a
-charged `failed` state so a later retry of the same scan can make a newly
+**Serialized Funding Admission and Advisory Flash Meter**: The observable
+entitlement booleans drive presentation only. Before capture code writes files
+or starts foreground inference, `insertAndPersistRecord` and
+`enqueueNonVisualCapture` synchronously claim one account/scan-keyed
+`ScanFundingReservation` on `@MainActor`. Its class is paid Pro, locally
+reserved complimentary Pro, immediate Flash, or deferred Flash with earlier
+complimentary blocker scan IDs. Verified server availability is reduced by all
+unresolved local complimentary and conservative legacy blockers, so one stale
+remaining credit cannot admit multiple queued Pro scans.
+
+Exactly one image, one standalone audio clip, or one description with no video
+is Flash-eligible. Mixed, multi-item, and video captures without Pro funding
+open the upgrade flow and never enter the queue. Immediate and deferred Flash
+claims reserve the separate advisory daily meter at enqueue time; if it is
+exhausted, admission fails before durable capture. If queue persistence fails,
+the context rolls back, any Flash token is refunded, the local funding claim is
+released, and source files are cleaned up. `AppTelemetry.trackOfflineQueued()`
+is not fired for rejected work.
+
+Funding is persisted as `funding_reservation` in the scan job metadata beside
+`inference_generation`; generation handoff removes only its property. Relaunch
+restores nonterminal reservations. Active pre-protocol-3 jobs without funding
+metadata remain potential complimentary blockers unless
+`funding_reservation_released: true` durably proves a prior local release. A
+proven pre-dispatch local failure writes that marker before releasing memory
+state or the advisory token. If the save fails, capacity remains blocked.
+Ambiguous network outcomes remain reserved. A manual retry of a released job
+derives eligibility from the persisted media timeline and performs a fresh
+synchronous funding claim before re-entering automatic work.
+
+Locally complimentary-reserved scans dispatch first. Deferred work cannot run
+foreground inference or dispatch until one bulk owner-scoped status lookup per
+scheduler pass establishes earlier blocker states. All `held`/`consumed`
+blockers safely choose immediate Flash. A released or absent terminal blocker
+requires a fresh entitlement snapshot and may promote the later scan to
+complimentary Pro; newly paid proof promotes it to paid Pro. A terminal
+`consumed` status also remains blocked until a subsequent successful entitlement
+refresh proves the installed balance includes settlement. Reclassification is
+persisted before dispatch and paid/complimentary promotion refunds the optimistic
+Flash token.
+
+This remains advisory rather than provider authorization. On upload, Edge uses
+the stable scan UUID as its idempotency key and atomically reserves database
+UTC-day/user/IP quota and any required lifetime hold before Gemini. A modified
+client or cleared `UserDefaults` cannot bypass that boundary. Provider attempts,
+including non-biological outcomes or malformed responses, consume the server
+reservation; only a proven pre-provider no-op may refund it. Provider failures
+move to a charged `failed` state so a later same-scan retry can make a newly
 metered attempt; an abandoned pre-provider reservation expires and is
 automatically refunded. The non-biological correction entry point may bypass
-the Pro-only reanalysis feature lock, but once the user submits that replacement
-capture it follows the normal paid → complimentary → Flash selection and
-applicable limits. A successful response reconciles any optimistic local Flash
-token from authoritative `plan_used`; paid/complimentary refunds it, while real
-Flash fallback consumes it.
+the Pro-only reanalysis feature lock, but replacement capture follows normal
+paid → complimentary → Flash selection and limits. Success reconciles local
+funding from both authoritative `plan_used` and `credit_consumed`;
+`pro_complimentary` with `credit_consumed = false` releases the local assumption.
 
 The entitlement verification, original-analysis linkage, and hold-settlement
 rules are canonical in
@@ -564,10 +591,13 @@ URLSession uploads whose state was never persisted. This means
 the persistent state machine eliminates the need for an in-memory
 `activeScanUploadIds` set that would be lost on process death. Each local media
 file is streamed directly from `URL.documentsDirectory` to
-`URLSession.uploadTask(with:fromFile:)`. Image uploads use
-`Content-Type: image/webp`; audio uploads use `audio/wav` or `audio/mp4` based
-on extension. These must match the Content-Type baked into the Cloudflare R2
-pre-signed URL by the `generate-upload-urls` Edge function. The Edge function
+`URLSession.uploadTask(with:fromFile:)`. Every image, audio, and video upload uses
+the exact response-declared `Content-Type` and `Content-Length` headers. These
+must match the values baked into the Cloudflare R2 pre-signed URL by the
+`generate-upload-urls` Edge function; its signed-header set is
+`content-length;content-type;host`. `ScanUploadItem` retains the size used when
+signing. The queue re-stats the file immediately before PUT task creation and
+discards/re-signs the URL if that size changed. The Edge function
 now consumes the full `files` manifest (`fileName`, `mediaKind`, `contentType`,
 `sizeBytes`, `clientScanId`, `mediaRole`) instead of inferring type from
 extensions, creates staged `scan_media_assets` rows for scan media, and
@@ -1408,11 +1438,17 @@ disconnected.
    pages or one round trip per collection. Only the delta (rows to add and rows
    to remove) is written. We intentionally do not use implicit destructive diffs
    for whole collections to prevent devices with missing histories from
-   obliterating remote databases. The Edge function actively pre-filters any
-   mappings for scans that haven't synced to the cloud yet, preventing Postgres
-   FK constraint violations from aborting the overarching database chunk.
-   Removals are grouped by `collection_id`. A `MAX_COLLECTIONS = 200` cap is
-   enforced server-side.
+   obliterating remote databases. Collection ownership is admitted atomically by
+   `upsert_owned_collections`: new and same-owner IDs continue, while foreign or
+   concurrently colliding IDs remain unchanged and are skipped without blocking
+   unrelated collections. Membership additions use
+   `insert_owned_collection_scans`, which joins both the collection and scan to
+   the authenticated owner. Scans that have not synced yet—and foreign scans—are
+   skipped for a later sync pulse rather than causing the whole chunk to fail.
+   An ownership-RPC error stops hydration and membership writes. A database
+   owner-match trigger and split authenticated RLS policies independently reject
+   cross-owner memberships. Removals are grouped by `collection_id`. A
+   `MAX_COLLECTIONS = 200` cap is enforced server-side.
 
    **Strict Concurrency Gating**: To prevent race conditions where out-of-order
    network requests resurrect deleted collections, all collection pushes now

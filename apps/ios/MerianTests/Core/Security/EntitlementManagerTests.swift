@@ -1,5 +1,5 @@
-import XCTest
 @testable import Merian
+import XCTest
 
 @MainActor
 final class EntitlementManagerTests: XCTestCase {
@@ -172,6 +172,497 @@ final class EntitlementManagerTests: XCTestCase {
         XCTAssertFalse(EntitlementManager.shared.isVerifiedForCurrentLaunch)
         XCTAssertTrue(RevenueCatManager.shared.isProActive)
         XCTAssertTrue(RevenueCatManager.shared.canStartProScan)
+    }
+
+    func testOneVerifiedCreditCreatesOneLocalComplimentaryReservation() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 20
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000201"
+        let second = "00000000-0000-4000-8000-000000000202"
+
+        let firstFunding = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+        let secondFunding = EntitlementManager.shared.claimFunding(
+            scanId: second,
+            flashFallbackEligible: true
+        )
+
+        XCTAssertEqual(firstFunding?.source, .complimentaryPro)
+        XCTAssertEqual(secondFunding?.source, .deferredFlash)
+        XCTAssertEqual(secondFunding?.blockerScanIds, [first])
+        XCTAssertEqual(
+            EntitlementManager.shared.locallyAvailableComplimentaryCredits,
+            0
+        )
+        XCTAssertFalse(
+            EntitlementManager.shared.fundingAllowsDispatch(scanId: second)
+        )
+    }
+
+    func testLegacyJobConservativelyReservesComplimentaryCapacity() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 20
+        ), for: userID))
+        let legacy = "00000000-0000-4000-8000-000000000222"
+        let later = "00000000-0000-4000-8000-000000000223"
+        EntitlementManager.shared.restoreLegacyPotentialBlocker(
+            scanId: legacy,
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+
+        let funding = EntitlementManager.shared.claimFunding(
+            scanId: later,
+            flashFallbackEligible: true
+        )
+
+        XCTAssertEqual(
+            EntitlementManager.shared.locallyAvailableComplimentaryCredits,
+            0
+        )
+        XCTAssertEqual(funding?.source, .deferredFlash)
+        XCTAssertEqual(funding?.blockerScanIds, [legacy])
+    }
+
+    func testProvenLocalFailureReleasesDeferredDependents() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 20
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000224"
+        let second = "00000000-0000-4000-8000-000000000225"
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: second,
+            flashFallbackEligible: true
+        )
+
+        EntitlementManager.shared.releaseFundingAfterProvenLocalFailure(
+            scanId: first
+        )
+        let changes = EntitlementManager.shared.resolveDeferredFunding()
+
+        XCTAssertEqual(changes.first?.source, .complimentaryPro)
+        XCTAssertTrue(
+            EntitlementManager.shared.fundingAllowsDispatch(scanId: second)
+        )
+    }
+
+    func testSuccessfulReleasedComplimentaryHoldIsNotRecordedAsConsumed() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 20
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000226"
+        let second = "00000000-0000-4000-8000-000000000227"
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: second,
+            flashFallbackEligible: true
+        )
+
+        EntitlementManager.shared.recordCompletedFunding(
+            planUsed: "pro_complimentary",
+            creditConsumed: false,
+            scanId: first
+        )
+        let changes = EntitlementManager.shared.resolveDeferredFunding()
+
+        XCTAssertEqual(changes.first?.source, .complimentaryPro)
+    }
+
+    func testPaidAccessReclassifiesDeferredScanWithoutWaitingForBlocker() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 20
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000229"
+        let second = "00000000-0000-4000-8000-000000000230"
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: second,
+            flashFallbackEligible: true
+        )
+
+        RevenueCatManager.shared.isSubscribed = true
+        let changes = EntitlementManager.shared.resolveDeferredFunding()
+
+        XCTAssertEqual(changes.first?.source, .paidPro)
+        XCTAssertTrue(
+            EntitlementManager.shared.fundingAllowsDispatch(scanId: second)
+        )
+    }
+
+    func testConsumedStatusKeepsCapacityReservedUntilEntitlementRefresh() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 20
+        ), for: userID))
+        let legacy = "00000000-0000-4000-8000-000000000228"
+        EntitlementManager.shared.restoreLegacyPotentialBlocker(
+            scanId: legacy,
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+
+        EntitlementManager.shared.applyComplimentaryState(
+            .consumed,
+            scanId: legacy,
+            terminalized: true
+        )
+
+        XCTAssertTrue(
+            EntitlementManager.shared.needsTerminalSettlementEntitlementRefresh
+        )
+        XCTAssertEqual(
+            EntitlementManager.shared.locallyAvailableComplimentaryCredits,
+            0
+        )
+
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "free",
+            tier: "free",
+            remaining: 0,
+            available: 0,
+            version: 21
+        ), for: userID))
+        EntitlementManager.shared
+            .confirmTerminalSettlementsAfterEntitlementRefresh()
+        XCTAssertFalse(
+            EntitlementManager.shared.needsTerminalSettlementEntitlementRefresh
+        )
+    }
+
+    func testMixedCaptureWithoutComplimentaryCapacityIsNotAdmitted() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "free",
+            tier: "free",
+            remaining: 0,
+            available: 0,
+            version: 21
+        ), for: userID))
+
+        XCTAssertNil(EntitlementManager.shared.claimFunding(
+            scanId: "00000000-0000-4000-8000-000000000203",
+            flashFallbackEligible: false
+        ))
+    }
+
+    func testHeldBlockerMakesDeferredFlashDispatchable() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 22
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000204"
+        let second = "00000000-0000-4000-8000-000000000205"
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: second,
+            flashFallbackEligible: true
+        )
+
+        EntitlementManager.shared.applyComplimentaryState(
+            .held,
+            scanId: first,
+            terminalized: false
+        )
+        let changes = EntitlementManager.shared.resolveDeferredFunding()
+
+        XCTAssertEqual(changes.count, 1)
+        XCTAssertEqual(changes.first?.source, .immediateFlash)
+        XCTAssertTrue(
+            EntitlementManager.shared.fundingAllowsDispatch(scanId: second)
+        )
+    }
+
+    func testHeldStateCannotReopenCapacityInAStaleSnapshot() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 22
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000214"
+        let later = "00000000-0000-4000-8000-000000000215"
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+
+        EntitlementManager.shared.applyComplimentaryState(
+            .held,
+            scanId: first,
+            terminalized: false
+        )
+        let laterFunding = EntitlementManager.shared.claimFunding(
+            scanId: later,
+            flashFallbackEligible: true
+        )
+
+        XCTAssertEqual(
+            EntitlementManager.shared.locallyAvailableComplimentaryCredits,
+            0
+        )
+        XCTAssertEqual(laterFunding?.source, .immediateFlash)
+    }
+
+    func testReleasedBlockerStaysDeferredUntilEarlierJobIsTerminal() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 23
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000218"
+        let second = "00000000-0000-4000-8000-000000000219"
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: second,
+            flashFallbackEligible: true
+        )
+
+        EntitlementManager.shared.applyComplimentaryState(
+            .released,
+            scanId: first,
+            terminalized: false
+        )
+
+        XCTAssertFalse(EntitlementManager.shared.hasReleasedDeferredBlocker)
+        XCTAssertTrue(EntitlementManager.shared.resolveDeferredFunding().isEmpty)
+        XCTAssertFalse(
+            EntitlementManager.shared.fundingAllowsDispatch(scanId: second)
+        )
+        XCTAssertEqual(
+            EntitlementManager.shared.locallyAvailableComplimentaryCredits,
+            0
+        )
+    }
+
+    func testReleasedBlockerCanPromoteDeferredScanAfterRefresh() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 23
+        ), for: userID))
+        let first = "00000000-0000-4000-8000-000000000206"
+        let second = "00000000-0000-4000-8000-000000000207"
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: first,
+            flashFallbackEligible: true
+        )
+        _ = EntitlementManager.shared.claimFunding(
+            scanId: second,
+            flashFallbackEligible: true
+        )
+        EntitlementManager.shared.applyComplimentaryState(
+            .released,
+            scanId: first,
+            terminalized: true
+        )
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 24
+        ), for: userID))
+
+        let changes = EntitlementManager.shared.resolveDeferredFunding()
+        XCTAssertEqual(changes.first?.source, .complimentaryPro)
+    }
+
+    func testTerminalReleasedLegacyBlockerDoesNotStallDeferredScan() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "free",
+            tier: "free",
+            remaining: 0,
+            available: 0,
+            version: 25
+        ), for: userID))
+        let legacy = "00000000-0000-4000-8000-000000000220"
+        let later = "00000000-0000-4000-8000-000000000221"
+        EntitlementManager.shared.restoreLegacyPotentialBlocker(
+            scanId: legacy,
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+        let deferred = EntitlementManager.shared.claimFunding(
+            scanId: later,
+            flashFallbackEligible: true
+        )
+        XCTAssertEqual(deferred?.source, .deferredFlash)
+
+        EntitlementManager.shared.applyComplimentaryState(
+            .released,
+            scanId: legacy,
+            terminalized: true
+        )
+        let changes = EntitlementManager.shared.resolveDeferredFunding()
+
+        XCTAssertEqual(changes.first?.source, .immediateFlash)
+        XCTAssertTrue(
+            EntitlementManager.shared.fundingAllowsDispatch(scanId: later)
+        )
+    }
+
+    func testGenerationRemovalPreservesFundingMetadata() throws {
+        let generation = UUID()
+        let funding = ScanFundingReservation(
+            accountId: userID,
+            scanId: "00000000-0000-4000-8000-000000000208",
+            source: .complimentaryPro
+        )
+        let metadata = try XCTUnwrap(OfflineScanJobMetadataContract.json(
+            generation: generation,
+            funding: funding
+        ))
+
+        let handedOff = InferenceGenerationMetadataContract.removing(
+            generation,
+            from: metadata
+        )
+        XCTAssertNil(InferenceGenerationMetadataContract.generation(
+            in: handedOff
+        ))
+        XCTAssertEqual(
+            OfflineScanJobMetadataContract.funding(in: handedOff),
+            funding
+        )
+    }
+
+    func testDurableFundingReleasePreservesGenerationAndRequiresFreshClaim() throws {
+        let generation = UUID()
+        let original = ScanFundingReservation(
+            accountId: userID,
+            scanId: "00000000-0000-4000-8000-000000000231",
+            source: .complimentaryPro
+        )
+        let metadata = try XCTUnwrap(OfflineScanJobMetadataContract.json(
+            generation: generation,
+            funding: original
+        ))
+
+        let released = try XCTUnwrap(
+            OfflineScanJobMetadataContract.markingFundingReleased(in: metadata)
+        )
+        XCTAssertNil(OfflineScanJobMetadataContract.funding(in: released))
+        XCTAssertTrue(
+            OfflineScanJobMetadataContract.fundingWasReleased(in: released)
+        )
+        XCTAssertEqual(
+            InferenceGenerationMetadataContract.generation(in: released),
+            generation
+        )
+
+        let replacement = ScanFundingReservation(
+            accountId: userID,
+            scanId: original.scanId,
+            source: .immediateFlash
+        )
+        let reclaimed = OfflineScanJobMetadataContract.settingFunding(
+            replacement,
+            in: released
+        )
+        XCTAssertEqual(
+            OfflineScanJobMetadataContract.funding(in: reclaimed),
+            replacement
+        )
+        XCTAssertFalse(
+            OfflineScanJobMetadataContract.fundingWasReleased(in: reclaimed)
+        )
+    }
+
+    func testRelaunchRestoresDeferredFundingOrderFromMetadata() throws {
+        let first = "00000000-0000-4000-8000-000000000216"
+        let second = "00000000-0000-4000-8000-000000000217"
+        let earlier = ScanFundingReservation(
+            accountId: userID,
+            scanId: first,
+            source: .complimentaryPro,
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+        let deferred = ScanFundingReservation(
+            accountId: userID,
+            scanId: second,
+            source: .deferredFlash,
+            blockerScanIds: [first],
+            createdAt: Date(timeIntervalSince1970: 101)
+        )
+        let metadata = try XCTUnwrap(OfflineScanJobMetadataContract.json(
+            generation: nil,
+            funding: deferred
+        ))
+
+        EntitlementManager.shared.resetForTesting(userID: userID)
+        EntitlementManager.shared.restoreFundingReservation(earlier)
+        EntitlementManager.shared.restoreFundingReservation(try XCTUnwrap(
+            OfflineScanJobMetadataContract.funding(in: metadata)
+        ))
+
+        XCTAssertEqual(EntitlementManager.shared.fundingBlockerScanIds, [first])
+        XCTAssertFalse(
+            EntitlementManager.shared.fundingAllowsDispatch(scanId: second)
+        )
+        XCTAssertEqual(
+            EntitlementManager.shared.fundingPriority(scanId: first),
+            0
+        )
+    }
+
+    func testPaymentRequiredInvalidatesComplimentaryProof() throws {
+        XCTAssertTrue(EntitlementManager.shared.apply(try snapshot(
+            plan: "pro_complimentary",
+            tier: "pro",
+            remaining: 1,
+            available: 1,
+            version: 25
+        ), for: userID))
+        EntitlementManager.shared
+            .invalidateComplimentaryProofAfterPaymentRequired()
+        XCTAssertFalse(EntitlementManager.shared.isVerifiedForCurrentLaunch)
+        XCTAssertFalse(EntitlementManager.shared.canStartProFundedScan)
     }
 
     private func snapshot(

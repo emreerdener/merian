@@ -31,5 +31,8 @@ export function canonicalRedirectURL(
     return null;
   }
 
-  return new URL(`${pathname}${search}`, CANONICAL_ORIGIN);
+  const destination = new URL(CANONICAL_ORIGIN);
+  destination.pathname = pathname;
+  destination.search = search;
+  return destination;
 }

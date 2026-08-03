@@ -155,8 +155,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     Pro actions. `isProActive` is paid RevenueCat access or an exactly verified
     complimentary tier; public Profile and Explore badges continue to use
     paid `isSubscribed` state only.
-    New Pro-funded analyses use `canStartProScan`, which requires paid status or
-    `scans_available_to_start > 0`; an active hold alone cannot fund scan four.
+    `canStartProScan` is a presentation hint for new Pro-funded analyses. Actual
+    admission synchronously claims an account/scan-keyed funding reservation and
+    subtracts unresolved local complimentary and legacy blockers from
+    `scans_available_to_start`; an active hold alone cannot fund scan four, and
+    one stale remaining credit cannot admit multiple offline Pro scans.
   - Complimentary balances appear in Results and Settings, not Capture. After
     the third durable result the stored result remains fully viewable and the
     UI shows exhaustion plus an upgrade action. Ordinary compatible captures
@@ -166,7 +169,7 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     Pro scan remains”; `pro_complimentary` remains an internal server plan.
   - **Backend Model Upgrades**: The client display state is not provider
     authorization. Every paid-model Edge path atomically calls
-    protocol-2 `reserve_ai_quota`, which locks the user, resolves paid Pro →
+    protocol-3 `reserve_ai_quota`, which locks the user, resolves paid Pro →
     complimentary Pro → free, acquires a lifetime-ledger hold when required,
     selects the database policy model, and consumes provider quota before
     dispatch. Paid users have
@@ -301,10 +304,11 @@ provider-cost enforcement boundary.
 
 - `.canPerformScan(isProActive:)` returns
   `isProActive || freeScansRemaining > 0`. Capture passes
-  `RevenueCatManager.canStartProScan`, which is stricter than functional Pro
-  access when every complimentary credit is already held. Queue insertion
-  repeats the local transaction gate. Network failures do not turn an accepted
-  durable scan into a paywall; exact-ID recovery keeps it queued.
+  `RevenueCatManager.canStartProScan` for UI presentation, but queue insertion
+  uses the synchronous `EntitlementManager.claimFunding` transaction. Only
+  immediate/deferred Flash funding reserves the advisory token. Network
+  failures do not release an accepted reservation or turn a durable scan into a
+  paywall; exact-ID recovery keeps it queued.
 - `handlePhotoPickerSelection` snapshots the current quota once per picker batch
   before any background downsampling begins. If the batch is over quota, it
   clears the picker selection immediately, tracks the paywall impression, and

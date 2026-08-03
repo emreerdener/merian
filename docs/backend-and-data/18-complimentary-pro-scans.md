@@ -10,13 +10,15 @@ the invariants here.
 
 The repository contains the
 [forward schema migration](../../services/supabase/migrations/20260802235833_three_complimentary_pro_scans.sql),
-dual-mode backend, protocol-2 iOS client, admin telemetry, tests, and
+dual-mode backend, reservation-safe protocol-3 iOS client, admin telemetry, tests, and
 [owner-only cutover script](../../services/supabase/scripts/cutover_complimentary_entitlements.sql).
 Applying the migration does **not** activate the new offer: it creates
 `internal.entitlement_rollout_config` in `legacy_trial` mode with client
 protocol enforcement disabled. Production remains on legacy behavior until an
 operator completes the ordered rollout and atomically selects `complimentary`
-mode with required protocol `2`.
+mode with required protocol `3`. A transitional configuration requiring `2`
+accepts supported clients presenting protocols 2–3 until the verified build is
+required atomically.
 
 Do not describe the complimentary offer as live merely because its code or
 migration exists. The authoritative rollout procedure is
@@ -218,15 +220,19 @@ Successful scan envelopes may add:
 ```
 
 The entire `entitlement` member is additive and optional. Historical stored
-envelopes without it remain valid. `credit_consumed` describes how the durable
-result was funded, including a replay; it is not proof that the current HTTP
-invocation performed the transition.
+envelopes without it remain valid. `plan_used` retains the original server
+funding class. `credit_consumed` says whether the durable result is backed by a
+consumed complimentary ledger row; it is not proof that the current HTTP
+invocation performed the transition. In particular,
+`plan_used = "pro_complimentary"` with `credit_consumed = false` means the
+client must release its local complimentary assumption, such as when paid access
+won before final settlement.
 
 After cutover, all public requests to `/identify`, `/identify-describe`,
 `/identify-multimodal`, and `/audio-spec` must send:
 
 ```http
-X-Merian-Entitlement-Protocol: 2
+X-Merian-Entitlement-Protocol: 3
 ```
 
 Missing or obsolete public protocol receives HTTP `426` with
@@ -256,6 +262,46 @@ RevenueCat's paid state:
 - Preserve RevenueCat's existing paid-offline behavior. A failed online
   complimentary verification stays locked, while ordinary offline Flash queuing
   continues under the existing local meter and reconciliation flow.
+- Claim a stable, account-scoped funding reservation synchronously before file
+  writes or foreground inference. Subtract unresolved local complimentary
+  claims from the verified server availability—even after a state-only read
+  reports a hold—so one stale snapshot cannot admit the same credit twice.
+- Persist funding as `funding_reservation` beside `inference_generation` in the
+  scan-ingestion job metadata object. Each helper removes only its own property,
+  and relaunch restores every nonterminal reservation. Active legacy jobs
+  without funding metadata remain conservative blockers until their server
+  state is known.
+- A proven pre-dispatch local failure must first durably remove
+  `funding_reservation` and set `funding_reservation_released: true`, preserving
+  unrelated metadata. Only after that save succeeds may the in-memory
+  reservation and advisory Flash token be released. The marker prevents a
+  released legacy job from becoming an unknown blocker again after relaunch. A
+  fresh funding claim removes the marker; an explicit retry of released work
+  must make that claim synchronously from the persisted capture timeline before
+  returning the job to automatic work.
+- Mirror Flash eligibility exactly: one image, standalone audio clip, or
+  description, with no video. Later eligible work blocked by an earlier local
+  complimentary claim is deferred without foreground inference until one bulk
+  status read proves every blocker `held` or `consumed`.
+- Dispatch local complimentary reservations before paid and immediate/deferred
+  Flash work so the server establishes earlier holds first. One owner-scoped
+  bulk status lookup per scheduler pass supplies blocker state; no per-scan read
+  loop is allowed.
+- A terminal `consumed` status proves settlement but does not prove that an
+  already-installed entitlement snapshot includes it. Keep the local blocker
+  until a subsequent successful `get_my_entitlement()` refresh. Treat
+  `released`, or a missing state after terminalization, as a reason to refresh
+  and reclassify.
+- After authoritative state is installed, all-`held`/`consumed` blockers select
+  immediate Flash. Released capacity may promote the deferred scan to a new
+  complimentary reservation; current paid proof promotes it to paid Pro. The
+  new funding class must be persisted before dispatch, and paid/complimentary
+  promotion refunds any optimistic advisory Flash token.
+- Ambiguous outcomes retain reservations. Only proven pre-dispatch local
+  failures follow the durable release sequence. HTTP 402 invalidates local
+  complimentary proof until an authoritative entitlement refresh.
+- On successful completion, reconcile the local reservation from both
+  `plan_used` and `credit_consumed`, not the plan string alone.
 - Use paid status for Profile and Explore Pro badges.
 
 The client local daily meter remains advisory. Flash fallback is reconciled
@@ -324,8 +370,9 @@ durable or terminal before settling it.
 
 ## Rollout, rollback, and change procedure
 
-The ordered release is schema in legacy mode → dual-mode Edge backend → verified
-protocol-2 TestFlight build → atomic mode/protocol cutover. Expiring an older
+The ordered release is schema in legacy mode → protocol-3-compatible dual-mode
+Edge backend → verified protocol-3 TestFlight build → atomic mode/protocol-3
+cutover. Expiring an older
 TestFlight build is distribution cleanup only; server protocol enforcement is
 the compatibility boundary.
 

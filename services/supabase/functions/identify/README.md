@@ -81,7 +81,7 @@ nonessential after the user receives a durable ID.
 ## Response Contract
 
 After entitlement cutover, public calls require
-`X-Merian-Entitlement-Protocol: 2`; missing/obsolete callers receive
+`X-Merian-Entitlement-Protocol: 3`; missing/obsolete callers receive
 `426 client_update_required` before provider dispatch. The canonical
 `client_scan_id` is the complimentary-ledger linkage. Paid Pro wins, otherwise
 an available credit creates/reuses one hold; after exhaustion only a

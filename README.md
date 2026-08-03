@@ -248,7 +248,7 @@ steps are tracked in the
   Paid Pro takes precedence; after the third durable result, compatible
   single-evidence captures fall back to Flash while video, mixed-media, and
   Pro-only actions offer an upgrade. Activation remains behind the documented
-  protocol-2 atomic cutover.
+  protocol-3 atomic cutover after the reservation-safe iOS build is verified.
 - Structured JSON output schema enforced server-side: common name, scientific
   name, full Linnaean taxonomy, ecology type, IUCN Red List status,
   location-aware invasiveness flag with region/rationale/confidence, confidence
@@ -600,7 +600,10 @@ expire, or the deletion backlog breaches its SLA. See the
   traffic. Every public AI route atomically resolves entitlement, selects its
   model, and reserves per-user/IP quota before provider dispatch. The iOS
   `UserDefaults` meter is advisory, and its debug-only bypass cannot change
-  server capacity.
+  server capacity. Protocol-3 iOS admission serializes one stable
+  account/scan funding reservation before local media writes, subtracts
+  unresolved reservations from verified capacity, and defers later
+  Flash-eligible work until earlier server settlement is known.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5
   Flash against stored scan evidence only; the same function also generates
   short, scan-specific prompt chips from private text context.
@@ -908,6 +911,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/backend-and-data/11-internal-admin-operations.md`           | Internal admin setup, deployment, access recovery, pricing, and incident runbook                                |
 | `docs/backend-and-data/12-explore-media-health-and-quarantine.md` | Reversible Explore media-loss policy, origin verification, owner communication, recovery, security, and rollout |
 | `docs/backend-and-data/18-complimentary-pro-scans.md`             | Normative three-credit ledger, reservation, settlement, protocol, iOS, merge, security, and rollout contract     |
+| `docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md` | Joined collection, upload, funding, redirect, taxonomy, rollout, and evidence record |
 | `docs/development-guides/`                                        | Core managers reference, app lifecycle, testing strategy                                                        |
 | `docs/incidents/`                                                 | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
 | `docs/rfcs/active-capture-goal-context.md`                        | Long-term source-agnostic Capture goal architecture and extension contract                                      |

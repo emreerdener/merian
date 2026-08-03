@@ -4,7 +4,7 @@ Running checklist for Merian's bounded GBIF-backed Community Taxonomy Index
 imports. Update this file whenever we run another import batch, change the
 worker, or promote coverage information into product surfaces.
 
-Last updated: 2026-07-20
+Contract updated: 2026-08-03. Production snapshot last verified: 2026-07-20.
 
 ## Current Policy
 
@@ -23,6 +23,16 @@ Last updated: 2026-07-20
   intentionally updating this checklist from a trusted local environment.
 - Keep batches bounded. `limit = 100`, `page_count = 1...20` is the supported
   range; use smaller batches when recovering from failures.
+- Treat the raw GBIF page as the cursor unit. Every successfully fetched live
+  page must checkpoint its `next_offset`, including a nonempty page where every
+  row normalizes out. Never stop a run merely because normalized taxa are
+  empty.
+- Stop only when GBIF reports `endOfRecords`, the raw page is empty, or the
+  requested `page_count` is reached. A later failure must resume after the last
+  per-page checkpoint.
+- Dry runs are write-free but their returned simulated cursor advances across
+  fetched pages. Refresh coverage only when a live run imported at least one
+  row.
 - The **Import Community Taxonomy** workflow runs weekly on Mondays at
   `09:20 UTC` with `page_count = 20`, `dry_run = false`, and
   `update_checklist = true`.
@@ -44,9 +54,10 @@ GBIF reported `14,641` accepted bird species under Aves during the first import
 run. This is the expected rough denominator for completing the Birds target over
 time, but Merian's stored denominator should come from
 `taxonomy_coverage_targets.indexed_species_count`, not from this note.
-`taxonomy_coverage_targets.last_imported_offset` is the most recent successful
-GBIF page offset. `taxonomy_coverage_targets.next_import_offset` is the machine
-cursor used when the import worker is called without an explicit `offset`.
+`taxonomy_coverage_targets.last_imported_offset` is the most recent successfully
+fetched and checkpointed GBIF page offset, whether or not it produced normalized
+taxa. `taxonomy_coverage_targets.next_import_offset` is the machine cursor used
+when the import worker is called without an explicit `offset`.
 
 ## Completed Import Batches
 

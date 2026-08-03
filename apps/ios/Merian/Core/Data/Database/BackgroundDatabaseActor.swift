@@ -117,6 +117,12 @@ actor BackgroundDatabaseActor {
         let localMediaPaths: [String]
     }
 
+    private struct FundingPrioritizedPendingScan {
+        let payload: PendingScanPayload
+        let priority: Int
+        let order: Int
+    }
+
     /// Reconciles the two durable copies of retry ownership before a queue
     /// transition mutates either model.
     ///
@@ -194,16 +200,33 @@ actor BackgroundDatabaseActor {
         let pageSize = max(50, limit * 3)
         var fetchOffset = 0
         var inspectedCount = 0
-        var runnableMediaCount = 0
         var emptyCandidateCount = 0
-        var payloads: [PendingScanPayload] = []
+        var mediaCandidates: [FundingPrioritizedPendingScan] = []
+        var emptyCandidates: [PendingScanPayload] = []
+        var candidateOrder = 0
+
+        let jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate {
+                $0.kindRaw == "scanIngestion"
+            }
+        )
+        let fundingByScanId: [String: ScanFundingSource] =
+            (try? modelContext.fetch(jobDescriptor))?.reduce(into: [:]) { result, job in
+                guard let scanId = job.subjectId?.lowercased(),
+                      let funding = OfflineScanJobMetadataContract.funding(
+                          in: job.metadataJSON
+                      ) else {
+                    return
+                }
+                result[scanId] = funding.source
+            } ?? [:]
 
         // Retry deadlines are filtered in memory for SwiftData compatibility.
         // Page through the complete runnable-state set so an old page full of
         // delayed, locally blocked, or media-less rows cannot permanently hide
         // newer work. Media-less candidates are bounded independently so they
         // can be quarantined without consuming the runnable-media limit.
-        while runnableMediaCount < limit {
+        while true {
             var descriptor = FetchDescriptor<OfflineQueuedScan>(
                 predicate: #Predicate {
                     $0.scanStateRaw == pendingRaw
@@ -241,6 +264,8 @@ actor BackgroundDatabaseActor {
                         || forcedVideoUploadScanIds.contains(scan.id) else {
                     continue
                 }
+                let fundingSource = fundingByScanId[scan.id.lowercased()]
+                guard fundingSource != .deferredFlash else { continue }
                 let payload = PendingScanPayload(
                     id: scan.id,
                     localImagePaths: scan.inferenceImagePaths?.isEmpty == false
@@ -251,16 +276,24 @@ actor BackgroundDatabaseActor {
                 )
                 if payload.localUploadPaths.isEmpty {
                     if emptyCandidateCount < limit {
-                        payloads.append(payload)
+                        emptyCandidates.append(payload)
                         emptyCandidateCount += 1
                     }
                     continue
                 }
-                payloads.append(payload)
-                runnableMediaCount += 1
-                if runnableMediaCount == limit {
-                    break
+                let priority: Int
+                switch fundingSource {
+                case .complimentaryPro?, nil: priority = 0
+                case .paidPro?: priority = 1
+                case .immediateFlash?: priority = 2
+                case .deferredFlash?: priority = 3
                 }
+                mediaCandidates.append(FundingPrioritizedPendingScan(
+                    payload: payload,
+                    priority: priority,
+                    order: candidateOrder
+                ))
+                candidateOrder += 1
             }
             fetchOffset += page.count
             if page.count < pageSize {
@@ -269,9 +302,14 @@ actor BackgroundDatabaseActor {
         }
 
         MerianLog.data.debug(
-            "fetchPendingScans: inspected \(inspectedCount, privacy: .public) eligible pending scans runnableMedia=\(runnableMediaCount, privacy: .public) emptyCandidates=\(emptyCandidateCount, privacy: .public)"
+            "fetchPendingScans: inspected \(inspectedCount, privacy: .public) eligible pending scans runnableMedia=\(mediaCandidates.count, privacy: .public) emptyCandidates=\(emptyCandidateCount, privacy: .public)"
         )
-        return payloads
+        let selectedMedia = mediaCandidates.sorted { lhs, rhs in
+            lhs.priority == rhs.priority
+                ? lhs.order < rhs.order
+                : lhs.priority < rhs.priority
+        }.prefix(limit).map(\.payload)
+        return selectedMedia + emptyCandidates
     }
 
     /// Moves only still-pending rows with no uploadable local media to a
@@ -532,8 +570,10 @@ actor BackgroundDatabaseActor {
         }()
         reconcileMirroredInferenceState(scan: scan, job: job)
         if let generation {
-            job.metadataJSON =
-                InferenceGenerationMetadataContract.json(for: generation)
+            job.metadataJSON = InferenceGenerationMetadataContract.setting(
+                generation,
+                in: job.metadataJSON
+            )
         }
         job.status = .running
         job.updatedAt = now
@@ -596,17 +636,11 @@ actor BackgroundDatabaseActor {
         guard scan.scanStateRaw == inferencingRaw else { return false }
         if let expectedGeneration {
             let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
-            let expectedMetadata =
-                InferenceGenerationMetadataContract.json(
-                    for: expectedGeneration
-                )
-            var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-                predicate: #Predicate {
-                    $0.id == jobId && $0.metadataJSON == expectedMetadata
-                }
-            )
-            jobDescriptor.fetchLimit = 1
-            guard (try? modelContext.fetch(jobDescriptor).first) != nil else {
+            guard let job = fetchOfflineJob(id: jobId),
+                  InferenceGenerationMetadataContract.matches(
+                      expectedGeneration,
+                      in: job.metadataJSON
+                  ) else {
                 MerianLog.data.debug(
                     "transitionScanToStaged: generation mismatch scanId=\(scanId, privacy: .public)"
                 )
@@ -654,26 +688,13 @@ actor BackgroundDatabaseActor {
         }
 
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
-        let expectedMetadata =
-            InferenceGenerationMetadataContract.json(
-                for: expectedGeneration
-            )
-        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-            predicate: #Predicate {
-                $0.id == jobId && $0.metadataJSON == expectedMetadata
-            }
-        )
-        jobDescriptor.fetchLimit = 1
-        let job: OfflineJobRecord?
-        do {
-            job = try modelContext.fetch(jobDescriptor).first
-        } catch {
-            MerianLog.data.error(
-                "inferenceGenerationIsCurrent: job lookup failed scanId=\(scanId, privacy: .private): \(error, privacy: .private)"
-            )
+        guard let job = fetchOfflineJob(id: jobId),
+              InferenceGenerationMetadataContract.matches(
+                  expectedGeneration,
+                  in: job.metadataJSON
+              ) else {
             return false
         }
-        guard let job else { return false }
         if let queuedScan {
             return queuedScan.scanStateRaw == inferencingRaw
         }
@@ -701,17 +722,11 @@ actor BackgroundDatabaseActor {
         }
 
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
-        let expectedMetadata =
-            InferenceGenerationMetadataContract.json(
-                for: expectedGeneration
-            )
-        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-            predicate: #Predicate {
-                $0.id == jobId && $0.metadataJSON == expectedMetadata
-            }
+        guard let job = fetchOfflineJob(id: jobId) else { return false }
+        return InferenceGenerationMetadataContract.matches(
+            expectedGeneration,
+            in: job.metadataJSON
         )
-        jobDescriptor.fetchLimit = 1
-        return (try? modelContext.fetch(jobDescriptor).first) != nil
     }
 
     private func livePersistenceFenceIsCurrentAssumingPersistenceLock(
@@ -769,16 +784,20 @@ actor BackgroundDatabaseActor {
 
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
         guard let job = fetchOfflineJob(id: jobId) else { return false }
-        let expectedMetadata =
-            InferenceGenerationMetadataContract.json(
-                for: expectedGeneration
-            )
-        if job.metadataJSON == expectedMetadata {
+        if InferenceGenerationMetadataContract.matches(
+            expectedGeneration,
+            in: job.metadataJSON
+        ) {
             return true
         }
-        guard job.metadataJSON == nil else { return false }
+        guard InferenceGenerationMetadataContract.generation(
+            in: job.metadataJSON
+        ) == nil else { return false }
 
-        job.metadataJSON = expectedMetadata
+        job.metadataJSON = InferenceGenerationMetadataContract.setting(
+            expectedGeneration,
+            in: job.metadataJSON
+        )
         job.updatedAt = Date()
         do {
             try modelContext.save()
@@ -842,17 +861,11 @@ actor BackgroundDatabaseActor {
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
         let job: OfflineJobRecord
         if let expectedGeneration {
-            let expectedMetadata =
-                InferenceGenerationMetadataContract.json(
-                    for: expectedGeneration
-                )
-            var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-                predicate: #Predicate {
-                    $0.id == jobId && $0.metadataJSON == expectedMetadata
-                }
-            )
-            jobDescriptor.fetchLimit = 1
-            guard let ownedJob = try? modelContext.fetch(jobDescriptor).first else {
+            guard let ownedJob = fetchOfflineJob(id: jobId),
+                  InferenceGenerationMetadataContract.matches(
+                      expectedGeneration,
+                      in: ownedJob.metadataJSON
+                  ) else {
                 MerianLog.data.debug(
                     "scheduleInferenceRetry: generation mismatch scanId=\(scanId, privacy: .public)"
                 )
@@ -1005,17 +1018,11 @@ actor BackgroundDatabaseActor {
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
         let job: OfflineJobRecord
         if let expectedGeneration {
-            let expectedMetadata =
-                InferenceGenerationMetadataContract.json(
-                    for: expectedGeneration
-                )
-            var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-                predicate: #Predicate {
-                    $0.id == jobId && $0.metadataJSON == expectedMetadata
-                }
-            )
-            jobDescriptor.fetchLimit = 1
-            guard let ownedJob = try? modelContext.fetch(jobDescriptor).first else {
+            guard let ownedJob = fetchOfflineJob(id: jobId),
+                  InferenceGenerationMetadataContract.matches(
+                      expectedGeneration,
+                      in: ownedJob.metadataJSON
+                  ) else {
                 MerianLog.data.debug(
                     "scheduleServerResultRecoveryRetry: generation mismatch scanId=\(scanId, privacy: .public)"
                 )
@@ -1560,6 +1567,18 @@ actor BackgroundDatabaseActor {
                         metadata.planUsed,
                         scanId: responseScanId
                     )
+                    EntitlementManager.shared.recordCompletedFunding(
+                        planUsed: metadata.planUsed,
+                        creditConsumed: metadata.creditConsumed,
+                        scanId: responseScanId
+                    )
+                    Task { @MainActor in
+                        await OfflineQueueManager.shared
+                            .reconcileDeferredFundingReservations()
+                        OfflineQueueManager.shared.syncPendingScans()
+                        OfflineQueueManager.shared
+                            .replayInferenceForUploadedScans()
+                    }
                 }
             }
         }

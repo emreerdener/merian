@@ -12,9 +12,9 @@ receives durable lifecycle registration before any URL is returned.
   the shared `parseJsonBody(...)` ingress contract, accepts the structured
   `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`,
   optional `clientScanId`, optional `mediaRole`, optional `uploadPurpose`),
-  keeps legacy `fileNames` compatibility, blocks requests that exceed the shared
-  six-file staging cap, and creates staged `scan_media_assets` rows for scan
-  media before returning signed URLs.
+  rejects legacy manifests that cannot declare a byte size, blocks requests
+  that exceed the shared six-file staging cap, and creates staged
+  `scan_media_assets` rows for scan media before returning signed URLs.
 - **`storage.ts`**: Validates media kind/content type/byte budgets and role/kind
   combinations before signing, enforces the `Promise.all` key generation
   mapping, injects the verified `userId` to strictly namespace objects
@@ -124,6 +124,10 @@ Response:
       "fileName": "11111111-1111-4111-8111-111111111111_0.webp",
       "signedUrl": "https://signed-r2-upload.example/...",
       "objectKey": "staging/22222222-2222-4222-8222-222222222222/11111111-1111-4111-8111-111111111111_0.webp",
+      "requiredHeaders": {
+        "Content-Type": "image/webp",
+        "Content-Length": "482310"
+      },
       "mediaAssetId": "33333333-3333-4333-8333-333333333333",
       "mediaSessionId": "44444444-4444-4444-8444-444444444444"
     }
@@ -135,10 +139,20 @@ iOS must validate the complete response before starting any PUT and persist the
 exact returned `objectKey` in the background task description. It must not
 reconstruct the owner segment from delayed in-memory Auth state. A partial,
 extra, malformed, cross-owner, or media-incompatible response starts no upload.
+Every PUT must apply the response-declared `Content-Type` and `Content-Length`.
+Both values are covered by the signature; the signed-header set is exactly
+`content-length;content-type;host` because signing uses `allHeaders: true`. Every
+iOS data, file, avatar, repair, restore, foreground, and background PUT applies
+the returned map rather than reconstructing headers. A file is re-statted
+immediately before task creation, and a changed size discards the URL so the
+next pass re-signs it. Legacy `{ "fileNames": [...] }` requests, structured
+entries without `sizeBytes`, top-level arrays, and other old/non-object request
+shapes all receive the stable `400 size_bytes_required` response.
 
-The legacy `{ "fileNames": [...] }` shape remains for avatars and older callers.
-It cannot express byte budgets or scan lifecycle metadata and therefore does not
-return scan asset/session IDs.
+The declared size is not trusted as proof of storage. Integration verification
+must perform the exact signed PUT, reject wrong size and MIME, then HEAD the
+object and compare its stored length to the declaration. Existing media budgets
+and the 24-hour signed-URL/staging expiry remain unchanged.
 
 ## Idempotent Scan Registration
 

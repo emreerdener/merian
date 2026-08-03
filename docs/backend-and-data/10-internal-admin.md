@@ -72,9 +72,11 @@ flowchart LR
 The application flow is:
 
 1. `/login` starts Google OAuth with `openid email profile` and an exact
-   same-origin callback.
+   callback built from validated `NEXT_PUBLIC_ADMIN_ORIGIN`, never the browser
+   or request Host header.
 2. `/auth/callback` exchanges the PKCE code for a cookie-backed session and
-   accepts only a local path beginning with a single `/` as `next`.
+   accepts only a local path beginning with a single `/` as `next`; absolute,
+   protocol-relative, backslash, and encoded-separator forms are rejected.
 3. `/mfa` checks the authenticator assurance level. A verified factor is
    challenged; otherwise a factor named `Naturebook Admin` is enrolled and its
    QR code/secret is shown once.

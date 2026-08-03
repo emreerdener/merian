@@ -21,6 +21,34 @@ TestFlight, App Store, support, and QA.
   usable result consumes one scan, a proven terminal failure releases it, and
   ambiguous recovery cannot spend another credit. Paid subscriptions and the
   paid **7 Day Pass** remain unchanged.
+- Offline admission now reserves one verified included Pro scan per stable scan
+  before local media is written. Later eligible work waits safely, survives
+  relaunch, and reclassifies after server settlement or a purchase instead of
+  over-admitting stale capacity and ending in needs-attention.
+
+### Safer Collection Synchronization
+
+- A stale or colliding foreign collection ID is skipped without changing its
+  owner or blocking unrelated albums. Collection memberships now require both
+  the album and observation to belong to the same account at every database
+  write boundary.
+
+### Bounded Media Staging
+
+- Direct R2 uploads now require an exact declared file size. Signed upload
+  responses declare the MIME and length headers the app must send, and a file
+  changed after signing is re-signed instead of uploaded under stale limits.
+- Legacy upload requests without per-file sizes are rejected, closing the path
+  that could stage arbitrarily large temporary objects.
+
+### Redirect and Taxonomy Reliability
+
+- Admin OAuth and public-domain redirects now preserve valid local paths while
+  pinning every destination to its configured origin, including under hostile
+  Host, protocol-relative, backslash, and encoded-separator inputs.
+- Bounded GBIF imports now checkpoint successfully fetched pages even when all
+  raw rows normalize out, so one empty-normalization page cannot stall the
+  taxonomy cursor forever.
 
 ### Non-biological Scan Navigation
 

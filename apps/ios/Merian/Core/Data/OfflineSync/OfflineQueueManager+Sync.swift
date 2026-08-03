@@ -7,6 +7,11 @@ private struct UploadDispatchEntry {
     let remoteURL: URL
 }
 
+private struct UploadDispatchResult {
+    let dispatchedScanIds: Set<String>
+    let needsResigningScanIds: Set<String>
+}
+
 // MARK: - Sync Operations
 
 extension OfflineQueueManager {
@@ -284,6 +289,7 @@ extension OfflineQueueManager {
     ///
     /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
     func syncPendingScans() {
+        restoreFundingReservationsForCurrentAccount()
         MerianLog.data.debug(
             "syncPendingScans: requested isOnline=\(self.isOnline, privacy: .public) isSyncing=\(self.isSyncing, privacy: .public) unsynced=\(self.unsyncedItemsCount, privacy: .public)"
         )
@@ -368,8 +374,25 @@ extension OfflineQueueManager {
             // paged actor inputs prevent starvation; this latest snapshot
             // prevents a changed live/network state from dispatching stale
             // candidates.
+            let currentScanData = scanData
+            let fundingPolicy = await MainActor.run {
+                Dictionary(uniqueKeysWithValues: currentScanData.map { scan in
+                    (
+                        scan.id,
+                        (
+                            EntitlementManager.shared.fundingAllowsDispatch(
+                                scanId: scan.id
+                            ),
+                            EntitlementManager.shared.fundingPriority(
+                                scanId: scan.id
+                            )
+                        )
+                    )
+                })
+            }
             let eligibleScanData = scanData.filter { scan in
                 !deferredLiveUploadIds.contains(scan.id) &&
+                    fundingPolicy[scan.id]?.0 == true &&
                     (allowsLargeUploads || scan.localVideoPaths.isEmpty || forcedLargeUploadIds.contains(scan.id))
             }
 
@@ -386,12 +409,23 @@ extension OfflineQueueManager {
                           !quarantinedScanIds.isEmpty else {
                         return
                     }
+                    for scanId in quarantinedScanIds {
+                        self.releaseFundingForProvenPredispatchFailure(
+                            scanId: scanId
+                        )
+                    }
                     self.updateUnsyncedItemCount()
                     ScanLibraryEvents.postLibraryDidUpdate()
                 }
             }
             let uploadCandidates = eligibleScanData.filter {
                 !$0.localUploadPaths.isEmpty
+            }.sorted { lhs, rhs in
+                let leftPriority = fundingPolicy[lhs.id]?.1 ?? 4
+                let rightPriority = fundingPolicy[rhs.id]?.1 ?? 4
+                return leftPriority == rightPriority
+                    ? lhs.id < rhs.id
+                    : leftPriority < rightPriority
             }
             let filteredScans = self.selectUploadBatch(from: uploadCandidates)
             MerianLog.data.debug(
@@ -423,6 +457,9 @@ extension OfflineQueueManager {
                 await MainActor.run {
                     guard self.isCurrentUploadSync(generation) else { return }
                     for scanId in preparation.rejectedScanIds {
+                        self.releaseFundingForProvenPredispatchFailure(
+                            scanId: scanId
+                        )
                         self.softDeleteQueuedScan(
                             scanId: scanId,
                             reason: "Queued media is missing, invalid, or exceeds the upload limit.",
@@ -445,7 +482,12 @@ extension OfflineQueueManager {
                     forcedLargeUploadIds:
                         self.userRequestedLargeUploadScanIds,
                     deferredLiveUploadIds:
-                        self.deferredLiveUploadScanIds
+                        self.deferredLiveUploadScanIds,
+                    fundingDispatchableScanIds: Set(filteredScans.compactMap {
+                        EntitlementManager.shared.fundingAllowsDispatch(
+                            scanId: $0.id
+                        ) ? $0.id : nil
+                    })
                 )
             }
             guard await MainActor.run(body: {
@@ -454,6 +496,7 @@ extension OfflineQueueManager {
             let finallyEligibleScanIds = Set(filteredScans.lazy.filter {
                 finalPolicy.isOnline
                     && !finalPolicy.isConstrained
+                    && finalPolicy.fundingDispatchableScanIds.contains($0.id)
                     && !finalPolicy.deferredLiveUploadIds.contains($0.id)
                     && (
                         finalPolicy.allowsLargeUploads
@@ -510,13 +553,19 @@ extension OfflineQueueManager {
                     forcedLargeUploadIds:
                         self.userRequestedLargeUploadScanIds,
                     deferredLiveUploadIds:
-                        self.deferredLiveUploadScanIds
+                        self.deferredLiveUploadScanIds,
+                    fundingDispatchableScanIds: Set(claimedScanIds.compactMap {
+                        EntitlementManager.shared.fundingAllowsDispatch(
+                            scanId: $0
+                        ) ? $0 : nil
+                    })
                 )
             }
             let dispatchableClaimedScanIds = Set(claimedScanIds.lazy.filter {
                 postClaimPolicy.isCurrent
                     && postClaimPolicy.isOnline
                     && !postClaimPolicy.isConstrained
+                    && postClaimPolicy.fundingDispatchableScanIds.contains($0)
                     && !postClaimPolicy.deferredLiveUploadIds.contains($0)
                     && (
                         postClaimPolicy.allowsLargeUploads
@@ -617,7 +666,7 @@ extension OfflineQueueManager {
                     )
                     throw MerianError.invalidResponse
                 }
-                let dispatchedScanIDs = await self.dispatchUploadTasks(
+                let dispatchResult = await self.dispatchUploadTasks(
                     session: session,
                     uploadItems: claimedUploadItems,
                     presignedUrls: presignedUrls,
@@ -625,6 +674,7 @@ extension OfflineQueueManager {
                     forcedExpensiveVideoUploadScanIds:
                         forcedExpensiveVideoUploadScanIds
                 )
+                let dispatchedScanIDs = dispatchResult.dispatchedScanIds
                 let undispatchedScanIDs =
                     dispatchableClaimedScanIds.subtracting(dispatchedScanIDs)
                 if !undispatchedScanIDs.isEmpty {
@@ -667,6 +717,12 @@ extension OfflineQueueManager {
                     if taskCount == 0 {
                         _ = await MainActor.run {
                             self.finishUploadSync(generation: generation)
+                        }
+                        if !dispatchResult.needsResigningScanIds.isEmpty {
+                            Task { @MainActor [weak self] in
+                                await Task.yield()
+                                self?.syncPendingScans()
+                            }
                         }
                     }
                 }
@@ -872,19 +928,25 @@ extension OfflineQueueManager {
         presignedUrls: [PreSignedURL],
         syncGeneration: UUID,
         forcedExpensiveVideoUploadScanIds: Set<String>
-    ) async -> Set<String> {
+    ) async -> UploadDispatchResult {
         let playbackVideoScanIds = Set(uploadItems.lazy.filter {
             $0.mediaKind == .video
         }.map(\.scanId))
         var entriesByScanId: [String: [UploadDispatchEntry]] = [:]
         var scanOrder: [String] = []
         var rejectedScanIds = Set<String>()
+        var needsResigningScanIds = Set<String>()
 
         // Validate the complete signed manifest and every local source before
         // creating any task. A scan is one logical upload unit: either all of
         // its members are resumed in one main-actor turn or none are.
         for (index, item) in uploadItems.enumerated() {
-            guard !Task.isCancelled else { return [] }
+            guard !Task.isCancelled else {
+                return UploadDispatchResult(
+                    dispatchedScanIds: [],
+                    needsResigningScanIds: []
+                )
+            }
             guard index < presignedUrls.count,
                   let remoteURL = URL(
                     string: presignedUrls[index].signedUrl
@@ -916,6 +978,13 @@ extension OfflineQueueManager {
                 rejectedScanIds.insert(item.scanId)
                 continue
             }
+            guard MediaStagingContract.fileSizeMatchesSigningSnapshot(item) else {
+                MerianLog.data.info(
+                    "dispatchUploadTasks: source size changed after signing for \(item.scanId, privacy: .private); discarding URL"
+                )
+                needsResigningScanIds.insert(item.scanId)
+                continue
+            }
             if entriesByScanId[item.scanId] == nil {
                 scanOrder.append(item.scanId)
             }
@@ -933,6 +1002,7 @@ extension OfflineQueueManager {
                   latestUploadGenerations[scanId] == syncGeneration else {
                 continue
             }
+            releaseFundingForProvenPredispatchFailure(scanId: scanId)
             softDeleteQueuedScan(
                 scanId: scanId,
                 reason: "Queued media or its upload destination could not be verified.",
@@ -941,7 +1011,9 @@ extension OfflineQueueManager {
         }
 
         var dispatchedScanIds = Set<String>()
-        for scanId in scanOrder where !rejectedScanIds.contains(scanId) {
+        for scanId in scanOrder
+        where !rejectedScanIds.contains(scanId)
+            && !needsResigningScanIds.contains(scanId) {
             let pathAllowsScan =
                 !playbackVideoScanIds.contains(scanId)
                     || allowsLargeQueuedUploadsOnCurrentNetwork
@@ -953,7 +1025,17 @@ extension OfflineQueueManager {
                   latestUploadGenerations[scanId] == syncGeneration,
                   pathAllowsScan,
                   let entries = entriesByScanId[scanId],
-                  !entries.isEmpty else {
+                  !entries.isEmpty,
+                  entries.allSatisfy({
+                      MediaStagingContract.fileSizeMatchesSigningSnapshot($0.item)
+                  }) else {
+                if let entries = entriesByScanId[scanId],
+                   !entries.isEmpty,
+                   !entries.allSatisfy({
+                       MediaStagingContract.fileSizeMatchesSigningSnapshot($0.item)
+                   }) {
+                    needsResigningScanIds.insert(scanId)
+                }
                 continue
             }
 
@@ -961,6 +1043,7 @@ extension OfflineQueueManager {
                 let request = queuedUploadRequest(
                     remoteURL: entry.remoteURL,
                     item: entry.item,
+                    requiredHeaders: entry.presignedURL.requiredHeaders,
                     scanContainsPlaybackVideo:
                         playbackVideoScanIds.contains(scanId),
                     allowsExpensiveVideoUpload:
@@ -987,7 +1070,10 @@ extension OfflineQueueManager {
                 "🚀 BACKGROUND UPLOAD: Dispatched complete manifest for \(scanId, privacy: .private) members=\(uploadTasks.count, privacy: .public)"
             )
         }
-        return dispatchedScanIds
+        return UploadDispatchResult(
+            dispatchedScanIds: dispatchedScanIds,
+            needsResigningScanIds: needsResigningScanIds
+        )
     }
 
     /// Builds the final R2 PUT request with transport-level enforcement of the
@@ -997,15 +1083,15 @@ extension OfflineQueueManager {
     nonisolated func queuedUploadRequest(
         remoteURL: URL,
         item: ScanUploadItem,
+        requiredHeaders: [String: String],
         scanContainsPlaybackVideo: Bool,
         allowsExpensiveVideoUpload: Bool
     ) -> URLRequest {
         var request = URLRequest(url: remoteURL)
         request.httpMethod = "PUT"
-        request.setValue(
-            item.contentType,
-            forHTTPHeaderField: "Content-Type"
-        )
+        for (field, value) in requiredHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
         request.allowsConstrainedNetworkAccess = false
         request.allowsExpensiveNetworkAccess =
             !scanContainsPlaybackVideo || allowsExpensiveVideoUpload

@@ -2,7 +2,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { jsonResponse, PublicHttpError, publicHttpError } from "./http.ts";
 
 export const ENTITLEMENT_PROTOCOL_HEADER = "X-Merian-Entitlement-Protocol";
-export const CURRENT_ENTITLEMENT_PROTOCOL = 2;
+export const CURRENT_ENTITLEMENT_PROTOCOL = 3;
 
 export type EffectiveTier = "free" | "pro";
 export type SubscriptionTier = "free" | "pro";
@@ -170,7 +170,8 @@ function rolloutForRow(
     !Number.isSafeInteger(version) ||
     version < 1 ||
     (mode === "legacy_trial" && protocol !== 0) ||
-    (mode === "complimentary" && protocol !== CURRENT_ENTITLEMENT_PROTOCOL)
+    (mode === "complimentary" &&
+      (protocol < 2 || protocol > CURRENT_ENTITLEMENT_PROTOCOL))
   ) {
     throw entitlementUnavailable();
   }
@@ -205,16 +206,21 @@ async function resolveEntitlementRollout(
 
 /**
  * Returns a stable 426 envelope after the atomic cutover. During schema-first
- * rollout, protocol 0 deliberately accepts legacy builds.
+ * rollout, protocol 0 deliberately accepts legacy builds. A rollout requiring
+ * protocol 2 accepts supported protocols 2-3; requiring 3 excludes unsafe
+ * protocol-2 clients.
  */
 export async function entitlementProtocolResponse(
   req: Request,
   supabaseAdmin: SupabaseClient,
 ): Promise<Response | null> {
   const rollout = await resolveEntitlementRollout(supabaseAdmin);
+  const presentedProtocol = entitlementProtocolFromRequest(req);
   if (
     rollout.required_client_protocol === 0 ||
-    entitlementProtocolFromRequest(req) === rollout.required_client_protocol
+    (presentedProtocol != null &&
+      presentedProtocol >= rollout.required_client_protocol &&
+      presentedProtocol <= CURRENT_ENTITLEMENT_PROTOCOL)
   ) {
     return null;
   }

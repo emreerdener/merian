@@ -4,6 +4,7 @@ import { Alert, Button, Paper, Stack, Text, Title } from "@mantine/core";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+import { adminRedirectURL } from "@/lib/adminRedirect";
 
 const errors: Record<string, string> = {
   "not-authorized": "This Google account is not an active Naturebook admin member.",
@@ -23,7 +24,7 @@ export function LoginCard() {
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/mfa`,
+        redirectTo: adminRedirectURL("/auth/callback?next=/mfa").href,
         scopes: "openid email profile",
         queryParams: { prompt: "select_account" },
       },

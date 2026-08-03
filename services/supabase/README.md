@@ -19,6 +19,20 @@ debug files to the service root. Reusable diagnostics belong in `scripts/` with
 bounded transport, strict environment validation, tests, and documented output;
 database assertions belong in disposable `tests/` fixtures.
 
+## 2026-08-03 Joined Remediation Contract
+
+The current collection-ownership, exact staging-upload, protocol-3
+complimentary-admission, redirect, and taxonomy-checkpoint changes are one
+reviewed security and reliability set. Their normative behavior, rollout order,
+evidence boundary, and monitors are documented in the
+[`joined remediation record`](../../docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md).
+Route-specific READMEs remain authoritative for payload examples; the
+[`API contract`](../../docs/backend-and-data/05-api-contracts.md),
+[`database schema`](../../docs/backend-and-data/04-database-schema.md), and
+[`deployment runbook`](../../docs/backend-and-data/06-supabase-deployment-runbook.md)
+define the cross-route boundary. Repository success never substitutes for an
+exact-SHA fresh-catalog replay and deployed integration smokes.
+
 ## Migration Replay
 
 Every migration must survive a complete fresh-catalog replay, not only an
@@ -1115,7 +1129,7 @@ are fenced.
 Authenticated clients read their own versioned balance through
 `get_my_entitlement()`. After atomic cutover, `/identify`,
 `/identify-describe`, `/identify-multimodal`, and `/audio-spec` require
-`X-Merian-Entitlement-Protocol: 2`; obsolete public callers receive
+`X-Merian-Entitlement-Protocol: 3`; obsolete public callers receive
 `426 client_update_required`, while authenticated replay bypasses only that
 protocol comparison and reuses the original analysis linkage. The full
 contract and change procedure are

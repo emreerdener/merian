@@ -629,7 +629,7 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
       "complete_scan_ingestion_with_entitlement",
       "fail_scan_ingestion_terminal",
       "Provider quota is independent",
-      "X-Merian-Entitlement-Protocol: 2",
+      "X-Merian-Entitlement-Protocol: 3",
       "Results and Settings only",
       "one grant of three",
       "paid status for Profile and Explore Pro badges",
@@ -674,7 +674,8 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
   assertEquals(terms.includes("Trials may convert to paid access"), false);
   assertStringIncludes(compact(changelog), "Three Pro Scans Included");
   assertStringIncludes(resultsBadgeSource, '"1 Pro scan remains"');
-  assertStringIncludes(resultsBadgeSource, '"All 3 Pro scans used — upgrade"');
+  assertStringIncludes(resultsBadgeSource, "paywallButton(text: label)");
+  assertEquals(resultsBadgeSource.includes("All 3 Pro scans used"), false);
   assertStringIncludes(planCardSource, '"PRO SCANS"');
   assertStringIncludes(
     planCardSource,
@@ -699,6 +700,168 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
       [],
     );
   }
+});
+
+Deno.test("2026-08-03 remediation documentation preserves the joined contracts", async () => {
+  const [
+    root,
+    docsIndex,
+    joined,
+    collection,
+    upload,
+    uploadManifestSource,
+    funding,
+    security,
+    admin,
+    adminOperations,
+    web,
+    brand,
+    taxonomy,
+    api,
+    schema,
+    taxonomyChecklist,
+    runbook,
+  ] = await Promise.all([
+    read("README.md"),
+    read("docs/README.md"),
+    read(
+      "docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md",
+    ),
+    read("services/supabase/functions/sync-collections/README.md"),
+    read("services/supabase/functions/generate-upload-urls/README.md"),
+    read("docs/contracts/media-staging-upload-manifest.json"),
+    read("docs/backend-and-data/18-complimentary-pro-scans.md"),
+    read("apps/ios/Merian/Core/Security/README.md"),
+    read("apps/admin/README.md"),
+    read("docs/backend-and-data/11-internal-admin-operations.md"),
+    read("apps/web/README.md"),
+    read("docs/system-architecture/08-public-brand-compatibility.md"),
+    read(
+      "services/supabase/functions/sync-community-taxonomy-index/README.md",
+    ),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/07-community-taxonomy-import-checklist.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+  ]);
+
+  const joinedPath = "19-security-and-reliability-remediation-2026-08-03.md";
+  assertStringIncludes(root, joinedPath);
+  assertStringIncludes(docsIndex, joinedPath);
+
+  const joinedCompact = compact(joined);
+  for (
+    const fragment of [
+      "Repository-corrected and production-verified are separate states",
+      "upsert_owned_collections",
+      "content-length;content-type;host",
+      "funding_reservation_released: true",
+      "It never derives the destination from `request.url`",
+      "checkpoint the raw page's `nextOffset` regardless of normalized count",
+    ]
+  ) {
+    assertStringIncludes(joinedCompact, fragment);
+  }
+
+  for (
+    const fragment of [
+      "`service_role` has no table-wide collection UPDATE",
+      "RPC/read/write errors always throw",
+      "`tests/collection_ownership_security.sql`",
+    ]
+  ) {
+    assertStringIncludes(compact(collection), fragment);
+  }
+
+  const uploadCompact = compact(upload);
+  for (
+    const fragment of [
+      "content-length;content-type;host",
+      "stable `400 size_bytes_required` response",
+      "wrong size and MIME",
+      "24-hour signed-URL/staging expiry remain unchanged",
+    ]
+  ) {
+    assertStringIncludes(uploadCompact, fragment);
+  }
+
+  const uploadManifest = JSON.parse(uploadManifestSource) as Record<
+    string,
+    unknown
+  >;
+  assertEquals(uploadManifest.requestBodyMustBeObject, true);
+  assertEquals(uploadManifest.legacyTopLevelArraysAccepted, false);
+  assertEquals(uploadManifest.missingSizeErrorCode, "size_bytes_required");
+  assertEquals(
+    uploadManifest.signedHeaderSet,
+    "content-length;content-type;host",
+  );
+
+  for (
+    const fragment of [
+      "funding_reservation_released: true",
+      "explicit retry of released work must make that claim synchronously",
+      "terminal `consumed` status proves settlement but does not prove",
+      "both `plan_used` and `credit_consumed`",
+    ]
+  ) {
+    assertStringIncludes(compact(funding), fragment);
+  }
+  assertStringIncludes(
+    compact(security),
+    "one bulk status call",
+  );
+  assertStringIncludes(
+    compact(security),
+    "`credit_consumed = false` releases the local assumption",
+  );
+
+  assertStringIncludes(
+    compact(admin),
+    "Callback `next` values must be single-leading-slash paths",
+  );
+  assertStringIncludes(
+    compact(adminOperations),
+    "never from `request.url`, `Host`, or forwarding headers",
+  );
+  assertStringIncludes(
+    compact(adminOperations),
+    "hostile `Host` and `X-Forwarded-Host`",
+  );
+  assertStringIncludes(
+    compact(web),
+    "assigns the pathname and query independently",
+  );
+  assertStringIncludes(
+    compact(brand),
+    "starts from fixed `CANONICAL_ORIGIN`",
+  );
+
+  for (
+    const fragment of [
+      "including pages whose raw GBIF rows all normalize out",
+      "stops only at `endOfRecords`, a raw empty page, or the requested page count",
+      "returned cursor still advances through the pages that were simulated",
+    ]
+  ) {
+    assertStringIncludes(compact(taxonomy), fragment);
+  }
+  assertStringIncludes(
+    compact(api),
+    "An empty normalized page is not a stop condition",
+  );
+  assertStringIncludes(
+    compact(schema),
+    "successfully fetched and checkpointed for the target",
+  );
+  assertStringIncludes(
+    compact(taxonomyChecklist),
+    "Treat the raw GBIF page as the cursor unit",
+  );
+  assertStringIncludes(
+    compact(runbook),
+    "raw nonempty/normalized-empty live page checkpoints and fetches the following page",
+  );
 });
 
 Deno.test("fleet review inventory exactly matches configured Edge Functions", async () => {
@@ -2762,6 +2925,14 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     "positive integer `sizeBytes`; empty media is rejected before signing",
   );
   assertStringIncludes(
+    compact(generateUploadSource),
+    'Legacy `{ "fileNames": [...] }` requests, structured entries without `sizeBytes`, top-level arrays, and other old/non-object request shapes all receive the stable `400 size_bytes_required` response.',
+  );
+  assertStringIncludes(
+    compact(generateUploadSource),
+    "the signed-header set is exactly `content-length;content-type;host`",
+  );
+  assertStringIncludes(
     joined,
     "build a read-only local restore plan before submitting `recovery_scan`",
   );
@@ -3602,6 +3773,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "apps/ios/AppStore/ReleaseNotes/1.0.3.md",
     "apps/ios/Merian/Core/AI/README.md",
     "apps/ios/Merian/Core/Analytics/README.md",
+    "apps/ios/Merian/Core/Data/README.md",
     "apps/ios/Merian/Core/Network/README.md",
     "apps/ios/Merian/Core/Security/README.md",
     "apps/ios/Merian/Features/Capture/Submission/README.md",
@@ -3611,6 +3783,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "apps/ios/Merian/Features/Insights/Sharing/README.md",
     "apps/ios/Merian/Features/Insights/Shared/README.md",
     "apps/ios/Merian/Features/Profile/Settings/README.md",
+    "apps/ios/Merian/Features/Profile/Shared/README.md",
     "apps/web/README.md",
     "docs/CONTRIBUTING.md",
     "docs/README.md",
@@ -3629,6 +3802,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
     "docs/backend-and-data/17-scientific-observation-retention.md",
     "docs/backend-and-data/18-complimentary-pro-scans.md",
+    "docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md",
     "docs/codebase-map.md",
     "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
@@ -3665,6 +3839,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/system-architecture/03-image-pipeline.md",
     "docs/system-architecture/04-ai-engineering.md",
     "docs/system-architecture/06-edge-modularization.md",
+    "docs/system-architecture/07-background-inference-body-safe.md",
     "docs/system-architecture/08-public-brand-compatibility.md",
     "docs/system-architecture/09-ios-release-publisher.md",
     "docs/system-architecture/system-overview.md",
@@ -3696,6 +3871,8 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/safe-delete/README.md",
     "services/supabase/functions/share-scan-to-explore/README.md",
     "services/supabase/functions/species-dictionary/README.md",
+    "services/supabase/functions/sync-collections/README.md",
+    "services/supabase/functions/sync-community-taxonomy-index/README.md",
   ];
   const failures: string[] = [];
 

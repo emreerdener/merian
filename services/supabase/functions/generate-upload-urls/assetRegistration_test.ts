@@ -26,6 +26,10 @@ function url(fileName: string): PresignedUrlPayload {
     fileName,
     signedUrl: `https://uploads.invalid/${fileName}`,
     objectKey: `staging/${userId}/${fileName}`,
+    requiredHeaders: {
+      "Content-Type": "image/webp",
+      "Content-Length": "42",
+    },
   };
 }
 

@@ -6,6 +6,7 @@ import {
   hasRequiredVideoMedia,
   normalizeRequiredVideoCount,
 } from "./status.ts";
+import { fetchComplimentaryScanStates } from "./db.ts";
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
@@ -87,4 +88,41 @@ Deno.test("check-scan-status database failures remain explicit and retryable", a
     2,
     "Bulk and single-scan database failures must both preserve retry semantics.",
   );
+  assertStringIncludes(source, "complimentary_state:");
+});
+
+Deno.test("complimentary states use one owner-scoped bulk RPC", async () => {
+  const userId = crypto.randomUUID();
+  const first = crypto.randomUUID();
+  const second = crypto.randomUUID();
+  let calls = 0;
+  const client = {
+    rpc(name: string, args: Record<string, unknown>) {
+      calls += 1;
+      assertEquals(name, "get_complimentary_scan_states_service");
+      assertEquals(args, {
+        p_user_id: userId,
+        p_scan_ids: [first, second],
+      });
+      return Promise.resolve({
+        data: [{
+          client_scan_id: first,
+          complimentary_state: "held",
+        }, {
+          client_scan_id: second,
+          complimentary_state: "released",
+        }],
+        error: null,
+      });
+    },
+  };
+
+  const states = await fetchComplimentaryScanStates(
+    [first, second, first],
+    userId,
+    client as never,
+  );
+  assertEquals(calls, 1);
+  assertEquals(states.get(first), "held");
+  assertEquals(states.get(second), "released");
 });

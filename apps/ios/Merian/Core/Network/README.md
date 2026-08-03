@@ -27,6 +27,11 @@ session from creating an anonymous production user.
 - Rejects an existing but zero-byte foreground playback-video file before
   requesting an upload signature, matching the durable queue and Edge
   positive-size contract.
+- Sends positive exact `sizeBytes` for every foreground/avatar/repair/restore
+  signing request, validates each returned two-header `requiredHeaders` map, and
+  applies its `Content-Type` and `Content-Length` to every PUT. File-backed work
+  re-stats before upload and re-signs on mutation; no legacy no-size signing
+  method remains.
 - Uses one pinned `URLSession` for both inference and connection prewarming.
   `prewarmInferenceEndpoint()` sends `OPTIONS` to `/identify-multimodal`; an
   auth SDK request is not considered a prewarm because it uses another
@@ -89,7 +94,7 @@ session from creating an anonymous production user.
 ## Entitlement protocol
 
 The authenticated request builders attach
-`X-Merian-Entitlement-Protocol: 2` and preserve `client_scan_id` as the
+`X-Merian-Entitlement-Protocol: 3` and preserve `client_scan_id` as the
 idempotency and original-analysis key. This covers the four public
 identification routes: `/identify`, `/identify-describe`,
 `/identify-multimodal`, and `/audio-spec`. After the coordinated server cutover,
@@ -104,6 +109,16 @@ balance identity, and monotonic `entitlement_version`; it never infers a trial
 or Flash fallback from local dates. `get_my_entitlement()` establishes the
 current-launch baseline before buffered response metadata can unlock
 complimentary access.
+
+Local funding completion uses `plan_used` and `credit_consumed` together.
+`pro_complimentary` with `credit_consumed = true` settles the local blocker as
+consumed; the same plan with `false` releases the local complimentary assumption
+because paid access may have won before final settlement. Bulk
+`check-scan-status` exposes owner-scoped `complimentary_state` for deferred
+ordering, but that state-only response cannot prove the installed entitlement
+snapshot includes terminal settlement. The scheduler performs an authoritative
+entitlement refresh before it reopens capacity or removes a terminal consumed
+blocker.
 
 The server—not the request payload—classifies whether a single-evidence capture
 can use the separate daily Flash policy after complimentary exhaustion. Video,

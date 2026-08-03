@@ -252,7 +252,7 @@ the native iOS source tree.
 | Legal/public components    | `apps/web/components/PublicPageShell.tsx`, `apps/web/components/LegalPage.tsx`, `apps/web/components/ThemePreferenceBridge.tsx`, `apps/web/lib/site.ts`, `apps/web/lib/theme-preference.ts` | Shared public page chrome, legal document layout, iOS-to-Mantine theme preference sync, support email/site URL config.                                                                                                                       |
 | Supabase access            | `apps/web/lib/supabaseAdmin.ts`, `apps/web/lib/supabasePublic.ts`, `apps/web/lib/explore.ts`, `apps/web/lib/species.ts`                                                                     | Explicit `server-only` server-key client used only through scoped Explore/waitlist RPCs, separated from the anonymous Species Dictionary projection client, plus strict wire mapping.                                                        |
 | Web response security      | `apps/web/proxy.ts`, `apps/web/app/layout.tsx`, `apps/web/lib/securityHeaders.ts`                                                                                                           | Per-request nonce CSP, nonce-bound bootstrap script, production HSTS, and explicit browser defense headers.                                                                                                                                  |
-| Universal Links            | `apps/web/app/apple-app-site-association/route.ts`, `apps/web/lib/appleAppSiteAssociation.ts`, `apps/web/lib/canonicalHost.ts`, `apps/web/proxy.ts`                                         | Exact Explore/species AASA paths, direct legacy-host AASA exception, and canonical alias redirects.                                                                                                                                          |
+| Universal Links            | `apps/web/app/apple-app-site-association/route.ts`, `apps/web/lib/appleAppSiteAssociation.ts`, `apps/web/lib/canonicalHost.ts`, `apps/web/proxy.ts`                                         | Exact Explore/species AASA paths, direct legacy-host AASA exception, and canonical alias redirects constructed by assigning untrusted pathname/search onto fixed `CANONICAL_ORIGIN`.                                                          |
 | Formatting helpers         | `apps/web/lib/formatting.ts`                                                                                                                                                                | Shared Naturebook web copy and URL formatting.                                                                                                                                                                                               |
 | Local setup and CI         | `apps/web/README.md`, `apps/web/.env.example`, `apps/web/package.json`, `apps/web/lib/dependencySecurity.test.ts`, `.github/workflows/web-quality.yml`                                      | Web setup, waitlist secret/ingress contract, transitive security overrides, frozen dependency audit, tests, typecheck, and production build.                                                                                                 |
 
@@ -340,7 +340,8 @@ technical share failures into customer-facing retry guidance.
 `services/supabase/functions/_shared/aiQuota.ts`, `_shared/groupTagQuota.ts`,
 `_shared/entitlement.ts`, `_shared/complimentaryScans.ts`, migrations
 `20260723160229_enforce_server_ai_quotas.sql` and
-`20260802235833_three_complimentary_pro_scans.sql`, plus
+`20260802235833_three_complimentary_pro_scans.sql`,
+`20260803181936_add_reservation_safe_entitlement_protocol.sql`, plus
 `scripts/cutover_complimentary_entitlements.sql`, own the cross-route
 paid-provider and complimentary-result boundary. Identification, audio,
 cache-miss enrichment, model chat, and
@@ -353,12 +354,27 @@ automatic stale refund, and API-role privilege revocations. Coverage lives in
 `_tests/aiQuotaCoverage.test.ts`, `_tests/aiQuotaMigrationContract.test.ts`, and
 `tests/ai_quota_security.sql`. The complimentary extension adds one fixed
 three-scan private lifetime ledger, original-analysis linkage, server-derived
-Flash fallback, protocol 2, user-first completion/terminal settlement fences,
-paid preservation, Ghost merge cap, and admin aggregates. Coverage lives in
+Flash fallback, protocol 3, user-first completion/terminal settlement fences,
+paid preservation, Ghost merge cap, and admin aggregates. iOS adds a serialized
+account/scan funding reservation, durable release marker, conservative legacy
+blockers, one bulk owner-scoped funding-state read, entitlement-refresh-fenced
+terminal settlement, and persisted deferred paid/complimentary/Flash
+reclassification. Coverage lives in
 `_tests/complimentaryProScansMigrationContract.test.ts`,
 `_tests/complimentaryScansConcurrencyDb.test.ts`, and
 `tests/complimentary_pro_scans_security.sql`; the normative contract is
 `docs/backend-and-data/18-complimentary-pro-scans.md`.
+
+`services/supabase/functions/sync-collections/` and migration
+`20260803180211_harden_collection_ownership_and_memberships.sql` own custom
+collection reconciliation. One invoker RPC atomically accepts new/same-owner
+collection IDs without reparenting foreign collisions; a second joins both
+membership parents to that owner. Accepted IDs alone feed composite-key
+hydration and the O(N) delta. A trigger, split authenticated RLS, explicit
+service-only RPC ACLs, and mutable-column-only `service_role` UPDATE protect
+direct database paths. Source coverage is route-local plus
+`_tests/collectionOwnershipMigrationContract.test.ts`; fresh-catalog coverage is
+`tests/collection_ownership_security.sql`.
 
 Supabase project credential boundaries:
 

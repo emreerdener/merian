@@ -123,7 +123,7 @@ Deno.test("community taxonomy index sync - rejects unsafe inputs", () => {
   });
 });
 
-Deno.test("community taxonomy index sync - checkpoints every committed page", async () => {
+Deno.test("community taxonomy index sync - checkpoints every fetched page", async () => {
   const events: string[] = [];
   const supabaseAdmin = {} as Parameters<
     typeof runCommunityTaxonomyIndexSync
@@ -170,7 +170,182 @@ Deno.test("community taxonomy index sync - checkpoints every committed page", as
     "upsert:8850",
     "cursor:8950:success",
     "refresh",
-    "cursor:8950:success",
+  ]);
+});
+
+Deno.test("community taxonomy index sync - advances past rows that all normalize out", async () => {
+  const events: string[] = [];
+  const result = await runCommunityTaxonomyIndexSync(
+    testRequest(),
+    {} as Parameters<typeof runCommunityTaxonomyIndexSync>[1],
+    (_target, offset) => {
+      events.push(`fetch:${offset}`);
+      if (offset === 0) {
+        return Promise.resolve({
+          ...testPage(offset),
+          taxa: [],
+          rawResultCount: 100,
+        });
+      }
+      return Promise.resolve({ ...testPage(offset), endOfRecords: true });
+    },
+    {
+      fetchTargetImportOffset: () => Promise.resolve(0),
+      upsertGbifImportPage: (_admin, _taxa, _query, _request, page) => {
+        events.push(`upsert:${page.offset}`);
+        return Promise.resolve(1);
+      },
+      updateTargetImportCursor: (
+        _admin,
+        _request,
+        _pages,
+        nextOffset,
+      ) => {
+        events.push(`cursor:${nextOffset}`);
+        return Promise.resolve();
+      },
+      refreshTaxonomyCoverageTargets: () => {
+        events.push("refresh");
+        return Promise.resolve();
+      },
+      recordFailedImportRun: () => Promise.resolve(),
+    },
+  );
+
+  assertEquals(result.next_offset, 200);
+  assertEquals(result.normalized_count, 1);
+  assertEquals(events, [
+    "fetch:0",
+    "cursor:100",
+    "fetch:100",
+    "upsert:100",
+    "cursor:200",
+    "refresh",
+  ]);
+});
+
+Deno.test("community taxonomy index sync - checkpoints and stops on a raw empty page", async () => {
+  const events: string[] = [];
+  const result = await runCommunityTaxonomyIndexSync(
+    testRequest({ pageCount: 3 }),
+    {} as Parameters<typeof runCommunityTaxonomyIndexSync>[1],
+    (_target, offset) => {
+      events.push(`fetch:${offset}`);
+      return Promise.resolve({
+        ...testPage(offset),
+        taxa: [],
+        rawResultCount: 0,
+      });
+    },
+    {
+      fetchTargetImportOffset: () => Promise.resolve(400),
+      upsertGbifImportPage: () => {
+        events.push("unexpected-upsert");
+        return Promise.resolve(0);
+      },
+      updateTargetImportCursor: (
+        _admin,
+        _request,
+        _pages,
+        nextOffset,
+      ) => {
+        events.push(`cursor:${nextOffset}`);
+        return Promise.resolve();
+      },
+      refreshTaxonomyCoverageTargets: () => {
+        events.push("unexpected-refresh");
+        return Promise.resolve();
+      },
+      recordFailedImportRun: () => Promise.resolve(),
+    },
+  );
+
+  assertEquals(result.next_offset, 500);
+  assertEquals(result.pages.length, 1);
+  assertEquals(events, ["fetch:400", "cursor:500"]);
+});
+
+Deno.test("community taxonomy index sync - dry runs advance only the simulated cursor", async () => {
+  const events: string[] = [];
+  const result = await runCommunityTaxonomyIndexSync(
+    testRequest({ dryRun: true, pageCount: 2 }),
+    {} as Parameters<typeof runCommunityTaxonomyIndexSync>[1],
+    (_target, offset) => {
+      events.push(`fetch:${offset}`);
+      return Promise.resolve(
+        offset === 0
+          ? { ...testPage(offset), taxa: [], rawResultCount: 100 }
+          : testPage(offset),
+      );
+    },
+    {
+      fetchTargetImportOffset: () => Promise.resolve(0),
+      upsertGbifImportPage: () => {
+        events.push("unexpected-upsert");
+        return Promise.resolve(0);
+      },
+      updateTargetImportCursor: () => {
+        events.push("unexpected-cursor");
+        return Promise.resolve();
+      },
+      refreshTaxonomyCoverageTargets: () => {
+        events.push("unexpected-refresh");
+        return Promise.resolve();
+      },
+      recordFailedImportRun: () => {
+        events.push("unexpected-failure-write");
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(result.next_offset, 200);
+  assertEquals(events, ["fetch:0", "fetch:100"]);
+});
+
+Deno.test("community taxonomy index sync - resumes after an empty-normalized checkpoint", async () => {
+  const cursorUpdates: Array<{
+    nextOffset: number;
+    errorMessage: string | null;
+  }> = [];
+
+  await assertRejects(
+    () =>
+      runCommunityTaxonomyIndexSync(
+        testRequest(),
+        {} as Parameters<typeof runCommunityTaxonomyIndexSync>[1],
+        (_target, offset) => {
+          if (offset === 100) return Promise.reject(new Error("later failure"));
+          return Promise.resolve({
+            ...testPage(offset),
+            taxa: [],
+            rawResultCount: 100,
+          });
+        },
+        {
+          fetchTargetImportOffset: () => Promise.resolve(0),
+          upsertGbifImportPage: () => Promise.resolve(0),
+          updateTargetImportCursor: (
+            _admin,
+            _request,
+            _pages,
+            nextOffset,
+            errorMessage,
+          ) => {
+            cursorUpdates.push({ nextOffset, errorMessage });
+            return Promise.resolve();
+          },
+          refreshTaxonomyCoverageTargets: () => Promise.resolve(),
+          recordFailedImportRun: () => Promise.resolve(),
+        },
+      ),
+    Error,
+    "later failure",
+  );
+
+  assertEquals(cursorUpdates, [
+    { nextOffset: 100, errorMessage: null },
+    { nextOffset: 100, errorMessage: "later failure" },
   ]);
 });
 

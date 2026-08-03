@@ -267,9 +267,19 @@ combinations, over-budget audio, video, or image files, batches above six files,
 batches above five images, batches above one video, and batches above two audio
 files before calling `generatePresignedPutUrl()`. The six-file cap is
 specifically for video scans that need five sampled inference frames plus one
-playback clip. Legacy `fileNames` remains accepted for older clients only; it is
-compatibility-only because it cannot express byte budgets or media asset
-sessions. The limit and content-type contract is pinned in
+playback clip. Legacy `fileNames` requests, structured entries without a
+declared size, top-level arrays/non-objects, and other old shapes fail with
+stable `400 size_bytes_required`; every supported request carries an exact
+positive `sizeBytes`. Each response item declares the exact `Content-Type` and
+`Content-Length` headers the client must send. Both are signed with `host`
+through `allHeaders: true` (`content-length;content-type;host`), so a different
+MIME type or body length fails signature verification at R2. Every iOS data,
+file, avatar, repair, restore, foreground, and background PUT applies that
+response map. File-backed work re-stats immediately before task creation and
+re-signs when its size changed. Deployed verification HEADs the exact uploaded
+object and checks its stored length; declaration alone is not evidence. The
+limit and signing
+contract is pinned in
 `docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
 Deno tests. Registration is idempotent per owner/client-scan/object key, but
 signing calls for one scan may be composable subsets (for example live video and
@@ -2350,17 +2360,22 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
   unbounded `scan_ids` array would create a massive PostgREST `.in()` validation
   query and large membership delta writes. Values over this limit are rejected
   with `HTTP 400` before any DB access.
-- **IDOR guard**: `filterOwnedCollections` resolves which incoming collection
-  IDs are actually owned by the authenticated user against the existing DB rows.
-  All downstream upsert and delete calls receive pre-filtered collections — no
-  function re-implements the ownership check independently.
+- **Atomic ownership admission**: service-only
+  `upsert_owned_collections(p_user_id, p_collections)` performs the ownership
+  decision inside the same `INSERT ... ON CONFLICT ... DO UPDATE` statement as
+  the write. New IDs and same-owner IDs are accepted; foreign or concurrently
+  colliding IDs are rejected without modifying their rows. Only accepted IDs
+  continue to membership hydration and delta calculation. An RPC error throws
+  and performs no downstream membership work.
 - **`collection_scans` membership delta**: Only the diff (rows to add minus rows
   to remove) is written — the function does not delete and re-insert all
   memberships on each sync. This prevents unnecessary DB churn on large
-  collections. All three DB operations inside `syncMembershipDelta` (scan
-  validation, membership inserts, membership deletes) throw on error rather than
-  swallowing via `console.error` — the controller propagates a `500` so the iOS
-  client retries rather than treating a partial failure as confirmed.
+  collections. Additions use
+  `insert_owned_collection_scans(p_user_id, p_rows)`, which joins both parent
+  records to the owner. Missing or foreign scans are skipped for eventual
+  offline ordering. Membership reads, inserts, and deletes throw on database
+  error rather than swallowing it via `console.error`; the controller propagates
+  a `500` so iOS retries rather than confirming a partial result.
 - **`collection_scans` membership hydration**: Existing memberships for all
   owned incoming collections are fetched through one keyset-paginated
   `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`.
@@ -2370,6 +2385,12 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
   collections × 5000 scan IDs = 1M rows) from loading into one isolate
   allocation. The existing `PRIMARY KEY (collection_id, scan_id)` supports the
   cursor order.
+- **Database enforcement**: an invoker trigger rejects memberships whose
+  collection and scan owners differ, including direct service access.
+  Authenticated RLS permits own-collection select/delete and requires both an
+  own collection and own scan for insert. `service_role` cannot update
+  collection ownership directly and has UPDATE only on `name` and `created_at`;
+  Ghost merge reparenting remains behind its reviewed privileged function.
 
 ## Species Preferred Name Sync
 

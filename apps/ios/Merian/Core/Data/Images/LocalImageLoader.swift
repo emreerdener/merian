@@ -946,9 +946,9 @@ actor CloudScanImageRepairActor {
         }
 
         try await MerianNetworkClient.shared.uploadToR2(
-            url: uploadUrl.signedUrl,
+            uploadURL: uploadUrl,
             fileURL: candidate.localUrl,
-            mimeType: contentType
+            contentType: contentType
         )
         let result = try await MerianNetworkClient.shared.repairScanImageCloudReference(
             sourceUrl: candidate.sourceUrl,

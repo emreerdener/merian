@@ -13,7 +13,11 @@ import {
   recoverStrandedScanIngestionAttempt,
   scanIngestionClientState,
 } from "../_shared/scanIngestionJobs.ts";
-import { fetchScanStatusJob, fetchScanStatusMedia } from "./db.ts";
+import {
+  fetchComplimentaryScanStates,
+  fetchScanStatusJob,
+  fetchScanStatusMedia,
+} from "./db.ts";
 import {
   hasRequiredVideoMedia,
   normalizeRequiredVideoCount,
@@ -136,7 +140,18 @@ Deno.serve((req: Request) =>
             ),
           );
         }
-        return jsonResponse({ results }, 200);
+        const fundingStates = await fetchComplimentaryScanStates(
+          requests.map((request) => request.scan_id),
+          user.id,
+          supabaseAdmin,
+        );
+        return jsonResponse({
+          results: results.map((result) => ({
+            ...result,
+            complimentary_state:
+              fundingStates.get(result.scan_id.toLowerCase()) ?? null,
+          })),
+        }, 200);
       } catch (error) {
         logStructuredError("check_scan_status_bulk_failed", {
           error: error instanceof Error ? error.message : String(error),
@@ -184,8 +199,16 @@ Deno.serve((req: Request) =>
         user.id,
         supabaseAdmin,
       );
+      const fundingStates = await fetchComplimentaryScanStates(
+        [scanId],
+        user.id,
+        supabaseAdmin,
+      );
       const { scan_id: _scanId, ...singleResponse } = response;
-      return jsonResponse(singleResponse, 200);
+      return jsonResponse({
+        ...singleResponse,
+        complimentary_state: fundingStates.get(scanId.toLowerCase()) ?? null,
+      }, 200);
     } catch (error) {
       logStructuredError("check_scan_status_failed", {
         scan_id: scanId,

@@ -1138,6 +1138,11 @@ extension OfflineQueueManager {
             return
         case .needsAttention:
             let code = statusCode ?? 0
+            if statusCode == 402 {
+                EntitlementManager.shared
+                    .invalidateComplimentaryProofAfterPaymentRequired()
+                await EntitlementManager.shared.refreshCurrentSession()
+            }
             MerianLog.data.debug(
                 "Background inference needs user attention [\(code)] for \(scanId, privacy: .private) — preserving queued media."
             )

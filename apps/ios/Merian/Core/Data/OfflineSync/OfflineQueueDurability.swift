@@ -699,6 +699,37 @@ extension OfflineQueueManager {
         let snapshot = scan.capturedMediaSnapshot
         let shouldRecoverCompletedServerResult =
             hasDurableCompletedServerResult(scanId: scanId)
+        let job = fetchScanJob(scanId: scanId, in: context)
+        var newlyClaimedFunding: ScanFundingReservation?
+        if !shouldRecoverCompletedServerResult,
+           let job,
+           OfflineScanJobMetadataContract.fundingWasReleased(
+               in: job.metadataJSON
+           ) {
+            guard let funding = EntitlementManager.shared.claimFunding(
+                scanId: scanId,
+                flashFallbackEligible: flashFallbackEligibleForRetry(snapshot)
+            ) else {
+                UsageManager.shared.showPaywall = true
+                return false
+            }
+            if funding.source == .immediateFlash ||
+                funding.source == .deferredFlash {
+                guard UsageManager.shared.canPerformScan(isProActive: false) else {
+                    EntitlementManager.shared.releaseFundingAfterProvenLocalFailure(
+                        scanId: funding.scanId
+                    )
+                    UsageManager.shared.showPaywall = true
+                    return false
+                }
+                UsageManager.shared.consumeScan(scanId: funding.scanId)
+            }
+            job.metadataJSON = OfflineScanJobMetadataContract.settingFunding(
+                funding,
+                in: job.metadataJSON
+            )
+            newlyClaimedFunding = funding
+        }
         if !shouldRecoverCompletedServerResult {
             // The bounded counter governs automatic work. An explicit user
             // retry starts a new automatic budget under the same scan UUID;
@@ -726,7 +757,7 @@ extension OfflineQueueManager {
         if !snapshot.videoPaths.isEmpty {
             userRequestedLargeUploadScanIds.insert(scanId)
         }
-        if let job = fetchScanJob(scanId: scanId, in: context) {
+        if let job {
             job.status = .pending
             job.updatedAt = Date()
             job.nextRunAt = nil
@@ -760,7 +791,28 @@ extension OfflineQueueManager {
             return true
         } catch {
             context.rollback()
+            if let funding = newlyClaimedFunding {
+                if funding.source == .immediateFlash ||
+                    funding.source == .deferredFlash {
+                    UsageManager.shared.refundScan(scanId: funding.scanId)
+                }
+                EntitlementManager.shared.releaseFundingAfterProvenLocalFailure(
+                    scanId: funding.scanId
+                )
+            }
             MerianLog.data.error("retryQueuedScanNow: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
+        }
+    }
+
+    private func flashFallbackEligibleForRetry(
+        _ snapshot: CapturedMediaSnapshot
+    ) -> Bool {
+        guard snapshot.items.count == 1 else { return false }
+        switch snapshot.items[0] {
+        case .image, .audio, .description:
+            return true
+        case .video:
             return false
         }
     }

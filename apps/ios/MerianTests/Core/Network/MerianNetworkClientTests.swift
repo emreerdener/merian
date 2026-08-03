@@ -302,7 +302,7 @@ struct MerianNetworkClientTests {
         let probe = SendableCallbackProbe()
         MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
             #expect(
-                request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == "2"
+                request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == "3"
             )
             #expect(
                 request.value(forHTTPHeaderField: "Idempotency-Key")
@@ -4065,8 +4065,12 @@ struct MerianNetworkClientTests {
             "urls": [
                 {
                     "fileName": "image_1",
-                    "signedUrl": "https://example.com/put/image_1",
+                    "signedUrl": "https://example.com/put/image_1?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
                     "objectKey": "merian/user/image_1.webp",
+                    "requiredHeaders": {
+                        "Content-Type": "image/webp",
+                        "Content-Length": "1024"
+                    },
                     "mediaAssetId": "asset-123",
                     "mediaSessionId": "session-456"
                 }
@@ -4105,7 +4109,8 @@ struct MerianNetworkClientTests {
             ]
         )
         #expect(urls.count == 1)
-        #expect(urls[0].signedUrl == "https://example.com/put/image_1")
+        #expect(urls[0].signedUrl.contains("/put/image_1"))
+        #expect(urls[0].requiredHeaders["Content-Length"] == "1024")
         #expect(urls[0].mediaAssetId == "asset-123")
         #expect(urls[0].mediaSessionId == "session-456")
     }
@@ -4129,8 +4134,12 @@ struct MerianNetworkClientTests {
             "urls": [
                 {
                     "fileName": "scan-video-fallback_moved_video_playback.mp4",
-                    "signedUrl": "https://example.com/put/moved-video",
-                    "objectKey": "staging/test-user/scan-video-fallback_moved_video_playback.mp4"
+                    "signedUrl": "https://example.com/put/moved-video?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
+                    "objectKey": "staging/test-user/scan-video-fallback_moved_video_playback.mp4",
+                    "requiredHeaders": {
+                        "Content-Type": "video/mp4",
+                        "Content-Length": "11"
+                    }
                 }
             ]
         }
@@ -4156,6 +4165,7 @@ struct MerianNetworkClientTests {
         MockURLProtocol.mockEndpoints["/put/moved-video"] = { request in
             #expect(request.httpMethod == "PUT")
             #expect(request.value(forHTTPHeaderField: "Content-Type") == "video/mp4")
+            #expect(request.value(forHTTPHeaderField: "Content-Length") == "11")
             return (mockResponse, Data())
         }
 

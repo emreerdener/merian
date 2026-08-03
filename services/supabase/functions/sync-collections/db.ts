@@ -1,11 +1,18 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { MembershipRow, SyncCollectionPayload } from "./types.ts";
 
-/// Queries the collections table for any incoming IDs that are already owned by a
-/// different user. Returns a filtered copy of `collections` that contains only rows
-/// safe to upsert/delete — ones that either don't exist yet (new) or are owned by
-/// `userId` (legitimate update). Logs a warning when IDOR attempts are detected.
-export async function filterOwnedCollections(
+interface OwnedCollectionResult {
+  collection_id: string;
+  accepted: boolean;
+}
+
+/**
+ * Atomically inserts new collections and updates mutable fields only when an
+ * existing row belongs to `userId`. The database returns rejected (foreign)
+ * IDs so callers can skip them without turning one stale offline UUID into a
+ * failed sync.
+ */
+export async function upsertOwnedCollections(
   userId: string,
   collections: SyncCollectionPayload[],
   supabaseAdmin: SupabaseClient,
@@ -14,24 +21,42 @@ export async function filterOwnedCollections(
     return { ownedCollections: [], ownedIds: [] };
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from("collections")
-    .select("id, user_id")
-    .in("id", collections.map((c) => c.id));
-
-  const foreignIds = new Set(
-    (existing ?? [])
-      .filter((row: { id: string; user_id: string }) => row.user_id !== userId)
-      .map((row: { id: string; user_id: string }) => row.id),
+  const { data, error } = await supabaseAdmin.rpc(
+    "upsert_owned_collections",
+    {
+      p_user_id: userId,
+      p_collections: collections.map((collection) => ({
+        id: collection.id,
+        name: collection.name,
+        created_at: collection.created_at,
+      })),
+    },
   );
 
-  if (foreignIds.size > 0) {
+  if (error) {
+    throw new Error(`Owned collection upsert failed: ${error.message}`);
+  }
+
+  const acceptedIds = new Set(
+    ((data ?? []) as OwnedCollectionResult[])
+      .filter((row) => row.accepted === true)
+      .map((row) => row.collection_id),
+  );
+  const rejectedIds = new Set(
+    collections
+      .map((collection) => collection.id)
+      .filter((id) => !acceptedIds.has(id)),
+  );
+
+  if (rejectedIds.size > 0) {
     console.warn(
-      `[sync-collections] IDOR blocked: ${foreignIds.size} collection ID(s) belong to a different user (user: ${userId}). Skipping.`,
+      `[sync-collections] Skipping ${rejectedIds.size} rejected collection ID(s) for user ${userId}.`,
     );
   }
 
-  const ownedCollections = collections.filter((c) => !foreignIds.has(c.id));
+  const ownedCollections = collections.filter((collection) =>
+    acceptedIds.has(collection.id)
+  );
   return { ownedCollections, ownedIds: ownedCollections.map((c) => c.id) };
 }
 
@@ -59,29 +84,10 @@ export async function deleteCollections(
   }
 }
 
-export async function upsertCollectionsAndFetchMemberships(
-  userId: string,
-  ownedCollections: SyncCollectionPayload[],
+export async function fetchCollectionMemberships(
   ownedIds: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<MembershipRow[]> {
-  if (ownedCollections.length > 0) {
-    const { error: upsertError } = await supabaseAdmin.from("collections")
-      .upsert(
-        ownedCollections.map((c) => ({
-          id: c.id,
-          user_id: userId,
-          name: c.name,
-          created_at: c.created_at,
-        })),
-        { onConflict: "id" },
-      );
-
-    if (upsertError) {
-      throw new Error(`Batch collection upsert failed: ${upsertError.message}`);
-    }
-  }
-
   const existingMemberships: MembershipRow[] = [];
   const pageSize = 1000;
 
@@ -123,6 +129,7 @@ export async function upsertCollectionsAndFetchMemberships(
 }
 
 export async function syncMembershipDelta(
+  userId: string,
   ownedCollections: SyncCollectionPayload[],
   existingMemberships: MembershipRow[],
   ownedIds: string[],
@@ -185,47 +192,30 @@ export async function syncMembershipDelta(
   }
 
   if (toAdd.length > 0) {
-    const scanIdsToAdd = [...new Set(toAdd.map((m) => m.scan_id))];
-    const validScanIds = new Set<string>();
-    const validateChunkSize = 200;
+    const insertChunkSize = 1000;
+    let insertedCount = 0;
+    for (let i = 0; i < toAdd.length; i += insertChunkSize) {
+      const chunk = toAdd.slice(i, i + insertChunkSize);
+      const { data, error } = await supabaseAdmin.rpc(
+        "insert_owned_collection_scans",
+        {
+          p_user_id: userId,
+          p_rows: chunk,
+        },
+      );
 
-    for (let i = 0; i < scanIdsToAdd.length; i += validateChunkSize) {
-      const chunk = scanIdsToAdd.slice(i, i + validateChunkSize);
-      const { data, error: validateError } = await supabaseAdmin
-        .from("scans")
-        .select("id")
-        .in("id", chunk)
-        .returns<{ id: string }[]>();
+      if (error) {
+        throw new Error(`Membership insert failed: ${error.message}`);
+      }
 
-      if (validateError) {
-        throw new Error(`Scan validation DB error: ${validateError.message}`);
-      }
-      for (const row of data ?? []) {
-        validScanIds.add(row.id);
-      }
+      insertedCount += Array.isArray(data) ? data.length : 0;
     }
 
-    const safeToAdd = toAdd.filter((m) => validScanIds.has(m.scan_id));
-
-    if (safeToAdd.length > 0) {
-      const insertChunkSize = 1000;
-      for (let i = 0; i < safeToAdd.length; i += insertChunkSize) {
-        const chunk = safeToAdd.slice(i, i + insertChunkSize);
-        const { error } = await supabaseAdmin.from("collection_scans").upsert(
-          chunk,
-          {
-            onConflict: "collection_id,scan_id",
-            ignoreDuplicates: true,
-          },
-        );
-
-        if (error) {
-          throw new Error(`Membership insert failed: ${error.message}`);
-        }
-      }
-    } else {
+    if (insertedCount < toAdd.length) {
       console.warn(
-        "Skipped adding collection mappings because none of the scan IDs exist in DB yet.",
+        `[sync-collections] Skipped ${
+          toAdd.length - insertedCount
+        } membership(s) whose collection or scan is unavailable to this owner.`,
       );
     }
   }

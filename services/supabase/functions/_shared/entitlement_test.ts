@@ -154,7 +154,7 @@ Deno.test("entitlement resolution always reads the database", async () => {
   assertEquals(client.callCount, 2);
 });
 
-Deno.test("all public Identify requests require protocol 2 after cutover", async () => {
+Deno.test("protocol-2 rollout accepts supported protocols 2 through 3", async () => {
   const postCutoverClient = {
     rpc(name: string) {
       assertEquals(name, "get_entitlement_rollout_service");
@@ -171,7 +171,7 @@ Deno.test("all public Identify requests require protocol 2 after cutover", async
       };
     },
   };
-  for (const value of [null, "1", "3", "invalid"]) {
+  for (const value of [null, "1", "4", "invalid"]) {
     const headers = new Headers();
     if (value) headers.set(ENTITLEMENT_PROTOCOL_HEADER, value);
     const response = await entitlementProtocolResponse(
@@ -187,6 +187,49 @@ Deno.test("all public Identify requests require protocol 2 after cutover", async
   });
   assertEquals(
     await entitlementProtocolResponse(current, postCutoverClient as never),
+    null,
+  );
+
+  const reservationSafe = new Request("https://example.invalid", {
+    headers: { [ENTITLEMENT_PROTOCOL_HEADER]: "3" },
+  });
+  assertEquals(
+    await entitlementProtocolResponse(
+      reservationSafe,
+      postCutoverClient as never,
+    ),
+    null,
+  );
+});
+
+Deno.test("protocol-3 cutover rejects protocol 2", async () => {
+  const client = {
+    rpc: () => ({
+      abortSignal: () =>
+        Promise.resolve({
+          data: {
+            entitlement_mode: "complimentary",
+            required_client_protocol: 3,
+            mode_version: 3,
+          },
+          error: null,
+        }),
+    }),
+  };
+  const response = await entitlementProtocolResponse(
+    new Request("https://example.invalid", {
+      headers: { [ENTITLEMENT_PROTOCOL_HEADER]: "2" },
+    }),
+    client as never,
+  );
+  assertEquals(response?.status, 426);
+  assertEquals(
+    await entitlementProtocolResponse(
+      new Request("https://example.invalid", {
+        headers: { [ENTITLEMENT_PROTOCOL_HEADER]: "3" },
+      }),
+      client as never,
+    ),
     null,
   );
 });

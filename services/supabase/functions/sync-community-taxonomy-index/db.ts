@@ -168,7 +168,7 @@ export async function runCommunityTaxonomyIndexSync(
         next_offset: nextOffset,
       });
 
-      if (!request.dryRun && page.taxa.length > 0) {
+      if (!request.dryRun) {
         await operations.updateTargetImportCursor(
           supabaseAdmin,
           request,
@@ -180,7 +180,7 @@ export async function runCommunityTaxonomyIndexSync(
 
       currentOffset = nextOffset;
       endOfRecords = page.endOfRecords;
-      if (endOfRecords || page.taxa.length === 0) break;
+      if (endOfRecords || page.rawResultCount === 0) break;
     } catch (error) {
       if (!request.dryRun) {
         await persistImportPageFailure(
@@ -206,13 +206,6 @@ export async function runCommunityTaxonomyIndexSync(
     if (request.refreshCoverage) {
       await operations.refreshTaxonomyCoverageTargets(supabaseAdmin);
     }
-    await operations.updateTargetImportCursor(
-      supabaseAdmin,
-      request,
-      pages,
-      currentOffset,
-      null,
-    );
   }
 
   return {

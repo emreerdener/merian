@@ -30,7 +30,7 @@ export function stagedAssetInputs(
       storageKey: url.objectKey,
       orderIndex,
       contentType: file.contentType,
-      byteSize: file.sizeBytes ?? null,
+      byteSize: file.sizeBytes,
       uploadPurpose: file.uploadPurpose,
       metadata: {
         fileName: file.fileName,

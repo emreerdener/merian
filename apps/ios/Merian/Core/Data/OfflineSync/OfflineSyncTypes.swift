@@ -175,6 +175,170 @@ enum InferenceGenerationMetadataContract {
             generation.uuidString.lowercased() +
             #""}"#
     }
+
+    static func generation(in metadataJSON: String?) -> UUID? {
+        guard let value = OfflineScanJobMetadataContract.object(
+            from: metadataJSON
+        )["inference_generation"] as? String else {
+            return nil
+        }
+        return UUID(uuidString: value)
+    }
+
+    static func matches(_ generation: UUID, in metadataJSON: String?) -> Bool {
+        self.generation(in: metadataJSON) == generation
+    }
+
+    static func setting(
+        _ generation: UUID,
+        in metadataJSON: String?
+    ) -> String {
+        var object = OfflineScanJobMetadataContract.object(from: metadataJSON)
+        object["inference_generation"] = generation.uuidString.lowercased()
+        return OfflineScanJobMetadataContract.json(from: object) ?? json(
+            for: generation
+        )
+    }
+
+    /// Removes only the generation property and preserves funding and any
+    /// future metadata fields. Returns nil when no properties remain.
+    static func removing(
+        _ generation: UUID,
+        from metadataJSON: String?
+    ) -> String? {
+        var object = OfflineScanJobMetadataContract.object(from: metadataJSON)
+        guard let value = object["inference_generation"] as? String,
+              UUID(uuidString: value) == generation else {
+            return metadataJSON
+        }
+        object.removeValue(forKey: "inference_generation")
+        return OfflineScanJobMetadataContract.json(from: object)
+    }
+}
+
+enum ScanFundingSource: String, Codable, Sendable, Equatable {
+    case paidPro = "paid_pro"
+    case complimentaryPro = "complimentary_pro"
+    case immediateFlash = "immediate_flash"
+    case deferredFlash = "deferred_flash"
+}
+
+/// Idempotent local admission decision tied to one account and stable scan ID.
+struct ScanFundingReservation: Codable, Sendable, Equatable {
+    let accountId: UUID
+    let scanId: String
+    var source: ScanFundingSource
+    var blockerScanIds: [String]
+    let createdAt: Date
+
+    init(
+        accountId: UUID,
+        scanId: String,
+        source: ScanFundingSource,
+        blockerScanIds: [String] = [],
+        createdAt: Date = Date()
+    ) {
+        self.accountId = accountId
+        self.scanId = scanId.lowercased()
+        self.source = source
+        self.blockerScanIds = blockerScanIds.map { $0.lowercased() }
+        self.createdAt = createdAt
+    }
+
+    var allowsDispatch: Bool { source != .deferredFlash }
+    var allowsForegroundInference: Bool { source != .deferredFlash }
+
+    private enum CodingKeys: String, CodingKey {
+        case accountId = "account_id"
+        case scanId = "scan_id"
+        case source
+        case blockerScanIds = "blocker_scan_ids"
+        case createdAt = "created_at"
+    }
+}
+
+enum OfflineScanJobMetadataContract {
+    private static let fundingReservationKey = "funding_reservation"
+    private static let fundingReleasedKey = "funding_reservation_released"
+
+    static func object(from metadataJSON: String?) -> [String: Any] {
+        guard let metadataJSON,
+              let data = metadataJSON.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let dictionary = object as? [String: Any] else {
+            return [:]
+        }
+        return dictionary
+    }
+
+    static func json(from object: [String: Any]) -> String? {
+        guard !object.isEmpty,
+              JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(
+                  withJSONObject: object,
+                  options: [.sortedKeys]
+              ) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func funding(in metadataJSON: String?) -> ScanFundingReservation? {
+        let object = object(from: metadataJSON)
+        guard let rawFunding = object[fundingReservationKey],
+              JSONSerialization.isValidJSONObject(rawFunding),
+              let data = try? JSONSerialization.data(withJSONObject: rawFunding),
+              let funding = try? JSONDecoder().decode(
+                  ScanFundingReservation.self,
+                  from: data
+              ),
+              !funding.scanId.isEmpty else {
+            return nil
+        }
+        return funding
+    }
+
+    static func settingFunding(
+        _ funding: ScanFundingReservation,
+        in metadataJSON: String?
+    ) -> String? {
+        var object = object(from: metadataJSON)
+        guard let data = try? JSONEncoder().encode(funding),
+              let rawFunding = try? JSONSerialization.jsonObject(with: data) else {
+            return metadataJSON
+        }
+        object[fundingReservationKey] = rawFunding
+        object.removeValue(forKey: fundingReleasedKey)
+        return json(from: object)
+    }
+
+    static func fundingWasReleased(in metadataJSON: String?) -> Bool {
+        object(from: metadataJSON)[fundingReleasedKey] as? Bool == true
+    }
+
+    /// Persists proof that no provider dispatch occurred. The marker prevents a
+    /// pre-protocol-3 job with no funding payload from being restored as an
+    /// unknown complimentary blocker after relaunch.
+    static func markingFundingReleased(in metadataJSON: String?) -> String? {
+        var object = object(from: metadataJSON)
+        object.removeValue(forKey: fundingReservationKey)
+        object[fundingReleasedKey] = true
+        return json(from: object)
+    }
+
+    static func json(
+        generation: UUID?,
+        funding: ScanFundingReservation
+    ) -> String? {
+        var metadata = settingFunding(funding, in: nil)
+        if let generation {
+            metadata = InferenceGenerationMetadataContract.setting(
+                generation,
+                in: metadata
+            )
+        }
+        return metadata
+    }
 }
 
 enum InferenceURLSessionTaskContract {
@@ -304,7 +468,7 @@ struct StagingUploadFile: Codable, Sendable, Equatable {
     let fileName: String
     let mediaKind: StagedMediaKind
     let contentType: String
-    let sizeBytes: Int?
+    let sizeBytes: Int
     let clientScanId: String?
     let mediaRole: String?
     let uploadPurpose: StagingUploadPurpose?
@@ -313,7 +477,7 @@ struct StagingUploadFile: Codable, Sendable, Equatable {
         fileName: String,
         mediaKind: StagedMediaKind,
         contentType: String,
-        sizeBytes: Int?,
+        sizeBytes: Int,
         clientScanId: String? = nil,
         mediaRole: String? = nil,
         uploadPurpose: StagingUploadPurpose? = nil
@@ -429,6 +593,13 @@ enum MediaStagingContract {
                   remoteURL.user == nil,
                   remoteURL.password == nil,
                   remoteURL.fragment == nil,
+                  presignedURL.requiredHeaders.count == 2,
+                  presignedURL.requiredHeaders["Content-Type"]
+                    == item.contentType,
+                  presignedURL.requiredHeaders["Content-Length"]
+                    == String(item.sizeBytes),
+                  signedHeaders(from: remoteURL)
+                    == "content-length;content-type;host",
                   objectKey(fromPresignedURLPath: remoteURL.path)
                     == presignedURL.objectKey,
                   objectKeys.insert(presignedURL.objectKey).inserted,
@@ -441,6 +612,16 @@ enum MediaStagingContract {
             )
         }
         return owners.count == 1 && uploadOrigins.count == 1
+    }
+
+    static func signedHeaders(from url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: {
+                $0.name.caseInsensitiveCompare("X-Amz-SignedHeaders")
+                    == .orderedSame
+            })?
+            .value
     }
 
     static func uploadItems(
@@ -461,7 +642,10 @@ enum MediaStagingContract {
                 fileName: fileName,
                 fileURL: documentsDirectory.appendingPathComponent(localPath),
                 contentType: kind.contentType(for: localPath),
-                objectKey: objectKey(userId: userId, fileName: fileName)
+                objectKey: objectKey(userId: userId, fileName: fileName),
+                sizeBytes: fileSizeBytesIfPresent(
+                    at: documentsDirectory.appendingPathComponent(localPath)
+                )
             ))
         }
 
@@ -545,7 +729,7 @@ enum MediaStagingContract {
                   objectKeys.insert(item.objectKey).inserted else {
                 throw MerianError.invalidResponse
             }
-            let size = try fileSize(at: item.fileURL)
+            let size = item.sizeBytes
             guard size > 0,
                   size <= item.mediaKind.maxStagedBytes else {
                 throw MerianError.payloadTooLarge
@@ -575,12 +759,12 @@ enum MediaStagingContract {
     }
 
     static func uploadFiles(for items: [ScanUploadItem]) throws -> [StagingUploadFile] {
-        try items.map { item in
+        items.map { item in
             StagingUploadFile(
                 fileName: item.fileName,
                 mediaKind: item.mediaKind,
                 contentType: item.contentType,
-                sizeBytes: try fileSizeBytes(at: item.fileURL),
+                sizeBytes: item.sizeBytes,
                 clientScanId: item.scanId,
                 mediaRole: item.mediaKind.defaultScanMediaRole
             )
@@ -647,6 +831,14 @@ enum MediaStagingContract {
         try fileSize(at: url)
     }
 
+    static func fileSizeMatchesSigningSnapshot(_ item: ScanUploadItem) -> Bool {
+        (try? fileSize(at: item.fileURL)) == item.sizeBytes
+    }
+
+    private static func fileSizeBytesIfPresent(at url: URL) -> Int {
+        (try? fileSize(at: url)) ?? 0
+    }
+
     private static func fileSize(at url: URL) throws -> Int {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         if let size = attributes[.size] as? NSNumber {
@@ -669,6 +861,8 @@ struct ScanUploadItem: Sendable {
     let fileURL: URL
     let contentType: String
     let objectKey: String
+    /// File size captured immediately before requesting the presigned URL.
+    let sizeBytes: Int
 }
 
 struct MediaStagingPreparation: Sendable {

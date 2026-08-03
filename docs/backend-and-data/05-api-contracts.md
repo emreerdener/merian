@@ -336,11 +336,11 @@ Joining a challenge reuses the underlying standard `user_field_trips` row, so
 that standard field trip remains eligible and continues to show only its normal
 Field Trip progress.
 
-Every account receives an active Backyard Safari Level 1 row and activity
-period when its `public.users` profile is created; the enrollment migration
-backfills the same state for existing accounts. The activity window starts at
-enrollment, so historical scans remain ineligible. Existing stopped, reset, and
-completed Backyard Safari rows are never resumed by the backfill.
+Every account receives an active Backyard Safari Level 1 row and activity period
+when its `public.users` profile is created; the enrollment migration backfills
+the same state for existing accounts. The activity window starts at enrollment,
+so historical scans remain ineligible. Existing stopped, reset, and completed
+Backyard Safari rows are never resumed by the backfill.
 
 Stopped trips are deliberately absent. A reset Backyard Safari can qualify for
 the unstarted introduction again; a stopped one cannot because its
@@ -460,9 +460,8 @@ Upload/request time does not replace the scan timestamp, so a scan captured
 inside a now-closed outing period or Event window can receive delayed first
 credit. A single scan is evaluated against every matching current-level item in
 every eligible active standard outing, but receives at most one credit per
-outing and one per joined live challenge. It may still advance several
-eligible active experiences, with every completion row pointing to the same
-scan.
+outing and one per joined live challenge. It may still advance several eligible
+active experiences, with every completion row pointing to the same scan.
 
 The optional `preferred_goal` is accepted only for an owned standard outing that
 was active at the scan timestamp and whose current visible item matches the
@@ -528,8 +527,7 @@ applies the same repair policy to other active goals whose former taxonomy or
 signal rule was broader than its label. Park's unverifiable **Spider near
 flowers** and **Bird near flowers** prompts become **Spider** and **Bird**; the
 former **Pollinator habitat** scene prompt becomes the verifiable
-plant-plus-meadow **Meadow plant** goal.
-Migration
+plant-plus-meadow **Meadow plant** goal. Migration
 `20260730023042_gate_field_trip_progress_by_confidence.sql` removes standard and
 Event credit backed by weak unreviewed identifications, reopens affected
 progress, clears derived badges, and withdraws completion publications/entries.
@@ -1096,16 +1094,23 @@ valid with `scan_id = NULL` until the final scan row exists and with
 owner, client scan id, deterministic object key, and upload session for later
 promotion or cleanup. Image roles may be `display`, `thumbnail`, or
 `inference_frame`; video uses `playback`; audio uses `audio`. The Edge parser
-rejects unsanitized filenames, duplicate filenames (including legacy names that
-sanitize to one key), invalid `mediaKind` values, invalid role/kind
-combinations, content-type/kind mismatches, empty media, and oversized media
-before signing. Structured manifests require a positive integer `sizeBytes`;
-the legacy `fileNames` array remains
-accepted for older clients but is compatibility-only and cannot express byte
-budgets or media asset sessions. Pre-signed `PUT` URLs include an
-`X-Amz-Expires=86400` parameter (24 hours). This extended window gives iOS
-`BackgroundTasks` flexibility to transmit overnight, subject to OS memory,
-thermal, and Wi-Fi conditions, without hitting 403 errors.
+rejects unsanitized filenames, duplicate filenames, invalid `mediaKind` values,
+invalid role/kind combinations, content-type/kind mismatches, empty media, and
+oversized media before signing. Every manifest requires a positive integer
+`sizeBytes`; legacy `fileNames`, missing sizes, top-level arrays/non-objects, and
+other old request shapes fail with stable `400 size_bytes_required`. Each URL
+response includes `requiredHeaders` with the exact `Content-Type` and decimal
+`Content-Length`. Signing uses `allHeaders: true`, binding the exact
+`content-length;content-type;host` header set. Every iOS data, file, avatar,
+repair, restore, foreground, and background PUT applies the returned map. A
+file-backed upload retains its signing-time size, re-stats immediately before
+task creation, and discards the URL for re-signing if size changed. Pre-signed
+`PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours). This extended
+window gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to
+OS memory, thermal, and Wi-Fi conditions, without hitting 403 errors. Deployed
+integration tests PUT the exact headers, reject wrong length/MIME, then HEAD the
+object to prove the stored size equals the declaration; a client-declared value
+alone is not storage evidence.
 
 An already-persisted observation that is missing durable sharing media adds
 `"uploadPurpose": "scan_share_restore"` to each repair entry. That purpose is
@@ -1121,15 +1126,14 @@ scan. Ordinary uploads cannot use completed ingestion as a new staging
 namespace. Failed-terminal repair is limited to exact `replay_exhausted`, or
 exact `media_reconciliation_abandoned` plus matching composite
 dead-letter/quota/media-lifecycle proof. Current/later policy, unproven
-abandonment, and every other terminal reason remain closed. Signing obtains
-that decision from bounded service-only
-`get_media_abandoned_scan_recovery_proofs`; database errors, malformed rows, or
-an unexpected scan id fail before any URL is returned. This exception is what
-lets Explore and Ask the Community restore surviving local image,
-playback-video, or standalone-audio media after analysis has durably completed.
-When camelCase and snake_case compatibility aliases are both supplied for scan
-ID, media role, or upload purpose, their values must be identical; contradictory
-aliases fail before lifecycle registration.
+abandonment, and every other terminal reason remain closed. Signing obtains that
+decision from bounded service-only `get_media_abandoned_scan_recovery_proofs`;
+database errors, malformed rows, or an unexpected scan id fail before any URL is
+returned. This exception is what lets Explore and Ask the Community restore
+surviving local image, playback-video, or standalone-audio media after analysis
+has durably completed. When camelCase and snake_case compatibility aliases are
+both supplied for scan ID, media role, or upload purpose, their values must be
+identical; contradictory aliases fail before lifecycle registration.
 
 The Edge function uses the `fileName` parameter from the JSON body (after
 applying basic sanitization to prevent path traversal vectors) rather than
@@ -1148,6 +1152,10 @@ returned key through suspension.
       "fileName": "photo_1.webp",
       "signedUrl": "https://<R2_URL>?X-Amz-Signature=...",
       "objectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_photo_1.webp",
+      "requiredHeaders": {
+        "Content-Type": "image/webp",
+        "Content-Length": "124000"
+      },
       "mediaAssetId": "scan_media_assets row UUID",
       "mediaSessionId": "upload session UUID"
     }
@@ -1156,16 +1164,15 @@ returned key through suspension.
 ```
 
 `mediaAssetId` and `mediaSessionId` are omitted for non-scan uploads, such as
-profile avatars, and for legacy `fileNames` clients. During
-`identify-multimodal` finalization, promoted image/video/standalone-audio
-staging keys update the matching staged rows and link them to the completed
-scan. Consumed extracted `video_audio` staging keys become `deleted`;
-moderation, promotion, or scan-insert failures mark still-staged rows as
-`failed`. The returned `mediaSessionId` values also let ingestion recover the
-exact upload sessions for the staged object keys; those session ids participate
-in the `scan_ingestion_jobs` `manifest_checksum`, giving retries and repair
-workers a stable server-side description of the requested media set without
-storing media bytes.
+profile avatars. During `identify-multimodal` finalization, promoted
+image/video/standalone-audio staging keys update the matching staged rows and
+link them to the completed scan. Consumed extracted `video_audio` staging keys
+become `deleted`; moderation, promotion, or scan-insert failures mark
+still-staged rows as `failed`. The returned `mediaSessionId` values also let
+ingestion recover the exact upload sessions for the staged object keys; those
+session ids participate in the `scan_ingestion_jobs` `manifest_checksum`, giving
+retries and repair workers a stable server-side description of the requested
+media set without storing media bytes.
 
 Scan-media registration is idempotent on
 `(authenticated owner, clientScanId, objectKey)`. A retry after a lost signing
@@ -1175,16 +1182,15 @@ retryable. An exact `scan_share_restore` row may also register or reactivate for
 completed ingestion when the fresh scan read finds either the active owned row
 or no row for the guarded reconstruction; tombstoned, foreign, and
 moderation-rejected/moderation-pipeline-failed rows fail closed.
-Failed-terminal, deleted, ordinary
-completed-ingestion, or media-incompatible rows also fail closed. A partial
-unique index serializes registration races, while the repair migration retains
-historical extras as `failed / superseded_staging_registration` audit rows. New
-rows use a per-client-scan media index, never a flat position among other scans
-in the signing request. The six-item union counts active staged/processing
-sources; historical promoted capture rows remain audit evidence but do not
-consume a later explicit share-repair budget. Any response manifest mismatch
-starts no upload and returns the claimed scans to `.pending` with durable
-backoff.
+Failed-terminal, deleted, ordinary completed-ingestion, or media-incompatible
+rows also fail closed. A partial unique index serializes registration races,
+while the repair migration retains historical extras as
+`failed / superseded_staging_registration` audit rows. New rows use a
+per-client-scan media index, never a flat position among other scans in the
+signing request. The six-item union counts active staged/processing sources;
+historical promoted capture rows remain audit evidence but do not consume a
+later explicit share-repair budget. Any response manifest mismatch starts no
+upload and returns the claimed scans to `.pending` with durable backoff.
 
 > The pre-signed URL is generated with the exact `contentType` from the
 > structured manifest. The iOS `URLRequest` must send the same `Content-Type`
@@ -1498,11 +1504,12 @@ single `/check-scan-status` contract. The server defers to active/retryable
 richer ingestion, permits exact structured `replay_exhausted`, and admits exact
 `media_reconciliation_abandoned` only with matching composite
 dead-letter/quota/media-lifecycle proof. It creates only an absent
-authenticated-owner row and reloads it by owner. After status returns `found`, iOS uploads surviving eligible local
-images, playback video, and standalone audio to staging and retries this
-endpoint with the three category-specific restored-key arrays. This endpoint
-itself does not accept `recovery_scan`; the sequence is compatibility repair
-for older/interrupted drift, not the expected current multimodal success path.
+authenticated-owner row and reloads it by owner. After status returns `found`,
+iOS uploads surviving eligible local images, playback video, and standalone
+audio to staging and retries this endpoint with the three category-specific
+restored-key arrays. This endpoint itself does not accept `recovery_scan`; the
+sequence is compatibility repair for older/interrupted drift, not the expected
+current multimodal success path.
 
 Before inspecting or returning an existing active request, the endpoint repairs
 any Community request on that `scan_id` whose `requested_by` no longer matches
@@ -1558,10 +1565,10 @@ requests 30.
 
 ### `/get-community-identification-activity`
 
-Returns privacy-filtered, community-wide Identify activity. Optional `scope`
-and `group` use the same values as the request feed, so `mine` means activity
-for requests created by the authenticated viewer rather than activity performed
-by that viewer. `limit` defaults to 30 and is capped at 100. The paired cursor
+Returns privacy-filtered, community-wide Identify activity. Optional `scope` and
+`group` use the same values as the request feed, so `mine` means activity for
+requests created by the authenticated viewer rather than activity performed by
+that viewer. `limit` defaults to 30 and is capped at 100. The paired cursor
 fields are `before_activity_at` and `before_activity_id`; ordering is
 deterministic by `(activity_at DESC, activity_id DESC)`.
 
@@ -1578,9 +1585,9 @@ The authenticated JSON request is:
 ```
 
 The cursor fields are optional, but supplying only one returns `400`. Unknown
-scope/group values, malformed cursor timestamps, and malformed cursor UUIDs
-also return `400`. `limit` follows the shared Explore policy: finite numbers
-are floored and clamped to `0...100`; missing or nonnumeric values use 30.
+scope/group values, malformed cursor timestamps, and malformed cursor UUIDs also
+return `400`. `limit` follows the shared Explore policy: finite numbers are
+floored and clamped to `0...100`; missing or nonnumeric values use 30.
 
 The success envelope is:
 
@@ -1637,8 +1644,8 @@ verified user and never accepts it from the request body, then calls
 `public.get_community_identification_activity(...)` through its service-role
 client.
 
-The route-local implementation, verification, and compatibility deployment
-guide is
+The route-local implementation, verification, and compatibility deployment guide
+is
 [`services/supabase/functions/get-community-identification-activity/README.md`](../../services/supabase/functions/get-community-identification-activity/README.md).
 
 ### `/get-community-identification-detail`
@@ -1774,13 +1781,16 @@ omitted, the worker continues from
 `taxonomy_coverage_targets.next_import_offset`; explicit offsets remain
 available for manual recovery. `retry = true` with no explicit offset replays
 the last failed offset when present, otherwise the last successfully imported
-page offset. Each successful page calls `upsert_gbif_community_taxa(...)`,
-annotates the created `taxonomy_import_runs` row as
-`scope = "gbif_bounded_birds"`, and suppresses per-page coverage recomputation.
-After the run imports at least one row, the worker refreshes coverage once when
-`refresh_coverage = true`, then updates the target cursor fields.
-`dry_run = true` fetches and normalizes the GBIF page without writing taxonomy
-rows or advancing the cursor.
+page offset. For each successfully fetched page, the worker normalizes the raw
+GBIF rows, calls `upsert_gbif_community_taxa(...)` only when normalized taxa
+remain, and annotates any created `taxonomy_import_runs` row as
+`scope = "gbif_bounded_birds"`. It then checkpoints the raw page's
+`next_offset` even when every result normalized out. A live run stops only at
+GBIF `endOfRecords`, a raw empty page, or the requested page count; it never
+stops merely because the normalized page is empty. After a run imports at least
+one row, the worker refreshes coverage once when `refresh_coverage = true`.
+`dry_run = true` performs no database writes while advancing the cursor in the
+response as if each fetched page had been checkpointed.
 
 ### `/process-community-consensus-jobs`
 
@@ -1885,35 +1895,35 @@ silently fall back to a paid tier or alternate model on any of these failures.
 Authenticated clients read their current server state through the Supabase RPC
 `get_my_entitlement()`. It returns one own-account row with:
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `current_plan` | string | `pro_paid`, `pro_complimentary`, `free`, or pre-cutover/historical `pro_trial` |
-| `current_tier` | string | Functional `pro` or `free` |
-| `is_paid` | boolean | Raw current paid status; authoritative for public Pro badges |
-| `scans_remaining` | integer | Grant minus consumed credits, including in-flight holds |
-| `scans_available_to_start` | integer | Credits that can fund a new primary Pro analysis |
-| `in_flight_count` | integer | Active held credits |
-| `entitlement_version` | integer | Monotonic account-plus-rollout version |
+| Field                      | Type    | Meaning                                                                        |
+| -------------------------- | ------- | ------------------------------------------------------------------------------ |
+| `current_plan`             | string  | `pro_paid`, `pro_complimentary`, `free`, or pre-cutover/historical `pro_trial` |
+| `current_tier`             | string  | Functional `pro` or `free`                                                     |
+| `is_paid`                  | boolean | Raw current paid status; authoritative for public Pro badges                   |
+| `scans_remaining`          | integer | Grant minus consumed credits, including in-flight holds                        |
+| `scans_available_to_start` | integer | Credits that can fund a new primary Pro analysis                               |
+| `in_flight_count`          | integer | Active held credits                                                            |
+| `entitlement_version`      | integer | Monotonic account-plus-rollout version                                         |
 
 The RPC derives its owner from `auth.uid()` and accepts no target user ID.
 Failures to verify current state fail closed for complimentary-only client
 behavior.
 
 After atomic cutover, public requests to all four scan-producing routes must
-send `X-Merian-Entitlement-Protocol: 2`:
+send `X-Merian-Entitlement-Protocol: 3`:
 
 - `/identify`
 - `/identify-describe`
 - `/identify-multimodal`
 - `/audio-spec`
 
-Missing or obsolete public protocol receives `426 client_update_required`
-before provider dispatch. Authenticated server replay bypasses only this public
+Missing or obsolete public protocol receives `426 client_update_required` before
+provider dispatch. Authenticated server replay bypasses only this public
 protocol comparison and retains the exact original `client_scan_id`, owner,
 quota, and credit linkage.
 
-A successful scan envelope may contain the additive top-level member below.
-The member is optional so historical stored envelopes remain decodable.
+A successful scan envelope may contain the additive top-level member below. The
+member is optional so historical stored envelopes remain decodable.
 
 ```json
 {
@@ -1944,13 +1954,12 @@ performed a second transition. Clients validate `user_id` and apply
 has succeeded and only when its version is not stale.
 
 Flash fallback is server-classified from the accepted evidence shape. It uses
-the independent daily free policy and returns `plan_used = "free"`; an
-exhausted balance does not authorize fallback for video, mixed/multi-item, or
-Pro-only work.
+the independent daily free policy and returns `plan_used = "free"`; an exhausted
+balance does not authorize fallback for video, mixed/multi-item, or Pro-only
+work.
 
-The normative balance equations, settlement rules, offline behavior, and
-rollout fence are in
-[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
+The normative balance equations, settlement rules, offline behavior, and rollout
+fence are in [`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 > **Important IDOR Constraint:** The `user.id` resolved by the Deno Edge
 > Function from the Supabase JWT is always a **lowercase** Postgres UUID format.
@@ -2062,11 +2071,11 @@ To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
   complimentary Pro → free, links the original analysis, acquires a credit hold
   when applicable, selects an allowlisted model from
   `internal.ai_quota_policies`, and consumes separate daily/user/IP provider
-  counters under the request idempotency key. Text-only enrichment currently selects
-  `gemini-2.5-flash` through the same database policy. A missing user row,
-  entitlement query failure, disabled/missing policy, or unsupported model fails
-  closed before Gemini. Both identification models use the structured schema
-  generated from `merianModelContract`.
+  counters under the request idempotency key. Text-only enrichment currently
+  selects `gemini-2.5-flash` through the same database policy. A missing user
+  row, entitlement query failure, disabled/missing policy, or unsupported model
+  fails closed before Gemini. Both identification models use the structured
+  schema generated from `merianModelContract`.
 - **Conditional biological fields**: The static executable contract makes
   biological-only fields optional and nullable. The prompt requires them to be
   omitted for non-biological subjects; the runtime parser and processed-material
@@ -2699,9 +2708,9 @@ Catalog mode:
 - `limit` defaults to `40` and is capped at `100`.
 - `query` is optional, trims/collapses whitespace, and filters scientific names.
 - `category: "region"` requires `region`. ISO country codes and English country
-  titles normalize to an exact `species_country_occurrences.country_code`
-  filter once coverage exists; broad free-text ranges are not treated as
-  canonical country membership.
+  titles normalize to an exact `species_country_occurrences.country_code` filter
+  once coverage exists; broad free-text ranges are not treated as canonical
+  country membership.
 - `cursor` carries the last `scientific_name` and `species_id` returned.
 - Response rows include `id`, `scientific_name`, `common_name`,
   `content_quality`, nullable `taxonomy`, status fields, `group_tags`, and one
@@ -4075,10 +4084,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   inserts with duplicate protection, reloads by both scan and owner, and then
   follows the normal eligibility and media-promotion path. The server refuses
   media-less owner recovery with `409 scan_restore_media_required` before the
-  recovery RPC is invoked, and proves every supplied key's exact
-  scan/kind/role upload-ledger binding before that mutation. It also refuses
-  this repair while richer ingestion is active or retryable and after a known
-  terminal moderation or provider safety-policy rejection.
+  recovery RPC is invoked, and proves every supplied key's exact scan/kind/role
+  upload-ledger binding before that mutation. It also refuses this repair while
+  richer ingestion is active or retryable and after a known terminal moderation
+  or provider safety-policy rejection.
 - Sharing snapshots image, video, and standalone-audio URLs into
   `explore_post_media`, ordered for the public carousel. `hero_image_url`
   remains the backward-compatible image field; author-post reads also return
@@ -5893,16 +5902,16 @@ that cannot prove its persisted pair.
 
 Before release acceptance, also apply
 `20260730180000_bind_field_chat_rows_to_subjects.sql`. It is compatible with
-both old and corrected chat functions: impossible historical cross-bound
-private rows are removed first, then deferred composite foreign keys require
-every retained Insight conversation to match its exact scan owner and every
-retained message and rating to match its exact conversation, scan-or-post, and
-viewer identity at commit. Conversation-optional feature feedback also matches
-its exact scan owner without relying on a parent thread. Insight answer and
-feature feedback lose their legacy direct authenticated Data API writes and
-remain available only through the authenticated action envelopes above. This
-structural boundary prevents one malformed persisted row from making every
-future strict load of that thread fail.
+both old and corrected chat functions: impossible historical cross-bound private
+rows are removed first, then deferred composite foreign keys require every
+retained Insight conversation to match its exact scan owner and every retained
+message and rating to match its exact conversation, scan-or-post, and viewer
+identity at commit. Conversation-optional feature feedback also matches its
+exact scan owner without relying on a parent thread. Insight answer and feature
+feedback lose their legacy direct authenticated Data API writes and remain
+available only through the authenticated action envelopes above. This structural
+boundary prevents one malformed persisted row from making every future strict
+load of that thread fail.
 
 ### Safety and Errors
 
@@ -6053,45 +6062,49 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    converting structural snake_case keys into camelCase payloads based on
    codable strategies, the Edge function supports both `is_deleted` and
    `isDeleted` attributes when resolving the deleted tombstone array.
-2. **Batch Upserts**: All valid collections are written via a single atomic
-   `.upsert(collectionPayloads)` call, resolving PostgreSQL `TIMESTAMPTZ` and
-   `UUID` types without timing out. **The upsert now throws on database error**
-   rather than logging silently — `upsertCollectionsAndFetchMemberships`
-   propagates the error through `withEdgeHandler` so the iOS client receives
-   `HTTP 500` and can retry rather than treating a failed collection persist as
-   a successful sync.
-3. **Centralised Ownership Filter (`filterOwnedCollections`)**: `index.ts` calls
-   `filterOwnedCollections(userId, collections, supabaseAdmin)` before any write
-   proceeds. This function queries the existing `collections` rows for the
-   incoming IDs and removes any whose `user_id` does not match the authenticated
-   user. The pre-filtered, ownership-verified set is then passed to all
-   downstream functions (`upsertCollectionsAndFetchMemberships`,
-   `syncMembershipDelta`, `deleteCollections`) — no downstream function needs to
-   re-implement the ownership check independently. Collection IDs owned by other
-   users are silently dropped.
-4. **Delete IDOR Guard**: `deleteCollections` additionally scopes the DELETE
+2. **Atomic Ownership Upsert**:
+   `upsert_owned_collections(p_user_id, p_collections)` performs one
+   `INSERT ... ON CONFLICT ... DO UPDATE` and returns every input ID as accepted
+   or rejected. It inserts new rows and updates only `name` and `created_at`
+   when the existing owner equals `p_user_id`. A foreign or concurrently
+   colliding UUID remains unchanged. Only accepted IDs are passed to membership
+   hydration and delta calculation. The RPC adapter throws on error, so no
+   downstream membership read or write can run after uncertain admission.
+3. **Skippable Foreign IDs**: Rejected collection IDs are logged and skipped
+   without changing the successful-sync response. This preserves offline
+   reconciliation when one device retains a stale UUID while preventing a
+   service-role write from reassigning it. Ownership is resolved from the JWT;
+   collection JSON never supplies `user_id`.
+4. **Delete IDOR Guard**: `deleteCollections` scopes the DELETE
    query with `.eq("user_id", userId)` as a defence-in-depth layer.
    `deleteCollections` now throws on database error rather than logging
    silently, preventing false-success `200` responses when the deletion fails.
-5. **Bulk Insertion & Mismatched FK Protection**: Applying `collection_scans`
-   relationships in bounded set-based upsert chunks avoids N+1 query timeouts.
-   To prevent PostgreSQL Foreign Key violations from crashing the overarching
-   chunk transaction, the Edge Node dynamically pre-validates all incoming
-   `scan_id` payloads against the core `scans` table. If a user groups a scan
-   while fully offline and the physical cloud `scans` row hasn't populated yet,
-   mapping intelligently bypasses that specific missing scan natively. The
-   pending relationship rests securely offline on the user's iPhone until the
-   next sync pulse. Existing memberships are hydrated for all owned collections
+5. **Owner-Joined Membership Insertion**: Applying `collection_scans`
+   relationships in bounded set-based RPC chunks avoids N+1 query timeouts.
+   `insert_owned_collection_scans(p_user_id, p_rows)` joins both the requested
+   collection and scan to `p_user_id` before insertion. A scan grouped while
+   offline may not exist in PostgreSQL yet; missing and foreign scans are
+   skipped, leaving the local relationship for the next sync pulse. The RPC
+   cannot create a cross-owner membership, and a database trigger independently
+   rejects direct writes whose parent owners differ. Existing memberships are
+   hydrated for all accepted owner collections
    with one keyset-paginated `.in("collection_id", ownedIds)` query ordered by
    `(collection_id, scan_id)`, rather than one pagination loop per collection.
    Each bounded page resumes after its last composite primary key instead of
    paying progressively higher range/OFFSET costs. This keeps latency sublinear
    for users with many collections while bounding each page in V8 memory.
-6. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running
+6. **RLS and Direct-Grant Boundary**: Authenticated RLS separates
+   own-collection select/delete from own-collection-plus-own-scan insert;
+   membership updates are unsupported. `service_role` has no table-wide
+   collection UPDATE and may directly update only `name` and `created_at`.
+   Ghost merge reparenting stays behind its existing privileged merge function.
+   Both owner RPCs are invoker functions with empty search paths and explicit
+   `service_role`-only execute grants.
+7. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running
    `.select()` across the user's DB rows, building a `toDelete` array in memory
    and passing it to `.delete().in("id", toDelete)`. This avoids
    `.not("id", "in", "(...)")` string-builder failures.
-7. **Strict Upstream Concurrency Latch**: Because `BackgroundTaskWrapper` calls
+8. **Strict Upstream Concurrency Latch**: Because `BackgroundTaskWrapper` calls
    push network traffic simultaneously out-of-order, the iOS client strictly
    clamps `sync-collections` invocations behind a shared collection
    single-flight latch. `OfflineQueueManager` retains the active
@@ -6167,21 +6180,20 @@ reservation/request IDs, validated provider output, and completed Identify
 safety evaluation. All exact failed/committed normal and replay reservation keys
 are retained as chronological authority across ordinary quota pruning until the
 terminal ledger is resolved. The recovery and proof routines are service-only,
-recorded in
-`internal.privileged_routine_grants`, and probed in production through exact
-null-input SQLSTATE `22023` no-write boundaries.
-A handler-owned `503 service_unavailable` while processing `recovery_scan`
-therefore means the guarded database recovery boundary was not authoritative;
-the client must preserve local media and must not proceed to restore signing.
-This check is also the rollout fence. The baseline and hardening SQL files are
-separate migration-file transactions, so exact-SHA fail-closed
-`generate-upload-urls`, `check-scan-status`, and `share-scan-to-explore`
-consumers predeploy before either file. A recovery call proves that the
-service-only `get_media_abandoned_scan_recovery_proofs` surface is available
-before it can invoke `recover_missing_owned_scan`; an empty proof set is valid
-readiness for non-media-abandonment outcomes, but malformed, foreign, missing,
-or denied responses stop the flow. The structured Identify producer deploys
-only after both migrations commit.
+recorded in `internal.privileged_routine_grants`, and probed in production
+through exact null-input SQLSTATE `22023` no-write boundaries. A handler-owned
+`503 service_unavailable` while processing `recovery_scan` therefore means the
+guarded database recovery boundary was not authoritative; the client must
+preserve local media and must not proceed to restore signing. This check is also
+the rollout fence. The baseline and hardening SQL files are separate
+migration-file transactions, so exact-SHA fail-closed `generate-upload-urls`,
+`check-scan-status`, and `share-scan-to-explore` consumers predeploy before
+either file. A recovery call proves that the service-only
+`get_media_abandoned_scan_recovery_proofs` surface is available before it can
+invoke `recover_missing_owned_scan`; an empty proof set is valid readiness for
+non-media-abandonment outcomes, but malformed, foreign, missing, or denied
+responses stop the flow. The structured Identify producer deploys only after
+both migrations commit.
 
 If the exact owner row is still absent, the route also invokes service-only
 `recover_stranded_scan_ingestion_attempt` before projecting client-safe job
@@ -6200,7 +6212,8 @@ state, or exposes the authorized source identity.
   "job_stage": null,
   "job_attempt_count": null,
   "retry_after": null,
-  "last_error": null
+  "last_error": null,
+  "complimentary_state": "consumed"
 }
 ```
 
@@ -6212,11 +6225,20 @@ tools can inspect the optional job fields backed by `scan_ingestion_jobs`:
 `failed_terminal` ledger row. iOS also accepts the legacy `failed_terminal`
 response spelling. `job_stage` names the precise server step, including
 `server_replay_limit_reached` when the scheduled replay budget is exhausted.
-`retry_after` and `last_error` are only populated for failed jobs. iOS decodes
-the full response via `ScanStatusResponse`: queued scans use these fields to
-keep server-owned `.inferencing` rows from being resubmitted while media
-promotion or scan insertion is still finalizing, and to surface terminal server
-replay exhaustion as needs-attention instead of continuing automatic retry.
+`retry_after` and `last_error` are only populated for failed jobs.
+`complimentary_state` is additive (`held`, `consumed`, `released`, or `null`)
+and is read for the whole bulk request through one service-only, owner-scoped
+`get_complimentary_scan_states_service` call so deferred Flash ordering does not
+create per-scan funding lookups. This state-only read does not refresh the
+entitlement balance. A terminal `consumed` blocker remains locally reserved
+until a later successful `get_my_entitlement()` proves the installed snapshot
+includes settlement; terminal `released` or terminal absence also requires that
+refresh before reclassification. Nonterminal absence creates no capacity. iOS
+decodes the full response via `ScanStatusResponse`: queued scans use these
+fields to keep server-owned `.inferencing` rows from being resubmitted while
+media promotion or scan insertion is still finalizing, and to surface terminal
+server replay exhaustion as needs-attention instead of continuing automatic
+retry.
 
 ### Authentication & IDOR
 
@@ -6396,28 +6418,27 @@ Successful response: HTTP 200.
 
 Error bodies use `{ "code": "...", "error": "..." }`.
 
-| HTTP | Code                                       | Meaning                                                                  | Client action                                      |
-| ---- | ------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| 400  | `invalid_request`                          | Invalid JSON, unsupported fields, provider/subject, UUID, or secret      | Do not switch away during prepare; fix the request |
-| 413  | `invalid_request`                          | JSON body exceeds 4 KiB                                                  | Do not retry unchanged                             |
-| 401  | shared auth error                          | Missing, invalid, expired, or non-live user JWT                          | Refresh/re-authenticate                            |
-| 403  | `ghost_session_required`                   | Prepare caller is not anonymous                                          | Do not retry as that session                       |
-| 403  | `permanent_session_required`               | Complete/refresh caller is anonymous                                     | Sign in to the permanent account                   |
-| 403  | `handoff_forbidden`                        | Destination is not the exact bound provider identity                     | Retain the queued proof for the correct account    |
-| 404  | `handoff_invalid`                          | Unknown, superseded, consumed by another destination, or unusable source | Remove that queued proof                           |
-| 409  | `source_already_merged` / `merge_conflict` | Source already upgraded or conflicting concurrent state                  | Refresh state; do not create an unproved fallback  |
-| 410  | `handoff_expired`                          | 30-day recovery window elapsed                                           | Remove that queued proof                           |
-| 503  | `auth_cleanup_pending`                     | Data merge committed; Auth deletion still pending                        | Retain and retry safely                            |
+| HTTP | Code                                       | Meaning                                                                                               | Client action                                                             |
+| ---- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 400  | `invalid_request`                          | Invalid JSON, unsupported fields, provider/subject, UUID, or secret                                   | Do not switch away during prepare; fix the request                        |
+| 413  | `invalid_request`                          | JSON body exceeds 4 KiB                                                                               | Do not retry unchanged                                                    |
+| 401  | shared auth error                          | Missing, invalid, expired, or non-live user JWT                                                       | Refresh/re-authenticate                                                   |
+| 403  | `ghost_session_required`                   | Prepare caller is not anonymous                                                                       | Do not retry as that session                                              |
+| 403  | `permanent_session_required`               | Complete/refresh caller is anonymous                                                                  | Sign in to the permanent account                                          |
+| 403  | `handoff_forbidden`                        | Destination is not the exact bound provider identity                                                  | Retain the queued proof for the correct account                           |
+| 404  | `handoff_invalid`                          | Unknown, superseded, consumed by another destination, or unusable source                              | Remove that queued proof                                                  |
+| 409  | `source_already_merged` / `merge_conflict` | Source already upgraded or conflicting concurrent state                                               | Refresh state; do not create an unproved fallback                         |
+| 410  | `handoff_expired`                          | 30-day recovery window elapsed                                                                        | Remove that queued proof                                                  |
+| 503  | `auth_cleanup_pending`                     | Data merge committed; Auth deletion still pending                                                     | Retain and retry safely                                                   |
 | 503  | `merge_temporarily_unavailable`            | Timeout, deadlock, serialization/lock failure, guarded schema drift, or scan-ledger invariant failure | Retain and retry; guest data is unchanged; alert operations on repetition |
-| 500  | `merge_failed`                             | Unexpected server failure                                                | Retain and retry; investigate logs                 |
+| 500  | `merge_failed`                             | Unexpected server failure                                                                             | Retain and retry; investigate logs                                        |
 
-`ghost_merge_species_ledger_mismatch` and
-`user_species_scan_count_underflow` are internal database diagnostics, not
-public response codes. Both must map to HTTP 503
-`merge_temporarily_unavailable` and the message “Account upgrade is temporarily
-unavailable. Your guest data is unchanged.” This mapping is a release gate: the
-current schema-aware hardening must not be deployed until the Edge mapper and
-its unit test cover both diagnostics.
+`ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow`
+are internal database diagnostics, not public response codes. Both must map to
+HTTP 503 `merge_temporarily_unavailable` and the message “Account upgrade is
+temporarily unavailable. Your guest data is unchanged.” This mapping is a
+release gate: the current schema-aware hardening must not be deployed until the
+Edge mapper and its unit test cover both diagnostics.
 
 `{"operation":"refresh_identity"}` is the separate permanent-session operation
 for refreshing public provider identity when no merge is required. It returns
@@ -6465,9 +6486,9 @@ prevent IDOR vulnerabilities.
    clear compatibility media URLs, structured captured-media references,
    semantic/public location labels, device locale/time-zone context, free-form
    notes, and custom tags. Exact coordinates, elevation, time, taxonomy,
-   identification, environmental, quality, and provenance facts remain
-   unchanged as mandatory Scientific Data. No synthetic `auth.users` or
-   `public.users` identity is created.
+   identification, environmental, quality, and provenance facts remain unchanged
+   as mandatory Scientific Data. No synthetic `auth.users` or `public.users`
+   identity is created.
 5. Relational completion returns `storage_pending` and releases the account
    claim. The storage worker keyset-sweeps the user's free uploads, Pro uploads,
    staging, avatars, and exports prefixes in 50-key pages. After at least 25
@@ -7618,7 +7639,9 @@ All fields are optional:
   "offset": 0,
   "limit": 50,
   "page_count": 1,
-  "dry_run": false
+  "dry_run": false,
+  "refresh_coverage": true,
+  "retry": false
 }
 ```
 
@@ -7627,7 +7650,11 @@ Constraints:
 - `target`: only `birds` in v1.
 - `offset`: non-negative integer.
 - `limit`: integer from `1` to `200`.
-- `page_count`: integer from `1` to `5`.
+- `page_count`: integer from `1` to `20`.
+- `refresh_coverage`: defaults to `true`; refreshes coverage once after a run
+  that imported at least one row.
+- `retry`: defaults to `false`; with no explicit `offset`, retries the last
+  failed offset when present, otherwise the most recently successful page.
 
 ### Response Payload
 
@@ -7637,6 +7664,9 @@ Constraints:
   "target": "birds",
   "root_gbif_taxon_key": 212,
   "dry_run": false,
+  "retry": false,
+  "refresh_coverage": true,
+  "start_offset": 0,
   "imported_count": 50,
   "fetched_count": 50,
   "normalized_count": 50,
@@ -7663,13 +7693,21 @@ Constraints:
 1. Fetches GBIF species search pages with `highertaxon_key=212`, `rank=SPECIES`,
    and `status=ACCEPTED`.
 2. Normalizes rows into Merian's GBIF community taxon payload.
-3. Calls `upsert_gbif_community_taxa(...)`, which inserts lineage and species
-   nodes into `taxon_nodes` / `taxon_names` without deleting Dictionary-backed
-   rows.
-4. Annotates the created `taxonomy_import_runs` row as
-   `scope = "gbif_bounded_birds"` with page metadata.
-5. Relies on the existing RPC side effect to recompute
-   `taxonomy_coverage_targets`.
+3. When normalized taxa remain, calls `upsert_gbif_community_taxa(...)`, which
+   inserts lineage and species nodes into `taxon_nodes` / `taxon_names` without
+   deleting Dictionary-backed rows, and annotates the created import run as
+   `scope = "gbif_bounded_birds"`.
+4. Checkpoints `next_offset` after every successfully fetched live page,
+   including raw nonempty pages whose rows all normalize out and terminal raw
+   empty pages. A failure on a later page therefore resumes after every earlier
+   checkpoint rather than replaying the batch from its start.
+5. Continues until GBIF reports `endOfRecords`, the raw page is empty, or
+   `page_count` is reached. An empty normalized page is not a stop condition.
+6. Refreshes `taxonomy_coverage_targets` once, and only when the run imported at
+   least one row and `refresh_coverage = true`.
+
+`dry_run = true` performs no taxonomy, import-run, cursor, failure, or coverage
+writes. Its returned `next_offset` still advances through the simulated pages.
 
 The worker does not create `species_dictionary` rows, enqueue species
 enrichment, or attach scan media. Those still happen only through
@@ -7679,13 +7717,18 @@ materialization triggers such as owner-published Community ID consensus.
 
 After migrations and Edge Functions are deployed:
 
-1. Call `/sync-community-taxonomy-index` with `dry_run = true`, `offset = 0`,
-   `limit = 50`, and `page_count = 1`.
-2. If GBIF returns normalized rows, repeat the call without `dry_run`.
-3. Call `/community-taxonomy-status` and confirm the latest import run has
-   `scope = "gbif_bounded_birds"` and the Birds coverage target has a non-zero
-   `indexed_species_count`.
-4. Continue with the previous import response's `next_offset`.
+1. Call `/sync-community-taxonomy-index` with `dry_run = true`, `limit = 50`,
+   and `page_count = 1`; omit `offset` to exercise the stored cursor.
+2. Repeat the call without `dry_run`, even if the raw page was nonempty but its
+   normalized count was zero. That live call must checkpoint the page and move
+   to the next raw offset.
+3. Call `/community-taxonomy-status` and confirm
+   `taxonomy_coverage_targets.next_import_offset` matches the import response.
+   If rows were imported, also confirm the latest import run has
+   `scope = "gbif_bounded_birds"` and coverage was refreshed. An all-empty run
+   correctly creates no import run and performs no coverage refresh.
+4. Continue without an explicit offset for ordinary operation. Supply
+   `offset = next_offset` only for deliberate manual recovery.
 
 Keep the first rollout to one page per call. Increase `page_count` only after
 status checks show expected import rows and coverage counts.

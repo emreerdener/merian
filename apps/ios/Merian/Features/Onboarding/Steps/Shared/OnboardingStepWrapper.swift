@@ -17,6 +17,10 @@ struct OnboardingStepWrapper: View {
     let primaryButtonTextColor: SwiftUI.Color
     let primaryButtonColor: SwiftUI.Color
     let primaryAction: () -> Void
+
+    // MARK: - Required Agreement
+    var termsAgreement: Binding<Bool>?
+    var termsURL: URL?
     
     // MARK: - Secondary Action Fallback
     var secondaryButtonTitle: String?
@@ -33,6 +37,43 @@ struct OnboardingStepWrapper: View {
                 .padding()
                 .background(primaryButtonColor)
                 .clipShape(Capsule())
+        }
+        .disabled(isPrimaryButtonDisabled)
+        .opacity(isPrimaryButtonDisabled ? 0.45 : 1)
+        .animation(.easeInOut(duration: 0.2), value: isPrimaryButtonDisabled)
+        .accessibilityHint(isPrimaryButtonDisabled ? "Agree to the terms to continue" : "")
+    }
+
+    private var isPrimaryButtonDisabled: Bool {
+        termsAgreement?.wrappedValue == false
+    }
+
+    @ViewBuilder
+    private var termsAgreementView: some View {
+        if let termsAgreement, let termsURL {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    termsAgreement.wrappedValue.toggle()
+                } label: {
+                    Label {
+                        Text("I agree to the terms")
+                            .font(.subheadline.weight(.medium))
+                    } icon: {
+                        Image(systemName: termsAgreement.wrappedValue ? "checkmark.square.fill" : "square")
+                            .font(.title3)
+                            .foregroundStyle(termsAgreement.wrappedValue ? Color.accentColor : Color.secondary)
+                    }
+                    .foregroundStyle(Color.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("I agree to the Terms of Service")
+                .accessibilityValue(termsAgreement.wrappedValue ? "Selected" : "Not selected")
+
+                Link("View the full Terms of Service", destination: termsURL)
+                    .font(.footnote.weight(.semibold))
+                    .padding(.leading, 32)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -71,23 +112,21 @@ struct OnboardingStepWrapper: View {
                     .padding(.horizontal, 32)
             }
             
-            // 3. Action Buttons
-            if let secondaryTitle = secondaryButtonTitle, let secondaryAction = secondaryAction {
-                VStack(spacing: 24) {
-                    primaryButton
+            // 3. Agreements and Action Buttons
+            VStack(spacing: 24) {
+                termsAgreementView
+                primaryButton
+
+                if let secondaryTitle = secondaryButtonTitle, let secondaryAction = secondaryAction {
                     Button(action: secondaryAction) {
                         Text(secondaryTitle)
                             .font(.subheadline)
                             .foregroundColor(SwiftUI.Color.secondary)
                     }
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
-            } else {
-                primaryButton
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 64)
             }
+            .padding(.horizontal, 32)
+            .padding(.bottom, secondaryButtonTitle == nil ? 64 : 32)
         }
     }
 }

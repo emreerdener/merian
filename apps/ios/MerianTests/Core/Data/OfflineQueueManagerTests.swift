@@ -442,6 +442,10 @@ struct OfflineQueueManagerTests {
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
         UsageManager.debugFreeScanLimitOverride = true
         UsageManager.shared.evaluateDailyRefresh()
+        EntitlementManager.shared.resetForTesting(
+            userID: UUID(uuidString: "00000000-0000-4000-8000-000000000777")!
+        )
+        RevenueCatManager.shared.isSubscribed = true
     }
 
     private func restoreFreeScanLimitForTest() {
@@ -450,6 +454,8 @@ struct OfflineQueueManagerTests {
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
         UsageManager.debugFreeScanLimitOverride = nil
         UsageManager.shared.evaluateDailyRefresh()
+        RevenueCatManager.shared.isSubscribed = false
+        EntitlementManager.shared.resetForTesting()
     }
 
     private enum ExpectedSerializedMedia {
@@ -477,8 +483,12 @@ struct OfflineQueueManagerTests {
         let canonicalQueuedM4AContentType: String
         let canonicalQueuedVideoContentType: String
         let optionalRequestFields: [String]
+        let requiredPerFileFields: [String]
         let uploadPurposes: [String]
         let optionalResponseFields: [String]
+        let requiredResponseFields: [String]
+        let requiredSignedHeaders: [String]
+        let signedHeaderSet: String
         let mediaRolesByKind: [String: [String]]
         let fileNamesMustBeUnique: Bool
         let legacyFileNamesAccepted: Bool
@@ -975,7 +985,7 @@ struct OfflineQueueManagerTests {
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 
-        #expect(contract.schemaVersion == 4)
+        #expect(contract.schemaVersion == 5)
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
         #expect(contract.minFileBytes == 1)
@@ -997,13 +1007,23 @@ struct OfflineQueueManagerTests {
             contract.optionalRequestFields ==
                 ["clientScanId", "mediaRole", "uploadPurpose"]
         )
+        #expect(
+            contract.requiredPerFileFields ==
+                ["fileName", "mediaKind", "contentType", "sizeBytes"]
+        )
         #expect(contract.uploadPurposes == ["scan_share_restore"])
         #expect(contract.optionalResponseFields == ["mediaAssetId", "mediaSessionId"])
+        #expect(
+            contract.requiredResponseFields ==
+                ["fileName", "signedUrl", "objectKey", "requiredHeaders"]
+        )
+        #expect(contract.requiredSignedHeaders == ["Content-Type", "Content-Length"])
+        #expect(contract.signedHeaderSet == "content-length;content-type;host")
         #expect(contract.mediaRolesByKind["image"] == ["display", "thumbnail", "inference_frame"])
         #expect(contract.mediaRolesByKind["audio"] == ["audio"])
         #expect(contract.mediaRolesByKind["video"] == ["playback"])
         #expect(contract.fileNamesMustBeUnique)
-        #expect(contract.legacyFileNamesAccepted)
+        #expect(!contract.legacyFileNamesAccepted)
     }
 
     @Test func testMediaStagingContractBuildsSanitizedMixedMediaKeys() throws {
@@ -1039,6 +1059,7 @@ struct OfflineQueueManagerTests {
         #expect(items[0].mediaKind == StagedMediaKind.image)
         #expect(items[0].fileName == "\(scanId)_image_one.webp")
         #expect(items[0].contentType == "image/webp")
+        #expect(items[0].sizeBytes == 64)
         #expect(items[0].objectKey == "staging/\(canonicalOwnerId)/\(scanId)_image_one.webp")
 
         #expect(items[1].mediaKind == StagedMediaKind.audio)
@@ -1054,8 +1075,12 @@ struct OfflineQueueManagerTests {
         let presignedURLs = items.map { item in
             PreSignedURL(
                 fileName: item.fileName,
-                signedUrl: "https://r2.invalid/bucket/\(item.objectKey)",
+                signedUrl: "https://r2.invalid/bucket/\(item.objectKey)?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
                 objectKey: item.objectKey,
+                requiredHeaders: [
+                    "Content-Type": item.contentType,
+                    "Content-Length": String(item.sizeBytes)
+                ],
                 mediaAssetId: nil,
                 mediaSessionId: nil
             )
@@ -1075,8 +1100,9 @@ struct OfflineQueueManagerTests {
         var mixedOwnerURLs = presignedURLs
         mixedOwnerURLs[1] = PreSignedURL(
             fileName: items[1].fileName,
-            signedUrl: "https://r2.invalid/bucket/staging/other-owner/\(items[1].fileName)",
+            signedUrl: "https://r2.invalid/bucket/staging/other-owner/\(items[1].fileName)?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
             objectKey: "staging/other-owner/\(items[1].fileName)",
+            requiredHeaders: presignedURLs[1].requiredHeaders,
             mediaAssetId: nil,
             mediaSessionId: nil
         )
@@ -1089,8 +1115,9 @@ struct OfflineQueueManagerTests {
         var mixedOriginURLs = presignedURLs
         mixedOriginURLs[1] = PreSignedURL(
             fileName: items[1].fileName,
-            signedUrl: "https://other-r2.invalid/bucket/\(items[1].objectKey)",
+            signedUrl: "https://other-r2.invalid/bucket/\(items[1].objectKey)?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
             objectKey: items[1].objectKey,
+            requiredHeaders: presignedURLs[1].requiredHeaders,
             mediaAssetId: nil,
             mediaSessionId: nil
         )
@@ -1103,8 +1130,9 @@ struct OfflineQueueManagerTests {
         var insecureURLs = presignedURLs
         insecureURLs[0] = PreSignedURL(
             fileName: items[0].fileName,
-            signedUrl: "http://r2.invalid/bucket/\(items[0].objectKey)",
+            signedUrl: "http://r2.invalid/bucket/\(items[0].objectKey)?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
             objectKey: items[0].objectKey,
+            requiredHeaders: presignedURLs[0].requiredHeaders,
             mediaAssetId: nil,
             mediaSessionId: nil
         )
@@ -1112,6 +1140,24 @@ struct OfflineQueueManagerTests {
             !MediaStagingContract.presignedUploadManifestIsValid(
                 uploadItems: items,
                 presignedURLs: insecureURLs
+            )
+        )
+        var wrongSizeURLs = presignedURLs
+        wrongSizeURLs[0] = PreSignedURL(
+            fileName: items[0].fileName,
+            signedUrl: presignedURLs[0].signedUrl,
+            objectKey: items[0].objectKey,
+            requiredHeaders: [
+                "Content-Type": items[0].contentType,
+                "Content-Length": "65"
+            ],
+            mediaAssetId: nil,
+            mediaSessionId: nil
+        )
+        #expect(
+            !MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: items,
+                presignedURLs: wrongSizeURLs
             )
         )
         #expect(
@@ -1135,6 +1181,11 @@ struct OfflineQueueManagerTests {
         #expect(splitKeys.imageR2ObjectKeys == [items[0].objectKey])
         #expect(splitKeys.audioR2ObjectKeys == [items[1].objectKey])
         #expect(splitKeys.videoR2ObjectKeys == [items[2].objectKey])
+
+        try Data(repeating: 0x99, count: 65).write(
+            to: directory.appendingPathComponent("image one.webp")
+        )
+        #expect(!MediaStagingContract.fileSizeMatchesSigningSnapshot(items[0]))
     }
 
     @Test func testMediaStagingContractAllowsCanonicalVideoScanUploadShape() throws {
@@ -2238,7 +2289,8 @@ struct OfflineQueueManagerTests {
             fileName: "video.mp4",
             fileURL: URL(fileURLWithPath: "/tmp/video.mp4"),
             contentType: "video/mp4",
-            objectKey: "staging/owner/video.mp4"
+            objectKey: "staging/owner/video.mp4",
+            sizeBytes: 128
         )
         let imageItem = ScanUploadItem(
             scanId: "image-policy",
@@ -2248,12 +2300,17 @@ struct OfflineQueueManagerTests {
             fileName: "image.webp",
             fileURL: URL(fileURLWithPath: "/tmp/image.webp"),
             contentType: "image/webp",
-            objectKey: "staging/owner/image.webp"
+            objectKey: "staging/owner/image.webp",
+            sizeBytes: 64
         )
         let deferredVideoRequest =
             OfflineQueueManager.shared.queuedUploadRequest(
                 remoteURL: remoteURL,
                 item: videoItem,
+                requiredHeaders: [
+                    "Content-Type": "video/mp4",
+                    "Content-Length": "128"
+                ],
                 scanContainsPlaybackVideo: true,
                 allowsExpensiveVideoUpload: false
             )
@@ -2261,6 +2318,10 @@ struct OfflineQueueManagerTests {
             OfflineQueueManager.shared.queuedUploadRequest(
                 remoteURL: remoteURL,
                 item: videoItem,
+                requiredHeaders: [
+                    "Content-Type": "video/mp4",
+                    "Content-Length": "128"
+                ],
                 scanContainsPlaybackVideo: true,
                 allowsExpensiveVideoUpload: true
             )
@@ -2268,6 +2329,10 @@ struct OfflineQueueManagerTests {
             OfflineQueueManager.shared.queuedUploadRequest(
                 remoteURL: remoteURL,
                 item: imageItem,
+                requiredHeaders: [
+                    "Content-Type": "image/webp",
+                    "Content-Length": "64"
+                ],
                 scanContainsPlaybackVideo: true,
                 allowsExpensiveVideoUpload: false
             )
@@ -2275,6 +2340,10 @@ struct OfflineQueueManagerTests {
             OfflineQueueManager.shared.queuedUploadRequest(
                 remoteURL: remoteURL,
                 item: imageItem,
+                requiredHeaders: [
+                    "Content-Type": "image/webp",
+                    "Content-Length": "64"
+                ],
                 scanContainsPlaybackVideo: false,
                 allowsExpensiveVideoUpload: false
             )
@@ -2287,6 +2356,10 @@ struct OfflineQueueManagerTests {
         #expect(!videoSiblingImageRequest.allowsExpensiveNetworkAccess)
         #expect(!imageRequest.allowsConstrainedNetworkAccess)
         #expect(imageRequest.allowsExpensiveNetworkAccess)
+        #expect(deferredVideoRequest.value(forHTTPHeaderField: "Content-Type") == "video/mp4")
+        #expect(deferredVideoRequest.value(forHTTPHeaderField: "Content-Length") == "128")
+        #expect(imageRequest.value(forHTTPHeaderField: "Content-Type") == "image/webp")
+        #expect(imageRequest.value(forHTTPHeaderField: "Content-Length") == "64")
 
         let syncSource = try loadRepositorySource(
             at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Sync.swift"

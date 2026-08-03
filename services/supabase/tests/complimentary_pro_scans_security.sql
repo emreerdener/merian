@@ -65,6 +65,14 @@ BEGIN
         'EXECUTE'
     ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'authenticated',
+        'public.get_complimentary_scan_states_service(uuid,uuid[])',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_complimentary_scan_states_service(uuid,uuid[])',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
         'public.reserve_ai_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)',
         'EXECUTE'
     ) THEN
@@ -229,6 +237,22 @@ BEGIN
               AND usage.state = 'held'
        ) <> 3 THEN
         RAISE EXCEPTION 'three atomic complimentary holds returned invalid state';
+    END IF;
+
+    IF (
+        SELECT pg_catalog.COUNT(*)
+        FROM public.get_complimentary_scan_states_service(
+            test_user_id,
+            ARRAY[
+                scan_one,
+                scan_two,
+                scan_three,
+                '00000000-0000-4000-8000-00000000ffff'::UUID
+            ]
+        ) AS funding
+        WHERE funding.complimentary_state = 'held'
+    ) <> 3 THEN
+        RAISE EXCEPTION 'owner-scoped bulk funding-state read returned invalid rows';
     END IF;
 
     SELECT * INTO STRICT replay_reservation
@@ -570,6 +594,41 @@ BEGIN
        OR entitlement_row.scans_available_to_start <> 0 THEN
         RAISE EXCEPTION 'merge added grants, lost consumption, or retained excess holds';
     END IF;
+
+    UPDATE internal.entitlement_rollout_config
+    SET required_client_protocol = 3
+    WHERE config_key = 'current'
+      AND entitlement_mode = 'complimentary';
+
+    BEGIN
+        PERFORM public.reserve_ai_quota(
+            paid_user_id,
+            'scan_identification',
+            '00000000-0000-4000-8000-00000000cf21'::UUID,
+            pg_catalog.REPEAT('a', 64),
+            '00000000-0000-4000-8000-00000000bf21'::UUID,
+            TRUE,
+            2,
+            FALSE
+        );
+        RAISE EXCEPTION 'protocol 2 unexpectedly passed after protocol-3 cutover';
+    EXCEPTION
+        WHEN SQLSTATE 'P0001' THEN
+            IF SQLERRM <> 'client_update_required' THEN
+                RAISE;
+            END IF;
+    END;
+
+    PERFORM public.reserve_ai_quota(
+        paid_user_id,
+        'scan_identification',
+        '00000000-0000-4000-8000-00000000cf22'::UUID,
+        pg_catalog.REPEAT('a', 64),
+        '00000000-0000-4000-8000-00000000bf22'::UUID,
+        TRUE,
+        3,
+        FALSE
+    );
 END;
 $test$;
 

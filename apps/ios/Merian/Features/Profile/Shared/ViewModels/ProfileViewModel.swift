@@ -198,9 +198,9 @@ final class ProfileViewModel {
             }
 
             try await MerianNetworkClient.shared.uploadToR2(
-                url: presignedURL.signedUrl,
+                uploadURL: presignedURL,
                 data: avatar.data,
-                mimeType: avatar.contentType
+                contentType: avatar.contentType
             )
 
             let response = try await MerianNetworkClient.shared.updatePublicAvatar(

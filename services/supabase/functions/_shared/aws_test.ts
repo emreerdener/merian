@@ -7,6 +7,8 @@ import {
   deleteR2ObjectIfPresent,
   deleteR2Objects,
   deleteScanMediaR2Objects,
+  generatePresignedPutUrl,
+  getS3Client,
   isOwnedScanMediaR2Url,
   isScanMediaR2Url,
   listR2ObjectKeys,
@@ -14,6 +16,50 @@ import {
   type R2Config,
   r2RequestWithDeadline,
 } from "./aws.ts";
+
+Deno.test("presigned PUTs bind the exact content length and content type", async () => {
+  const config: R2Config = {
+    bucketName: "media-bucket",
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    s3Client: getS3Client("test-access-key", "test-secret-key"),
+  };
+
+  const signedUrl = await generatePresignedPutUrl(
+    config,
+    "staging/user/scan.webp",
+    86_400,
+    "image/webp",
+    12_345,
+  );
+  const signed = new URL(signedUrl);
+
+  assertEquals(signed.searchParams.get("X-Amz-Expires"), "86400");
+  assertEquals(
+    signed.searchParams.get("X-Amz-SignedHeaders"),
+    "content-length;content-type;host",
+  );
+});
+
+Deno.test("presigned PUTs reject unknown or unsafe content lengths", async () => {
+  const config: R2Config = {
+    bucketName: "media-bucket",
+    endpoint: "https://account.r2.cloudflarestorage.com",
+    s3Client: getS3Client("test-access-key", "test-secret-key"),
+  };
+
+  await assertRejects(
+    () =>
+      generatePresignedPutUrl(
+        config,
+        "staging/user/scan.webp",
+        86_400,
+        "image/webp",
+        0,
+      ),
+    Error,
+    "positive, safe content length",
+  );
+});
 
 Deno.test("R2 requests preserve caller cancellation and enforce a deadline", async () => {
   const callerController = new AbortController();

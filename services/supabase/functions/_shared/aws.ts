@@ -422,24 +422,36 @@ export async function putR2Object(
  *
  * @param config  R2 config from `getR2Config()`.
  * @param key     Object key (e.g. `staging/{userId}/{fileName}`).
- * @param expirySeconds  URL lifetime in seconds (default 86400 = 24 h).
+ * @param expirySeconds URL lifetime in seconds (staging callers use 24 h).
+ * @param contentType Exact Content-Type the client must send.
+ * @param contentLength Exact Content-Length the client must send.
  * @returns The signed URL string ready for the client to PUT to.
  */
 export async function generatePresignedPutUrl(
   config: R2Config,
   key: string,
-  expirySeconds = 86400,
-  contentType = "image/webp",
+  expirySeconds: number,
+  contentType: string,
+  contentLength: number,
 ): Promise<string> {
+  if (!Number.isSafeInteger(contentLength) || contentLength <= 0) {
+    throw new Error(
+      "A positive, safe content length is required for R2 signing.",
+    );
+  }
+
   const { s3Client, bucketName, endpoint } = config;
   const url = new URL(`${endpoint}/${bucketName}/${key}`);
   url.searchParams.set("X-Amz-Expires", String(expirySeconds));
   const request = new Request(url.toString(), {
     method: "PUT",
-    headers: { "Content-Type": contentType },
+    headers: {
+      "Content-Type": contentType,
+      "Content-Length": String(contentLength),
+    },
   });
   const signed = await s3Client.sign(request, {
-    aws: { signQuery: true },
+    aws: { signQuery: true, allHeaders: true },
   });
   return signed.url;
 }

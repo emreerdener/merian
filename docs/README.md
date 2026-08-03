@@ -62,6 +62,12 @@ as their permanent engineering identity.
   embedding transaction controls; timeout guards use session settings with
   matching resets so they remain effective during fresh replay. See
   [`backend-and-data/13-server-credentials-and-database-release-safety.md`](./backend-and-data/13-server-credentials-and-database-release-safety.md).
+- **Security and reliability remediation (2026-08-03)**: Collection sync now
+  admits only owner-safe IDs, staging PUTs bind exact type and size, protocol-3
+  iOS serializes complimentary funding admission, redirects stay on configured
+  origins, and taxonomy imports checkpoint every successfully fetched raw page.
+  Production promotion remains an ordered, evidence-backed operation. See the
+  [`joined remediation record`](./backend-and-data/19-security-and-reliability-remediation-2026-08-03.md).
 - **Current backend release verdict**: DwC-A exports are default-off for the
   initial launch at both the iOS presentation boundary and the canonical
   PostgreSQL intake/processing/download boundary. Existing nonterminal work is
@@ -411,8 +417,12 @@ as their permanent engineering identity.
   — Normative contract for the staged replacement of the introductory trial
   with three lifetime complimentary Pro scans, including the private ledger,
   derived balances, user-first reservation and settlement, separate Flash and
-  provider quotas, protocol 2, iOS verification, Ghost merge, admin telemetry,
+  provider quotas, protocol 3, iOS reservation safety, Ghost merge, admin telemetry,
   security, rollout, and executable verification map.
+- **[`/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md`](./backend-and-data/19-security-and-reliability-remediation-2026-08-03.md)**
+  — Joined implementation and release record for collection ownership,
+  exact-size staging uploads, serialized complimentary funding, redirect origin
+  safety, taxonomy checkpointing, rollout dependencies, and production evidence.
 
 ### Features & Hardware
 

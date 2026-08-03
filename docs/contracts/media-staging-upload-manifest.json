@@ -1,6 +1,9 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "endpoint": "/generate-upload-urls",
+  "requestBodyMustBeObject": true,
+  "legacyTopLevelArraysAccepted": false,
+  "missingSizeErrorCode": "size_bytes_required",
   "maxFilesPerRequest": 6,
   "minFileBytes": 1,
   "maxImageBytes": 5242880,
@@ -32,6 +35,12 @@
     "mediaRole",
     "uploadPurpose"
   ],
+  "requiredPerFileFields": [
+    "fileName",
+    "mediaKind",
+    "contentType",
+    "sizeBytes"
+  ],
   "uploadPurposes": [
     "scan_share_restore"
   ],
@@ -39,6 +48,17 @@
     "mediaAssetId",
     "mediaSessionId"
   ],
+  "requiredResponseFields": [
+    "fileName",
+    "signedUrl",
+    "objectKey",
+    "requiredHeaders"
+  ],
+  "requiredSignedHeaders": [
+    "Content-Type",
+    "Content-Length"
+  ],
+  "signedHeaderSet": "content-length;content-type;host",
   "mediaRolesByKind": {
     "image": [
       "display",
@@ -54,5 +74,5 @@
   },
   "fileNameSafeCharacterPattern": "^[A-Za-z0-9_.-]+$",
   "fileNamesMustBeUnique": true,
-  "legacyFileNamesAccepted": true
+  "legacyFileNamesAccepted": false
 }
