@@ -32,8 +32,8 @@ is not a browser or iOS API.
 
 The projected Pro/free labels in this worker refer only to RevenueCat-paid
 state. Reconciliation does not edit complimentary usage or infer a public paid
-badge. Effective access may fall through from a non-paid snapshot to an
-existing complimentary credit or hold. The joined entitlement contract is
+badge. Effective access may fall through from a non-paid snapshot to an existing
+complimentary credit or hold. The joined entitlement contract is
 [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 The queue has RLS enabled and no direct API-role or service-role table grants.

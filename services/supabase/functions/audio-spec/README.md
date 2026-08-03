@@ -18,12 +18,12 @@ insert so account retirement or merge cannot be crossed silently.
 
 ## Authoritative AI Quota
 
-After cutover, public callers must send
-`X-Merian-Entitlement-Protocol: 2`; otherwise the route returns
-`426 client_update_required` before provider work. An authenticated internal
-replay bypasses only this header check and preserves the original analysis
-linkage. A single standalone-audio request is Flash-compatible when no
-complimentary scan is available, but the server derives that classification.
+After cutover, public callers must send `X-Merian-Entitlement-Protocol: 2`;
+otherwise the route returns `426 client_update_required` before provider work.
+An authenticated internal replay bypasses only this header check and preserves
+the original analysis linkage. A single standalone-audio request is
+Flash-compatible when no complimentary scan is available, but the server derives
+that classification.
 
 The authenticated caller's `client_scan_id` is the UUID idempotency key for the
 `scan_audio_identification` reservation. Immediately before Gemini dispatch, the
@@ -37,9 +37,9 @@ expires after ten minutes.
 
 Provider quota settlement and complimentary-credit settlement are independent.
 The linked lifetime hold is consumed only after the owner scan and retained
-audio are durably complete, released on a proven terminal failure, and kept
-held for retryable or ambiguous work. A successful response may include the
-optional versioned entitlement metadata defined by
+audio are durably complete, released on a proven terminal failure, and kept held
+for retryable or ambiguous work. A successful response may include the optional
+versioned entitlement metadata defined by
 [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Durability

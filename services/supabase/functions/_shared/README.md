@@ -207,12 +207,12 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   are not standalone display rows. Migration
   `20260729012153_fix_video_scan_canonical_finalization.sql` aligns the database
   proof with that projection while retaining exact owner, kind, URL, and
-  claimed-key checks. Current successful completion delegates to the
-  user-first `complete_scan_ingestion_with_entitlement(...)` orchestrator,
-  which invokes canonical media finalization, settles any credit, adds a
-  versioned entitlement snapshot, and stores the enriched response. Terminal
-  status delegates only to `fail_scan_ingestion_terminal(...)`; schema-cache or
-  direct table fallbacks are forbidden because they could bypass hold release.
+  claimed-key checks. Current successful completion delegates to the user-first
+  `complete_scan_ingestion_with_entitlement(...)` orchestrator, which invokes
+  canonical media finalization, settles any credit, adds a versioned entitlement
+  snapshot, and stores the enriched response. Terminal status delegates only to
+  `fail_scan_ingestion_terminal(...)`; schema-cache or direct table fallbacks
+  are forbidden because they could bypass hold release.
 - **Compatibility success nuance**: `identify`, `identify-describe`, and
   `audio-spec` invoke that finalizer synchronously. Only a failure after the
   exact owner scan row has committed may degrade to a validated compatibility

@@ -94,17 +94,17 @@ Pro-only actions return upgrade-required instead. Empty evidence is rejected
 before quota or credit reservation.
 
 Paid Pro takes precedence over complimentary Pro, which takes precedence over
-Flash. A complimentary request creates or reuses one lifetime hold linked to
-the original analysis. That hold is separate from the provider quota
-reservation: durable completion of the scan and all required media consumes it,
-including a valid non-biological result; a proven terminal failure releases it;
-and retryable or ambiguous work leaves it held. Purchasing paid Pro before
+Flash. A complimentary request creates or reuses one lifetime hold linked to the
+original analysis. That hold is separate from the provider quota reservation:
+durable completion of the scan and all required media consumes it, including a
+valid non-biological result; a proven terminal failure releases it; and
+retryable or ambiguous work leaves it held. Purchasing paid Pro before
 completion releases an existing hold. Replays, retries, enrichment, chat, and
 provider subcalls do not create another hold.
 
 Successful envelopes may include versioned entitlement metadata. Older stored
-envelopes without that optional metadata remain valid. The normative contract
-is [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+envelopes without that optional metadata remain valid. The normative contract is
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Model And Generation Invariants
 
@@ -146,14 +146,13 @@ intentional response changes. The root Swift fields are generated as optional
 for staggered rollout compatibility, but the server contract remains strict
 before delivery.
 
-The validated envelope is stored immutably through the service-only,
-user-first `complete_scan_ingestion_with_entitlement(...)` orchestrator in the
-same transaction as required-media completion and complimentary-credit
-settlement. Rows completed before canonical response persistence are
-reconstructed from the authenticated owner's scan and species rows and
-revalidated through this same executable contract. The response contains no
-raw media. Deletion intake, owner removal, and final scan deletion erase the
-stored envelope.
+The validated envelope is stored immutably through the service-only, user-first
+`complete_scan_ingestion_with_entitlement(...)` orchestrator in the same
+transaction as required-media completion and complimentary-credit settlement.
+Rows completed before canonical response persistence are reconstructed from the
+authenticated owner's scan and species rows and revalidated through this same
+executable contract. The response contains no raw media. Deletion intake, owner
+removal, and final scan deletion erase the stored envelope.
 
 ## Media Rules
 
@@ -223,18 +222,16 @@ provider call. Setup failure returns a stable retryable error and refunds the
 unused provider quota reservation; a proven terminal outcome releases a
 complimentary hold, while an unproven outcome leaves it held. Their sanitized
 intents target this endpoint for replay and preserve the legacy route name as
-`compatibilityEndpoint`; inline base64 media remains redacted and
-non-resumable. They also finish only through
-`complete_scan_ingestion_with_entitlement`; no compatibility helper can write
-`status = complete` or settle a hold directly. A finalization failure is
-durably marked retryable and propagated through the required task. A
-compatibility orchestrator may
-return its validated response after that failure only when the exact owner scan
-row already committed; a fresh multimodal invocation has no such immediate
-HTTP-success fallback and returns retryable 503. A later same-UUID invocation
-may independently return a marked reconstructed replay from that exact owner row
-while canonical finalization remains retryable. That replay is not a second
-provider-owning success path.
+`compatibilityEndpoint`; inline base64 media remains redacted and non-resumable.
+They also finish only through `complete_scan_ingestion_with_entitlement`; no
+compatibility helper can write `status = complete` or settle a hold directly. A
+finalization failure is durably marked retryable and propagated through the
+required task. A compatibility orchestrator may return its validated response
+after that failure only when the exact owner scan row already committed; a fresh
+multimodal invocation has no such immediate HTTP-success fallback and returns
+retryable 503. A later same-UUID invocation may independently return a marked
+reconstructed replay from that exact owner row while canonical finalization
+remains retryable. That replay is not a second provider-owning success path.
 
 Required promotion and deletion are completion prerequisites, not best-effort
 cleanup. Staging images and inference-only audio companions must receive an R2
@@ -313,23 +310,23 @@ every claimed staging key against its capture asset, permits deletion only for
 audio companions, rebuilds canonical image/video/audio rows, verifies that
 promoted URLs are represented by ready canonical rows, writes
 `media_finalization_complete` last, settles the linked hold, and stores the
-enriched response. Server replay and media reconciliation call this
-orchestrator rather than updating the ledger or credit directly. Terminal
-outcomes use `fail_scan_ingestion_terminal(...)` and carry stable
-`terminal_reason_code` values. Compatibility recovery permits exact
-`replay_exhausted`; exact `media_reconciliation_abandoned` also requires its
-matching composite dead-letter/quota/media-lifecycle proof. Current/later
-policy, unproven abandonment, legacy, and unknown reasons fail closed. The
-producer checks both thrown transport failures and the returned Supabase
-database error when writing that proof; either failure emits
-`multimodal/dead_letter_write_failed` instead of silently losing recovery
-provenance. New proof rows bind the exact quota reservation/request IDs,
-validated provider result, and whether required Identify safety evaluation
-completed. The database accepts one only when it is no earlier than the latest
-charged attempt and the safety result is affirmative. All exact failed/committed
-normal/replay quota reservations remain retained as chronological authority only
-while the terminal media-abandonment ledger is unresolved; refunded and
-unrelated terminal states retain ordinary 30-day pruning.
+enriched response. Server replay and media reconciliation call this orchestrator
+rather than updating the ledger or credit directly. Terminal outcomes use
+`fail_scan_ingestion_terminal(...)` and carry stable `terminal_reason_code`
+values. Compatibility recovery permits exact `replay_exhausted`; exact
+`media_reconciliation_abandoned` also requires its matching composite
+dead-letter/quota/media-lifecycle proof. Current/later policy, unproven
+abandonment, legacy, and unknown reasons fail closed. The producer checks both
+thrown transport failures and the returned Supabase database error when writing
+that proof; either failure emits `multimodal/dead_letter_write_failed` instead
+of silently losing recovery provenance. New proof rows bind the exact quota
+reservation/request IDs, validated provider result, and whether required
+Identify safety evaluation completed. The database accepts one only when it is
+no earlier than the latest charged attempt and the safety result is affirmative.
+All exact failed/committed normal/replay quota reservations remain retained as
+chronological authority only while the terminal media-abandonment ledger is
+unresolved; refunded and unrelated terminal states retain ordinary 30-day
+pruning.
 
 Canonical completeness follows `captured_media` when it has a valid visual
 timeline. For a legacy video row, it mirrors the refresher: only the standalone

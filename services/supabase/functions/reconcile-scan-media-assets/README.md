@@ -60,9 +60,9 @@ and text-only scans are retried by `replay-scan-ingestion`.
 
 The worker never settles complimentary usage directly. Durable required-media
 repair consumes the original analysis hold as part of
-`complete_scan_ingestion_with_entitlement(...)`; proven TTL abandonment
-releases it through `fail_scan_ingestion_terminal(...)`; and ambiguous or
-retryable state remains held. Provider quota history is unchanged. See
+`complete_scan_ingestion_with_entitlement(...)`; proven TTL abandonment releases
+it through `fail_scan_ingestion_terminal(...)`; and ambiguous or retryable state
+remains held. Provider quota history is unchanged. See
 [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Legacy owner-row recovery boundary

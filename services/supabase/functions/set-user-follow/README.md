@@ -44,9 +44,9 @@ Follow requests are accepted only when all of these are true:
 
 That final visibility check is handled by
 `public.can_view_explore_author_profile(...)`; the endpoint does not enumerate
-account IDs. Automatic profile-visible Backyard Safari enrollment means a
-known account ID normally passes this gate until the unfinished starter is
-stopped or reset.
+account IDs. Automatic profile-visible Backyard Safari enrollment means a known
+account ID normally passes this gate until the unfinished starter is stopped or
+reset.
 
 The insert path writes to `public.user_follows` with `ON CONFLICT DO NOTHING`,
 making repeated follow requests safe.

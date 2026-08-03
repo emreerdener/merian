@@ -97,8 +97,8 @@ contribution rows.
 - The internal Backyard Safari enrollment trigger is database-only. Its
   `SECURITY DEFINER` function has an empty search path and denies `PUBLIC`,
   `anon`, `authenticated`, and `service_role` execution. The resulting active
-  row follows the existing profile-visible status contract without exposing
-  scan evidence.
+  row follows the existing profile-visible status contract without exposing scan
+  evidence.
 
 ## Entitlement and access
 
@@ -265,8 +265,8 @@ only when that ID is non-null. `slug` may be supplied instead of `template_id`.
 ```
 
 Explicitly starts or unhides the caller's progress for an accessible template
-and returns the refreshed template detail. Backyard Safari is already active
-for a new account; this action starts other outings or resumes a stopped/reset
+and returns the refreshed template detail. Backyard Safari is already active for
+a new account; this action starts other outings or resumes a stopped/reset
 outing by opening a new activity period. Matching scans never create or restart
 a standard outing.
 
@@ -653,9 +653,9 @@ enrollment and exactly one initial open activity period. The static migration
 contract covers the preflight, insert-only backfill, no-resume conflict path,
 trigger registration, empty search path, and denied execution for every API
 role. The lifecycle test covers saved stopped progress, Capture/profile
-exclusion,
-late approval, stopped-gap exclusion, repeated periods, Reset preservation of
-Seasonal Challenge data, the post-reset scan boundary, and explicit restart.
+exclusion, late approval, stopped-gap exclusion, repeated periods, Reset
+preservation of Seasonal Challenge data, the post-reset scan boundary, and
+explicit restart.
 
 The contract also verifies that publication status stays detail-only, joins the
 requesting owner's active non-deleted publication, and preserves the
