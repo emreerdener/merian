@@ -42,6 +42,35 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
       const scanId = crypto.randomUUID();
       await insertUser(client, viewerId, "Capture Viewer");
       await insertUser(client, emptyViewerId, "Empty Viewer");
+      // Age these users out of the legacy trial, then exhaust the viewer's
+      // complimentary grant. This keeps the Pro-only fixture genuinely
+      // inaccessible in either rollout mode while free starter trips remain
+      // eligible.
+      await client.queryArray(
+        `
+        UPDATE public.users
+        SET created_at = NOW() - INTERVAL '8 days'
+        WHERE id IN ($1, $2)
+      `,
+        [viewerId, emptyViewerId],
+      );
+      await client.queryArray(
+        `
+        INSERT INTO internal.complimentary_scan_usage (
+          user_id, client_scan_id, state, settled_at, settlement_reason
+        )
+        VALUES
+          ($1, $2, 'consumed', NOW(), 'capture_fixture_exhausted'),
+          ($1, $3, 'consumed', NOW(), 'capture_fixture_exhausted'),
+          ($1, $4, 'consumed', NOW(), 'capture_fixture_exhausted')
+      `,
+        [
+          viewerId,
+          crypto.randomUUID(),
+          crypto.randomUUID(),
+          crypto.randomUUID(),
+        ],
+      );
       await insertSpecies(client, speciesId, "Rosa captura");
 
       const fixtures = await client.queryObject<TemplateFixture>(

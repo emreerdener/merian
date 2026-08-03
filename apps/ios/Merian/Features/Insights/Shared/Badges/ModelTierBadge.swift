@@ -28,17 +28,21 @@ struct ModelTierBadge: View {
     private var isComplimentaryExhausted: Bool {
         complimentaryDisplayOverride?.isExhausted ?? entitlement.isComplimentaryExhausted
     }
+
+    private var proScansRemainingText: String {
+        scansRemaining == 1
+            ? "1 Pro scan remains"
+            : "\(scansRemaining) Pro scans remain"
+    }
     
     var body: some View {
         if !isSubscribed,
            hasComplimentaryAccess,
            scansRemaining > 0 {
-            paywallButton(
-                text: "\(scansRemaining) complimentary Pro scan\(scansRemaining == 1 ? "" : "s") remaining"
-            )
+            paywallButton(text: proScansRemainingText)
         } else if !isSubscribed,
                   isComplimentaryExhausted {
-            paywallButton(text: "Complimentary Pro scans used — upgrade")
+            paywallButton(text: "All 3 Pro scans used — upgrade")
         } else if !isProActive, let score = confidenceScore {
             let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
             if score >= bands.possible && score < bands.strong {

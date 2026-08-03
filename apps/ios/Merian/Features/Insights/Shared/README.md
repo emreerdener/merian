@@ -13,6 +13,10 @@ remaining and opens the soft paywall. After the third usable Pro result, it
 shows exhaustion and the upgrade action on that result; it does not hide or
 redact the stored Pro content.
 
+The customer-facing pill reads “3 Pro scans remain” or “1 Pro scan remains”; it
+never displays the internal word “complimentary.” The exhausted pill reads “All
+3 Pro scans used — upgrade.”
+
 Results and Settings are the only countdown surfaces. Capture and public
 profile/Explore badges do not expose complimentary status, and paid accounts do
 not see the complimentary prompt. The badge reads versioned

@@ -69,13 +69,13 @@ export default function SupportPage() {
 
           <Stack gap="sm">
             <Title order={2} size="h3">
-              Complimentary Pro scans
+              Pro scans
             </Title>
             <Text>
-              Every account includes three complimentary Pro scans with no
-              calendar expiry. Naturebook uses them automatically before the
-              separate daily Flash scan. Results and Settings show the
-              server-verified number remaining.
+              Every account includes three Pro scans with no calendar expiry.
+              Naturebook uses them automatically before the separate daily Flash
+              scan. Results and Settings show the server-verified number
+              remaining.
             </Text>
             <Text>
               After all three are used, saved Pro results remain available and
@@ -86,8 +86,8 @@ export default function SupportPage() {
             <Text c="dimmed" size="sm">
               An interrupted scan may remain in flight while Naturebook safely
               checks whether it completed. Retrying the same queued scan does
-              not use another complimentary scan; a proven terminal failure
-              releases its hold.
+              not use another Pro scan; a proven terminal failure releases its
+              hold.
             </Text>
           </Stack>
 

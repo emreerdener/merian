@@ -6,21 +6,21 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
-### Three Complimentary Pro Scans
+### Three Pro Scans Included
 
-- Every existing and future account receives three complimentary Pro scans
-  with no calendar expiration. The separate daily Flash scan remains available,
-  so the introductory grant does not replace ordinary free access.
+- Every existing and future account receives three Pro scans with no calendar
+  expiration. The separate daily Flash scan remains available, so the
+  introductory grant does not replace ordinary free access.
 - Results and Settings show the server-verified number remaining. After the
   third usable Pro result, saved Pro results stay fully viewable and an upgrade
   action replaces access to new Pro-only analyses.
 - Ordinary single-photo, standalone-audio, and description scans fall back to
   the daily Flash policy after exhaustion. Video, multi-item or mixed scans,
   refinement, and other Pro-only actions continue to show the soft paywall.
-- Complimentary access now follows retry-safe original-analysis linkage: a
-  durable usable result consumes one scan, a proven terminal failure releases
-  it, and ambiguous recovery cannot spend another credit. Paid subscriptions
-  and the paid **7 Day Pass** remain unchanged.
+- Included Pro scans now follow retry-safe original-analysis linkage: a durable
+  usable result consumes one scan, a proven terminal failure releases it, and
+  ambiguous recovery cannot spend another credit. Paid subscriptions and the
+  paid **7 Day Pass** remain unchanged.
 
 ### Non-biological Scan Navigation
 

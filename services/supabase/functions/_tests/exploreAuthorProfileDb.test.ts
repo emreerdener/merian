@@ -230,6 +230,16 @@ Deno.test("Explore author profile DB - owner can inspect a fully quarantined pub
 
       await insertUser(client, viewerId, "Quarantine Viewer");
       await insertUser(client, authorId, "Quarantine Author");
+      // New accounts are auto-enrolled in a profile-visible starter trip.
+      // Keep this fixture focused on Explore publication visibility.
+      await client.queryArray(
+        `
+        UPDATE public.user_field_trips
+        SET is_profile_visible = FALSE
+        WHERE user_id = $1
+      `,
+        [authorId],
+      );
       await insertSpecies(client, speciesId, "Rosa quarantina");
       await insertScan(client, {
         id: scanId,

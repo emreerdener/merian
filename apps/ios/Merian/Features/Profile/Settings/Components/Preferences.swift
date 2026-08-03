@@ -213,7 +213,7 @@ struct Preferences: View {
             NavigationLink {
                 ComplimentaryScansDeveloperPreview()
             } label: {
-                Label("Preview complimentary scans", systemImage: "sparkles.rectangle.stack")
+                Label("Preview Pro scans", systemImage: "sparkles.rectangle.stack")
             }
             .accessibilityIdentifier("Settings_PreviewComplimentaryScans")
             #endif
@@ -399,7 +399,7 @@ private struct ComplimentaryScansDeveloperPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Picker("Complimentary scan state", selection: $scenario) {
+                Picker("Pro scan state", selection: $scenario) {
                     ForEach(Scenario.allCases) { scenario in
                         Text(scenario.pickerLabel).tag(scenario)
                     }
@@ -429,7 +429,7 @@ private struct ComplimentaryScansDeveloperPreview: View {
             .padding(16)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Complimentary Scans")
+        .navigationTitle("Pro Scans")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPaywall) {
             PaywallView()

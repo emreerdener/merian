@@ -589,6 +589,12 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
     settings,
     terms,
     changelog,
+    support,
+    releaseNotes,
+    inAppChangelog,
+    resultsBadgeSource,
+    planCardSource,
+    preferencesSource,
   ] = await Promise.all([
     read("docs/backend-and-data/18-complimentary-pro-scans.md"),
     read("docs/product/01-master-product-document.md"),
@@ -600,6 +606,18 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
     read("apps/ios/Merian/Features/Profile/Settings/README.md"),
     read("apps/web/app/terms/page.tsx"),
     read("CHANGELOG.md"),
+    read("apps/web/app/support/page.tsx"),
+    read("apps/ios/AppStore/ReleaseNotes/1.0.3.md"),
+    read("apps/ios/Merian/Resources/Changelog/changelog.json"),
+    read(
+      "apps/ios/Merian/Features/Insights/Shared/Badges/ModelTierBadge.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Profile/Settings/Plan/Components/PlanCard.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Profile/Settings/Components/Preferences.swift",
+    ),
   ]);
 
   const canonicalCompact = compact(canonical);
@@ -615,6 +633,7 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
       "Results and Settings only",
       "one grant of three",
       "paid status for Profile and Explore Pro badges",
+      "Counters use “3 Pro scans remain” and “1 Pro scan remains”",
     ]
   ) {
     assertStringIncludes(canonicalCompact, fragment);
@@ -650,10 +669,36 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
   assertStringIncludes(compact(settings), "paid **7 Day Pass** product");
   assertStringIncludes(
     compact(terms),
-    "not a subscription or calendar-based trial",
+    "Included Pro scans are not a subscription or calendar-based trial",
   );
   assertEquals(terms.includes("Trials may convert to paid access"), false);
-  assertStringIncludes(compact(changelog), "Three Complimentary Pro Scans");
+  assertStringIncludes(compact(changelog), "Three Pro Scans Included");
+  assertStringIncludes(resultsBadgeSource, '"1 Pro scan remains"');
+  assertStringIncludes(resultsBadgeSource, '"All 3 Pro scans used — upgrade"');
+  assertStringIncludes(planCardSource, '"PRO SCANS"');
+  assertStringIncludes(
+    planCardSource,
+    '"\\(scansRemaining) of 3 Pro scans remain',
+  );
+  assertStringIncludes(preferencesSource, 'Label("Preview Pro scans"');
+
+  for (const customerSource of [terms, changelog, support, releaseNotes]) {
+    assertEquals(/\bcomplimentary\b/i.test(customerSource), false);
+  }
+  assertEquals(
+    /\bcomplimentary\b/i.test(
+      inAppChangelog.replaceAll(/"id":\s*"[^"]+"/g, ""),
+    ),
+    false,
+  );
+  for (const swiftSource of [resultsBadgeSource, planCardSource]) {
+    const visibleStrings = [...swiftSource.matchAll(/"([^"\r\n]*)"/g)]
+      .map((match) => match[1]);
+    assertEquals(
+      visibleStrings.filter((value) => /\bcomplimentary\b/i.test(value)),
+      [],
+    );
+  }
 });
 
 Deno.test("fleet review inventory exactly matches configured Edge Functions", async () => {

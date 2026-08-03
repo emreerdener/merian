@@ -183,21 +183,21 @@ export default function TermsPage() {
         </Text>
       </LegalSection>
 
-      <LegalSection title="8. Purchases, Passes, Subscriptions, and Complimentary Access">
+      <LegalSection title="8. Purchases, Passes, Subscriptions, and Included Pro Scans">
         <Text>
-          Naturebook may offer free access with usage limits, three
-          complimentary Pro scans per account, a non-renewing seven-day Pro
-          pass, an auto-renewing annual Pro subscription, or other promotional
-          access. The product, duration, current storefront price, taxes, and
-          renewal terms shown in the App Store purchase flow control over
-          descriptive copy elsewhere for purchased access.
+          Naturebook may offer free access with usage limits, three included Pro
+          scans per account, a non-renewing seven-day Pro pass, an auto-renewing
+          annual Pro subscription, or other promotional access. The product,
+          duration, current storefront price, taxes, and renewal terms shown in
+          the App Store purchase flow control over descriptive copy elsewhere
+          for purchased access.
         </Text>
         <LegalList>
           <li>
-            Complimentary Pro scans are not a subscription or calendar-based
-            trial. They do not expire merely because time passes. A usable Pro
-            scan result uses one complimentary scan; the separate daily free
-            scan, when available, uses the Flash model.
+            Included Pro scans are not a subscription or calendar-based trial.
+            They do not expire merely because time passes. A usable Pro scan
+            result uses one included scan; the separate daily free scan, when
+            available, uses the Flash model.
           </li>
           <li>
             A non-renewing pass expires at the end of its stated period and does

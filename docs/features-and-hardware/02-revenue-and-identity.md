@@ -161,6 +161,9 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     the third durable result the stored result remains fully viewable and the
     UI shows exhaustion plus an upgrade action. Ordinary compatible captures
     use the separate daily Flash policy when credits are exhausted.
+  - Visible product copy calls the allowance **Pro scans**, not
+    “complimentary” scans. Remaining counters use “3 Pro scans remain” and “1
+    Pro scan remains”; `pro_complimentary` remains an internal server plan.
   - **Backend Model Upgrades**: The client display state is not provider
     authorization. Every paid-model Edge path atomically calls
     protocol-2 `reserve_ai_quota`, which locks the user, resolves paid Pro →

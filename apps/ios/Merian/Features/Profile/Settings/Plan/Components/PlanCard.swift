@@ -72,7 +72,7 @@ struct PlanCard: View {
 
     private var planTitle: String {
         if isSubscribed { return "Pro" }
-        if hasComplimentaryPro { return "Complimentary Pro" }
+        if hasComplimentaryPro { return "Pro" }
         return "Free"
     }
     
@@ -84,7 +84,7 @@ struct PlanCard: View {
                         Image(systemName: isProActive ? "lock.open.fill" : "lock.fill")
                             .foregroundColor(.secondary)
                             .font(.system(size: 14, weight: .semibold))
-                        Text(isSubscribed ? "HIGH-VOLUME SCANS" : (hasComplimentaryPro ? "COMPLIMENTARY PRO" : "1 FLASH SCAN DAILY"))
+                        Text(isSubscribed ? "HIGH-VOLUME SCANS" : (hasComplimentaryPro ? "PRO SCANS" : "1 FLASH SCAN DAILY"))
                             .font(.system(.caption, design: .monospaced))
                             .fontWeight(.bold)
                             .foregroundColor(.secondary)
@@ -149,10 +149,10 @@ struct PlanCard: View {
             return ProPlanValueProps.activePlanSummary
         }
         if complimentaryDetailContext.showsDetails && hasComplimentaryPro {
-            return "\(scansRemaining) of 3 complimentary Pro scans remain. Your separate daily Flash scan stays available."
+            return "\(scansRemaining) of 3 Pro scans remain. Your separate daily Flash scan stays available."
         }
         if complimentaryDetailContext.showsDetails && isComplimentaryExhausted {
-            return "All 3 complimentary Pro scans have been used. Saved Pro results remain available, and your daily Flash scan continues."
+            return "All 3 Pro scans have been used. Saved Pro results remain available, and your daily Flash scan continues."
         }
         return ProPlanValueProps.upgradePlanSummary
     }

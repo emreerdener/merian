@@ -251,7 +251,7 @@ Counsel and the operator should decide and document:
 | Gemini is central to identification and receives multimodal and context inputs | 5 |
 | AI results are probabilistic and not safety or professional advice | 6 |
 | PostHog product analytics and currently disabled capture modes | 7 |
-| Three complimentary Pro scans with no calendar expiry, a separate daily Flash scan, seven-day non-renewing pass, and annual auto-renewing plan | 8 |
+| Three included Pro scans with no calendar expiry, a separate daily Flash scan, seven-day non-renewing pass, and annual auto-renewing plan | 8 |
 | Operational content license and contributor warranties | 9 |
 | Explore is public UGC and eligible photos can become reference imagery | 10 |
 | Every submitted scan contributes mandatory Scientific Data that can be used or licensed | 11 |

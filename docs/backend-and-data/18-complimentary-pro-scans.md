@@ -26,6 +26,10 @@ migration exists. The authoritative rollout procedure is
 
 - Every existing and future account receives one fixed grant of three
   complimentary Pro scans. Credits do not expire with time.
+- Customer-facing copy calls these simply **Pro scans** or **included Pro
+  scans**. Counters use “3 Pro scans remain” and “1 Pro scan remains”; the word
+  “complimentary” is reserved for internal identifiers, telemetry, admin, and
+  engineering documentation.
 - The existing free daily Flash scan is separate. A new account can therefore
   receive three Pro-funded results and one Flash-funded result on its first day.
 - Selection is automatic: paid Pro wins first, then a complimentary Pro credit,

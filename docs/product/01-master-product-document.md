@@ -564,6 +564,11 @@ complimentary Pro scans for every existing and future account. Credits have no
 calendar expiry. This offer is not an App Store product and does not alter the
 paid **7 Day Pass**, its purchase copy, or the annual subscription.
 
+Customer-facing copy calls the grant **three Pro scans** or **included Pro
+scans** and never displays “complimentary.” Remaining counters read “3 Pro scans
+remain” or “1 Pro scan remains.” The `pro_complimentary` plan name and related
+ledger terminology remain internal.
+
 Storefront pricing and paid-product eligibility ultimately come from the store
 and RevenueCat; fixed display strings must be audited before release in every
 region. The complimentary offer becomes current only after the schema,

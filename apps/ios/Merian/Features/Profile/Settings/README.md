@@ -81,11 +81,12 @@ unchanged. Public Pro badges continue to use paid status rather than
 complimentary functional access. See
 [Three Complimentary Pro Scans](../../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
-In a Debug simulator build, Settings → Developer → **Preview complimentary
-scans** opens a deterministic gallery of the real Settings card and Results
-badge. Its segmented control covers three, two, one, and exhausted states. The
-gallery uses a local presentation override and never mutates the signed-in
-account, server ledger, or RevenueCat purchase state.
+In a Debug simulator build, Settings → Developer → **Preview Pro scans** opens a
+deterministic gallery of the real Settings card and Results badge. Its segmented
+control covers three, two, one, and exhausted states. The gallery uses a local
+presentation override and never mutates the signed-in account, server ledger,
+or RevenueCat purchase state. Visible counters say “3 Pro scans remain” or “1
+Pro scan remains”; internal entitlement code retains its complimentary names.
 
 ## Preference layout
 
