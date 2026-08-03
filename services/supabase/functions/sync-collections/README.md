@@ -85,7 +85,10 @@ Migration `20260803180211_harden_collection_ownership_and_memberships.sql` owns
 the database boundary. Its forward repair,
 `20260803215309_fix_collection_owner_upsert_ordinality.sql`, replaces the
 collection upsert with valid JSON-array ordinality parsing while preserving the
-same accepted/rejected-ID semantics:
+same accepted/rejected-ID semantics. Its paired
+`20260803215310_grant_collection_sync_invoker_privileges.sql` grants only the
+table operations required by the invoker routines; it does not restore
+table-wide owner updates:
 
 - `service_role` has no table-wide collection UPDATE and may directly update
   only `name` and `created_at`; it cannot reassign `user_id`;

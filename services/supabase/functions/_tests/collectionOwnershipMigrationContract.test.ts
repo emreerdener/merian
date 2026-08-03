@@ -12,6 +12,10 @@ const ordinalityRepairMigrationUrl = new URL(
   "../../migrations/20260803215309_fix_collection_owner_upsert_ordinality.sql",
   import.meta.url,
 );
+const invokerPrivilegesMigrationUrl = new URL(
+  "../../migrations/20260803215310_grant_collection_sync_invoker_privileges.sql",
+  import.meta.url,
+);
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
@@ -116,5 +120,28 @@ Deno.test("collection upsert forward migration uses valid JSON-array ordinality"
   assert(
     !sql.includes("JSONB_TO_RECORDSET(p_collections) WITH ORDINALITY"),
     "WITH ORDINALITY must be attached to jsonb_array_elements, not jsonb_to_recordset with a column definition list.",
+  );
+});
+
+Deno.test("collection invoker routines have only their required service table privileges", async () => {
+  const sql = compact(await Deno.readTextFile(invokerPrivilegesMigrationUrl));
+
+  for (
+    const fragment of [
+      "GRANT SELECT, INSERT, DELETE ON TABLE public.collections TO service_role",
+      "GRANT SELECT ON TABLE public.scans TO service_role",
+      "GRANT SELECT, INSERT, DELETE ON TABLE public.collection_scans TO service_role",
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '30s'",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("GRANT UPDATE ON TABLE public.collections TO service_role"),
+    "The invoker repair must not restore table-wide collection ownership updates.",
   );
 });

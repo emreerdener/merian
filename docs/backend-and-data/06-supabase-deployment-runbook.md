@@ -4631,11 +4631,13 @@ exact deployed SHA and live smoke evidence for each phase.
 1. Replay the complete migration fleet and pgTAP catalog. Apply
    `20260803180211_harden_collection_ownership_and_memberships.sql` and its
    forward execution repair
-   `20260803215309_fix_collection_owner_upsert_ordinality.sql` before deploying
-   `sync-collections`. Verify foreign collection IDs are skipped and never
-   reparented, cross-owner memberships fail through the RPC, direct service
-   access, and authenticated RLS, table-wide service-role owner updates fail,
-   and the reviewed Ghost merge still reparents in one transaction.
+   `20260803215309_fix_collection_owner_upsert_ordinality.sql`, followed by the
+   invoker-privilege repair
+   `20260803215310_grant_collection_sync_invoker_privileges.sql`, before
+   deploying `sync-collections`. Verify foreign collection IDs are skipped and
+   never reparented, cross-owner memberships fail through the RPC, direct
+   service access, and authenticated RLS, table-wide service-role owner updates
+   fail, and the reviewed Ghost merge still reparents in one transaction.
 2. Apply `20260803181936_add_reservation_safe_entitlement_protocol.sql`, then
    deploy the protocol-2/3-compatible entitlement and `check-scan-status` Edge
    changes while the required protocol remains unchanged. Follow the dedicated

@@ -114,6 +114,26 @@ BEGIN
         RAISE EXCEPTION 'collection column privileges are unsafe';
     END IF;
 
+    IF NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.collections',
+        'SELECT, INSERT, DELETE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.collections',
+        'UPDATE'
+    ) OR NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.scans',
+        'SELECT'
+    ) OR NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.collection_scans',
+        'SELECT, INSERT, DELETE'
+    ) THEN
+        RAISE EXCEPTION 'collection invoker routine table privileges are unsafe';
+    END IF;
+
     IF EXISTS (
         SELECT 1
         FROM pg_catalog.pg_proc AS routine

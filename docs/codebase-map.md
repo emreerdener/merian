@@ -367,16 +367,18 @@ reclassification. Coverage lives in
 
 `services/supabase/functions/sync-collections/` and migrations
 `20260803180211_harden_collection_ownership_and_memberships.sql` plus
-`20260803215309_fix_collection_owner_upsert_ordinality.sql` own custom
+`20260803215309_fix_collection_owner_upsert_ordinality.sql` and
+`20260803215310_grant_collection_sync_invoker_privileges.sql` own custom
 collection reconciliation. One invoker RPC atomically accepts new/same-owner
 collection IDs without reparenting foreign collisions; a second joins both
-membership parents to that owner. The forward repair preserves this behavior
-while deriving JSON-array order through valid PostgreSQL ordinality syntax.
-Accepted IDs alone feed composite-key hydration and the O(N) delta. A trigger,
-split authenticated RLS, explicit service-only RPC ACLs, and
-mutable-column-only `service_role` UPDATE protect direct database paths. Source
-coverage is route-local plus `_tests/collectionOwnershipMigrationContract.test.ts`;
-fresh-catalog coverage is `tests/collection_ownership_security.sql`.
+membership parents to that owner. The forward repairs use valid PostgreSQL
+ordinality syntax and grant only the invoker operations required for sync;
+collection ownership remains column-update protected. Accepted IDs alone feed
+composite-key hydration and the O(N) delta. A trigger, split authenticated RLS,
+explicit service-only RPC ACLs, and mutable-column-only `service_role` UPDATE
+protect direct database paths. Source coverage is route-local plus
+`_tests/collectionOwnershipMigrationContract.test.ts`; fresh-catalog coverage is
+`tests/collection_ownership_security.sql`.
 
 Supabase project credential boundaries:
 
