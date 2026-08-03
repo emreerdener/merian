@@ -124,17 +124,17 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   and batch deletion helpers. Presigned PUT generation requires a positive safe
   content length and signs exact `Content-Length`, `Content-Type`, and `host`
   through `allHeaders: true`; callers must return those required headers with
-  each URL. `deleteR2ObjectIfPresent(...)` is the strict
-  completion-boundary helper: it accepts only 2xx or idempotent 404 and rejects
-  every other provider response. `deleteR2Objects` uses
-  `mapWithConcurrencyLimit` internally so lifecycle workers do not run unbounded
-  delete fanout. Every executed object request carries a hard deadline,
-  including batch delete, copy, upload, list, and inference-media reads. Prefix
-  helpers classify `staging/`, `quarantine/`, and `exports/` as temporary,
-  `public_uploads/free|pro/` as scan media, and `avatars/` as durable profile
-  media. Classification alone is not deletion authority. Scan purge flows must
-  use `deleteScanMediaR2Objects(urls, ownerUserId, config)`, which accepts only
-  flat canonical free/Pro keys containing that exact owner UUID and rejects
+  each URL. `deleteR2ObjectIfPresent(...)` is the strict completion-boundary
+  helper: it accepts only 2xx or idempotent 404 and rejects every other provider
+  response. `deleteR2Objects` uses `mapWithConcurrencyLimit` internally so
+  lifecycle workers do not run unbounded delete fanout. Every executed object
+  request carries a hard deadline, including batch delete, copy, upload, list,
+  and inference-media reads. Prefix helpers classify `staging/`, `quarantine/`,
+  and `exports/` as temporary, `public_uploads/free|pro/` as scan media, and
+  `avatars/` as durable profile media. Classification alone is not deletion
+  authority. Scan purge flows must use
+  `deleteScanMediaR2Objects(urls, ownerUserId, config)`, which accepts only flat
+  canonical free/Pro keys containing that exact owner UUID and rejects
   foreign/nested/malformed candidates before signing. Avatar replacement must
   use `deleteAvatarR2Object(...)` with the owning user ID.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
@@ -290,8 +290,8 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   check; validates plan/tier, paid status, derived balances, in-flight count,
   and monotonic `entitlement_version`; and returns
   `503 ai_entitlement_unavailable` on a query error, missing row, or malformed
-  relationship. It also owns the rollout read and dual-mode protocol-2-to-3 `426` response.
-  Edge isolate memory is never an entitlement authority.
+  relationship. It also owns the rollout read and dual-mode protocol-2-to-3
+  `426` response. Edge isolate memory is never an entitlement authority.
 - **`posthog.ts`**: Best-effort PostHog HTTP capture helpers with a 2.5-second
   deadline so telemetry cannot consume request-critical Edge wall-clock time.
 - **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`

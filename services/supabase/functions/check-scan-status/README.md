@@ -141,11 +141,12 @@ Bulk responses include the probed scan id on each result:
   authority in its body, joins ledger rows to the authenticated owner supplied
   by Edge, and has explicit `service_role`-only execute ACL.
 - This state read does not refresh the public entitlement snapshot. A terminal
-  `consumed` value proves settlement, but iOS must keep its local blocker until a
-  later successful `get_my_entitlement()` proves the installed balance includes
-  it. A terminal `released` value—or `null` after terminalization—also requires
-  an authoritative entitlement refresh before deferred work is reclassified.
-  Nonterminal absence remains uncertainty and cannot create capacity.
+  `consumed` value proves settlement, but iOS must keep its local blocker until
+  a later successful `get_my_entitlement()` proves the installed balance
+  includes it. A terminal `released` value—or `null` after terminalization—also
+  requires an authoritative entitlement refresh before deferred work is
+  reclassified. Nonterminal absence remains uncertainty and cannot create
+  capacity.
 - `scan_id` must belong to the current user; ownership is enforced in the DB
   query and non-owned rows are indistinguishable from missing rows.
 - A single request with `recovery_scan` may idempotently recreate an absent

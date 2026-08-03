@@ -1,9 +1,9 @@
 # Sync Collections
 
-Authenticated offline-first reconciliation for custom scan collections and
-their many-to-many scan memberships. The caller sends its current bounded local
-state after reconnecting; the route applies only owner-safe collection writes
-and the membership delta.
+Authenticated offline-first reconciliation for custom scan collections and their
+many-to-many scan memberships. The caller sends its current bounded local state
+after reconnecting; the route applies only owner-safe collection writes and the
+membership delta.
 
 Foreign collection IDs and unavailable scans are intentionally skippable. One
 stale offline UUID must not block unrelated collections, but no skipped record
@@ -28,8 +28,7 @@ may be reparented or joined across owners.
 ```
 
 The delete flag accepts `is_deleted` and `isDeleted` because historical Swift
-encoder strategies emitted both forms. Bounds are enforced before database
-work:
+encoder strategies emitted both forms. Bounds are enforced before database work:
 
 - at most 200 collections per request; and
 - at most 5,000 `scan_ids` per collection.
@@ -47,8 +46,8 @@ Success remains additive and does not enumerate skipped IDs:
 }
 ```
 
-Rejected collection IDs and unavailable memberships are emitted only as
-bounded structured server warnings for operational monitoring.
+Rejected collection IDs and unavailable memberships are emitted only as bounded
+structured server warnings for operational monitoring.
 
 ## Owner-safe reconciliation
 
@@ -61,9 +60,9 @@ JSON.
    `name` and `created_at` when a collision already belongs to `p_user_id`.
    Every input ID is returned as accepted or rejected. A foreign or concurrent
    UUID collision is rejected without modifying its row.
-2. Only accepted IDs continue to membership hydration and delta calculation.
-   If the guarded upsert errors, the exception stops all downstream membership
-   work and the route returns a retryable server failure.
+2. Only accepted IDs continue to membership hydration and delta calculation. If
+   the guarded upsert errors, the exception stops all downstream membership work
+   and the route returns a retryable server failure.
 3. Explicit collection tombstones are deleted with both ID and `user_id`
    predicates. Foreign IDs affect zero rows. A database error is not treated as
    success.
@@ -82,9 +81,8 @@ additions and removals. It never deletes and recreates every membership.
 
 ## Database defense in depth
 
-Migration
-`20260803180211_harden_collection_ownership_and_memberships.sql` owns the
-database boundary:
+Migration `20260803180211_harden_collection_ownership_and_memberships.sql` owns
+the database boundary:
 
 - `service_role` has no table-wide collection UPDATE and may directly update
   only `name` and `created_at`; it cannot reassign `user_id`;
@@ -96,13 +94,13 @@ database boundary:
   access;
 - the migration removes provably cross-owner historical memberships before
   enabling that trigger; and
-- authenticated RLS separately permits select/delete through an owned
-  collection and insert only through an owned collection plus an owned scan.
-  Membership updates are unsupported.
+- authenticated RLS separately permits select/delete through an owned collection
+  and insert only through an owned collection plus an owned scan. Membership
+  updates are unsupported.
 
-Ghost-account collection reparenting remains available only through the
-existing reviewed privileged merge function. Do not restore broad
-`service_role` UPDATE to support merges or future route code.
+Ghost-account collection reparenting remains available only through the existing
+reviewed privileged merge function. Do not restore broad `service_role` UPDATE
+to support merges or future route code.
 
 ## Modules
 
