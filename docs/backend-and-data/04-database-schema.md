@@ -1346,7 +1346,9 @@ scientific names and candidates, and do not trigger
 `collections` stores cloud-backed custom albums; `collection_scans` is their
 many-to-many membership table. They were introduced by
 `20260322161804_collections_sync.sql` and hardened by
-`20260803180211_harden_collection_ownership_and_memberships.sql`.
+`20260803180211_harden_collection_ownership_and_memberships.sql`, with
+`20260803215309_fix_collection_owner_upsert_ordinality.sql` providing its
+forward execution repair.
 
 - `collections.id` (UUID): client-stable primary key.
 - `collections.user_id` (UUID FK -> `auth.users.id`, cascade delete): immutable

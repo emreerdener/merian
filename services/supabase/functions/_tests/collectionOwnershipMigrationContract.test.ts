@@ -8,6 +8,10 @@ const catalogFixtureUrl = new URL(
   "../../tests/collection_ownership_security.sql",
   import.meta.url,
 );
+const ordinalityRepairMigrationUrl = new URL(
+  "../../migrations/20260803215309_fix_collection_owner_upsert_ordinality.sql",
+  import.meta.url,
+);
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
@@ -86,5 +90,31 @@ Deno.test("collection catalog fixture recognizes PostgreSQL's empty search-path 
   assert(
     !fixture.includes("ARRAY['search_path=']::TEXT[]"),
     "PostgreSQL records SET search_path = '' as search_path=\"\" in proconfig.",
+  );
+});
+
+Deno.test("collection upsert forward migration uses valid JSON-array ordinality", async () => {
+  const sql = compact(await Deno.readTextFile(ordinalityRepairMigrationUrl));
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.upsert_owned_collections( p_user_id UUID, p_collections JSONB )",
+      "SECURITY INVOKER SET search_path = ''",
+      "FROM pg_catalog.JSONB_ARRAY_ELEMENTS(p_collections) WITH ORDINALITY AS source(value, ordinality)",
+      "CROSS JOIN LATERAL pg_catalog.JSONB_TO_RECORD(source.value) AS parsed( id UUID, name TEXT, created_at TIMESTAMPTZ )",
+      "source.ordinality",
+      "ORDER BY input_rows.id, input_rows.ordinality DESC",
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '30s'",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("JSONB_TO_RECORDSET(p_collections) WITH ORDINALITY"),
+    "WITH ORDINALITY must be attached to jsonb_array_elements, not jsonb_to_recordset with a column definition list.",
   );
 });
