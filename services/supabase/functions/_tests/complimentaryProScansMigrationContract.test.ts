@@ -80,6 +80,33 @@ Deno.test("rollout starts legacy and atomically fences functional mode, protocol
   assertStringIncludes(cutover, "COMMIT");
 });
 
+Deno.test("functional entitlement rewrites preserve volatile snapshot visibility", async () => {
+  const sql = compact(await Deno.readTextFile(migrationUrl));
+  const resolver = sql.slice(
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.resolve_effective_entitlement",
+    ),
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.user_has_effective_pro",
+    ),
+  );
+  assertStringIncludes(resolver, "LANGUAGE PLPGSQL VOLATILE");
+  for (
+    const fragment of [
+      "volatility_rewritten_count INTEGER := 0",
+      "SELECT function_row.oid, function_row.provolatile",
+      "IF routine_row.provolatile = 's' THEN",
+      "'ALTER FUNCTION %s VOLATILE'",
+      "routine_row.oid::pg_catalog.REGPROCEDURE",
+      "IF volatility_rewritten_count <> 6 THEN",
+      "functional_entitlement_volatility_source_drift",
+      "ALTER FUNCTION public.get_recent_field_trip_publications( UUID, TEXT, TEXT[], INTEGER, TIMESTAMPTZ, UUID ) VOLATILE",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("reservation and settlement keep credit linkage separate from provider quota", async () => {
   const sql = compact(await Deno.readTextFile(migrationUrl));
   for (

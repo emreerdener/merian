@@ -2148,9 +2148,10 @@ DECLARE
     function_definition TEXT;
     rewritten_definition TEXT;
     rewritten_count INTEGER := 0;
+    volatility_rewritten_count INTEGER := 0;
 BEGIN
     FOR routine_row IN
-        SELECT function_row.oid
+        SELECT function_row.oid, function_row.provolatile
         FROM pg_catalog.pg_proc AS function_row
         JOIN pg_catalog.pg_namespace AS namespace_row
           ON namespace_row.oid = function_row.pronamespace
@@ -2184,6 +2185,14 @@ BEGIN
 
         IF rewritten_definition IS DISTINCT FROM function_definition THEN
             EXECUTE rewritten_definition;
+            IF routine_row.provolatile = 's' THEN
+                EXECUTE pg_catalog.FORMAT(
+                    'ALTER FUNCTION %s VOLATILE',
+                    routine_row.oid::pg_catalog.REGPROCEDURE
+                );
+                volatility_rewritten_count :=
+                    volatility_rewritten_count + 1;
+            END IF;
             rewritten_count := rewritten_count + 1;
         END IF;
     END LOOP;
@@ -2195,8 +2204,26 @@ BEGIN
         RAISE EXCEPTION 'functional_entitlement_gate_source_drift'
             USING ERRCODE = '55000';
     END IF;
+    -- Six read routines were STABLE before their gate began calling the
+    -- VOLATILE resolver. Promote every rewritten stable caller, including the
+    -- SQL capture-context routine that plpgsql_check does not report.
+    IF volatility_rewritten_count <> 6 THEN
+        RAISE EXCEPTION 'functional_entitlement_volatility_source_drift'
+            USING ERRCODE = '55000';
+    END IF;
 END;
 $migration$;
+
+-- This stable SQL compatibility wrapper delegates to the now-volatile
+-- community catalog. Keep its optimizer contract aligned with that callee.
+ALTER FUNCTION public.get_recent_field_trip_publications(
+    UUID,
+    TEXT,
+    TEXT[],
+    INTEGER,
+    TIMESTAMPTZ,
+    UUID
+) VOLATILE;
 
 -- Current admin account views must use the user-aware resolver. Retain
 -- pro_trial as a valid explicit filter for historical AI usage events.
