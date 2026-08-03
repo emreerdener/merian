@@ -1,5 +1,32 @@
 import SwiftUI
 
+enum ComplimentaryScanDisplayState: Equatable {
+    case available(scansRemaining: Int)
+    case exhausted
+
+    var scansRemaining: Int {
+        switch self {
+        case .available(let scansRemaining):
+            scansRemaining
+        case .exhausted:
+            0
+        }
+    }
+
+    var hasAccess: Bool {
+        switch self {
+        case .available:
+            true
+        case .exhausted:
+            false
+        }
+    }
+
+    var isExhausted: Bool {
+        self == .exhausted
+    }
+}
+
 enum ComplimentaryPlanDetailContext {
     case hidden
     case results
@@ -14,14 +41,37 @@ struct PlanCard: View {
     @Environment(RevenueCatManager.self) var revenueCat
     @Binding var showPaywall: Bool
     var complimentaryDetailContext: ComplimentaryPlanDetailContext = .hidden
+    var complimentaryDisplayOverride: ComplimentaryScanDisplayState?
     @State private var entitlement = EntitlementManager.shared
 
+    private var isSubscribed: Bool {
+        complimentaryDisplayOverride == nil && revenueCat.isSubscribed
+    }
+
+    private var isProActive: Bool {
+        if let complimentaryDisplayOverride {
+            return complimentaryDisplayOverride.hasAccess
+        }
+        return revenueCat.isProActive
+    }
+
     private var hasComplimentaryPro: Bool {
-        !revenueCat.isSubscribed && entitlement.hasVerifiedComplimentaryAccess
+        if let complimentaryDisplayOverride {
+            return complimentaryDisplayOverride.hasAccess
+        }
+        return !revenueCat.isSubscribed && entitlement.hasVerifiedComplimentaryAccess
+    }
+
+    private var scansRemaining: Int {
+        complimentaryDisplayOverride?.scansRemaining ?? entitlement.scansRemaining
+    }
+
+    private var isComplimentaryExhausted: Bool {
+        complimentaryDisplayOverride?.isExhausted ?? entitlement.isComplimentaryExhausted
     }
 
     private var planTitle: String {
-        if revenueCat.isSubscribed { return "Pro" }
+        if isSubscribed { return "Pro" }
         if hasComplimentaryPro { return "Complimentary Pro" }
         return "Free"
     }
@@ -31,10 +81,10 @@ struct PlanCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
-                        Image(systemName: revenueCat.isProActive ? "lock.open.fill" : "lock.fill")
+                        Image(systemName: isProActive ? "lock.open.fill" : "lock.fill")
                             .foregroundColor(.secondary)
                             .font(.system(size: 14, weight: .semibold))
-                        Text(revenueCat.isSubscribed ? "HIGH-VOLUME SCANS" : (hasComplimentaryPro ? "COMPLIMENTARY PRO" : "1 FLASH SCAN DAILY"))
+                        Text(isSubscribed ? "HIGH-VOLUME SCANS" : (hasComplimentaryPro ? "COMPLIMENTARY PRO" : "1 FLASH SCAN DAILY"))
                             .font(.system(.caption, design: .monospaced))
                             .fontWeight(.bold)
                             .foregroundColor(.secondary)
@@ -49,7 +99,7 @@ struct PlanCard: View {
                 
                 Spacer()
                 
-                if revenueCat.isProActive {
+                if isProActive {
                     Image("luna-moth")
                         .resizable()
                         .scaledToFit()
@@ -69,16 +119,16 @@ struct PlanCard: View {
                 .lineSpacing(2)
             
             Button(action: {
-                if revenueCat.isSubscribed {
+                if isSubscribed {
                     revenueCat.showManageSubscriptions()
                 } else {
                     showPaywall = true
                 }
             }) {
                 HStack {
-                    Image(systemName: revenueCat.isSubscribed ? "gearshape" : "arrow.up.circle")
+                    Image(systemName: isSubscribed ? "gearshape" : "arrow.up.circle")
                         .font(.system(size: 20, weight: .semibold))
-                    Text(revenueCat.isSubscribed ? "Manage plan" : "Upgrade to Pro")
+                    Text(isSubscribed ? "Manage plan" : "Upgrade to Pro")
                         .fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity)
@@ -95,13 +145,13 @@ struct PlanCard: View {
     }
 
     private var planSummary: String {
-        if revenueCat.isSubscribed {
+        if isSubscribed {
             return ProPlanValueProps.activePlanSummary
         }
         if complimentaryDetailContext.showsDetails && hasComplimentaryPro {
-            return "\(entitlement.scansRemaining) of 3 complimentary Pro scans remain. Your separate daily Flash scan stays available."
+            return "\(scansRemaining) of 3 complimentary Pro scans remain. Your separate daily Flash scan stays available."
         }
-        if complimentaryDetailContext.showsDetails && entitlement.isComplimentaryExhausted {
+        if complimentaryDetailContext.showsDetails && isComplimentaryExhausted {
             return "All 3 complimentary Pro scans have been used. Saved Pro results remain available, and your daily Flash scan continues."
         }
         return ProPlanValueProps.upgradePlanSummary

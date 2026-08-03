@@ -4,21 +4,42 @@ struct ModelTierBadge: View {
     let confidenceScore: Double?
     let inferenceTier: String?
     var label: String = "Upgrade for advanced analysis"
+    var complimentaryDisplayOverride: ComplimentaryScanDisplayState?
     
     @State private var showPaywall: Bool = false
     @State private var entitlement = EntitlementManager.shared
+
+    private var isSubscribed: Bool {
+        complimentaryDisplayOverride == nil && RevenueCatManager.shared.isSubscribed
+    }
+
+    private var isProActive: Bool {
+        complimentaryDisplayOverride?.hasAccess ?? RevenueCatManager.shared.isProActive
+    }
+
+    private var hasComplimentaryAccess: Bool {
+        complimentaryDisplayOverride?.hasAccess ?? entitlement.hasVerifiedComplimentaryAccess
+    }
+
+    private var scansRemaining: Int {
+        complimentaryDisplayOverride?.scansRemaining ?? entitlement.scansRemaining
+    }
+
+    private var isComplimentaryExhausted: Bool {
+        complimentaryDisplayOverride?.isExhausted ?? entitlement.isComplimentaryExhausted
+    }
     
     var body: some View {
-        if !RevenueCatManager.shared.isSubscribed,
-           entitlement.hasVerifiedComplimentaryAccess,
-           entitlement.scansRemaining > 0 {
+        if !isSubscribed,
+           hasComplimentaryAccess,
+           scansRemaining > 0 {
             paywallButton(
-                text: "\(entitlement.scansRemaining) complimentary Pro scan\(entitlement.scansRemaining == 1 ? "" : "s") remaining"
+                text: "\(scansRemaining) complimentary Pro scan\(scansRemaining == 1 ? "" : "s") remaining"
             )
-        } else if !RevenueCatManager.shared.isSubscribed,
-                  entitlement.isComplimentaryExhausted {
+        } else if !isSubscribed,
+                  isComplimentaryExhausted {
             paywallButton(text: "Complimentary Pro scans used — upgrade")
-        } else if !RevenueCatManager.shared.isProActive, let score = confidenceScore {
+        } else if !isProActive, let score = confidenceScore {
             let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
             if score >= bands.possible && score < bands.strong {
                 paywallButton(text: label)

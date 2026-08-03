@@ -2011,6 +2011,65 @@ REVOKE ALL ON FUNCTION internal.merge_ghost_complimentary_scan_usage(
     UUID
 ) FROM PUBLIC, anon, authenticated, service_role;
 
+-- Keep handler dispatch reviewed and hardcoded. The catalog assertion rejects
+-- every handler key outside its allowlist, so extend that allowlist before the
+-- new policy becomes eligible for merge preflight.
+DO $migration$
+DECLARE
+    function_definition TEXT;
+    rewritten_definition TEXT;
+    guarded_fragment TEXT :=
+        '              ''community_activity_actors'',';
+    replacement_fragment TEXT :=
+        '              ''community_activity_actors'','
+        || pg_catalog.CHR(10)
+        || '              ''complimentary_scan_usage'',';
+BEGIN
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(routine_oid)
+    INTO STRICT function_definition
+    FROM (
+        SELECT pg_catalog.TO_REGPROCEDURE(
+            'internal.assert_ghost_profile_merge_reference_policy_coverage()'
+        ) AS routine_oid
+    ) AS resolved
+    WHERE routine_oid IS NOT NULL;
+
+    IF pg_catalog.STRPOS(
+        function_definition,
+        '''complimentary_scan_usage'''
+    ) <> 0
+       OR (
+            pg_catalog.LENGTH(function_definition)
+            - pg_catalog.LENGTH(
+                pg_catalog.REPLACE(
+                    function_definition,
+                    guarded_fragment,
+                    ''
+                )
+            )
+          ) / pg_catalog.LENGTH(guarded_fragment) <> 1 THEN
+        RAISE EXCEPTION 'ghost_merge_handler_allowlist_source_drift'
+            USING ERRCODE = '55000';
+    END IF;
+
+    rewritten_definition := pg_catalog.REPLACE(
+        function_definition,
+        guarded_fragment,
+        replacement_fragment
+    );
+
+    IF pg_catalog.STRPOS(
+        rewritten_definition,
+        '''complimentary_scan_usage'''
+    ) = 0 THEN
+        RAISE EXCEPTION 'ghost_merge_handler_allowlist_rewrite_failed'
+            USING ERRCODE = '55000';
+    END IF;
+
+    EXECUTE rewritten_definition;
+END;
+$migration$;
+
 -- The reviewed Ghost orchestrator already holds both user rows in UUID order.
 -- Insert the ledger handler before other conflict handlers and before the
 -- policy-driven reparent pass.

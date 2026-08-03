@@ -4,6 +4,10 @@ const migrationUrl = new URL(
   "../../migrations/20260802235833_three_complimentary_pro_scans.sql",
   import.meta.url,
 );
+const ghostMergeMigrationUrl = new URL(
+  "../../migrations/20260801210102_make_ghost_merge_schema_aware.sql",
+  import.meta.url,
+);
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
@@ -191,6 +195,61 @@ Deno.test("merge preserves history and caps combined in-flight work to one grant
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("ghost merge preflight recognizes only the reviewed complimentary handler", async () => {
+  const sql = compact(await Deno.readTextFile(migrationUrl));
+  const ghostMergeSql = await Deno.readTextFile(ghostMergeMigrationUrl);
+  for (
+    const fragment of [
+      "TO_REGPROCEDURE( 'internal.assert_ghost_profile_merge_reference_policy_coverage()' )",
+      "guarded_fragment TEXT := ' ''community_activity_actors'','",
+      "' ''complimentary_scan_usage'','",
+      "ghost_merge_handler_allowlist_source_drift",
+      "ghost_merge_handler_allowlist_rewrite_failed",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const policyRegistration = sql.indexOf(
+    "'internal', 'complimentary_scan_usage', 'user_id'",
+  );
+  const allowlistRewrite = sql.indexOf(
+    "ghost_merge_handler_allowlist_source_drift",
+  );
+  const finalCoverageAssertion = sql.lastIndexOf(
+    "SELECT internal.assert_ghost_profile_merge_reference_policy_coverage()",
+  );
+  assert(
+    policyRegistration >= 0 && allowlistRewrite > policyRegistration &&
+      finalCoverageAssertion > allowlistRewrite,
+    "The reviewed handler must be allowlisted before final catalog enforcement.",
+  );
+  assert(
+    !sql.includes("EXECUTE policy.handler_key"),
+    "Handler documentation must never become dynamically executable SQL.",
+  );
+
+  const assertionStart = ghostMergeSql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.assert_ghost_profile_merge_reference_policy_coverage()",
+  );
+  const assertionEnd = ghostMergeSql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.assert_ghost_profile_merge_reference_preconditions(",
+    assertionStart,
+  );
+  assert(assertionStart >= 0 && assertionEnd > assertionStart);
+  const assertionSource = ghostMergeSql.slice(assertionStart, assertionEnd);
+  const guardedFragment = "              'community_activity_actors',";
+  assertEquals(assertionSource.split(guardedFragment).length - 1, 1);
+  assertEquals(assertionSource.includes("'complimentary_scan_usage'"), false);
+  assertStringIncludes(
+    assertionSource.replace(
+      guardedFragment,
+      `${guardedFragment}\n              'complimentary_scan_usage',`,
+    ),
+    "              'complimentary_scan_usage',",
+  );
 });
 
 Deno.test("current admin account views and overview telemetry use effective complimentary entitlement", async () => {

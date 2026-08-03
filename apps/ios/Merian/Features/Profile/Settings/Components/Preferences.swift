@@ -209,6 +209,13 @@ struct Preferences: View {
             } label: {
                 Label("View onboarding", systemImage: "arrow.counterclockwise.circle")
             }
+
+            NavigationLink {
+                ComplimentaryScansDeveloperPreview()
+            } label: {
+                Label("Preview complimentary scans", systemImage: "sparkles.rectangle.stack")
+            }
+            .accessibilityIdentifier("Settings_PreviewComplimentaryScans")
             #endif
             
             Button {
@@ -356,6 +363,93 @@ private struct FieldTripCommunityCardDeveloperPreview: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+#if targetEnvironment(simulator)
+private struct ComplimentaryScansDeveloperPreview: View {
+    private enum Scenario: Int, CaseIterable, Identifiable {
+        case three = 3
+        case two = 2
+        case one = 1
+        case exhausted = 0
+
+        var id: Int { rawValue }
+
+        var pickerLabel: String {
+            switch self {
+            case .three, .two, .one:
+                "\(rawValue)"
+            case .exhausted:
+                "Used"
+            }
+        }
+
+        var displayState: ComplimentaryScanDisplayState {
+            switch self {
+            case .three, .two, .one:
+                .available(scansRemaining: rawValue)
+            case .exhausted:
+                .exhausted
+            }
+        }
+    }
+
+    @State private var scenario = Scenario.three
+    @State private var showPaywall = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Picker("Complimentary scan state", selection: $scenario) {
+                    ForEach(Scenario.allCases) { scenario in
+                        Text(scenario.pickerLabel).tag(scenario)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                previewSection("Settings") {
+                    PlanCard(
+                        showPaywall: $showPaywall,
+                        complimentaryDetailContext: .settings,
+                        complimentaryDisplayOverride: scenario.displayState
+                    )
+                }
+
+                previewSection("Results") {
+                    ModelTierBadge(
+                        confidenceScore: 0.92,
+                        inferenceTier: "pro",
+                        complimentaryDisplayOverride: scenario.displayState
+                    )
+                }
+
+                Text("Preview data is local to this screen and does not change your account, server ledger, or purchase state.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Complimentary Scans")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+                .environment(RevenueCatManager.shared)
+        }
+    }
+
+    private func previewSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+#endif
 
 private struct FeatureFlagDeveloperControls: View {
     @State private var refreshToken = 0
