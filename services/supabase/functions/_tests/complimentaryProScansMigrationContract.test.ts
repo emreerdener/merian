@@ -36,7 +36,7 @@ Deno.test("complimentary scan migration derives one fixed grant from a private l
       "REVOKE ALL ON TABLE internal.complimentary_scan_usage FROM PUBLIC, anon, authenticated, service_role",
       "COUNT(*) FILTER ( WHERE usage.state = 'consumed' )",
       "COUNT(*) FILTER ( WHERE usage.state = 'held' )",
-      "scans_available_to_start := pg_catalog.GREATEST( rollout.complimentary_scan_grant - consumed_count - held_count, 0 )",
+      "scans_available_to_start := GREATEST( rollout.complimentary_scan_grant - consumed_count - held_count, 0 )",
     ]
   ) {
     assertStringIncludes(sql, fragment);

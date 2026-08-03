@@ -144,6 +144,13 @@ function usesSchemaQualifiedSubstringKeywordSyntax(sql: string): boolean {
   return false;
 }
 
+function usesSchemaQualifiedConditionalExpression(sql: string): boolean {
+  const { executableSql } = sqlLexicalView(sql);
+  return /\bpg_catalog\s*\.\s*(?:COALESCE|GREATEST|LEAST)\s*\(/i.test(
+    executableSql,
+  );
+}
+
 async function migrationFileNames(): Promise<string[]> {
   const names: string[] = [];
 
@@ -256,6 +263,50 @@ Deno.test(
         `arguments; SQL keyword syntax fails fresh catalog parsing: ${
           violations.join(", ")
         }`,
+    );
+  },
+);
+
+Deno.test(
+  "conditional expressions remain unqualified in Supabase migrations",
+  async () => {
+    for (
+      const sql of [
+        "SELECT pg_catalog.COALESCE(value, 'fallback');",
+        "SELECT pg_catalog . GREATEST(first_value, second_value);",
+        "SELECT PG_CATALOG.LEAST(first_value, second_value);",
+      ]
+    ) {
+      assert(usesSchemaQualifiedConditionalExpression(sql), sql);
+    }
+    assert(
+      !usesSchemaQualifiedConditionalExpression(
+        "SELECT COALESCE(value, 'fallback'), " +
+          "GREATEST(first_value, second_value), " +
+          "LEAST(first_value, second_value);",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedConditionalExpression(
+        "-- SELECT pg_catalog.GREATEST(first_value, second_value);\n" +
+          "SELECT 'pg_catalog.LEAST(first_value, second_value)';",
+      ),
+    );
+
+    const violations: string[] = [];
+    for (const fileName of await migrationFileNames()) {
+      const sql = await Deno.readTextFile(
+        new URL(fileName, migrationsDirectoryUrl),
+      );
+      if (usesSchemaQualifiedConditionalExpression(sql)) {
+        violations.push(fileName);
+      }
+    }
+
+    assert(
+      violations.length === 0,
+      "COALESCE, GREATEST, and LEAST are PostgreSQL conditional expressions, " +
+        "not schema-qualifiable functions: " + violations.join(", "),
     );
   },
 );

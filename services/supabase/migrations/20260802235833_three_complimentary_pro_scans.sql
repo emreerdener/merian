@@ -338,11 +338,11 @@ BEGIN
         ELSE 'free'
     END;
     is_paid := resolved_paid;
-    scans_remaining := pg_catalog.GREATEST(
+    scans_remaining := GREATEST(
         rollout.complimentary_scan_grant - consumed_count,
         0
     );
-    scans_available_to_start := pg_catalog.GREATEST(
+    scans_available_to_start := GREATEST(
         rollout.complimentary_scan_grant - consumed_count - held_count,
         0
     );
@@ -1543,11 +1543,11 @@ SET search_path = ''
 SET statement_timeout = '15s'
 AS $$
 DECLARE
-    claim_limit INTEGER := pg_catalog.LEAST(
-        pg_catalog.GREATEST(COALESCE(p_limit, 5), 1),
+    claim_limit INTEGER := LEAST(
+        GREATEST(COALESCE(p_limit, 5), 1),
         50
     );
-    lease_seconds INTEGER := pg_catalog.GREATEST(
+    lease_seconds INTEGER := GREATEST(
         COALESCE(p_lease_seconds, 300),
         30
     );
@@ -1909,7 +1909,7 @@ BEGIN
               OR source_usage.state = 'held' THEN 'held'
             ELSE 'released'
         END,
-        held_at = pg_catalog.LEAST(
+        held_at = LEAST(
             target_usage.held_at,
             source_usage.held_at
         ),
@@ -1921,7 +1921,7 @@ BEGIN
               AND target_usage.state <> 'consumed'
               AND source_usage.state <> 'consumed' THEN NULL
             ELSE COALESCE(
-                pg_catalog.GREATEST(
+                GREATEST(
                     target_usage.settled_at,
                     source_usage.settled_at
                 ),
@@ -1946,7 +1946,7 @@ BEGIN
         reacquisition_count =
             target_usage.reacquisition_count
             + source_usage.reacquisition_count,
-        created_at = pg_catalog.LEAST(
+        created_at = LEAST(
             target_usage.created_at,
             source_usage.created_at
         ),
@@ -1976,7 +1976,7 @@ BEGIN
             pg_catalog.ROW_NUMBER() OVER (
                 ORDER BY usage.held_at, usage.client_scan_id
             ) AS hold_rank,
-            pg_catalog.GREATEST(
+            GREATEST(
                 3 - (
                     SELECT pg_catalog.COUNT(*)::INTEGER
                     FROM internal.complimentary_scan_usage AS consumed_usage

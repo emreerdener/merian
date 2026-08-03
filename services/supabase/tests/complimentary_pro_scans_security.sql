@@ -123,7 +123,7 @@ BEGIN
         (
             merge_target_id,
             'complimentary-target@example.invalid',
-            'complimentary_target_a913',
+            'complimentary_tgt_a913',
             'Complimentary Target',
             'alias',
             pg_catalog.NOW() - INTERVAL '30 days',
