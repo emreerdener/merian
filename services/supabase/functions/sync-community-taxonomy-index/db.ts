@@ -61,6 +61,14 @@ export type GbifTaxonomyPageFetcher = (
   limit: number,
 ) => Promise<GbifTaxonomyImportPage>;
 
+interface CommunityTaxonomyIndexSyncDependencies {
+  fetchTargetImportOffset?: typeof fetchTargetImportOffset;
+  upsertGbifImportPage?: typeof upsertGbifImportPage;
+  refreshTaxonomyCoverageTargets?: typeof refreshTaxonomyCoverageTargets;
+  updateTargetImportCursor?: typeof updateTargetImportCursor;
+  recordFailedImportRun?: typeof recordFailedImportRun;
+}
+
 export function parseCommunityTaxonomyIndexSyncRequest(
   body: Record<string, unknown> = {},
 ): CommunityTaxonomyIndexSyncRequestResult {
@@ -108,44 +116,86 @@ export async function runCommunityTaxonomyIndexSync(
   request: CommunityTaxonomyIndexSyncRequest,
   supabaseAdmin: SupabaseClient,
   fetchPage: GbifTaxonomyPageFetcher = fetchGbifTaxonomyImportPage,
+  dependencies: CommunityTaxonomyIndexSyncDependencies = {},
 ): Promise<CommunityTaxonomyIndexSyncRunResult> {
+  const operations = {
+    fetchTargetImportOffset: dependencies.fetchTargetImportOffset ??
+      fetchTargetImportOffset,
+    upsertGbifImportPage: dependencies.upsertGbifImportPage ??
+      upsertGbifImportPage,
+    refreshTaxonomyCoverageTargets:
+      dependencies.refreshTaxonomyCoverageTargets ??
+        refreshTaxonomyCoverageTargets,
+    updateTargetImportCursor: dependencies.updateTargetImportCursor ??
+      updateTargetImportCursor,
+    recordFailedImportRun: dependencies.recordFailedImportRun ??
+      recordFailedImportRun,
+  };
   const pages: CommunityTaxonomyIndexSyncPageResult[] = [];
   const startOffset = request.offset ??
-    await fetchTargetImportOffset(supabaseAdmin, request);
+    await operations.fetchTargetImportOffset(supabaseAdmin, request);
   let currentOffset = startOffset;
   let endOfRecords = false;
 
   for (let pageIndex = 0; pageIndex < request.pageCount; pageIndex += 1) {
-    const page = await fetchPage(request.target, currentOffset, request.limit);
     const requestedQuery = buildImportRequestedQuery(request, currentOffset);
-    let importedCount = 0;
+    let page = emptyFailedImportPage(currentOffset, request.limit);
 
-    if (!request.dryRun && page.taxa.length > 0) {
-      importedCount = await upsertGbifImportPage(
-        supabaseAdmin,
-        page.taxa,
-        requestedQuery,
-        request,
-        page,
-      );
+    try {
+      page = await fetchPage(request.target, currentOffset, request.limit);
+      let importedCount = 0;
+
+      if (!request.dryRun && page.taxa.length > 0) {
+        importedCount = await operations.upsertGbifImportPage(
+          supabaseAdmin,
+          page.taxa,
+          requestedQuery,
+          request,
+          page,
+        );
+      }
+
+      const nextOffset = currentOffset + page.limit;
+      pages.push({
+        offset: currentOffset,
+        limit: page.limit,
+        requested_query: requestedQuery,
+        fetched_count: page.rawResultCount,
+        normalized_count: page.taxa.length,
+        imported_count: importedCount,
+        dry_run: request.dryRun,
+        end_of_records: page.endOfRecords,
+        next_offset: nextOffset,
+      });
+
+      if (!request.dryRun && page.taxa.length > 0) {
+        await operations.updateTargetImportCursor(
+          supabaseAdmin,
+          request,
+          pages,
+          nextOffset,
+          null,
+        );
+      }
+
+      currentOffset = nextOffset;
+      endOfRecords = page.endOfRecords;
+      if (endOfRecords || page.taxa.length === 0) break;
+    } catch (error) {
+      if (!request.dryRun) {
+        await persistImportPageFailure(
+          supabaseAdmin,
+          request,
+          pages,
+          currentOffset,
+          requestedQuery,
+          page,
+          error,
+          operations,
+        );
+      }
+      throw error;
     }
-
-    const nextOffset = currentOffset + page.limit;
-    pages.push({
-      offset: currentOffset,
-      limit: page.limit,
-      requested_query: requestedQuery,
-      fetched_count: page.rawResultCount,
-      normalized_count: page.taxa.length,
-      imported_count: importedCount,
-      dry_run: request.dryRun,
-      end_of_records: page.endOfRecords,
-      next_offset: nextOffset,
-    });
-
-    currentOffset = nextOffset;
-    endOfRecords = page.endOfRecords;
-    if (endOfRecords || page.taxa.length === 0) break;
   }
 
   const importedCount = pages.reduce(
@@ -154,9 +204,9 @@ export async function runCommunityTaxonomyIndexSync(
   );
   if (!request.dryRun && importedCount > 0) {
     if (request.refreshCoverage) {
-      await refreshTaxonomyCoverageTargets(supabaseAdmin);
+      await operations.refreshTaxonomyCoverageTargets(supabaseAdmin);
     }
-    await updateTargetImportCursor(
+    await operations.updateTargetImportCursor(
       supabaseAdmin,
       request,
       pages,
@@ -202,20 +252,6 @@ async function upsertGbifImportPage(
   );
 
   if (error) {
-    await updateTargetImportCursor(
-      supabaseAdmin,
-      request,
-      [],
-      request.offset ?? page.offset,
-      error.message,
-    );
-    await recordFailedImportRun(
-      supabaseAdmin,
-      requestedQuery,
-      request,
-      page,
-      error.message,
-    );
     throw new Error(`upsert_gbif_community_taxa failed: ${error.message}`);
   }
 
@@ -226,6 +262,69 @@ async function upsertGbifImportPage(
     page,
   );
   return typeof data === "number" ? data : Number(data ?? 0);
+}
+
+function emptyFailedImportPage(
+  offset: number,
+  limit: number,
+): GbifTaxonomyImportPage {
+  return {
+    offset,
+    limit,
+    count: null,
+    endOfRecords: false,
+    taxa: [],
+    rawResultCount: 0,
+  };
+}
+
+async function persistImportPageFailure(
+  supabaseAdmin: SupabaseClient,
+  request: CommunityTaxonomyIndexSyncRequest,
+  pages: CommunityTaxonomyIndexSyncPageResult[],
+  failedOffset: number,
+  requestedQuery: string,
+  page: GbifTaxonomyImportPage,
+  failure: unknown,
+  operations: Required<CommunityTaxonomyIndexSyncDependencies>,
+): Promise<void> {
+  const errorMessage = failure instanceof Error
+    ? failure.message
+    : String(failure);
+
+  try {
+    await operations.updateTargetImportCursor(
+      supabaseAdmin,
+      request,
+      pages,
+      failedOffset,
+      errorMessage,
+    );
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "gbif_taxonomy_import_failure_cursor_update_failed",
+      target: request.target.slug,
+      failed_offset: failedOffset,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
+
+  try {
+    await operations.recordFailedImportRun(
+      supabaseAdmin,
+      requestedQuery,
+      request,
+      page,
+      errorMessage,
+    );
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "gbif_taxonomy_import_failure_record_failed",
+      target: request.target.slug,
+      failed_offset: failedOffset,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
 }
 
 async function fetchTargetImportOffset(

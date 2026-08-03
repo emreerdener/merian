@@ -1,5 +1,65 @@
-import { assertEquals } from "@std/assert";
-import { parseCommunityTaxonomyIndexSyncRequest } from "./db.ts";
+import { assertEquals, assertRejects } from "@std/assert";
+import {
+  type CommunityTaxonomyIndexSyncRequest,
+  parseCommunityTaxonomyIndexSyncRequest,
+  runCommunityTaxonomyIndexSync,
+} from "./db.ts";
+import {
+  GBIF_IMPORT_TARGETS,
+  type GbifCommunityTaxon,
+  type GbifTaxonomyImportPage,
+} from "./gbif.ts";
+
+const TEST_TAXON: GbifCommunityTaxon = {
+  gbif_taxon_key: 2492321,
+  accepted_gbif_taxon_key: 2492321,
+  taxonomic_status: "accepted",
+  rank: "species",
+  scientific_name: "Setophaga petechia",
+  common_name: "Yellow Warbler",
+  kingdom: "Animalia",
+  phylum: "Chordata",
+  class: "Aves",
+  order: "Passeriformes",
+  family: "Parulidae",
+  genus: "Setophaga",
+  species: "Setophaga petechia",
+  kingdom_gbif_taxon_key: 1,
+  phylum_gbif_taxon_key: 44,
+  class_gbif_taxon_key: 212,
+  order_gbif_taxon_key: 729,
+  family_gbif_taxon_key: 9608,
+  genus_gbif_taxon_key: 2492311,
+};
+
+function testRequest(
+  overrides: Partial<CommunityTaxonomyIndexSyncRequest> = {},
+): CommunityTaxonomyIndexSyncRequest {
+  return {
+    target: GBIF_IMPORT_TARGETS.birds,
+    offset: null,
+    limit: 100,
+    pageCount: 2,
+    dryRun: false,
+    refreshCoverage: true,
+    retry: false,
+    ...overrides,
+  };
+}
+
+function testPage(offset: number): GbifTaxonomyImportPage {
+  return {
+    offset,
+    limit: 100,
+    count: 14_641,
+    endOfRecords: false,
+    taxa: [{
+      ...TEST_TAXON,
+      gbif_taxon_key: TEST_TAXON.gbif_taxon_key + offset,
+    }],
+    rawResultCount: 100,
+  };
+}
 
 Deno.test("community taxonomy index sync - parses defaults and aliases", () => {
   const defaultResult = parseCommunityTaxonomyIndexSyncRequest({});
@@ -61,4 +121,129 @@ Deno.test("community taxonomy index sync - rejects unsafe inputs", () => {
     error: "retry must be a boolean.",
     status: 400,
   });
+});
+
+Deno.test("community taxonomy index sync - checkpoints every committed page", async () => {
+  const events: string[] = [];
+  const supabaseAdmin = {} as Parameters<
+    typeof runCommunityTaxonomyIndexSync
+  >[1];
+
+  const result = await runCommunityTaxonomyIndexSync(
+    testRequest(),
+    supabaseAdmin,
+    (_target, offset) => {
+      events.push(`fetch:${offset}`);
+      return Promise.resolve(testPage(offset));
+    },
+    {
+      fetchTargetImportOffset: () => Promise.resolve(8_750),
+      upsertGbifImportPage: (_admin, _taxa, _query, _request, page) => {
+        events.push(`upsert:${page.offset}`);
+        return Promise.resolve(1);
+      },
+      updateTargetImportCursor: (
+        _admin,
+        _request,
+        _pages,
+        nextOffset,
+        errorMessage,
+      ) => {
+        events.push(`cursor:${nextOffset}:${errorMessage ?? "success"}`);
+        return Promise.resolve();
+      },
+      refreshTaxonomyCoverageTargets: () => {
+        events.push("refresh");
+        return Promise.resolve();
+      },
+      recordFailedImportRun: () => Promise.resolve(),
+    },
+  );
+
+  assertEquals(result.start_offset, 8_750);
+  assertEquals(result.next_offset, 8_950);
+  assertEquals(events, [
+    "fetch:8750",
+    "upsert:8750",
+    "cursor:8850:success",
+    "fetch:8850",
+    "upsert:8850",
+    "cursor:8950:success",
+    "refresh",
+    "cursor:8950:success",
+  ]);
+});
+
+Deno.test("community taxonomy index sync - records the first unprocessed offset", async () => {
+  const cursorUpdates: Array<{
+    pageOffsets: number[];
+    nextOffset: number;
+    errorMessage: string | null;
+  }> = [];
+  const failedRuns: Array<{ requestedQuery: string; pageOffset: number }> = [];
+  const supabaseAdmin = {} as Parameters<
+    typeof runCommunityTaxonomyIndexSync
+  >[1];
+
+  await assertRejects(
+    () =>
+      runCommunityTaxonomyIndexSync(
+        testRequest(),
+        supabaseAdmin,
+        (_target, offset) => {
+          if (offset === 8_850) {
+            return Promise.reject(new Error("GBIF unavailable"));
+          }
+          return Promise.resolve(testPage(offset));
+        },
+        {
+          fetchTargetImportOffset: () => Promise.resolve(8_750),
+          upsertGbifImportPage: () => Promise.resolve(1),
+          updateTargetImportCursor: (
+            _admin,
+            _request,
+            pages,
+            nextOffset,
+            errorMessage,
+          ) => {
+            cursorUpdates.push({
+              pageOffsets: pages.map((page) => page.offset),
+              nextOffset,
+              errorMessage,
+            });
+            return Promise.resolve();
+          },
+          refreshTaxonomyCoverageTargets: () => Promise.resolve(),
+          recordFailedImportRun: (
+            _admin,
+            requestedQuery,
+            _request,
+            page,
+          ) => {
+            failedRuns.push({ requestedQuery, pageOffset: page.offset });
+            return Promise.resolve();
+          },
+        },
+      ),
+    Error,
+    "GBIF unavailable",
+  );
+
+  assertEquals(cursorUpdates, [
+    {
+      pageOffsets: [8_750],
+      nextOffset: 8_850,
+      errorMessage: null,
+    },
+    {
+      pageOffsets: [8_750],
+      nextOffset: 8_850,
+      errorMessage: "GBIF unavailable",
+    },
+  ]);
+  assertEquals(failedRuns, [{
+    requestedQuery:
+      "bounded:birds:root=212:rank=species:status=accepted:offset=8850:limit=100",
+    pageOffset: 8_850,
+  }]);
 });

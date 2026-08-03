@@ -7,6 +7,9 @@ export const GBIF_BIRDS_TAXON_KEY = 212;
 export const GBIF_BIRDS_SCIENTIFIC_NAME = "Aves";
 const GBIF_IMPORT_REQUEST_TIMEOUT_MS = 6_000;
 const GBIF_IMPORT_RESPONSE_LIMIT_BYTES = 4 * 1024 * 1024;
+const GBIF_IMPORT_MAXIMUM_ATTEMPTS = 3;
+const GBIF_IMPORT_INITIAL_RETRY_DELAY_MS = 500;
+const GBIF_IMPORT_MAXIMUM_RETRY_DELAY_MS = 2_000;
 
 export interface GbifTaxonomyImportTarget {
   slug: "birds";
@@ -62,11 +65,25 @@ export interface GbifTaxonomyImportPage {
 
 type Fetcher = typeof fetch;
 
+export interface GbifTaxonomyImportRetry {
+  attempt: number;
+  maximumAttempts: number;
+  delayMs: number;
+  reason: string;
+}
+
+export interface GbifTaxonomyImportFetchOptions {
+  maximumAttempts?: number;
+  wait?: (milliseconds: number) => Promise<void>;
+  onRetry?: (retry: GbifTaxonomyImportRetry) => void;
+}
+
 export async function fetchGbifTaxonomyImportPage(
   target: GbifTaxonomyImportTarget,
   offset: number,
   limit: number,
   fetcher: Fetcher = fetch,
+  options: GbifTaxonomyImportFetchOptions = {},
 ): Promise<GbifTaxonomyImportPage> {
   const url = new URL("https://api.gbif.org/v1/species/search");
   url.searchParams.set("highertaxon_key", String(target.rootGbifTaxonKey));
@@ -75,25 +92,142 @@ export async function fetchGbifTaxonomyImportPage(
   url.searchParams.set("offset", String(offset));
   url.searchParams.set("limit", String(limit));
 
-  const response = await fetchWithDeadline(
-    url,
-    { headers: { "Accept": "application/json" } },
-    { fetcher, timeoutMs: GBIF_IMPORT_REQUEST_TIMEOUT_MS },
-  );
-  if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
-    throw new Error(`GBIF species search failed with HTTP ${response.status}.`);
+  const maximumAttempts = options.maximumAttempts ??
+    GBIF_IMPORT_MAXIMUM_ATTEMPTS;
+  if (
+    !Number.isSafeInteger(maximumAttempts) || maximumAttempts < 1 ||
+    maximumAttempts > GBIF_IMPORT_MAXIMUM_ATTEMPTS
+  ) {
+    throw new TypeError(
+      `maximumAttempts must be between 1 and ${GBIF_IMPORT_MAXIMUM_ATTEMPTS}.`,
+    );
   }
 
-  const json = await readResponseJsonWithinLimit(
-    response,
-    GBIF_IMPORT_RESPONSE_LIMIT_BYTES,
-  );
-  if (!json || typeof json !== "object" || Array.isArray(json)) {
-    throw new Error("GBIF species search returned an invalid response.");
+  for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetchWithDeadline(
+        url,
+        { headers: { "Accept": "application/json" } },
+        { fetcher, timeoutMs: GBIF_IMPORT_REQUEST_TIMEOUT_MS },
+      );
+    } catch (error) {
+      if (attempt === maximumAttempts) {
+        throw new Error(
+          `GBIF species search transport failed after ${maximumAttempts} attempts.`,
+          { cause: error },
+        );
+      }
+      await waitForGbifRetry(
+        attempt,
+        maximumAttempts,
+        null,
+        "transport_error",
+        target,
+        offset,
+        options,
+      );
+      continue;
+    }
+
+    if (!response.ok) {
+      const status = response.status;
+      const retryable = isRetryableGbifStatus(status);
+      if (retryable && attempt < maximumAttempts) {
+        const retryDelayMs = gbifRetryDelayMilliseconds(attempt, response);
+        await cancelGbifResponseBody(response);
+        await waitForGbifRetry(
+          attempt,
+          maximumAttempts,
+          retryDelayMs,
+          `http_${status}`,
+          target,
+          offset,
+          options,
+        );
+        continue;
+      }
+      await cancelGbifResponseBody(response);
+      throw new Error(
+        retryable
+          ? `GBIF species search failed after ${maximumAttempts} attempts with HTTP ${status}.`
+          : `GBIF species search failed with HTTP ${status}.`,
+      );
+    }
+
+    const json = await readResponseJsonWithinLimit(
+      response,
+      GBIF_IMPORT_RESPONSE_LIMIT_BYTES,
+    );
+    if (!json || typeof json !== "object" || Array.isArray(json)) {
+      throw new Error("GBIF species search returned an invalid response.");
+    }
+
+    return normalizeGbifTaxonomyImportPage(json, offset, limit);
   }
 
-  return normalizeGbifTaxonomyImportPage(json, offset, limit);
+  throw new Error("GBIF species search retry loop ended unexpectedly.");
+}
+
+function isRetryableGbifStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 ||
+    (status >= 500 && status <= 599);
+}
+
+async function cancelGbifResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel("GBIF response will not be consumed.");
+  } catch {
+    // Status and headers are sufficient for retry classification.
+  }
+}
+
+function gbifRetryDelayMilliseconds(
+  attempt: number,
+  response: Response | null,
+): number {
+  const exponentialDelay = Math.min(
+    GBIF_IMPORT_INITIAL_RETRY_DELAY_MS * (2 ** (attempt - 1)),
+    GBIF_IMPORT_MAXIMUM_RETRY_DELAY_MS,
+  );
+  const retryAfterValue = response?.headers.get("Retry-After")?.trim() ?? "";
+  const retryAfterSeconds = /^(0|[1-9][0-9]*)$/.test(retryAfterValue)
+    ? Number(retryAfterValue)
+    : 0;
+  const retryAfterDelay = Number.isSafeInteger(retryAfterSeconds)
+    ? Math.min(
+      retryAfterSeconds * 1_000,
+      GBIF_IMPORT_MAXIMUM_RETRY_DELAY_MS,
+    )
+    : 0;
+  return Math.max(exponentialDelay, retryAfterDelay);
+}
+
+async function waitForGbifRetry(
+  attempt: number,
+  maximumAttempts: number,
+  retryDelayMs: number | null,
+  reason: string,
+  target: GbifTaxonomyImportTarget,
+  offset: number,
+  options: GbifTaxonomyImportFetchOptions,
+): Promise<void> {
+  const delayMs = retryDelayMs ?? gbifRetryDelayMilliseconds(attempt, null);
+  const retry = { attempt, maximumAttempts, delayMs, reason };
+  if (options.onRetry) {
+    options.onRetry(retry);
+  } else {
+    console.warn(JSON.stringify({
+      event: "gbif_taxonomy_import_fetch_retry",
+      target: target.slug,
+      offset,
+      ...retry,
+    }));
+  }
+  const wait = options.wait ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  await wait(delayMs);
 }
 
 export function normalizeGbifTaxonomyImportPage(

@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import {
   fetchGbifTaxonomyImportPage,
   GBIF_IMPORT_TARGETS,
@@ -102,4 +102,99 @@ Deno.test("GBIF taxonomy import - fetches species search pages with bounded para
   assertEquals(url.searchParams.get("highertaxon_key"), "212");
   assertEquals(url.searchParams.get("rank"), "SPECIES");
   assertEquals(url.searchParams.get("status"), "ACCEPTED");
+});
+
+Deno.test("GBIF taxonomy import - retries bounded transient failures", async () => {
+  let attempts = 0;
+  const waits: number[] = [];
+  const retries: unknown[] = [];
+  const fetcher: typeof fetch = () => {
+    attempts += 1;
+    if (attempts === 1) {
+      return Promise.reject(new TypeError("temporary transport failure"));
+    }
+    if (attempts === 2) {
+      return Promise.resolve(
+        new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        }),
+      );
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          offset: 8_750,
+          limit: 100,
+          count: 14_641,
+          endOfRecords: false,
+          results: [{
+            key: 2492321,
+            rank: "SPECIES",
+            canonicalName: "Setophaga petechia",
+            class: "Aves",
+            classKey: 212,
+          }],
+        }),
+      ),
+    );
+  };
+
+  const page = await fetchGbifTaxonomyImportPage(
+    GBIF_IMPORT_TARGETS.birds,
+    8_750,
+    100,
+    fetcher,
+    {
+      maximumAttempts: 3,
+      wait: (milliseconds) => {
+        waits.push(milliseconds);
+        return Promise.resolve();
+      },
+      onRetry: (retry) => retries.push(retry),
+    },
+  );
+
+  assertEquals(page.offset, 8_750);
+  assertEquals(attempts, 3);
+  assertEquals(waits, [500, 2_000]);
+  assertEquals(retries, [
+    {
+      attempt: 1,
+      maximumAttempts: 3,
+      delayMs: 500,
+      reason: "transport_error",
+    },
+    {
+      attempt: 2,
+      maximumAttempts: 3,
+      delayMs: 2_000,
+      reason: "http_429",
+    },
+  ]);
+});
+
+Deno.test("GBIF taxonomy import - does not retry permanent HTTP failures", async () => {
+  let attempts = 0;
+  const fetcher: typeof fetch = () => {
+    attempts += 1;
+    return Promise.resolve(new Response(null, { status: 400 }));
+  };
+
+  await assertRejects(
+    () =>
+      fetchGbifTaxonomyImportPage(
+        GBIF_IMPORT_TARGETS.birds,
+        8_750,
+        100,
+        fetcher,
+        {
+          maximumAttempts: 3,
+          wait: () => Promise.resolve(),
+        },
+      ),
+    Error,
+    "GBIF species search failed with HTTP 400.",
+  );
+  assertEquals(attempts, 1);
 });

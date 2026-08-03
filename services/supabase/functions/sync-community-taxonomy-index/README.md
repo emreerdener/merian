@@ -73,9 +73,16 @@ Each page calls:
 The worker normalizes GBIF rows into Merian's community taxon payload, calls
 `upsert_gbif_community_taxa(...)`, then annotates the created import run as
 `scope = "gbif_bounded_birds"` with page metadata. Each page suppresses the
-expensive coverage refresh; after a successful run, the worker refreshes
-coverage once and updates `taxonomy_coverage_targets.last_imported_offset` plus
-`next_import_offset`.
+expensive coverage refresh. After every successfully committed non-empty page,
+the worker checkpoints `taxonomy_coverage_targets.last_imported_offset` and
+`next_import_offset`; after a successful run, it refreshes coverage once and
+persists the final batch metadata. If a later page fails, the worker records its
+offset as `last_failed_offset`, so an earlier committed page is not replayed by
+the next ordinary run and `retry = true` resumes at the first unprocessed page.
+
+GBIF transport failures plus HTTP `408`, `425`, `429`, and `5xx` responses are
+retried at the read-only page-fetch boundary with a three-attempt, bounded-delay
+ceiling. The worker does not automatically replay a mutation.
 
 Use `dry_run: true` to verify the GBIF page and response shape without writing
 taxonomy rows or advancing the cursor.
