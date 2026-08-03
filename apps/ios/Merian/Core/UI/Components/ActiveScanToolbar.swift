@@ -5,8 +5,8 @@ struct ActiveScanToolbar: View {
     // MARK: - Properties
     let stagedCapture: StagedCapture
     let isRefining: Bool
+    let stagedCaptureLimit: Int
     @Binding var selectedPhotoItems: [PhotosPickerItem]
-    @Environment(AppSettings.self) private var appSettings
 
     @State private var showTooltip: Bool = !ActiveScanToolbar.hasShownTooltipThisSession
     private static var hasShownTooltipThisSession: Bool = false
@@ -74,7 +74,7 @@ struct ActiveScanToolbar: View {
                     }
                 }
                 
-                let currentLimit = (appSettings.isMultiCaptureEnabled || isRefining) ? stagedCaptureCapacity : 1
+                let currentLimit = stagedCaptureLimit
                 if orderedNodes.count < currentLimit {
                     // Use isPresented + explicit keyboard resign so iOS cannot restore the
                     // text field as first responder when the picker dismisses — that restoration

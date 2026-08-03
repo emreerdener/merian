@@ -39,17 +39,20 @@ only a camera/performance setting.
   Seasonal Challenge labels and challenge-specific progress are intentionally
   excluded from this first capture integration. Joining a challenge does not
   hide the linked standard outing or its normal progress.
-- When no active goal exists, the same Scan position can introduce an accessible,
-  unstarted Backyard Safari as an outing with two goals. This introduction is
-  validated from template detail and remains distinct from progress-bearing goals.
-- Users can explicitly start an outing from the template detail page before
+- Every existing and future account is automatically enrolled into Backyard
+  Safari Level 1 with a new activity period. A reset can still return it to the
+  validated, unstarted two-goal introduction state. Enrollment keeps the
+  existing profile-visible status-only summary, but never publishes the scans,
+  media, notes, or location evidence behind progress.
+- Users explicitly start other outings from the template detail page before
   their first matching scan.
 - Unfinished active outings expose a trailing ellipsis with **Stop field trip**
   and destructive **Reset field trip**. Stopped outings preserve their visible
   checklist state, show **Resume outing**, and expose Reset without an empty
   menu. Completed and unstarted outings have no lifecycle menu.
-- Levels unlock sequentially. Every standard completion belongs to an
-  explicitly started `user_field_trips` row. Matching scans never auto-start an
+- Levels unlock sequentially. Every standard completion belongs to a persisted
+  `user_field_trips` row and activity period created either by Backyard Safari
+  account enrollment or an explicit start. Matching scans never auto-start an
   outing.
 - A checklist item can match by species, scientific name, taxonomy, ecology,
   habitat text, or dictionary group tag.
@@ -161,8 +164,8 @@ migration filenames may still use `objective` or `challenge`:
 - Standard-outing actions are **Start outing**, **Start scanning**,
   **Resume outing**, and **Publish outing**. Never use **Start challenge** or
   **Publish challenge** for a standard outing.
-- The active Scan capsule uses **Goal: {target}**. The empty introduction uses
-  **Start an outing** with **Backyard Safari · 2 goals**.
+- The active Scan capsule uses **Goal: {target}**. The post-Reset empty
+  introduction uses **Start an outing** with **Backyard Safari · 2 goals**.
 - Standard catalog cards show an accent progress ring beside the title and a
   current-level subtitle: **Observe {target count} local species often found in
   your own backyard.** The thumbnail strip remains horizontally scrollable and
@@ -203,8 +206,9 @@ difficulty.
 3. Opening a catalog card loads `action: "template_detail"` and shows guide
    sections, levels, curated item tips, and the current start/continue/publish
    state.
-4. Tapping **Start outing** calls `action: "start"`. Matching scans never
-   auto-start an outing. Standard outings never use Start/Publish
+4. Backyard Safari Level 1 is already active from account enrollment. For other
+   unstarted outings, tapping **Start outing** calls `action: "start"`. Matching
+   scans never auto-start an outing. Standard outings never use Start/Publish
    Challenge copy; that language is reserved for Seasonal Events. An unfinished
    active outing can be stopped after confirmation; the backend saves its
    checklist, closes its activity period, and hides it from Capture and active
@@ -212,11 +216,12 @@ difficulty.
    period. Destructive Reset clears only unfinished standard outing progress and
    returns the detail to its initial state.
 5. The idle visual Scan page loads `action: "capture_context"` without blocking
-   the camera. When unfinished standard goals exist, a `Goal: {target}` label is
-   shown beneath the capture-mode picker with its outing title and aggregate
-   level progress. When the context is successfully empty, iOS loads
-   `template_detail` by the `backyard_safari` slug and offers an introduction only
-   when that template is accessible and unstarted.
+   the camera. A new account receives Backyard Safari's unfinished Level 1 goals;
+   when unfinished standard goals exist, a `Goal: {target}` label is shown beneath
+   the capture-mode picker with its outing title and aggregate level progress.
+   When the context is successfully empty, iOS loads `template_detail` by the
+   `backyard_safari` slug and offers an introduction only when that template is
+   accessible and unstarted, such as after Reset.
 6. Swiping an active indicator cycles through all unfinished targets in server
    order; tapping it opens the owning outing and focuses that goal's guide.
    The introduction has no swipe behavior and opens Backyard Safari detail without
@@ -319,8 +324,9 @@ Presentation contract:
   the `binoculars.fill` symbol. Turning
   it off removes the entire target capsule from Scan without changing outing
   progress, cached goal context, or server state.
-- For the validated unstarted Backyard Safari zero state, show **Start an outing**
-  over **Backyard Safari · 2 goals**, rotate the Bird and Dog artwork by cross-fade
+- For the validated unstarted Backyard Safari zero state after Reset, show
+  **Start an outing** over **Backyard Safari · 2 goals**, rotate the Bird and
+  Dog artwork by cross-fade
   every three seconds, and show `0/2` in the shared progress ring. Reduce Motion
   keeps the first artwork static. VoiceOver announces “Start an outing. Backyard
   Safari, 2 goals.”, “0 of 2 goals complete.”, and “Opens outing details.”
@@ -393,6 +399,9 @@ remains optional for ordinary outing navigation.
 
 - Progress is server-authoritative.
 - Only scans owned by the requesting user can count.
+- Backyard Safari's first eligible activity window begins at account enrollment
+  (or migration-time enrollment for an existing account), so earlier scans are
+  never credited retroactively.
 - A standard scan counts only when its capture timestamp falls within one of
   the outing's `user_field_trip_active_periods`. Pre-stop scans can receive late
   approval; scans captured during stopped gaps stay excluded after Resume.
@@ -413,7 +422,7 @@ remains optional for ordinary outing navigation.
   capsule does not restrict progress eligibility.
 - One scan is evaluated against every eligible active standard outing, but it
   receives at most one checklist credit per outing. It may still advance
-  several deliberately active outings and a joined live Event.
+  several eligible active outings and a joined live Event.
 - Within an experience the selected live-Capture goal wins when valid. Fallback
   order is exact species, scientific name, taxonomy from genus through kingdom,
   taxonomy with an excluded family, conjunctive taxonomy-plus-signal, semantic
@@ -550,7 +559,12 @@ status-only:
 - current level
 - completed count
 - target count
-- checklist item labels
+
+Automatic Backyard Safari enrollment creates this profile-visible active
+status immediately, including at `0/N` progress. A known account ID therefore
+normally satisfies the author-profile visibility gate until the unfinished
+starter is stopped or reset; the profile endpoint does not enumerate account
+IDs.
 
 Active profile summaries must not expose scan IDs, media URLs, field notes,
 exact coordinates, public location labels, or private evidence details.
@@ -590,7 +604,8 @@ push delivery.
 
 Public author profiles can be discoverable through either visible Explore posts
 or visible Field trip surfaces. Field trip discoverability still respects
-shadowbans and mutual blocks.
+shadowbans and mutual blocks. Because the starter enrollment is profile-visible,
+most known accounts have a visible Field trip surface by default.
 
 Challenge participation exposes only aggregate counts unless the user
 explicitly publishes a challenge entry or displays a completion badge. Badges do
@@ -743,8 +758,9 @@ Actions:
   tips, access state, viewer progress, and the same optional private completion
   scan ID. Its `active_progress` also includes the owner's optional active
   `publication_id` and `published_at` for the title badge.
-- `start`: explicitly starts or unhides the caller's progress row for an
-  accessible template.
+- `start`: starts another accessible outing, or unhides/resumes an existing
+  stopped or reset progress row. New accounts already have Backyard Safari
+  Level 1 active.
 - `stop`: closes an unfinished outing's open period and returns its saved
   stopped detail.
 - `reset`: clears unfinished, unpublished standard progress without deleting
@@ -806,9 +822,12 @@ publication, or completion evidence.
 
 ## Access
 
-Free users see starter and rotating-free trips. Pro users can access the full
-active catalog. Locked Pro trips may still appear in the catalog so the UI can
-show the available upgrade path without starting progress.
+Free users see starter and rotating-free trips. Functional Pro users—paid Pro
+or an online-verified complimentary account with at least one credit or active
+hold—can access the full active catalog. Locked Pro trips may still appear in
+the catalog so the UI can show the available upgrade path without starting
+progress. Exhausted complimentary access falls back to the free catalog; public
+Profile and Explore Pro badges remain paid-only.
 
 Access is evaluated from server-side user state. The iOS catalog should treat
 `viewerHasAccess` / `accessKind` as display and start eligibility hints, not as
@@ -817,6 +836,11 @@ authorization.
 Challenge access is server-authoritative and independent from the linked
 template's normal catalog access. A challenge can be free, Pro-only, or
 temporarily free during its challenge window.
+
+Database gates resolve effective entitlement rather than reading raw
+`subscription_tier` as the complete access decision. `pro_trial` remains
+historical after the atomic cutover. See
+[Three Complimentary Pro Scans](../backend-and-data/18-complimentary-pro-scans.md).
 
 ## iOS Implementation
 
@@ -1026,14 +1050,16 @@ Deploy in this order:
 18. `20260722195453_exclude_ants_from_bee_wasp_goal.sql`
 19. `20260722211636_tighten_field_trip_goal_matching.sql`
 20. `20260730023042_gate_field_trip_progress_by_confidence.sql`
-21. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
+21. `20260802053044_simplify_backyard_and_pollinator_levels.sql`
+22. `20260803015025_auto_enroll_backyard_safari_level_one.sql`
+23. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
    `identify-describe`, `audio-spec`, and `replay-scan-ingestion`)
-22. `field-trips` Edge Function
-23. `get-explore-author-profile` so public profiles include Field trip
+24. `field-trips` Edge Function
+25. `get-explore-author-profile` so public profiles include Field trip
    summaries and pins
-24. `get-explore-notifications`, `get-explore-unread-notification-count`, and
+26. `get-explore-notifications`, `get-explore-unread-notification-count`, and
    `mark-explore-notifications-read` Edge Function updates
-25. iOS client update
+27. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
 function update depends on `public.get_field_trip_profile_summaries(...)`.
@@ -1051,6 +1077,14 @@ rows are user data and should not be dropped casually after release.
 Placeholder field trips should be retired through
 `field_trip_templates.is_active`, as Forest Edges is, rather than deleting their
 template graph.
+
+If automatic Backyard Safari enrollment must be disabled, ship a forward
+migration that drops
+`auto_enroll_backyard_safari_level_one_on_user_insert` from `public.users`, then
+drops `internal.auto_enroll_backyard_safari_level_one()`. Preserve all
+backfilled `user_field_trips` rows and activity periods: they are now normal
+user progress, and deleting them would erase credit or reopen historical
+eligibility choices.
 
 Rolling back credited progress is response-compatible: older fields remain the
 source of truth and the iOS fallback continues to render them. Preserve both
@@ -1112,8 +1146,9 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
 The database integration tests require the local Supabase/Postgres stack. They
 report a skip when `127.0.0.1:54322` is unavailable; a skip is not production
 database validation. The progress test covers standard and challenge level
-advancement, explicit eligibility, one credit per experience, multi-experience
-credit, selected-goal and fallback ranking, delayed upload, correction
+advancement, Backyard enrollment plus explicit eligibility for other outings,
+one credit per experience, multi-experience credit, selected-goal and fallback
+ranking, delayed upload, correction
 move/removal, confidence boundaries, weak-match confirmation, normal correction
 freeze, confidence-downgrade reopening, pending-goal retention, ownership,
 concurrency, and idempotent reapplication.
@@ -1123,6 +1158,12 @@ security test enumerates every matching `SECURITY DEFINER` function and requires
 `anon`/`authenticated` execute to be false and `service_role` execute to be
 true. The publication test executes the completed-outing publish path and
 asserts that snapshot items use the created publication ID.
+
+The capture-context test creates an otherwise empty user and requires the
+database trigger to produce exactly one Backyard Safari Level 1 row and one
+open activity period. The static contract separately locks the active-template
+preflight, insert-only backfill, trigger name, empty search path, and denied
+execute privileges for every API role.
 
 For progress-toast QA, cover partial progress, level advancement, final
 completion, multiple standard/challenge experiences, re-identification after

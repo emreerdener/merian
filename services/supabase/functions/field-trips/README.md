@@ -25,6 +25,8 @@ The backing SQL lives in this ordered migration chain:
 18. `20260722195453_exclude_ants_from_bee_wasp_goal.sql`
 19. `20260722211636_tighten_field_trip_goal_matching.sql`
 20. `20260730023042_gate_field_trip_progress_by_confidence.sql`
+21. `20260802053044_simplify_backyard_and_pollinator_levels.sql`
+22. `20260803015025_auto_enroll_backyard_safari_level_one.sql`
 
 Deploy the migrations, updated scan-ingestion functions, and then this function
 before the iOS client begins sending preferred-goal hints or requesting
@@ -92,6 +94,25 @@ contribution rows.
 - The progress receipt is private and `service_role`-only. Every public-schema
   Field trip/Event `SECURITY DEFINER` function is revoked from `PUBLIC`, `anon`,
   and `authenticated`; no direct client RPC is part of this API.
+- The internal Backyard Safari enrollment trigger is database-only. Its
+  `SECURITY DEFINER` function has an empty search path and denies `PUBLIC`,
+  `anon`, `authenticated`, and `service_role` execution. The resulting active
+  row follows the existing profile-visible status contract without exposing
+  scan evidence.
+
+## Entitlement and access
+
+Field Trip and Seasonal Challenge Pro gates use server-resolved functional
+entitlement: paid Pro first, then an available complimentary credit or active
+hold, then free policy. Raw `subscription_tier` alone is not sufficient.
+Exhausted complimentary accounts retain starter/rotating-free access, while
+public Pro badges and purchase conversion remain paid-status-only.
+
+The iOS client treats returned access fields as presentation hints; SQL remains
+authoritative for start, join, hosting, and other gated mutations. After the
+atomic cutover, no current resolver emits `pro_trial`, though historical rows
+remain readable. See
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Actions
 
@@ -187,12 +208,12 @@ Response:
       "level_number": 1,
       "level_title": "Level 1",
       "completed_count": 1,
-      "target_count": 4,
+      "target_count": 2,
       "targets": [
         {
           "item_id": "uuid",
-          "prompt": "Butterfly",
-          "sort_order": 10,
+          "prompt": "Dog",
+          "sort_order": 20,
           "has_guide": true
         }
       ]
@@ -223,6 +244,12 @@ This field is not included in public Field trip publication snapshots. Catalog
 and template-detail RPC execution is restricted to `service_role`; the Edge
 Function supplies the verified caller ID.
 
+The database enrolls every new signed-in or ghost account into Backyard Safari
+Level 1 when its `public.users` profile is inserted. The forward migration
+backfills only accounts without existing Backyard Safari state and starts the
+private activity window at enrollment time, never at account-creation time for
+an older account.
+
 ```json
 { "action": "template_detail", "template_id": "uuid" }
 ```
@@ -238,9 +265,10 @@ only when that ID is non-null. `slug` may be supplied instead of `template_id`.
 ```
 
 Explicitly starts or unhides the caller's progress for an accessible template
-and returns the refreshed template detail. Starting a stopped outing resumes it
-by opening a new activity period. Matching scans never create or restart a
-standard outing.
+and returns the refreshed template detail. Backyard Safari is already active
+for a new account; this action starts other outings or resumes a stopped/reset
+outing by opening a new activity period. Matching scans never create or restart
+a standard outing.
 
 ```json
 { "action": "stop", "user_field_trip_id": "uuid" }
@@ -340,33 +368,28 @@ Returns:
       "title": "Backyard Safari",
       "current_level_number": 1,
       "current_level_title": "Level 1",
-      "completed_count": 3,
-      "target_count": 4,
+      "completed_count": 1,
+      "target_count": 2,
       "is_complete": false,
       "credited_level_number": 1,
       "credited_level_title": "Level 1",
-      "credited_completed_count": 3,
-      "credited_target_count": 4,
+      "credited_completed_count": 1,
+      "credited_target_count": 2,
       "removed_item_ids": [],
       "newly_completed_items": [
         {
           "item_id": "uuid",
-          "prompt": "Butterfly or moth",
-          "common_name": "Vine Sphinx",
-          "scientific_name": "Eumorpha vitis",
+          "prompt": "Bird",
+          "common_name": "Northern Cardinal",
+          "scientific_name": "Cardinalis cardinalis",
           "completed_at": "2026-07-18T14:00:00Z"
         }
       ]
     }
   ],
   "challenge_updates": [],
-  "first_field_trip_achievement": {
-    "kind": "standard_outing",
-    "completed_at": "2026-07-18T14:00:00Z",
-    "template_slug": "backyard_safari",
-    "challenge_id": null
-  },
-  "first_field_trip_achievement_newly_unlocked": true
+  "first_field_trip_achievement": null,
+  "first_field_trip_achievement_newly_unlocked": false
 }
 ```
 
@@ -563,14 +586,21 @@ ingestion retry remains authoritative.
 18. Apply `20260722195453_exclude_ants_from_bee_wasp_goal.sql`.
 19. Apply `20260722211636_tighten_field_trip_goal_matching.sql`.
 20. Apply `20260730023042_gate_field_trip_progress_by_confidence.sql`.
-21. Deploy the scan-ingestion functions.
-22. Deploy this function.
-23. Deploy `get-explore-author-profile` so profile responses include
+21. Apply `20260802053044_simplify_backyard_and_pollinator_levels.sql`.
+22. Apply `20260803015025_auto_enroll_backyard_safari_level_one.sql`.
+23. Deploy the scan-ingestion functions.
+24. Deploy this function.
+25. Deploy `get-explore-author-profile` so profile responses include
     `field_trips`.
-24. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+26. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-25. Ship the iOS client.
+27. Ship the iOS client.
+
+If enrollment must be disabled, create a new forward migration that drops
+`auto_enroll_backyard_safari_level_one_on_user_insert` from `public.users`, then
+drops `internal.auto_enroll_backyard_safari_level_one()`. Do not remove any
+trip, activity-period, or completion rows already created by enrollment.
 
 ## Verification
 
@@ -618,7 +648,12 @@ project `completed_scan_id` and grant execution only to `service_role`. Release
 QA must compare the returned ID to `user_field_trip_item_completions.scan_id`
 and confirm public/capture payloads still omit it.
 
-The lifecycle test covers saved stopped progress, Capture/profile exclusion,
+The capture-context test covers trigger-driven Backyard Safari Level 1
+enrollment and exactly one initial open activity period. The static migration
+contract covers the preflight, insert-only backfill, no-resume conflict path,
+trigger registration, empty search path, and denied execution for every API
+role. The lifecycle test covers saved stopped progress, Capture/profile
+exclusion,
 late approval, stopped-gap exclusion, repeated periods, Reset preservation of
 Seasonal Challenge data, the post-reset scan boundary, and explicit restart.
 

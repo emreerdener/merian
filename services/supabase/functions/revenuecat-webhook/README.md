@@ -11,6 +11,14 @@ for an event that maps to a Merian user.
 Existing scan media never moves when a tier changes. Both `public_uploads/free/`
 and `public_uploads/pro/` are durable prefixes.
 
+This boundary synchronizes paid status only. It never grants, consumes,
+releases, or resets the three-scan complimentary ledger, and it never turns
+functional complimentary access into a public paid-Pro badge. Effective access
+resolves paid Pro before the existing complimentary state. If paid access
+activates while a complimentary scan is in flight, final scan settlement
+releases that hold rather than consuming it. See
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+
 ## Security and processing order
 
 `config.toml` sets `verify_jwt = false` because RevenueCat is not a Supabase JWT

@@ -59,10 +59,12 @@ Deno.test("contract definitions fail closed through bounded numeric coverage", (
   assert.deepStrictEqual(definitions.generatedStructNames, [
     "EdgeResponse",
     "EdgeResponseWrapper",
+    "EntitlementSnapshotDTO",
     "IdentificationCandidate",
     "ImageQuality",
     "Insight",
     "PetIdentificationDTO",
+    "ScanEntitlementMetadataDTO",
     "SpeciesInsights",
     "Taxonomy",
   ]);
@@ -74,6 +76,9 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
   assert(generated.startsWith(GENERATED_SWIFT_BEGIN));
   assert(generated.endsWith(GENERATED_SWIFT_END));
   assert.match(generated, /struct EdgeResponseWrapper: Codable/);
+  assert.match(generated, /struct ScanEntitlementMetadataDTO: Codable/);
+  assert.match(generated, /let userID: String/);
+  assert.match(generated, /case userID = "user_id"/);
   assert.match(generated, /struct EdgeResponse: Codable/);
   assert.match(generated, /struct IdentificationCandidate: Codable/);
   assert.match(

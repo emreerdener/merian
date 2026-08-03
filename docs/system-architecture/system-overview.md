@@ -33,11 +33,16 @@ durable app-sandbox copy before Capture begins this pipeline:
    read-back before `200`. iOS persists and renders `speciesData` only after that
    durable success. Analytics, group tags, candidate enrichment, awards, and
    Field trips remain secondary work.
-5. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing uses `UsageManager.canPerformScan` as an advisory capture/paywall gate; queued rows upload unconditionally. On reconnection, Supabase atomically applies the authoritative entitlement and UTC-day/user/IP quota before provider dispatch, so clearing local state cannot create model capacity. Successful non-biological provider attempts count; the scoped correction flow bypasses only its Pro UI gate.
+5. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing uses `UsageManager.canPerformScan` as an advisory capture/paywall gate; queued rows upload unconditionally. On reconnection, Supabase atomically applies the authoritative entitlement and UTC-day/user/IP quota before provider dispatch, so clearing local state cannot create model capacity. Complimentary-only modes remain locked until the current launch verifies online; RevenueCat paid-offline access and ordinary Flash queuing retain their existing behavior. Successful non-biological results count; the scoped correction flow bypasses only its Pro UI gate.
 
 Free inference remains `gemini-2.5-flash` and Pro remains
 `gemini-2.5-pro`. The latency path does not change prompts, schema, thinking
 budgets, image resolution, output limits, or the one-model-call contract.
+The staged introductory offer derives three lifetime complimentary Pro scans
+from a private held/consumed/released ledger, separate from the daily Flash scan
+and provider-cost counters. It activates only with the atomic protocol-2
+cutover described in the
+[`normative entitlement contract`](../backend-and-data/18-complimentary-pro-scans.md).
 
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images. The public species payload never exposes source scan/post/location provenance; for a currently promoted Naturebook image it purposefully resolves only the contributor's public user ID and current public username so iOS can link the photo badge to the existing public profile sheet.
 
@@ -113,6 +118,12 @@ A structured schema built on native SwiftData migrations:
   then batches standard outings, Events-visible Seasonal Challenges, achievements, and
   **New to Naturebook** in that order. This prevents the live inference task and
   background URLSession completion from presenting duplicate notifications.
+- *Starter Field Trip Enrollment*: inserting any signed-in or ghost
+  `public.users` profile invokes a database-only, deny-by-default trigger that
+  creates Backyard Safari Level 1 and one open activity period. The rollout
+  migration performs the same insert-only backfill for existing accounts;
+  stopped, reset, and completed rows are preserved, and older scans remain
+  outside the new activity window.
 - *Durable Field Trip Progress*: the ingestion intent retains the optional live
   Capture preference, and a scan insert/evidence-change trigger atomically
   applies standard outings, joined Events, preference state, and first-outing
@@ -156,8 +167,12 @@ A structured schema built on native SwiftData migrations:
   watermark prevents delayed events from rolling subscription state backward.
   `TRANSFER` source and destination updates share one transaction. Accepted
   tier/expiry changes advance `users.entitlement_version`, which the
-  server-side AI quota reservation reads before provider dispatch; iOS
-  entitlement state remains advisory for local UX.
+  server-side AI quota reservation reads before provider dispatch.
+- `EntitlementManager` verifies `get_my_entitlement()` for the active Supabase
+  user each launch, derives complimentary functional access from only that
+  current versioned snapshot, buffers stored replay metadata until the launch
+  baseline succeeds, and rejects stale responses. `RevenueCatManager` continues
+  to own paid access and paid-only public badge state.
 
 ## Privacy & Geoprivacy Focus
 

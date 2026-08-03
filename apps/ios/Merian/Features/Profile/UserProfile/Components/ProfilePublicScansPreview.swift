@@ -473,7 +473,7 @@ private struct ProfilePublishedScansLibraryView: View {
                         .font(.headline)
                         .lineLimit(1)
 
-                    if RevenueCatManager.shared.isProActive {
+                    if RevenueCatManager.shared.isSubscribed {
                         ExploreProBadge()
                     }
                 }

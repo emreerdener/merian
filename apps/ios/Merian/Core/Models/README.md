@@ -42,7 +42,8 @@ or source-specific API DTOs.
 camera. `FieldTripCaptureGoalProvider` is the first adapter. It converts the
 private Field trip capture-context response into generic goals in server order
 and, after a validated empty response, can introduce an accessible unstarted
-template.
+Backyard Safari after Reset. New and migrated accounts normally receive active
+Backyard Safari Level 1 goals from server-side enrollment instead.
 `CaptureGoalDestination` is also used by progress toasts: standard outings carry
 the template and first credited checklist-item IDs, while Seasonal Challenges
 carry the challenge ID. Capture only opens the Explore sheet; Explore owns the

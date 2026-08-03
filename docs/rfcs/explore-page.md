@@ -162,6 +162,10 @@ The profile and library have deliberately different privacy scopes:
 - Profile stats, streak, heatmap, and achievement progress are computed from all of the author's non-tombstoned scans.
 - Preview and full library grids include only currently visible Explore posts.
 - Active Field trip profile rows include checklist status only and never expose scan IDs, media, field notes, exact coordinates, public location labels, or evidence.
+- Automatic Backyard Safari enrollment creates a profile-visible active status
+  row, so new and backfilled accounts can satisfy the author-profile visibility
+  gate at `0/N` progress. Stopping or resetting an unfinished starter hides the
+  active row without publishing or deleting its scans.
 - The authenticated Field trips catalog/detail projection may privately include
   the exact `completed_scan_id` for the viewing user's completed standard goals.
   It includes no media URL and is resolved only against the device-local scan
@@ -176,7 +180,7 @@ The profile and library have deliberately different privacy scopes:
 - Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
 - The `Follow` button is hidden for the viewer's own public profile. It follows asymmetrically; there are no friend requests, mutual-only states, DMs, or access changes to private scans.
 
-The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field trip profile surface. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, posts without public post-owned media, posts without a species key, and non-visible Field trips are all filtered using the same visibility posture as the rest of Explore. Backing-scan geoprivacy does not hide an explicitly shared post; the post-owned location setting controls public location output.
+The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field trip profile surface. Automatic profile-visible Backyard Safari enrollment means a known account ID normally satisfies this gate until the unfinished starter is stopped or reset; the endpoint does not enumerate account IDs. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, posts without public post-owned media, posts without a species key, and non-visible Field trips are all filtered using the same visibility posture as the rest of Explore. Backing-scan geoprivacy does not hide an explicitly shared post; the post-owned location setting controls public location output.
 
 The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
 
@@ -571,7 +575,7 @@ Recommended V1 endpoints:
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `field-trips`
-  - Returns Field trip catalog, template-detail, explicit-start, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, scan-contribution, publication, like, and comment actions, plus Seasonal Challenge catalog/detail/join/progress, challenge entry, badge, and optional challenge hashtag suggestion actions. Private catalog/detail checklist rows can include the completing scan ID through service-role-only RPCs, while public and capture projections remain evidence-free. One qualifying saved photo or video may satisfy at most one current-level goal per eligible outing and joined live challenge while still advancing several experiences. Field trip and challenge comments/likes are stored separately from Explore post interactions, and publishing a Field trip or challenge entry does not write Explore posts, map points, APNs, widgets, public web share pages, prizes, leaderboards, or feed cards.
+  - Returns Field trip catalog, template detail, starts for other outings and resumes, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, scan-contribution, publication, like, and comment actions, plus Seasonal Challenge catalog/detail/join/progress, challenge entry, badge, and optional challenge hashtag suggestion actions. Private catalog/detail checklist rows can include the completing scan ID through service-role-only RPCs, while public and capture projections remain evidence-free. One qualifying saved photo or video may satisfy at most one current-level goal per eligible outing and joined live challenge while still advancing several experiences. Field trip and challenge comments/likes are stored separately from Explore post interactions, and publishing a Field trip or challenge entry does not write Explore posts, map points, APNs, widgets, public web share pages, prizes, leaderboards, or feed cards.
 - `get-explore-map-points`
   - Returns privacy-safe map clusters or individual map points for the current visible area
 - `get-explore-notifications`

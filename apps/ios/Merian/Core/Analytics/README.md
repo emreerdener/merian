@@ -13,6 +13,12 @@ must first reserve server-owned quota through the Supabase database. A modified
 client, cleared defaults, or a clock change cannot grant additional provider
 work.
 
+The local meter represents only the ordinary daily Flash allowance; it is not a
+mirror of the three-scan lifetime grant. Complimentary Pro is always selected
+before Flash when the server has unheld capacity, so a new account can receive
+three Pro results plus one separate Flash result on day one. Users cannot spend
+Flash manually to preserve a complimentary credit.
+
 `FeatureFlag.unlimitedFreeScans.defaultValue` is `false`. DEBUG builds may
 temporarily bypass the local meter from Settings → Feature Flags or
 `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`; Release and TestFlight builds ignore those
@@ -28,6 +34,14 @@ reservation to `refunded`. Provider failure remains charged and transitions to
 `UsageManagerTests`,
 `FieldTripsAvailabilityTests`, the Edge quota tests, and the pgTAP quota
 contract aligned whenever this UX changes.
+
+After a valid success envelope, `reconcileServerPlanUsed(_:scanId:)` uses the
+authoritative `plan_used`: a complimentary or paid result refunds any optimistic
+local Flash reservation, while an actual `free` fallback consumes it. The scan
+ID makes this reconciliation idempotent. Complimentary holds settle separately
+from provider quota—a terminal credit release does not refund a provider call
+that was attempted. See
+[Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## External Image Import
 

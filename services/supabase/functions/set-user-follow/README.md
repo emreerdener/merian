@@ -43,8 +43,10 @@ Follow requests are accepted only when all of these are true:
 - the target has a currently visible Explore author profile for the requester
 
 That final visibility check is handled by
-`public.can_view_explore_author_profile(...)` so the endpoint cannot be used as
-a general user lookup surface.
+`public.can_view_explore_author_profile(...)`; the endpoint does not enumerate
+account IDs. Automatic profile-visible Backyard Safari enrollment means a
+known account ID normally passes this gate until the unfinished starter is
+stopped or reset.
 
 The insert path writes to `public.user_follows` with `ON CONFLICT DO NOTHING`,
 making repeated follow requests safe.

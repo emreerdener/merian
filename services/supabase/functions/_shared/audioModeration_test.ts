@@ -196,11 +196,13 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
   const quotaInputs: Array<{
     checksumSha256: string;
     policyVersion: string;
+    originalAnalysisId?: string;
   }> = [];
   const quota = {
     beforeProvider(input: {
       checksumSha256: string;
       policyVersion: string;
+      originalAnalysisId?: string;
     }) {
       reservations += 1;
       quotaInputs.push(input);
@@ -238,6 +240,7 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
     fetcher,
     generate,
     quota,
+    "00000000-0000-0000-0000-000000000001",
   );
   const second = await moderateExploreAudioUrl(
     "https://media.merian.app/public_uploads/pro/renamed.wav",
@@ -245,6 +248,7 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
     fetcher,
     generate,
     quota,
+    "00000000-0000-0000-0000-000000000001",
   );
 
   assertEquals(first.cacheHit, false);
@@ -258,6 +262,10 @@ Deno.test("content-addressed moderation reuses decisions without storing sensiti
   assertEquals(quotaInputs[0], quotaInputs[1]);
   assertEquals(quotaInputs[0].checksumSha256.length, 64);
   assertEquals(quotaInputs[0].policyVersion.length, 64);
+  assertEquals(
+    quotaInputs[0].originalAnalysisId,
+    "00000000-0000-0000-0000-000000000001",
+  );
   assertEquals(stores.length, 1);
   assertEquals(Object.keys(stores[0]).sort(), [
     "approved",

@@ -4,6 +4,7 @@ import { PublicHttpError } from "./http.ts";
 import {
   beginScanIngestion,
   completeScanIngestionFinalization,
+  type CompleteScanIngestionFinalizationResult,
   type MutableScanIngestionJobStatus,
   scanIngestionManifestChecksum,
   type ScanIngestionMediaCounts,
@@ -98,7 +99,9 @@ export interface CompatibilityScanIngestionLedger {
       terminalReasonCode?: string | null;
     },
   ): Promise<void>;
-  markComplete(options?: CompatibilityScanFinalization): Promise<void>;
+  markComplete(
+    options?: CompatibilityScanFinalization,
+  ): Promise<CompleteScanIngestionFinalizationResult>;
   markRetryableFailure(stage: string, error: unknown): Promise<void>;
   markTerminalFailure(
     stage: string,
@@ -402,6 +405,32 @@ export async function createCompatibilityScanIngestionLedger(
   } catch (error) {
     logUpdateFailure("scan_ingestion_setup_failed", error);
     if (error instanceof PublicHttpError) throw error;
+
+    // Quota reservation (and therefore a possible complimentary hold) occurs
+    // before compatibility-ledger setup in legacy routes. No provider call has
+    // happened yet, so a proven setup failure is terminal and must release the
+    // hold through the service-only settlement orchestrator. Never mask a
+    // settlement failure: an unproven outcome must remain held for recovery.
+    try {
+      await updateScanIngestionJob(
+        {
+          scanId: input.scanId,
+          userId: input.userId,
+          status: "failed_terminal",
+          stage: "scan_ingestion_setup_failed",
+          lastError: error instanceof Error ? error.message : String(error),
+          terminalReasonCode: "service_setup_failure",
+        },
+        supabaseAdmin,
+      );
+    } catch (settlementError) {
+      logUpdateFailure(
+        "scan_ingestion_terminal_settlement_failed",
+        settlementError,
+        { stage: "scan_ingestion_setup_failed" },
+      );
+      throw settlementError;
+    }
     throw new PublicHttpError(
       503,
       "scan_ingestion_unavailable",
@@ -439,6 +468,9 @@ export async function createCompatibilityScanIngestionLedger(
         status,
         stage,
       });
+      // failed_terminal is also complimentary-credit settlement. Treat it as
+      // fail-closed even though ordinary progress updates are best effort.
+      if (status === "failed_terminal") throw error;
     }
   };
 
@@ -451,7 +483,7 @@ export async function createCompatibilityScanIngestionLedger(
       responseEnvelope,
     }: CompatibilityScanFinalization = {}) => {
       try {
-        await completeScanIngestionFinalization(
+        return await completeScanIngestionFinalization(
           {
             scanId: input.scanId,
             userId: input.userId,

@@ -585,9 +585,10 @@ provider dispatch:
   obtains the model from an atomic database reservation rather than trusting the
   client or isolate memory. The reservation separates model choice from paid
   storage: paid subscribers and active paid 7-day passes return
-  `plan = "pro_paid"`, dynamic 7-day trial users return `plan = "pro_trial"`
-  while usually keeping raw `subscription_tier = "free"`, and expired
-  free/timed-pass users return `plan = "free"`.
+  `plan = "pro_paid"`; held or available lifetime credits return
+  `plan = "pro_complimentary"`; and exhausted compatible single-evidence
+  captures return `plan = "free"` through the separate daily Flash policy.
+  `pro_trial` is retained only for historical reservations and reports.
 - **Fossil, Geological & Non-Biological Handling**: The system instruction
   explicitly distinguishes liveness from biological identity. Fossils, pressed
   plants, museum specimens, and dried organisms are
@@ -651,7 +652,8 @@ provider dispatch:
   and the biology micro-agent events. Scan token telemetry includes
   backward-compatible `tier` plus explicit `effective_tier`, `plan`,
   `subscription_tier`, `trial_active`, and `llm_model` fields so
-  `gemini-2.5-pro` spend can be split between paid Pro and trial Pro. The
+  `gemini-2.5-pro` spend can be split between paid Pro, complimentary Pro, and
+  historical trial Pro. The
   `/identify` `ScanCompleted` event also includes `llm_cached_tokens` (from
   `usageMetadata.cachedContentTokenCount`) to track implicit cache hit volume —
   a non-zero value means Google served those prefix tokens from cache at the 75%
@@ -1121,31 +1123,31 @@ insight sheet display.
   current multimodal observation: the route cannot return success until the
   owner row exists. Analytics, group tags, and candidate enrichment remain
   optional `EdgeRuntime.waitUntil` work.
-- **Atomic critical-path entitlement reservation**: One service-role RPC reads
-  tier, creation time, timed expiry, and `entitlement_version`; derives
-  `pro_paid`, `pro_trial`, or `free`; selects the operation's allowlisted model;
-  and conditionally consumes UTC-day/user/IP counters. The transaction is
-  idempotent on `(user, operation, request_id)` and serializes only duplicate
-  keys. It holds a share lock on the entitlement row, so a concurrent downgrade
-  and reservation have one database order, and uses a consistent daily/user/IP
-  counter lock order for reservation and refund. Each attempt has a ten-minute
-  lease and UUID fencing token, preventing a delayed old callback from settling
-  a newer retry. Active timed passes are paid Pro; stale expired or future-dated
-  invalid profiles resolve free. Missing/malformed user rows and database errors
-  fail closed.
+- **Atomic critical-path entitlement reservation**: One service-role RPC locks
+  the user before quota or ledger rows, resolves `pro_paid`,
+  `pro_complimentary`, or `free`, acquires an idempotent hold keyed by
+  `(user_id, client_scan_id)`, selects the operation's allowlisted model, and
+  conditionally consumes UTC-day/user/IP provider counters. Retries, internal
+  replay, enrichment, chat, and subcalls retain the original analysis linkage
+  without acquiring another credit. Each provider attempt has a ten-minute
+  lease and UUID fencing token. Active timed passes are paid Pro; stale expired
+  profiles resolve free. Missing/malformed user rows and database errors fail
+  closed.
 - **No isolate-local entitlement authority**: RevenueCat tier changes advance a
   durable version in the same row update. Every provider reservation reads that
   database state, so another Edge isolate cannot retain stale Pro access.
   `_shared/entitlement.ts` also performs an uncached durable read for
   non-provider feature gates and telemetry.
-- **Cost-safe settlement**: Counters are consumed while a reservation is
-  `reserved`. The Edge route commits immediately before provider dispatch;
-  malformed responses and provider errors still consume the attempt. Provider
-  failure moves the row to `failed`, which permits a new metered retry without
-  refunding the original counters. Only a proven pre-provider no-op, such as an
-  audio moderation cache hit or empty multimodal payload, may refund. Abandoned
-  pre-provider leases are refunded automatically every five minutes; a crash or
-  failed finalization cannot create unmetered provider traffic.
+- **Cost-safe settlement**: Provider counters are consumed while a reservation
+  is `reserved` and are preserved after an attempted call. Complimentary holds
+  settle independently: durable scan plus required media completion consumes a
+  hold (including valid non-biological results), proven terminal failures
+  release it, and retryable or ambiguous outcomes remain held for recovery.
+  The service-only completion orchestrator locks the user before established
+  scan/job locks and stores the enriched entitlement envelope atomically.
+  The complete state machine, derived balances, client protocol, and rollout
+  rules are normative in
+  [`18-complimentary-pro-scans.md`](../backend-and-data/18-complimentary-pro-scans.md).
 - **No hidden enrichment dispatch**: Overview, lookalike, and group-tag cache
   misses each reserve their explicit operation and pass the database-selected
   model to the biological helper. Service-only scheduled refreshes remain

@@ -77,7 +77,9 @@ public post metadata, or Darwin Core export payloads to the prompt.
   routes.
 - Requires durable effective Pro entitlement. Model replies, prompt suggestions,
   and field-note summaries reserve separate database quota operations before
-  provider dispatch; active trials use the `pro_trial` policy.
+  provider dispatch. Complimentary access uses the `pro_complimentary` policy
+  and retains the original scan linkage without acquiring another scan credit;
+  `pro_trial` remains historical only after entitlement cutover.
 - `client_message_id` is the durable request identity for sends. The function
   canonicalizes it to lowercase, records it privately on both sides of the saved
   user/assistant pair, and projects it as `client_message_id` on both response

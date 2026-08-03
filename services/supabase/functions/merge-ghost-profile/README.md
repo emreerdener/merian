@@ -63,6 +63,10 @@ The completed transaction contract:
   source/target authorization; this ledger intentionally does not receive an
   Auth FK because normal account deletion has a separate guarded account-linkage
   clearing path;
+- reparents and deduplicates complimentary-usage rows by original analysis,
+  preserves historical consumption, releases excess held rows deterministically,
+  and derives the merged balance from one lifetime grant of three rather than
+  combining the source and destination grants;
 - snapshots and preserves guest-customized public identity;
 - verifies that no external foreign key still points to the source before
   deleting `public.users`;
@@ -74,6 +78,9 @@ eligible user foreign key without updating the manifest, introduces an
 unsupported composite key, or creates a new uniqueness conflict, the transaction
 fails and rolls back instead of cascading or misattributing data. The policy and
 required handler must be extended in the same forward schema change.
+
+The normative merged-entitlement rules are documented in
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Concurrency and provider-repair contract
 

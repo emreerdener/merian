@@ -30,7 +30,7 @@ extension CaptureWorkspaceViewModel {
         var stagedContext = observationContext
         stagedContext.addedAt = Date()
 
-        let isMultiCaptureEnabled = diContainer.appSettings.isMultiCaptureEnabled
+        let isMultiCaptureEnabled = isMultiCaptureFunctionallyEnabled
         let requiresScanConfirmation = diContainer.appSettings.requiresScanConfirmation
         let isRefining = baseRefinementContext != nil
 

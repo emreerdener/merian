@@ -398,6 +398,7 @@ struct CaptureWorkspaceView: View {
                         ActiveScanToolbar(
                             stagedCapture: viewModel.stagedCapture,
                             isRefining: viewModel.baseRefinementContext != nil,
+                            stagedCaptureLimit: viewModel.stagedCaptureLimit,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
                             onCancel: {
@@ -440,7 +441,7 @@ struct CaptureWorkspaceView: View {
             viewModel: viewModel,
             stagedItemCount: viewModel.stagedCapture.totalItemCount,
             stagedCaptureLimit: viewModel.stagedCaptureLimit,
-            isProActive: revenueCatManager.isProActive
+            canStartProScan: revenueCatManager.canStartProScan
         ))
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
         .task(id: messageShareCacheSignature) {
@@ -737,7 +738,7 @@ struct CaptureWorkspaceView: View {
             guard let fileName else { return }
             
             let willStageOnly = viewModel.stagedCapture.hasVisualMedia
-                || appSettings.isMultiCaptureEnabled
+                || viewModel.isMultiCaptureFunctionallyEnabled
                 || appSettings.requiresScanConfirmation
                 || !viewModel.stagedCapture.observationContexts.isEmpty
                 
@@ -1348,7 +1349,7 @@ private struct ExternalImageImportRetryModifier: ViewModifier {
     let viewModel: CaptureWorkspaceViewModel
     let stagedItemCount: Int
     let stagedCaptureLimit: Int
-    let isProActive: Bool
+    let canStartProScan: Bool
 
     func body(content: Content) -> some View {
         content
@@ -1362,7 +1363,7 @@ private struct ExternalImageImportRetryModifier: ViewModifier {
                     viewModel.importPendingExternalImageIfPossible()
                 }
             }
-            .onChange(of: isProActive) { _, _ in
+            .onChange(of: canStartProScan) { _, _ in
                 viewModel.importPendingExternalImageIfPossible()
             }
     }

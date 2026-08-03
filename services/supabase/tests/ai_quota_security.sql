@@ -451,8 +451,8 @@ BEGIN
             'insight_chat_summary',
             'explore_post_chat_reply'
         )
-    ) <> 30 THEN
-        RAISE EXCEPTION 'AI quota policy matrix is incomplete';
+    ) <> 40 THEN
+        RAISE EXCEPTION 'AI quota policy matrix including complimentary plans is incomplete';
     END IF;
 END;
 $test$;

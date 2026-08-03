@@ -86,6 +86,31 @@ session from creating an anonymous production user.
   expire; the next drain repairs legacy paused job state while the backend
   independently resumes any owner-bound tombstone it already accepted.
 
+## Entitlement protocol
+
+The authenticated request builders attach
+`X-Merian-Entitlement-Protocol: 2` and preserve `client_scan_id` as the
+idempotency and original-analysis key. This covers the four public
+identification routes: `/identify`, `/identify-describe`,
+`/identify-multimodal`, and `/audio-spec`. After the coordinated server cutover,
+an older public client receives HTTP `426` with
+`code = client_update_required` before provider work; only authenticated
+internal replay bypasses the public protocol check.
+
+Identify success envelopes may omit `entitlement` for historical stored
+responses. When present, the generated DTO contains `user_id`, `plan_used`,
+`credit_consumed`, and `entitlement_after`. The client validates the user,
+balance identity, and monotonic `entitlement_version`; it never infers a trial
+or Flash fallback from local dates. `get_my_entitlement()` establishes the
+current-launch baseline before buffered response metadata can unlock
+complimentary access.
+
+The server—not the request payload—classifies whether a single-evidence capture
+can use the separate daily Flash policy after complimentary exhaustion. Video,
+multiple or mixed evidence, and Pro-only actions remain upgrade-required. The
+normative wire and rollout contract is
+[Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+
 ## Field trip completion evidence
 
 Catalog and template-detail checklist items may decode an optional private
@@ -155,13 +180,15 @@ as no card.
 authenticated `/field-trips` Edge Function and decodes the narrow
 `FieldTripCaptureContextResponse`. The response contains standard field
 trip/current level metadata, aggregate progress, and unfinished target prompts
-only. It must not contain scan evidence, media, location, or field notes.
+only. New and migrated accounts normally receive Backyard Safari Level 1 from
+the server's account-enrollment trigger/backfill. The response must not contain
+scan evidence, media, location, or field notes.
 
 `MerianNetworkClient` performs the request. `FieldTripCaptureGoalProvider` maps
 the source DTOs into a generic `CaptureGoalContextSnapshot`. After a successful
 empty response it uses the existing authenticated `template_detail` slug lookup
-to validate the optional Backyard Safari introduction. No database or Edge
-contract changes are required. `ActiveCaptureGoalStore` owns the five-minute
+to validate the optional post-Reset Backyard Safari introduction.
+`ActiveCaptureGoalStore` owns the five-minute
 freshness policy, per-account cache, selected-goal persistence, and silent
 stale-data retention. Concurrent freshness checks share the provider request; an
 explicit invalidation received while that request is active queues at most one

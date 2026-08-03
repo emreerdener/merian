@@ -63,10 +63,12 @@ function resolveSystemInstruction(
 }
 
 function isPayloadEmpty(
-  partsArrayLength: number,
-  hasObservationContextText: boolean,
+  imageCount: number,
+  audioCount: number,
+  observationEvidenceTexts: string[],
 ): boolean {
-  return partsArrayLength === 1 && !hasObservationContextText;
+  return imageCount === 0 && audioCount === 0 &&
+    observationEvidenceTexts.length === 0;
 }
 
 function validateR2ObjectKey(key: string, userId: string): R2KeyError {
@@ -487,15 +489,44 @@ Deno.test("dispatch - no images, no audio -> DESCRIBE instruction", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("payload guard - only telemetry and no context text -> reject", () => {
-  assert(isPayloadEmpty(1, false));
+  assert(isPayloadEmpty(0, 0, []));
 });
 
 Deno.test("payload guard - context text + telemetry -> accept", () => {
-  assert(!isPayloadEmpty(2, true));
+  assert(!isPayloadEmpty(0, 0, ["Tall gray bird near water."]));
 });
 
 Deno.test("payload guard - image + telemetry -> accept", () => {
-  assert(!isPayloadEmpty(2, false));
+  assert(!isPayloadEmpty(1, 0, []));
+});
+
+Deno.test("payload guard runs before complimentary reservation and ignores empty contexts", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const guard = source.indexOf("resolvedImageBase64s.length === 0");
+  const reservation = source.indexOf(
+    "quotaLease = await reserveAIProviderCall(",
+  );
+  assert(guard >= 0 && reservation > guard);
+  assert(source.includes("descriptionCount: observationEvidenceTexts.length"));
+});
+
+Deno.test("terminal ingestion settlement errors propagate instead of silently stranding complimentary holds", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const helperStart = source.indexOf("const updateIngestionJobBestEffort");
+  const helperEnd = source.indexOf("const safeGpsLat", helperStart);
+  assert(helperStart >= 0);
+  assert(helperEnd > helperStart);
+
+  const helperSource = source.slice(helperStart, helperEnd);
+  assert(
+    helperSource.includes(
+      'if (status === "failed_terminal") throw error;',
+    ),
+  );
 });
 
 // ---------------------------------------------------------------------------

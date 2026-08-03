@@ -76,18 +76,25 @@ export async function markReplayJobComplete(
 ): Promise<void> {
   const now = new Date().toISOString();
   const { data: finalization, error: jobError } = await supabaseAdmin.rpc(
-    "complete_scan_ingestion_finalization",
+    "complete_scan_ingestion_with_entitlement",
     {
       p_scan_id: input.scanId,
       p_user_id: input.userId,
+      p_response_envelope: null,
       p_promoted_urls_by_storage_key: {},
       p_deleted_storage_keys: [],
     },
   );
+  const finalizationResult = finalization != null &&
+      typeof finalization === "object" &&
+      !Array.isArray(finalization)
+    ? (finalization as Record<string, unknown>).result
+    : null;
 
   if (
     jobError ||
-    (finalization !== "completed" && finalization !== "already_complete")
+    (finalizationResult !== "completed" &&
+      finalizationResult !== "already_complete")
   ) {
     throw new Error(
       `markReplayJobComplete: ${
@@ -122,21 +129,28 @@ export async function markReplayDispatchFailure(
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
   const now = new Date().toISOString();
-  const status = input.terminal ? "failed_terminal" : "failed_retryable";
-  const { error: jobError } = await supabaseAdmin
-    .from("scan_ingestion_jobs")
-    .update({
-      status,
-      stage: input.stage,
-      last_error: input.errorMessage.slice(0, 500),
-      terminal_reason_code: input.terminal ? "replay_exhausted" : null,
-      retry_after: input.terminal ? null : input.retryAfterIso,
-      updated_at: now,
+  const { error: jobError } = input.terminal
+    ? await supabaseAdmin.rpc("fail_scan_ingestion_terminal", {
+      p_scan_id: input.scanId,
+      p_user_id: input.userId,
+      p_stage: input.stage,
+      p_last_error: input.errorMessage.slice(0, 500),
+      p_terminal_reason_code: "replay_exhausted",
     })
-    .eq("scan_id", input.scanId)
-    .eq("user_id", input.userId)
-    .eq("status", "retrying")
-    .eq("stage", "server_replay_claimed");
+    : await supabaseAdmin
+      .from("scan_ingestion_jobs")
+      .update({
+        status: "failed_retryable",
+        stage: input.stage,
+        last_error: input.errorMessage.slice(0, 500),
+        terminal_reason_code: null,
+        retry_after: input.retryAfterIso,
+        updated_at: now,
+      })
+      .eq("scan_id", input.scanId)
+      .eq("user_id", input.userId)
+      .eq("status", "retrying")
+      .eq("stage", "server_replay_claimed");
 
   if (jobError) {
     throw new Error(`markReplayDispatchFailure: ${jobError.message}`);

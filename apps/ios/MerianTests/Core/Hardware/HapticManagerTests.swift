@@ -1,5 +1,5 @@
-import XCTest
 @testable import Merian
+import XCTest
 
 @MainActor
 final class HapticManagerTests: XCTestCase {
@@ -14,7 +14,11 @@ final class HapticManagerTests: XCTestCase {
         userDefaults = UserDefaults(suiteName: suiteName)
         userDefaults.removePersistentDomain(forName: suiteName)
         appSettings = AppSettings(userDefaults: userDefaults, observeExternalChanges: false)
-        let hardwareOrchestrator = HardwareOrchestrator(appSettings: appSettings, observeSystemChanges: false)
+        let hardwareOrchestrator = HardwareOrchestrator(
+            appSettings: appSettings,
+            observeSystemChanges: false,
+            functionalProAccessProvider: { true }
+        )
         hapticManager = HapticManager(appSettings: appSettings, hardwareOrchestrator: hardwareOrchestrator)
     }
 
@@ -64,6 +68,23 @@ final class HapticManagerTests: XCTestCase {
 
         appSettings.isExpeditionModeActive = true
         XCTAssertFalse(hapticManager.isFeedbackEnabled)
+    }
+
+    func testUnverifiedExpeditionPreferenceDoesNotSuppressHaptics() {
+        let lockedOrchestrator = HardwareOrchestrator(
+            appSettings: appSettings,
+            observeSystemChanges: false,
+            functionalProAccessProvider: { false }
+        )
+        let lockedHapticManager = HapticManager(
+            appSettings: appSettings,
+            hardwareOrchestrator: lockedOrchestrator
+        )
+
+        appSettings.isHapticsEnabled = true
+        appSettings.isExpeditionModeActive = true
+
+        XCTAssertTrue(lockedHapticManager.isFeedbackEnabled)
     }
 
     func testCaptureButtonReleaseHapticRoutesVisualPhotoToHeavyImpact() {

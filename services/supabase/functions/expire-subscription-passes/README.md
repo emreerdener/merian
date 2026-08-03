@@ -12,8 +12,9 @@ transaction. It never grants the pass from webhook event fields alone.
 Time passing does not necessarily produce another provider event at the exact
 pass boundary. This worker is therefore the bounded repair path that turns an
 already-expired timed row back into stored free state. Server entitlement and
-quota resolution treat an expired timed row as free even before this repair
-runs.
+quota resolution treat an expired timed row as non-paid even before this repair
+runs, then independently resolve any existing complimentary credit or hold
+before free access.
 
 ## Flow
 
@@ -34,6 +35,11 @@ runs.
 
 Standard auto-renewing Pro subscriptions leave `subscription_expires_at = null`,
 so they are ignored by this worker.
+
+This paid-pass worker never changes the complimentary ledger or creates a new
+grant. Expiry can therefore reveal an account's existing complimentary access,
+but it cannot refresh consumed scans or combine grants. See
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Testing
 

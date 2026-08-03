@@ -322,8 +322,8 @@ The Scans tab is the user's primary offline biological journal.
   are notes, tags, and collections transferred and the old scan removed. This
   scoped correction entry point bypasses only the Pro reanalysis feature lock so
   free users can correct this specific failure mode, but the submitted
-  replacement scan still follows normal free-tier inference settings and daily
-  scan accounting.
+  replacement scan still follows normal paid → complimentary → Flash selection
+  and applicable scan accounting.
 - **Compatibility Guards for Old Placeholders**: Historical records that were
   already converted into unresolved biological placeholders (`Unknown Subject` /
   `Taxonomy Unavailable`) stay protected locally. They suppress visible AI
@@ -994,11 +994,11 @@ on gesture-driven layout abstractions.
 - Normal logout clears only the current device's Supabase, RevenueCat, and
   PostHog session state so a simulator logout does not revoke the same account
   on another device.
-- Uses `RevenueCatManager.shared.isProActive` to conditionally show or trigger
-  `PaywallView` when the advisory local meter is reached. The Profile uses this
-  property to display a `PlanCard` in the header outlining plan capabilities
-  (Pro HIGH-VOLUME SCANS vs Free 1 SCAN DAILY). DEBUG can bypass only the local
-  meter; Supabase still applies the plan's fair-use and rate ceilings, and
+- Uses functional `RevenueCatManager.shared.isProActive` for eligible settings
+  and paywall behavior, while public Profile and Explore Pro badges use paid
+  `isSubscribed`. The public Profile card never shows the complimentary
+  countdown; Results and Settings own that detail. DEBUG can bypass only the
+  local meter; Supabase still applies the plan's fair-use and rate ceilings, and
   Release/TestFlight ignores the override. Purchase QA opens Settings → Plan
   directly. `PaywallView` renders in Light or Dark mode following the system
   color scheme.

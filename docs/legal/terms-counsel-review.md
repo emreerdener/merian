@@ -4,7 +4,7 @@ Status: internal working memo
 
 Product retention decision recorded: July 31, 2026
 
-Draft reviewed against repository behavior: July 31, 2026
+Draft reviewed against repository behavior: August 2, 2026
 
 Public draft: [`apps/web/app/terms/page.tsx`](../../apps/web/app/terms/page.tsx)
 
@@ -206,6 +206,9 @@ review the complete privacy package for:
 - PostHog event categories, identifier linkage, host region, consent or lawful basis,
   and a working withdrawal method;
 - public-photo selection as species reference imagery;
+- automatic profile-visible Backyard Safari enrollment, immediate author-profile
+  discoverability at zero progress, and the adequacy of Stop/Reset as the only
+  unfinished-status controls;
 - free and paid sharing/licensing of Scientific Data that may remain personal;
 - the exact account-tombstone retention and clearing boundary;
 - retention periods and deletion completion timing;
@@ -248,7 +251,7 @@ Counsel and the operator should decide and document:
 | Gemini is central to identification and receives multimodal and context inputs | 5 |
 | AI results are probabilistic and not safety or professional advice | 6 |
 | PostHog product analytics and currently disabled capture modes | 7 |
-| Seven-day non-renewing pass, annual auto-renewing plan, and trials | 8 |
+| Three complimentary Pro scans with no calendar expiry, a separate daily Flash scan, seven-day non-renewing pass, and annual auto-renewing plan | 8 |
 | Operational content license and contributor warranties | 9 |
 | Explore is public UGC and eligible photos can become reference imagery | 10 |
 | Every submitted scan contributes mandatory Scientific Data that can be used or licensed | 11 |

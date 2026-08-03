@@ -82,8 +82,10 @@ selection changes use selection feedback. Both respect the global haptics and
 Expedition mode settings. Reduced Motion and VoiceOver adjustable actions remain
 supported.
 
-After a complete successful empty context, the provider looks up the accessible
-unstarted `backyard_safari` template by slug. It then supplies the non-selectable
+New and migrated accounts normally receive active Backyard Safari Level 1 goals
+from the server. After a complete successful empty context, such as after Reset,
+the provider looks up the accessible unstarted `backyard_safari` template by
+slug. It then supplies the non-selectable
 **Start an outing** / **Backyard Safari · 2 goals** introduction with a `0/2`
 ring. Its leading artwork cross-fades between Bird and Dog every three
 seconds and stays static under Reduce Motion. A started, completed, locked,

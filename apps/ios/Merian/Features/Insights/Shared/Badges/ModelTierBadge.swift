@@ -6,13 +6,18 @@ struct ModelTierBadge: View {
     var label: String = "Upgrade for advanced analysis"
     
     @State private var showPaywall: Bool = false
+    @State private var entitlement = EntitlementManager.shared
     
     var body: some View {
-        let trialDays = RevenueCatManager.shared.trialDaysRemaining ?? 0
-        let isTrialActive = trialDays > 0 && !RevenueCatManager.shared.isSubscribed
-        
-        if isTrialActive {
-            paywallButton(text: "\(trialDays) days of pro remaining")
+        if !RevenueCatManager.shared.isSubscribed,
+           entitlement.hasVerifiedComplimentaryAccess,
+           entitlement.scansRemaining > 0 {
+            paywallButton(
+                text: "\(entitlement.scansRemaining) complimentary Pro scan\(entitlement.scansRemaining == 1 ? "" : "s") remaining"
+            )
+        } else if !RevenueCatManager.shared.isSubscribed,
+                  entitlement.isComplimentaryExhausted {
+            paywallButton(text: "Complimentary Pro scans used — upgrade")
         } else if !RevenueCatManager.shared.isProActive, let score = confidenceScore {
             let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
             if score >= bands.possible && score < bands.strong {

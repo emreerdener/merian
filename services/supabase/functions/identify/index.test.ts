@@ -219,12 +219,18 @@ Deno.test("Identify Schema Structure validates all Data-as-a-Service properties"
   );
 });
 
-Deno.test("ScanCompleted telemetry includes pro trial plan and Pro model", () => {
+Deno.test("ScanCompleted telemetry includes complimentary Pro plan and model", () => {
   const resolution: TierResolution = {
+    current_plan: "pro_complimentary",
+    current_tier: "pro",
+    is_paid: false,
+    scans_remaining: 2,
+    scans_available_to_start: 2,
+    in_flight_count: 0,
     effective_tier: "pro",
-    plan: "pro_trial",
+    plan: "pro_complimentary",
     subscription_tier: "free",
-    trial_active: true,
+    trial_active: false,
     user_exists: true,
     entitlement_version: 1,
   };
@@ -236,10 +242,10 @@ Deno.test("ScanCompleted telemetry includes pro trial plan and Pro model", () =>
       : "gemini-2.5-flash",
   };
   assertEquals(properties.tier, "pro");
-  assertEquals(properties.plan, "pro_trial");
+  assertEquals(properties.plan, "pro_complimentary");
   assertEquals(properties.effective_tier, "pro");
   assertEquals(properties.subscription_tier, "free");
-  assertEquals(properties.trial_active, true);
+  assertEquals(properties.trial_active, false);
   assertEquals(properties.llm_model, "gemini-2.5-pro");
 });
 

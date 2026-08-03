@@ -1626,17 +1626,6 @@ private struct FieldTripTemplateCard: View {
         )
     }
 
-    private var ctaTitle: String {
-        switch template.catalogState {
-        case .completed:
-            "View field trip"
-        case .inProgress:
-            "Continue field trip"
-        case .incomplete:
-            "View field trip"
-        }
-    }
-
     @ViewBuilder
     private var identityArtwork: some View {
         if let currentLevelPatchImageName {
@@ -1713,28 +1702,22 @@ private struct FieldTripTemplateCard: View {
                 .padding(.bottom, 12)
             }
 
-            if template.catalogState == .incomplete {
-                Button(action: onOpenTemplate) {
-                    Text(ctaTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-            } else {
-                Button(action: onOpenTemplate) {
-                    Text(ctaTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .tint(.primary)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+            Button(action: onOpenTemplate) {
+                Text("View field trip")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
             }
+            .buttonStyle(.plain)
+            .foregroundColor(.blue)
+            .background(.regularMaterial)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)
         .background {

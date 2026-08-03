@@ -96,6 +96,27 @@ generated DTOs. Root response fields remain optional to decode older cached
 payloads and support staggered rollout; the Edge runtime validates the full
 final response strictly before sending it.
 
+## Entitlement response state
+
+`EdgeResponseWrapper.entitlement` is optional so historical stored envelopes
+remain decodable. A usable current response may carry the server's `plan_used`,
+whether a complimentary credit was consumed, and the complete
+entitlement-after snapshot. `InferenceProcessingActor` forwards that metadata
+to `EntitlementManager` and reconciles the advisory daily meter from the
+server's actual funding plan; it does not derive a trial or decrement a
+complimentary counter locally.
+
+A scan response is already behind the server's scan-and-required-media
+durability fence. Local record persistence can still fail and enter exact-ID
+recovery without undoing the authoritative server settlement. Stored replay
+metadata is version-checked and cannot establish current-launch complimentary
+access before `get_my_entitlement()` supplies the baseline.
+
+Complimentary holds belong to the original `scanId`. Retry generations,
+enrichment, Field Chat, and provider subcalls reuse that analysis and cannot
+spend another credit. The joined server/client contract is
+[Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+
 ## Live Attempt Ownership
 
 `scanId` identifies durable work; it does not identify the current attempt.

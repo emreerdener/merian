@@ -357,28 +357,36 @@ straight to the offline queue and bypassing useless network connections for a
 guaranteed zero-latency shutter experience.
 
 **Advisory Free-Tier Capture Meter**: The local UX meter is applied at enqueue
-time, not upload time. Inside `insertAndPersistRecord`,
-`UsageManager.shared.canPerformScan(isProActive: false)` is checked before the
-`OfflineQueuedScan` record is inserted. If the daily limit is exhausted, the
-scan is rejected and any files already written to disk are cleaned up atomically
-— `AppTelemetry.trackOfflineQueued()` is **not** fired in this case. If the
-quota check passes, `UsageManager.shared.consumeScan()` reserves the slot before
-the record enters the queue; if the subsequent SwiftData save fails,
-`modelContext.rollback()` runs and `UsageManager.shared.refundScan()` restores
-the slot. This ensures every scan that reaches `syncPendingScans` uploads
-without another local check, while failed local inserts do not change the
-advisory meter. It is not provider authorization: on upload, the Edge Function
-uses the stable scan UUID as its idempotency key and atomically reserves the
-database UTC-day/user/IP quota before Gemini. A modified client or cleared
+time, not upload time. `insertAndPersistRecord` and `enqueueNonVisualCapture`
+first check `RevenueCatManager.shared.canStartProScan`. If no paid or verified
+unheld complimentary capacity is available, they check and reserve the separate
+daily Flash meter before the `OfflineQueuedScan` record is inserted. If that
+meter is exhausted, the scan is rejected and any files already written to disk
+are cleaned up atomically—`AppTelemetry.trackOfflineQueued()` is **not** fired
+in this case. If the quota check passes, `UsageManager.shared.consumeScan()`
+reserves the slot before the record enters the queue; if the subsequent
+SwiftData save fails, `modelContext.rollback()` runs and
+`UsageManager.shared.refundScan()` restores the slot. This ensures every scan
+that reaches `syncPendingScans` uploads without another local check, while
+failed local inserts do not change the advisory meter. It is not provider
+authorization: on upload, the Edge Function uses the stable scan UUID as its
+idempotency key and atomically reserves the database UTC-day/user/IP quota and
+any required lifetime hold before Gemini. A modified client or cleared
 `UserDefaults` cannot bypass that boundary. Provider attempts, including
 non-biological outcomes or malformed responses, consume the server reservation;
 only a proven pre-provider no-op may refund it. Provider failures move to a
 charged `failed` state so a later retry of the same scan can make a newly
 metered attempt; an abandoned pre-provider reservation expires and is
-automatically refunded. The non-biological correction entry point may bypass the
-Pro-only reanalysis feature lock, but once the user submits that replacement
-capture it still consumes normal free-tier daily quota and uses the normal free
-inference settings.
+automatically refunded. The non-biological correction entry point may bypass
+the Pro-only reanalysis feature lock, but once the user submits that replacement
+capture it follows the normal paid → complimentary → Flash selection and
+applicable limits. A successful response reconciles any optimistic local Flash
+token from authoritative `plan_used`; paid/complimentary refunds it, while real
+Flash fallback consumes it.
+
+The entitlement verification, original-analysis linkage, and hold-settlement
+rules are canonical in
+[Three Complimentary Pro Scans](18-complimentary-pro-scans.md).
 
 ### 3. Network Awakening (`NWPathMonitor`)
 

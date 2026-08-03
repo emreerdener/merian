@@ -27,7 +27,9 @@ achievement evidence.
   local scans with media issues when their incident IDs are available.
 - The user's own Profile tab also shows active and published Field trip modules
   when the Field trips endpoint returns visible summaries, plus lightweight
-  Field trip challenge badges when awarded.
+  Field trip challenge badges when awarded. Automatic Backyard Safari
+  enrollment can supply the first active status-only module before any goal is
+  completed.
 - The profile route shows:
   - public avatar and centered serif author display name
   - `@public_username` underneath when available
@@ -73,7 +75,7 @@ The feature has two separate data scopes:
 | Profile stats, streak, heatmap, achievements | All of the author's non-tombstoned scans |
 | Preview grid, full library, and visible published count | Only the author's currently visible Explore posts from the canonical projection |
 | Owner publication/recovery summary | Owner-only preserved publication intent and media-health totals |
-| Active Field trips | Status-only checklist progress from `user_field_trips` |
+| Active Field trips | Profile-visible status-only checklist progress from `user_field_trips`, including automatic Backyard Safari enrollment |
 | Published Field trips | Snapshot items from `field_trip_publications` and `field_trip_publication_items` |
 | Field trip Challenge Badges | Badge cards from `field_trip_challenge_badges`, without scan evidence |
 
@@ -88,10 +90,19 @@ media snapshot plus reference-thumbnail projection.
 
 The backend returns another author's profile only when the target author has at
 least one Explore post currently visible to the requesting viewer or at least
-one visible Field trip profile surface. This prevents the endpoint from
-becoming a user lookup API while allowing active or published Field trips to
-make a profile discoverable. The authenticated owner can retrieve their own
-profile with zero visible posts so recovery status remains explainable.
+one visible Field trip profile surface. This remains the authorization gate,
+but automatic profile-visible Backyard Safari enrollment means a known account
+normally satisfies it until the unfinished starter is stopped or reset. The
+endpoint does not enumerate account IDs. The authenticated owner can retrieve
+their own profile with zero visible posts so recovery status remains
+explainable.
+
+Backyard Safari enrollment creates its active row with the existing
+`is_profile_visible = true` contract. A new or backfilled account can therefore
+have a visible Field trip profile surface immediately, even at `0/N` progress.
+Stopping or resetting the unfinished outing hides that active row; enrollment
+never exposes its scan IDs, media, field notes, coordinates, or location
+labels.
 
 The response also includes viewer-scoped `viewer_can_report`. It is false for
 self profiles and absent/non-actionable profiles. `/report-user` independently
@@ -233,8 +244,8 @@ Field trips extension:
 - `20260708021110_field_trips_v1.sql` adds Field trip template, progress,
   publication, like, and comment storage.
 - `20260708033451_field_trips_v2.sql` adds template guide fields, item tips,
-  explicit starts, Recent compatibility support, and pinned profile
-  publication metadata.
+  starts for other outings and resumes, Recent compatibility support, and
+  pinned profile publication metadata.
 - `20260708042713_field_trips_v3_community.sql` adds the Field trips Community
   feed RPC, following-weighted ranking metadata, template-filtered Community
   previews, and Field trip-only in-app activity rows.
@@ -242,6 +253,15 @@ Field trips extension:
   challenge storage, explicit participation, challenge-specific item
   completions, completion badges, challenge entry snapshots, and challenge entry
   likes/comments.
+- `20260730023042_gate_field_trip_progress_by_confidence.sql` can reopen weakly
+  supported outing/Event progress and remove invalid profile publications or
+  badges after an evidence downgrade.
+- `20260802053044_simplify_backyard_and_pollinator_levels.sql` moves both
+  starter outings to their current 2/4/4 progression without replacing
+  checklist identities.
+- `20260803015025_auto_enroll_backyard_safari_level_one.sql` backfills the
+  profile-visible starter status for accounts without prior state and installs
+  the deny-by-default future-profile trigger.
 - `public.user_has_visible_field_trip_profile(...)` extends author-profile
   discoverability.
 - `public.get_field_trip_profile_summaries(...)` returns active status-only,
@@ -400,7 +420,7 @@ because moderated posts must no longer make a profile reportable/public unless
 another visible profile surface remains.
 
 For Field trips, apply the complete ordered migration chain through
-`20260730023042_gate_field_trip_progress_by_confidence.sql`; the canonical
+`20260803015025_auto_enroll_backyard_safari_level_one.sql`; the canonical
 sequence is maintained in
 [`25-field-trips.md`](25-field-trips.md#deployment-notes). Then deploy the
 scan-ingestion functions, `field-trips`, `get-explore-author-profile`, and the

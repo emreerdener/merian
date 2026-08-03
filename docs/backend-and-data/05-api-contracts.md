@@ -104,6 +104,9 @@ or otherwise assign progress to another user.
 All public-schema Field trip/Event `SECURITY DEFINER` functions are Edge-owned.
 Execute is revoked from `PUBLIC`, `anon`, and `authenticated` and granted only
 to `service_role`; there is no intentionally direct client RPC in this feature.
+The `internal.auto_enroll_backyard_safari_level_one()` trigger function is not
+an RPC: execution is also revoked from `service_role`, and it runs only from the
+database-owned `public.users` insert trigger.
 
 `services/supabase/functions/field-trips/actions.ts` is the canonical action
 allowlist. A missing/non-string or unknown action returns `HTTP 400`. Unknown
@@ -137,7 +140,7 @@ Response:
       "cover_image_url": "https://...",
       "estimated_duration_minutes": 30,
       "guide_where_to_look": "Look near flowers, fences, planters, and quiet corners.",
-      "guide_why_it_matters": "Neighborhood trips build a habit of noticing everyday biodiversity.",
+      "guide_why_it_matters": null,
       "guide_safety_ethics": "Stay where you have permission and avoid handling animals.",
       "region_tags": ["global"],
       "season_tags": ["all"],
@@ -153,8 +156,8 @@ Response:
         "current_level_number": 1,
         "completed_at": null,
         "is_profile_visible": true,
-        "completed_count": 2,
-        "target_count": 4
+        "completed_count": 1,
+        "target_count": 2
       },
       "stopped_progress": null,
       "levels": [
@@ -166,14 +169,25 @@ Response:
           "items": [
             {
               "item_id": "uuid",
-              "prompt": "Butterfly",
+              "prompt": "Bird",
               "match_type": "taxonomy",
-              "guide_tip": "Wait for the insect to settle with wings visible.",
+              "guide_tip": "Pause and listen before moving closer.",
               "is_completed": true,
               "completed_at": "2026-07-08T12:05:00.000Z",
               "completed_scan_id": "saved-scan-uuid",
-              "completed_common_name": "Monarch",
-              "completed_scientific_name": "Danaus plexippus"
+              "completed_common_name": "Northern Cardinal",
+              "completed_scientific_name": "Cardinalis cardinalis"
+            },
+            {
+              "item_id": "uuid",
+              "prompt": "Dog",
+              "match_type": "scientific_name",
+              "guide_tip": "Dogs count when they are clearly visible and safely observed.",
+              "is_completed": false,
+              "completed_at": null,
+              "completed_scan_id": null,
+              "completed_common_name": null,
+              "completed_scientific_name": null
             }
           ]
         }
@@ -219,7 +233,7 @@ active-or-stopped viewer progress for catalog status, filters, and detail cards,
 but active-only surfaces such as Capture and public active summaries continue to
 read only active progress.
 
-### Template Detail and Explicit Start
+### Template Detail, Start, and Resume
 
 Template detail request:
 
@@ -299,12 +313,12 @@ Response:
       "level_number": 1,
       "level_title": "Level 1",
       "completed_count": 1,
-      "target_count": 4,
+      "target_count": 2,
       "targets": [
         {
           "item_id": "uuid",
-          "prompt": "Butterfly",
-          "sort_order": 10,
+          "prompt": "Dog",
+          "sort_order": 20,
           "has_guide": true
         }
       ]
@@ -321,6 +335,12 @@ participation, labels, and challenge-specific completions are not projected.
 Joining a challenge reuses the underlying standard `user_field_trips` row, so
 that standard field trip remains eligible and continues to show only its normal
 Field Trip progress.
+
+Every account receives an active Backyard Safari Level 1 row and activity
+period when its `public.users` profile is created; the enrollment migration
+backfills the same state for existing accounts. The activity window starts at
+enrollment, so historical scans remain ineligible. Existing stopped, reset, and
+completed Backyard Safari rows are never resumed by the backfill.
 
 Stopped trips are deliberately absent. A reset Backyard Safari can qualify for
 the unstarted introduction again; a stopped one cannot because its
@@ -375,20 +395,20 @@ Response:
       "title": "Backyard Safari",
       "current_level_number": 2,
       "current_level_title": "Level 2",
-      "completed_count": 0,
-      "target_count": 6,
+      "completed_count": 1,
+      "target_count": 4,
       "is_complete": false,
-      "credited_level_number": 1,
-      "credited_level_title": "Level 1",
-      "credited_completed_count": 4,
+      "credited_level_number": 2,
+      "credited_level_title": "Level 2",
+      "credited_completed_count": 1,
       "credited_target_count": 4,
       "removed_item_ids": [],
       "newly_completed_items": [
         {
           "item_id": "uuid",
-          "prompt": "Bird",
-          "common_name": "Northern Cardinal",
-          "scientific_name": "Cardinalis cardinalis",
+          "prompt": "Butterfly",
+          "common_name": "Monarch",
+          "scientific_name": "Danaus plexippus",
           "completed_at": "2026-07-08T12:07:00.000Z"
         }
       ]
@@ -402,34 +422,29 @@ Response:
       "title": "Summer Pollinator Watch",
       "current_level_number": 1,
       "current_level_title": "Level 1",
-      "completed_count": 2,
-      "target_count": 4,
+      "completed_count": 1,
+      "target_count": 2,
       "is_complete": false,
       "badge_awarded_at": null,
       "suggested_hashtags": ["summerpollinators"],
       "credited_level_number": 1,
       "credited_level_title": "Level 1",
-      "credited_completed_count": 2,
-      "credited_target_count": 4,
+      "credited_completed_count": 1,
+      "credited_target_count": 2,
       "removed_item_ids": [],
       "newly_completed_items": [
         {
           "item_id": "uuid",
-          "prompt": "Bee or wasp",
-          "common_name": "Common Eastern Bumble Bee",
-          "scientific_name": "Bombus impatiens",
+          "prompt": "Butterfly or moth",
+          "common_name": "Monarch",
+          "scientific_name": "Danaus plexippus",
           "completed_at": "2026-07-08T12:07:00.000Z"
         }
       ]
     }
   ],
-  "first_field_trip_achievement": {
-    "kind": "standard_outing",
-    "completed_at": "2026-07-08T12:07:00.000Z",
-    "template_slug": "backyard_safari",
-    "challenge_id": null
-  },
-  "first_field_trip_achievement_newly_unlocked": true
+  "first_field_trip_achievement": null,
+  "first_field_trip_achievement_newly_unlocked": false
 }
 ```
 
@@ -446,7 +461,7 @@ inside a now-closed outing period or Event window can receive delayed first
 credit. A single scan is evaluated against every matching current-level item in
 every eligible active standard outing, but receives at most one credit per
 outing and one per joined live challenge. It may still advance several
-deliberately active experiences, with every completion row pointing to the same
+eligible active experiences, with every completion row pointing to the same
 scan.
 
 The optional `preferred_goal` is accepted only for an owned standard outing that
@@ -562,8 +577,8 @@ Response:
       "prompt": "Butterfly or moth",
       "level_number": 1,
       "level_title": "Level 1",
-      "completed_count": 3,
-      "target_count": 4,
+      "completed_count": 1,
+      "target_count": 2,
       "is_complete": false,
       "artwork_prompt": "Butterfly or moth",
       "artwork_template_slug": "park_pollinators",
@@ -641,7 +656,7 @@ Catalog rows include:
     "completed_at": null,
     "badge_awarded_at": null,
     "completed_count": 1,
-    "target_count": 4
+    "target_count": 2
   },
   "template": null,
   "entries": []
@@ -754,8 +769,8 @@ Response:
         "started_at": "2026-07-08T12:00:00.000Z",
         "current_level_number": 1,
         "current_level_title": "Level 1",
-        "completed_count": 3,
-        "target_count": 4,
+        "completed_count": 0,
+        "target_count": 2,
         "is_complete": false
       }
     ],
@@ -770,7 +785,7 @@ Response:
         "slug": "backyard_safari",
         "template_title": "Backyard Safari",
         "cover_image_url": "https://...",
-        "item_count": 4,
+        "item_count": 10,
         "viewer_has_liked": false,
         "is_pinned": true,
         "pin_position": 1
@@ -787,7 +802,7 @@ Response:
         "slug": "backyard_safari",
         "template_title": "Backyard Safari",
         "cover_image_url": "https://...",
-        "item_count": 4,
+        "item_count": 10,
         "viewer_has_liked": false,
         "is_pinned": false,
         "pin_position": null
@@ -871,7 +886,7 @@ Response:
       "season_tags": ["spring"],
       "habitat_tags": ["yard"],
       "cover_image_url": "https://...",
-      "item_count": 4,
+      "item_count": 10,
       "viewer_has_liked": false,
       "author_user_id": "uuid",
       "author_name": "River W.",
@@ -1855,6 +1870,7 @@ Shared authorization errors are:
 | ------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `400`  | `ai_request_id_invalid`                                     | Supplied body/header request key is not a UUID                                             |
 | `402`  | `pro_required`                                              | Operation is disabled for the effective plan                                               |
+| `426`  | `client_update_required`                                    | Public identification client does not implement the cutover entitlement protocol           |
 | `409`  | `ai_request_in_progress` / `ai_request_already_completed`   | Duplicate paid-provider attempt; an in-progress response retries after the remaining lease |
 | `429`  | `ai_quota_daily_exceeded`                                   | Database UTC-day safety ceiling reached                                                    |
 | `429`  | `ai_user_rate_limit_exceeded` / `ai_ip_rate_limit_exceeded` | Shared minute ceiling reached                                                              |
@@ -1863,6 +1879,78 @@ Shared authorization errors are:
 Rate-limit and temporary entitlement responses may include both the
 `Retry-After` header and `retry_after_seconds` JSON field. Clients must not
 silently fall back to a paid tier or alternate model on any of these failures.
+
+### Complimentary entitlement protocol and metadata
+
+Authenticated clients read their current server state through the Supabase RPC
+`get_my_entitlement()`. It returns one own-account row with:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `current_plan` | string | `pro_paid`, `pro_complimentary`, `free`, or pre-cutover/historical `pro_trial` |
+| `current_tier` | string | Functional `pro` or `free` |
+| `is_paid` | boolean | Raw current paid status; authoritative for public Pro badges |
+| `scans_remaining` | integer | Grant minus consumed credits, including in-flight holds |
+| `scans_available_to_start` | integer | Credits that can fund a new primary Pro analysis |
+| `in_flight_count` | integer | Active held credits |
+| `entitlement_version` | integer | Monotonic account-plus-rollout version |
+
+The RPC derives its owner from `auth.uid()` and accepts no target user ID.
+Failures to verify current state fail closed for complimentary-only client
+behavior.
+
+After atomic cutover, public requests to all four scan-producing routes must
+send `X-Merian-Entitlement-Protocol: 2`:
+
+- `/identify`
+- `/identify-describe`
+- `/identify-multimodal`
+- `/audio-spec`
+
+Missing or obsolete public protocol receives `426 client_update_required`
+before provider dispatch. Authenticated server replay bypasses only this public
+protocol comparison and retains the exact original `client_scan_id`, owner,
+quota, and credit linkage.
+
+A successful scan envelope may contain the additive top-level member below.
+The member is optional so historical stored envelopes remain decodable.
+
+```json
+{
+  "success": true,
+  "data": { "scan_id": "scan-uuid" },
+  "entitlement": {
+    "user_id": "authenticated-owner-uuid",
+    "plan_used": "pro_complimentary",
+    "credit_consumed": true,
+    "entitlement_after": {
+      "current_plan": "pro_complimentary",
+      "current_tier": "pro",
+      "is_paid": false,
+      "scans_remaining": 2,
+      "scans_available_to_start": 2,
+      "in_flight_count": 0,
+      "entitlement_version": 43
+    }
+  }
+}
+```
+
+`plan_used` records the funding classification retained by the original
+analysis. `credit_consumed` records whether the durable result is funded by a
+consumed complimentary row; on replay it does not mean the replay invocation
+performed a second transition. Clients validate `user_id` and apply
+`entitlement_after` only after a current-launch `get_my_entitlement()` baseline
+has succeeded and only when its version is not stale.
+
+Flash fallback is server-classified from the accepted evidence shape. It uses
+the independent daily free policy and returns `plan_used = "free"`; an
+exhausted balance does not authorize fallback for video, mixed/multi-item, or
+Pro-only work.
+
+The normative balance equations, settlement rules, offline behavior, and
+rollout fence are in
+[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 > **Important IDOR Constraint:** The `user.id` resolved by the Deno Edge
 > Function from the Supabase JWT is always a **lowercase** Postgres UUID format.
@@ -1967,12 +2055,14 @@ To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
 - **Model Routing**: The vision identification call routes effective Pro users
   to `gemini-2.5-pro` (maximum depth for rare species, fossils, subspecies, and
   cultivars) and effective free users to `gemini-2.5-flash` (2–3× lower
-  latency). Effective Pro includes paid subscribers and dynamic 7-day trial
-  users. The server does not trust an iOS tier hint. It atomically calls
-  `reserve_ai_quota` before provider work; that transaction resolves the durable
-  plan and expiry, selects an allowlisted model from
-  `internal.ai_quota_policies`, and consumes daily/user/IP counters under the
-  request idempotency key. Text-only enrichment currently selects
+  latency). Effective Pro includes paid subscribers and accounts with an
+  available or in-flight complimentary Pro scan. The server does not trust an
+  iOS tier hint. Protocol-2 identification routes atomically call the extended
+  `reserve_ai_quota` before provider work; that transaction resolves paid Pro →
+  complimentary Pro → free, links the original analysis, acquires a credit hold
+  when applicable, selects an allowlisted model from
+  `internal.ai_quota_policies`, and consumes separate daily/user/IP provider
+  counters under the request idempotency key. Text-only enrichment currently selects
   `gemini-2.5-flash` through the same database policy. A missing user row,
   entitlement query failure, disabled/missing policy, or unsupported model fails
   closed before Gemini. Both identification models use the structured schema
@@ -3461,6 +3551,10 @@ Validation and availability rules:
   neither a currently visible Explore post nor a visible Field trip profile
   surface. The authenticated owner may load their own zero-visible-post profile
   so media recovery remains explainable.
+- Automatic Backyard Safari enrollment creates a profile-visible active Field
+  trip surface, so a known account ID normally satisfies this gate immediately,
+  including at `0/N` progress, until the unfinished starter is stopped or reset.
+  This endpoint does not enumerate account IDs.
 - Shadowbanned authors and either direction of user blocking return no profile.
 - Profile aggregates are computed from all non-tombstoned scans owned by the
   author.
@@ -5486,8 +5580,8 @@ the separate candidates/review surface.
 **Authoritative quota**: Cache hits perform no paid provider work and consume no
 AI quota. A cache miss reserves either `scan_overview_enrichment` or
 `scan_lookalike_enrichment` before generation. Their shared UTC-day ceilings are
-4 for free, 100 for Pro trial, and 500 for paid Pro, with additional shared
-per-user/IP minute ceilings. iOS uses the stable scan UUID as the
+4 for free, 100 for complimentary Pro, and 500 for paid Pro, with additional
+shared per-user/IP minute ceilings. iOS uses the stable scan UUID as the
 `Idempotency-Key` for both scopes (the operation is part of the database
 namespace), so later app-level retries cannot allocate a fresh reservation.
 Provider attempts consume quota even if the provider response is malformed; a
@@ -5585,8 +5679,8 @@ behavior remains independent if prompt generation fails. The server caps v1 at
 conversation, and 20 sends per Pro user per day across all of that user's
 Insight and Explore chats. A new request reserves room for its user and
 assistant rows together; an incomplete retry already owns its user row but must
-still have one slot for the assistant. Effective Pro includes active trial
-users.
+still have one slot for the assistant. Functional Pro includes paid access and
+current server-verified complimentary access.
 
 `send` uses `client_message_id` as the UUID provider idempotency key. The iOS
 client sends a UUID `Idempotency-Key` header for `suggest_prompts` and
@@ -5821,7 +5915,7 @@ identification requests.
 | Status | Body                                             | Meaning                                            |
 | ------ | ------------------------------------------------ | -------------------------------------------------- |
 | `400`  | `{ "code": "unsupported_scan", ... }`            | Scan is non-biological or request shape is invalid |
-| `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not Pro/trial                    |
+| `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not functional Pro               |
 | `404`  | `{ "code": "scan_not_ready", ... }`              | No owned completed scan row exists yet             |
 | `409`  | `{ "code": "field_chat_idempotency_conflict" }`  | UUID was reused with different normalized text     |
 | `429`  | `{ "code": "daily_limit_reached", ... }`         | Daily send cap reached                             |
@@ -5864,7 +5958,7 @@ flows and do not change the `/insight-chat` response payload.
 Private Pro Field chat for any active Explore post visible to the viewer,
 including their own. The endpoint authenticates with `withEdgeHandler`, derives
 the viewer from the verified JWT, requires the post to be visible to that
-viewer, and resolves Pro/trial access server-side. Each
+viewer, and resolves functional Pro access server-side. Each
 `(post_id, viewer user_id)` pair has its own conversation. Other viewers cannot
 load or mutate it; the post author may own a conversation when viewing their own
 published post.
@@ -7814,7 +7908,9 @@ Before persisting, the function calls
 `get_explore_author_profile(self_id, target_author_user_id, 1)` with the service
 client. A syntactically valid but non-visible/arbitrary target returns 404. This
 reuses the profile's block, shadowban, post-moderation, and discoverability
-rules instead of introducing a user lookup surface.
+rules and does not enumerate account IDs. Because automatic Backyard Safari
+enrollment is profile-visible, a known account ID normally remains reportable
+until the unfinished starter is stopped or reset.
 
 Success returns HTTP 200:
 

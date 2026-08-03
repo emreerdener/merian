@@ -312,6 +312,7 @@ Deno.serve((req: Request) =>
         userId: user.id,
         operation: "insight_chat_prompt_suggestions",
         requestId: parsedBody.ai_request_id,
+        originalAnalysisId: scanId,
       });
 
       let providerAttempted = false;
@@ -492,6 +493,7 @@ Deno.serve((req: Request) =>
         userId: user.id,
         operation: "insight_chat_summary",
         requestId: parsedBody.ai_request_id,
+        originalAnalysisId: scanId,
       });
       let summary: Awaited<ReturnType<typeof generateFieldNotesSummary>>;
       let providerAttempted = false;
@@ -658,6 +660,7 @@ Deno.serve((req: Request) =>
           userId: user.id,
           operation: "insight_chat_reply",
           requestId: clientMessageId,
+          originalAnalysisId: scanId,
         });
       } catch (error) {
         if (
@@ -718,6 +721,7 @@ Deno.serve((req: Request) =>
               userId: user.id,
               operation: "insight_chat_reply",
               requestId: clientMessageId,
+              originalAnalysisId: scanId,
             });
           }
           if (quotaLease === null) {

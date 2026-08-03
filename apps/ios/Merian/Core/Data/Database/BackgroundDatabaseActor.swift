@@ -1552,6 +1552,17 @@ actor BackgroundDatabaseActor {
                 wasCleaned: false
             )
         }
+        if let metadata = parsedWrapper.entitlement {
+            await MainActor.run {
+                _ = EntitlementManager.shared.apply(metadata)
+                if let responseScanId = parsedWrapper.data.scan_id {
+                    UsageManager.shared.reconcileServerPlanUsed(
+                        metadata.planUsed,
+                        scanId: responseScanId
+                    )
+                }
+            }
+        }
 
         // --- Step 2: Map Data and Resolve Identifiers ---
         

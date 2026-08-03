@@ -24,6 +24,7 @@ import Observation
     private let defaults = UserDefaults.standard
     private var lastScanDateKey: String { "Merian_LastScanDate_\(DeviceIdentityManager.shared.deviceId)" }
     private var scansUsedKey: String { "Merian_ScansUsedToday_\(DeviceIdentityManager.shared.deviceId)" }
+    private var meteredScanDatesKey: String { "Merian_MeteredScanDates_\(DeviceIdentityManager.shared.deviceId)" }
     private var hasLoggedFreeScanLimitOverride = false
 
 #if DEBUG
@@ -85,6 +86,7 @@ import Observation
             // New day — reset the scan count.
             defaults.set(Date(), forKey: lastScanDateKey)
             defaults.set(0, forKey: scansUsedKey)
+            defaults.set([String: Double](), forKey: meteredScanDatesKey)
             freeScansRemaining = maxFreeScansPerDay
         } else {
             let used = defaults.integer(forKey: scansUsedKey)
@@ -108,31 +110,57 @@ import Observation
     }
 
     /// Records a scan in the advisory local meter.
-    func consumeScan() {
+    func consumeScan(scanId: String? = nil) {
         if isFreeScanLimitOverrideEnabled {
             logFreeScanLimitOverrideIfNeeded()
             return
         }
 
+        let normalizedScanId = scanId?.lowercased()
+        var meteredDates = defaults.dictionary(forKey: meteredScanDatesKey) as? [String: Double] ?? [:]
+        if let normalizedScanId, meteredDates[normalizedScanId] != nil { return }
+
         let used = defaults.integer(forKey: scansUsedKey) + 1
         defaults.set(used, forKey: scansUsedKey)
         defaults.set(Date(), forKey: lastScanDateKey)
-        freeScansRemaining -= 1
+        if let normalizedScanId {
+            meteredDates[normalizedScanId] = Date().timeIntervalSince1970
+            defaults.set(meteredDates, forKey: meteredScanDatesKey)
+        }
+        freeScansRemaining = max(0, freeScansRemaining - 1)
     }
 
     /// Refunds the advisory local meter after a pre-provider failure.
     ///
     /// Server quota refunds are handled independently by the Edge Function.
-    func refundScan() {
+    func refundScan(scanId: String? = nil) {
         if isFreeScanLimitOverrideEnabled {
             logFreeScanLimitOverrideIfNeeded()
             return
         }
 
+        var meteredDates = defaults.dictionary(forKey: meteredScanDatesKey) as? [String: Double] ?? [:]
+        if let normalizedScanId = scanId?.lowercased() {
+            guard let timestamp = meteredDates.removeValue(forKey: normalizedScanId) else { return }
+            defaults.set(meteredDates, forKey: meteredScanDatesKey)
+            guard Calendar.current.isDateInToday(Date(timeIntervalSince1970: timestamp)) else { return }
+        }
+
         let currentUsed = defaults.integer(forKey: scansUsedKey)
         if currentUsed > 0 {
             defaults.set(currentUsed - 1, forKey: scansUsedKey)
-            freeScansRemaining += 1
+            freeScansRemaining = min(maxFreeScansPerDay, freeScansRemaining + 1)
+        }
+    }
+
+    /// Reconciles optimistic local UX with the server's final funding plan.
+    /// Complimentary/Paid results refund a meter reserved while unverified;
+    /// Flash fallback consumes it if the client optimistically skipped it.
+    func reconcileServerPlanUsed(_ planUsed: String, scanId: String) {
+        if planUsed == "free" {
+            consumeScan(scanId: scanId)
+        } else {
+            refundScan(scanId: scanId)
         }
     }
 }

@@ -244,7 +244,8 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/PhotoLibraryManagerTests \
   -only-testing:merianTests/InsightMediaExportManagerTests test
 
-deno test --allow-read \
+deno test --config services/supabase/functions/deno.json --frozen \
+  --allow-read=. \
   services/supabase/scripts/documentation_contract_test.ts
 ```
 

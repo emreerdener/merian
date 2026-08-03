@@ -255,7 +255,7 @@ uses 1024 px to preserve the fine morphological detail (feather barbs, gill
 spacing, lichen areolae) that subspecies and cultivar discrimination requires.
 Both payloads are well below the 5 MB guard (~100–250 KB base64 for 768 px;
 ~200–500 KB for 1024 px). `MerianConfig.inferenceImageMaxSize(isProActive:)` is
-the single source of truth — `diContainer.revenueCatManager.isProActive` is
+the single source of truth—`diContainer.revenueCatManager.canStartProScan` is
 evaluated at the capture boundary before encoding in both the camera shutter
 path (`Capture.swift`) and the gallery picker path
 (`CaptureWorkspaceViewModel.swift`).

@@ -60,17 +60,16 @@ The workflow performs the following steps:
 1. Writes the workflow context summary and exercises its large-change regression
    test.
 2. Uses every third-party action by an immutable reviewed 40-character commit
-   SHA, under explicit workflow-level `contents: read` permission.
-   Checkout retains the full history required by cumulative deployment planning
-   but sets `persist-credentials: false`, leaving Git credential-free; the
-   later GitHub API lookup receives its read token only through that step's
-   explicit `GH_TOKEN`.
-   `_tests/workflowSecurity.test.ts` enforces those pins and permissions across
-   every checked-in workflow, rejects job-scoped secret references, and limits
-   `contents: write` to the taxonomy checklist's isolated follow-up job. The
-   import job itself remains `contents: read` and passes only a one-day artifact
-   to its writer. iOS distribution runs through Xcode Organizer and requests no
-   repository write access.
+   SHA, under explicit workflow-level `contents: read` permission. Checkout
+   retains the full history required by cumulative deployment planning but sets
+   `persist-credentials: false`, leaving Git credential-free; the later GitHub
+   API lookup receives its read token only through that step's explicit
+   `GH_TOKEN`. `_tests/workflowSecurity.test.ts` enforces those pins and
+   permissions across every checked-in workflow, rejects job-scoped secret
+   references, and limits `contents: write` to the taxonomy checklist's isolated
+   follow-up job. The import job itself remains `contents: read` and passes only
+   a one-day artifact to its writer. iOS distribution runs through Xcode
+   Organizer and requests no repository write access.
 3. Installs the exact reviewed Deno `2.9.4` runtime and Supabase CLI `2.109.1`,
    then executes the repository pin guard before any config parse or mutation.
 4. Fails fast if required deployment, RevenueCat, DwC-A pseudonym, or dedicated
@@ -119,11 +118,11 @@ The workflow performs the following steps:
    lint warnings fail the job, advisor warnings remain visible as reviewed
    historical debt, and advisor errors fail the job. Warning-level advisor
    blocking requires an explicit baseline so existing debt cannot strand a
-   deployment. The workflow-security contract
-   reads the exact Deno task definition, rejects a filtered or non-recursive
-   complete task, and requires disposable database startup, all discovered
-   catalogs, the complete Edge suite, lint, and both advisors to finish before
-   deployment planning, migration push, or Function deployment.
+   deployment. The workflow-security contract reads the exact Deno task
+   definition, rejects a filtered or non-recursive complete task, and requires
+   disposable database startup, all discovered catalogs, the complete Edge
+   suite, lint, and both advisors to finish before deployment planning,
+   migration push, or Function deployment.
 9. Builds an affected-function deployment plan across the cumulative Git range
    from the most recent successful production workflow SHA through the current
    exact SHA—not merely the triggering commit. The baseline must be a
@@ -133,9 +132,9 @@ The workflow performs the following steps:
    `contents: read`, which is sufficient to list the repository's prior workflow
    runs without granting write access. The lookup has explicit connect,
    whole-request, response-size, retry-count, and retry-delay bounds; any
-   unavailable, oversized, malformed, non-ancestor, or missing result falls
-   back to a full-fleet plan. Therefore a fixture-only follow-up after one or
-   more failed runs still deploys every pending runtime change.
+   unavailable, oversized, malformed, non-ancestor, or missing result falls back
+   to a full-fleet plan. Therefore a fixture-only follow-up after one or more
+   failed runs still deploys every pending runtime change.
 10. Prepares a Postgres connection string for database migrations without
     calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
     can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
@@ -147,8 +146,8 @@ The workflow performs the following steps:
     unsafe or unavailable baseline enable both predeploy fences. Before either
     fence can mutate production, the exact workflow SHA must pass the fresh
     disposable database replay, every catalog test, the complete Edge suite
-    (including the two-session Ghost merge schedules), strict database lint,
-    and both advisors in the same job. No hosted staging project or manual SHA
+    (including the two-session Ghost merge schedules), strict database lint, and
+    both advisors in the same job. No hosted staging project or manual SHA
     attestation is required.
 11. Runs a read-only production `pg_proc.proacl`, `has_function_privilege()`,
     search-path, owner, allowlist, and default-privilege report before any
@@ -623,17 +622,16 @@ pre-safety user-prerequisite dead letter and prove it remains blocked. Reserved
 attempts, a dead letter older than the latest charged authority, invalid
 terminal timestamps, unsnapshotted or post-cutoff unstructured evidence,
 incomplete structured safety evidence, and capture rows marked
-`moderation_rejected` or
-`moderation_pipeline_error` must keep recovery deferred. The same terminal
-reason without the composite proof must remain deferred. The fixture must also
-prove the hourly quota prune retains all exact failed/committed normal and
-replay authority for this unresolved terminal job while deleting unrelated old
-and exact refunded reservations. After recovery or explicit terminal-reason
-resolution, ordinary 30-day pruning must resume. Never direct-write `complete`,
-which must remain protected by the completion fence. No-ledger, active,
-unknown-terminal, unproven-abandonment, and different-generation evidence must
-remain nonrecoverable. Do not insert a scan directly or relax the production
-recovery predicate to repair the fixture.
+`moderation_rejected` or `moderation_pipeline_error` must keep recovery
+deferred. The same terminal reason without the composite proof must remain
+deferred. The fixture must also prove the hourly quota prune retains all exact
+failed/committed normal and replay authority for this unresolved terminal job
+while deleting unrelated old and exact refunded reservations. After recovery or
+explicit terminal-reason resolution, ordinary 30-day pruning must resume. Never
+direct-write `complete`, which must remain protected by the completion fence.
+No-ledger, active, unknown-terminal, unproven-abandonment, and
+different-generation evidence must remain nonrecoverable. Do not insert a scan
+directly or relax the production recovery predicate to repair the fixture.
 
 Never embed a mutating routine call in an `AND` or `OR` assertion that also
 reads the state it changes. PostgreSQL does not define subexpression evaluation
@@ -839,7 +837,7 @@ API responses for:
 
 Do not recover availability by granting the RPCs to `authenticated`, lowering
 caller checks, restoring a process-local cache, or treating database failure as
-trial Pro. If a partial function deployment leaves an older unguarded provider
+functional Pro. If a partial function deployment leaves an older unguarded provider
 route live, stop the release and fail provider access closed (including
 temporarily removing the provider secret if necessary) until every affected
 route is on the guarded bundle. Fix forward; keep the quota schema and durable
@@ -1147,10 +1145,9 @@ Migrations `20260725030308_durable_account_deletion.sql`,
 `20260726041109_fence_storage_erasure_claims.sql`,
 `20260727001630_monitor_account_deletion_health.sql`, and
 `20260731154139_retain_scientific_coordinates_after_account_deletion.sql`, plus
-the shared server-key
-transport migration `20260727013416_future_proof_server_key_boundaries.sql` and
-user-FK index migration
-`20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
+the shared server-key transport migration
+`20260727013416_future_proof_server_key_boundaries.sql` and user-FK index
+migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
 `safe-delete`, `reconcile-account-deletions`, `generate-upload-urls`, and
 `replay-scan-ingestion`, form one release unit. No new secret is required: the
 reaper uses the existing Supabase service-role and R2 values, and the
@@ -1478,12 +1475,12 @@ WHERE deletion.status IN ('pending', 'processing')
 Expected: at least one validated restrictive profile/Auth foreign key, a
 nullable scan owner plus validated ownerless check, zero invalid ownerless
 scans, zero legacy sentinel scans/profiles, zero synthetic all-zero Auth users,
-all five scientific-retention booleans true, all five claim-fence booleans
-true, an active cron, and
-`reaper_cron_active = true` plus `reaper_credentials_configured = true` in the
-health row. The other health fields reflect the current aggregate queue and must
-not contain identifiers. The credential boolean checks nonblank effective values
-only; it does not validate the URL or key.
+all five scientific-retention booleans true, all five claim-fence booleans true,
+an active cron, and `reaper_cron_active = true` plus
+`reaper_credentials_configured = true` in the health row. The other health
+fields reflect the current aggregate queue and must not contain identifiers. The
+credential boolean checks nonblank effective values only; it does not validate
+the URL or key.
 
 Manually dispatch `Account Deletion Health Monitor` once after the migration.
 The run must complete successfully under the Production environment and retain
@@ -2976,7 +2973,9 @@ before `20260708042713_field_trips_v3_community.sql` before
 `20260722064704_harden_atomic_field_trip_progress.sql` before
 `20260722195453_exclude_ants_from_bee_wasp_goal.sql` before
 `20260722211636_tighten_field_trip_goal_matching.sql` before
-`20260730023042_gate_field_trip_progress_by_confidence.sql`, then deploy the
+`20260730023042_gate_field_trip_progress_by_confidence.sql` before
+`20260802053044_simplify_backyard_and_pollinator_levels.sql` before
+`20260803015025_auto_enroll_backyard_safari_level_one.sql`, then deploy the
 updated scan-ingestion functions, `field-trips`, and the Explore/profile
 activity bundles together. V1 creates the Field trip tables,
 progress/publication/comment storage, profile visibility helpers, and
@@ -2986,65 +2985,64 @@ RPC, Field trip in-app activity storage, and Explore activity union/read/count
 RPC updates. V4 adds curated seasonal challenge storage, explicit joins,
 challenge-specific item completions, completion badges, challenge entry
 snapshots, challenge entry comments/likes, and scan-scoped hashtag suggestion
-helpers. The contextual-guide migration
-supplies the structured Tips content used by focused target navigation. The
-capture-context migration adds the private service-role RPC and its active-field
-trip/challenge lookup indexes consumed by the Scan indicator. The preservation
-migration keeps the shared standard field trip eligible after a Seasonal
-Challenge join while leaving challenge-specific progress out of the capture
-payload. The Forest retirement migration deactivates the placeholder while
-retaining existing progress and evidence. The completion-evidence migration
-redefines the private catalog/detail projections to expose the exact completing
-scan ID without a media URL and restricts both RPCs to `service_role`. The
-publication- status migration keeps template detail private and adds only the
-owner's active, non-deleted publication ID/timestamp for the Private/Published
-badge. The credited-progress migrations replace the standard/challenge progress
-RPC bodies without changing their signatures or permissions and adds optional
-credited level/count fields for scan-completion feedback. Those values preserve
-the just-completed level when the existing current-level fields have already
-advanced to the next level and stay scoped to checklist items matched by the
-current attempt when an older scan is re-identified. The first-achievement
-migration adds the server-authoritative earliest completion, and the lifecycle
-migration adds private active periods plus Stop/Reset. The persistent-
-contribution migration enforces one credit per scan per outing/Event, adds the
-private selected-goal preference, supports correction removal/move for
-unfinished experiences, and creates the service-role-only scan contribution read
-model used by Insight. It transactionally aborts if completed trips,
-publications, completed/badged Event participations, Event badges, or Event
-entries already exist. Confirm the expected empty-artifact assumption before
-deployment; an abort is a data/product review blocker and must not be bypassed.
-The atomic-hardening migration adds the private scan-revision receipt and
-ingestion/correction triggers, combines standard outing progress, joined Event
-progress, selected-goal persistence, and first-outing achievement evaluation in
-one transaction, repairs completed-outing publication materialization, and
-replaces the profile-pin RPC's temporary table with a lintable ordered-array
-mutation. It revokes every Field trip/Event `SECURITY DEFINER` routine from
-direct client roles. Only `service_role` retains execute. The ant-exclusion
-migration introduces the excluded-family matcher and repairs ant-backed Bee or
-wasp credit. The goal-hardening migration then makes the final active catalog
-authoritative: compound goals require both their taxonomy and their
-ecology/habitat/semantic signal; Spider requires `Araneae`; Backyard Butterfly
-requires the butterfly category; Bee or wasp requires Hymenoptera plus
-`bee|wasp`; unverifiable “near flowers” prompt text is removed; and Pollinator
-habitat becomes Meadow plant. It removes newly invalid standard/Event
-completions, reopens affected progress, clears stale preferences/receipts and
-badges, and withdraws invalid completion publications/entries. A function-only
-deploy cannot serve `capture_context` or V4 actions until all migrations are
-applied; a database-only deploy leaves the app without the Field trips action
-router. Do not release the indicator-enabled iOS client until both the
-capture-context migration and updated function are live. Do not release the
-completed-goal thumbnail route until the completion-evidence migration is live;
-its optional decode keeps older database responses compatible during a staged
-rollout. Release the status badge only after the publication-status migration;
-its optional fields render Private against the older payload. Deploy both
-credited-progress migrations, in order, before the progress-toast iOS client.
-The client can decode the legacy shape and fall back to current counts during a
-staged rollout. All Field Trip migrations through
-`20260730023042_gate_field_trip_progress_by_confidence.sql`, updated ingestion
-functions, and updated `field-trips` must precede the Insight-card iOS client.
-The confidence migration applies the tier-specific Possible-match boundary
-(`Flash >= 0.75`, `Pro >= 0.65`), repairs prior weak unreviewed credit, and
-preserves selected-goal hints pending explicit confirmation or correction.
+helpers. The contextual-guide migration supplies the structured Tips content
+used by focused target navigation. The capture-context migration adds the
+private service-role RPC and its active-field trip/challenge lookup indexes
+consumed by the Scan indicator. The preservation migration keeps the shared
+standard field trip eligible after a Seasonal Challenge join while leaving
+challenge-specific progress out of the capture payload. The Forest retirement
+migration deactivates the placeholder while retaining existing progress and
+evidence. The completion-evidence migration redefines the private catalog/detail
+projections to expose the exact completing scan ID without a media URL and
+restricts both RPCs to `service_role`. The publication- status migration keeps
+template detail private and adds only the owner's active, non-deleted
+publication ID/timestamp for the Private/Published badge. The credited-progress
+migrations replace the standard/challenge progress RPC bodies without changing
+their signatures or permissions and adds optional credited level/count fields
+for scan-completion feedback. Those values preserve the just-completed level
+when the existing current-level fields have already advanced to the next level
+and stay scoped to checklist items matched by the current attempt when an older
+scan is re-identified. The first-achievement migration adds the
+server-authoritative earliest completion, and the lifecycle migration adds
+private active periods plus Stop/Reset. The persistent- contribution migration
+enforces one credit per scan per outing/Event, adds the private selected-goal
+preference, supports correction removal/move for unfinished experiences, and
+creates the service-role-only scan contribution read model used by Insight. It
+transactionally aborts if completed trips, publications, completed/badged Event
+participations, Event badges, or Event entries already exist. Confirm the
+expected empty-artifact assumption before deployment; an abort is a data/product
+review blocker and must not be bypassed. The atomic-hardening migration adds the
+private scan-revision receipt and ingestion/correction triggers, combines
+standard outing progress, joined Event progress, selected-goal persistence, and
+first-outing achievement evaluation in one transaction, repairs completed-outing
+publication materialization, and replaces the profile-pin RPC's temporary table
+with a lintable ordered-array mutation. It revokes every Field trip/Event
+`SECURITY DEFINER` routine from direct client roles. Only `service_role` retains
+execute. The ant-exclusion migration introduces the excluded-family matcher and
+repairs ant-backed Bee or wasp credit. The goal-hardening migration then makes
+the final active catalog authoritative: compound goals require both their
+taxonomy and their ecology/habitat/semantic signal; Spider requires `Araneae`;
+Backyard Butterfly requires the butterfly category; Bee or wasp requires
+Hymenoptera plus `bee|wasp`; unverifiable “near flowers” prompt text is removed;
+and Pollinator habitat becomes Meadow plant. It removes newly invalid
+standard/Event completions, reopens affected progress, clears stale
+preferences/receipts and badges, and withdraws invalid completion
+publications/entries. A function-only deploy cannot serve `capture_context` or
+V4 actions until all migrations are applied; a database-only deploy leaves the
+app without the Field trips action router. Do not release the indicator-enabled
+iOS client until both the capture-context migration and updated function are
+live. Do not release the completed-goal thumbnail route until the
+completion-evidence migration is live; its optional decode keeps older database
+responses compatible during a staged rollout. Release the status badge only
+after the publication-status migration; its optional fields render Private
+against the older payload. Deploy both credited-progress migrations, in order,
+before the progress-toast iOS client. The client can decode the legacy shape and
+fall back to current counts during a staged rollout. All Field Trip migrations
+through `20260803015025_auto_enroll_backyard_safari_level_one.sql`, updated
+ingestion functions, and updated `field-trips` must precede the Insight-card iOS
+client. The confidence migration applies the tier-specific Possible-match
+boundary (`Flash >= 0.75`, `Pro >= 0.65`), repairs prior weak unreviewed credit,
+and preserves selected-goal hints pending explicit confirmation or correction.
 Confidence, inference tier, confirmation, and the pending hint participate in
 the durable receipt revision. Future evidence downgrades run the same
 reconciliation even after completion: they remove standard/Event credit, reopen
@@ -3053,13 +3051,108 @@ invalid completion publications or entries without producing a new completion
 toast. Older clients omit the hint and continue to receive deterministic
 fallback behavior.
 
+The starter-level migration preserves checklist identities while moving Backyard
+Safari and Park Pollinators into 2/4/4 progressions. The following
+auto-enrollment migration inserts Backyard Safari Level 1 plus a private
+activity window for existing accounts without prior state and installs a
+deny-by-default `public.users` trigger for future signed-in and ghost accounts.
+Its conflict path must remain `DO NOTHING`: never resume completed, stopped, or
+reset state during enrollment. The activity window begins at enrollment, so
+older scans are not eligible for retroactive credit.
+
+Before applying the auto-enrollment migration, record the complete
+`user_field_trips` row and activity-period counts for one stopped, one reset,
+and one completed Backyard Safari cohort member. Those row fields and period
+sets must be unchanged afterward. After deployment, the completeness query must
+return zero:
+
+```sql
+WITH backyard_template AS (
+  SELECT id
+  FROM public.field_trip_templates
+  WHERE slug = 'backyard_safari'
+)
+SELECT COUNT(*) AS accounts_missing_backyard_safari
+FROM public.users AS account
+CROSS JOIN backyard_template
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.user_field_trips AS trip
+  WHERE trip.user_id = account.id
+    AND trip.template_id = backyard_template.id
+);
+```
+
+The trigger must exist and every API-facing role must remain unable to invoke
+its privileged function directly. Every returned column must be `TRUE`:
+
+```sql
+SELECT
+  EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_trigger AS database_trigger
+    WHERE database_trigger.tgrelid = 'public.users'::REGCLASS
+      AND database_trigger.tgname =
+        'auto_enroll_backyard_safari_level_one_on_user_insert'
+      AND NOT database_trigger.tgisinternal
+  ) AS trigger_installed,
+  NOT pg_catalog.has_function_privilege(
+    'anon',
+    'internal.auto_enroll_backyard_safari_level_one()',
+    'EXECUTE'
+  ) AS anon_denied,
+  NOT pg_catalog.has_function_privilege(
+    'authenticated',
+    'internal.auto_enroll_backyard_safari_level_one()',
+    'EXECUTE'
+  ) AS authenticated_denied,
+  NOT pg_catalog.has_function_privilege(
+    'service_role',
+    'internal.auto_enroll_backyard_safari_level_one()',
+    'EXECUTE'
+  ) AS service_role_denied;
+```
+
+The active-state query must also return zero. Stopped, reset, and completed rows
+are intentionally outside this invariant:
+
+```sql
+SELECT COUNT(*) AS active_backyard_rows_without_one_open_period
+FROM public.user_field_trips AS trip
+JOIN public.field_trip_templates AS template ON template.id = trip.template_id
+WHERE template.slug = 'backyard_safari'
+  AND trip.hidden_at IS NULL
+  AND trip.completed_at IS NULL
+  AND (
+    SELECT COUNT(*)
+    FROM public.user_field_trip_active_periods AS period
+    WHERE period.user_field_trip_id = trip.id
+      AND period.stopped_at IS NULL
+  ) <> 1;
+```
+
+Finally, create one new signed-in profile and one new ghost profile through the
+normal account flows. Each must receive exactly one Level 1 trip and one open
+period, and `capture_context` must return the two unfinished starter goals.
+Confirm an older scan from the existing-account cohort remains uncredited.
+
+Disabling enrollment is a forward-fix operation. Generate and deploy a new
+migration containing the following object removal, while preserving every
+previously created trip, period, and completion row:
+
+```sql
+DROP TRIGGER IF EXISTS auto_enroll_backyard_safari_level_one_on_user_insert
+  ON public.users;
+DROP FUNCTION IF EXISTS internal.auto_enroll_backyard_safari_level_one();
+```
+
 The confidence migration performs a forward-only data repair. Retain a
 production backup and record the expected repair scope before applying it. This
 repair uses a ten-second lock timeout and a five-minute statement timeout. A
 timeout is a failed deployment, not permission to bypass the gate: inspect live
 Field Trip/scan activity, let the blocking transaction finish, and rerun the
-unchanged migration. The pre-migration query uses the policy expression
-directly because the helper does not exist yet:
+unchanged migration. The pre-migration query uses the policy expression directly
+because the helper does not exist yet:
 
 ```sql
 WITH invalid_standard AS (
@@ -3157,8 +3250,8 @@ SELECT
 Do not reverse this migration by recreating deleted weak completion rows,
 badges, publications, or entries. During an incident, roll back the client or
 Edge surface, or deploy a forward database fix, while leaving the gate and
-repaired data in place. Keep the internal eligibility and reconciliation
-helpers denied to `PUBLIC`, `anon`, `authenticated`, and `service_role`.
+repaired data in place. Keep the internal eligibility and reconciliation helpers
+denied to `PUBLIC`, `anon`, `authenticated`, and `service_role`.
 
 Current client rollout (2026-07-22): standard Field trips/Outings are public,
 while Seasonal Challenge Events remain staged through the `.fieldTripEvents`
@@ -3240,22 +3333,22 @@ Do not run the production commands in this section until all four requirements
 below have implementation and test evidence in the same exact SHA:
 
 - [ ] Merge completion creates or refreshes an immediately due destination
-  RevenueCat reconciliation row even when no source queue row exists.
+      RevenueCat reconciliation row even when no source queue row exists.
 - [ ] `public.apply_revenuecat_reconciliation(...)` locks the user before the
-  queue row and revalidates the claim under lock, matching the merge's
-  parent-before-child order.
+      queue row and revalidates the claim under lock, matching the merge's
+      parent-before-child order.
 - [ ] The Community activity handler uses update/delete for actor collisions and
-  leaves non-colliding rows for policy reparenting; it does not insert a target
-  actor after taking actor locks.
+      leaves non-colliding rows for policy reparenting; it does not insert a
+      target actor after taking actor locks.
 - [ ] `user_species_scan_count_underflow` maps to the same HTTP 503
-  `merge_temporarily_unavailable` guest-data-unchanged response as
-  `ghost_merge_species_ledger_mismatch`.
+      `merge_temporarily_unavailable` guest-data-unchanged response as
+      `ghost_merge_species_ledger_mismatch`.
 
 The 2026-08-01 implementation adds all four fixes in the forward correction and
 Edge mapper. Static migration validation and focused Edge tests pass, and the
-repository contains deterministic RevenueCat and Community two-session
-schedules in `ghostProfileMergeConcurrencyDb.test.ts`. The production workflow
-clears the hold only when its exact-CLI disposable replay, complete pgTAP/catalog
+repository contains deterministic RevenueCat and Community two-session schedules
+in `ghostProfileMergeConcurrencyDb.test.ts`. The production workflow clears the
+hold only when its exact-CLI disposable replay, complete pgTAP/catalog
 execution, live local-database concurrency tests, complete Edge suite, lint, and
 advisors all pass in the same job. Partial or connection-skipped evidence does
 not authorize production deployment.
@@ -3274,11 +3367,10 @@ After the release hold is cleared:
    rollout, `prepare` still fails safely until its RPC exists. For an existing
    installation, deploy the backwards-compatible expanded Edge error mapper
    before the pending database revisions; the secure baseline can already emit
-   the ledger-underflow diagnostic seen in this incident.
-   The production workflow detects Ghost merge migration and Function changes
-   since the last successful release and enforces this predeploy before
-   `db push`; manual dispatch or an unsafe baseline takes the same fail-closed
-   path.
+   the ledger-underflow diagnostic seen in this incident. The production
+   workflow detects Ghost merge migration and Function changes since the last
+   successful release and enforces this predeploy before `db push`; manual
+   dispatch or an unsafe baseline takes the same fail-closed path.
 4. Apply every pending merge migration immediately afterward, including the
    corrective forward migration required by the release hold. The original
    secure migration activates the RPCs, revokes the legacy helper from client
@@ -3359,13 +3451,13 @@ does not replace that full gate.
 
 ### Required disposable-CI proof matrix
 
-| Gate | Required automated proof in the production workflow |
-| --- | --- |
-| Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields. |
-| RevenueCat lock order | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` runs against the disposable Postgres instance, schedules merge while a stale apply is blocked, and requires claim loss without deadlock or state mutation. |
-| Community actor lock order | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` runs the historical group/actor cycle in two sessions and requires both sessions to finish with exact counts. |
-| Ledger error response | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged. |
-| Client proof durability | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy source contract requires retryable 503 proofs to remain queued. |
+| Gate                          | Required automated proof in the production workflow                                                                                                                                                                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields.                                                       |
+| RevenueCat lock order         | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` runs against the disposable Postgres instance, schedules merge while a stale apply is blocked, and requires claim loss without deadlock or state mutation.                                          |
+| Community actor lock order    | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` runs the historical group/actor cycle in two sessions and requires both sessions to finish with exact counts.                                                                               |
+| Ledger error response         | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged. |
+| Client proof durability       | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy source contract requires retryable 503 proofs to remain queued.                     |
 
 After reset, run the owner-only topology assertion explicitly:
 
@@ -3385,13 +3477,12 @@ The pgTAP case must prove the attacker/provider mismatch is rejected, the same
 destination replay is idempotent, every transferable source reference is
 exhausted, AI usage stays append-only and attributed, client roles lack cleanup
 grants, and a service-role cleanup claim can be finalized. It must also prove a
-live bulk
-empty-ghost cleanup reservation blocks handoff issuance, an unclassified user FK
-stops the merge without profile mutation, and duplicate/overlapping species
-produce exact source-free ledger state and the correct target distinct-species
-total. After this migration, the current audit script must see protected handoff
-sources and the current cleanup script must reserve each candidate; do not
-execute an older script against production.
+live bulk empty-ghost cleanup reservation blocks handoff issuance, an
+unclassified user FK stops the merge without profile mutation, and
+duplicate/overlapping species produce exact source-free ledger state and the
+correct target distinct-species total. After this migration, the current audit
+script must see protected handoff sources and the current cleanup script must
+reserve each candidate; do not execute an older script against production.
 
 The production workflow is the authoritative release gate. It creates a fresh
 database under pinned Supabase CLI `2.109.1`, runs the complete matrix above,
@@ -3432,16 +3523,16 @@ use controlled disposable identities and never alter real user data:
   collections, Explore/Field trip/social rows and AI attribution, and a replay
   reports `already_merged = true`.
 - When both accounts contain scans of the same species, the destination's
-  `total_species_discovered` remains the exact distinct count, its private ledger
-  contains the combined scan counts, and no source ledger row survives.
+  `total_species_discovered` remains the exact distinct count, its private
+  ledger contains the combined scan counts, and no source ledger row survives.
 - With the source RevenueCat queue deliberately absent, completion creates or
   refreshes one immediately due, unclaimed target queue row whose lookup is the
   permanent UUID. The normal reconciler can claim and finish it.
 - A Community activity group containing both actors coalesces counts/timestamps
   once; a source-only group reparents without creating a duplicate actor.
-- Controlled scan-ledger drift returns 503
-  `merge_temporarily_unavailable`, states that guest data is unchanged, leaves
-  both profiles and ownership intact, and retains the Keychain proof.
+- Controlled scan-ledger drift returns 503 `merge_temporarily_unavailable`,
+  states that guest data is unchanged, leaves both profiles and ownership
+  intact, and retains the Keychain proof.
 - A transient 503 keeps the iOS Keychain queue item. A terminal 404/410 removes
   only that item; another queued handoff survives.
 - The source public profile disappears in the merge transaction. The source Auth
@@ -3666,17 +3757,16 @@ Treat these components as one compatibility release:
 
 1. Before either media-abandonment migration can run, let the production
    workflow predeploy the exact-SHA fail-closed recovery consumers:
-   `generate-upload-urls`, `check-scan-status`, and
-   `share-scan-to-explore`. Their normal fresh-scan paths remain unchanged.
-   Only a legacy repair request consults the hardening migration's
-   service-only proof RPC; while that RPC is absent or stale in the Data API
-   schema cache, repair returns retryable `503 service_unavailable` without
-   signing, restoring, or publishing anything. Do not predeploy
-   `identify-multimodal`: its structured proof writes require the new columns.
-   Do not predeploy `request-community-identification` either. It imports the
-   Explore publication helpers and therefore belongs in the final cumulative
-   exact-SHA plan, but it does not accept `recovery_scan` or invoke owner-row
-   recovery and is not a migration-gap consumer.
+   `generate-upload-urls`, `check-scan-status`, and `share-scan-to-explore`.
+   Their normal fresh-scan paths remain unchanged. Only a legacy repair request
+   consults the hardening migration's service-only proof RPC; while that RPC is
+   absent or stale in the Data API schema cache, repair returns retryable
+   `503 service_unavailable` without signing, restoring, or publishing anything.
+   Do not predeploy `identify-multimodal`: its structured proof writes require
+   the new columns. Do not predeploy `request-community-identification` either.
+   It imports the Explore publication helpers and therefore belongs in the final
+   cumulative exact-SHA plan, but it does not accept `recovery_scan` or invoke
+   owner-row recovery and is not a migration-gap consumer.
 2. Apply the repository's current migration set. In particular, verify
    `20260727010340_fix_service_role_authorization_guard.sql` and
    `20260727013416_future_proof_server_key_boundaries.sql` before testing
@@ -3789,9 +3879,8 @@ Treat these components as one compatibility release:
    [`ApplyMigrations`](https://github.com/supabase/cli/blob/v2.109.1/apps/cli-go/pkg/migration/apply.go)
    loop and
    [`MigrationFile.ExecBatch`](https://github.com/supabase/cli/blob/v2.109.1/apps/cli-go/pkg/migration/file.go).
-   Do not pause after
-   `20260729173000_recover_media_abandoned_owned_scans.sql`, invoke recovery, or
-   begin handler smoke tests before
+   Do not pause after `20260729173000_recover_media_abandoned_owned_scans.sql`,
+   invoke recovery, or begin handler smoke tests before
    `20260729200000_harden_media_abandoned_scan_recovery_proof.sql` and the
    post-migration privileged-routine catalog enforcement have both succeeded.
 3. From one exact SHA, run the normal production backend workflow. The
@@ -3926,11 +4015,12 @@ must execute with the other 26.
 ### Workflow run 1569 formatter-failure interpretation
 
 Run 1569 at `58b5c3e2684d334be7db02812738e52d8973a4fa` stopped at the
-deployment-configured formatter gate. `deno fmt --check supabase/functions
-supabase/scripts` rejected only the paragraph wrapping in
-`functions/field-trips/README.md`; the job did not start the disposable
-database, prepare a production connection, push migrations, deploy Functions,
-or make any production mutation.
+deployment-configured formatter gate.
+`deno fmt --check supabase/functions
+supabase/scripts` rejected only the
+paragraph wrapping in `functions/field-trips/README.md`; the job did not start
+the disposable database, prepare a production connection, push migrations,
+deploy Functions, or make any production mutation.
 
 Descendant `c30ad1a46a0c286e49cc37a1faad9006c6e96344` contains the canonical
 formatter output. The current joined source passes the same check across 689
@@ -4218,9 +4308,8 @@ Close the incident only after:
 
 ## Community Identify Activity Rollout
 
-Migration
-`20260731050009_add_community_identification_activity.sql`, companion actor-FK
-index migration
+Migration `20260731050009_add_community_identification_activity.sql`, companion
+actor-FK index migration
 `20260731063804_index_community_identification_activity_actor_user_fk.sql`,
 public-username attribution migration
 `20260801145720_use_usernames_for_community_identification_activity.sql`, the
@@ -4253,8 +4342,7 @@ Deploy in this order:
 
 Database authorization checks:
 
-- RLS is enabled on
-  `internal.community_identification_activity_groups` and
+- RLS is enabled on `internal.community_identification_activity_groups` and
   `internal.community_identification_activity_actors`.
 - `PUBLIC`, `anon`, and `authenticated` have no direct privileges on either
   table.
@@ -4266,19 +4354,19 @@ Database authorization checks:
 
 Smoke matrix:
 
-| Check | Expected result |
-| --- | --- |
-| Missing/invalid user JWT calls the Edge route | `401`; no RPC data |
-| Valid user calls with `{ "limit": 10, "scope": "all", "group": "all" }` | At most 10 rows ordered by `(activity_at DESC, activity_id DESC)` |
-| `scope: "mine"` | Only requests owned by the verified caller |
-| Each organism `group` | Same request classifier as `/get-community-identification-feed` |
-| Only one Activity cursor field | `400` |
-| Two rows share one timestamp; next request uses final paired cursor | No duplicate or skipped UUID tie |
-| User key invokes the RPC directly | Permission denied |
-| Request owner or actor is blocked/shadowbanned | Request or actor contribution omitted as appropriate |
-| Suggestion burst has visible actors | `recent_actor_names` contains their public usernames, never profile/display names |
-| Post is withdrawn, unshared, moderated, tombstoned, quarantined, or has no usable media | Activity omitted |
-| Activity feed is read | Bell unread count is unchanged |
+| Check                                                                                   | Expected result                                                                   |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Missing/invalid user JWT calls the Edge route                                           | `401`; no RPC data                                                                |
+| Valid user calls with `{ "limit": 10, "scope": "all", "group": "all" }`                 | At most 10 rows ordered by `(activity_at DESC, activity_id DESC)`                 |
+| `scope: "mine"`                                                                         | Only requests owned by the verified caller                                        |
+| Each organism `group`                                                                   | Same request classifier as `/get-community-identification-feed`                   |
+| Only one Activity cursor field                                                          | `400`                                                                             |
+| Two rows share one timestamp; next request uses final paired cursor                     | No duplicate or skipped UUID tie                                                  |
+| User key invokes the RPC directly                                                       | Permission denied                                                                 |
+| Request owner or actor is blocked/shadowbanned                                          | Request or actor contribution omitted as appropriate                              |
+| Suggestion burst has visible actors                                                     | `recent_actor_names` contains their public usernames, never profile/display names |
+| Post is withdrawn, unshared, moderated, tombstoned, quarantined, or has no usable media | Activity omitted                                                                  |
+| Activity feed is read                                                                   | Bell unread count is unchanged                                                    |
 
 After the iOS rollout, verify:
 
@@ -4291,8 +4379,7 @@ After the iOS rollout, verify:
   first and last name;
 - **See all requests** and **See all activity** inherit the filter and open
   stack pages titled **Identify requests** and **Identify activity**;
-- Back returns to the dashboard without exposing root chrome on the pushed
-  page;
+- Back returns to the dashboard without exposing root chrome on the pushed page;
 - species links select Identify/Index and request links select
   Identify/Requests; and
 - no Tree/galaxy entry point is present.
@@ -4532,6 +4619,63 @@ failure therefore must not increase `challenge_ip_10m` or `challenge_ip_day`.
 Expired-counter maintenance is capped at 500 rows per call and uses
 `FOR UPDATE SKIP LOCKED`; lock-timeout alerts should be investigated rather than
 worked around by raising the public request limits.
+
+## Complimentary Pro Scan Entitlement Rollout
+
+Treat the complimentary-entitlement schema, protocol-2 backend, protocol-2 iOS
+build, and atomic cutover as one ordered release. Do not enable protocol 2 when
+the migration is applied.
+
+The normative product, ledger, balance, settlement, security, merge, and client
+contract is
+[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md). This section
+is the operator sequence; neither document independently authorizes deployment.
+
+1. Use the repository-pinned Supabase CLI `2.109.1`. Run
+   `make validate-supabase-migrations`,
+   `make test-supabase-privileged-routines`, `make test-supabase-tooling`, the
+   database advisors, the complete Edge suite, DTO validation, and the full iOS
+   simulator/archive gates against a disposable catalog.
+2. Apply `20260802235833_three_complimentary_pro_scans.sql`, deploy the
+   dual-mode Edge functions, and deploy the admin aggregate/UI while
+   `internal.entitlement_rollout_config` remains `legacy_trial` with
+   `required_client_protocol = 0`. Verify current clients retain legacy
+   behavior, protocol-2 clients accept entitlement metadata, historical success
+   envelopes without metadata still decode, and the private ledger/config have
+   no direct API-role ACLs.
+3. Distribute a TestFlight build that sends `X-Merian-Entitlement-Protocol: 2`
+   on `identify`, `identify-describe`, `identify-multimodal`, and `audio-spec`.
+   Verify all four routes, internal replay, online/offline entitlement behavior,
+   cold-launch buffering of replayed historical metadata, stale-response
+   rejection, the third-result persistence path, Flash fallback, and paid-only
+   badges.
+4. In one owner-authorized transaction, run
+   `services/supabase/scripts/cutover_complimentary_entitlements.sql`. Confirm
+   the singleton row is now `complimentary` with `required_client_protocol = 2`,
+   its `mode_version` advanced, no current resolver emits `pro_trial`, and an
+   obsolete public client receives `426 client_update_required` before provider
+   dispatch. Authenticated internal replay must continue to bypass only the
+   public protocol fence while retaining its original analysis linkage.
+5. Expire older TestFlight builds only after the protocol-2 build is verified.
+   This is distribution cleanup, not the compatibility boundary: Apple's
+   [TestFlight guidance](https://developer.apple.com/help/app-store-connect/test-a-beta-version/stop-testing-a-build)
+   describes expiration as preventing further installs, while server-side
+   protocol enforcement remains authoritative.
+
+After cutover, monitor held-credit age, settlement failures and reasons, Flash
+fallback classifications, `426` rates by client protocol, provider quota/cost
+counters, exhausted-credit paywalls, purchases, and exhaustion-to-paid
+conversion. Alert on a growing stale-hold tail, completion-orchestrator errors,
+or provider calls without preserved quota accounting. Keep consumed ledger rows
+until account deletion and do not manually increment balances: the fixed grant
+is always derived from ledger state. A failed or ambiguous provider attempt must
+remain held until recovery proves success or terminal failure; only proven
+terminal failure releases the complimentary hold.
+
+Do not roll back the migration or edit ledger rows to recover availability.
+After cutover, switching the singleton back would intentionally restore legacy
+calendar-trial and obsolete-client behavior; that product/security reversal
+requires explicit incident authority and one reviewed owner transaction.
 
 ## Required and Optional GitHub Secrets
 
@@ -5269,8 +5413,8 @@ After deployment:
   `iOS Build and Test / Production readiness` result, including the full
   unit-test target, exact queued-scan completion UI smoke, and independent
   unsigned Release archive, plus the frozen public-web
-  install/audit/test/type-check/build gate for the same release SHA.
-  Do not require active-export maximum-shape/provider proof for this default-off
+  install/audit/test/type-check/build gate for the same release SHA. Do not
+  require active-export maximum-shape/provider proof for this default-off
   launch; require it before the later DwC-A feature enable.
 - For an Explore media-health release, complete the structural checks and
   staging smoke matrix in **Explore media-health and reversible-quarantine
@@ -5348,17 +5492,24 @@ After deployment:
   plus the standard-preservation, Forest-retirement, completion-evidence,
   publication-status, credited-progress, first-achievement, lifecycle,
   persistent-contribution, atomic-hardening, ant-exclusion, goal-hardening, and
-  confidence-gate follow-ups. Verify
-  `capture_context` returns only accessible incomplete standard field trips and
-  current-level unfinished targets, orders field trips by recent engagement,
-  ignores Seasonal Challenge-specific completions without hiding the shared
-  standard field trip, and returns no scan IDs, media, locations, field notes,
-  species completion data, or other evidence. Confirm `PUBLIC`, `anon`, and
-  `authenticated` cannot execute `public.get_field_trip_capture_context(uuid)`
-  while `service_role` can. Verify catalog and template detail return each
-  completed item's exact `user_field_trip_item_completions.scan_id`, return no
-  media URL, and keep incomplete items evidence-free. Confirm `PUBLIC`, `anon`,
-  and `authenticated` cannot execute `public.get_field_trip_catalog(...)` or
+  confidence-gate, starter-level, and Backyard-auto-enrollment follow-ups.
+  Verify a new signed-in account and ghost account each receive exactly one
+  active Backyard Safari Level 1 row and one open activity period, while an
+  existing stopped/reset/completed row is unchanged. At `0/2`, verify
+  `profile_summaries` returns the starter's status-only row and the known
+  account satisfies author-profile visibility without returning scan IDs, media,
+  notes, coordinates, or location labels. Stop or reset the unfinished starter
+  and verify that active profile surface disappears. Verify `capture_context`
+  returns only accessible incomplete standard field trips and current-level
+  unfinished targets, orders field trips by recent engagement, ignores Seasonal
+  Challenge-specific completions without hiding the shared standard field trip,
+  and returns no scan IDs, media, locations, field notes, species completion
+  data, or other evidence. Confirm `PUBLIC`, `anon`, and `authenticated` cannot
+  execute `public.get_field_trip_capture_context(uuid)` while `service_role`
+  can. Verify catalog and template detail return each completed item's exact
+  `user_field_trip_item_completions.scan_id`, return no media URL, and keep
+  incomplete items evidence-free. Confirm `PUBLIC`, `anon`, and `authenticated`
+  cannot execute `public.get_field_trip_catalog(...)` or
   `public.get_field_trip_template_detail(...)`, while `service_role` can.
   Confirm `completed_scan_id` is absent from capture context, public profile
   summaries, publication/challenge snapshots, Explore feed, and map payloads.
@@ -5368,7 +5519,7 @@ After deployment:
   to execute template detail. Start two standard outings and join one live
   Event, then submit one matching scan and confirm at most one credit in each
   experience. Verify a valid visible `preferred_goal` wins inside its standard
-  outing, while missing/stale/foreign/ nonmatching hints fall back
+  outing, while missing, stale, foreign, or nonmatching hints fall back
   deterministically. Confirm a delayed upload uses the scan timestamp even after
   the activity period or Event ends. Verify Flash `0.749` is blocked and `0.75`
   is credited, while Pro `0.649` is blocked and `0.65` is credited. Submit a
@@ -5379,9 +5530,9 @@ After deployment:
   removed even from completed experiences, the earliest incomplete level
   reopens, derived Event badges disappear, completion publications/entries are
   hidden, the pending hint remains, and no new progress toast is announced.
-  Separately correct an identification without weakening its evidence and
-  verify unfinished credit moves or disappears while a completed experience
-  remains frozen. Reapply the same scan concurrently and confirm the scan-first
+  Separately correct an identification without weakening its evidence and verify
+  unfinished credit moves or disappears while a completed experience remains
+  frozen. Reapply the same scan concurrently and confirm the scan-first
   uniqueness constraints remain idempotent. `scan_contributions` must return
   every owned standard/Event credit with typed routing and credited-level
   counts, but no media, storage URL, coordinates, place labels, or notes.
@@ -5392,15 +5543,15 @@ After deployment:
   execute `field_trip_scan_identification_is_eligible(...)`,
   `remove_ineligible_field_trip_scan_progress(...)`, or
   `remove_ineligible_field_trip_challenge_scan_progress(...)`; only the
-  database-owned progress wrappers may call those helpers.
-  Enumerate every public-schema `SECURITY DEFINER` function whose name contains
-  `field_trip` or `challenge`: `PUBLIC`, `anon`, and `authenticated` must have
-  no execute privilege, while effective `service_role` execution must match the
-  central allowlist exactly. Trigger-only/internal helpers remain denied. Insert
-  a scan through the ingestion-intent path and confirm standard/Event updates
-  plus preference, first-achievement state, and receipt commit together. Inject
-  an Event RPC failure and confirm all of them roll back; retry the unchanged
-  scan and confirm the stored result is returned. Publish a completed outing and
+  database-owned progress wrappers may call those helpers. Enumerate every
+  public-schema `SECURITY DEFINER` function whose name contains `field_trip` or
+  `challenge`: `PUBLIC`, `anon`, and `authenticated` must have no execute
+  privilege, while effective `service_role` execution must match the central
+  allowlist exactly. Trigger-only/internal helpers remain denied. Insert a scan
+  through the ingestion-intent path and confirm standard/Event updates plus
+  preference, first-achievement state, and receipt commit together. Inject an
+  Event RPC failure and confirm all of them roll back; retry the unchanged scan
+  and confirm the stored result is returned. Publish a completed outing and
   verify its snapshot item rows reference the returned publication ID. While
   Events are staged, verify a physical non-allowlisted account and ghost user
   see Outings but not the Events segment, requests, badges, routes, or hashtag
@@ -5522,12 +5673,12 @@ After deployment:
   `20260729163616_reserve_field_chat_sends_atomically.sql` and
   `20260730180000_bind_field_chat_rows_to_subjects.sql` are present. In staging,
   replay one exact UUID/text pair, reject contradictory text under that UUID,
-  race different UUIDs in one conversation, cross 28/29/30 rows, and cross
-  19/20 daily sends split between Insight and Explore. Prove direct browser
-  roles cannot access feedback, cross-bound message/feedback inserts fail, and
-  the anonymous-account merge still commits with all deferred identities
-  exact. Terminate after quota commit, require in-progress before ten minutes,
-  then prove exact stale-row recovery starts one newly metered retry.
+  race different UUIDs in one conversation, cross 28/29/30 rows, and cross 19/20
+  daily sends split between Insight and Explore. Prove direct browser roles
+  cannot access feedback, cross-bound message/feedback inserts fail, and the
+  anonymous-account merge still commits with all deferred identities exact.
+  Terminate after quota commit, require in-progress before ten minutes, then
+  prove exact stale-row recovery starts one newly metered retry.
   Admission/recovery timeout must return retryable `503` without provider
   dispatch.
 - For an admin release, complete the authentication/role, security-header,

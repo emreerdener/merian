@@ -37,6 +37,26 @@ gives the pinned context task 150 ms for the live request and late-merges a
 completed context locally and through `/update-scan-context`; weather or
 geocoding can never prevent the local capture from becoming durable.
 
+## Entitlement and fallback
+
+Capture never shows the complimentary countdown. It uses
+`RevenueCatManager.canStartProScan` only to expose modes that require a new
+Pro-funded analysis. Video, multiple or mixed evidence, refinement, and other
+Pro-only entry points open the soft paywall when unavailable.
+
+An ordinary single-image, standalone-audio, or Describe submission can still
+start under the advisory daily meter. The server automatically selects paid
+Pro, then complimentary Pro, then—only after complimentary capacity is
+unavailable—the separate daily Flash policy. The client cannot ask to preserve
+a complimentary credit or claim Flash eligibility.
+
+Complimentary-only modes stay locked until online entitlement verification
+succeeds on every launch. RevenueCat paid-offline behavior remains available,
+and ordinary offline Flash work continues to queue durably. A queued retry keeps
+the same `scan_id`, so server replay and recovery reuse the original hold rather
+than spending another complimentary scan. See
+[Three Complimentary Pro Scans](../../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+
 ## Field Trip Goal Preference
 
 `CaptureGoalPreferencePolicy` may snapshot the visibly selected standard goal

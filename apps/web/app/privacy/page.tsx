@@ -19,7 +19,7 @@ export default function PrivacyPolicyPage() {
       eyebrow="Naturebook legal"
       title="Privacy Policy"
       description="This policy explains what Naturebook collects, how it is used, and the controls available to you."
-      lastUpdated="July 31, 2026"
+      lastUpdated="August 2, 2026"
     >
       <LegalSection title="Overview">
         <Text>
@@ -63,7 +63,9 @@ export default function PrivacyPolicyPage() {
             <Text>
               <strong>Explore activity:</strong>{" "}
               posts you share publicly, comments, likes, reactions, follows,
-              reports, blocks, public author name, and public avatar.
+              reports, blocks, Field trip enrollment and checklist status, Field
+              trip publications and Event activity, public author name, and
+              public avatar.
             </Text>
           </li>
           <li>
@@ -111,8 +113,8 @@ export default function PrivacyPolicyPage() {
             Provide offline upload/retry, exports, notifications, and support.
           </li>
           <li>
-            Operate Explore posts, comments, likes, follows, reports, and
-            blocks.
+            Operate Explore posts, comments, likes, follows, reports, blocks,
+            Field trip Outings, and Events.
           </li>
           <li>
             Enforce geoprivacy, moderation, anti-abuse, and account-safety
@@ -127,7 +129,7 @@ export default function PrivacyPolicyPage() {
         </LegalList>
       </LegalSection>
 
-      <LegalSection title="Public Explore Sharing">
+      <LegalSection title="Public Explore and Field Trip Status">
         <Text>
           Your personal scans are private unless you choose to share them to
           Explore. When you share a scan, Naturebook may display the public
@@ -137,6 +139,17 @@ export default function PrivacyPolicyPage() {
           not shown on public Explore pages. An open geoprivacy choice can show
           a precise or near-precise location; obscured and private choices
           reduce or suppress the public location.
+        </Text>
+        <Text>
+          Separately, Naturebook automatically enrolls every account in Backyard
+          Safari Level 1. While that outing is active, your public author
+          profile may show your author identity, outing title, current level,
+          checklist counts, and status, including before you complete a goal.
+          Enrollment does not display the underlying scan IDs, media, field
+          notes, coordinates, or location labels. Stopping or resetting an
+          unfinished outing hides its active profile status; completed status
+          and any Field trip publication follow their separate product
+          lifecycle.
         </Text>
       </LegalSection>
 
@@ -178,6 +191,11 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>Change geoprivacy settings in Naturebook.</li>
           <li>Unshare Explore posts or delete scans in the app.</li>
+          <li>
+            Stop or reset an unfinished Field trip to hide its active status
+            from your author profile. This does not delete its underlying scans
+            or retained Scientific Data.
+          </li>
           <li>
             Request a Darwin Core Archive export when that feature is available.
           </li>

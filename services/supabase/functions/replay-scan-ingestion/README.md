@@ -20,7 +20,8 @@ staged media/audio/video or text-only request, and invokes
 `X-Merian-Replay-Attempt` header carries the durable claim count; multimodal
 derives a distinct deterministic quota UUID from that count and the scan UUID.
 Each claim is therefore metered once without colliding with the original
-foreground reservation.
+foreground reservation. The replay keeps the original analysis linkage and
+reuses its complimentary hold; it never acquires another lifetime credit.
 
 Inline foreground media is never replayed by the server because raw base64 media
 bytes are intentionally redacted from `scan_ingestion_intents`.
@@ -29,7 +30,9 @@ Automatic replay is capped at 10 claims per sanitized intent. Once
 `replay_attempt_count` reaches that ceiling, the claim RPC marks the paired job
 `failed_terminal` with `stage = 'server_replay_limit_reached'` instead of
 claiming it again, and records stable
-`terminal_reason_code = 'replay_exhausted'`.
+`terminal_reason_code = 'replay_exhausted'`. The terminal transition runs
+through `fail_scan_ingestion_terminal(...)` so a linked complimentary hold is
+released under the required user-first lock order.
 
 ## Invocation
 
@@ -81,10 +84,10 @@ diagnostic text is retained.
 - A replay lease must outlive the downstream request deadline plus its
   settlement margin.
 - Over-budget intents are terminal-marked in bounded batches using the same
-  claim window as normal replay work.
+  claim window as normal replay work and the user-first terminal orchestrator.
 - A cloud scan row that already has all required media is finalized through the
-  per-scan-locked canonical-media RPC without replaying AI. The worker never
-  updates ledger completion directly.
+  user-first entitlement completion orchestrator without replaying AI. The
+  worker never updates ingestion completion or credit state directly.
 - A cloud scan row that exists but lacks required video media is left retryable
   for reconciliation/repair instead of re-running AI against an already-inserted
   scan.
@@ -100,3 +103,6 @@ deno test --config services/supabase/functions/deno.json --allow-env --allow-net
 ```
 
 Database integration requires a running local Supabase Postgres instance.
+
+The entitlement, settlement, and internal-replay contract is documented in
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).

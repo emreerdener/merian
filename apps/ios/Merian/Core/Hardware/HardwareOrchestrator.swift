@@ -49,7 +49,13 @@ extension UIDevice {
     var targetFPS: Int = 60
     var isGlassmorphismEnabled: Bool = true
     var isCriticalHeatWarningActive: Bool = false
-    var isExpeditionModeActive: Bool = false
+
+    /// Expedition mode is a persisted preference, but its Pro-only behavior is
+    /// enabled only while functional entitlement is currently proven. Paid
+    /// access may remain proven offline; complimentary access may not.
+    var isExpeditionModeActive: Bool {
+        appSettings.isExpeditionModeActive && functionalProAccessProvider()
+    }
 
     var isIdleLocked: Bool = false {
         didSet {
@@ -61,10 +67,18 @@ extension UIDevice {
 
     // MARK: - Private
     @ObservationIgnored private let appSettings: AppSettings
+    @ObservationIgnored private let functionalProAccessProvider: @MainActor () -> Bool
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
-    init(appSettings: AppSettings? = nil, observeSystemChanges: Bool = true) {
+    init(
+        appSettings: AppSettings? = nil,
+        observeSystemChanges: Bool = true,
+        functionalProAccessProvider: @escaping @MainActor () -> Bool = {
+            RevenueCatManager.shared.isProActive
+        }
+    ) {
         self.appSettings = appSettings ?? AppSettings.shared
+        self.functionalProAccessProvider = functionalProAccessProvider
         if observeSystemChanges {
             setupMonitors()
         }
@@ -89,8 +103,6 @@ extension UIDevice {
     /// Parameters accept injected values for testing; nil reads live system state.
     func evaluateConstraints(thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
-
-        isExpeditionModeActive = appSettings.isExpeditionModeActive
 
         // Do not overwrite FPS while idling at 1fps.
         guard !isIdleLocked else { return }

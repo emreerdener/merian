@@ -29,7 +29,7 @@ export default async function AIUsagePage({ searchParams }: { searchParams: Prom
   const days = Number.isFinite(raw) ? Math.max(0, Math.min(36500, Math.floor(raw))) : 30;
   const operation = params.operation?.trim().slice(0, 80) || null;
   const model = params.model?.trim().slice(0, 120) || null;
-  const plan = ["free", "pro_paid", "pro_trial", "unknown"].includes(params.plan ?? "") ? params.plan : null;
+  const plan = ["free", "pro_paid", "pro_complimentary", "pro_trial", "unknown"].includes(params.plan ?? "") ? params.plan : null;
   const modality = ["text", "image", "audio", "video", "mixed", "unknown"].includes(params.modality ?? "") ? params.modality : null;
   const scanScope = params.scan_scope === "all_scan_related" ? "all_scan_related" : "primary";
   const data = await adminRpc<Usage>("admin_ai_usage_summary", {
@@ -66,7 +66,7 @@ export default async function AIUsagePage({ searchParams }: { searchParams: Prom
           <Group align="end">
             <TextInput name="operation" label="Feature / operation" defaultValue={operation ?? ""} />
             <TextInput name="model" label="Model" defaultValue={model ?? ""} />
-            <NativeSelect name="plan" label="Plan" defaultValue={plan ?? ""} data={[{ value: "", label: "All plans" }, "free", "pro_paid", "pro_trial", "unknown"]} />
+            <NativeSelect name="plan" label="Plan" defaultValue={plan ?? ""} data={[{ value: "", label: "All plans" }, "free", "pro_paid", "pro_complimentary", "pro_trial", "unknown"]} />
             <NativeSelect name="modality" label="Modality" defaultValue={modality ?? ""} data={[{ value: "", label: "All modalities" }, "text", "image", "audio", "video", "mixed", "unknown"]} />
             <NativeSelect name="scan_scope" label="Per-scan scope" defaultValue={scanScope} data={[{ value: "primary", label: "Primary identification" }, { value: "all_scan_related", label: "All scan-related" }]} />
             <Button type="submit" variant="light">Apply</Button>

@@ -21,7 +21,7 @@ struct ViewfinderHints: View {
                     accessibilityPrefix: "Video recording time remaining"
                 )
             } else if showInitialPrompt {
-                Text(isRefining ? "Add another" : (revenueCatManager.isProActive ? "Hold to record video" : "Tap to identify"))
+                Text(isRefining ? "Add another" : (revenueCatManager.canStartProScan ? "Hold to record video" : "Tap to identify"))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)

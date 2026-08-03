@@ -189,6 +189,10 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 }
                 self.currentUser = session.user
                 self.isAuthenticated = true
+                await EntitlementManager.shared.beginSession(
+                    userID: session.user.id,
+                    client: client
+                )
                 schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
 
                 if !TestExecutionCoordinator.isRunningTests,
@@ -213,6 +217,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
             } else {
                 self.currentUser = nil
                 self.isAuthenticated = false
+                EntitlementManager.shared.handleSignOut()
                 lastLinkedUserId = nil
                 lastPublicAuthorIdentityRefreshUserId = nil
                 publicAuthorIdentityRefreshTask?.cancel()

@@ -379,7 +379,7 @@ Deno.test("media finalization is one transaction and marks the ledger complete l
   for (const alternateCompletionPath of [replayDb, reconciliationDb]) {
     assertStringIncludes(
       alternateCompletionPath,
-      '"complete_scan_ingestion_finalization"',
+      '"complete_scan_ingestion_with_entitlement"',
     );
     assertEquals(
       alternateCompletionPath.includes('status: "complete"'),

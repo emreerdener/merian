@@ -12,7 +12,24 @@ lost-response delivery replays a stored or reconstructed successful envelope as
 `200` with `X-Merian-Idempotent-Replay`; reconstruction may coexist with a
 retryable canonical ledger. Concurrent same-UUID delivery coalesces with the
 winner and never makes a second Gemini call. Successful completion persists the
-validated response through the response-aware scan finalizer.
+validated response through the user-first entitlement completion orchestrator.
+
+## Complimentary Entitlement
+
+After cutover, public requests require `X-Merian-Entitlement-Protocol: 2` or
+receive `426 client_update_required` before provider dispatch. The original
+`client_scan_id` creates or reuses at most one complimentary hold. A text-only
+request with exactly one description is Flash-fallback-compatible after credit
+exhaustion and uses the independent daily free policy; the client does not
+declare its own eligibility.
+
+Successful envelopes may include optional owner-bound, versioned entitlement
+metadata. Durable biological and valid non-biological results consume; proven
+terminal setup/provider/policy/response/service failure releases; retryable or
+ambiguous outcomes stay held. Attempted provider work keeps its separate quota
+counters. Completion and terminalization use the user-first service
+orchestrators, and settlement errors propagate. See
+[`18-complimentary-pro-scans.md`](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Response Contract
 
@@ -35,8 +52,10 @@ by `make validate-edge-dto-contract`.
 
 Before provider dispatch, `identify-describe` atomically records a
 `scan_ingestion_jobs` row plus a sanitized `scan_ingestion_intents` row through
-`_shared/scanIngestionCompatibility.ts`. Setup failure fails closed before paid
-work and refunds the unused quota reservation.
+`_shared/scanIngestionCompatibility.ts`. Setup failure fails closed before
+provider-cost work, refunds unused provider quota, and proves terminal hold
+release through the settlement orchestrator. An unproven settlement remains
+held.
 
 - Description text is stored as an `observationContexts` entry in a
   multimodal-shaped replay payload.
@@ -45,14 +64,15 @@ work and refunds the unused quota reservation.
 - `replay-scan-ingestion` can recover retryable failures by invoking
   `/identify-multimodal` with the same `client_scan_id`, subject to the shared
   10-claim server replay ceiling.
-- The service-only Auth-backed profile prerequisite runs before paid work and
-  again before insertion, closing profile drift and identity retirement races.
+- The service-only Auth-backed profile prerequisite runs before provider-cost
+  work and again before insertion, closing profile drift and identity retirement
+  races.
 - Scan insertion is awaited, never registered as background work. Success is
-  impossible without the exact owner row. The shared completion-last
-  finalization RPC runs in that required task; if only its post-insert
-  bookkeeping fails, the owner row remains the canonical response surface and
-  the ledger remains retryable for reconstruction/reconciliation. A failure
-  before insertion returns a stable 503.
+  impossible without the exact owner row. The user-first entitlement completion
+  orchestrator runs in that required task; if only its post-insert bookkeeping
+  fails, the owner row remains the canonical response surface and the ledger and
+  hold remain retryable for reconstruction/reconciliation. A failure before
+  insertion returns a stable 503.
 - Insertion settles through the shared exact-owner persistence boundary. A
   thrown/lost database response or unavailable owner verification does not fail
   committed provider quota; a same-UUID retry resolves the durable row or safely

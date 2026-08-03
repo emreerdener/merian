@@ -10,13 +10,20 @@ The route checks for a stored completion or exact reconstructible owner row
 before R2 audio resolution and quota reservation. It replays that stored or
 reconstructed success as marked `200` and coalesces concurrent same-UUID
 delivery without a second Gemini call. A reconstructed replay may retain a
-retryable canonical ledger. The response-aware finalizer stores the validated
-payload only after required audio promotion and scan completion. The route also
-establishes the service-only, Auth-backed profile prerequisite before paid work
-and repeats that check before the owner insert so account retirement or merge
-cannot be crossed silently.
+retryable canonical ledger. The user-first entitlement completion orchestrator
+stores the validated payload only after required audio promotion and scan
+completion. The route also establishes the service-only, Auth-backed profile
+prerequisite before provider-cost work and repeats that check before the owner
+insert so account retirement or merge cannot be crossed silently.
 
 ## Authoritative AI Quota
+
+After cutover, public callers must send
+`X-Merian-Entitlement-Protocol: 2`; otherwise the route returns
+`426 client_update_required` before provider work. An authenticated internal
+replay bypasses only this header check and preserves the original analysis
+linkage. A single standalone-audio request is Flash-compatible when no
+complimentary scan is available, but the server derives that classification.
 
 The authenticated caller's `client_scan_id` is the UUID idempotency key for the
 `scan_audio_identification` reservation. Immediately before Gemini dispatch, the
@@ -28,12 +35,21 @@ provider failure stays charged and enters the retryable `failed` state. Only a
 known pre-provider no-op may enter `refunded`; an abandoned `reserved` attempt
 expires after ten minutes.
 
+Provider quota settlement and complimentary-credit settlement are independent.
+The linked lifetime hold is consumed only after the owner scan and retained
+audio are durably complete, released on a proven terminal failure, and kept
+held for retryable or ambiguous work. A successful response may include the
+optional versioned entitlement metadata defined by
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+
 ## Durability
 
 Before provider dispatch, `audio-spec` atomically records a
 `scan_ingestion_jobs` row plus a sanitized `scan_ingestion_intents` row through
-`_shared/scanIngestionCompatibility.ts`. Setup failure fails closed before paid
-work and refunds the unused quota reservation.
+`_shared/scanIngestionCompatibility.ts`. Setup failure fails closed before
+provider-cost work and refunds the unused provider quota reservation. Proven
+terminal failure runs through the user-first terminal orchestrator to release a
+linked hold; unproven failure remains held for recovery.
 
 - Staged `audio_r2_key` requests are shaped as multimodal replay payloads with
   `audioR2ObjectKeys` and `audioMediaItems`, subject to the shared 10-claim
@@ -42,10 +58,10 @@ work and refunds the unused quota reservation.
   in `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
 - Scan insertion is awaited, never registered as background work. Success is
-  impossible without the exact owner row. The shared completion-last
-  finalization RPC runs in that required task; if only its post-insert
-  bookkeeping fails, the owner row remains the canonical response surface and
-  the ledger remains retryable for reconstruction/reconciliation.
+  impossible without the exact owner row. The user-first entitlement completion
+  orchestrator runs in that required task; if only its post-insert bookkeeping
+  fails, the owner row remains the canonical response surface and the ledger and
+  hold remain retryable for reconstruction/reconciliation.
 - If an old caller sends both `audio_base64` and `audio_r2_key`, the inline
   bytes are authoritative. The unused key is a filename hint only and is never
   fetched, ledgered, finalized, or deleted.

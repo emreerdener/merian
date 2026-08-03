@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import Merian
+import Testing
 
 /// Intercepts network requests for MerianNetworkClient testing
 class MockURLProtocol: URLProtocol {
@@ -301,6 +301,9 @@ struct MerianNetworkClientTests {
     @Test func testIdentifyMultiModalSignalsWhenInlineRequestBodyIsSent() async throws {
         let probe = SendableCallbackProbe()
         MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            #expect(
+                request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == "2"
+            )
             #expect(
                 request.value(forHTTPHeaderField: "Idempotency-Key")
                     == "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6"

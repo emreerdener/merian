@@ -8,7 +8,10 @@ struct ManagePlanView: View {
 
     var body: some View {
         List {
-            PlanCard(showPaywall: $showPaywall)
+            PlanCard(
+                showPaywall: $showPaywall,
+                complimentaryDetailContext: .settings
+            )
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
 

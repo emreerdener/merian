@@ -845,6 +845,7 @@ export async function requireApprovedAudioMedia(
         fetch,
         undefined,
         quota,
+        scanId,
       );
       if (supabaseAdmin && !decision.cacheHit && decision.usage) {
         recordAIUsageBestEffort(supabaseAdmin, {

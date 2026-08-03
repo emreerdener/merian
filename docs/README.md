@@ -347,11 +347,12 @@ as their permanent engineering identity.
   projections, and internal grouped Activity projection, atomic ingestion
   setup/dictionary RPCs, deferred scan-context staging, and the private
   admin/review/audit schema plus canonical AI usage ledger, storage-erasure
-  claim fencing, and atomic owned scan-image reference repair.
+  claim fencing, atomic owned scan-image reference repair, and the database-only
+  Backyard Safari enrollment trigger/backfill.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,
-  `/field-trips` preferred progress and scan contributions,
+  `/field-trips` starter enrollment, preferred progress, and scan contributions,
   `/update-public-avatar`, Community Identification request/detail and grouped
   Activity endpoints,
   `/species-dictionary`, `/species-observation-stats`, `/report-user`, the
@@ -406,6 +407,12 @@ as their permanent engineering identity.
   scientific-observation retention after account deletion, including the exact
   clearing boundary, durable sequence, authorization, visibility, race fencing,
   change procedure, and verification gates.
+- **[`/backend-and-data/18-complimentary-pro-scans.md`](./backend-and-data/18-complimentary-pro-scans.md)**
+  — Normative contract for the staged replacement of the introductory trial
+  with three lifetime complimentary Pro scans, including the private ledger,
+  derived balances, user-first reservation and settlement, separate Flash and
+  provider quotas, protocol 2, iOS verification, Ghost merge, admin telemetry,
+  security, rollout, and executable verification map.
 
 ### Features & Hardware
 
@@ -414,7 +421,8 @@ as their permanent engineering identity.
   boundaries, and ViewfinderIntelligence constraints.
 - **[`/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md)**
   — RevenueCat products/offerings, Test Store/StoreKit/TestFlight purchase
-  matrix, durable webhook access, Pro entitlements, and Ghost Session identity.
+  matrix, durable webhook access, paid and complimentary Pro entitlements, and
+  Ghost Session identity.
 - **[`/features-and-hardware/03-gamification-and-telemetry.md`](./features-and-hardware/03-gamification-and-telemetry.md)**
   — Achievement system, scan telemetry capture, and PostHog analytics.
 - **[`/features-and-hardware/04-onboarding.md`](./features-and-hardware/04-onboarding.md)**
@@ -494,8 +502,9 @@ as their permanent engineering identity.
   catalog ownership, and deferred Tree/galaxy scope.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Public Field trips/Outings, the client-staged Events rollout and release
-  checklist, guided outing detail, progress matching, the account-cached active
-  target indicator on visual Scan, focused Tips/Goals routing, active-level
+  checklist, automatic Backyard Safari Level 1 enrollment, guided outing
+  detail, progress matching, the account-cached active target indicator on
+  visual Scan, focused Tips/Goals routing, active-level
   progress ring, private completed-scan thumbnails and embedded Insight
   navigation, persistent scan contribution cards, one credit per experience with
   multi-experience eligibility, tier-specific Possible-match evidence gating,

@@ -9,6 +9,7 @@ final class UsageManagerTests: XCTestCase {
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
+        UserDefaults.standard.removeObject(forKey: "Merian_MeteredScanDates_\(deviceId)")
         FeatureFlags.setDebugOverride(false, for: .unlimitedFreeScans)
         UsageManager.debugFreeScanLimitOverride = nil
         UsageManager.shared.evaluateDailyRefresh()
@@ -18,6 +19,7 @@ final class UsageManagerTests: XCTestCase {
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
+        UserDefaults.standard.removeObject(forKey: "Merian_MeteredScanDates_\(deviceId)")
         FeatureFlags.setDebugOverride(nil, for: .unlimitedFreeScans)
         UsageManager.debugFreeScanLimitOverride = nil
         UsageManager.shared.evaluateDailyRefresh()
@@ -80,5 +82,24 @@ final class UsageManagerTests: XCTestCase {
 
         XCTAssertTrue(usageManager.canPerformScan(isProActive: false))
         XCTAssertEqual(usageManager.freeScansRemaining, usageManager.maxFreeScansPerDay)
+    }
+
+    func testServerComplimentaryPlanRefundsOnlyItsOptimisticFlashMeter() {
+        let usageManager = UsageManager.shared
+        usageManager.consumeScan(scanId: "scan-a")
+        XCTAssertEqual(usageManager.freeScansRemaining, 0)
+
+        usageManager.reconcileServerPlanUsed("pro_complimentary", scanId: "scan-a")
+        XCTAssertEqual(usageManager.freeScansRemaining, 1)
+
+        usageManager.reconcileServerPlanUsed("pro_complimentary", scanId: "unmetered")
+        XCTAssertEqual(usageManager.freeScansRemaining, 1)
+    }
+
+    func testServerFlashFallbackConsumesAtMostOnce() {
+        let usageManager = UsageManager.shared
+        usageManager.reconcileServerPlanUsed("free", scanId: "scan-fallback")
+        usageManager.reconcileServerPlanUsed("free", scanId: "scan-fallback")
+        XCTAssertEqual(usageManager.freeScansRemaining, 0)
     }
 }

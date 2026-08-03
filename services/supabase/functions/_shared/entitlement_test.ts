@@ -1,9 +1,21 @@
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
+  ENTITLEMENT_PROTOCOL_HEADER,
+  entitlementProtocolResponse,
   getTierForUser,
-  resolutionForUserRow,
+  resolutionForEntitlementRow,
   resolveTierForUser,
 } from "./entitlement.ts";
+
+const complimentaryRow = {
+  current_plan: "pro_complimentary",
+  current_tier: "pro",
+  is_paid: false,
+  scans_remaining: 3,
+  scans_available_to_start: 2,
+  in_flight_count: 1,
+  entitlement_version: 8,
+};
 
 function mockSupabase(
   responses: Array<{
@@ -16,135 +28,80 @@ function mockSupabase(
     get callCount() {
       return callCount;
     },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          abortSignal: () => ({
-            maybeSingle: () => {
-              const response =
-                responses[Math.min(callCount, responses.length - 1)];
-              callCount += 1;
-              return Promise.resolve({
-                data: response.data,
-                error: response.error ?? null,
-              });
-            },
-          }),
-        }),
-      }),
-    }),
+    rpc(name: string, arguments_: Record<string, unknown>) {
+      assertEquals(name, "get_user_entitlement_service");
+      assertEquals(typeof arguments_.p_user_id, "string");
+      return {
+        abortSignal() {
+          const response = responses[Math.min(callCount, responses.length - 1)];
+          callCount += 1;
+          return Promise.resolve({
+            data: response.data,
+            error: response.error ?? null,
+          });
+        },
+      };
+    },
   };
 }
 
-function isoDaysAgo(days: number): string {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-function isoDaysFromNow(days: number): string {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-Deno.test("paid and timed Pro rows resolve from durable entitlement state", () => {
-  assertEquals(
-    resolutionForUserRow({
-      subscription_tier: "pro",
-      created_at: isoDaysAgo(20),
-      entitlement_version: 7,
-    }),
-    {
-      effective_tier: "pro",
-      plan: "pro_paid",
-      subscription_tier: "pro",
-      trial_active: false,
-      user_exists: true,
-      entitlement_version: 7,
-    },
-  );
-  assertEquals(
-    resolutionForUserRow({
-      subscription_tier: "pro",
-      created_at: isoDaysAgo(20),
-      subscription_expires_at: isoDaysFromNow(1),
-      entitlement_version: 3,
-    }).effective_tier,
-    "pro",
-  );
+Deno.test("complimentary entitlement is server-derived and fully functional Pro", () => {
+  assertEquals(resolutionForEntitlementRow(complimentaryRow), {
+    ...complimentaryRow,
+    effective_tier: "pro",
+    plan: "pro_complimentary",
+    subscription_tier: "free",
+    trial_active: false,
+    user_exists: true,
+  });
 });
 
-Deno.test("an expired timed Pro pass resolves free", () => {
-  const resolution = resolutionForUserRow({
-    subscription_tier: "pro",
-    created_at: isoDaysAgo(20),
-    subscription_expires_at: isoDaysAgo(1),
-    entitlement_version: 4,
+Deno.test("paid precedence and historical trial rows remain readable", () => {
+  const paid = resolutionForEntitlementRow({
+    ...complimentaryRow,
+    current_plan: "pro_paid",
+    is_paid: true,
+  });
+  assertEquals(paid.plan, "pro_paid");
+  assertEquals(paid.subscription_tier, "pro");
+
+  const historical = resolutionForEntitlementRow({
+    ...complimentaryRow,
+    current_plan: "pro_trial",
+    scans_remaining: 0,
+    scans_available_to_start: 0,
+    in_flight_count: 0,
+  });
+  assertEquals(historical.trial_active, true);
+});
+
+Deno.test("free exhaustion resolves without functional Pro", () => {
+  const resolution = resolutionForEntitlementRow({
+    current_plan: "free",
+    current_tier: "free",
+    is_paid: false,
+    scans_remaining: 0,
+    scans_available_to_start: 0,
+    in_flight_count: 0,
+    entitlement_version: 12,
   });
   assertEquals(resolution.effective_tier, "free");
   assertEquals(resolution.plan, "free");
-  assertEquals(resolution.subscription_tier, "free");
-  assertEquals(resolution.entitlement_version, 4);
 });
 
-Deno.test("recent free users receive the explicit seven-day trial", () => {
-  const resolution = resolutionForUserRow({
-    subscription_tier: "free",
-    created_at: isoDaysAgo(2),
-    entitlement_version: 2,
-  });
-  assertEquals(resolution.effective_tier, "pro");
-  assertEquals(resolution.plan, "pro_trial");
-  assertEquals(resolution.trial_active, true);
-});
-
-Deno.test("free users outside the trial resolve free", () => {
-  const resolution = resolutionForUserRow({
-    subscription_tier: "free",
-    created_at: isoDaysAgo(8),
-    entitlement_version: 9,
-  });
-  assertEquals(resolution.effective_tier, "free");
-  assertEquals(resolution.plan, "free");
-  assertEquals(resolution.trial_active, false);
-});
-
-Deno.test("future-dated free profiles do not receive an extended trial", () => {
-  const resolution = resolutionForUserRow({
-    subscription_tier: "free",
-    created_at: isoDaysFromNow(1),
-    entitlement_version: 9,
-  });
-  assertEquals(resolution.effective_tier, "free");
-  assertEquals(resolution.plan, "free");
-  assertEquals(resolution.trial_active, false);
-});
-
-Deno.test("malformed durable entitlement rows fail closed", () => {
+Deno.test("malformed entitlement snapshots fail closed", () => {
   for (
     const row of [
-      {
-        subscription_tier: "unexpected",
-        created_at: isoDaysAgo(1),
-        entitlement_version: 1,
-      },
-      {
-        subscription_tier: "pro",
-        created_at: "not-a-timestamp",
-        entitlement_version: 1,
-      },
-      {
-        subscription_tier: "pro",
-        created_at: isoDaysAgo(1),
-        subscription_expires_at: "not-a-timestamp",
-        entitlement_version: 1,
-      },
-      {
-        subscription_tier: "pro",
-        created_at: isoDaysAgo(1),
-        entitlement_version: 0,
-      },
+      { ...complimentaryRow, current_plan: "unexpected" },
+      { ...complimentaryRow, scans_remaining: 4 },
+      { ...complimentaryRow, scans_remaining: 1, scans_available_to_start: 2 },
+      { ...complimentaryRow, scans_available_to_start: 1 },
+      { ...complimentaryRow, entitlement_version: 0 },
+      { ...complimentaryRow, is_paid: true },
     ]
   ) {
     const error = assertThrows(
-      () => resolutionForUserRow(row),
+      () => resolutionForEntitlementRow(row),
       Error,
       "AI entitlement could not be verified",
     ) as Error & { status?: number; code?: string };
@@ -153,78 +110,106 @@ Deno.test("malformed durable entitlement rows fail closed", () => {
   }
 });
 
-Deno.test("database entitlement errors fail closed", async () => {
-  const client = mockSupabase([{
+Deno.test("database and transport entitlement failures fail closed", async () => {
+  const databaseClient = mockSupabase([{
     data: null,
     error: { message: "database unavailable" },
   }]);
-  const error = await assertRejects(
-    () => resolveTierForUser(crypto.randomUUID(), client as never),
+  await assertRejects(
+    () => resolveTierForUser(crypto.randomUUID(), databaseClient as never),
     Error,
     "AI entitlement could not be verified",
-  ) as Error & { status?: number; code?: string };
-  assertEquals(error.status, 503);
-  assertEquals(error.code, "ai_entitlement_unavailable");
-});
+  );
 
-Deno.test("thrown entitlement transport failures are normalized and fail closed", async () => {
-  const client = {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          abortSignal: () => ({
-            maybeSingle: () => Promise.reject(new DOMException("timed out")),
-          }),
-        }),
-      }),
+  const transportClient = {
+    rpc: () => ({
+      abortSignal: () => Promise.reject(new DOMException("timeout")),
     }),
   };
-  const error = await assertRejects(
-    () => resolveTierForUser(crypto.randomUUID(), client as never),
+  await assertRejects(
+    () => resolveTierForUser(crypto.randomUUID(), transportClient as never),
     Error,
     "AI entitlement could not be verified",
-  ) as Error & { status?: number; code?: string };
-  assertEquals(error.status, 503);
-  assertEquals(error.code, "ai_entitlement_unavailable");
+  );
 });
 
-Deno.test("a missing public user row fails closed instead of granting trial Pro", async () => {
-  const client = mockSupabase([{ data: null }]);
-  const error = await assertRejects(
-    () => resolveTierForUser(crypto.randomUUID(), client as never),
-    Error,
-    "AI entitlement could not be verified",
-  ) as Error & { status?: number; code?: string };
-  assertEquals(error.status, 503);
-  assertEquals(error.code, "ai_entitlement_unavailable");
-});
-
-Deno.test("entitlement resolution never reuses isolate-local state", async () => {
+Deno.test("entitlement resolution always reads the database", async () => {
   const client = mockSupabase([
+    { data: complimentaryRow },
     {
       data: {
-        subscription_tier: "pro",
-        created_at: isoDaysAgo(30),
-        entitlement_version: 10,
-      },
-    },
-    {
-      data: {
-        subscription_tier: "free",
-        created_at: isoDaysAgo(30),
-        entitlement_version: 11,
+        current_plan: "free",
+        current_tier: "free",
+        is_paid: false,
+        scans_remaining: 0,
+        scans_available_to_start: 0,
+        in_flight_count: 0,
+        entitlement_version: 9,
       },
     },
   ]);
   const userId = crypto.randomUUID();
-
-  assertEquals(
-    await getTierForUser(userId, client as never),
-    "pro",
-  );
-  assertEquals(
-    await getTierForUser(userId, client as never),
-    "free",
-  );
+  assertEquals(await getTierForUser(userId, client as never), "pro");
+  assertEquals(await getTierForUser(userId, client as never), "free");
   assertEquals(client.callCount, 2);
+});
+
+Deno.test("all public Identify requests require protocol 2 after cutover", async () => {
+  const postCutoverClient = {
+    rpc(name: string) {
+      assertEquals(name, "get_entitlement_rollout_service");
+      return {
+        abortSignal: () =>
+          Promise.resolve({
+            data: {
+              entitlement_mode: "complimentary",
+              required_client_protocol: 2,
+              mode_version: 2,
+            },
+            error: null,
+          }),
+      };
+    },
+  };
+  for (const value of [null, "1", "3", "invalid"]) {
+    const headers = new Headers();
+    if (value) headers.set(ENTITLEMENT_PROTOCOL_HEADER, value);
+    const response = await entitlementProtocolResponse(
+      new Request("https://example.invalid", { headers }),
+      postCutoverClient as never,
+    );
+    assertEquals(response?.status, 426);
+    assertEquals((await response?.json()).code, "client_update_required");
+  }
+
+  const current = new Request("https://example.invalid", {
+    headers: { [ENTITLEMENT_PROTOCOL_HEADER]: "2" },
+  });
+  assertEquals(
+    await entitlementProtocolResponse(current, postCutoverClient as never),
+    null,
+  );
+});
+
+Deno.test("schema-first legacy rollout accepts clients before cutover", async () => {
+  const legacyClient = {
+    rpc: () => ({
+      abortSignal: () =>
+        Promise.resolve({
+          data: {
+            entitlement_mode: "legacy_trial",
+            required_client_protocol: 0,
+            mode_version: 1,
+          },
+          error: null,
+        }),
+    }),
+  };
+  assertEquals(
+    await entitlementProtocolResponse(
+      new Request("https://example.invalid"),
+      legacyClient as never,
+    ),
+    null,
+  );
 });

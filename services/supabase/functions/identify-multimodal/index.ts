@@ -14,7 +14,11 @@ import { corsHeaders, publicErrorResponse } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { tierTelemetryProperties } from "../_shared/entitlement.ts";
+import {
+  entitlementProtocolResponse,
+  tierTelemetryProperties,
+} from "../_shared/entitlement.ts";
+import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
   deriveAIRequestId,
@@ -39,6 +43,7 @@ import {
   VisualMediaItemDTO,
 } from "../_shared/identify/types.ts";
 import {
+  type IdentifySuccessEnvelope,
   parseIdentifySuccessEnvelope,
   parseMerianIdentification,
 } from "../_shared/identify/contract.ts";
@@ -600,6 +605,14 @@ export async function handleIdentifyMultimodalRequest(
   authDurationMs = 0,
   internalReplayAttempt?: number,
 ): Promise<Response> {
+  if (internalReplayAttempt == null) {
+    const protocolError = await entitlementProtocolResponse(
+      req,
+      supabaseAdmin,
+    );
+    if (protocolError) return protocolError;
+  }
+
   const fnStart = Date.now();
   const bodyReadStart = performance.now();
   const bodyReadResult = await readRequestJsonWithinBudget<
@@ -768,6 +781,10 @@ export async function handleIdentifyMultimodalRequest(
         stage,
         error: error instanceof Error ? error.message : String(error),
       });
+      // A terminal transition is also the complimentary-credit refund. If it
+      // cannot be proven, fail the request instead of reporting a terminal
+      // response while silently leaving the user's hold stranded.
+      if (status === "failed_terminal") throw error;
     }
   };
 
@@ -866,6 +883,30 @@ export async function handleIdentifyMultimodalRequest(
   const hasVideoAudio =
     normalizedAudioMediaItems.some((item) => item.kind === "video_audio") ||
     (mediaTelemetry.hasVideo && processedAudios.length > 0);
+  const observationEvidenceTexts = observation_contexts
+    .map((context) =>
+      typeof context.freeText === "string" &&
+        context.freeText.trim().length > 0
+        ? context.freeText.trim()
+        : (typeof context.free_text === "string" &&
+            context.free_text.trim().length > 0
+          ? context.free_text.trim()
+          : null)
+    )
+    .filter((text): text is string => text != null);
+
+  // Reject malformed evidence before entitlement reservation. A video object
+  // is durable source media, but Gemini still requires at least one frame,
+  // audio clip, or non-empty observation description for inference.
+  if (
+    resolvedImageBase64s.length === 0 &&
+    processedAudios.length === 0 &&
+    observationEvidenceTexts.length === 0
+  ) {
+    return jsonResponse({
+      error: "At least one media element or description is required",
+    }, 400);
+  }
 
   // Establish the scan FK prerequisite before reserving quota or dispatching
   // paid provider work. Keep the idempotent check again at insert time below:
@@ -902,6 +943,14 @@ export async function handleIdentifyMultimodalRequest(
       userId: user.id,
       operation: "scan_identification",
       requestId: quotaRequestId,
+      originalAnalysisId: generatedScanId,
+      flashFallbackEligible: isFlashFallbackEligible({
+        imageCount: resolvedImageBase64s.length,
+        audioCount: processedAudios.length,
+        descriptionCount: observationEvidenceTexts.length,
+        videoCount: mediaTelemetry.hasVideo ? 1 : 0,
+      }),
+      internalReplay: internalReplayAttempt != null,
     });
   } catch (error) {
     if (
@@ -949,27 +998,13 @@ export async function handleIdentifyMultimodalRequest(
 
   // 3. Modality Assembly
   const partsArray: Part[] = [];
-  let hasObservationContextText = false;
-  if (observation_contexts.length > 0) {
-    const mergedContexts = observation_contexts
-      .map((c) =>
-        typeof c.freeText === "string" && c.freeText.trim().length > 0
-          ? c.freeText.trim()
-          : (typeof c.free_text === "string" && c.free_text.trim().length > 0
-            ? c.free_text.trim()
-            : null)
-      )
-      .filter((text): text is string => text != null);
-    if (mergedContexts.length > 0) {
-      hasObservationContextText = true;
-      partsArray.push({
-        text: `Additional observation context from user:\n${
-          mergedContexts.join(
-            "\n",
-          )
-        }`,
-      });
-    }
+  const hasObservationContextText = observationEvidenceTexts.length > 0;
+  if (hasObservationContextText) {
+    partsArray.push({
+      text: `Additional observation context from user:\n${
+        observationEvidenceTexts.join("\n")
+      }`,
+    });
   }
 
   const visualMediaPrompt = buildVisualMediaPrompt(
@@ -1008,13 +1043,6 @@ export async function handleIdentifyMultimodalRequest(
       timeOfDay,
     }),
   });
-
-  if (partsArray.length === 1 && !hasObservationContextText) {
-    await quotaLease.refund();
-    return jsonResponse({
-      error: "At least one media element or description is required",
-    }, 400);
-  }
 
   const mediaCounts = {
     image_count: mediaTelemetry.imageCount,
@@ -1243,11 +1271,12 @@ export async function handleIdentifyMultimodalRequest(
   } catch {
     await quotaLease.fail();
     await updateIngestionJobBestEffort(
-      "failed_retryable",
+      "failed_terminal",
       "ai_response_malformed",
       {
         lastError: "Malformed AI response.",
-        retryAfter: retryAfterIso(),
+        retryAfter: null,
+        terminalReasonCode: "malformed_provider_response",
       },
     );
     return jsonResponse(
@@ -1544,7 +1573,7 @@ export async function handleIdentifyMultimodalRequest(
     context != null && typeof context === "object" && !Array.isArray(context)
   ) as Record<string, unknown> | undefined;
 
-  let responseEnvelope;
+  let responseEnvelope: IdentifySuccessEnvelope;
   try {
     responseEnvelope = parseIdentifySuccessEnvelope({
       success: true,
@@ -1559,11 +1588,12 @@ export async function handleIdentifyMultimodalRequest(
       error: error instanceof Error ? error.message : String(error),
     });
     await updateIngestionJobBestEffort(
-      "failed_retryable",
+      "failed_terminal",
       "identify_response_invalid",
       {
         lastError: "Identify response failed its wire contract.",
-        retryAfter: retryAfterIso(),
+        retryAfter: null,
+        terminalReasonCode: "malformed_response",
       },
     );
     return jsonResponse(
@@ -1897,7 +1927,7 @@ export async function handleIdentifyMultimodalRequest(
         supabaseAdmin,
       );
       scanInserted = true;
-      await completeScanIngestionFinalization(
+      const completion = await completeScanIngestionFinalization(
         {
           scanId: generatedScanId,
           userId: user.id,
@@ -1917,6 +1947,11 @@ export async function handleIdentifyMultimodalRequest(
         },
         supabaseAdmin,
       );
+      if (completion.responseEnvelope) {
+        responseEnvelope = parseIdentifySuccessEnvelope(
+          completion.responseEnvelope,
+        );
+      }
 
       let candidateEnrichmentTask: Promise<void> = Promise.resolve();
       if (missingCandidates.length > 0) {

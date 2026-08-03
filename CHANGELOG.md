@@ -6,6 +6,22 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Three Complimentary Pro Scans
+
+- Every existing and future account receives three complimentary Pro scans
+  with no calendar expiration. The separate daily Flash scan remains available,
+  so the introductory grant does not replace ordinary free access.
+- Results and Settings show the server-verified number remaining. After the
+  third usable Pro result, saved Pro results stay fully viewable and an upgrade
+  action replaces access to new Pro-only analyses.
+- Ordinary single-photo, standalone-audio, and description scans fall back to
+  the daily Flash policy after exhaustion. Video, multi-item or mixed scans,
+  refinement, and other Pro-only actions continue to show the soft paywall.
+- Complimentary access now follows retry-safe original-analysis linkage: a
+  durable usable result consumes one scan, a proven terminal failure releases
+  it, and ambiguous recovery cannot spend another credit. Paid subscriptions
+  and the paid **7 Day Pass** remain unchanged.
+
 ### Non-biological Scan Navigation
 
 - Non-biological scan notices now link directly to their collection in the
@@ -27,6 +43,11 @@ TestFlight, App Store, support, and QA.
 
 ### Simpler Starter Outings
 
+- Every new and existing account now starts in Backyard Safari Level 1, so its
+  first goals are ready in Scan without a separate enrollment step.
+- Active starter status can appear on the account's public author profile under
+  the existing status-only Field trip contract; enrollment does not publish
+  scans, media, notes, or location evidence.
 - Backyard Safari and Park Pollinators now start with 2 goals, expand to 4 in
   Level 2, and finish with a new Level 3 while keeping valid credited scans.
 - Backyard Safari's first goals are now Bird and Dog, with Dog requiring an
@@ -1271,12 +1292,13 @@ TestFlight, App Store, support, and QA.
   a smaller goal heading, and opens the outing/Event Goals overview in the same
   navigation stack. Back returns to the originating Insight without replaying
   milestone feedback.
-- Standard outings now advance only after the user explicitly starts them, and
-  Events only after the user joins. One scan can count toward several active
-  experiences, but only one goal in each; a selected live Camera goal wins when
-  it is still eligible, with deterministic server matching otherwise. The
-  selection survives offline upload, and unfinished progress is re-evaluated
-  after identification corrections.
+- Backyard Safari now advances from the activity period opened at account
+  enrollment; other standard outings advance only after the user explicitly
+  starts them, and Events only after the user joins. One scan can count toward
+  several active experiences, but only one goal in each; a selected live Camera
+  goal wins when it is still eligible, with deterministic server matching
+  otherwise. The selection survives offline upload, and unfinished progress is
+  re-evaluated after identification corrections.
 - Fixed temporary scan-persistence and network failures being mistaken for
   completed Field trip processing. Naturebook now preserves the selected goal,
   retries progress automatically, and still shows other earned milestones once
@@ -1617,8 +1639,8 @@ TestFlight, App Store, support, and QA.
   Insights with standalone audio. Mixed-media scans apply one setting to every
   audio page, preserve playback position while switching, restore quietly, and
   leave the original recording unchanged.
-- Added an allowlisted Field trips preview to Explore: regional checklist quests
-  can auto-start from new scans, unlock levels sequentially, show active
+- Added the original allowlisted Field trips preview to Explore: regional
+  checklist quests could auto-start from new scans, unlock levels sequentially, show active
   checklist progress on public profiles, and publish Field trip pages with
   species snapshots, likes, and comments without creating Explore feed posts or
   map points.

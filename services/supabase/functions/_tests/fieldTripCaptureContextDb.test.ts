@@ -67,6 +67,38 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
       assert(backyard && park && forest);
       assertEquals(forest.is_active, false);
 
+      const enrolledBackyard = await client.queryObject<{
+        trip_id: string;
+        current_level_number: number;
+        is_profile_visible: boolean;
+        hidden_at: string | null;
+        period_count: number;
+        period_matches_start: boolean;
+      }>(
+        `
+        SELECT
+          trip.id::TEXT AS trip_id,
+          trip.current_level_number,
+          trip.is_profile_visible,
+          trip.hidden_at::TEXT AS hidden_at,
+          COUNT(period.id)::INTEGER AS period_count,
+          BOOL_AND(period.started_at = trip.started_at) AS period_matches_start
+        FROM public.user_field_trips AS trip
+        JOIN public.user_field_trip_active_periods AS period
+          ON period.user_field_trip_id = trip.id
+        WHERE trip.user_id = $1
+          AND trip.template_id = $2
+        GROUP BY trip.id
+        `,
+        [viewerId, backyard.template_id],
+      );
+      assertEquals(enrolledBackyard.rows.length, 1);
+      assertEquals(enrolledBackyard.rows[0].current_level_number, 1);
+      assertEquals(enrolledBackyard.rows[0].is_profile_visible, true);
+      assertEquals(enrolledBackyard.rows[0].hidden_at, null);
+      assertEquals(enrolledBackyard.rows[0].period_count, 1);
+      assertEquals(enrolledBackyard.rows[0].period_matches_start, true);
+
       await client.queryArray(
         `
         UPDATE public.field_trip_templates
@@ -113,26 +145,39 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
         [inaccessibleItemId, inaccessibleLevelId],
       );
 
-      const backyardTripId = crypto.randomUUID();
+      const backyardTripId = enrolledBackyard.rows[0].trip_id;
       const parkTripId = crypto.randomUUID();
       const inactiveTripId = crypto.randomUUID();
       const inaccessibleTripId = crypto.randomUUID();
+      await client.queryArray(
+        `
+        UPDATE public.user_field_trips
+        SET started_at = '2026-07-17T10:00:00Z'
+        WHERE id = $1
+        `,
+        [backyardTripId],
+      );
+      await client.queryArray(
+        `
+        UPDATE public.user_field_trip_active_periods
+        SET started_at = '2026-07-17T10:00:00Z'
+        WHERE user_field_trip_id = $1
+        `,
+        [backyardTripId],
+      );
       await client.queryArray(
         `
         INSERT INTO public.user_field_trips (
           id, user_id, template_id, started_at, current_level_number
         )
         VALUES
-          ($1, $2, $3, '2026-07-17T10:00:00Z', 1),
-          ($4, $2, $5, '2026-07-17T11:00:00Z', 1),
-          ($6, $2, $7, '2026-07-17T12:00:00Z', 1),
-          ($8, $2, $9, '2026-07-17T13:00:00Z', 1)
+          ($1, $2, $3, '2026-07-17T11:00:00Z', 1),
+          ($4, $2, $5, '2026-07-17T12:00:00Z', 1),
+          ($6, $2, $7, '2026-07-17T13:00:00Z', 1)
         `,
         [
-          backyardTripId,
-          viewerId,
-          backyard.template_id,
           parkTripId,
+          viewerId,
           park.template_id,
           inactiveTripId,
           forest.template_id,
@@ -246,7 +291,17 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
         `SELECT public.get_field_trip_capture_context($1)::jsonb AS data`,
         [emptyViewerId],
       );
-      assertEquals(emptyResult.rows[0].data, []);
+      assertEquals(emptyResult.rows[0].data.length, 1);
+      assertEquals(
+        emptyResult.rows[0].data[0].template_slug,
+        "backyard_safari",
+      );
+      assertEquals(emptyResult.rows[0].data[0].level_number, 1);
+      assertEquals(emptyResult.rows[0].data[0].completed_count, 0);
+      assertEquals(
+        emptyResult.rows[0].data[0].target_count,
+        currentItems.rows.length,
+      );
 
       const privileges = await client.queryObject<{
         anonymous: boolean;
@@ -264,6 +319,24 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
         anonymous: false,
         authenticated: false,
         service_role: true,
+      });
+
+      const enrollmentPrivileges = await client.queryObject<{
+        anonymous: boolean;
+        authenticated: boolean;
+        service_role: boolean;
+      }>(
+        `
+        SELECT
+          has_function_privilege('anon', 'internal.auto_enroll_backyard_safari_level_one()', 'EXECUTE') AS anonymous,
+          has_function_privilege('authenticated', 'internal.auto_enroll_backyard_safari_level_one()', 'EXECUTE') AS authenticated,
+          has_function_privilege('service_role', 'internal.auto_enroll_backyard_safari_level_one()', 'EXECUTE') AS service_role
+        `,
+      );
+      assertEquals(enrollmentPrivileges.rows[0], {
+        anonymous: false,
+        authenticated: false,
+        service_role: false,
       });
     },
   );

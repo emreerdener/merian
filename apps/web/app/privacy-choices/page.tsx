@@ -19,7 +19,7 @@ export default function PrivacyChoicesPage() {
       eyebrow="Naturebook privacy"
       title="Privacy Choices"
       description="Manage permissions, public sharing, and deletion requests."
-      lastUpdated="July 31, 2026"
+      lastUpdated="August 2, 2026"
     >
       <LegalSection title="In-App Controls">
         <LegalList>
@@ -37,6 +37,12 @@ export default function PrivacyChoicesPage() {
           </li>
           <li>
             Unshare Explore posts to remove them from public Explore surfaces.
+          </li>
+          <li>
+            Stop or reset an unfinished Field trip to hide its active status
+            from your public author profile. Every account is automatically
+            enrolled in Backyard Safari Level 1 under the current product
+            contract.
           </li>
           <li>
             Delete individual scans from your library when you no longer want
@@ -85,6 +91,14 @@ export default function PrivacyChoicesPage() {
           Removing or unsharing a post can remove it from public Explore pages,
           but copies already shared outside Naturebook may remain wherever
           recipients saved, cached, or reposted them.
+        </Text>
+        <Text>
+          Active Field trip status is separate from an Explore post. Automatic
+          Backyard Safari enrollment may show the outing title, level, checklist
+          counts, and status on your author profile, but never its scan IDs,
+          media, notes, coordinates, or location labels. Stopping or resetting
+          an unfinished outing hides that active status. Contact support if you
+          need help with a completed status, publication, or privacy request.
         </Text>
       </LegalSection>
     </LegalPage>

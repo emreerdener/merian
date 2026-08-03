@@ -272,6 +272,20 @@ Deno.test("Field Chat stale quota recovery cannot fall through to the original q
   }
 });
 
+Deno.test("scan audio moderation subcalls retain their original analysis linkage", async () => {
+  for (
+    const path of [
+      "../share-scan-to-explore/index.ts",
+      "../update-explore-field-notes/index.ts",
+      "../request-community-identification/index.ts",
+    ]
+  ) {
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    assertStringIncludes(source, 'operation: "explore_audio_moderation"');
+    assertStringIncludes(source, "originalAnalysisId:");
+  }
+});
+
 Deno.test("every scan-producing route coalesces quota replays into an owner-scoped success response", async () => {
   for (
     const path of [

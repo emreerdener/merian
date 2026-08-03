@@ -187,7 +187,7 @@ struct ConfidenceExplanationSheet: View {
                 let onAskCommunity = communityRequestAction
                 if onReanalyze != nil || onAskCommunity != nil {
                     ConfidenceSheetActionButtons(
-                        isReanalyzeLocked: !revenueCatManager.isProActive,
+                        isReanalyzeLocked: !revenueCatManager.canStartProScan,
                         onReanalyze: onReanalyze,
                         onAskCommunity: onAskCommunity
                     )
@@ -199,7 +199,10 @@ struct ConfidenceExplanationSheet: View {
                 }
 
                 if !revenueCatManager.isProActive {
-                    PlanCard(showPaywall: $showPaywall)
+                    PlanCard(
+                        showPaywall: $showPaywall,
+                        complimentaryDetailContext: .results
+                    )
                         .padding(.horizontal, 16)
                 }
 

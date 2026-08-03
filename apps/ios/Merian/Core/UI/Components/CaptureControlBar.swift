@@ -41,7 +41,7 @@ struct CaptureControlBar: View {
     private var isRefining: Bool { viewModel.baseRefinementContext != nil }
     // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
     // flows get the same two-slot limit as multi-capture without enabling multi-capture.
-    private var capacityLimit: Int { (appSettings.isMultiCaptureEnabled || isRefining) ? stagedCaptureCapacity : 1 }
+    private var capacityLimit: Int { viewModel.stagedCaptureLimit }
 
     var body: some View {
         VStack {
@@ -58,7 +58,7 @@ struct CaptureControlBar: View {
                     PhotoLibraryButton(
                         selectedPhotoItems: $viewModel.selectedPhotoItems,
                         latestThumbnail: photoLibraryManager.latestThumbnail,
-                        maxSelectionCount: appSettings.isMultiCaptureEnabled ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit)) : 1
+                        maxSelectionCount: capacityLimit > 1 ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit)) : 1
                     )
                     .opacity(captureMode == .visual && !viewModel.isVideoRecording ? (isAtCapacity ? 0.5 : 1) : 0)
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity && !viewModel.isVideoRecording)
@@ -102,7 +102,7 @@ struct CaptureControlBar: View {
                     || !viewModel.stagedCapture.audios.isEmpty
                     || !viewModel.stagedCapture.observationContexts.isEmpty
                     || viewModel.baseRefinementContext != nil
-                    || appSettings.isMultiCaptureEnabled
+                    || viewModel.isMultiCaptureFunctionallyEnabled
                     || appSettings.requiresScanConfirmation
                 // All modes disabled when staging area is full — no new input can be added.
                 // Describe also disabled while a refinement image is still loading.
@@ -115,9 +115,9 @@ struct CaptureControlBar: View {
                     willStageOnly: willStageOnly,
                     isInputActive: isInputActive,
                     isVisualCaptureAllowed: viewModel.diContainer.usageManager.canPerformScan(
-                        isProActive: viewModel.diContainer.revenueCatManager.isProActive
+                        isProActive: viewModel.diContainer.revenueCatManager.canStartProScan
                     ),
-                    isProVideoAvailable: viewModel.diContainer.revenueCatManager.isProActive,
+                    isProVideoAvailable: viewModel.diContainer.revenueCatManager.canStartProScan,
                     isVideoRecording: viewModel.isVideoRecording,
                     videoRecordingProgress: viewModel.videoRecordingProgress,
                     onAction: {
@@ -180,6 +180,10 @@ struct CaptureControlBar: View {
                     },
                     onVisualLongPressStart: {
                         viewModel.startVideoCapture()
+                    },
+                    onProVideoUnavailable: {
+                        AppTelemetry.trackPaywallImpression()
+                        viewModel.activeSheet = .paywall
                     }
                 )
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
@@ -247,6 +251,7 @@ private struct CaptureButton: View {
     let videoRecordingProgress: Double
     let onAction: () -> Void
     let onVisualLongPressStart: () -> Void
+    let onProVideoUnavailable: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
@@ -385,16 +390,18 @@ private struct CaptureButton: View {
         didTriggerVideoLongPress = false
         HapticManager.shared.prepareHeavyImpact()
 
-        guard captureMode == .visual,
-              isProVideoAvailable,
-              !isVideoRecording else { return }
+        guard captureMode == .visual, !isVideoRecording else { return }
 
         videoLongPressTask?.cancel()
         videoLongPressTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: videoHoldStartDelayNanoseconds)
             guard !Task.isCancelled else { return }
             didTriggerVideoLongPress = true
-            onVisualLongPressStart()
+            if isProVideoAvailable {
+                onVisualLongPressStart()
+            } else {
+                onProVideoUnavailable()
+            }
         }
     }
 

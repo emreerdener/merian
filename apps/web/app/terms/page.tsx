@@ -19,7 +19,7 @@ export default function TermsPage() {
       eyebrow="Naturebook legal"
       title="Terms of Service"
       description="These Terms govern the Naturebook app, Explore community, subscriptions, and Naturebook public web pages."
-      lastUpdated="July 31, 2026"
+      lastUpdated="August 2, 2026"
     >
       <LegalSection title="1. Agreement to These Terms">
         <Text>
@@ -183,16 +183,22 @@ export default function TermsPage() {
         </Text>
       </LegalSection>
 
-      <LegalSection title="8. Purchases, Passes, Subscriptions, and Trials">
+      <LegalSection title="8. Purchases, Passes, Subscriptions, and Complimentary Access">
         <Text>
-          Naturebook may offer free access with usage limits, a non-renewing
-          seven-day Pro pass, an auto-renewing annual Pro subscription,
-          promotional access, or an eligibility-based trial. The product,
-          duration, current storefront price, taxes, renewal terms, and trial
-          eligibility shown in the App Store purchase flow control over
-          descriptive copy elsewhere.
+          Naturebook may offer free access with usage limits, three
+          complimentary Pro scans per account, a non-renewing seven-day Pro
+          pass, an auto-renewing annual Pro subscription, or other promotional
+          access. The product, duration, current storefront price, taxes, and
+          renewal terms shown in the App Store purchase flow control over
+          descriptive copy elsewhere for purchased access.
         </Text>
         <LegalList>
+          <li>
+            Complimentary Pro scans are not a subscription or calendar-based
+            trial. They do not expire merely because time passes. A usable Pro
+            scan result uses one complimentary scan; the separate daily free
+            scan, when available, uses the Flash model.
+          </li>
           <li>
             A non-renewing pass expires at the end of its stated period and does
             not renew automatically.
@@ -205,10 +211,6 @@ export default function TermsPage() {
             Apple processes payment and controls billing, cancellation, renewal,
             storefront pricing, and refund procedures. Naturebook does not
             receive your full payment-card details.
-          </li>
-          <li>
-            Trials may convert to paid access as disclosed in the purchase flow
-            and may be limited to eligible users.
           </li>
           <li>
             Deleting the Naturebook app or your Naturebook account does not
@@ -366,10 +368,20 @@ export default function TermsPage() {
         <Text>
           Explore includes public profiles, posts, comments, replies, reactions,
           likes, follows, hashtags, notifications, maps, nearby discovery,
-          reports, blocks, and community identification. You must comply with
-          the Community Guidelines and all applicable law. Naturebook does not
-          endorse and is not responsible for user content, and we do not promise
-          to monitor every contribution.
+          reports, blocks, Field trip Outings and Events, and community
+          identification. You must comply with the Community Guidelines and all
+          applicable law. Naturebook does not endorse and is not responsible for
+          user content, and we do not promise to monitor every contribution.
+        </Text>
+        <Text>
+          Naturebook automatically enrolls each account in Backyard Safari Level
+          1. While active, the outing title, current level, checklist counts,
+          status, and your public author identity may appear on your Explore
+          author profile, including at zero progress. Enrollment does not
+          publish the underlying scans, media, notes, coordinates, or location
+          labels. You may stop or reset an unfinished outing to hide its active
+          status; completed status and Field trip publications have separate
+          lifecycle rules.
         </Text>
         <LegalList>
           <li>

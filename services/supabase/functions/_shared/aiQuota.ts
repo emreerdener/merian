@@ -8,7 +8,10 @@ import {
 import { logStructuredError } from "./edgeHandler.ts";
 import { PublicHttpError } from "./http.ts";
 import { resolveServerApiKeyFromEnvironment } from "./serviceRoleAuth.ts";
-import type { TierResolution } from "./entitlement.ts";
+import {
+  entitlementProtocolFromRequest,
+  type TierResolution,
+} from "./entitlement.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,7 +42,11 @@ interface AIQuotaReservationRow {
   is_replay: boolean;
   attempt_count: number;
   model: string;
-  effective_plan: "free" | "pro_trial" | "pro_paid";
+  effective_plan:
+    | "free"
+    | "pro_trial"
+    | "pro_complimentary"
+    | "pro_paid";
   effective_tier: "free" | "pro";
   subscription_tier: "free" | "pro";
   trial_active: boolean;
@@ -47,6 +54,12 @@ interface AIQuotaReservationRow {
   policy_version: number;
   daily_limit: number | null;
   daily_remaining: number | null;
+  original_analysis_id: string | null;
+  complimentary_client_scan_id: string | null;
+  flash_fallback_used: boolean;
+  scans_remaining: number;
+  scans_available_to_start: number;
+  in_flight_count: number;
 }
 
 export interface AIQuotaReservation {
@@ -60,6 +73,9 @@ export interface AIQuotaReservation {
   policyVersion: number;
   dailyLimit: number | null;
   dailyRemaining: number | null;
+  originalAnalysisId: string | null;
+  complimentaryClientScanId: string | null;
+  flashFallbackUsed: boolean;
 }
 
 export interface AIProviderQuotaLease {
@@ -213,6 +229,13 @@ async function quotaIpHash(req: Request): Promise<string> {
 function quotaErrorForDatabaseMessage(
   databaseMessage: string,
 ): AIQuotaError {
+  if (databaseMessage.includes("client_update_required")) {
+    return new AIQuotaError(
+      426,
+      "client_update_required",
+      "Please update Naturebook to continue identifying.",
+    );
+  }
   if (databaseMessage.includes("ai_entitlement_required")) {
     return new AIQuotaError(
       402,
@@ -269,6 +292,10 @@ export async function reserveAIQuota(
     userId: string;
     operation: AIQuotaOperation;
     requestId?: unknown;
+    originalAnalysisId?: string | null;
+    flashFallbackEligible?: boolean;
+    clientProtocol?: number | null;
+    internalReplay?: boolean;
   },
 ): Promise<AIQuotaReservation> {
   const requestId = resolveAIRequestId(req, input.requestId);
@@ -280,6 +307,11 @@ export async function reserveAIQuota(
         p_operation: input.operation,
         p_request_id: requestId,
         p_ip_hash: ipHash,
+        p_original_analysis_id: input.originalAnalysisId ?? null,
+        p_flash_fallback_eligible: input.flashFallbackEligible ?? false,
+        p_client_protocol: input.clientProtocol ??
+          entitlementProtocolFromRequest(req),
+        p_internal_replay: input.internalReplay ?? false,
       }).abortSignal(AbortSignal.timeout(5_000));
     } catch {
       logStructuredError("ai_quota_reservation_failed", {
@@ -327,6 +359,7 @@ export async function reserveAIQuota(
     !SUPPORTED_MODELS.has(row.model) ||
     (row.effective_plan !== "free" &&
       row.effective_plan !== "pro_trial" &&
+      row.effective_plan !== "pro_complimentary" &&
       row.effective_plan !== "pro_paid") ||
     (row.effective_tier !== "free" && row.effective_tier !== "pro") ||
     (row.subscription_tier !== "free" &&
@@ -345,6 +378,23 @@ export async function reserveAIQuota(
     (row.daily_limit !== null &&
       row.daily_remaining !== null &&
       row.daily_remaining > row.daily_limit) ||
+    (row.original_analysis_id !== null &&
+      !UUID_PATTERN.test(row.original_analysis_id)) ||
+    (row.complimentary_client_scan_id !== null &&
+      !UUID_PATTERN.test(row.complimentary_client_scan_id)) ||
+    (row.complimentary_client_scan_id !== null &&
+      row.complimentary_client_scan_id !== row.original_analysis_id) ||
+    typeof row.flash_fallback_used !== "boolean" ||
+    !Number.isSafeInteger(row.scans_remaining) ||
+    row.scans_remaining < 0 ||
+    row.scans_remaining > 3 ||
+    !Number.isSafeInteger(row.scans_available_to_start) ||
+    row.scans_available_to_start < 0 ||
+    row.scans_available_to_start > row.scans_remaining ||
+    !Number.isSafeInteger(row.in_flight_count) ||
+    row.in_flight_count < 0 ||
+    row.scans_available_to_start + row.in_flight_count !==
+      row.scans_remaining ||
     (row.is_replay
       ? row.reservation_state !== "reserved" &&
         row.reservation_state !== "committed"
@@ -356,8 +406,14 @@ export async function reserveAIQuota(
       : row.effective_tier !== "pro") ||
     (row.effective_plan === "pro_trial" &&
       (row.subscription_tier !== "free" || !row.trial_active)) ||
+    (row.effective_plan === "pro_complimentary" &&
+      (row.subscription_tier !== "free" || row.trial_active)) ||
     (row.effective_plan === "pro_paid" &&
-      (row.subscription_tier !== "pro" || row.trial_active))
+      (row.subscription_tier !== "pro" || row.trial_active)) ||
+    (row.flash_fallback_used &&
+      (row.effective_plan !== "free" ||
+        (input.operation !== "scan_identification" &&
+          input.operation !== "scan_audio_identification")))
   ) {
     logStructuredError("ai_quota_reservation_invalid_response", {
       operation: input.operation,
@@ -397,6 +453,12 @@ export async function reserveAIQuota(
     attemptCount: row.attempt_count,
     model: row.model as AIQuotaReservation["model"],
     tier: {
+      current_plan: row.effective_plan,
+      current_tier: row.effective_tier,
+      is_paid: row.effective_plan === "pro_paid",
+      scans_remaining: row.scans_remaining,
+      scans_available_to_start: row.scans_available_to_start,
+      in_flight_count: row.in_flight_count,
       effective_tier: row.effective_tier,
       plan: row.effective_plan,
       subscription_tier: row.subscription_tier,
@@ -407,6 +469,9 @@ export async function reserveAIQuota(
     policyVersion: row.policy_version,
     dailyLimit: row.daily_limit,
     dailyRemaining: row.daily_remaining,
+    originalAnalysisId: row.original_analysis_id,
+    complimentaryClientScanId: row.complimentary_client_scan_id,
+    flashFallbackUsed: row.flash_fallback_used,
   };
 }
 
@@ -514,6 +579,10 @@ export async function reserveAIProviderCall(
     userId: string;
     operation: AIQuotaOperation;
     requestId?: unknown;
+    originalAnalysisId?: string | null;
+    flashFallbackEligible?: boolean;
+    clientProtocol?: number | null;
+    internalReplay?: boolean;
   },
 ): Promise<AIProviderQuotaLease> {
   const reservation = await reserveAIQuota(req, supabaseAdmin, input);

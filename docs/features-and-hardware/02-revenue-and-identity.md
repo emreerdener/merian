@@ -8,12 +8,12 @@ Authentication with RevenueCat SDK bindings for entitlement checking.
 - [Anonymous IDFV Strategy (`DeviceIdentityManager`)](#the-anonymous-idfv-strategy-deviceidentitymanager)
   — Ghost session creation, OAuth upgrade, account merging, historical sync
 - [Paywalls and Entitlements
-  (`RevenueCatManager`)](#paywalls-and-entitlements-revenuecat manager) —
-  `isProActive`, plan display
+  (`RevenueCatManager`)](#paywalls-and-entitlements-revenuecatmanager) — paid,
+  functional, and new-scan capacity; current-launch `EntitlementManager`
 - [RevenueCat Webhook](#revenuecat-webhook-revenuecat-webhook) — Server-side
-  tier sync, R2 data migration on upgrade/downgrade
-- [Usage Limits (`UsageManager`)](#usage-limits-usagemanager) — Daily scan
-  quota, refund logic, paywall gate
+  paid-tier and timed-pass synchronization
+- [Usage Limits (`UsageManager`)](#usage-limits-usagemanager) — Daily Flash
+  meter, authoritative plan reconciliation, paywall gate
 - [Trust & Safety (`SocialGuardManager`)](#trust--safety-socialguardmanager) —
   Block user, optimistic UI, Edge sync
 
@@ -136,32 +136,43 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   or select a dashboard offering: App Store Connect product readiness, RevenueCat
   package mapping, and current-offering selection must be completed externally
   before release.
-- Evaluates `isSubscribed` and `trialDaysRemaining` via `.customerInfo()`.
+- Evaluates paid `isSubscribed` state via `.customerInfo()` and combines it
+  with the current session's server-verified complimentary entitlement.
   - `isSubscribed` checks for active entitlements across the standard Pro
     subscription identifiers and a locally evaluated `pro_week`
     non-subscription transaction. The 7-day pass is intentionally not a
     RevenueCat entitlement.
-  - `trialDaysRemaining` computes the days since the user's `firstSeen` date in
-    RevenueCat (representing app installation) and grants a dynamic 7-day trial
-    of the Pro feature set for all new users.
-  - `isProActive` evaluates to `true` if either the user is subscribed or their
-    trial is active, triggering Pro client behavior such as 1024 px inference
-    image preparation and the Pro tier badge. The `ModelTierBadge` explicitly
-    highlights the trial status (e.g., "7 days of pro remaining") for new users.
-    The `PlanCard` observes `isProActive` in the Profile header, redrawing the
-    subscription tier card to reflect the current state and surfacing the
-    `PaywallView` sheet.
+  - `EntitlementManager` calls authenticated `get_my_entitlement()` on every
+    launch/session and accepts complimentary access only after online
+    verification for the active Supabase user. It applies snapshots and scan
+    metadata monotonically by `entitlement_version`, including an account-owner
+    check, so late responses cannot restore another account's stale balance.
+    Scan-response metadata is buffered until that launch baseline succeeds:
+    an idempotently replayed stored envelope can contain a historical snapshot
+    and cannot establish current-launch proof on its own.
+  - Every account receives three lifetime complimentary Pro scans with no
+    calendar expiry. A credit or active hold enables the complimentary fair-use
+    Pro actions. `isProActive` is paid RevenueCat access or an exactly verified
+    complimentary tier; public Profile and Explore badges continue to use
+    paid `isSubscribed` state only.
+    New Pro-funded analyses use `canStartProScan`, which requires paid status or
+    `scans_available_to_start > 0`; an active hold alone cannot fund scan four.
+  - Complimentary balances appear in Results and Settings, not Capture. After
+    the third durable result the stored result remains fully viewable and the
+    UI shows exhaustion plus an upgrade action. Ordinary compatible captures
+    use the separate daily Flash policy when credits are exhausted.
   - **Backend Model Upgrades**: The client display state is not provider
     authorization. Every paid-model Edge path atomically calls
-    `reserve_ai_quota`, which reads Postgres tier/creation/expiry/version,
-    derives `effective_tier` and `plan`, selects the database policy model, and
-    consumes quota before dispatch. Paid users have
+    protocol-2 `reserve_ai_quota`, which locks the user, resolves paid Pro →
+    complimentary Pro → free, acquires a lifetime-ledger hold when required,
+    selects the database policy model, and consumes provider quota before
+    dispatch. Paid users have
     `users.subscription_tier = "pro"` and resolve to `pro_paid`; active
-    non-renewing passes also require a future `subscription_expires_at`; raw
-    free users inside the database's seven-day creation window resolve to
-    `pro_trial`. A stale timed pass resolves free, and a missing user row or
-    malformed entitlement row or database error fails closed rather than
-    granting a ghost trial.
+    non-renewing passes also require a future `subscription_expires_at`;
+    verified complimentary scans resolve to `pro_complimentary`. A stale timed
+    pass resolves free, and a missing user row, malformed entitlement row, or
+    database error fails closed. `pro_trial` remains a historical reporting
+    value only after cutover.
     RevenueCat/webhook changes advance `users.entitlement_version` in a trigger,
     so no Edge-isolate cache invalidation is required.
 
@@ -258,9 +269,10 @@ alone to decide access.
    all AI authorization reads that durable version.
 6. **Timed-pass repair and media stability**:
    `expire-subscription-passes` remains an hourly fail-safe for any recurring,
-   grace-period, or pass row that reaches its expiry. The dynamic seven-day
-   new-user trial is instead derived from `users.created_at` by the server quota
-   policy and is never stored as paid Pro. Tier changes do not relocate scan media: both
+   grace-period, or pass row that reaches its expiry. Before complimentary
+   cutover, the legacy seven-day new-user trial is derived from
+   `users.created_at` and is never stored as paid Pro; after cutover no current
+   resolver emits it. Tier changes do not relocate scan media: both
    `public_uploads/free/` and `public_uploads/pro/` are durable prefixes.
 7. **Missed-delivery repair**: A private durable queue invokes
    `reconcile-revenuecat-subscribers` every 15 minutes. It drains repeated
@@ -285,11 +297,11 @@ Provides an advisory local paywall/capture meter. It is not the entitlement or
 provider-cost enforcement boundary.
 
 - `.canPerformScan(isProActive:)` returns
-  `isProActive || freeScansRemaining > 0`. The paywall is surfaced from two
-  pre-scan gates only: `Capture.swift` (camera shutter) and
-  `handlePhotoPickerSelection` (photo library picker). Network failures in
-  `InferenceEngine` never trigger the paywall — they surface a "Network timeout"
-  error state while the already-queued scan retries in the background.
+  `isProActive || freeScansRemaining > 0`. Capture passes
+  `RevenueCatManager.canStartProScan`, which is stricter than functional Pro
+  access when every complimentary credit is already held. Queue insertion
+  repeats the local transaction gate. Network failures do not turn an accepted
+  durable scan into a paywall; exact-ID recovery keeps it queued.
 - `handlePhotoPickerSelection` snapshots the current quota once per picker batch
   before any background downsampling begins. If the batch is over quota, it
   clears the picker selection immediately, tracks the paywall impression, and
@@ -298,32 +310,35 @@ provider-cost enforcement boundary.
   bypass the local meter from Settings or `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`;
   Release/TestFlight ignores persisted debug overrides. This never changes the
   database entitlement, model, or server quota.
-- **Advisory reservation at capture time**: `consumeScan()` is called once, at
-  enqueue time, inside `OfflineQueueManager.insertAndPersistRecord`. The quota
-  check (`canPerformScan`) and token consumption happen before the
-  `OfflineQueuedScan` record is inserted into SwiftData. `syncPendingScans` has
-  no local-meter involvement — every accepted queue row uploads
+- **Advisory reservation at capture time**: when paid or verified unheld
+  complimentary capacity is unavailable, `consumeScan()` reserves the separate
+  Flash meter at enqueue time in `insertAndPersistRecord` or
+  `enqueueNonVisualCapture`. The quota check and token consumption happen before
+  the `OfflineQueuedScan` record is inserted into SwiftData. `syncPendingScans`
+  has no second local-meter gate—every accepted queue row uploads
   unconditionally. The Edge request still reserves authoritative server quota
-  immediately before model work. Successful non-biological results count as scan
-  attempts. The Non-biological collection's correction reanalysis flow bypasses
+  and any required lifetime hold immediately before model work. Successful
+  non-biological results consume the plan that funded them. The Non-biological
+  collection's correction reanalysis flow bypasses
   only the Pro reanalysis feature gate for that specific correction path; when
-  the user submits the replacement scan it still follows normal free-tier
-  inference settings and daily scan limits.
+  the user submits the replacement scan it follows the normal paid →
+  complimentary → Flash selection and applicable limits.
 - **Server authority**: `reserve_ai_quota` applies the free one-scan UTC-day
-  policy and high Pro trial/paid fair-use ceilings, plus shared per-user/IP
-  minute limits. Overview, lookalike, and optional group-tag provider calls
+  policy and high complimentary/paid Pro fair-use ceilings, plus shared
+  per-user/IP minute limits. Overview, lookalike, and optional group-tag provider calls
   share their own enrichment bucket. Clearing/modifying `UserDefaults` does not
   change them. A database entitlement failure returns `503`; it never falls
   back to Pro.
 - **Product language**: Pro removes the ordinary one-scan product cap but
   remains subject to documented anti-abuse/cost safety ceilings. Do not promise
   technically unbounded provider use.
-- **Local refunds**: If an inference fails unrecoverably (task cancellation, JSON
-  decoding failure, network error), `UsageManager.shared.refundScan()` restores
-  the advisory token. This does not refund a provider attempt. Server refund is
-  an explicit reservation transition used only when no provider call occurred.
-  A failed provider attempt remains charged and moves to `failed`, permitting a
-  new metered retry with the same logical request key.
+- **Local reconciliation**: queue-insertion or proven pre-provider client
+  failure can restore an optimistic local token. After success,
+  `reconcileServerPlanUsed` refunds that token for paid/complimentary results or
+  consumes it for actual Flash fallback, idempotently by scan ID. This does not
+  refund a provider attempt or settle a complimentary hold. Provider quota
+  remains charged after an attempted call even when terminal credit settlement
+  releases the user's hold.
 - Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`.
 - Resets the advisory meter at device calendar boundaries. The authoritative
@@ -331,6 +346,10 @@ provider-cost enforcement boundary.
   `evaluateDailyRefresh()` check is
   called from `AppDIContainer.handleActivePhase()`, ensuring user quotas are
   reset when the app enters the foreground from an overnight suspension.
+
+The complete grant, ledger, balance, fallback, settlement, protocol, offline,
+merge, security, and rollout contract is
+[`18-complimentary-pro-scans.md`](../backend-and-data/18-complimentary-pro-scans.md).
 
 ## Trust & Safety (`SocialGuardManager`)
 

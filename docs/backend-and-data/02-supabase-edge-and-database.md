@@ -127,11 +127,12 @@ Several utilities are shared across all Edge Functions via
   `_shared/groupTagQuota.ts` applies this boundary to optional group-tag
   generation.
 - **`entitlement.ts`**: Non-provider feature and telemetry tier resolver. It
-  reads `subscription_tier`, `created_at`, `subscription_expires_at`, and
-  `entitlement_version` on every call. Query errors and missing rows return
-  `503 ai_entitlement_unavailable` for query errors, missing rows, or malformed
-  durable values; there is no isolate-local authorization cache or webhook cache
-  invalidation.
+  calls service-only `get_user_entitlement_service(...)` on every resolution
+  and validates paid, complimentary, or free plan, balances, in-flight holds,
+  and monotonic version from the private database state. It also reads the
+  rollout fence for public protocol enforcement. Query errors, missing rows, or
+  malformed durable values return `503 ai_entitlement_unavailable`; there is no
+  isolate-local authorization cache or webhook cache invalidation.
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
   `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`)
   used for purging storage footprints. `deleteR2Objects` is bounded through
@@ -182,15 +183,17 @@ Several utilities are shared across all Edge Functions via
 
 ## Authoritative AI Entitlement and Quota
 
-Migration `20260723160229_enforce_server_ai_quotas.sql` owns provider
-authorization. `reserve_ai_quota(...)` is a service-role-only,
+Migration `20260723160229_enforce_server_ai_quotas.sql` established provider
+authorization; forward migration
+`20260802235833_three_complimentary_pro_scans.sql` extends the reservation with
+the original analysis UUID, protocol fence, server-derived Flash fallback, and
+private complimentary linkage. `reserve_ai_quota(...)` is a service-role-only,
 `SECURITY DEFINER` RPC with an empty search path and an in-function
 `require_service_role()` check. In one transaction it:
 
-1. Locks and reads the authenticated user's durable tier, trial window, timed
-   expiry, and `entitlement_version`, linearizing the reservation against a
-   concurrent entitlement update. A future-dated profile resolves free rather
-   than extending the trial.
+1. Locks the authenticated user's row first, reads durable paid state and the
+   rollout mode, and derives paid Pro → complimentary Pro → free. Legacy mode
+   alone can derive `pro_trial`; post-cutover current resolution cannot.
 2. Selects the enabled policy and allowlisted model for the exact operation and
    effective plan.
 3. Serializes only identical `(user, operation, request_id)` keys.
@@ -219,12 +222,21 @@ authority while the matching owner/scan remains unresolved
 `media_reconciliation_abandoned`. The exception does not retain refunded or
 unrelated state and ends after recovery or explicit operator resolution.
 
-Current policy ceilings are 1/50/500 primary scan attempts per UTC day for
-free/trial/paid, 4/100/500 cache-miss overview/lookalike/group-tag enrichment
-attempts, 3/25/100 Explore/Community audio moderation attempts, and
-denied/60/120 model-chat attempts. All allowed plans also share per-minute user
-and IP ceilings. These are database-owned cost/abuse controls; iOS
+Current post-cutover policy ceilings are 1/50/500 primary scan attempts per UTC
+day for free/complimentary/paid, 4/100/500 cache-miss
+overview/lookalike/group-tag enrichment attempts, 3/25/100 Explore/Community
+audio moderation attempts, and denied/60/120 model-chat attempts. Historical
+`pro_trial` policy and reservation rows remain readable. All allowed plans also
+share per-minute user and IP ceilings. These are database-owned cost/abuse
+controls; iOS
 `UsageManager` is only an advisory capture meter.
+
+Provider quota and complimentary settlement are independent. Attempted
+provider calls retain their cost/rate counters even when a proven terminal
+failure releases the user's held credit. Retryable or ambiguous outcomes keep
+the hold until recovery proves a durable result or terminal failure. The
+normative lifecycle and user-first lock order are in
+[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 Database entitlement lookup fails closed. A query error, missing user row,
 missing/disabled policy, or unsupported model prevents provider work.
@@ -654,14 +666,16 @@ The `/identify` Edge Function acts as the inference proxy:
     locale keys can still be filled.
 11. **Atomic Entitlement + Quota Reservation**: Before provider work,
     `_shared/aiQuota.ts` calls `reserve_ai_quota` with the authenticated user,
-    operation, UUID request key, and HMAC address bucket. The transaction reads
-    the current durable entitlement, derives `free`, `pro_trial`, or `pro_paid`,
-    selects the policy model, and atomically consumes the shared
-    daily/per-minute counters. Paid passes with stale expiry resolve free even
-    before the expiry worker repairs the row. A missing `public.users` row is an
-    identity-system fault and fails closed; it is never interpreted as a ghost
-    Pro trial. Successful Auth signup is responsible for creating that row
-    before inference. Optional group-tag generation uses
+    operation, UUID request key, original `client_scan_id`, HMAC address bucket,
+    protocol, and server-derived Flash-fallback eligibility. The transaction
+    locks the user first, resolves paid Pro → complimentary Pro → free, and
+    atomically acquires a hold from the private three-scan lifetime ledger.
+    Provider daily/per-minute counters remain separate and are retained after
+    an attempted provider call even if a terminal failure releases the user's
+    hold. Paid passes with stale expiry resolve free even before the expiry
+    worker repairs the row. A missing `public.users` row is an identity-system
+    fault and fails closed. Successful Auth signup is responsible for creating
+    that row before inference. Optional group-tag generation uses
     `_shared/groupTagQuota.ts`, the separate `scan_group_tag_enrichment` policy,
     and its database-selected model; public routes cannot dispatch the
     biological helper directly.
@@ -1259,6 +1273,17 @@ including scans credited before an experience completed: it removes standard
 and Event credit, reopens progress, clears derived Event badges, and
 soft-deletes invalid completion publications or entries without announcing a
 new completion.
+
+`20260802053044_simplify_backyard_and_pollinator_levels.sql` moves the existing
+starter checklist identities into 2/4/4 progressions and reconciles the now
+exact domestic-dog goal. `20260803015025_auto_enroll_backyard_safari_level_one.sql`
+then enrolls every account without prior Backyard Safari state into Level 1 and
+opens an activity period at enrollment time. A deny-by-default internal trigger
+does the same when future signed-in or ghost profiles are inserted. The
+insert-only conflict policy preserves completed, stopped, and reset state, and
+the activity-window timestamp prevents retroactive credit for older scans. The
+created row retains the existing profile-visible Field trip status, but no scan
+evidence, media, notes, or location is exposed by enrollment.
 
 These Seasonal Challenge contracts are already deployed while Events remain a
 client-staged iOS surface. Standard Outings are public; iOS requests and renders

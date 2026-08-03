@@ -243,6 +243,12 @@ steps are tracked in the
   that verifies durable entitlement, selects the allowed model, and applies
   UTC-day plus per-user/IP cost ceilings. Entitlement/database failures fail
   closed.
+- The staged entitlement replacement gives every existing and future account
+  three lifetime complimentary Pro scans, separate from the daily Flash scan.
+  Paid Pro takes precedence; after the third durable result, compatible
+  single-evidence captures fall back to Flash while video, mixed-media, and
+  Pro-only actions offer an upgrade. Activation remains behind the documented
+  protocol-2 atomic cutover.
 - Structured JSON output schema enforced server-side: common name, scientific
   name, full Linnaean taxonomy, ecology type, IUCN Red List status,
   location-aware invasiveness flag with region/rationale/confidence, confidence
@@ -369,7 +375,8 @@ steps are tracked in the
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
 - Field trips are released for every user. They add guided regional checklist
-  quests beside Explore, with Outings, Goals/Tips detail, explicit start,
+  quests beside Explore, with Outings, Goals/Tips detail, automatic Backyard
+  Safari Level 1 enrollment, explicit start for other standard outings,
   curated tips, profile pins, following-weighted Community discovery, and a
   compact account-cached visual Scan target that opens the relevant field trip
   guide. The active level shows a circular progress ring; completed standard
@@ -378,8 +385,9 @@ steps are tracked in the
   also keep a persistent **Field trips** card listing every outing or visible
   Event credited by that scan. Its rows show the experience name without a
   redundant level label and open the owning Goals overview in the current
-  navigation stack, with Back returning to the Insight. Standard outings require
-  explicit start and Events require join; a scan may advance several active
+  navigation stack, with Back returning to the Insight. Backyard Safari starts
+  at Level 1 for every account, other standard outings require explicit start,
+  and Events require join; a scan may advance several active
   experiences but credits at most one goal in each. Unreviewed AI evidence must
   be at least a tier-specific **Possible match** (75% Flash / 65% Pro); a weaker
   match remains pending until confirmation or correction. Scan ingestion applies
@@ -388,7 +396,9 @@ steps are tracked in the
   durable Capture goal hint until acknowledgement. Field trip database entry
   points are service-role-only behind the authenticated Edge API, while trigger
   and reconciliation helpers remain database-only; direct client roles cannot
-  call ownership-bearing RPCs. Saved scans still show contextual progress toasts
+  call ownership-bearing RPCs. The auto-enrolled starter uses the existing
+  profile-visible status-only summary, including at `0/N`, without publishing
+  scan evidence. Saved scans still show contextual progress toasts
   with a credited ring and tap-through navigation before any achievement or New
   to Naturebook notification from the same scan. Publication storage stays
   separate from Explore posts; typed Field trip cards can appear in unfiltered
@@ -580,13 +590,17 @@ expire, or the deletion backlog breaches its SLA. See the
   small leased waves to repair missed deliveries. Expired leases are indexed,
   and an independent monitor alerts on oldest due age. Existing scan media
   remains in place.
-- Free receives one primary scan per UTC day. Pro removes the ordinary product
-  cap and receives Gemini 2.5 Pro, video scans, AI chat, multi-capture, Apple
-  Watch logging, expedition mode, and offline queue; database fair-use ceilings
-  still bound automated provider traffic. Every public AI route atomically
-  resolves entitlement, selects its model, and reserves per-user/IP quota before
-  provider dispatch. The iOS `UserDefaults` meter is advisory, and its
-  debug-only bypass cannot change server capacity.
+- Free receives one primary Flash scan per UTC day. The staged introductory
+  offer replaces the calendar trial with three lifetime complimentary Pro
+  scans per account; complimentary holds settle independently from provider
+  quota and do not combine into six credits during Ghost-account merge. Paid
+  Pro removes the ordinary product cap and receives Gemini 2.5 Pro, video
+  scans, AI chat, multi-capture, Apple Watch logging, expedition mode, and
+  offline queue; database fair-use ceilings still bound automated provider
+  traffic. Every public AI route atomically resolves entitlement, selects its
+  model, and reserves per-user/IP quota before provider dispatch. The iOS
+  `UserDefaults` meter is advisory, and its debug-only bypass cannot change
+  server capacity.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5
   Flash against stored scan evidence only; the same function also generates
   short, scan-specific prompt chips from private text context.
@@ -893,6 +907,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/backend-and-data/10-internal-admin.md`                      | Internal admin architecture, security boundary, roles, metrics, moderation, and AI ledger                       |
 | `docs/backend-and-data/11-internal-admin-operations.md`           | Internal admin setup, deployment, access recovery, pricing, and incident runbook                                |
 | `docs/backend-and-data/12-explore-media-health-and-quarantine.md` | Reversible Explore media-loss policy, origin verification, owner communication, recovery, security, and rollout |
+| `docs/backend-and-data/18-complimentary-pro-scans.md`             | Normative three-credit ledger, reservation, settlement, protocol, iOS, merge, security, and rollout contract     |
 | `docs/development-guides/`                                        | Core managers reference, app lifecycle, testing strategy                                                        |
 | `docs/incidents/`                                                 | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
 | `docs/rfcs/active-capture-goal-context.md`                        | Long-term source-agnostic Capture goal architecture and extension contract                                      |

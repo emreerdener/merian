@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-02-three-complimentary-pro-scans",
+      "date": "2026-08-02",
+      "title": "Three complimentary Pro scans",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Every account now includes three complimentary Pro scans with no calendar expiry, while your separate daily Flash scan remains available.",
+            "Results and Settings show how many complimentary scans remain. After the third usable Pro result, saved Pro results stay fully viewable and you can upgrade for new Pro-only actions."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Ordinary single-photo, standalone-audio, and description scans can continue with the daily Flash policy after the complimentary scans are used. Video, multi-item, mixed, and other Pro-only analyses show the upgrade option.",
+            "Retries and recovery reuse the original analysis, so a temporary or proven terminal failure cannot spend an extra complimentary scan. Paid subscriptions and the paid 7 Day Pass are unchanged."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-02-simpler-starter-outings",
       "date": "2026-08-02",
       "title": "Simpler starter outings",
@@ -9,6 +30,8 @@
         {
           "title": "Improved",
           "items": [
+            "Every account now starts in Backyard Safari Level 1, so its first goals are ready in Scan without a separate enrollment step.",
+            "Active Backyard Safari status may appear on your public author profile, but enrollment never publishes its scans, media, notes, or location evidence.",
             "Backyard Safari and Park Pollinators now start with 2 goals, expand to 4 in Level 2, and finish with a new Level 3 while keeping valid credited scans.",
             "Backyard Safari now begins with Bird and Dog, and Dog requires an exact domestic-dog identification.",
             "All six collectible level patches have refreshed embroidered artwork reflecting each level’s updated discoveries."
@@ -568,7 +591,7 @@
         {
           "title": "Added",
           "items": [
-            "Explore now includes Field trips: regional checklist quests that can auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
+            "The original Field trips preview introduced regional checklist quests that could auto-start from new scans, unlock levels sequentially, and appear on public profiles as checklist progress only.",
             "Field trips now include guided detail pages, explicit Start, curated checklist tips, a Field trips-only Community segment with For You, Following, and Recent filters, and up to 3 pinned published trips on profiles.",
             "Published Field trip pages show species snapshots with likes and comments without publishing the underlying scans to the Explore feed or map.",
             "Field trip comments, replies, and followed-author publications can now appear in the in-app activity bell without sending push notifications."

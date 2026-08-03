@@ -236,6 +236,41 @@ Deno.test("Backyard Safari and Park Pollinators use identity-preserving 2/4/4 pr
   );
 });
 
+Deno.test("Backyard Safari Level 1 auto-enrolls existing and future users without resuming prior state", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260803015025_auto_enroll_backyard_safari_level_one.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "SET lock_timeout = '10s'",
+      "SET statement_timeout = '5min'",
+      "JOIN public.field_trip_checklist_items AS item",
+      "CREATE OR REPLACE FUNCTION internal.auto_enroll_backyard_safari_level_one()",
+      "SECURITY DEFINER SET search_path = ''",
+      "ON CONFLICT (user_id, template_id) DO NOTHING",
+      "INSERT INTO public.user_field_trip_active_periods",
+      "REVOKE ALL ON FUNCTION internal.auto_enroll_backyard_safari_level_one() FROM PUBLIC, anon, authenticated, service_role",
+      "CREATE TRIGGER auto_enroll_backyard_safari_level_one_on_user_insert AFTER INSERT ON public.users",
+      "WITH backyard_template AS",
+      "FROM public.users AS users CROSS JOIN backyard_template",
+      "RETURNING id, started_at",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("ON CONFLICT (user_id, template_id) DO UPDATE") &&
+      !sql.includes("UPDATE public.user_field_trips"),
+    "Auto-enrollment must not resume a stopped, reset, or completed outing",
+  );
+});
+
 Deno.test("Field trips migration preserves privacy and Explore separation contracts", async () => {
   const sql = normalized(
     await migrationSql("20260708021110_field_trips_v1.sql"),

@@ -18,7 +18,6 @@ struct Preferences: View {
     @Binding var showTestExploreOnboarding: Bool
 
     var body: some View {
-        @Bindable var hwOrchestrator = hardwareOrchestrator
         @Bindable var appSettings = appSettings
 
         // MARK: - PRO SUBSCRIPTION BANNER
@@ -124,7 +123,6 @@ struct Preferences: View {
                     get: { appSettings.isExpeditionModeActive },
                     set: { newValue in
                         appSettings.isExpeditionModeActive = newValue
-                        hwOrchestrator.isExpeditionModeActive = newValue
                         hardwareOrchestrator.evaluateConstraints()
                     }
                 ),

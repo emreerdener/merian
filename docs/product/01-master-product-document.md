@@ -332,9 +332,13 @@ without depending on a successful immediate request. When offline, Naturebook
 skips live inference, informs the user that the observation is queued, and
 retries through the background pipeline.
 
-Quota is evaluated when the observation is accepted into the queue. A technical
-failure can refund usage. A completed non-biological result still represents a
-processed request and counts as usage.
+The client meter is evaluated when the observation is accepted into the queue;
+server entitlement and provider quota are evaluated before provider work. In
+the staged complimentary model, provider counters and a user's credit hold
+settle independently. A proven terminal failure releases a hold, an ambiguous
+or retryable attempt keeps it held, and an attempted provider call remains
+metered. A completed non-biological result is still a usable processed result
+and consumes its funding credit.
 
 ## 5.2 Primary AI path - Implemented
 
@@ -416,12 +420,18 @@ when no media is saved.
 
 Field trips, also described in parts of the codebase as outings, group
 observations into a coherent activity. They are a standard product feature
-rather than a Pro-only expedition. Standard outings must be explicitly started;
-matching scans do not auto-start them. The capture workspace can show progress
+rather than a Pro-only expedition. Every account starts in Backyard Safari
+Level 1; other standard outings must be explicitly started. Matching scans do
+not auto-start outings. The capture workspace can show progress
 against an active outing's goal, and a saved biological Insight persistently
 lists every outing or joined Event credited by that scan.
 
-A scan can advance several deliberately active experiences, but it receives at
+Automatic enrollment uses the existing profile-visible Field trip status, so
+Backyard Safari can appear on an Explore author profile and satisfy that
+profile's visibility gate. Enrollment never publishes the underlying scans,
+media, notes, or location evidence.
+
+A scan can advance several active experiences, but it receives at
 most one goal credit per standard outing and one per joined Event. A visibly
 selected eligible camera goal wins inside its own outing; deterministic
 specificity and checklist ranking handles all other cases. An unreviewed AI
@@ -531,9 +541,16 @@ nature recording.
 
 ## 8.1 Free usage
 
-The database policy grants one free primary scan per UTC day. The iOS local
-meter previews that limit but is not authoritative. Unlimited local-meter
-bypasses are DEBUG-only; Release and TestFlight still reach the server quota.
+The database policy grants one free primary Flash scan per UTC day. It is
+separate from the staged grant of three lifetime complimentary Pro scans, so an
+account can receive three Pro-funded results plus one Flash-funded result on
+day one. Complimentary credits are selected automatically before Flash. After
+exhaustion, only compatible single-evidence observations fall back to the daily
+Flash policy; video, mixed/multi-item, and Pro-only actions require an upgrade.
+
+The iOS local meter previews free usage but is not authoritative. Unlimited
+local-meter bypasses are DEBUG-only; Release and TestFlight still reach the
+server entitlement and quota boundary.
 
 ## 8.2 Naturebook Pro products
 
@@ -542,18 +559,27 @@ bypasses are DEBUG-only; Release and TestFlight still reach the server quota.
 | `pro_week`   | Non-renewing 7-day pass           | $3.99                 |
 | `pro_annual` | Auto-renewing annual subscription | $24.99                |
 
-New eligible users can receive a dynamic seven-day Pro trial. Storefront pricing
-and eligibility ultimately come from the store and RevenueCat; fixed display
-strings must be audited before release in every region.
+The staged introductory offer replaces the dynamic seven-day trial with three
+complimentary Pro scans for every existing and future account. Credits have no
+calendar expiry. This offer is not an App Store product and does not alter the
+paid **7 Day Pass**, its purchase copy, or the annual subscription.
+
+Storefront pricing and paid-product eligibility ultimately come from the store
+and RevenueCat; fixed display strings must be audited before release in every
+region. The complimentary offer becomes current only after the schema,
+protocol-2 client, and backend pass the documented atomic cutover.
 
 ## 8.3 Pro capability set
 
-The current entitlement model removes the ordinary one-scan product cap for Pro
-and includes the Gemini Pro path, short video scans, follow-up AI chat, mixed
-multi-capture, Expedition Mode, offline queue benefits, group-event hosting, and
-Apple Watch logging. High database fair-use and rate ceilings bound automation
-and provider cost, so product copy must not promise technically unbounded model
-traffic.
+Paid Pro removes the ordinary one-scan product cap and includes the Gemini Pro
+path, short video scans, follow-up AI chat, mixed multi-capture, Expedition Mode,
+offline queue benefits, group-event hosting, and Apple Watch logging. A verified
+complimentary balance can fund three primary Pro analyses and keeps the former
+trial's fair-use caps for non-scan Pro AI actions while at least one credit or
+active hold remains. An active hold is functional access but cannot fund a
+fourth analysis.
+High database fair-use and rate ceilings bound automation and provider cost, so
+product copy must not promise technically unbounded model traffic.
 
 This list must be read with implementation status. Events are preview-gated.
 Apple Watch logging is partial because the phone receiver is incomplete. Paywall
@@ -571,6 +597,17 @@ fetches authoritative source and destination state and commits both projections
 under one event transaction. Paid-model authorization uses the database quota
 reservation, not client display state or Edge-isolate memory; lookup errors fail
 closed.
+
+Complimentary usage is derived from a private held/consumed/released lifetime
+ledger keyed by account and original scan UUID. The server resolves paid Pro →
+complimentary Pro → free under a user-row lock. A client must verify its own
+versioned entitlement online each launch before complimentary-only modes unlock;
+RevenueCat's existing paid-offline behavior is unchanged. Profile and Explore
+Pro badges remain paid-only.
+
+The normative ledger, settlement, protocol, offline, merge, and rollout rules
+are in
+[`18-complimentary-pro-scans.md`](../backend-and-data/18-complimentary-pro-scans.md).
 
 Biological media stays in the storage prefix selected when it was uploaded.
 There is no free-to-Pro or Pro-to-free object migration. Storage policy must not
@@ -990,17 +1027,21 @@ Each release should exercise at minimum:
 1. New install through the four-step onboarding flow.
 2. Anonymous still scan, queued acceptance, identification, and Insight.
 3. Offline submission, relaunch, and later synchronization.
-4. Pro entitlement activation and restoration.
-5. Short video and audio limits.
-6. Image import with and without EXIF context.
-7. Automatic photo/video Photos saves with the preference on and off, plus
+4. Online complimentary verification, three durable Pro results, fourth-scan
+   Flash fallback, third-result persistence, stale-response rejection, and
+   offline complimentary locking.
+5. Paid Pro activation/restoration, purchase during an in-flight complimentary
+   scan, and paid-only badges.
+6. Short video and audio limits.
+7. Image import with and without EXIF context.
+8. Automatic photo/video Photos saves with the preference on and off, plus
    video-only, mixed, local, cloud, single, and batch explicit Downloads.
-8. Open, obscured, and private public projections.
-9. Explore post, report, block, and moderator handling.
-10. Field-trip assignment and goal progress.
-11. Individual scan deletion and account deletion.
-12. Personal and public export generation.
-13. Thermal, background, constrained-network, and low-storage behavior.
+9. Open, obscured, and private public projections.
+10. Explore post, report, block, and moderator handling.
+11. Field-trip assignment and goal progress.
+12. Individual scan deletion and account deletion.
+13. Personal and public export generation.
+14. Thermal, background, constrained-network, and low-storage behavior.
 
 Apple Watch capture should not enter the release-critical "complete" set until
 the phone receiver and end-to-end tests exist.
@@ -1051,6 +1092,7 @@ migrations, vendor credentials, and release flags.
 - A mandatory two-model-call identification pipeline.
 - Gemini output limited to 1,000 tokens.
 - Two free scans per day as the public policy.
+- A calendar-based introductory Pro trial.
 - $2.99 weekly and $19.99 annual Pro pricing.
 - Ninety-day free biological-media expiration.
 - Subscription-driven media-prefix migration.
@@ -1084,7 +1126,8 @@ Product analytics should answer a small number of durable questions:
 - Do users return to records, Field trips, or Explore after the first scan?
 - Which uncertainty and safety treatments improve trust and responsible
   behavior?
-- Which Pro benefits drive sustained value rather than one-time trial activity?
+- How often do users exhaust complimentary scans, continue with Flash, or
+  purchase paid Pro, and which Pro benefits drive sustained value?
 - How often do location privacy controls change sharing decisions?
 
 Metrics should be defined with event contracts, denominators, exclusions, and
@@ -1155,6 +1198,7 @@ numbers.
 | Product is publicly named Merian.                         | Public product is Naturebook; Merian remains the stable engineering identity.                                                        |
 | Current schema is V45.                                    | Current SwiftData alias is `MerianSchemaV50`.                                                                                        |
 | Two free scans are allowed per day.                       | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only.                   |
+| New accounts receive a seven-day introductory Pro trial. | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.             |
 | Pro costs $2.99 weekly and $19.99 annually.               | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually.                                        |
 | Onboarding is six steps and requests all permissions.     | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive.                                    |
 | Identification always uses two model calls.               | One primary Gemini call is followed by optional asynchronous enrichment.                                                             |

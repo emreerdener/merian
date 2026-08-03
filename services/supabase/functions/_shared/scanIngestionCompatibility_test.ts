@@ -131,6 +131,7 @@ function compatibilityClient(options: {
   alreadyComplete?: boolean;
   beginError?: { message: string } | null;
   finalizationError?: { message: string } | null;
+  terminalError?: { message: string } | null;
   rpcCalls?: Array<{ name: string; arguments_: Record<string, unknown> }>;
   updates?: Array<Record<string, unknown>>;
 } = {}): SupabaseClient {
@@ -159,6 +160,21 @@ function compatibilityClient(options: {
   return {
     rpc(name: string, arguments_: Record<string, unknown>) {
       rpcCalls.push({ name, arguments_ });
+      if (name === "fail_scan_ingestion_terminal") {
+        return Promise.resolve({
+          data: options.terminalError ? null : { credit_released: true },
+          error: options.terminalError ?? null,
+        });
+      }
+      if (name === "complete_scan_ingestion_with_entitlement") {
+        return Promise.resolve({
+          data: options.finalizationError ? null : {
+            result: "completed",
+            response_envelope: arguments_.p_response_envelope ?? null,
+          },
+          error: options.finalizationError ?? null,
+        });
+      }
       if (
         name === "complete_scan_ingestion_finalization" ||
         name === "complete_scan_ingestion_finalization_with_response"
@@ -246,13 +262,14 @@ Deno.test("compatibility completion forwards the canonical replay envelope", asy
     compatibilityClient({ rpcCalls }),
   );
 
-  await ledger.markComplete({ responseEnvelope });
+  const completion = await ledger.markComplete({ responseEnvelope });
 
   assertEquals(
     rpcCalls[1].name,
-    "complete_scan_ingestion_finalization_with_response",
+    "complete_scan_ingestion_with_entitlement",
   );
   assertEquals(rpcCalls[1].arguments_.p_response_envelope, responseEnvelope);
+  assertEquals(completion.responseEnvelope, responseEnvelope);
 });
 
 Deno.test("compatibility finalization failures become durable retryable work", async () => {
@@ -281,6 +298,42 @@ Deno.test("compatibility finalization failures become durable retryable work", a
   assertEquals(typeof updates[0].retry_after, "string");
 });
 
+Deno.test("compatibility terminal settlement failures propagate instead of stranding a hold silently", async () => {
+  const rpcCalls: Array<{
+    name: string;
+    arguments_: Record<string, unknown>;
+  }> = [];
+  const ledger = await createCompatibilityScanIngestionLedger(
+    {
+      scanId: "00000000-0000-4000-8000-000000000231",
+      userId: "00000000-0000-4000-8000-000000000232",
+      endpoint: "identify",
+      imageKeys: [
+        "staging/00000000-0000-4000-8000-000000000232/frame.webp",
+      ],
+    },
+    compatibilityClient({
+      rpcCalls,
+      terminalError: { message: "terminal settlement unavailable" },
+    }),
+  );
+
+  await assertRejects(
+    () =>
+      ledger.markTerminalFailure(
+        "ai_response_parse_failed",
+        "malformed response",
+        "malformed_provider_response",
+      ),
+    Error,
+    "terminal settlement unavailable",
+  );
+  assertEquals(rpcCalls.map((call) => call.name), [
+    "begin_scan_ingestion",
+    "fail_scan_ingestion_terminal",
+  ]);
+});
+
 Deno.test("compatibility ledger fails closed on completed or unavailable generation setup", async () => {
   const alreadyComplete = await assertRejects(
     () =>
@@ -298,6 +351,10 @@ Deno.test("compatibility ledger fails closed on completed or unavailable generat
   assertEquals(alreadyComplete.status, 409);
   assertEquals(alreadyComplete.code, "scan_already_complete");
 
+  const setupRpcCalls: Array<{
+    name: string;
+    arguments_: Record<string, unknown>;
+  }> = [];
   const unavailable = await assertRejects(
     () =>
       createCompatibilityScanIngestionLedger(
@@ -309,10 +366,17 @@ Deno.test("compatibility ledger fails closed on completed or unavailable generat
             "staging/00000000-0000-4000-8000-000000000202/audio.wav",
           ],
         },
-        compatibilityClient({ beginError: { message: "offline" } }),
+        compatibilityClient({
+          beginError: { message: "offline" },
+          rpcCalls: setupRpcCalls,
+        }),
       ),
     PublicHttpError,
   );
   assertEquals(unavailable.status, 503);
   assertEquals(unavailable.code, "scan_ingestion_unavailable");
+  assertEquals(setupRpcCalls.map((call) => call.name), [
+    "begin_scan_ingestion",
+    "fail_scan_ingestion_terminal",
+  ]);
 });

@@ -99,8 +99,8 @@ struct UserProfile: View {
         )
     }
 
-    private var isProActive: Bool {
-        revenueCatManager?.isProActive ?? RevenueCatManager.shared.isProActive
+    private var isPaidPro: Bool {
+        revenueCatManager?.isSubscribed ?? RevenueCatManager.shared.isSubscribed
     }
 
     private var identityHeader: some View {
@@ -115,7 +115,7 @@ struct UserProfile: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
 
-                    if isProActive {
+                    if isPaidPro {
                         ExploreProBadge()
                     }
                 }

@@ -102,7 +102,12 @@ struct RevenueCatIdentityContext: Equatable {
 
     var isProActive: Bool = false
     var isSubscribed: Bool = false
-    var trialDaysRemaining: Int?
+
+    /// Funding policy for a new scan. An active complimentary hold preserves
+    /// functional Pro access but cannot be spent by another analysis.
+    var canStartProScan: Bool {
+        isSubscribed || EntitlementManager.shared.canStartProFundedScan
+    }
     
     var currentOfferings: Offerings?
     var isFetchingOfferings: Bool = false
@@ -114,7 +119,6 @@ struct RevenueCatIdentityContext: Equatable {
         guard !TestExecutionCoordinator.isRunningTests else {
             isProActive = false
             isSubscribed = false
-            trialDaysRemaining = nil
             currentOfferings = nil
             isFetchingOfferings = false
             return
@@ -127,7 +131,6 @@ struct RevenueCatIdentityContext: Equatable {
             MerianLog.general.error("RevenueCat configuration skipped because REVENUECAT_API_KEY is missing.")
             isProActive = false
             isSubscribed = false
-            trialDaysRemaining = nil
             currentOfferings = nil
             isFetchingOfferings = false
             return
@@ -138,7 +141,6 @@ struct RevenueCatIdentityContext: Equatable {
             MerianLog.general.error("RevenueCat configuration skipped because Release builds require an appl_ production iOS key, not a Test Store key.")
             isProActive = false
             isSubscribed = false
-            trialDaysRemaining = nil
             currentOfferings = nil
             isFetchingOfferings = false
             return
@@ -229,12 +231,15 @@ struct RevenueCatIdentityContext: Equatable {
         )
         
         isSubscribed = isNaturalist || isPro || isActive7DayPass
-        
-        let diff = Calendar.current.dateComponents([.day], from: info.firstSeen, to: Date()).day ?? 0
-        let trialRemaining = max(0, 7 - diff)
-        self.trialDaysRemaining = trialRemaining
-        
-        isProActive = isSubscribed || (trialRemaining > 0)
+        synchronizeFunctionalEntitlement()
+    }
+
+    /// Functional Pro is paid RevenueCat access plus current-session server
+    /// entitlement. Legacy trial mode is server-owned until cutover; no client
+    /// trial window is inferred.
+    func synchronizeFunctionalEntitlement() {
+        isProActive = isSubscribed || EntitlementManager.shared.hasVerifiedFunctionalProAccess
+        HardwareOrchestrator.shared.evaluateConstraints()
     }
 
     /// Fetches available offerings for the paywall.
@@ -283,7 +288,7 @@ struct RevenueCatIdentityContext: Equatable {
     func handleSupabaseSignOut() async {
         isProActive = false
         isSubscribed = false
-        trialDaysRemaining = nil
+        EntitlementManager.shared.handleSignOut()
 
         guard !TestExecutionCoordinator.isRunningTests else { return }
         guard Purchases.isConfigured else { return }

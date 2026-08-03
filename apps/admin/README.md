@@ -123,6 +123,7 @@ The final active owner cannot be disabled or demoted.
 |---|---|---|
 | `/overview` | Analyst | Account, plan, scan, moderation, feedback, and cost aggregates |
 | `/ai-usage` | Analyst | Token, modality, cache, percentile, and estimated-cost analytics |
+| `/complimentary-entitlements` | Analyst | Three-scan balances, hold age, settlement, Flash fallback, exhaustion, and paid conversion aggregates |
 | `/reviews` | Moderator | Live grouped moderation/identification queue |
 | `/reviews/[caseId]` | Moderator | Evidence, context, notes, transitions, and hide/restore |
 | `/feedback` | Moderator | Unified feedback workflow overlay |

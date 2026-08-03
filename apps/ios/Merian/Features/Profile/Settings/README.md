@@ -61,6 +61,26 @@ Simulator Test Store, local StoreKit, and TestFlight/App Store sandbox setup are
 documented in
 [`02-revenue-and-identity.md`](../../../../../../docs/features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
 
+## Complimentary display and exhaustion
+
+When the server's entitlement mode is cut over, Settings → Plan is one of only
+two places that shows the complimentary countdown; Results is the other.
+`PlanCard` uses the current-launch server snapshot to show scans remaining out
+of three and explicitly keeps the separate daily Flash allowance visible. It
+never calculates a calendar expiry.
+
+After the third durable Pro result, the card shows exhaustion and an Upgrade to
+Pro action. That result and all earlier stored Pro results remain fully
+viewable. Only new Pro actions lock; an ordinary compatible capture can still
+use the daily Flash policy. Before online launch verification succeeds,
+complimentary-only actions remain locked, while paid RevenueCat offline access
+is preserved.
+
+The paid **7 Day Pass** product, price treatment, and purchase copy are
+unchanged. Public Pro badges continue to use paid status rather than
+complimentary functional access. See
+[Three Complimentary Pro Scans](../../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+
 ## Preference layout
 
 The top general-preferences section begins with Theme. **Open Explore on

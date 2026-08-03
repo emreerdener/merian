@@ -207,7 +207,12 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   are not standalone display rows. Migration
   `20260729012153_fix_video_scan_canonical_finalization.sql` aligns the database
   proof with that projection while retaining exact owner, kind, URL, and
-  claimed-key checks.
+  claimed-key checks. Current successful completion delegates to the
+  user-first `complete_scan_ingestion_with_entitlement(...)` orchestrator,
+  which invokes canonical media finalization, settles any credit, adds a
+  versioned entitlement snapshot, and stores the enriched response. Terminal
+  status delegates only to `fail_scan_ingestion_terminal(...)`; schema-cache or
+  direct table fallbacks are forbidden because they could bypass hold release.
 - **Compatibility success nuance**: `identify`, `identify-describe`, and
   `audio-spec` invoke that finalizer synchronously. Only a failure after the
   exact owner scan row has committed may degrade to a validated compatibility
@@ -262,18 +267,28 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   service-only maintenance callers pass their reviewed system model explicitly.
 - **`aiQuota.ts`**: Service-role client for the atomic `reserve_ai_quota(...)`
   and `finalize_ai_quota_reservation(...)` RPCs. It validates UUID idempotency
-  keys, uses `clientAddress.ts` with an optional dedicated override or built-in
-  server-only Supabase key, maps fail-closed database errors to stable HTTP
-  codes, and exposes a fenced provider lease. A route commits immediately before
-  a provider attempt; provider failures remain charged but become retryable, and
-  only a proven pre-provider no-op may refund.
+  keys, carries nullable original-analysis linkage, protocol, route-derived
+  Flash-fallback eligibility, authenticated replay status, and nullable
+  complimentary linkage. It uses `clientAddress.ts` with an optional dedicated
+  override or built-in server-only Supabase key, maps fail-closed database
+  errors to stable HTTP codes, and exposes a fenced provider lease. A route
+  commits immediately before a provider attempt; provider failures remain
+  charged but become retryable, and only a proven pre-provider no-op may refund.
+- **`complimentaryScans.ts`**: Fail-closed classifier for Flash fallback. It
+  accepts only nonnegative safe evidence counts and returns eligible only for
+  exactly one user-supplied image, audio clip, or description and zero video.
+  Context telemetry does not create another evidence item. Routes derive this
+  value after parsing; clients do not authorize their own fallback.
 - **`groupTagQuota.ts`**: Optional identification group-tag enrichment behind
   its own database-selected model and quota operation. Quota/provider failures
   are recorded without discarding the successful primary identification.
 - **`entitlement.ts`**: Durable user-tier resolver for non-provider feature
-  checks and telemetry. It reads `users` on every call, includes the monotonic
-  `entitlement_version`, and returns `503 ai_entitlement_unavailable` on a query
-  error or missing row. Edge isolate memory is never an entitlement authority.
+  checks and telemetry. It calls the service-only user-aware resolver on every
+  check; validates plan/tier, paid status, derived balances, in-flight count,
+  and monotonic `entitlement_version`; and returns
+  `503 ai_entitlement_unavailable` on a query error, missing row, or malformed
+  relationship. It also owns the rollout read and protocol-2 `426` response.
+  Edge isolate memory is never an entitlement authority.
 - **`posthog.ts`**: Best-effort PostHog HTTP capture helpers with a 2.5-second
   deadline so telemetry cannot consume request-critical Edge wall-clock time.
 - **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`
@@ -298,8 +313,14 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   failure fails closed and refunds unused provider quota in the route. Staged
   media and text-only intents can be replayed through `replay-scan-ingestion`;
   inline base64 media is redacted and marked non-resumable. Compatibility
-  completion delegates to the shared finalization RPC, cannot issue a direct
-  complete update, and turns finalization failure into durable retryable work.
+  completion delegates to the user-first entitlement completion orchestrator,
+  cannot issue a direct complete update, and turns finalization failure into
+  durable retryable work. Proven setup or terminal failure calls the terminal
+  orchestrator to release a hold; a settlement error propagates so an ambiguous
+  outcome remains held rather than being silently terminalized.
+
+The normative complimentary ledger and settlement contract is
+[`docs/backend-and-data/18-complimentary-pro-scans.md`](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Identify Subdomain
 

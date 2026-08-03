@@ -788,11 +788,93 @@ const edgeResponseContract = object(
   },
 );
 
+const entitlementSnapshotContract = object(
+  {
+    current_plan: field(
+      text({
+        enum: [
+          "free",
+          "pro_paid",
+          "pro_trial",
+          "pro_complimentary",
+        ],
+        maxLength: 24,
+      }),
+      true,
+      { name: "currentPlan" },
+    ),
+    current_tier: field(
+      text({ enum: ["free", "pro"], maxLength: 4 }),
+      true,
+      { name: "currentTier" },
+    ),
+    is_paid: field(truth(), true, { name: "isPaid" }),
+    scans_remaining: field(integer(0, 3), true, {
+      name: "scansRemaining",
+    }),
+    scans_available_to_start: field(integer(0, 3), true, {
+      name: "scansAvailableToStart",
+    }),
+    in_flight_count: field(integer(0, Number.MAX_SAFE_INTEGER), true, {
+      name: "inFlightCount",
+    }),
+    entitlement_version: field(
+      integer(1, Number.MAX_SAFE_INTEGER),
+      true,
+      { name: "entitlementVersion" },
+    ),
+  },
+  {
+    unknownKeys: "strip",
+    swift: {
+      name: "EntitlementSnapshotDTO",
+      declarationOrder: 3,
+    },
+  },
+);
+
+const scanEntitlementMetadataContract = object(
+  {
+    user_id: field(text({ minLength: 36, maxLength: 36 }), true, {
+      name: "userID",
+    }),
+    plan_used: field(
+      text({
+        enum: [
+          "free",
+          "pro_paid",
+          "pro_trial",
+          "pro_complimentary",
+        ],
+        maxLength: 24,
+      }),
+      true,
+      { name: "planUsed" },
+    ),
+    credit_consumed: field(truth(), true, {
+      name: "creditConsumed",
+    }),
+    entitlement_after: field(entitlementSnapshotContract, true, {
+      name: "entitlementAfter",
+    }),
+  },
+  {
+    unknownKeys: "strip",
+    swift: {
+      name: "ScanEntitlementMetadataDTO",
+      declarationOrder: 2,
+    },
+  },
+);
+
 /** Exact successful JSON envelope returned by Identify Edge Functions. */
 export const identifyWireEnvelopeContract = deepFreezeJson(object(
   {
     success: field(truth({ const: true }), true, { optional: true }),
     data: field(edgeResponseContract, true),
+    entitlement: field(scanEntitlementMetadataContract, false, {
+      optional: true,
+    }),
   },
   {
     unknownKeys: "strip",

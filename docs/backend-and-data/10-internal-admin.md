@@ -167,6 +167,7 @@ to `user_reports`, `ai_usage_events`, and `internal` remains denied.
 | `admin_get_access_state` | Authenticated routing check | None | Membership, role, AAL, and internal-session state |
 | `admin_begin_session` | Active member at AAL2 | None | Start/refresh the eight-hour internal session |
 | `admin_get_overview` | Analyst | Five minutes | Account, plan, scan, review, feedback, token, and estimated-cost aggregates |
+| `admin_complimentary_entitlement_summary` | Analyst | None | Derived balances, hold age, settlement, Flash fallback, exhaustion, and conversion aggregates |
 | `admin_list_review_cases` | Moderator | None | Filtered cursor-paginated review queue |
 | `admin_get_review_case` | Moderator | None | Reports, subject, notes, and scoped identification context |
 | `admin_update_review_case` | Moderator | None | Status, priority, assignment, resolution code, and optional note |
@@ -195,10 +196,16 @@ overview buckets; AI Usage currently groups daily rows in database time.
 
 - **Registered**: `auth.users.is_anonymous = false`.
 - **Ghost**: `auth.users.is_anonymous = true`.
-- **Pro paid**: stored Pro whose expiry is absent or in the future.
-- **Pro trial**: a free public user created within seven days, plus a missing
-  public profile row for a newly created Auth account.
-- **Free**: a public user that matches neither active Pro nor the trial rule.
+- **Pro paid**: user-aware effective plan `pro_paid`; stored Pro must have no
+  expiry or a future expiry.
+- **Pro complimentary**: user-aware effective plan `pro_complimentary`, derived
+  from an available lifetime credit or active hold. It is functional, not paid.
+- **Historical Pro trial**: retained only in historical AI usage filters and
+  rows after cutover; current account projections must not synthesize it.
+- **Free**: user-aware effective plan `free`.
+- **Exhausted**: derived `scans_remaining = 0` regardless of current paid state.
+- **Converted after exhaustion**: exhausted and `is_paid = true`; do not use
+  functional Pro state for this paid conversion count.
 - **Completed scans**: successful `scan_identification` ledger events linked to
   a scan, not every retained `scans` row.
 - **Open reviews**: cases in `open` or `in_review`.
@@ -211,6 +218,22 @@ overview buckets; AI Usage currently groups daily rows in database time.
 
 For finite ranges, the overview RPC also returns previous-period scan, token,
 and estimated-cost aggregates. All-time has no previous-period result.
+
+### Complimentary scan operations view
+
+`/complimentary-entitlements` calls the uncached, analyst-authorized
+`admin_complimentary_entitlement_summary()` RPC. It returns aggregate account
+count, active complimentary access, exhausted accounts, paid exhausted
+accounts, in-flight holds, holds older than 15 minutes and one hour, oldest hold
+time, ledger state totals, settlement-reason totals, available-balance
+histogram, and Flash-fallback reservation count. The authorized read writes the
+`complimentary_entitlement_summary_viewed` audit action.
+
+The view is diagnostic only. It intentionally exposes no ledger row, account
+identifier, scan UUID, prompt, response, or mutation control. An aged hold is a
+recovery signal, not permission to issue a refund or edit a balance. The
+normative state and incident rules are in
+[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 ## Review-case lifecycle
 
@@ -369,10 +392,14 @@ directly.
 ## Implementation map
 
 - Admin application: `apps/admin`
+- Complimentary operations page:
+  `apps/admin/app/(admin)/complimentary-entitlements/page.tsx`
 - Auth/server boundary: `apps/admin/lib/admin.ts`,
   `apps/admin/lib/supabase-server.ts`, and `apps/admin/proxy.ts`
 - Server mutations: `apps/admin/app/actions.ts`
 - Database migration: `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`
+- Complimentary extension migration:
+  `services/supabase/migrations/20260802235833_three_complimentary_pro_scans.sql`
 - User-report endpoint: `services/supabase/functions/report-user`
 - AI writer helper: `services/supabase/functions/_shared/aiUsage.ts`
 - Database security tests: `services/supabase/tests/admin_foundation_security.sql`

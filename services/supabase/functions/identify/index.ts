@@ -16,7 +16,11 @@ import {
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { tierTelemetryProperties } from "../_shared/entitlement.ts";
+import {
+  entitlementProtocolResponse,
+  tierTelemetryProperties,
+} from "../_shared/entitlement.ts";
+import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
   reserveAIProviderCall,
@@ -48,6 +52,7 @@ import {
   Payload,
 } from "../_shared/identify/types.ts";
 import {
+  type IdentifySuccessEnvelope,
   parseIdentifySuccessEnvelope,
   parseMerianIdentification,
 } from "../_shared/identify/contract.ts";
@@ -169,6 +174,12 @@ const modelConfigs = {
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const protocolError = await entitlementProtocolResponse(
+      req,
+      supabaseAdmin,
+    );
+    if (protocolError) return protocolError;
+
     const fnStart = Date.now();
     const bodyReadResult = await readRequestJsonWithinBudget<
       Payload & {
@@ -349,6 +360,16 @@ Deno.serve((req: Request) =>
         userId: user.id,
         operation: "scan_identification",
         requestId: generatedScanId,
+        originalAnalysisId: generatedScanId,
+        flashFallbackEligible: isFlashFallbackEligible({
+          imageCount: base64Payloads.length,
+          audioCount: 0,
+          descriptionCount: typeof description === "string" &&
+              description.trim().length > 0
+            ? 1
+            : 0,
+          videoCount: 0,
+        }),
       });
     } catch (error) {
       if (
@@ -624,9 +645,10 @@ Deno.serve((req: Request) =>
       );
     } catch (parseError) {
       await quotaLease.fail();
-      await compatibilityLedger.markRetryableFailure(
+      await compatibilityLedger.markTerminalFailure(
         "ai_response_parse_failed",
         parseError,
+        "malformed_provider_response",
       );
       // Log enough context to diagnose the root cause without re-reading the code.
       // finish_reason, response_length, and the first 500 chars of responseText cover
@@ -914,7 +936,7 @@ Deno.serve((req: Request) =>
       }
     }
 
-    let responseEnvelope;
+    let responseEnvelope: IdentifySuccessEnvelope;
     try {
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
@@ -925,9 +947,10 @@ Deno.serve((req: Request) =>
       payloadReadyForClient = responseEnvelope.data;
     } catch (error) {
       await quotaLease.fail();
-      await compatibilityLedger.markRetryableFailure(
+      await compatibilityLedger.markTerminalFailure(
         "wire_contract_failed",
         error,
+        "malformed_response",
       );
       logStructuredError("identify/wire_contract_failed", {
         user_id: user.id,
@@ -1184,10 +1207,15 @@ Deno.serve((req: Request) =>
           }
           promotedUrlsByStorageKey.set(storageKey, publicUrl);
         }
-        await compatibilityLedger.markComplete({
+        const completion = await compatibilityLedger.markComplete({
           promotedUrlsByStorageKey,
           responseEnvelope,
         });
+        if (completion.responseEnvelope) {
+          responseEnvelope = parseIdentifySuccessEnvelope(
+            completion.responseEnvelope,
+          );
+        }
         ledgerCompleted = true;
       } catch (e) {
         const terminalFailure = e instanceof

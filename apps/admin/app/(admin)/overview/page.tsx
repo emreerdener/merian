@@ -21,7 +21,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const maxTokens = Math.max(1, ...data.daily.map((day) => Number(day.total_tokens)));
   const cards = [
     ["Registered", number(data.accounts.registered), `Ghost ${number(data.accounts.ghost)}`],
-    ["Effective Pro", number((data.plans.pro_paid ?? 0) + (data.plans.pro_trial ?? 0)), `Paid ${number(data.plans.pro_paid)} · Trial ${number(data.plans.pro_trial)}`],
+    ["Effective Pro", number((data.plans.pro_paid ?? 0) + (data.plans.pro_complimentary ?? 0) + (data.plans.pro_trial ?? 0)), `Paid ${number(data.plans.pro_paid)} · Complimentary ${number(data.plans.pro_complimentary)} · Historical trial ${number(data.plans.pro_trial)}`],
     ["Completed scans", number(data.daily.reduce((sum, day) => sum + Number(day.scans), 0)), "Primary identification events"],
     ["Open reviews", number(data.open_reviews), "Open and in review"],
     ["Unread feedback", number(data.new_feedback), "All feedback sources"],

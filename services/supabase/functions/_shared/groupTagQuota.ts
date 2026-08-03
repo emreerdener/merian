@@ -34,6 +34,7 @@ export async function fetchQuotaGuardedGroupTags(
       userId: user.id,
       operation: "scan_group_tag_enrichment",
       requestId,
+      originalAnalysisId: parentRequestId,
     });
     await quotaLease.commit();
     providerAttempted = true;

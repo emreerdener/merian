@@ -61,8 +61,9 @@ needed.
 ## Non-goals
 
 - Selecting which experiences are eligible for scan progress. Progress remains
-  server-authoritative and evaluates every explicitly started standard outing
-  and explicitly joined live Event independently.
+  server-authoritative and evaluates the account-enrolled Backyard Safari,
+  every other explicitly started standard outing, and every explicitly joined
+  live Event independently.
 - Showing Seasonal Challenge targets in the first release.
 - Treating Record, Describe, gallery import, refinement, active video, or mixed
   non-camera evidence as eligible for the preferred-goal hint. A camera-only
@@ -76,6 +77,8 @@ needed.
 
 ```mermaid
 flowchart LR
+    A0["Signed-in or ghost profile insert"] -->|"database-only trigger"| A1["Backyard Safari Level 1 + active period"]
+    A1 --> C
     A["Authenticated iOS account"] --> B["field-trips Edge Function"]
     B -->|"verified user.id"| C["Private capture-context RPC"]
     C --> D["Field trip capture DTOs"]
@@ -110,6 +113,8 @@ Primary implementation files:
 - `services/supabase/migrations/20260722025411_persistent_field_trip_scan_contributions.sql`
 - `services/supabase/migrations/20260722064704_harden_atomic_field_trip_progress.sql`
 - `services/supabase/migrations/20260730023042_gate_field_trip_progress_by_confidence.sql`
+- `services/supabase/migrations/20260802053044_simplify_backyard_and_pollinator_levels.sql`
+- `services/supabase/migrations/20260803015025_auto_enroll_backyard_safari_level_one.sql`
 
 ## Capture-facing domain contract
 
@@ -154,6 +159,14 @@ Seasonal Challenge presentation and challenge-specific completion rows are not
 part of this contract. Challenge joins reuse the linked standard
 `user_field_trips` row, so the standard outing and its normal progress remain
 eligible; joining an event must not make an existing Scan target disappear.
+
+Every profile insert opens Backyard Safari Level 1 and its first activity
+period before Capture reads this contract. The migration performs the same
+insert-only enrollment for existing accounts. It never resumes an existing
+stopped, reset, or completed row, and its enrollment timestamp—not historical
+account or scan time—is the first eligible scan boundary.
+Enrollment does not weaken the evidence boundary established by
+`20260730023042_gate_field_trip_progress_by_confidence.sql`.
 
 Ordering is stable and server-owned:
 
@@ -221,7 +234,8 @@ not exposed in the current Capture context.
 - coalescing explicit forced invalidations received during that fetch into one
   follow-up refresh;
 - silent retention of the last successful snapshot on request failure; and
-- the provider-validated introduction when no active goal exists.
+- the optional provider-validated post-Reset introduction when no active goal
+  exists.
 
 The cache is a versioned `Codable` envelope in `UserDefaults`, keyed by the
 normalized Supabase account ID. It stores only generic goals, the selected goal
@@ -245,11 +259,13 @@ Refresh policy:
   one follow-up; and
 - never await the request before starting the camera or accepting a capture.
 
-An empty active-context response causes the Field trip provider to fetch the
-existing authenticated `template_detail` action by `backyard_safari` slug. Only
-an accessible, unstarted template with a nonempty first level yields an
-introduction. Both reads form one complete snapshot: a failure preserves the last
-successful content, while a successful ineligible lookup clears old content.
+New and migrated accounts normally receive active Backyard Safari Level 1 goals
+from the server. An empty active-context response, such as after Reset, causes
+the Field trip provider to fetch the existing authenticated `template_detail`
+action by `backyard_safari` slug. Only an accessible, unstarted template with a
+nonempty first level yields an introduction. Both reads form one complete
+snapshot: a failure preserves the last successful content, while a successful
+ineligible lookup clears old content.
 
 ## Presentation and interaction
 
@@ -297,13 +313,14 @@ intelligible without covering camera controls. If accessibility sizes do not
 meet that bar, prefer bounded vertical growth over shrinking the tap target or
 hiding the outing context.
 
-The initial Field trip introduction renders **Start an outing** over
+The post-Reset Field trip introduction renders **Start an outing** over
 **Backyard Safari · 2 goals**, cycles between the exact Bird and Dog artwork by
 three-second cross-fades, and shows the shared `0/2` progress ring. It is not a
 selectable goal and therefore has no horizontal drag or VoiceOver adjustable
 action. Reduce Motion keeps the first image static. Tapping opens outing detail
-without starting it; started, completed, inaccessible, missing, and empty
-templates produce no introduction.
+without starting it. New and migrated accounts instead receive active Backyard
+Safari Level 1 goals automatically; started, completed, inaccessible, missing,
+and empty templates produce no introduction.
 
 ## Navigation
 
@@ -453,15 +470,17 @@ Adding Seasonal presentation is not a data-filter toggle.
 Release order is mandatory:
 
 1. Apply the complete ordered Field Trip migration chain through
-   `20260730023042_gate_field_trip_progress_by_confidence.sql`; the canonical
+   `20260803015025_auto_enroll_backyard_safari_level_one.sql`; the canonical
    sequence lives in
    [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#deployment-notes).
 2. Deploy the scan-ingestion Edge Functions so ingestion intents and
    scan/evidence triggers use the atomic receipt contract.
 3. Deploy the updated `field-trips` Edge Function.
-4. Verify authenticated success, unauthenticated `401`, filtering, order,
-   absence of private evidence, confidence boundaries, pending weak-match
-   behavior, confirmation replay, and evidence-downgrade reopening.
+4. Verify signed-in and ghost account enrollment, insert-only backfill,
+   enrollment-trigger ACLs, authenticated success, unauthenticated `401`,
+   filtering, order, absence of private evidence, confidence boundaries,
+   pending weak-match behavior, confirmation replay, and evidence-downgrade
+   reopening.
 5. Release the indicator-enabled iOS client.
 
 Existing clients remain compatible because the action and RPC are additive.
@@ -471,6 +490,11 @@ gate or ship a client rollback first. Leaving the additive endpoint and RPC in
 place is safer than dropping database objects during an incident. If the
 backend contract itself must be disabled, undeploy or reject only
 `capture_context`; do not delete Field trip progress or publication data.
+If automatic starter enrollment itself must stop, use a new forward migration
+to drop `auto_enroll_backyard_safari_level_one_on_user_insert` from
+`public.users`, then drop
+`internal.auto_enroll_backyard_safari_level_one()`. Preserve all rows and
+periods already created by enrollment because they are normal user progress.
 The confidence migration's repair is forward-only: do not recreate deleted weak
 completion rows or derived artifacts. Retain a pre-deploy backup and use a
 client/Edge rollback or a forward database fix while leaving the evidence gate
@@ -482,6 +506,9 @@ Required automated coverage:
 
 - migration contract tests for privileges, verified-user forwarding, filters,
   order, and evidence-free projection;
+- enrollment contract tests for the active-template preflight, insert-only
+  backfill, `public.users` trigger, empty search path, and denied execution by
+  every API role;
 - local database integration tests for access, level, completion, Seasonal
   Challenge exclusion, stable order, empty results, Flash/Pro confidence
   boundaries, pending-goal retention, weak-match confirmation, and downgrade

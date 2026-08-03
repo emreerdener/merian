@@ -328,6 +328,7 @@ Deno.serve((req: Request) =>
           userId: user.id,
           operation: "explore_post_chat_reply",
           requestId: clientMessageId,
+          originalAnalysisId: context.post.scan_id,
         });
       } catch (error) {
         if (
@@ -388,6 +389,7 @@ Deno.serve((req: Request) =>
               userId: user.id,
               operation: "explore_post_chat_reply",
               requestId: clientMessageId,
+              originalAnalysisId: context.post.scan_id,
             });
           }
           if (quotaLease === null) {

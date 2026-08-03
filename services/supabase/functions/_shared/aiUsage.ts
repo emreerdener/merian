@@ -32,7 +32,12 @@ export interface AIUsageEventInput {
   operation: string;
   model: string;
   usage?: GeminiUsageMetadata | null;
-  effectivePlan?: "free" | "pro_paid" | "pro_trial" | "unknown";
+  effectivePlan?:
+    | "free"
+    | "pro_paid"
+    | "pro_trial"
+    | "pro_complimentary"
+    | "unknown";
   inputModality?: AIInputModality;
   outcome?: AIUsageOutcome;
   userId?: string | null;

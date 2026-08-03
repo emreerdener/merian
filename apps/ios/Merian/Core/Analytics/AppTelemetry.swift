@@ -53,18 +53,37 @@ enum AppTelemetry {
     // MARK: - Scan Events
 
     /// Records a completed scan.
-    static func trackScan(isPro: Bool, isSubscribed: Bool, inferenceTier: String? = nil) {
+    static func trackScan(
+        isPro: Bool,
+        isSubscribed: Bool,
+        inferenceTier: String? = nil,
+        planUsed: String? = nil
+    ) {
         send("ClientScanCompleted", with: scanTelemetryParameters(
             isPro: isPro,
             isSubscribed: isSubscribed,
-            inferenceTier: inferenceTier
+            inferenceTier: inferenceTier,
+            planUsed: planUsed
         ))
     }
 
-    static func scanTelemetryParameters(isPro: Bool, isSubscribed: Bool, inferenceTier: String? = nil) -> [String: String] {
+    static func scanTelemetryParameters(
+        isPro: Bool,
+        isSubscribed: Bool,
+        inferenceTier: String? = nil,
+        planUsed: String? = nil
+    ) -> [String: String] {
         let normalizedInferenceTier = inferenceTier?.lowercased()
         let usedProModel = normalizedInferenceTier == "pro" || (normalizedInferenceTier == nil && isPro)
-        let plan = usedProModel ? (isSubscribed ? "pro_paid" : "pro_trial") : "free"
+        let serverPlans = Set(["free", "pro_paid", "pro_complimentary", "pro_trial"])
+        let normalizedPlan = planUsed?.lowercased()
+        let plan = if let normalizedPlan, serverPlans.contains(normalizedPlan) {
+            normalizedPlan
+        } else if usedProModel {
+            isSubscribed ? "pro_paid" : "unknown"
+        } else {
+            "free"
+        }
         return [
             "tier": usedProModel ? "Pro" : "Free",
             "plan": plan,

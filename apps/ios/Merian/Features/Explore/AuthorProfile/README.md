@@ -8,6 +8,11 @@ posts, follow state, and eligible Field trip summaries without exposing private
 scan evidence. Administratively hidden posts never appear in profile discovery,
 previews, or the full library.
 
+The automatically enrolled Backyard Safari Level 1 row follows the existing
+profile-visible status contract, so a new or backfilled account can have an
+author-profile surface at `0/N` progress. Stopping or resetting the unfinished
+outing hides that active status; no scan evidence becomes public.
+
 For a non-self reportable profile, `viewer_can_report` enables the overflow
 menu's **Report user** form. The form accepts one of the server-defined reasons
 and optional details up to 1,000 characters, displays loading/error/success

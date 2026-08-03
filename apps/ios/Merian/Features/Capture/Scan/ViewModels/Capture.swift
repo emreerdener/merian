@@ -690,7 +690,7 @@ extension CaptureWorkspaceViewModel {
         isCapturing = true
               
         // 2. Authorization Hooks
-        if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
+        if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.canStartProScan) {
             if emitHaptic {
                 // Instant tactile UI response mirroring the Apple Camera app.
                 diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0, source: "capture.photo.hardware")
@@ -720,7 +720,7 @@ extension CaptureWorkspaceViewModel {
                     let preparedCapture = try await Self.prepareCameraCapture(
                         captureData: captureData,
                         composingCenter: composingCenter,
-                        isProActive: diContainer.revenueCatManager.isProActive
+                        isProActive: diContainer.revenueCatManager.canStartProScan
                     )
 
                     if let preparedCapture {
@@ -766,7 +766,7 @@ extension CaptureWorkspaceViewModel {
               !isVideoRecording,
               hasAvailableStagedCaptureSlot,
               imageToCrop == nil else { return }
-        guard diContainer.revenueCatManager.isProActive else { return }
+        guard diContainer.revenueCatManager.canStartProScan else { return }
 
         isCapturing = true
         videoRecordingProgress = 0
@@ -815,7 +815,7 @@ extension CaptureWorkspaceViewModel {
                         location: instantLocation
                     )
                 }
-                let isProActive = diContainer.revenueCatManager.isProActive
+                let isProActive = diContainer.revenueCatManager.canStartProScan
                 let preparedFrames = try await Self.withTimeout(
                     seconds: Self.videoFramePreparationTimeout,
                     message: "Preparing video frames timed out."

@@ -21,10 +21,11 @@ Service-role worker for staged scan-media upload-session reconciliation.
   object and marks the asset failed for audit.
 - Checks `scan_ingestion_jobs` before abandoning orphaned staged media: active
   leases and future `retry_after` windows keep media pending, repaired scans can
-  mark their job complete only through the shared claimed-key/canonical-media
-  finalization transaction, and TTL-abandoned media marks a still-nonterminal
-  job `failed_terminal`. It never overwrites an existing `complete` or
-  `failed_terminal` decision, including moderation and provider-policy failures.
+  mark their job complete only through the user-first entitlement completion
+  orchestrator, and TTL-abandoned media marks a still-nonterminal job
+  `failed_terminal` only through the user-first terminal orchestrator. It never
+  overwrites an existing `complete` or `failed_terminal` decision, including
+  moderation and provider-policy failures.
 - Writes summary rows to `scan_media_reconciliation_runs` and logs structured
   completion counts.
 
@@ -56,6 +57,13 @@ cleans abandoned staging artifacts. Sanitized `scan_ingestion_intents` rows give
 request shape; this worker does not consume those intents. Inline/redacted scans
 still depend on the iOS offline queue, while resumable staged media/audio/video
 and text-only scans are retried by `replay-scan-ingestion`.
+
+The worker never settles complimentary usage directly. Durable required-media
+repair consumes the original analysis hold as part of
+`complete_scan_ingestion_with_entitlement(...)`; proven TTL abandonment
+releases it through `fail_scan_ingestion_terminal(...)`; and ambiguous or
+retryable state remains held. Provider quota history is unchanged. See
+[Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Legacy owner-row recovery boundary
 

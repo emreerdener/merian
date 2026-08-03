@@ -8,7 +8,11 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { tierTelemetryProperties } from "../_shared/entitlement.ts";
+import {
+  entitlementProtocolResponse,
+  tierTelemetryProperties,
+} from "../_shared/entitlement.ts";
+import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
   reserveAIProviderCall,
@@ -42,7 +46,10 @@ import {
   fetchCompletedIdentifyResponse,
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
-import { parseIdentifySuccessEnvelope } from "../_shared/identify/contract.ts";
+import {
+  type IdentifySuccessEnvelope,
+  parseIdentifySuccessEnvelope,
+} from "../_shared/identify/contract.ts";
 import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
@@ -139,6 +146,12 @@ const audioSchema: Record<string, unknown> = {
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const protocolError = await entitlementProtocolResponse(
+      req,
+      supabaseAdmin,
+    );
+    if (protocolError) return protocolError;
+
     const fnStart = Date.now();
     const bodyReadResult = await readRequestJsonWithinBudget<
       Record<string, unknown>
@@ -316,6 +329,13 @@ Deno.serve((req: Request) =>
         userId: user.id,
         operation: "scan_audio_identification",
         requestId: generatedScanId,
+        originalAnalysisId: generatedScanId,
+        flashFallbackEligible: isFlashFallbackEligible({
+          imageCount: 0,
+          audioCount: 1,
+          descriptionCount: 0,
+          videoCount: 0,
+        }),
       });
     } catch (error) {
       if (
@@ -532,9 +552,10 @@ Deno.serve((req: Request) =>
       parsedData = extractJson<AudioIdentification>(responseText);
     } catch (parseErr) {
       await quotaLease.fail();
-      await compatibilityLedger.markRetryableFailure(
+      await compatibilityLedger.markTerminalFailure(
         "ai_response_parse_failed",
         parseErr,
+        "malformed_provider_response",
       );
       logStructuredError("audio_spec/parse_failed", {
         user_id: user.id,
@@ -666,7 +687,7 @@ Deno.serve((req: Request) =>
       };
     }
 
-    let responseEnvelope;
+    let responseEnvelope: IdentifySuccessEnvelope;
     try {
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
@@ -679,9 +700,10 @@ Deno.serve((req: Request) =>
       ) as AudioClientPayload;
     } catch (error) {
       await quotaLease.fail();
-      await compatibilityLedger.markRetryableFailure(
+      await compatibilityLedger.markTerminalFailure(
         "wire_contract_failed",
         error,
+        "malformed_response",
       );
       logStructuredError("audio_spec/wire_contract_failed", {
         user_id: user.id,
@@ -892,12 +914,17 @@ Deno.serve((req: Request) =>
         );
         scanInserted = true;
 
-        await compatibilityLedger.markComplete({
+        const completion = await compatibilityLedger.markComplete({
           promotedUrlsByStorageKey: stagedAudioSourceKey
             ? new Map([[stagedAudioSourceKey, audioStorageUrls[0]!]])
             : new Map(),
           responseEnvelope,
         });
+        if (completion.responseEnvelope) {
+          responseEnvelope = parseIdentifySuccessEnvelope(
+            completion.responseEnvelope,
+          );
+        }
         ledgerCompleted = true;
 
         runBackground(

@@ -89,6 +89,11 @@ export interface CompleteScanIngestionFinalizationInput {
   responseEnvelope?: Record<string, unknown>;
 }
 
+export interface CompleteScanIngestionFinalizationResult {
+  result: "completed" | "already_complete";
+  responseEnvelope: Record<string, unknown> | null;
+}
+
 export interface BeginScanIngestionInput {
   scanId: string;
   userId: string;
@@ -383,6 +388,24 @@ export async function updateScanIngestionJob(
   input: UpdateScanIngestionJobInput,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
+  if (input.status === "failed_terminal") {
+    const { error } = await supabaseAdmin.rpc(
+      "fail_scan_ingestion_terminal",
+      {
+        p_scan_id: input.scanId,
+        p_user_id: input.userId,
+        p_stage: input.stage,
+        p_last_error: (input.lastError ?? "").slice(0, 2_000),
+        p_terminal_reason_code: input.terminalReasonCode ??
+          "terminal_scan_failure",
+      },
+    );
+    if (error) {
+      throw new Error(`updateScanIngestionJob: ${error.message}`);
+    }
+    return;
+  }
+
   const update: Record<string, unknown> = {
     status: input.status,
     stage: input.stage,
@@ -393,7 +416,7 @@ export async function updateScanIngestionJob(
   };
   if (input.terminalReasonCode !== undefined) {
     update.terminal_reason_code = input.terminalReasonCode;
-  } else if (input.status !== "failed_terminal") {
+  } else {
     update.terminal_reason_code = null;
   }
 
@@ -413,9 +436,7 @@ export async function updateScanIngestionJob(
   // Complete and terminal generations are monotonic. In particular, a
   // delayed provider callback must not reopen the user_deleted terminal state
   // installed by the durable scan-deletion fence.
-  query = input.status === "failed_terminal"
-    ? query.neq("status", "complete")
-    : query.not("status", "in", "(complete,failed_terminal)");
+  query = query.not("status", "in", "(complete,failed_terminal)");
 
   const { error } = await query;
   if (error) {
@@ -426,7 +447,7 @@ export async function updateScanIngestionJob(
 export async function completeScanIngestionFinalization(
   input: CompleteScanIngestionFinalizationInput,
   supabaseAdmin: SupabaseClient,
-): Promise<"completed" | "already_complete"> {
+): Promise<CompleteScanIngestionFinalizationResult> {
   const promotedUrls = Object.fromEntries(
     [...input.promotedUrlsByStorageKey.entries()].sort(([lhs], [rhs]) =>
       lhs.localeCompare(rhs)
@@ -437,55 +458,81 @@ export async function completeScanIngestionFinalization(
       input.deletedStorageKeys.map((value) => value.trim()).filter(Boolean),
     ),
   ].sort();
-  const rpcName = input.responseEnvelope
-    ? "complete_scan_ingestion_finalization_with_response"
-    : "complete_scan_ingestion_finalization";
   const rpcArguments: Record<string, unknown> = {
     p_scan_id: input.scanId,
     p_user_id: input.userId,
+    p_response_envelope: input.responseEnvelope ?? null,
     p_promoted_urls_by_storage_key: promotedUrls,
     p_deleted_storage_keys: deletedStorageKeys,
   };
-  if (input.responseEnvelope) {
-    rpcArguments.p_response_envelope = input.responseEnvelope;
-  }
-  let { data, error } = await supabaseAdmin.rpc(rpcName, rpcArguments);
+  let { data, error } = await supabaseAdmin.rpc(
+    "complete_scan_ingestion_with_entitlement",
+    rpcArguments,
+  );
   if (
     error &&
-    input.responseEnvelope &&
     (
       error.code === "PGRST202" ||
       (
         error.code === "42883" &&
         error.message.includes(
-          "complete_scan_ingestion_finalization_with_response",
+          "complete_scan_ingestion_with_entitlement",
         )
       )
     )
   ) {
-    // The immutable response wrapper is additive. During a migration-first
-    // rolling deploy, retain the established atomic media/job finalizer and
-    // let retries reconstruct the wire envelope from the completed owner row.
-    const fallbackArguments = { ...rpcArguments };
-    delete fallbackArguments.p_response_envelope;
+    // Schema-first rolling deploy compatibility. The cutover migration adds a
+    // database fence, so this lower-level path cannot bypass a live hold.
+    const fallbackArguments: Record<string, unknown> = {
+      p_scan_id: input.scanId,
+      p_user_id: input.userId,
+      p_promoted_urls_by_storage_key: promotedUrls,
+      p_deleted_storage_keys: deletedStorageKeys,
+    };
+    const fallbackName = input.responseEnvelope
+      ? "complete_scan_ingestion_finalization_with_response"
+      : "complete_scan_ingestion_finalization";
+    if (input.responseEnvelope) {
+      fallbackArguments.p_response_envelope = input.responseEnvelope;
+    }
     const fallback = await supabaseAdmin.rpc(
-      "complete_scan_ingestion_finalization",
+      fallbackName,
       fallbackArguments,
     );
-    data = fallback.data;
+    data = fallback.error ? fallback.data : {
+      result: fallback.data,
+      response_envelope: input.responseEnvelope ?? null,
+    };
     error = fallback.error;
   }
   if (error) {
     throw new Error(`completeScanIngestionFinalization: ${error.message}`);
   }
-  if (data !== "completed" && data !== "already_complete") {
+  const value = data as {
+    result?: unknown;
+    response_envelope?: unknown;
+  } | null;
+  if (
+    !value ||
+    (value.result !== "completed" && value.result !== "already_complete") ||
+    !(
+      value.response_envelope === null ||
+      (
+        typeof value.response_envelope === "object" &&
+        !Array.isArray(value.response_envelope)
+      )
+    )
+  ) {
     throw new Error(
       `completeScanIngestionFinalization: finalization returned ${
         String(data)
       }`,
     );
   }
-  return data;
+  return {
+    result: value.result,
+    responseEnvelope: value.response_envelope as Record<string, unknown> | null,
+  };
 }
 
 export async function fetchScanIngestionJob(

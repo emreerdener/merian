@@ -145,7 +145,7 @@ Thin enum wrapper around app product events. All sends go through a private
 
 | Signal                           | Method                                                     | Payload                                                                                     | Trigger                                                                                          |
 | -------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `ClientScanCompleted`            | `trackScan(isPro:isSubscribed:inferenceTier:)`             | `tier: "Pro"/"Free"`, `plan: "pro_paid"/"pro_trial"/"free"`, `inferenceTier: "pro"/"flash"` | Successful client-side parse/save after inference                                                |
+| `ClientScanCompleted`            | `trackScan(isPro:isSubscribed:inferenceTier:)`             | `tier: "Pro"/"Free"`, server plan (`pro_paid`/`pro_complimentary`/historical `pro_trial`/`free`), `inferenceTier: "pro"/"flash"` | Successful client-side parse/save after inference                                                |
 | `NewSpeciesDiscovered`           | `trackNewDiscovery(isPro:)`                                | `tier: "Pro"/"Free"`                                                                        | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires) |
 | `PaywallViewed`                  | `trackPaywallImpression()`                                 | —                                                                                           | Camera shutter, gallery picker, or pending Photos import hits the free scan cap                   |
 | `CaptureThermalThrottled`        | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                                           | Capture throttles frame rate after device thermal state reaches critical                         |
@@ -250,17 +250,22 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   - paid Pro: `effective_tier = "pro"`, `plan = "pro_paid"`,
     `subscription_tier = "pro"`, `trial_active = false`; this includes active
     standard Pro subscriptions and active paid 7-day passes
-  - trial Pro: `effective_tier = "pro"`, `plan = "pro_trial"`,
-    `subscription_tier = "free"`, `trial_active = true`
+  - complimentary Pro: `effective_tier = "pro"`,
+    `plan = "pro_complimentary"`, `subscription_tier = "free"`,
+    `trial_active = false`; balance, in-flight holds, settlement reason, Flash
+    fallback, and exhaustion are server-owned telemetry dimensions
+  - historical trial Pro rows remain queryable as `plan = "pro_trial"` and
+    `trial_active = true`, but no post-cutover resolver emits new rows
   - free: `effective_tier = "free"`, `plan = "free"`,
-    `subscription_tier = "free"`, `trial_active = false`; expired timed-pass
-    rows also resolve here as a safety fallback before the expiry worker clears
-    the stored tier
+    `subscription_tier = "free"`, `trial_active = false`; an expired timed pass
+    first loses paid precedence, then resolves here only if no complimentary
+    credit or hold remains before the expiry worker clears the stored tier
 - Missing user rows or entitlement query failures emit no scan-completion tier
   event because provider work fails closed.
 - Cost dashboards should prefer `llm_model` and `effective_tier` for model
-  spend, and use `plan` to distinguish paid Pro from trial Pro. The raw
+  spend, and use `plan` to distinguish paid Pro, complimentary Pro, and
+  historical trial Pro. The raw
   `subscription_tier` remains useful for debugging RevenueCat webhook state but
-  is not sufficient to classify free-trial model usage.
+  is not sufficient to classify complimentary model usage.
 - Safely runs inside Deno's async background tasks (using `.waitUntil` /
   promises) to never block the inference response to the client.

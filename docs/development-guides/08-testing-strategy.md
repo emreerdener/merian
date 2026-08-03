@@ -595,7 +595,7 @@ MerianTests/
   `AppTelemetry.initialize()` in `setUp()` so the `isInitialized` guard passes
   without touching the live PostHog SDK. The tests cover every public signal,
   preserved event names, `event_source = "ios_client"`, and the Pro
-  paid/trial/free scan payload matrix.
+  paid/complimentary/historical-trial/free scan payload matrix.
 - **`PostHogManagerTests.swift`**: Smoke-tests `identifyUser` and `reset`
   against the shared singleton to verify the SDK binding does not crash.
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
@@ -1116,7 +1116,8 @@ actual import, and permission-denial UI require the physical-device checklist in
     this test fails. `testPinnedHashesAreNonEmptyValidBase64` guards against the
     `pinnedCertHashes` set accidentally being cleared (which would silently
     disable pinning in Release builds).
-- **`DeviceIdentityManagerTests.swift`, `RevenueCatManagerTests.swift`**:
+- **`DeviceIdentityManagerTests.swift`, `EntitlementManagerTests.swift`,
+  `RevenueCatManagerTests.swift`**:
   Isolates authentication loops away from live production identifiers.
   `DeviceIdentityManagerTests` reads `DeviceIdentityManager.shared.deviceId`
   (the public `@Observable` property) — it does **not** call the private
@@ -1124,7 +1125,10 @@ actual import, and permission-denial UI require the physical-device checklist in
   Keychain item via `SecItemDelete` before and after the assertion to prevent
   cross-run contamination. `RevenueCatManagerTests` also locks the required
   current-offering product set to `pro_week` plus `pro_annual`; it does not
-  replace dashboard/App Store smoke testing.
+  replace dashboard/App Store smoke testing. `EntitlementManagerTests` lock
+  current-launch verification, buffered replay metadata, stale-version
+  rejection, account isolation, balance validation, exhaustion, and the
+  difference between functional access and new-scan capacity.
 - **`MerianConfigTests.swift` production-environment coverage**: Verifies that a
   Debug simulator pointed at production Supabase reports a configuration issue
   by default, remains configured so deliberate smoke tests can proceed, and
@@ -2040,10 +2044,13 @@ Both are wired into `make validate-supabase-migrations`,
 database file only against the disposable local stack; it writes fixtures inside
 a transaction and rolls them back.
 
-Authoritative AI quota and entitlement security has four complementary checks:
+Authoritative AI quota and entitlement security has four complementary base
+checks:
 
-- `_shared/entitlement_test.ts` proves paid/trial/expired resolution, database
-  errors and missing rows failing closed, and absence of isolate-local reuse.
+- `_shared/entitlement_test.ts` proves paid, complimentary, pre-cutover trial,
+  expired, and free resolution; protocol-2 enforcement/internal replay bypass;
+  database errors and missing rows failing closed; and absence of isolate-local
+  reuse.
 - `_shared/aiQuota_test.ts` locks UUID request-key validation, trusted proxy
   address selection, daily-rotating/domain-separated HMAC behavior, optional
   server-key fallback, weak explicit-secret failure, fail-closed commit, and
@@ -2065,6 +2072,36 @@ Authoritative AI quota and entitlement security has four complementary checks:
   `tests/ai_quota_security.sql` then exercises the migrated catalog and actual
   reservation/replay/limit/refund/failed-retry/stale-lease/fencing/version
   transitions.
+
+The complimentary extension adds three required layers:
+
+- `_tests/complimentaryProScansMigrationContract.test.ts` locks the private
+  fixed-grant ledger, derived balances, protocol/mode atomicity, user-first lock
+  order, completion and terminal trigger fences, quota-versus-credit
+  independence, paid preservation, Ghost merge cap, functional database gates,
+  admin aggregates, recovery callers, and privileged routine catalog.
+- `_tests/complimentaryScansConcurrencyDb.test.ts` overlaps three real
+  reservation transactions behind one user lock and proves that the fourth
+  compatible scan resolves to the separate Flash fallback without a fourth
+  hold. A missing local database is an explicit skip and cannot count as
+  acceptance.
+- `tests/complimentary_pro_scans_security.sql` exercises ACLs, three holds,
+  replay linkage, fourth-scan Flash and daily separation, Pro-only rejection,
+  durable and valid non-biological consumption, terminal release, ambiguous
+  retention, purchase-before-completion, paid-credit preservation, direct
+  completion/terminal bypass rejection, merge deduplication/cap, and monotonic
+  versions against the migrated catalog.
+
+On iOS, `EntitlementManagerTests.swift` covers launch verification, account and
+snapshot validation, active-hold-versus-startable capacity, failed-verification
+locking, paid-offline preservation, stale-version rejection, and the critical
+cold-launch rule: stored scan metadata is buffered until
+`get_my_entitlement()` establishes the current baseline, then cannot restore a
+newer exhausted balance. Network, UsageManager, AI persistence, Capture,
+Results, Settings, paywall, Profile, and Explore suites cover protocol headers,
+Flash reconciliation, optional historical envelopes, third-result persistence,
+countdowns/exhaustion, Pro-only modes, and paid-only badges. See the normative
+[`complimentary scan contract`](../backend-and-data/18-complimentary-pro-scans.md#verification-map).
 
 The production workflow applies all migrations to a disposable database and runs
 `bash services/supabase/scripts/test_database_catalogs.sh`. That gate discovers
@@ -2265,7 +2302,7 @@ challenge-specific progress, the non-destructive retirement of placeholder
 templates, and the evidence-free capture projection. It also locks the private
 catalog/detail `completed_scan_id` projection, detail-only publication status,
 owner/non-deleted join, service-role-only grants, and credited-level/count
-fields in both scan- progress RPCs. The persistent-contribution contract
+fields in both scan-progress RPCs. The persistent-contribution contract
 additionally locks the migration abort guard, private preference table,
 one-credit uniqueness and scan-first indexes, preferred-goal validation/ranking,
 correction invalidation, service-role-only contribution RPC, and
@@ -2276,12 +2313,18 @@ confidence-policy contract locks the tier-specific Possible-match boundaries,
 explicit-review overrides, receipt revision/preference carryover, the
 evidence-update trigger, private downgrade-reconciliation helpers, prior-credit
 repair, and preservation of pending selected-goal preferences.
+The starter-level and enrollment contracts lock the 2/4/4 catalog, exact Dog
+criterion, active-template preflight, insert-only existing-account backfill,
+`public.users` trigger, initial activity period, no-resume conflict path, empty
+search path, and denied execution for every API role.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
-Postgres, including empty results; it reports a skip when the local stack is not
+Postgres, including trigger-driven enrollment, exactly one open starter period,
+and empty results after Reset; it reports a skip when the local stack is not
 available, and that skip must not be counted as database validation.
 `_tests/fieldTripProgressDb.test.ts` exercises standard and challenge
-credited-level responses across explicit-start/join eligibility, one credit per
-experience, several active experiences, delayed upload after an outing/Event
+credited-level responses across Backyard enrollment, explicit starts for other
+outings, challenge joins, one credit per experience, several active experiences,
+delayed upload after an outing/Event
 ends, preferred-goal priority, deterministic fallback, advancement, unfinished
 correction removal/move after deactivation, normal correction freeze after
 completion, ownership isolation, concurrency, exact confidence boundaries,
@@ -2972,7 +3015,11 @@ deployment runbook; it is not inferred from the launch-disabled posture.
 
 These replace the former worker-cache tests. Entitlement tests must prove every
 call observes durable database state and never upgrades a query error or missing
-profile. Quota helper tests must keep request IDs bounded to UUIDs, protect raw
-network addresses with a strong rotating HMAC, and fail closed when
+profile. They also lock current complimentary resolution, global protocol
+cutover, and the narrowly authenticated internal replay bypass. Quota helper
+tests must keep request IDs bounded to UUIDs, preserve original-analysis and
+complimentary linkage, accept only route-derived fallback eligibility, protect
+raw network addresses with a strong rotating HMAC, and fail closed when
 configuration is missing. Database atomicity and ACL behavior belong in
-`tests/ai_quota_security.sql`, not a mocked TypeScript client.
+`tests/ai_quota_security.sql` and
+`tests/complimentary_pro_scans_security.sql`, not a mocked TypeScript client.

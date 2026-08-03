@@ -526,7 +526,7 @@ struct PaywallView: View {
 
         do {
             try await revenueCatManager.restorePurchases()
-            if revenueCatManager.isProActive {
+            if revenueCatManager.isSubscribed {
                 dismiss()
             }
         } catch {
@@ -541,7 +541,7 @@ struct PaywallView: View {
 
         do {
             try await revenueCatManager.purchase(selectedPackage)
-            if revenueCatManager.isProActive {
+            if revenueCatManager.isSubscribed {
                 dismiss()
             }
         } catch {

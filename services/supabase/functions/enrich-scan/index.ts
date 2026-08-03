@@ -10,6 +10,7 @@ import {
   fetchStaticEncyclopedicData,
 } from "../_shared/biology.ts";
 import { fetchGBIFVernacularNames } from "../_shared/external.ts";
+import { requireUuid } from "../_shared/explore.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { reserveAIProviderCall } from "../_shared/aiQuota.ts";
@@ -102,6 +103,9 @@ Deno.serve((req: Request) =>
       scientific_name: string;
       scope: "enrichment" | "lookalikes";
     };
+    const originalAnalysisId = body.scan_id == null
+      ? null
+      : requireUuid(body.scan_id, "scan_id").toLowerCase();
 
     if (
       typeof scientific_name !== "string" || scientific_name.length === 0 ||
@@ -223,6 +227,7 @@ Deno.serve((req: Request) =>
         userId: _user.id,
         operation: "scan_overview_enrichment",
         requestId: body.ai_request_id,
+        originalAnalysisId,
       });
       let resolveEnrichmentInFlight!: () => void;
       let rejectEnrichmentInFlight!: (e: Error) => void;
@@ -462,6 +467,7 @@ Deno.serve((req: Request) =>
       userId: _user.id,
       operation: "scan_lookalike_enrichment",
       requestId: body.ai_request_id,
+      originalAnalysisId,
     });
     let resolveLookalikesInFlight!: () => void;
     let rejectLookalikesInFlight!: (e: Error) => void;

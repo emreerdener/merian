@@ -577,6 +577,85 @@ Deno.test("documentation navigation and release notes expose the corrected contr
   );
 });
 
+Deno.test("complimentary scan documentation preserves the audited contract", async () => {
+  const [
+    canonical,
+    product,
+    api,
+    runbook,
+    security,
+    capture,
+    results,
+    settings,
+    terms,
+    changelog,
+  ] = await Promise.all([
+    read("docs/backend-and-data/18-complimentary-pro-scans.md"),
+    read("docs/product/01-master-product-document.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("apps/ios/Merian/Core/Security/README.md"),
+    read("apps/ios/Merian/Features/Capture/Submission/README.md"),
+    read("apps/ios/Merian/Features/Insights/Shared/README.md"),
+    read("apps/ios/Merian/Features/Profile/Settings/README.md"),
+    read("apps/web/app/terms/page.tsx"),
+    read("CHANGELOG.md"),
+  ]);
+
+  const canonicalCompact = compact(canonical);
+  for (
+    const fragment of [
+      "Applying the migration does **not** activate the new offer",
+      "three Pro-funded results and one Flash-funded result",
+      "scans_available_to_start = max(G - consumed_count - held_count, 0)",
+      "complete_scan_ingestion_with_entitlement",
+      "fail_scan_ingestion_terminal",
+      "Provider quota is independent",
+      "X-Merian-Entitlement-Protocol: 2",
+      "Results and Settings only",
+      "one grant of three",
+      "paid status for Profile and Explore Pro badges",
+    ]
+  ) {
+    assertStringIncludes(canonicalCompact, fragment);
+  }
+
+  assertStringIncludes(
+    compact(product),
+    "paid Pro → complimentary Pro → free under a user-row lock",
+  );
+  assertStringIncludes(
+    compact(api),
+    "The member is optional so historical stored envelopes remain decodable",
+  );
+  assertStringIncludes(
+    compact(runbook),
+    "internal.entitlement_rollout_config` remains `legacy_trial",
+  );
+  assertStringIncludes(compact(runbook), "Distribute a TestFlight build");
+  assertStringIncludes(
+    compact(runbook),
+    "cutover_complimentary_entitlements.sql",
+  );
+  assertStringIncludes(compact(security), "canStartProScan");
+  assertStringIncludes(compact(security), "cannot establish a launch baseline");
+  assertStringIncludes(
+    compact(capture),
+    "Capture never shows the complimentary countdown",
+  );
+  assertStringIncludes(
+    compact(results),
+    "does not hide or redact the stored Pro content",
+  );
+  assertStringIncludes(compact(settings), "paid **7 Day Pass** product");
+  assertStringIncludes(
+    compact(terms),
+    "not a subscription or calendar-based trial",
+  );
+  assertEquals(terms.includes("Trials may convert to paid access"), false);
+  assertStringIncludes(compact(changelog), "Three Complimentary Pro Scans");
+});
+
 Deno.test("fleet review inventory exactly matches configured Edge Functions", async () => {
   const [configSource, reviewSource] = await Promise.all([
     read("services/supabase/config.toml"),
@@ -2226,7 +2305,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(reconciliationDbSource),
-    '.not("status", "in", "(complete,failed_terminal)")',
+    'rpc("fail_scan_ingestion_terminal"',
   );
   assertStringIncludes(
     compact(reconciliationReadmeSource),
@@ -2667,7 +2746,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     compact(identifyCompatibilitySource),
-    "If only finalization or bookkeeping fails after that row committed, this compatibility route may return its already validated response while leaving the ledger retryable for same-UUID canonical reconciliation.",
+    "If only finalization or bookkeeping fails after that row committed, this compatibility route may return its already validated response while leaving the ledger and hold retryable for same-UUID canonical reconciliation.",
   );
   for (
     const source of [
@@ -2677,7 +2756,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   ) {
     assertStringIncludes(
       compact(source),
-      "if only its post-insert bookkeeping fails, the owner row remains the canonical response surface and the ledger remains retryable for reconstruction/reconciliation.",
+      "if only its post-insert bookkeeping fails, the owner row remains the canonical response surface and the ledger and hold remain retryable for reconstruction/reconciliation.",
     );
   }
   assertStringIncludes(
@@ -3472,13 +3551,20 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {
   const maintainedFiles = [
     "README.md",
+    "apps/admin/README.md",
     "apps/ios/.agents/workflows/deploy_testflight.md",
     "apps/ios/.agents/workflows/revenuecat_entitlements.md",
+    "apps/ios/AppStore/ReleaseNotes/1.0.3.md",
     "apps/ios/Merian/Core/AI/README.md",
+    "apps/ios/Merian/Core/Analytics/README.md",
     "apps/ios/Merian/Core/Network/README.md",
+    "apps/ios/Merian/Core/Security/README.md",
+    "apps/ios/Merian/Features/Capture/Submission/README.md",
     "apps/ios/Merian/Features/Explore/Feed/README.md",
     "apps/ios/Merian/Features/Insights/Chat/README.md",
+    "apps/ios/Merian/Features/Insights/IdentificationReview/README.md",
     "apps/ios/Merian/Features/Insights/Sharing/README.md",
+    "apps/ios/Merian/Features/Insights/Shared/README.md",
     "apps/ios/Merian/Features/Profile/Settings/README.md",
     "apps/web/README.md",
     "docs/CONTRIBUTING.md",
@@ -3489,12 +3575,15 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/05-api-contracts.md",
     "docs/backend-and-data/06-supabase-deployment-runbook.md",
     "docs/backend-and-data/07-community-taxonomy-import-checklist.md",
+    "docs/backend-and-data/10-internal-admin.md",
+    "docs/backend-and-data/11-internal-admin-operations.md",
     "docs/backend-and-data/12-explore-media-health-and-quarantine.md",
     "docs/backend-and-data/13-server-credentials-and-database-release-safety.md",
     "docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md",
     "docs/backend-and-data/15-edge-function-fleet-review-2026-07-28.md",
     "docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md",
     "docs/backend-and-data/17-scientific-observation-retention.md",
+    "docs/backend-and-data/18-complimentary-pro-scans.md",
     "docs/codebase-map.md",
     "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
@@ -3506,10 +3595,13 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/development-guides/11-swiftdata-and-api-gotchas.md",
     "docs/development-guides/14-ios-release-versioning.md",
     "docs/features-and-hardware/05-insight-sheet.md",
+    "docs/features-and-hardware/02-revenue-and-identity.md",
+    "docs/features-and-hardware/03-gamification-and-telemetry.md",
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/features-and-hardware/14-explore-author-profiles.md",
     "docs/features-and-hardware/25-field-trips.md",
+    "docs/features-and-hardware/27-camera-roll-media-export.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
     "docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md",
     "docs/incidents/2026-07-identify-idempotency-conflict.md",
@@ -3536,6 +3628,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/check-scan-status/README.md",
     "services/supabase/functions/delete-scan/README.md",
     "services/supabase/functions/download-dwca/README.md",
+    "services/supabase/functions/expire-subscription-passes/README.md",
     "services/supabase/functions/export-dwca/README.md",
     "services/supabase/functions/audio-spec/README.md",
     "services/supabase/functions/field-trips/README.md",
@@ -3548,10 +3641,13 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/reconcile-account-deletions/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
     "services/supabase/functions/reconcile-dwca-archive-cleanup/README.md",
+    "services/supabase/functions/reconcile-revenuecat-subscribers/README.md",
     "services/supabase/functions/reconcile-scan-media-assets/README.md",
+    "services/supabase/functions/replay-scan-ingestion/README.md",
     "services/supabase/functions/repair-scan-image/README.md",
     "services/supabase/functions/request-community-identification/README.md",
     "services/supabase/functions/request-export-dwca/README.md",
+    "services/supabase/functions/revenuecat-webhook/README.md",
     "services/supabase/functions/safe-delete/README.md",
     "services/supabase/functions/share-scan-to-explore/README.md",
     "services/supabase/functions/species-dictionary/README.md",

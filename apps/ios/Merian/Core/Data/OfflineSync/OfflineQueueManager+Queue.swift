@@ -1282,8 +1282,9 @@ extension OfflineQueueManager {
             return false
         }
 
+        let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
         var didConsumeQuota = false
-        if !RevenueCatManager.shared.isProActive {
+        if !RevenueCatManager.shared.canStartProScan {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
                 for persistedAudioName in persistedAudioNamesBySourcePath.values {
                     try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
@@ -1294,7 +1295,7 @@ extension OfflineQueueManager {
                 MerianLog.data.debug("enqueueNonVisualCapture: free user scan quota exhausted — scan not queued")
                 return false
             }
-            UsageManager.shared.consumeScan()
+            UsageManager.shared.consumeScan(scanId: resolvedScanId)
             didConsumeQuota = true
         }
 
@@ -1307,7 +1308,6 @@ extension OfflineQueueManager {
         let hasAudio = !persistedAudioNamesBySourcePath.isEmpty
         let hasUploadableMedia = hasAudio || !persistedVideoNamesBySourcePath.isEmpty
 
-        let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
         let scan = OfflineQueuedScan(
             id: resolvedScanId,
             timestamp: Date(),
@@ -1361,7 +1361,7 @@ extension OfflineQueueManager {
         } catch {
             modelContext.rollback()
             if didConsumeQuota {
-                UsageManager.shared.refundScan()
+                UsageManager.shared.refundScan(scanId: resolvedScanId)
             }
             MerianLog.data.error("enqueueNonVisualCapture: failed to create offline job: \(error, privacy: .private)")
             for persistedAudioName in persistedAudioNamesBySourcePath.values {
@@ -1399,7 +1399,7 @@ extension OfflineQueueManager {
         } catch {
             modelContext.rollback()
             if didConsumeQuota {
-                UsageManager.shared.refundScan()
+                UsageManager.shared.refundScan(scanId: resolvedScanId)
             }
             MerianLog.data.error("enqueueNonVisualCapture: context.save() failed: \(error, privacy: .private)")
             for persistedAudioName in persistedAudioNamesBySourcePath.values {
@@ -1569,13 +1569,13 @@ extension OfflineQueueManager {
         }
 
         var didConsumeQuota = false
-        if !RevenueCatManager.shared.isProActive {
+        if !RevenueCatManager.shared.canStartProScan {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
                 MerianLog.data.debug("enqueueCapture: free user scan quota exhausted — scan not enqueued")
                 await cleanupPersistedCaptureFiles(fileURLs)
                 return false
             }
-            UsageManager.shared.consumeScan()
+            UsageManager.shared.consumeScan(scanId: scanId)
             didConsumeQuota = true
         }
         
@@ -1636,7 +1636,7 @@ extension OfflineQueueManager {
         } catch {
             modelContext.rollback()
             if didConsumeQuota {
-                UsageManager.shared.refundScan()
+                UsageManager.shared.refundScan(scanId: scanId)
             }
             await cleanupPersistedCaptureFiles(fileURLs)
             MerianLog.data.error("insertAndPersistRecord: failed to create offline job: \(error, privacy: .private)")
@@ -1668,7 +1668,7 @@ extension OfflineQueueManager {
         } catch {
             modelContext.rollback()
             if didConsumeQuota {
-                UsageManager.shared.refundScan()
+                UsageManager.shared.refundScan(scanId: scanId)
             }
             MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
             await cleanupPersistedCaptureFiles(fileURLs)

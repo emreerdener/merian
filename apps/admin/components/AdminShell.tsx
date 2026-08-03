@@ -13,6 +13,7 @@ const destinations = [
   { href: "/feedback", label: "Feedback", minimum: 2 },
   { href: "/users", label: "Users", minimum: 2 },
   { href: "/ai-usage", label: "AI usage", minimum: 1 },
+  { href: "/complimentary-entitlements", label: "Complimentary scans", minimum: 1 },
   { href: "/access", label: "Audit & access", minimum: 3 },
 ];
 const rank: Record<AdminRole, number> = { analyst: 1, moderator: 2, owner: 3 };

@@ -1058,13 +1058,17 @@ incident and forward-repair procedure.
 ### Authoritative AI Entitlement and Quota Boundary
 
 Migration `20260723160229_enforce_server_ai_quotas.sql` makes paid-model access
-a database decision. Public Edge routes use `_shared/aiQuota.ts` to call
-`reserve_ai_quota(user, operation, request_id, ip_hash)` before provider work.
-That single transaction locks and resolves the durable entitlement and selected
-policy, chooses an allowlisted model, applies a daily safety ceiling plus shared
-per-user/IP rate limits, and records an idempotent reservation. The row locks
-give concurrent tier/policy changes and reservations a single database order;
-future-dated profiles never extend the seven-day trial. The Edge route commits
+a database decision. Forward migration
+`20260802235833_three_complimentary_pro_scans.sql` extends that boundary with a
+private three-result lifetime ledger, original-analysis linkage, protocol
+fence, and server-classified Flash fallback. Public Edge routes use
+`_shared/aiQuota.ts` to call the current eight-argument `reserve_ai_quota(...)`
+before provider work. That single transaction locks the user first, resolves
+paid Pro → complimentary Pro → free, locks the selected policy, chooses an
+allowlisted model, applies a daily safety ceiling plus shared per-user/IP rate
+limits, and records an idempotent provider reservation. Legacy rollout mode can
+still resolve `pro_trial`; complimentary mode cannot create new trial rows. The
+Edge route commits
 immediately before provider dispatch. Only a proven pre-provider no-op, such as
 a moderation cache hit or rejected empty multimodal request, may refund. Every
 attempt carries a ten-minute database lease and a fresh fencing token; expired
@@ -1083,20 +1087,39 @@ or veto recovery depending on matching dead-letter lineage. Recovery or
 explicit operator resolution returns them to ordinary pruning. Refunded
 attempts are not retained by this exception.
 
-The internal policy matrix distinguishes `free`, `pro_trial`, and `pro_paid`.
-Current UTC-day safety ceilings are:
+The current policy matrix distinguishes `free`, `pro_complimentary`, and
+`pro_paid`; `pro_trial` remains valid for pre-cutover behavior and historical
+rows. Current post-cutover UTC-day provider safety ceilings are:
 
-| Operation bucket                                   |   Free | Pro trial | Paid Pro |
-| -------------------------------------------------- | -----: | --------: | -------: |
-| Primary image/description/audio scans              |      1 |        50 |      500 |
-| Cache-miss overview/lookalike/group-tag enrichment |      4 |       100 |      500 |
-| Explore/Community audio moderation                 |      3 |        25 |      100 |
-| Insight/Explore model chat work                    | denied |        60 |      120 |
+| Operation bucket                                   |   Free | Complimentary Pro | Paid Pro |
+| -------------------------------------------------- | -----: | ----------------: | -------: |
+| Primary image/description/audio scans              |      1 |                50 |      500 |
+| Cache-miss overview/lookalike/group-tag enrichment |      4 |               100 |      500 |
+| Explore/Community audio moderation                 |      3 |                25 |      100 |
+| Insight/Explore model chat work                    | denied |                60 |      120 |
 
 These are abuse and cost ceilings, not client entitlements. Change them only in
 a reviewed forward migration, increment the policy version, and keep every
 operation in `AIQuotaOperation`, `aiQuotaMigrationContract.test.ts`,
 `aiQuotaCoverage.test.ts`, and `tests/ai_quota_security.sql` aligned.
+
+Complimentary holds settle separately from these counters. Attempted provider
+calls remain charged even if a proven terminal scan failure releases the user's
+hold. Retryable or ambiguous scan/media outcomes stay held. Only
+`complete_scan_ingestion_with_entitlement(...)` can consume after durable scan
+and required-media completion, and only `fail_scan_ingestion_terminal(...)`
+can release during terminalization after cutover; both lock the user before the
+existing ingestion/scan locks. Direct lower-level terminal/completion writes
+are fenced.
+
+Authenticated clients read their own versioned balance through
+`get_my_entitlement()`. After atomic cutover, `/identify`,
+`/identify-describe`, `/identify-multimodal`, and `/audio-spec` require
+`X-Merian-Entitlement-Protocol: 2`; obsolete public callers receive
+`426 client_update_required`, while authenticated replay bypasses only that
+protocol comparison and reuses the original analysis linkage. The full
+contract and change procedure are
+[`docs/backend-and-data/18-complimentary-pro-scans.md`](../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 #### Atomic Field Chat Admission
 
@@ -1140,7 +1163,9 @@ end with an alphanumeric character, cannot contain `__`, and cannot be reserved.
 Fix a stale fixture rather than weakening the Auth FK or production identity
 constraints.
 
-`users.entitlement_version` advances whenever the tier or timed expiry changes.
+`users.entitlement_version` advances whenever tier, timed expiry, or the
+protected complimentary mutation epoch changes; the rollout mode version is
+folded into returned snapshots so cutover supersedes legacy responses.
 `_shared/entitlement.ts` performs durable reads for non-provider checks; it
 never caches authorization in an Edge isolate. A query error or missing user row
 fails closed with `503 ai_entitlement_unavailable`. Authenticated clients cannot
@@ -1685,7 +1710,16 @@ Confidence, inference tier, confirmation, and the pending preference are
 carried in the atomic receipt revision. A later downgrade to weak unreviewed
 evidence removes standard/Event credit even after completion, reopens progress,
 clears derived Event badges, and soft-deletes invalid completion
-publications/entries. The contract suite verifies caller identity, role grants,
+publications/entries.
+`20260802053044_simplify_backyard_and_pollinator_levels.sql` preserves checklist
+identities while changing both starter outings to 2/4/4 progressions.
+`20260803015025_auto_enroll_backyard_safari_level_one.sql` then backfills an
+active Level 1 trip/activity window for accounts without Backyard Safari state
+and installs a database-only `public.users` insert trigger for future signed-in
+and ghost accounts. Conflict handling is insert-only so stopped, reset, and
+completed state is never resumed. The active row retains the existing
+profile-visible status-only contract but exposes no scan evidence. The contract
+suite verifies caller identity, role grants,
 ordering/filtering clauses, private completion links/status, credited progress
 in both RPCs, and the absence of evidence from public/capture projections.
 `fieldTripCaptureContextDb.test.ts` additionally executes the
@@ -1862,13 +1896,21 @@ families, cross-bound-row rejection, feedback ACLs, and the ten-minute
 stale-quota path before releasing iOS. An RPC timeout, malformed admission row,
 or missing migration must remain a retryable `503` without provider dispatch.
 
-For the Field trip Scan indicator, apply the contextual-guide, active-field trip
-capture-context, and standard-field trip preservation migrations before
-deploying `field-trips`, then smoke-test the authenticated `capture_context`
-action before releasing the iOS client. The RPC is intentionally unavailable to
-direct `anon` and `authenticated` database calls; only the verified Edge action
-may invoke it with `service_role`. The long-term client/source boundary and
-extension rules are recorded in `docs/rfcs/active-capture-goal-context.md`.
+For the Field trip Scan indicator and starter enrollment, apply the complete
+ordered Field trip chain through
+`20260803015025_auto_enroll_backyard_safari_level_one.sql` before deploying
+`field-trips`, then smoke-test the authenticated `capture_context` action before
+releasing the iOS client. A new signed-in account and ghost account must each
+receive exactly one Backyard Safari Level 1 row and one open period. Direct API
+roles cannot execute the capture RPC or internal enrollment function; only the
+verified Edge action invokes the RPC with `service_role`. The long-term
+client/source boundary and extension rules are recorded in
+`docs/rfcs/active-capture-goal-context.md`.
+
+To disable future enrollment, ship a new forward migration that drops
+`auto_enroll_backyard_safari_level_one_on_user_insert` from `public.users`, then
+drops `internal.auto_enroll_backyard_safari_level_one()`. Preserve all existing
+trip, period, and completion rows.
 
 For completed-goal thumbnails, also apply
 `20260718043218_expose_field_trip_completion_scan_ids.sql` before releasing the
@@ -1901,7 +1943,9 @@ For persistent Insight contribution cards and selected-goal preference, apply
 `20260722064704_harden_atomic_field_trip_progress.sql`,
 `20260722195453_exclude_ants_from_bee_wasp_goal.sql`, and
 `20260722211636_tighten_field_trip_goal_matching.sql`, followed by
-`20260730023042_gate_field_trip_progress_by_confidence.sql`, in order. Then
+`20260730023042_gate_field_trip_progress_by_confidence.sql`,
+`20260802053044_simplify_backyard_and_pollinator_levels.sql`, and
+`20260803015025_auto_enroll_backyard_safari_level_one.sql`, in order. Then
 deploy the scan-ingestion functions and `field-trips` before the iOS client.
 Smoke-test optional `preferred_goal`, Possible-match boundaries, weak-match
 confirmation and downgrade reopening, pending-hint retention, one credit per

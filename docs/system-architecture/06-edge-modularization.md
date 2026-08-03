@@ -97,7 +97,8 @@ client response aliases instead come from the executable descriptor in
   habitat tags, comment lengths, and optional preferred-goal pair; `db.ts` is
   the only layer that calls the Field trip RPCs and publication/comment tables.
   The endpoint is intentionally action-based because the Field trips endpoint
-  serves catalog, template detail, explicit start, Community publications,
+  serves catalog, template detail, starts for other outings and resumes,
+  Community publications,
   Recent compatibility, profile pins, scan progress, private scan contributions,
   publication detail, likes, and comments from one Field trips-native surface
   without extending Explore feed functions. Catalog/detail can project the

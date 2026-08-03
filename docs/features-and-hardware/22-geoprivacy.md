@@ -98,6 +98,9 @@ Field trips have a separate public-profile boundary:
 
 - active Field trip progress can appear on public profiles by default, but only
   as checklist status;
+- automatic Backyard Safari Level 1 enrollment creates that profile-visible
+  status immediately, including at `0/N` progress; stopping or resetting the
+  unfinished outing hides the active summary;
 - active summaries must not expose scan IDs, media URLs, field notes, exact
   coordinates, public location labels, or private evidence;
 - publishing a Field trip creates a Field trip snapshot, not an Explore post;

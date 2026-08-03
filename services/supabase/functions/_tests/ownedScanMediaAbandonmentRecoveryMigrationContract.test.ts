@@ -348,6 +348,6 @@ Deno.test("media reconciliation cannot overwrite an existing terminal policy dec
   );
   assertStringIncludes(
     compact(db),
-    '.not("status", "in", "(complete,failed_terminal)")',
+    'rpc("fail_scan_ingestion_terminal"',
   );
 });

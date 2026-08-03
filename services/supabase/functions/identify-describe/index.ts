@@ -8,7 +8,11 @@ import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { tierTelemetryProperties } from "../_shared/entitlement.ts";
+import {
+  entitlementProtocolResponse,
+  tierTelemetryProperties,
+} from "../_shared/entitlement.ts";
+import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
   reserveAIProviderCall,
@@ -36,6 +40,7 @@ import {
   StaticSpeciesData,
 } from "../_shared/identify/types.ts";
 import {
+  type IdentifySuccessEnvelope,
   parseDescribeIdentification,
   parseIdentifySuccessEnvelope,
 } from "../_shared/identify/contract.ts";
@@ -125,6 +130,12 @@ interface DescribeRequestBody extends Record<string, unknown> {
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const protocolError = await entitlementProtocolResponse(
+      req,
+      supabaseAdmin,
+    );
+    if (protocolError) return protocolError;
+
     const fnStart = Date.now();
     const body = await parseJsonBody<DescribeRequestBody>(req, {
       limit: "standard",
@@ -236,6 +247,13 @@ Deno.serve((req: Request) =>
         userId: user.id,
         operation: "scan_identification",
         requestId: generatedScanId,
+        originalAnalysisId: generatedScanId,
+        flashFallbackEligible: isFlashFallbackEligible({
+          imageCount: 0,
+          audioCount: 0,
+          descriptionCount: 1,
+          videoCount: 0,
+        }),
       });
     } catch (error) {
       if (
@@ -453,9 +471,10 @@ Deno.serve((req: Request) =>
       );
     } catch (parseError) {
       await quotaLease.fail();
-      await compatibilityLedger.markRetryableFailure(
+      await compatibilityLedger.markTerminalFailure(
         "ai_response_parse_failed",
         parseError,
+        "malformed_provider_response",
       );
       logStructuredError("identify-describe/parse_failed", {
         user_id: user.id,
@@ -705,7 +724,7 @@ Deno.serve((req: Request) =>
       }
     }
 
-    let responseEnvelope;
+    let responseEnvelope: IdentifySuccessEnvelope;
     try {
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
@@ -714,9 +733,10 @@ Deno.serve((req: Request) =>
       payloadReadyForClient = responseEnvelope.data;
     } catch (error) {
       await quotaLease.fail();
-      await compatibilityLedger.markRetryableFailure(
+      await compatibilityLedger.markTerminalFailure(
         "wire_contract_failed",
         error,
+        "malformed_response",
       );
       logStructuredError("identify-describe/wire_contract_failed", {
         user_id: user.id,
@@ -858,7 +878,14 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
-        await compatibilityLedger.markComplete({ responseEnvelope });
+        const completion = await compatibilityLedger.markComplete({
+          responseEnvelope,
+        });
+        if (completion.responseEnvelope) {
+          responseEnvelope = parseIdentifySuccessEnvelope(
+            completion.responseEnvelope,
+          );
+        }
         ledgerCompleted = true;
       } catch (bgError) {
         const persistenceOutcomeUnknown = isScanPersistenceOutcomeUnknown(

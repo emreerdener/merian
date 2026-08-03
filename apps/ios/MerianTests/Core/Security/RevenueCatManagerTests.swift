@@ -8,6 +8,7 @@ final class RevenueCatManagerTests: XCTestCase {
 
     override func setUp() async throws {
         revenueCatManager = RevenueCatManager.shared
+        EntitlementManager.shared.resetForTesting()
     }
 
     override func tearDown() async throws {
@@ -19,6 +20,12 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertFalse(revenueCatManager.isSubscribed)
         XCTAssertNil(revenueCatManager.currentOfferings)
         XCTAssertFalse(revenueCatManager.isFetchingOfferings)
+    }
+
+    func testComplimentaryPlanDetailsAreLimitedToResultsAndSettings() {
+        XCTAssertFalse(ComplimentaryPlanDetailContext.hidden.showsDetails)
+        XCTAssertTrue(ComplimentaryPlanDetailContext.results.showsDetails)
+        XCTAssertTrue(ComplimentaryPlanDetailContext.settings.showsDetails)
     }
     
     func testRevenueCatAttributionSignature() async {
@@ -109,13 +116,11 @@ final class RevenueCatManagerTests: XCTestCase {
     func testHandleSupabaseSignOutClearsEntitlementsInTests() async {
         revenueCatManager.isProActive = true
         revenueCatManager.isSubscribed = true
-        revenueCatManager.trialDaysRemaining = 3
 
         await revenueCatManager.handleSupabaseSignOut()
 
         XCTAssertFalse(revenueCatManager.isProActive)
         XCTAssertFalse(revenueCatManager.isSubscribed)
-        XCTAssertNil(revenueCatManager.trialDaysRemaining)
     }
 
     func testSevenDayPassPolicyUnlocksActivePass() {

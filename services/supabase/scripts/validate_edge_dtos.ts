@@ -68,6 +68,9 @@ export const REQUIRED_WIRE_PATHS = [
   "data.scan_id",
   "data.species_insights.habitat_description",
   "data.taxonomy.class",
+  "entitlement.entitlement_after.entitlement_version",
+  "entitlement.plan_used",
+  "entitlement.user_id",
   "success",
 ] as const;
 

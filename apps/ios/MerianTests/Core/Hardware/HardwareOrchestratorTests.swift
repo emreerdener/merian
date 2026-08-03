@@ -1,7 +1,7 @@
-import Testing
 import AVFoundation
 import Foundation
 @testable import Merian
+import Testing
 
 @MainActor
 @Suite(.serialized)
@@ -18,11 +18,36 @@ struct HardwareOrchestratorTests {
         return AppSettings(userDefaults: userDefaults, observeExternalChanges: false)
     }
 
-    private func makeOrchestrator(appSettings: AppSettings? = nil) -> HardwareOrchestrator {
+    private func makeOrchestrator(
+        appSettings: AppSettings? = nil,
+        functionalProAccessProvider: @escaping @MainActor () -> Bool = { true }
+    ) -> HardwareOrchestrator {
         HardwareOrchestrator(
             appSettings: appSettings ?? makeAppSettings(),
-            observeSystemChanges: false
+            observeSystemChanges: false,
+            functionalProAccessProvider: functionalProAccessProvider
         )
+    }
+
+    @Test func testPersistedExpeditionModeWaitsForFunctionalEntitlement() {
+        let appSettings = makeAppSettings()
+        var hasFunctionalProAccess = false
+        let orchestrator = makeOrchestrator(
+            appSettings: appSettings,
+            functionalProAccessProvider: { hasFunctionalProAccess }
+        )
+
+        appSettings.isExpeditionModeActive = true
+        orchestrator.evaluateConstraints(thermalState: .nominal)
+        #expect(orchestrator.isExpeditionModeActive == false)
+        #expect(orchestrator.targetFPS == 60)
+        #expect(orchestrator.isGlassmorphismEnabled == true)
+
+        hasFunctionalProAccess = true
+        orchestrator.evaluateConstraints(thermalState: .nominal)
+        #expect(orchestrator.isExpeditionModeActive == true)
+        #expect(orchestrator.targetFPS == 24)
+        #expect(orchestrator.isGlassmorphismEnabled == false)
     }
     
     @Test func testExpeditionModeDisablesBackgroundSyncs() async throws {

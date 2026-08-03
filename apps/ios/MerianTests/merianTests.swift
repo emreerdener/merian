@@ -42,6 +42,23 @@ final class ScrollAwareToolbarTitleBadgeTests: XCTestCase {
 
 @MainActor
 final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
+    private var previousProState = false
+    private var previousSubscribedState = false
+
+    override func setUp() {
+        super.setUp()
+        previousProState = RevenueCatManager.shared.isProActive
+        previousSubscribedState = RevenueCatManager.shared.isSubscribed
+        RevenueCatManager.shared.isSubscribed = true
+        RevenueCatManager.shared.isProActive = true
+    }
+
+    override func tearDown() {
+        RevenueCatManager.shared.isSubscribed = previousSubscribedState
+        RevenueCatManager.shared.isProActive = previousProState
+        super.tearDown()
+    }
+
     private func makePNGData(color: UIColor = .systemTeal) -> Data {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
         return renderer.pngData { context in
@@ -198,6 +215,42 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
         XCTAssertEqual(viewModel.stagedCapture.images.first?.compressedData, expectedCompressedData)
         XCTAssertEqual(viewModel.stagedCapture.images.first?.displayData, expectedDisplaySignature)
+    }
+
+    func testRefinementWithoutFunctionalProOpensSoftPaywall() {
+        RevenueCatManager.shared.isSubscribed = false
+        RevenueCatManager.shared.isProActive = false
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let record = LocalScanRecord(
+            speciesId: "paywall-species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly"
+        )
+
+        viewModel.startRefinementScan(from: record)
+
+        XCTAssertEqual(viewModel.activeSheet, .paywall)
+        XCTAssertNil(viewModel.baseRefinementContext)
+        XCTAssertNil(viewModel.requestedCaptureMode)
+    }
+
+    func testPersistedMultiCapturePreferenceIsLockedWithoutFunctionalPro() {
+        RevenueCatManager.shared.isSubscribed = false
+        RevenueCatManager.shared.isProActive = false
+        let diContainer = AppDIContainer.preview
+        diContainer.appSettings.isMultiCaptureEnabled = true
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        XCTAssertFalse(viewModel.isMultiCaptureFunctionallyEnabled)
+        XCTAssertEqual(viewModel.stagedCaptureLimit, 1)
     }
 
     func testStartRefinementScanWithRemoteImageEntersReanalysisFlow() {
@@ -723,12 +776,15 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
     func testQuotaBlockedExternalImportIsRetainedAndProEntitlementRetriesIt() async throws {
         let previousProState = RevenueCatManager.shared.isProActive
+        let previousSubscribedState = RevenueCatManager.shared.isSubscribed
         defer {
+            RevenueCatManager.shared.isSubscribed = previousSubscribedState
             RevenueCatManager.shared.isProActive = previousProState
             restoreFreeScanLimitForTest()
         }
         UsageManager.debugFreeScanLimitOverride = false
         UsageManager.shared.freeScansRemaining = 0
+        RevenueCatManager.shared.isSubscribed = false
         RevenueCatManager.shared.isProActive = false
 
         let rootURL = FileManager.default.temporaryDirectory
@@ -754,6 +810,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let blockedImports = await store.pendingImports()
         XCTAssertEqual(blockedImports.count, 1)
 
+        RevenueCatManager.shared.isSubscribed = true
         RevenueCatManager.shared.isProActive = true
         let retriedResult = await viewModel.importNextPendingExternalImage()
 

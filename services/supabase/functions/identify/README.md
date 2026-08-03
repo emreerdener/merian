@@ -51,8 +51,10 @@ to modify the pipeline, modify the exact module below rather than cluttering
   dropped, and non-dog/cat taxa never receive pet metadata.
 - **`../_shared/aiQuota.ts`** The atomic entitlement, quota, rate-limit, model
   selection, and idempotency boundary used before provider dispatch. The
-  reservation returns the durable tier telemetry and database-selected model;
-  detached passes and trials are evaluated in the same transaction as quota.
+  reservation returns the durable tier telemetry and database-selected model,
+  carries the original analysis and optional complimentary linkage, and derives
+  Flash fallback from the parsed evidence shape. Paid passes and the active
+  rollout mode are evaluated in the same user-first transaction as quota.
 - **`../_shared/entitlement.ts`** Durable tier helpers for non-provider checks
   and telemetry. Provider authorization never comes from an isolate-local cache.
 
@@ -63,9 +65,10 @@ to modify the pipeline, modify the exact module below rather than cluttering
 Insight, Field Chat, Explore, field trips, and owner sync.
 
 - _Rule:_ Keep provider inference, required moderation/media promotion, profile
-  prerequisites, exact-owner insertion, and the synchronous complete-last
-  finalization attempt here. A finalizer failure may degrade to the narrow
-  owner-row fallback only after exact-owner insertion was proved durable.
+  prerequisites, exact-owner insertion, and the synchronous user-first
+  entitlement completion orchestration here. An orchestration failure may
+  degrade to the narrow owner-row fallback only after exact-owner insertion was
+  proved durable.
 
 **2. The Background Engine** The `runBackground(...)` block handles everything
 nonessential after the user receives a durable ID.
@@ -76,6 +79,22 @@ nonessential after the user receives a durable ID.
   background work.
 
 ## Response Contract
+
+After entitlement cutover, public calls require
+`X-Merian-Entitlement-Protocol: 2`; missing/obsolete callers receive
+`426 client_update_required` before provider dispatch. The canonical
+`client_scan_id` is the complimentary-ledger linkage. Paid Pro wins, otherwise
+an available credit creates/reuses one hold; after exhaustion only a
+Flash-compatible single-evidence request can use the independent daily free
+policy.
+
+Successful envelopes can add optional `entitlement` metadata with the owner,
+`plan_used`, consumed funding status, and a versioned post-settlement snapshot.
+Completion uses the user-first entitlement orchestrator; valid non-biological
+results consume, proven terminal failures release, and retryable/ambiguous
+outcomes remain held. Provider counters remain charged after attempted calls.
+See the normative
+[`complimentary scan contract`](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 JSON extraction is only syntax handling. The extracted Gemini object is parsed
 against `merianModelContract` before normalization or database use. After cache
@@ -111,13 +130,15 @@ transaction through `_shared/scanIngestionCompatibility.ts`.
 - Inline image bytes are never stored in the intent. They are counted in
   `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
-- The awaited insert delegates to the shared completion-last finalization RPC. A
-  failure before exact-owner insertion returns retryable 503. If only
-  finalization or bookkeeping fails after that row committed, this compatibility
-  route may return its already validated response while leaving the ledger
-  retryable for same-UUID canonical reconciliation. Moderation rejection marks
-  the job `failed_terminal`. Staged-image promotion supplies the exact
-  storage-key-to-public-URL disposition to finalization.
+- The awaited insert delegates to the user-first entitlement completion
+  orchestrator. A failure before exact-owner insertion returns retryable 503. If
+  only finalization or bookkeeping fails after that row committed, this
+  compatibility route may return its already validated response while leaving
+  the ledger and hold retryable for same-UUID canonical reconciliation. A
+  moderation rejection uses the user-first terminal orchestrator; lower-level
+  code cannot write `failed_terminal` or settle the hold directly. Staged-image
+  promotion supplies the exact storage-key-to-public-URL disposition to
+  finalization.
 - Every insert settles through `_shared/scanPersistence.ts`. A returned database
   rejection plus a definitive missing-owner read permits quota/media cleanup; a
   lost response or unavailable exact-owner verification preserves committed

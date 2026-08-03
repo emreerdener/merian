@@ -436,6 +436,39 @@ staged keys, returns the durable row to pending, and uploads retained local
 media again. Moderation rejection remains committed and terminal. Unknown or
 post-insert outcomes preserve committed usage and recover from the same UUID.
 
+## Complimentary Credit Settlement
+
+Forward migration `20260802235833_three_complimentary_pro_scans.sql` adds a
+user-facing credit lifecycle alongside this ingestion lifecycle. The original
+`client_scan_id` is both the ingestion generation and the lifetime-ledger key;
+retry, replay, enrichment, and provider subcalls do not create another credit.
+
+Provider quota and complimentary credits are deliberately independent. An
+attempted provider call retains its daily/rate/cost counters. Its held
+complimentary credit remains held through retryable or ambiguous persistence
+and media outcomes, is released only by a proven terminal outcome, and is
+consumed only after this document's owner-scan and canonical required-media
+success boundary is durable. A valid non-biological result consumes. A purchase
+before final settlement releases the still-active hold, while prior consumption
+is not refunded.
+
+`complete_scan_ingestion_with_entitlement(...)` is the service-only completion
+orchestrator. It locks `public.users` before the established advisory/job/scan
+and media locks, enters a transaction-local completion fence, invokes the
+canonical finalizer, settles the hold, derives a versioned entitlement snapshot,
+and immutably enriches the stored response. `fail_scan_ingestion_terminal(...)`
+provides the corresponding user-first terminal transition and hold release.
+Trigger fences reject lower-level completion or terminal writes after cutover.
+Settlement failures propagate; callers cannot swallow them and then bypass the
+orchestrator.
+
+An old hold is recovery evidence, not time-based refund authority. Replay
+exhaustion, reconciliation abandonment, compatibility setup failure, and scan
+deletion must prove and settle their exact generation through the terminal
+orchestrator. The full balance, fallback, protocol, iOS, merge, and rollout
+contract is
+[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
+
 ## Ingestion and Queue States
 
 The durable server ledger is authoritative after provider dispatch.

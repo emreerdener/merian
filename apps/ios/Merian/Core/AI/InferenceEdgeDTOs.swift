@@ -41,16 +41,72 @@ private enum ImageQualityCodingKeys: String, CodingKey {
 struct EdgeResponseWrapper: Codable {
     let success: Bool?
     let data: EdgeResponse
+    let entitlement: ScanEntitlementMetadataDTO?
 
     enum CodingKeys: String, CodingKey {
         case success
         case data
+        case entitlement
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         success = try container.decodeIfPresent(Bool.self, forKey: .success)
         data = try container.decode(EdgeResponse.self, forKey: .data)
+        entitlement = try container.decodeIfPresent(ScanEntitlementMetadataDTO.self, forKey: .entitlement)
+    }
+}
+
+struct ScanEntitlementMetadataDTO: Codable {
+    let userID: String
+    let planUsed: String
+    let creditConsumed: Bool
+    let entitlementAfter: EntitlementSnapshotDTO
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case planUsed = "plan_used"
+        case creditConsumed = "credit_consumed"
+        case entitlementAfter = "entitlement_after"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userID = try container.decode(String.self, forKey: .userID)
+        planUsed = try container.decode(String.self, forKey: .planUsed)
+        creditConsumed = try container.decode(Bool.self, forKey: .creditConsumed)
+        entitlementAfter = try container.decode(EntitlementSnapshotDTO.self, forKey: .entitlementAfter)
+    }
+}
+
+struct EntitlementSnapshotDTO: Codable {
+    let currentPlan: String
+    let currentTier: String
+    let isPaid: Bool
+    let scansRemaining: Int
+    let scansAvailableToStart: Int
+    let inFlightCount: Int
+    let entitlementVersion: Int
+
+    enum CodingKeys: String, CodingKey {
+        case currentPlan = "current_plan"
+        case currentTier = "current_tier"
+        case isPaid = "is_paid"
+        case scansRemaining = "scans_remaining"
+        case scansAvailableToStart = "scans_available_to_start"
+        case inFlightCount = "in_flight_count"
+        case entitlementVersion = "entitlement_version"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        currentPlan = try container.decode(String.self, forKey: .currentPlan)
+        currentTier = try container.decode(String.self, forKey: .currentTier)
+        isPaid = try container.decode(Bool.self, forKey: .isPaid)
+        scansRemaining = try container.decode(Int.self, forKey: .scansRemaining)
+        scansAvailableToStart = try container.decode(Int.self, forKey: .scansAvailableToStart)
+        inFlightCount = try container.decode(Int.self, forKey: .inFlightCount)
+        entitlementVersion = try container.decode(Int.self, forKey: .entitlementVersion)
     }
 }
 

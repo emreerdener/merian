@@ -8,6 +8,7 @@ import {
   type ScanIngestionJobRow,
   scanIngestionManifestChecksum,
   scanIngestionMediaObjectKeys,
+  updateScanIngestionJob,
 } from "./scanIngestionJobs.ts";
 
 function jobRow(
@@ -143,6 +144,85 @@ Deno.test("scanIngestionClientState preserves retryable failure metadata", () =>
   );
 });
 
+Deno.test("updateScanIngestionJob settles terminal failures only through the entitlement orchestrator", async () => {
+  let directUpdateAttempted = false;
+  let rpcName = "";
+  let rpcArguments: Record<string, unknown> = {};
+  const client = {
+    rpc(name: string, arguments_: Record<string, unknown>) {
+      rpcName = name;
+      rpcArguments = arguments_;
+      return Promise.resolve({
+        data: { result: "failed_terminal" },
+        error: null,
+      });
+    },
+    from() {
+      directUpdateAttempted = true;
+      throw new Error("terminal state must not use a direct table update");
+    },
+  } as unknown as SupabaseClient;
+
+  await updateScanIngestionJob(
+    {
+      scanId: "00000000-0000-4000-8000-000000000091",
+      userId: "00000000-0000-4000-8000-000000000092",
+      status: "failed_terminal",
+      stage: "moderation_rejected",
+      lastError: " unsafe media ",
+      terminalReasonCode: "policy_rejected",
+    },
+    client,
+  );
+
+  assertEquals(rpcName, "fail_scan_ingestion_terminal");
+  assertEquals(rpcArguments, {
+    p_scan_id: "00000000-0000-4000-8000-000000000091",
+    p_user_id: "00000000-0000-4000-8000-000000000092",
+    p_stage: "moderation_rejected",
+    p_last_error: " unsafe media ",
+    p_terminal_reason_code: "policy_rejected",
+  });
+  assertEquals(directUpdateAttempted, false);
+});
+
+Deno.test("updateScanIngestionJob fails closed when terminal settlement is unavailable", async () => {
+  let directUpdateAttempted = false;
+  const client = {
+    rpc() {
+      return Promise.resolve({
+        data: null,
+        error: {
+          code: "PGRST202",
+          message:
+            "Could not find fail_scan_ingestion_terminal in the schema cache",
+        },
+      });
+    },
+    from() {
+      directUpdateAttempted = true;
+      throw new Error("terminal state must not use a direct table update");
+    },
+  } as unknown as SupabaseClient;
+
+  await assertRejects(
+    () =>
+      updateScanIngestionJob(
+        {
+          scanId: "00000000-0000-4000-8000-000000000091",
+          userId: "00000000-0000-4000-8000-000000000092",
+          status: "failed_terminal",
+          stage: "provider_failed",
+          lastError: "terminal provider failure",
+        },
+        client,
+      ),
+    Error,
+    "fail_scan_ingestion_terminal",
+  );
+  assertEquals(directUpdateAttempted, false);
+});
+
 Deno.test("completeScanIngestionFinalization canonicalizes lifecycle inputs for one RPC", async () => {
   let rpcName = "";
   let rpcArguments: Record<string, unknown> = {};
@@ -150,7 +230,10 @@ Deno.test("completeScanIngestionFinalization canonicalizes lifecycle inputs for 
     rpc(name: string, arguments_: Record<string, unknown>) {
       rpcName = name;
       rpcArguments = arguments_;
-      return Promise.resolve({ data: "completed", error: null });
+      return Promise.resolve({
+        data: { result: "completed", response_envelope: null },
+        error: null,
+      });
     },
   } as unknown as SupabaseClient;
 
@@ -167,11 +250,12 @@ Deno.test("completeScanIngestionFinalization canonicalizes lifecycle inputs for 
     client,
   );
 
-  assertEquals(result, "completed");
-  assertEquals(rpcName, "complete_scan_ingestion_finalization");
+  assertEquals(result, { result: "completed", responseEnvelope: null });
+  assertEquals(rpcName, "complete_scan_ingestion_with_entitlement");
   assertEquals(rpcArguments, {
     p_scan_id: "00000000-0000-4000-8000-000000000091",
     p_user_id: "00000000-0000-4000-8000-000000000092",
+    p_response_envelope: null,
     p_promoted_urls_by_storage_key: {
       "staging/a.wav": "https://media.merian.app/a.wav",
       "staging/z.webp": "https://media.merian.app/z.webp",
@@ -187,7 +271,13 @@ Deno.test("completeScanIngestionFinalization persists a supplied response in the
     rpc(name: string, arguments_: Record<string, unknown>) {
       rpcName = name;
       rpcArguments = arguments_;
-      return Promise.resolve({ data: "already_complete", error: null });
+      return Promise.resolve({
+        data: {
+          result: "already_complete",
+          response_envelope: responseEnvelope,
+        },
+        error: null,
+      });
     },
   } as unknown as SupabaseClient;
   const responseEnvelope = {
@@ -208,11 +298,11 @@ Deno.test("completeScanIngestionFinalization persists a supplied response in the
     client,
   );
 
-  assertEquals(result, "already_complete");
-  assertEquals(
-    rpcName,
-    "complete_scan_ingestion_finalization_with_response",
-  );
+  assertEquals(result, {
+    result: "already_complete",
+    responseEnvelope,
+  });
+  assertEquals(rpcName, "complete_scan_ingestion_with_entitlement");
   assertEquals(rpcArguments, {
     p_scan_id: "00000000-0000-4000-8000-000000000091",
     p_user_id: "00000000-0000-4000-8000-000000000092",
@@ -228,7 +318,7 @@ Deno.test("completeScanIngestionFinalization falls back only when the additive r
     rpc(name: string) {
       rpcNames.push(name);
       return Promise.resolve(
-        name === "complete_scan_ingestion_finalization_with_response"
+        name === "complete_scan_ingestion_with_entitlement"
           ? {
             data: null,
             error: {
@@ -255,10 +345,10 @@ Deno.test("completeScanIngestionFinalization falls back only when the additive r
     client,
   );
 
-  assertEquals(result, "completed");
+  assertEquals(result.result, "completed");
   assertEquals(rpcNames, [
+    "complete_scan_ingestion_with_entitlement",
     "complete_scan_ingestion_finalization_with_response",
-    "complete_scan_ingestion_finalization",
   ]);
 });
 
@@ -297,7 +387,7 @@ Deno.test("completeScanIngestionFinalization never masks an internal undefined-f
     "refresh_required_media",
   );
   assertEquals(rpcNames, [
-    "complete_scan_ingestion_finalization_with_response",
+    "complete_scan_ingestion_with_entitlement",
   ]);
 });
 

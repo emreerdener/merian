@@ -1244,7 +1244,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 let validBase64Strings = base64Strings.filter { !$0.isEmpty }
                 guard !validBase64Strings.isEmpty else {
                     MerianLog.general.error("All base64 payloads are empty — corrupted capture data. Refunding scan.")
-                    UsageManager.shared.refundScan()
+                    UsageManager.shared.refundScan(scanId: resolvedClientScanId)
                     OfflineQueueManager.shared.releaseDeferredLiveUpload(
                         scanId: resolvedClientScanId,
                         foregroundInferenceGeneration:
@@ -1407,7 +1407,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     AppTelemetry.trackScan(
                         isPro: RevenueCatManager.shared.isProActive,
                         isSubscribed: RevenueCatManager.shared.isSubscribed,
-                        inferenceTier: mappedData.inferenceTier
+                        inferenceTier: mappedData.inferenceTier,
+                        planUsed: parseResult.planUsed
                     )
                     let didCommitResult = self.commitSuccessfulResult(
                         for: ownedScanId,
@@ -1766,7 +1767,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     AppTelemetry.trackScan(
                         isPro: RevenueCatManager.shared.isProActive,
                         isSubscribed: RevenueCatManager.shared.isSubscribed,
-                        inferenceTier: mappedData.inferenceTier
+                        inferenceTier: mappedData.inferenceTier,
+                        planUsed: parseResult.planUsed
                     )
 
                     let didCommitResult = self.commitSuccessfulResult(

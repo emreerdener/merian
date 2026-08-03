@@ -21,13 +21,15 @@ final class HapticManager {
     @ObservationIgnored private let success = UINotificationFeedbackGenerator()
     @ObservationIgnored private var coreHapticsEngine: CHHapticEngine?
     @ObservationIgnored private let appSettings: AppSettings
+    @ObservationIgnored private let hardwareOrchestrator: HardwareOrchestrator
     @ObservationIgnored private let supportsCoreHaptics: Bool
     @ObservationIgnored private var lastSuppressionLogKey: String?
     private(set) var lastAttempt: HapticAttemptRecord?
 
     // MARK: - Lifecycle
-    init(appSettings: AppSettings? = nil, hardwareOrchestrator _: HardwareOrchestrator? = nil) {
+    init(appSettings: AppSettings? = nil, hardwareOrchestrator: HardwareOrchestrator? = nil) {
         self.appSettings = appSettings ?? AppSettings.shared
+        self.hardwareOrchestrator = hardwareOrchestrator ?? HardwareOrchestrator.shared
         self.supportsCoreHaptics = CHHapticEngine.capabilitiesForHardware().supportsHaptics
 
         Task { @MainActor in
@@ -110,7 +112,7 @@ final class HapticManager {
 
     var isFeedbackEnabled: Bool {
         appSettings.isHapticsEnabled &&
-        !appSettings.isExpeditionModeActive
+        !hardwareOrchestrator.isExpeditionModeActive
     }
 
     /// Haptics are suppressed when the user has disabled them or when expedition mode is
@@ -319,7 +321,7 @@ final class HapticManager {
             event.rawValue,
             source ?? "unspecified",
             appSettings.isHapticsEnabled.description,
-            appSettings.isExpeditionModeActive.description
+            hardwareOrchestrator.isExpeditionModeActive.description
         ].joined(separator: "|")
         guard key != lastSuppressionLogKey else { return }
         lastSuppressionLogKey = key
@@ -328,7 +330,7 @@ final class HapticManager {
             Haptic suppressed: \(event.rawValue, privacy: .public), \
             source=\(source ?? "unspecified", privacy: .public), \
             hapticsEnabled=\(self.appSettings.isHapticsEnabled, privacy: .public), \
-            expeditionMode=\(self.appSettings.isExpeditionModeActive, privacy: .public)
+            expeditionMode=\(self.hardwareOrchestrator.isExpeditionModeActive, privacy: .public)
             """
         )
     }
@@ -338,7 +340,7 @@ final class HapticManager {
         return HapticDiagnosticSnapshot(
             source: source,
             isHapticsEnabled: appSettings.isHapticsEnabled,
-            isExpeditionModeActive: appSettings.isExpeditionModeActive,
+            isExpeditionModeActive: hardwareOrchestrator.isExpeditionModeActive,
             supportsCoreHaptics: supportsCoreHaptics,
             audioCategory: session.category.rawValue,
             audioMode: session.mode.rawValue

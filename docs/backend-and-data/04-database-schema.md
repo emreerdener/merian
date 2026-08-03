@@ -3010,7 +3010,10 @@ coordinates to the client contract.
   Returns whether the target author has a visible Explore profile for the
   requester through either a currently visible Explore post or a visible Field
   Trip profile surface. `set-user-follow` uses this before inserting follows so
-  following does not become a general user lookup surface.
+  only profile-visible accounts can be followed. Automatic profile-visible
+  Backyard Safari enrollment means a known account ID normally passes this
+  gate until the unfinished starter is stopped or reset; no endpoint enumerates
+  account IDs.
 - `public.get_user_follow_state(self_id UUID, target_author_user_id UUID)`:
   Returns `author_user_id`, aggregate `follower_count`, aggregate
   `following_count`, and requester-specific `viewer_is_following`. Counts ignore
@@ -3068,12 +3071,18 @@ coordinates to the client contract.
   safely sections.
 - `public.user_field_trips`: Per-user progress rows with start time, current
   level, profile visibility, completion time, and denormalized progress counts.
+  Every account receives an active Backyard Safari Level 1 row at profile
+  creation; the rollout backfills only accounts without prior state. The
+  enrollment row uses the existing profile-visible status, so it can appear in
+  the status-only public Field trip summary and satisfy author-profile
+  visibility without exposing its private evidence.
 - `public.user_field_trip_item_completions`: Idempotent item completion rows
   linking a Field trip item to the saved scan that completed it. Rows are
   written only for caller-owned scans whose capture timestamp belongs to an
-  explicit activity period. A unique `(user_field_trip_id, scan_id)` index
-  limits the scan to one credit in that outing, while a scan-first
-  `(scan_id, user_field_trip_id)` index supports Insight lookup. The same scan
+  eligible persisted activity period. A unique
+  `(user_field_trip_id, scan_id)` index limits the scan to one credit in that
+  outing, while a scan-first `(scan_id, user_field_trip_id)` index supports
+  Insight lookup. The same scan
   may still link to one item in several outings.
 - `public.field_trip_scan_goal_preferences`: Private scan-keyed live-Capture
   preference with owner, standard outing, and checklist item IDs. It contains no
@@ -3169,7 +3178,18 @@ coordinates to the client contract.
   it without deleting historical user rows.
 - `public.start_field_trip(self_id UUID, target_template_id UUID)`: Explicitly
   starts or unhides the caller's progress row for an accessible Field trip
-  template.
+  template. Backyard Safari is already started for a new account; this routine
+  starts other outings and resumes stopped/reset state.
+- `internal.auto_enroll_backyard_safari_level_one()`: Deny-by-default
+  `public.users` insert trigger that creates Backyard Safari Level 1 and its
+  initial private activity period for future signed-in and ghost accounts. It
+  is `SECURITY DEFINER` with an empty search path; execute is revoked from
+  `PUBLIC`, `anon`, `authenticated`, and `service_role`. The migration preflight
+  requires an active accessible Level 1 with at least one checklist item, then
+  backfills only users missing a Backyard Safari row. The trigger is named
+  `auto_enroll_backyard_safari_level_one_on_user_insert`, and it safely no-ops
+  if the curated starter is retired later. Existing stopped, reset, and
+  completed rows are never updated or resumed.
 - `public.get_field_trip_community_publications(self_id UUID, mode TEXT, target_template_id UUID, user_region TEXT, viewer_habitat_tags TEXT[], viewer_season_tags TEXT[], max_limit INTEGER, before_rank_bucket INTEGER, before_published_at TIMESTAMPTZ, before_publication_id UUID)`:
   Returns visible published completed trips for the Field trips `Community`
   surface. `smart` ranks by followed-author and coarse region/habitat/season or
@@ -3505,7 +3525,8 @@ Append-only source of truth for internal AI analytics:
 - Estimate: `estimated_cost_microusd`, `pricing_version`
 - Non-content extension data: `metadata JSONB`
 
-`effective_plan` is `free`, `pro_paid`, `pro_trial`, or `unknown`;
+`effective_plan` is `free`, `pro_paid`, `pro_complimentary`, historical
+`pro_trial`, or `unknown`;
 `input_modality` is `text`, `image`, `audio`, `video`, `mixed`, or `unknown`;
 `outcome` is `success`, `refusal`, or `error`. Token/cost values are nullable
 but cannot be negative.
@@ -3554,17 +3575,22 @@ service-role definer RPCs.
   `failed`, or `refunded` state; attempt/refund/stale-recovery counts;
   `lease_token` and `lease_expires_at`; effective/raw tier; entitlement and
   policy versions; selected model; and daily remaining after reservation.
+  The complimentary extension adds nullable `original_analysis_id`, nullable
+  `complimentary_client_scan_id`, nullable `client_protocol`, and
+  `flash_fallback_used`. A complimentary link must equal the original analysis
+  UUID; Flash fallback is valid only for a free primary scan operation.
 - `internal.ai_quota_reservation_counters`: temporary links from a live
   reservation to each counter it consumed. Refund locks the reservation,
   decrements these counters once in the same daily/user/IP lock order used by
   reservation, removes zero rows, then removes the links.
 
-`reserve_ai_quota(uuid,text,uuid,text)` serializes only an identical request key
-with a transaction advisory lock, takes share locks on the entitlement and
-selected policy rows, resolves the durable plan, and consumes all applicable
-counters atomically. Those row locks linearize concurrent RevenueCat/policy
-updates and quota decisions. Future-dated free profiles resolve free rather than
-receiving an extended trial. `finalize_ai_quota_reservation(...)` requires the
+`reserve_ai_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)` locks the
+user before quota or ledger rows, serializes an identical request key, resolves
+paid Pro → complimentary Pro → free under the rollout fence, and consumes all
+applicable counters atomically. The final boolean is true only for
+authenticated internal replay; it bypasses the public protocol fence but does
+not bypass ownership, analysis linkage, entitlement, quota, or settlement.
+`finalize_ai_quota_reservation(...)` requires the
 current per-attempt fencing token and performs an idempotent commit/fail/refund
 transition. Committed provider failures retain their consumed counters but may
 be reserved as a newly metered retry; stale callbacks with an older token are
@@ -3586,6 +3612,47 @@ row can support or veto recovery according to matching dead-letter lineage.
 Refunded attempts and unrelated terminal reservations retain the ordinary 30-day
 limit; recovery or explicit operator resolution also returns the exact authority
 rows to normal pruning.
+
+### Complimentary entitlement rollout and lifetime usage
+
+Migration `20260802235833_three_complimentary_pro_scans.sql` adds the following
+current entitlement state:
+
+- `public.users.complimentary_entitlement_epoch`: protected mutation epoch.
+  Hold, settlement, and merge routines increment it; the existing trigger then
+  advances the account's monotonic `entitlement_version`. Browser roles cannot
+  update it.
+- `internal.entitlement_rollout_config`: one owner-only `current` row containing
+  `legacy_trial`/protocol `0` or `complimentary`/protocol `2`, fixed grant `3`,
+  and monotonic `mode_version`. The migration inserts legacy mode so schema
+  deployment alone cannot strand older clients.
+- `internal.complimentary_scan_usage`: private ledger keyed by
+  `(user_id, client_scan_id)`, with `held`, `consumed`, or `released` state;
+  hold/settlement times; validated `settlement_reason`; and reacquisition count.
+  A partial `(held_at, user_id, client_scan_id)` index supports stale-hold
+  operations; a partial state/reason/time index supports aggregate telemetry.
+
+No balance is stored. The fixed grant minus consumed rows is
+`scans_remaining`; subtracting held rows also produces
+`scans_available_to_start`; held rows produce `in_flight_count`. Paid accounts
+retain their derived balance, but paid scans do not create or settle ledger
+rows.
+
+`public.get_my_entitlement()` is the sole authenticated own-account read and
+derives identity from `auth.uid()`. Service-only reads use
+`get_user_entitlement_service(uuid)` and
+`get_entitlement_rollout_service()`. Completion and terminal settlement use
+`complete_scan_ingestion_with_entitlement(...)` and
+`fail_scan_ingestion_terminal(...)`; both acquire the user lock before existing
+ingestion/scan/media locks. Completion/terminal trigger fences prevent direct
+lower-level state transitions after cutover.
+
+All rollout and ledger tables have RLS enabled and revoke direct access from
+`PUBLIC`, `anon`, `authenticated`, and `service_role`. Definer RPCs use empty
+search paths, in-body role checks where applicable, explicit minimum grants,
+and privileged-routine catalog entries. The full state machine and merge cap
+are normative in
+[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 ### `internal.revenuecat_webhook_events` and customer state
 

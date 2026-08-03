@@ -168,6 +168,12 @@ function quotaReservation(): AIQuotaReservation {
     attemptCount: 1,
     model: "gemini-2.5-flash",
     tier: {
+      current_plan: "free",
+      current_tier: "free",
+      is_paid: false,
+      scans_remaining: 0,
+      scans_available_to_start: 0,
+      in_flight_count: 0,
       effective_tier: "free",
       plan: "free",
       subscription_tier: "free",
@@ -178,6 +184,9 @@ function quotaReservation(): AIQuotaReservation {
     policyVersion: 1,
     dailyLimit: 1,
     dailyRemaining: 0,
+    originalAnalysisId: null,
+    complimentaryClientScanId: null,
+    flashFallbackUsed: false,
   };
 }
 

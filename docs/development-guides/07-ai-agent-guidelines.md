@@ -92,7 +92,7 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     `EnvironmentContextManager`, `AudioCaptureManager`, `SpectrogramActor`
   - `Network/`: `MerianNetworkClient`, `SupabaseManager`
   - `Security/`: `CircuitBreakerManager`, `DeviceIdentityManager`,
-    `RevenueCatManager`, `SocialGuardManager`
+    `EntitlementManager`, `RevenueCatManager`, `SocialGuardManager`
   - `Utilities/`: `MerianConfig`, `AppLifecycleManager`,
     `BackgroundTaskWrapper`, `FieldNotesRepository`, `ImageDownsampler`
   - `Analytics/`, `Intents/`

@@ -423,8 +423,8 @@ triggering excessive SwiftUI view rebuilds.
   collection is a scoped refinement entry point, not a record mutation. The old
   non-biological record stays unchanged until a replacement result succeeds.
   This entry point bypasses only the Pro reanalysis feature gate; the submitted
-  replacement still goes through normal free-tier inference settings and daily
-  scan accounting.
+  replacement still goes through normal paid → complimentary → Flash selection
+  and applicable scan accounting.
 - **Shared post-inference hydration**: Biological visual, audio, and describe
   results all route through `schedulePostInferenceHydrationIfNeeded(...)`, which
   owns the single `liveHydrationTask`, skips Wikipedia when `wikipediaOverview`
@@ -643,10 +643,13 @@ triggering excessive SwiftUI view rebuilds.
   tombstoning) remain serial; only the NVMe write (`FileManager.copyItem`) and
   task creation are concurrent. For a 3-image scan this eliminates 500 ms–2 s of
   head-of-line blocking before the OS background session takes over.
-- **Advisory meter at enqueue time**: `insertAndPersistRecord` calls
-  `UsageManager.shared.canPerformScan(isProActive: false)` before inserting a
-  new `OfflineQueuedScan`. If the quota is exhausted the scan is rejected and
-  any files written to disk are cleaned up atomically —
+- **Advisory meter at enqueue time**: `insertAndPersistRecord` and
+  `enqueueNonVisualCapture` first check
+  `RevenueCatManager.shared.canStartProScan`. When no paid or verified unheld
+  complimentary capacity can fund a new Pro analysis, they gate and reserve the
+  separate daily Flash meter before inserting a new `OfflineQueuedScan`. If the
+  meter is exhausted the scan is rejected and any files written to disk are
+  cleaned up atomically —
   `AppTelemetry.trackOfflineQueued()` is **not** fired on rejection. If the
   check passes, `UsageManager.shared.consumeScan()` reserves the token before
   the record enters SwiftData; if `modelContext.save()` fails, the queue
@@ -654,9 +657,11 @@ triggering excessive SwiftUI view rebuilds.
   files. `syncPendingScans` has no local-meter checks or `consumeScan` calls;
   queued scans upload unconditionally regardless of `freeScansRemaining`.
   Supabase still applies the authoritative entitlement and quota reservation
-  before provider dispatch. Non-biological provider attempts count and are not
-  refunded. A correction reanalysis for a non-biological result can bypass the
-  Pro feature gate, but not daily free-scan accounting.
+  before provider dispatch. A final `plan_used` of paid or complimentary refunds
+  an optimistic local Flash reservation; a real Flash fallback consumes it.
+  Valid non-biological results count under whichever plan funded them. A
+  correction reanalysis for a non-biological result can bypass the Pro feature
+  gate, but not daily free-scan accounting.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through
   `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the
   pipeline progresses.
@@ -1375,7 +1380,11 @@ and `KeychainManager` migration logic. Do not inline
 
 ### `RevenueCatManager`
 
-- Manages `isProActive` state.
+- Owns RevenueCat customer identity, paid access, paid-offline behavior,
+  offerings, purchase, and restore. `isSubscribed` is paid status;
+  `isProActive` combines paid status with current-launch server-verified
+  functional access; and `canStartProScan` additionally requires capacity to
+  fund a new analysis.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
   entitlements, and treats `pro_week` as a detached non-subscription purchase
   that is active for seven days from its purchase date.
@@ -1393,22 +1402,40 @@ and `KeychainManager` migration logic. Do not inline
   mapping; App Store Connect product readiness and RevenueCat dashboard mapping
   remain release prerequisites.
 
+### `EntitlementManager`
+
+- Lives at `Core/Security/EntitlementManager.swift`. Owns the authenticated
+  current-launch result of private `get_my_entitlement()`; no complimentary-only
+  mode unlocks offline from a prior launch.
+- Exposes `currentPlan`, `currentTier`, paid status, total scans remaining,
+  unheld scans available to start, in-flight holds, and the monotonic
+  entitlement version.
+- Buffers the newest valid scan-response snapshot until the launch RPC
+  establishes a baseline. It then accepts only same-user snapshots whose
+  version is at least current, preventing a stored replay from restoring stale
+  capacity.
+- An active hold grants functional Pro access for recovery and capped non-scan
+  actions but cannot fund another analysis. Paid RevenueCat offline access is
+  unchanged.
+- Full contract documented in
+  [18-complimentary-pro-scans.md](../backend-and-data/18-complimentary-pro-scans.md).
+
 ### `UsageManager`
 
 - Lives at `Core/Analytics/UsageManager.swift`. Maintains the advisory daily
   free-tier capture/paywall meter; Supabase owns provider authorization.
 - `canPerformScan(isProActive:) -> Bool` — returns
-  `isProActive || freeScansRemaining > 0`. Checked at two pre-scan gates only:
-  `Capture.swift` (camera shutter) and `handlePhotoPickerSelection` (photo
-  library picker). Network failures in `InferenceEngine` never trigger the
-  paywall — they surface an error state and refund the token.
+  `isProActive || freeScansRemaining > 0`. Capture controls use
+  `RevenueCatManager.canStartProScan` for the first argument; queue insertion
+  repeats the authoritative local transaction gate before reserving Flash.
 - `consumeScan()` — called once at enqueue time inside
   `OfflineQueueManager.insertAndPersistRecord` / `enqueueNonVisualCapture`,
   before the `OfflineQueuedScan` record is committed. `syncPendingScans` has no
   second local check.
-- `refundScan()` — restores the consumed token if inference fails unrecoverably
-  (task cancellation, JSON decoding failure, network error) or if queue
-  insertion fails after a token was reserved.
+- `refundScan()` — restores an optimistic local token when queue insertion
+  fails or when the server reports that paid or complimentary Pro actually
+  funded the result. It does not refund a charged provider reservation or settle
+  a complimentary hold.
 - Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from
@@ -1417,7 +1444,9 @@ and `KeychainManager` migration logic. Do not inline
   DEBUG Settings/environment overrides bypass only this local meter;
   Release/TestFlight ignores them and all builds remain subject to server quota.
 - The authoritative database uses a UTC-day bucket and stable request UUID.
-  Local refunds do not refund a provider attempt.
+  Local refunds do not refund a provider attempt. `reconcileServerPlanUsed`
+  consumes the meter for `free` and refunds it for paid/complimentary plans by
+  scan ID.
 - Full contract documented in
   [02-revenue-and-identity.md](../features-and-hardware/02-revenue-and-identity.md#usage-limits-usagemanager).
 

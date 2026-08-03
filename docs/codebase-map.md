@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-08-01.
+Last reviewed: 2026-08-02.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -269,7 +269,7 @@ the native iOS source tree.
 | Store recovery | `apps/ios/Merian/Core/Data/StoreRecovery/` | SwiftData store metadata parsing, source-aware migration hints, duplicate-checksum detection, corruption-gated quarantine, legacy migration rescue archives, safe-mode decision support, and sanitized recovery manifests.                                                                                                                                                                |
 | Hardware       | `apps/ios/Merian/Core/Hardware/`           | Camera, environment context, audio, spectrogram, haptics, thermal/battery orchestration, and push token management.                                                                                                                                                                                                                                                                       |
 | Network        | `apps/ios/Merian/Core/Network/`            | Supabase auth/client facade, TLS-pinned network client, subject-bound Insight/Explore Field Chat DTO validation, private Field trip completion-scan DTO mapping, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager.                                                                                                                                           |
-| Security       | `apps/ios/Merian/Core/Security/`           | Circuit breaker, device identity, RevenueCat, and social guard.                                                                                                                                                                                                                                                                                                                           |
+| Security       | `apps/ios/Merian/Core/Security/`           | Circuit breaker, device identity, paid RevenueCat state, current-launch versioned complimentary entitlement, and social guard.                                                                                                                                                                                                                                                            |
 | UI             | `apps/ios/Merian/Core/UI/`                 | Shared controls, tab bar, media mode toggle, domain-neutral goal progress ring, slide-to-confirm, reusable modifiers, and theme model.                                                                                                                                                                                                                                                    |
 | Utilities      | `apps/ios/Merian/Core/Utilities/`          | App lifecycle, app events, config constants, field notes repository, image downsampling, errors, sharing, date/size helpers, and UserDefaults keys.                                                                                                                                                                                                                                       |
 
@@ -338,9 +338,12 @@ and authenticated owner before proceeding. iOS builds the matching payload in
 technical share failures into customer-facing retry guidance.
 
 `services/supabase/functions/_shared/aiQuota.ts`, `_shared/groupTagQuota.ts`,
-`_shared/entitlement.ts`, and migration
-`20260723160229_enforce_server_ai_quotas.sql` own the cross-route paid-provider
-boundary. Identification, audio, cache-miss enrichment, model chat, and
+`_shared/entitlement.ts`, `_shared/complimentaryScans.ts`, migrations
+`20260723160229_enforce_server_ai_quotas.sql` and
+`20260802235833_three_complimentary_pro_scans.sql`, plus
+`scripts/cutover_complimentary_entitlements.sql`, own the cross-route
+paid-provider and complimentary-result boundary. Identification, audio,
+cache-miss enrichment, model chat, and
 Explore/Community share-or-edit audio moderation reserve a database operation
 with a stable UUID before dispatch. The shared moderation helper refuses live
 provider work when a transitive caller omits that quota boundary. The migration
@@ -348,7 +351,14 @@ owns durable entitlement versioning, policy/model selection, UTC-day and user/IP
 counters, ten-minute fenced reservation leases, charged failed-retry state,
 automatic stale refund, and API-role privilege revocations. Coverage lives in
 `_tests/aiQuotaCoverage.test.ts`, `_tests/aiQuotaMigrationContract.test.ts`, and
-`tests/ai_quota_security.sql`.
+`tests/ai_quota_security.sql`. The complimentary extension adds one fixed
+three-scan private lifetime ledger, original-analysis linkage, server-derived
+Flash fallback, protocol 2, user-first completion/terminal settlement fences,
+paid preservation, Ghost merge cap, and admin aggregates. Coverage lives in
+`_tests/complimentaryProScansMigrationContract.test.ts`,
+`_tests/complimentaryScansConcurrencyDb.test.ts`, and
+`tests/complimentary_pro_scans_security.sql`; the normative contract is
+`docs/backend-and-data/18-complimentary-pro-scans.md`.
 
 Supabase project credential boundaries:
 
@@ -707,6 +717,10 @@ unit, and verification matrix are maintained in
 - `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`:
   internal membership/session/audit/review/feedback/pricing schema, narrow admin
   RPCs, reversible post moderation, and canonical AI usage ledger.
+- `apps/admin/app/(admin)/complimentary-entitlements/` and migration
+  `20260802235833_three_complimentary_pro_scans.sql`: analyst-only aggregate
+  balances, hold age, settlement reasons, Flash fallback, exhaustion, and paid
+  conversion with no per-user ledger browser surface.
 - `services/supabase/functions/report-user/`: authenticated non-self visible
   profile reporting endpoint.
 - `services/supabase/functions/_shared/aiUsage.ts`: normalized Gemini modality
@@ -777,7 +791,8 @@ parser, email, proxy, HMAC, and Turnstile behavior is covered by
 Field trip Deno/database coverage includes the tier-specific evidence gate,
 pending preferred-goal retention, weak-match confirmation, completed-progress
 downgrade reconciliation, receipt replay, matching specificity, and private RPC
-ACLs in `_tests/fieldTripsMigrationContract.test.ts` and
+ACLs, plus the starter-level catalog and deny-by-default Backyard enrollment
+trigger/backfill, in `_tests/fieldTripsMigrationContract.test.ts` and
 `_tests/fieldTripProgressDb.test.ts`.
 
 Missing-image repair coverage spans

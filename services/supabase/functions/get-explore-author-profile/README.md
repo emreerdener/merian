@@ -89,11 +89,18 @@ re-runs this endpoint's profile visibility contract before accepting a report.
 
 For another viewer, the endpoint returns `404` unless the target author has at
 least one Explore post currently visible to the requester or at least one
-visible Field trip profile surface. This prevents arbitrary user UUID lookups
-from surfacing profile state while allowing active or published Field trips to
-make an author discoverable. The authenticated owner may retrieve their own
-profile with zero visible posts so the app can explain a pending media-recovery
-state.
+visible Field trip profile surface. This is still the authorization gate, but
+automatic profile-visible Backyard Safari enrollment means a known account ID
+normally satisfies it until the unfinished starter is stopped or reset. The
+endpoint does not enumerate account IDs. The authenticated owner may retrieve
+their own profile with zero visible posts so the app can explain a pending
+media-recovery state.
+
+The auto-enrolled Backyard Safari Level 1 row is profile-visible under the
+existing Field trip contract, so a new or backfilled account may satisfy this
+visibility gate immediately at `0/N` progress. Stopping or resetting the
+unfinished outing hides the active surface. The projection remains status-only
+and does not return observation evidence.
 
 Profile aggregates use all non-tombstoned scans owned by the target author:
 
@@ -117,7 +124,7 @@ Preview posts use stricter Explore visibility rules:
 Field trip summaries use separate storage from Explore posts:
 
 - active Field trips show template title, level number, and checklist progress
-  only
+  only, including the automatically enrolled Backyard Safari starter
 - active summaries never return scan IDs, media URLs, field notes, or location
   details
 - pinned published Field trips are capped at 3 and are returned before the

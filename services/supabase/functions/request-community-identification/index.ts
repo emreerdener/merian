@@ -69,7 +69,11 @@ Deno.serve((req: Request) =>
       restoredAudioObjectKeys,
       supabaseAdmin,
       {
-        beforeProvider: async ({ checksumSha256, policyVersion }) => {
+        beforeProvider: async ({
+          checksumSha256,
+          policyVersion,
+          originalAnalysisId,
+        }) => {
           moderationParentRequestId ??= resolveAIRequestId(
             req,
             body.ai_request_id,
@@ -82,6 +86,7 @@ Deno.serve((req: Request) =>
             userId: user.id,
             operation: "explore_audio_moderation",
             requestId,
+            originalAnalysisId: originalAnalysisId ?? scanId,
           });
         },
       },

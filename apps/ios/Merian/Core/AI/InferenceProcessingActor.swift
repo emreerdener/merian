@@ -41,6 +41,7 @@ actor InferenceProcessingActor {
         let mappedData: SpeciesData?
         let isNewDiscovery: Bool
         let savedPaths: [String]
+        let planUsed: String?
         /// True when the provider response reached a durable terminal state: either a
         /// `LocalScanRecord` was saved, or a valid confidence-zero response requires no
         /// record. False means persistence was rejected or failed and the queued job must
@@ -74,6 +75,17 @@ actor InferenceProcessingActor {
                 "AI response decoded but failed the client success boundary."
             )
             throw MerianError.decodingFailed
+        }
+        if let metadata = parsedWrapper.entitlement {
+            await MainActor.run {
+                _ = EntitlementManager.shared.apply(metadata)
+                if let scanId = parsedWrapper.data.scan_id {
+                    UsageManager.shared.reconcileServerPlanUsed(
+                        metadata.planUsed,
+                        scanId: scanId
+                    )
+                }
+            }
         }
 
         var mappedData = SpeciesData(
@@ -153,6 +165,7 @@ actor InferenceProcessingActor {
             mappedData: mappedData,
             isNewDiscovery: newDiscovery,
             savedPaths: savedPaths,
+            planUsed: parsedWrapper.entitlement?.planUsed,
             didCompletePersistence: didCompletePersistence
         )
     }

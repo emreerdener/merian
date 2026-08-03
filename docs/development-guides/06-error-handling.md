@@ -31,7 +31,7 @@ public enum MerianError: LocalizedError, Equatable {
 | `invalidResponse`               | Missing/non-HTTP, malformed-success, or unresolved auth response. | Never infer a remote mutation from this error. Preserve durable retry state and surface the appropriate UI error. |
 | `decodingFailed`                | `JSONDecoder` failed on a network response.                       | Surface "Analysis Failed" graceful degradation result in `InsightSheet`; queued retry keeps the consumed scan.    |
 | `networkTimeout`                | The network request timed out aggressively.                       | Surface a "Network timeout" retry placeholder + scan queued silently                                              |
-| `proRequiredForOfflineTracking` | Free user failed inference with no network                        | Refund scan token, post `TriggerPaywall` notification. Never enqueue offline.                                     |
+| `proRequiredForOfflineTracking` | Legacy compatibility signal; current scan submissions are queue-backed before inference | Do not use it to delete or reject an already-durable ordinary Flash queue item. Pro-only mode selection is gated before submission. |
 | `hardwareUnavailable`           | LiDAR or other required physical drivers failed to boot.          | Show UI alert explaining hardware constraints.                                                                    |
 
 ---

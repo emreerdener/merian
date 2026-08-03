@@ -78,7 +78,7 @@ struct ExplorePostDetailAuthorHeader: View {
 
     private var shouldShowAuthorProBadge: Bool {
         post.authorIsPro == true
-            || (post.isOwnedByViewer && RevenueCatManager.shared.isProActive)
+            || (post.isOwnedByViewer && RevenueCatManager.shared.isSubscribed)
     }
 }
 

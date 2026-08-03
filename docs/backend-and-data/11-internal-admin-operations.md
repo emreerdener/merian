@@ -291,6 +291,15 @@ third-party analytics request occurs in browser network tools.
   expected token fields and no prompt/response content.
 - Refresh Overview/AI Usage and confirm five-minute cache separation by filter,
   complete-coverage labeling, and estimated-cost pricing version.
+- Open `/complimentary-entitlements` as an AAL2 Analyst. Confirm the grant is
+  exactly three; state totals, balance histogram, in-flight total, stale-hold
+  ages, settlement reasons, Flash fallback, exhaustion, and paid-exhaustion
+  conversion are coherent. Confirm the read creates the expected audit action
+  and reveals no account or scan identifiers.
+- In AI Usage, verify `pro_complimentary` and historical `pro_trial` are
+  independently filterable. In Overview, verify current effective Pro separates
+  paid, complimentary, and historical trial values without classifying
+  complimentary access as paid.
 
 ## Pricing maintenance
 
@@ -365,6 +374,25 @@ write-path incidents. Independent best-effort failures emit structured
 affected operation/time window, repair only from durable token metadata, use the
 idempotent source key, and keep the repaired rows labeled accurately.
 
+### Complimentary hold or settlement incident
+
+Use `/complimentary-entitlements` to establish aggregate scope. Investigate a
+growing tail above 15 minutes or one hour, an advancing oldest-hold timestamp,
+completion/terminal orchestrator logs, direct completion-fence rejections,
+Flash-fallback changes, and provider quota evidence for the same incident
+window. Do not expose ledger rows in the browser, copy owner/scan identifiers
+into ordinary tickets, or infer a refund from hold age.
+
+A hold settles only after exact-generation proof: consume when the scan and all
+required media are durable, release on proven terminal failure, and preserve it
+when persistence/provider/media state is ambiguous or retryable. Provider
+counters remain charged after an attempted call even if the user-facing hold is
+released. Repair routines must acquire the user lock first and route through the
+completion or terminal orchestrator. Follow
+[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md) and the
+[joined scan recovery contract](./16-scan-ingestion-reliability-and-recovery.md);
+never edit the derived balance or ledger directly.
+
 ### Account-scoped media loss
 
 The internal admin browser is not an R2 console and has no service-role repair
@@ -420,6 +448,11 @@ criteria are in the
   hold promotion rather than Force Promote a vulnerable/red build.
 - Edge writers may be rolled back to a compatible prior version, but keep the
   ledger schema and grants in place.
+- Do not roll an Edge writer behind the complimentary completion/terminal
+  orchestrator while cutover mode is active. If compatibility cannot be proven,
+  fail new provider work closed and repair forward. Reverting the global mode
+  would also reactivate legacy trial and obsolete-client behavior and requires
+  separate explicit product/security incident authority.
 - Do not down-migrate by dropping `internal`, audit rows, notes, review grouping,
   moderation columns, or usage events. These contain durable operational history.
 - If a public projection regression occurs, remove access to the admin frontend,

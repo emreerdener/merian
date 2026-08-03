@@ -115,13 +115,31 @@ final class AppTelemetryTests: XCTestCase {
         XCTAssertEqual(event?.properties["event_source"] as? String, "ios_client")
     }
 
-    func testScanTelemetryParametersDistinguishPaidTrialAndFree() {
+    func testScanTelemetryParametersDistinguishPaidComplimentaryAndFree() {
         XCTAssertEqual(
             AppTelemetry.scanTelemetryParameters(isPro: true, isSubscribed: true, inferenceTier: "pro"),
             ["tier": "Pro", "plan": "pro_paid", "inferenceTier": "pro"]
         )
         XCTAssertEqual(
             AppTelemetry.scanTelemetryParameters(isPro: true, isSubscribed: false, inferenceTier: "pro"),
+            ["tier": "Pro", "plan": "unknown", "inferenceTier": "pro"]
+        )
+        XCTAssertEqual(
+            AppTelemetry.scanTelemetryParameters(
+                isPro: true,
+                isSubscribed: false,
+                inferenceTier: "pro",
+                planUsed: "pro_complimentary"
+            ),
+            ["tier": "Pro", "plan": "pro_complimentary", "inferenceTier": "pro"]
+        )
+        XCTAssertEqual(
+            AppTelemetry.scanTelemetryParameters(
+                isPro: true,
+                isSubscribed: false,
+                inferenceTier: "pro",
+                planUsed: "pro_trial"
+            ),
             ["tier": "Pro", "plan": "pro_trial", "inferenceTier": "pro"]
         )
         XCTAssertEqual(
@@ -131,12 +149,17 @@ final class AppTelemetryTests: XCTestCase {
     }
 
     func testScanCapturedEventIncludesPlanTierAndClientSource() {
-        AppTelemetry.trackScan(isPro: true, isSubscribed: false, inferenceTier: "pro")
+        AppTelemetry.trackScan(
+            isPro: true,
+            isSubscribed: false,
+            inferenceTier: "pro",
+            planUsed: "pro_complimentary"
+        )
 
         let event = capturedEvents.first
         XCTAssertEqual(event?.name, "ClientScanCompleted")
         XCTAssertEqual(event?.properties["tier"] as? String, "Pro")
-        XCTAssertEqual(event?.properties["plan"] as? String, "pro_trial")
+        XCTAssertEqual(event?.properties["plan"] as? String, "pro_complimentary")
         XCTAssertEqual(event?.properties["inferenceTier"] as? String, "pro")
         XCTAssertEqual(event?.properties["event_source"] as? String, "ios_client")
     }

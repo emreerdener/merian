@@ -80,6 +80,7 @@ export interface AudioModerationQuota {
   beforeProvider(input: {
     checksumSha256: string;
     policyVersion: string;
+    originalAnalysisId?: string;
   }): Promise<{
     reservation: { model: string };
     commit(): Promise<void>;
@@ -281,6 +282,7 @@ export async function moderateExploreAudioUrl(
   fetcher: typeof fetch = fetch,
   generate: GeminiGenerate = generateGeminiClassification,
   quota?: AudioModerationQuota,
+  originalAnalysisId?: string,
 ): Promise<AudioModerationDecision> {
   const startedAt = performance.now();
   let quotaLease:
@@ -301,6 +303,7 @@ export async function moderateExploreAudioUrl(
     quotaLease = await quota?.beforeProvider({
       checksumSha256,
       policyVersion,
+      ...(originalAnalysisId ? { originalAnalysisId } : {}),
     }) ?? null;
     const model = quotaLease?.reservation.model ?? AUDIO_MODERATION_MODEL;
     if (cache) {

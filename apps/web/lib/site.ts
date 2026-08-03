@@ -4,7 +4,7 @@ export const siteConfig = {
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ??
     "support@naturebook.earth",
   appStoreUrl: process.env.NEXT_PUBLIC_APP_STORE_URL,
-  legalUpdatedAt: "July 31, 2026",
+  legalUpdatedAt: "August 2, 2026",
 };
 
 export function supportMailto(subject?: string) {

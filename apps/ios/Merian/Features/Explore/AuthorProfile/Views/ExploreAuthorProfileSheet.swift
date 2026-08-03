@@ -445,7 +445,7 @@ struct ExploreAuthorProfileContent: View {
     }
 
     private func shouldShowProBadge(for profile: ExploreAuthorProfile) -> Bool {
-        profile.authorIsPro == true || (isCurrentUserProfile(profile) && RevenueCatManager.shared.isProActive)
+        profile.authorIsPro == true || (isCurrentUserProfile(profile) && RevenueCatManager.shared.isSubscribed)
     }
 
     private func profileSummaryCountsRow(_ profile: ExploreAuthorProfile) -> some View {

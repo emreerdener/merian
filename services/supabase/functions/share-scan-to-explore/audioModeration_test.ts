@@ -16,17 +16,24 @@ const audioRow = {
 
 Deno.test("audio approval is a strict prerequisite for sharing", async () => {
   let calls = 0;
+  let originalAnalysisId: string | undefined;
   await requireApprovedAudioMedia([audioRow], {
-    moderate: () => {
+    moderate: (_url, _cache, _fetcher, _generate, _quota, linkage) => {
       calls += 1;
+      originalAnalysisId = linkage;
       return Promise.resolve({
         approved: true,
         model: "test",
         policyVersion: "test-policy",
       });
     },
+    scanId: "00000000-0000-0000-0000-000000000001",
   });
   assertEquals(calls, 1);
+  assertEquals(
+    originalAnalysisId,
+    "00000000-0000-0000-0000-000000000001",
+  );
 });
 
 Deno.test("flagged audio rejects the share before persistence", async () => {

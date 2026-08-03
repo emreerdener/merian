@@ -27,7 +27,7 @@ survey, and `Shared/` owns cross-area profile state.
 | `UserStats` component    | Renders species count and current streak from `LocalScanRecord`                                                           |
 | `Persona` component      | Renders the user's active `UserPersona` tier badge and title                                                              |
 | `Terrarium` component    | Biological 3D hex-grid mapping representation based on the user's active progression tier                                 |
-| `PlanCard` component     | Dynamic subscription banner reading `isProActive` to serve custom `.xcassets` graphics (`sparkles` vs `compass`)          |
+| `PlanCard` component     | Plan banner distinguishing paid, verified complimentary, exhausted, and free state; detailed counters appear only in Results and Settings |
 | `ScansHeatmap`           | Calendar heatmap of scan activity (52-week rolling window) anchored to analysis upload date, bypassing EXIF `captureDate` |
 
 ---
@@ -46,7 +46,13 @@ The `UserPersona` enumeration (defined in `GamificationModels.swift`) replaces l
 
 The `Persona` UI component cross-references this enum against the user's live profile statistics to render the appropriate `.imageset` container from the `Personas/` asset catalog group. It sits adjacent to the `Terrarium` component on the Profile Tab, which loads compounding biological elements based on the same 5-tier logic.
 
-**Plan Card Integration**: The `PlanCard` dynamic banner also eschews standard SF Symbols in favor of reusable 3D artwork. Depending on `RevenueCatManager.shared.isProActive`, it uses `luna-moth` for Premium users and `compass` for Free-tier users from `apps/ios/Merian/Assets.xcassets/Graphics3D/`.
+**Plan Card Integration**: `PlanCard` uses paid `isSubscribed` for paid plan
+management and the current-launch `EntitlementManager` snapshot for functional
+complimentary copy. Detailed remaining/exhausted copy is enabled only by
+Results and Settings contexts, never the public profile card. Functional Pro
+uses `luna-moth`; free/exhausted uses `compass`, both from
+`apps/ios/Merian/Assets.xcassets/Graphics3D/`. Public Profile and Explore Pro
+badges use paid status only.
 
 ---
 
@@ -182,6 +188,11 @@ or routing to hidden UI. The account-scoped offline cache stores only a result
 visible under the current gate. The local calculator emits the locked/default
 state so profiles remain complete without pretending scan history can resolve
 Field trip completion.
+
+Automatic Backyard Safari Level 1 enrollment follows that existing public
+status contract. A new or backfilled account may show an active `0/N` starter
+on its Explore author profile before earning Field Naturalist; enrollment does
+not publish the scans or evidence used for later progress.
 
 Field trip Challenge badges are seasonal, curated, server-authoritative, and
 shown only while Events are enabled.

@@ -209,8 +209,13 @@ final class CaptureWorkspaceViewModel {
     /// after the engine has already moved on to a subsequent capture.
     @ObservationIgnored var pendingAnalyzeScanId: String?
 
+    var isMultiCaptureFunctionallyEnabled: Bool {
+        diContainer.appSettings.isMultiCaptureEnabled
+            && diContainer.revenueCatManager.canStartProScan
+    }
+
     var stagedCaptureLimit: Int {
-        (diContainer.appSettings.isMultiCaptureEnabled || baseRefinementContext != nil) ? stagedCaptureCapacity : 1
+        (isMultiCaptureFunctionallyEnabled || baseRefinementContext != nil) ? stagedCaptureCapacity : 1
     }
 
     var availableStagedCaptureSlots: Int {
@@ -535,7 +540,7 @@ final class CaptureWorkspaceViewModel {
     func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext _: ModelContext) {
         guard !newItems.isEmpty else { return }
 
-        let isPro = self.diContainer.revenueCatManager.isProActive
+        let isPro = self.diContainer.revenueCatManager.canStartProScan
         let importBudget = prepareGalleryImportBudget(isPro: isPro)
         self.selectedPhotoItems.removeAll()
 
@@ -652,7 +657,7 @@ final class CaptureWorkspaceViewModel {
             return .noPendingImport
         }
 
-        let isPro = diContainer.revenueCatManager.isProActive
+        let isPro = diContainer.revenueCatManager.canStartProScan
         let importBudget = prepareGalleryImportBudget(isPro: isPro)
         guard importBudget.availableSlots > 0 else {
             presentExternalImportSlotBlock(for: pendingImport)
@@ -683,7 +688,7 @@ final class CaptureWorkspaceViewModel {
                 throw MediaPreparationError.unreadableImage
             }
 
-            let refreshedIsPro = diContainer.revenueCatManager.isProActive
+            let refreshedIsPro = diContainer.revenueCatManager.canStartProScan
             let refreshedBudget = prepareGalleryImportBudget(isPro: refreshedIsPro)
             guard refreshedBudget.availableSlots > 0 else {
                 presentExternalImportSlotBlock(for: pendingImport)
@@ -853,7 +858,7 @@ final class CaptureWorkspaceViewModel {
     var shouldAutoSubmitStagedCapture: Bool {
         guard !diContainer.appSettings.requiresScanConfirmation else { return false }
 
-        let isMultiCapture = diContainer.appSettings.isMultiCaptureEnabled || baseRefinementContext != nil
+        let isMultiCapture = isMultiCaptureFunctionallyEnabled || baseRefinementContext != nil
         guard !isMultiCapture else { return false }
 
         let hasOtherModalities = !stagedCapture.observationContexts.isEmpty || !stagedCapture.audios.isEmpty
@@ -937,6 +942,11 @@ final class CaptureWorkspaceViewModel {
         initialDescription: String? = nil,
         entryPoint: RefinementEntryPoint = .standard
     ) {
+        guard diContainer.revenueCatManager.canStartProScan else {
+            AppTelemetry.trackPaywallImpression()
+            activeSheet = .paywall
+            return
+        }
         guard canStartRefinement(from: record, entryPoint: entryPoint) else {
             MerianLog.general.debug("Blocked refinement entry point for incompatible scan state.")
             return
@@ -1026,7 +1036,7 @@ final class CaptureWorkspaceViewModel {
         self.isStagingRefinement = true
         self.refinementStagingTask?.cancel()
 
-        let isPro = self.diContainer.revenueCatManager.isProActive
+        let isPro = self.diContainer.revenueCatManager.canStartProScan
 
         self.refinementStagingTask = DetachedWork.fireAndForget(
             priority: .userInitiated,
