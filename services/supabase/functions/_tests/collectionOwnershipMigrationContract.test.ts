@@ -4,6 +4,10 @@ const migrationUrl = new URL(
   "../../migrations/20260803180211_harden_collection_ownership_and_memberships.sql",
   import.meta.url,
 );
+const catalogFixtureUrl = new URL(
+  "../../tests/collection_ownership_security.sql",
+  import.meta.url,
+);
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
@@ -70,4 +74,17 @@ Deno.test("service collection writes cannot update ownership directly", async ()
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("collection catalog fixture recognizes PostgreSQL's empty search-path setting", async () => {
+  const fixture = compact(await Deno.readTextFile(catalogFixtureUrl));
+
+  assertStringIncludes(
+    fixture,
+    "COALESCE( routine.proconfig, ARRAY[]::TEXT[] ) @> ARRAY['search_path=\"\"']::TEXT[]",
+  );
+  assert(
+    !fixture.includes("ARRAY['search_path=']::TEXT[]"),
+    "PostgreSQL records SET search_path = '' as search_path=\"\" in proconfig.",
+  );
 });

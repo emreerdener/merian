@@ -124,7 +124,10 @@ BEGIN
         )
           AND (
               routine.prosecdef
-              OR NOT routine.proconfig @> ARRAY['search_path=']::TEXT[]
+              OR NOT COALESCE(
+                  routine.proconfig,
+                  ARRAY[]::TEXT[]
+              ) @> ARRAY['search_path=""']::TEXT[]
           )
     ) THEN
         RAISE EXCEPTION 'collection routines are not invoker-safe';
