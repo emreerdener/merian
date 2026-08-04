@@ -324,7 +324,7 @@ to historical blank WAV snapshots in bounded service-role-only batches.
   `hero_image_url`.
 - Empty media selections, unsupported media kinds, invalid source indexes, and
   videos without a thumbnail are rejected.
-- Audio moderation reuses the `GEMINI_API_KEY` Edge secret. Gemini transcripts
+- Audio moderation reuses the paid-project `GEMINI_PAID_API_KEY` Edge secret. Gemini transcripts
   and non-speech descriptions are not persisted, logged, or returned to clients.
 - The policy is supplied as an immutable system instruction and its effective
   cache version is derived from the prompt, categories, confidence threshold,

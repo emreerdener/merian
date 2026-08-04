@@ -68,6 +68,12 @@ as their permanent engineering identity.
   origins, and taxonomy imports checkpoint every successfully fetched raw page.
   Production promotion remains an ordered, evidence-backed operation. See the
   [`joined remediation record`](./backend-and-data/19-security-and-reliability-remediation-2026-08-03.md).
+- **Consent production readiness (2026-08-03)**: The final adult, Terms,
+  third-party Google Gemini, and optional PostHog consent design is present, but
+  the candidate is **blocked** by consent synchronization, analytics-withdrawal,
+  and iOS test defects found in the second-pass review. App Store 18+ and paid
+  Gemini billing/DPA evidence also remain operator-owned blockers. See the
+  [`canonical consent readiness record`](./legal/production-consent-readiness-2026-08-03.md).
 - **Current backend release verdict**: DwC-A exports are default-off for the
   initial launch at both the iOS presentation boundary and the canonical
   PostgreSQL intake/processing/download boundary. Existing nonterminal work is
@@ -304,6 +310,15 @@ as their permanent engineering identity.
   current release identifiers, and high-impact corrections to the retired
   product document.
 
+### Legal & Release Readiness
+
+- **[`/legal/production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md)**
+  — Canonical release hold, internal consent findings, verification snapshot,
+  rollout order, and external App Store/Gemini/counsel exit evidence.
+- **[`/legal/terms-counsel-review.md`](./legal/terms-counsel-review.md)**
+  — Internal legal working memo covering public Terms alignment, unresolved
+  operator facts, provider contracts, and counsel evidence requirements.
+
 ### System Architecture
 
 - **[`/system-architecture/01-system-architecture.md`](./system-architecture/01-system-architecture.md)**
@@ -436,8 +451,9 @@ as their permanent engineering identity.
 - **[`/features-and-hardware/03-gamification-and-telemetry.md`](./features-and-hardware/03-gamification-and-telemetry.md)**
   — Achievement system, scan telemetry capture, and PostHog analytics.
 - **[`/features-and-hardware/04-onboarding.md`](./features-and-hardware/04-onboarding.md)**
-  — Six-step permission flow, onboarding state machine, and the
-  `hasCompletedOnboarding` gate.
+  — Four-step permission flow, final adult/Terms/Gemini/analytics consent
+  surface, versioned evidence, and the combined onboarding/current-consent
+  workspace gate.
 - **[`/features-and-hardware/05-insight-sheet.md`](./features-and-hardware/05-insight-sheet.md)**
   — InsightSheet view architecture, mixed-media carousel handoff, species data
   rendering, persistent Field trip progress, typed routing, Field chat, and

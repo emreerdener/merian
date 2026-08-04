@@ -19,7 +19,7 @@ export default function TermsPage() {
       eyebrow="Naturebook legal"
       title="Terms of Service"
       description="These Terms govern the Naturebook app, Explore community, subscriptions, and Naturebook public web pages."
-      lastUpdated="August 2, 2026"
+      lastUpdated="August 3, 2026"
     >
       <LegalSection title="1. Agreement to These Terms">
         <Text>
@@ -57,6 +57,13 @@ export default function TermsPage() {
           be used by, anyone under 18. If you use the Service for an
           organization, you represent that you have authority to bind that
           organization, and &quot;you&quot; includes that organization.
+        </Text>
+        <Text>
+          The app asks you to self-attest that you are 18 or older before you
+          can submit a scan. Naturebook stores the statement you confirmed,
+          its policy version, the time, platform, and app version as evidence
+          of that confirmation. Naturebook does not ask for or store your birth
+          date or exact age for this purpose.
         </Text>
       </LegalSection>
 
@@ -98,14 +105,14 @@ export default function TermsPage() {
             AI processing is a core and necessary part of Naturebook&apos;s
             identification service.
           </strong>{" "}
-          Naturebook uses the Google Gemini API, operated by Google, to process
-          identification requests and certain related AI features. Depending on
-          the feature and permissions you choose, information sent to Google may
-          include photos, sampled video frames and video audio, audio clips,
-          written descriptions, follow-up questions, prior identification
-          context, exact coordinates, elevation, approximate place information,
-          weather and temperature, capture time and month, locale, time zone,
-          region, and relevant camera or observation context.
+          Naturebook sends your scan data to Google Gemini, a third-party AI
+          service operated by Google, for identification and certain related AI
+          features. Depending on the feature and permissions you choose, scan
+          data sent to Google may include photos, sampled video frames and video
+          audio, audio clips, written descriptions, follow-up questions, prior
+          identification context, exact coordinates, elevation, approximate
+          place information, weather and temperature, capture time and month,
+          locale, time zone, region, and relevant camera or observation context.
         </Text>
         <Text>
           Before Naturebook sends personal information from your scan to Google
@@ -123,10 +130,11 @@ export default function TermsPage() {
           Naturebook&apos;s AI features. Because identification is the
           Service&apos;s central function, declining required AI processing
           means the core identification Service will not be available. You may
-          withdraw permission for future AI processing by stopping submissions
-          and deleting applicable content or your account, subject to the
-          mandatory scientific-data retention provisions below. Withdrawal does
-          not invalidate processing already performed lawfully.
+          withdraw permission for future Google Gemini processing through the
+          AI processing control in Settings. Withdrawal disables future core
+          identification until you grant permission again, does not delete
+          applicable content or your account, and does not invalidate
+          processing already performed lawfully.
         </Text>
         <Text>
           We will not materially expand the information sent to third-party AI
@@ -172,14 +180,15 @@ export default function TermsPage() {
           and SDK swizzling.
         </Text>
         <Text>
-          By accepting these Terms, you authorize the product-analytics
-          processing described above, subject to the Privacy Policy and
-          applicable law. Where law requires a separate choice or gives you a
-          right to object or withdraw, Naturebook will honor that right.
-          Declining non-essential analytics will not prevent access to the core
-          identification Service. You may contact <LegalEmailLink />{" "}
-          to object to or withdraw future non-essential analytics processing.
-          Withdrawal does not affect processing already performed lawfully.
+          PostHog analytics are optional and off unless you separately turn on
+          the analytics and diagnostics switch. Accepting these Terms alone
+          does not enable PostHog. Your choice applies to your Naturebook
+          account across devices and does not affect the core identification
+          Service. You may withdraw future PostHog processing at any time using
+          the Analytics &amp; diagnostics control in Settings; withdrawal applies
+          immediately on the current device and synchronizes to your account.
+          You may also contact <LegalEmailLink /> for help. Withdrawal does not
+          affect processing already performed lawfully.
         </Text>
       </LegalSection>
 

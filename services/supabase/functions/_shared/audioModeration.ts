@@ -333,10 +333,10 @@ export async function moderateExploreAudioUrl(
     }
     if (
       generate === generateGeminiClassification &&
-      !Deno.env.get("GEMINI_API_KEY")?.trim()
+      !Deno.env.get("GEMINI_PAID_API_KEY")?.trim()
     ) {
       await quotaLease?.refund();
-      throw new Error("GEMINI_API_KEY is not configured.");
+      throw new Error("GEMINI_PAID_API_KEY is not configured.");
     }
     await quotaLease?.commit();
     providerAttempted = true;

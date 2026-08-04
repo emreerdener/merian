@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-/// Thin app-wide facade for PII-free product analytics.
+/// Thin app-wide facade for consent-gated, pseudonymous product analytics.
 enum AppTelemetry {
     typealias CaptureHandler = (_ event: String, _ properties: [String: Any]) -> Void
 
@@ -27,20 +27,21 @@ enum AppTelemetry {
 
     // MARK: - Setup
 
-    /// Initializes the app analytics facade with PostHog as the only event sink.
+    /// Prepares the facade without initializing its third-party event sink.
+    /// Production capture remains disabled until ConsentManager applies an
+    /// explicit PostHog grant for the active account.
     static func initialize() {
         if TestExecutionCoordinator.isRunningTests {
             isInitialized = testCaptureHandler != nil
             return
         }
 
-        PostHogManager.shared.configure()
-        isInitialized = PostHogManager.shared.isConfigured
-        if isInitialized {
-            MerianLog.general.debug("AppTelemetry initialized with PostHog.")
-        } else {
-            MerianLog.general.error("AppTelemetry configuration skipped because PostHog is not configured.")
-        }
+        isInitialized = PostHogManager.shared.isCaptureEnabled
+    }
+
+    static func setAnalyticsConsentEnabled(_ enabled: Bool) {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+        isInitialized = enabled
     }
 
     static func installCaptureHandlerForTesting(_ handler: CaptureHandler?) {
@@ -291,7 +292,7 @@ enum AppTelemetry {
 
     private static func send(_ signal: String, with params: [String: String]? = nil) {
         guard isInitialized else {
-            MerianLog.general.warning("AppTelemetry.send() called before initialize() — signal '\(signal)' dropped.")
+            MerianLog.general.debug("AppTelemetry signal dropped because analytics permission is off: '\(signal)'.")
             return
         }
 

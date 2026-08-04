@@ -2,7 +2,7 @@
 // overrides. Config.local.xcconfig is ignored by git.
 //
 // Public client values in this file are embedded in local app builds. Do not
-// put backend-only secrets such as GEMINI_API_KEY, SUPABASE_SERVER_API_KEY, or
+// put backend-only secrets such as GEMINI_PAID_API_KEY, SUPABASE_SERVER_API_KEY, or
 // the legacy SUPABASE_SERVICE_ROLE_KEY here.
 //
 // Xcode Organizer Release archives require a RevenueCat production iOS key.

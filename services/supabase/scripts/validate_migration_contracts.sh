@@ -32,7 +32,7 @@ fi
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase \
+  --allow-read=services/supabase,apps/ios \
   "${migration_contract_tests[@]}"
 
 printf 'Validated %s discovered Supabase migration contract test file(s).\n' \

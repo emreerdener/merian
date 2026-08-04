@@ -1,12 +1,13 @@
-import XCTest
-import SwiftUI
 @testable import Merian
+import SwiftUI
+import XCTest
 
 @MainActor
 final class OnboardingViewModelTests: XCTestCase {
     
     var viewModel: OnboardingViewModel!
     var appSettings: AppSettings!
+    var consentManager: ConsentManager!
     var userDefaults: UserDefaults!
     var suiteName: String!
     
@@ -16,14 +17,19 @@ final class OnboardingViewModelTests: XCTestCase {
         userDefaults = UserDefaults(suiteName: suiteName)
         userDefaults.removePersistentDomain(forName: suiteName)
         appSettings = AppSettings(userDefaults: userDefaults, observeExternalChanges: false)
+        consentManager = ConsentManager(userDefaults: userDefaults)
         appSettings.hasCompletedOnboarding = false
-        viewModel = OnboardingViewModel(appSettings: appSettings)
+        viewModel = OnboardingViewModel(
+            appSettings: appSettings,
+            consentManager: consentManager
+        )
     }
     
     override func tearDown() {
         userDefaults.removePersistentDomain(forName: suiteName)
         viewModel = nil
         appSettings = nil
+        consentManager = nil
         userDefaults = nil
         suiteName = nil
         super.tearDown()
@@ -60,10 +66,142 @@ final class OnboardingViewModelTests: XCTestCase {
         viewModel.currentStep = .ready
         
         // Fire completion
-        viewModel.completeOnboarding()
+        viewModel.completeOnboarding(analyticsEnabled: false)
         
         // Verify AppStorage binding actually triggers the physical override
         XCTAssertTrue(viewModel.hasCompletedOnboarding, "The completeOnboarding physical action MUST explicitly flip the global teardown flag in SwiftUI memory.")
         XCTAssertTrue(userDefaults.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding), "The injected defaults mapping must confirm persistence for WindowGroup reconfiguration on next launch.")
+        XCTAssertTrue(consentManager.hasConfirmedCurrentAdultEligibility)
+        XCTAssertTrue(consentManager.hasAcceptedCurrentTerms)
+        XCTAssertTrue(consentManager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertTrue(consentManager.hasCurrentRequiredConsent)
+        XCTAssertEqual(consentManager.pendingCloudRecordCount, 3)
+
+        let restoredManager = ConsentManager(userDefaults: userDefaults)
+        XCTAssertTrue(restoredManager.hasCurrentRequiredConsent)
+        XCTAssertFalse(restoredManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(restoredManager.pendingCloudRecordCount, 3)
+    }
+
+    func testReadyStepClearlyDisclosesGeminiProcessingBeforeConsent() {
+        let disclosure = ReadyStepView.disclosure
+        let consent = ReadyStepView.consentStatement
+        let adult = ReadyStepView.adultStatement
+        let analytics = ReadyStepView.analyticsStatement
+
+        let completeSurface = [disclosure, consent, adult, analytics].joined(separator: " ")
+        for requiredDisclosure in [
+            "scan data",
+            "terms",
+            "Google Gemini",
+            "third-party AI service",
+            "identification",
+            "18 or older",
+            "PostHog",
+            "Optional"
+        ] {
+            XCTAssertTrue(
+                completeSurface.contains(requiredDisclosure),
+                "Ready-step disclosure must identify its recipient, data, and purpose: \(requiredDisclosure)"
+            )
+        }
+    }
+
+    func testEveryReadySwitchCombinationKeepsAnalyticsOptional() {
+        for adultConfirmed in [false, true] {
+            for geminiAllowed in [false, true] {
+                for analyticsAllowed in [false, true] {
+                    XCTAssertEqual(
+                        ReadyStepView.canStartScanning(
+                            adultConfirmed: adultConfirmed,
+                            geminiAllowed: geminiAllowed,
+                            analyticsAllowed: analyticsAllowed
+                        ),
+                        adultConfirmed && geminiAllowed
+                    )
+                }
+            }
+        }
+    }
+
+    func testReadyTermsLinkTargetsTheFullTermsOfService() {
+        let statement = ReadyStepView.linkedConsentStatement
+        let termsRange = try XCTUnwrap(statement.range(of: "terms"))
+
+        XCTAssertEqual(statement[termsRange].link, ReadyStepView.termsURL)
+        XCTAssertTrue(ReadyStepView.termsURL.absoluteString.hasSuffix("/terms"))
+    }
+
+    func testLegacyCompletionRoutesDirectlyToCurrentConsentStep() {
+        appSettings.hasCompletedOnboarding = true
+
+        let legacyViewModel = OnboardingViewModel(
+            appSettings: appSettings,
+            consentManager: consentManager
+        )
+
+        XCTAssertEqual(legacyViewModel.currentStep, .ready)
+    }
+
+    func testGeminiWithdrawalIsPersistedAndClosesConsentGate() {
+        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            analyticsEnabled: false
+        )
+        consentManager.withdrawGeminiPermission()
+
+        XCTAssertTrue(consentManager.hasConfirmedCurrentAdultEligibility)
+        XCTAssertTrue(consentManager.hasAcceptedCurrentTerms)
+        XCTAssertFalse(consentManager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertFalse(consentManager.hasCurrentRequiredConsent)
+        XCTAssertEqual(consentManager.pendingCloudRecordCount, 4)
+
+        let restoredManager = ConsentManager(userDefaults: userDefaults)
+        XCTAssertFalse(restoredManager.hasCurrentRequiredConsent)
+        XCTAssertEqual(restoredManager.pendingCloudRecordCount, 4)
+    }
+
+    func testOptionalAnalyticsGrantAndWithdrawalNeverCloseRequiredGate() {
+        viewModel.currentStep = .ready
+        viewModel.completeOnboarding(analyticsEnabled: true)
+
+        XCTAssertTrue(consentManager.hasCurrentRequiredConsent)
+        XCTAssertTrue(consentManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(consentManager.pendingCloudRecordCount, 4)
+
+        consentManager.setPostHogAnalyticsEnabled(false)
+
+        XCTAssertTrue(consentManager.hasCurrentRequiredConsent)
+        XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(consentManager.pendingCloudRecordCount, 5)
+
+        let restoredManager = ConsentManager(userDefaults: userDefaults)
+        XCTAssertTrue(restoredManager.hasCurrentRequiredConsent)
+        XCTAssertFalse(restoredManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(restoredManager.pendingCloudRecordCount, 5)
+    }
+
+    func testAccountSwitchNeverInheritsPriorAccountConsent() {
+        let firstUserId = UUID()
+        let secondUserId = UUID()
+        consentManager.observeSession(userId: firstUserId)
+        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            analyticsEnabled: true
+        )
+
+        XCTAssertTrue(consentManager.hasCurrentRequiredConsent)
+        XCTAssertTrue(consentManager.hasGrantedCurrentPostHogAnalytics)
+
+        consentManager.observeSession(userId: secondUserId)
+
+        XCTAssertFalse(consentManager.hasConfirmedCurrentAdultEligibility)
+        XCTAssertFalse(consentManager.hasAcceptedCurrentTerms)
+        XCTAssertFalse(consentManager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertFalse(consentManager.hasCurrentRequiredConsent)
+
+        consentManager.observeSession(userId: nil)
+        XCTAssertFalse(consentManager.hasCurrentRequiredConsent)
+        XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
     }
 }

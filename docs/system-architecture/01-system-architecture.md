@@ -381,19 +381,24 @@ single-responsibility functions under `/services/supabase/functions/`.
 
 ### 6. Private Analytics (`AppTelemetry`, `PostHog`)
 
-- PII-free app analytics flow through `AppTelemetry` into `PostHog`, preserving
-  the existing client event names and marking iOS-emitted events with
+- Required architecture: optional pseudonymous app analytics may flow through
+  `AppTelemetry` into `PostHog` only after an account-wide grant, preserving
+  client event names and marking iOS-emitted events with
   `event_source = "ios_client"`.
-- PostHog identifies usage funnels and telemetry across UI interactions, mapped
-  by UUID and automatically enriched with Email and Name identifiers from
-  authenticated Supabase sessions.
+- PostHog identity uses the Supabase UUID; neither iOS nor Edge telemetry sends
+  auth email or name. `ConsentManager` must centrally reject capture otherwise.
+
+> This architecture is not yet verified as a production control. Withdrawal,
+> ghost merge, account replacement, synchronization, and compiled-test findings
+> keep the candidate blocked. See the
+> [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ### 6. UI Initialization & Memory Operations
 
-- **Instant Cold Boot:** `AppTelemetry.initialize()` runs synchronously in
-  `MerianApp.init()` after `PostHogManager.configure()` has been invoked by
-  `SupabaseManager`. PostHog configuration is idempotent, preventing
-  identity-link races. Heavy `CameraManager` hardware initialization
+- **Instant Cold Boot:** `AppTelemetry.initialize()` prepares a disabled
+  first-party facade in `MerianApp.init()` without starting PostHog. After auth
+  resolution, only a current account grant may let `ConsentManager` configure
+  and identify the SDK. Heavy `CameraManager` hardware initialization
   (`AVCaptureSession.beginConfiguration`) stays off the critical render path.
 - **RAM Image Cache (`ImageCache`):** A thread-safe `@unchecked Sendable`
   `NSCache` stores downsampled scan thumbnails in RAM, avoiding massive disk I/O

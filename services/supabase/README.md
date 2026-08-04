@@ -1091,6 +1091,35 @@ an older attempt cannot mutate a retry. A provider failure transitions
 `committed` to `failed`: counters remain charged, but the same request key can
 make a newly metered retry.
 
+Migrations `20260804020351_record_legal_consent_receipts.sql` and
+`20260804033307_add_adult_and_analytics_consent.sql` add the legal prerequisite
+to both quota overloads. `user_adult_eligibility_receipts` stores versioned 18+
+self-attestation without a birth date or exact age;
+`user_terms_acceptance_receipts` stores immutable current-version Terms
+evidence; `user_ai_consent_events` stores immutable, versioned Google Gemini
+grants and revocations; and `user_analytics_consent_events` stores optional,
+account-wide PostHog grants and revocations. Absence of an analytics grant means
+off and never blocks provider or core app functionality.
+
+All four tables use owner-only RLS, explicit authenticated `SELECT` and
+column-level `INSERT` grants, server-controlled ordering timestamps, and no
+client update/delete path. Their user foreign keys are registered as
+conflict-free `reparent` rows in the ghost-merge policy manifest. Analytics
+events are published to owner-scoped Realtime. During the replacement-build
+window, `internal.ai_consent_rollout_config` remains `legacy_compatible` and
+accepts only a complete prior or complete current bundle. After old builds are
+expired, the owner-only cutover script selects `strict_2026_08_03`; current
+adult, Terms, and latest granted Gemini evidence must then exist before
+`reserve_ai_quota(...)` proceeds. Missing or revoked evidence raises
+`ai_consent_required`, which `_shared/aiQuota.ts` exposes as HTTP 403 before
+provider dispatch. Never infer or backfill acceptance.
+
+Keep Swift policy versions, the SQL gate, migration contracts, quota fixtures,
+and `legal_consent_security.sql` synchronized. Static backend contracts pass,
+but the overall candidate is still blocked by iOS lifecycle/test findings and
+external release evidence in the
+[production consent readiness record](../../docs/legal/production-consent-readiness-2026-08-03.md).
+
 Terminal quota reservations ordinarily prune after 30 days.
 `20260729200000_harden_media_abandoned_scan_recovery_proof.sql` retains only
 exact failed and committed normal/replay scan-identification reservations while

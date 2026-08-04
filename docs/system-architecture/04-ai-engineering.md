@@ -1,8 +1,11 @@
 # 17. AI Engineering & LLMOps
 
-Naturebook's inference engine uses `gemini-2.5-flash` (free tier) and
-`gemini-2.5-pro` (Pro tier) running inside serverless Deno Edge functions to
-protect API keys and enforce structured output.
+Naturebook's inference engine uses `gemini-2.5-flash` for the ordinary
+Naturebook tier and `gemini-2.5-pro` for the Pro tier, running inside serverless
+Deno Edge Functions to protect provider keys and enforce structured output.
+“Ordinary” describes Naturebook product access, not an unpaid Google API
+project: production requires only `GEMINI_PAID_API_KEY` from the approved
+billing-enabled project, with no unpaid-key fallback.
 
 ## Inference Layer Structure
 

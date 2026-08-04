@@ -129,10 +129,10 @@ enum SupabaseAuthTransitionError: LocalizedError {
     private var activeAppleAuth: ASAuthorizationController?
 
     // MARK: - Session Deduplication
-    /// Tracks the last user ID for which external telemetry (RevenueCat, PostHog) was linked.
+    /// Tracks the last user ID for which RevenueCat was linked.
     /// Guards against the Supabase SDK emitting two auth events on cold start — one for the
     /// locally cached token and one when the server validates/refreshes it. Without this guard
-    /// both events call linkWithSupabase and PostHog identify for the same user.
+    /// both events call linkWithSupabase for the same user.
     private var lastLinkedUserId: String?
 
     /// Retained handle for the auth state listener task. Stored so the task can be cancelled
@@ -167,10 +167,6 @@ enum SupabaseAuthTransitionError: LocalizedError {
             MerianLog.auth.fault("Environment configuration degraded: \(issues, privacy: .public)")
         }
 
-        if !TestExecutionCoordinator.isRunningTests {
-            PostHogManager.shared.configure()
-        }
-
         self.client = MerianSupabaseClientFactory.makeClient(emitLocalSessionAsInitialSession: true)
 
         super.init()
@@ -189,6 +185,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 }
                 self.currentUser = session.user
                 self.isAuthenticated = true
+                ConsentManager.shared.observeSession(userId: session.user.id)
                 await EntitlementManager.shared.beginSession(
                     userID: session.user.id,
                     client: client
@@ -217,6 +214,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
             } else {
                 self.currentUser = nil
                 self.isAuthenticated = false
+                ConsentManager.shared.observeSession(userId: nil)
                 EntitlementManager.shared.handleSignOut()
                 lastLinkedUserId = nil
                 lastPublicAuthorIdentityRefreshUserId = nil
@@ -254,7 +252,6 @@ enum SupabaseAuthTransitionError: LocalizedError {
             publicIdentitySource: publicIdentity?.publicIdentitySource,
             accountKind: user.isAnonymous ? "anonymous" : "authenticated"
         )
-        PostHogManager.shared.identifyUser(userId: userId)
     }
 
     private func fetchRevenueCatPublicIdentity(for userId: UUID) async -> RevenueCatPublicIdentity? {
@@ -798,6 +795,9 @@ enum SupabaseAuthTransitionError: LocalizedError {
                         )
                     }
                 }
+            }
+            if allHandoffsResolved {
+                try? await ConsentManager.shared.synchronizeWithCurrentSession()
             }
             return allHandoffsResolved
         } catch {

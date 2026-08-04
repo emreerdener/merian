@@ -4726,6 +4726,84 @@ After cutover, switching the singleton back would intentionally restore legacy
 calendar-trial and obsolete-client behavior; that product/security reversal
 requires explicit incident authority and one reviewed owner transaction.
 
+## Adult, Terms, Google Gemini, and Analytics Consent Cutover
+
+Migration `20260804033307_add_adult_and_analytics_consent.sql` adds immutable
+adult-confirmation and PostHog event tables, owner-only RLS/ACLs, merge policies,
+and owner-scoped analytics Realtime propagation. It initially leaves
+`internal.ai_consent_rollout_config.enforcement_mode` at
+`legacy_compatible`. During this bounded TestFlight transition, the quota guard
+accepts either the complete prior consent bundle or the complete current bundle;
+it never accepts partial evidence. The replacement app itself always requires
+current adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini disclosure
+`2026-08-03.1`.
+
+> **Repository release hold (August 3, 2026):** Do not nominate a consent
+> candidate, distribute the replacement build, or run strict cutover until
+> `CONSENT-001` through `CONSENT-008` are closed in the
+> [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
+> The current iOS unit target fails compilation in
+> `OnboardingViewModelTests`, so no iOS test execution from that run is valid.
+> Disposable catalog/RLS/pgTAP replay also remains locally unverified because
+> Docker is unavailable and the installed Supabase CLI is 2.101.0 rather than
+> the repository-required 2.109.1.
+
+1. From a corrected candidate SHA, first close all internal readiness findings.
+   Apply the additive migration and deploy consent-gated Edge telemetry. Run
+   migration contracts, all Edge tests, disposable-catalog pgTAP, the unsigned
+   iOS simulator build/tests, and the Release archive gates from the candidate
+   SHA. Confirm `legal_consent_security.sql`, all quota fixtures, and the full
+   consent lifecycle matrix pass without skips or compile failures.
+2. Distribute the replacement TestFlight build. Existing testers without
+   current evidence must enter directly at **Powered by AI**, without repeating
+   camera or location onboarding. Test every switch combination: age and
+   Gemini/Terms are required; PostHog is optional and never blocks scanning.
+   Exercise the inline Terms link, VoiceOver labels and hints, every supported
+   Dynamic Type size, and the smallest supported iPhone in both orientations.
+3. Verify adult, Terms, Gemini, and optional analytics actions create immutable
+   owner rows with server timestamps; no Gemini provider call occurs without
+   all current required evidence; and no iOS or Edge PostHog request occurs
+   without a latest grant. Verify Settings withdrawal is immediate,
+   account-wide, and leaves core functionality unchanged.
+4. Expire every older TestFlight build in App Store Connect. Confirm no active
+   beta can depend on the legacy consent versions.
+5. As database owner, run
+   `psql "$MERIAN_DATABASE_URL" -v ON_ERROR_STOP=1 -f services/supabase/scripts/cutover_strict_ai_consent.sql`.
+   Confirm the single config row reads `strict_2026_08_03`, legacy-only fixtures
+   receive `403 ai_consent_required`, and current-complete accounts still reach
+   Gemini. This one-way operation enables strict server enforcement.
+
+Do not run the strict cutover before the replacement build is verified and old
+builds are expired. Do not backfill, infer, or fabricate age, Terms, Gemini, or
+analytics events.
+
+### Production release blockers
+
+Closing the repository findings does not authorize production. The candidate
+also remains blocked until a release owner has archived evidence for both
+external controls below:
+
+- App Store Connect is configured with the reviewed 18+ age-rating override,
+  product pages and campaigns are not directed toward minors, and the archived
+  App Store configuration identifies the app/version/build reviewed.
+- A Google Cloud owner confirms that `GEMINI_PAID_API_KEY` belongs to the
+  approved project with active paid billing, confirms the applicable DPA is in
+  force, archives dated billing/DPA evidence in the restricted release record,
+  creates a new API key after confirmation, updates the GitHub Production
+  secret, runs deployment synchronization, verifies Gemini smoke tests, and
+  revokes the superseded key. Billing or DPA status is **unverified** until that
+  owner record exists; do not rely on the variable name as evidence.
+
+Record the evidence locations and accountable owners in the release ticket;
+never put API-key material in the ticket or repository.
+
+If a consent-incapable App Store build has a public production cohort, do not
+use this one-step cutover unchanged. Prepare a separately reviewed staged
+migration that creates the append-only schema before iOS distribution and adds
+the provider gate only after a forced-update boundary. A temporary ungated
+period is a legal/privacy policy decision and requires explicit release and
+counsel authority; never backfill acceptance or fabricate grant events.
+
 ## Required and Optional GitHub Secrets
 
 This section is the GitHub Actions control-plane contract, not a Vercel
@@ -4735,6 +4813,7 @@ secret set into either Vercel project.
 | GitHub secret                       | Runtime destination                                           |
 | ----------------------------------- | ------------------------------------------------------------- |
 | `DWCA_PSEUDONYM_HMAC_KEY_V1`        | Synchronized by the workflow to Supabase Edge only            |
+| `GEMINI_PAID_API_KEY`               | Required; synchronized by the workflow to Supabase Edge only  |
 | `REVENUECAT_SECRET_API_KEY`         | Synchronized by the workflow to Supabase Edge only            |
 | `REVENUECAT_WEBHOOK_SECRET`         | Synchronized by the workflow to Supabase Edge only            |
 | `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Synchronized by the workflow to Supabase Edge only            |
@@ -5643,7 +5722,7 @@ After deployment:
 - Confirm `auto-purge-nonbio` and `delete-scan` were deployed after any
   `_shared/aws.ts` change.
 - For public Explore audio, confirm both audio migrations are applied,
-  `GEMINI_API_KEY` exists as an Edge secret, and `identify-multimodal`,
+  `GEMINI_PAID_API_KEY` exists as an Edge secret from the approved billing-enabled project, and `identify-multimodal`,
   `share-scan-to-explore`, `update-explore-field-notes`, `delete-scan`,
   `backfill-explore-audio-spectrograms`, `auto-purge-nonbio`, and
   `scan-media-health` were deployed together.

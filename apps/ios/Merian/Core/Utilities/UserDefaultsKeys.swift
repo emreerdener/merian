@@ -16,6 +16,8 @@ enum UserDefaultsKeys {
     static let firstFieldTripAchievementProgressPrefix = "firstFieldTripAchievementProgress.v1."
     /// Whether onboarding has completed and the full app lifecycle may start.
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
+    /// Versioned local ledger for adult, Terms, AI, and analytics consent evidence.
+    static let legalConsentLedger = "legalConsentLedger.v1"
     /// The current theme mode selection persisted via AppStorage.
     static let themeMode = "themeMode"
     /// Whether Explore should be presented over the Capture workspace on a fresh app launch.

@@ -174,6 +174,14 @@ Auth user, and each database RPC independently derives authority from
 
 ## Rollout
 
+The database mapper reparents only rows already synchronized to Supabase. The
+iOS append-only consent ledger is a separate authority: after confirmed
+handoff, the client must atomically rebind unsynchronized ghost-owned adult,
+Terms, Gemini, and analytics actions to the permanent UUID, push them, and
+refetch current state. That client behavior is not yet verified and is tracked
+as `CONSENT-002` in the
+[production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
+
 The legacy payload cannot be made backward-compatible: it switches sessions
 before calling the server and carries no source-session proof. Treat this as a
 coordinated security rollout:

@@ -171,6 +171,52 @@ new forward migration and proven through the
 [deployment runbook](./06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout)
 before production deployment.
 
+### Versioned Terms and third-party AI consent
+
+Migrations `20260804020351_record_legal_consent_receipts.sql` and
+`20260804033307_add_adult_and_analytics_consent.sql` add four exposed but
+owner-scoped append-only tables:
+
+- `public.user_adult_eligibility_receipts`: UUID primary key, `user_id`, adult
+  policy version, device confirmation time, `self_attestation` method, exact
+  displayed statement, platform, app version/build, and server-controlled
+  `recorded_at`; no birth date or exact age;
+- `public.user_terms_acceptance_receipts`: UUID primary key, `user_id`,
+  `terms_version`, device `accepted_at`, exact `acceptance_text`, platform,
+  app version/build, and server-controlled `recorded_at`;
+- `public.user_ai_consent_events`: UUID primary key, `user_id`, constrained
+  provider, `disclosure_version`, `event_kind` (`granted` or `revoked`), device
+  `occurred_at`, exact disclosure/action text, platform, app version/build, and
+  server-controlled `recorded_at`;
+- `public.user_analytics_consent_events`: UUID primary key, `user_id`, PostHog
+  disclosure version, `granted` / `revoked` event kind, device action time,
+  exact disclosure/action text, platform, app version/build, and
+  server-controlled `recorded_at`.
+
+Authenticated users may select and insert only their own rows under RLS. The
+insert ACL lists every client field except `recorded_at`; no table grants
+client update or delete. Ordered owner/version indexes support current-state
+lookups. All four user foreign keys are registered as conflict-free `reparent`
+entries in the ghost-profile merge manifest so all evidence follows the
+canonical signed-in account without deleting or combining rows.
+`user_analytics_consent_events` is also added to the Supabase Realtime
+publication so owner-scoped account changes can disable or enable capture on
+other active devices.
+
+This database contract does not reparent actions that still exist only in the
+iOS local ledger, nor does source membership prove SDK lifecycle behavior.
+Production remains held until the client findings in the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md)
+are closed and the schema is replayed against a fresh required-version catalog.
+
+`internal.require_current_ai_consent(uuid)` currently requires adult policy
+version `2026-08-03`, Terms version `2026-08-03`, and provider
+`google_gemini` disclosure version `2026-08-03.1`. The latest AI event is
+ordered by `(recorded_at DESC, id DESC)` and must be `granted`. Both
+service-only `reserve_ai_quota` overloads call the helper before provider
+admission. A policy copy or material-purpose change must update the Swift policy
+and this database gate together and require a new user action.
+
 ### `users`
 
 Tracks the global state of the anonymous/authenticated user.

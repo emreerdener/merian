@@ -16,6 +16,16 @@ Production domain, AASA, email, backend, App Store, verification, and rollback
 steps are tracked in the
 [Naturebook rebrand rollout runbook](docs/development-guides/15-naturebook-rebrand-rollout.md).
 
+> **Consent production release hold (2026-08-03):** The final Powered by AI
+> screen and versioned adult, Terms, Gemini, and optional PostHog evidence are
+> implemented, but the second-pass review found release-blocking local-ledger
+> merge, PostHog withdrawal, account-transition, and iOS test defects. Do not
+> distribute this consent candidate or enable strict server enforcement until
+> the internal findings, hosted exact-SHA iOS gate, exact-version disposable
+> database replay, App Store 18+ configuration, and paid Gemini billing/DPA
+> evidence are complete. See the
+> [canonical consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
+
 > **Production release evidence gate (2026-07-28):** DwC-A exports are
 > authoritatively disabled for the initial launch by migration
 > `20260728133835_disable_dwca_exports_for_launch.sql`; Release iOS builds hide
@@ -236,9 +246,11 @@ steps are tracked in the
 
 ### Identification
 
-- Powered by **Google Gemini 2.5 Flash** (free tier) and **Gemini 2.5 Pro** (Pro
-  tier), routed via Deno Edge Functions on Supabase. Private provider secrets
-  never touch the client binary.
+- Powered by **Google Gemini 2.5 Flash** (ordinary Naturebook tier) and
+  **Gemini 2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase.
+  Production permits only the server-side `GEMINI_PAID_API_KEY`; there is no
+  unpaid-key fallback and private provider secrets never touch the client
+  binary.
 - Every public provider attempt first obtains an idempotent database reservation
   that verifies durable entitlement, selects the allowed model, and applies
   UTC-day plus per-user/IP cost ceilings. Entitlement/database failures fail
@@ -628,6 +640,14 @@ expire, or the deletion backlog breaches its SLA. See the
 
 ### Privacy
 
+- The final onboarding screen explicitly states that Naturebook sends scan data
+  to Google Gemini, a third-party AI service. Scanning requires current 18+
+  self-attestation, Terms acceptance, and Gemini data-sharing permission.
+- PostHog app usage and diagnostics are optional, account-wide, default-off in
+  the absence of a grant, and withdrawable without changing core functionality.
+  The current candidate remains release-held on the implementation corrections
+  in the
+  [consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
 - Geoprivacy is enforced server-side: `obscured` rounds coordinates to ~10km;
   `private` strips location entirely. Endangered species coordinates are
   automatically offset by 50km regardless of user setting.
@@ -730,7 +750,7 @@ local overrides in `Config.local.xcconfig`. Public client values like
 `SUPABASE_URL` and the public key configured through the historical
 `SUPABASE_ANON_KEY` build setting are used by the app at runtime; use a current
 `sb_publishable_...` value rather than a legacy anon JWT. True backend secrets
-like `GEMINI_API_KEY` must stay server-side only. Unsigned validation archives
+like `GEMINI_PAID_API_KEY` must stay server-side only. Unsigned validation archives
 do not ship. Xcode Release archives require the production RevenueCat iOS SDK
 key beginning with `appl_`.
 
@@ -912,6 +932,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/backend-and-data/12-explore-media-health-and-quarantine.md` | Reversible Explore media-loss policy, origin verification, owner communication, recovery, security, and rollout |
 | `docs/backend-and-data/18-complimentary-pro-scans.md`             | Normative three-credit ledger, reservation, settlement, protocol, iOS, merge, security, and rollout contract     |
 | `docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md` | Joined collection, upload, funding, redirect, taxonomy, rollout, and evidence record |
+| `docs/legal/production-consent-readiness-2026-08-03.md`         | Canonical adult, Terms, Gemini, analytics, verification, remediation, and release-hold record                         |
 | `docs/development-guides/`                                        | Core managers reference, app lifecycle, testing strategy                                                        |
 | `docs/incidents/`                                                 | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
 | `docs/rfcs/active-capture-goal-context.md`                        | Long-term source-agnostic Capture goal architecture and extension contract                                      |
@@ -922,4 +943,10 @@ Extended architecture documentation lives in `docs/`:
 
 Naturebook is a tool for education, discovery, and conservation. Usage is
 subject to the terms of the Google Gemini API, Supabase, and Apple platform
-guidelines.
+guidelines. Public copy lives in the
+[Terms of Service](apps/web/app/terms/page.tsx) and
+[Privacy Policy](apps/web/app/privacy/page.tsx). Release and counsel review are
+tracked separately in the
+[consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md)
+and [counsel memo](docs/legal/terms-counsel-review.md); neither document is legal
+advice or a substitute for owner/counsel approval.

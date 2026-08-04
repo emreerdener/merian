@@ -73,7 +73,7 @@ The `docs/` folder contains the master reference for the application:
   add a competing CI, Fastlane, script, or agent upload recipe. Point to the
   canonical runbook instead.
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`.
-  NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
+  NEVER hardcode `GEMINI_PAID_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
 
 ## 2. Directory Structure
 

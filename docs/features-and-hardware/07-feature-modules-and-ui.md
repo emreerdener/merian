@@ -15,8 +15,8 @@ the ordered welcome, camera, location, and ready screens, and `Permissions/`
 owns native permission delegates such as `LocationPermissionDelegate`.
 
 - **Enum-Backed State Machine (`OnboardingStep`)**: Enforces sequential
-  permission gating (`.welcome`, `.camera`, `.location`, `.photoLibrary`,
-  `.ready`) via a `switch` statement overlaying a `ZStack`. This prevents users
+  permission gating (`.welcome`, `.camera`, `.location`, `.ready`) via a
+  `switch` statement overlaying a `ZStack`. This prevents users
   from bypassing the `AVCaptureDevice` prompt by swiping (a flaw of standard
   `.tabViewStyle(.page)` paradigms).
 - **Asymmetric Glassmorphism Integrations**: View state transitions are
@@ -35,13 +35,23 @@ owns native permission delegates such as `LocationPermissionDelegate`.
     observing authorization changes. Provides a transparent "Skip for now"
     fallback button, satisfying App Store Review requirements without alienating
     free users.
+- **Final consent surface (`ReadyStepView`)**: States that Naturebook sends scan
+  data to Google Gemini, a third-party AI service, and presents left-aligned
+  switches for required 18+ self-attestation, required inline-linked
+  Terms/data-sharing permission, and optional default-off PostHog analytics.
+  Only the first two enable **Start scanning**.
 - **Root View Handoff (`MerianApp`)**: Driven by the injected
-  `AppSettings.hasCompletedOnboarding` flag. When the user completes Step 4,
-  SwiftUI rewires the `WindowGroup`, unmounting `OnboardingView` and mapping the
-  camera layers to `CaptureWorkspaceView(appSettings:)`. Because
-  `CaptureWorkspaceView` remains uninitialized until this flag is `true`,
-  background dependencies like `AVCaptureSession.beginConfiguration` are
-  shielded from the onboarding frames.
+  onboarding flag plus `ConsentManager.hasCurrentRequiredConsent`. When the user
+  completes Step 4 with current required evidence, SwiftUI rewires the
+  `WindowGroup`, unmounting `OnboardingView` and mapping the camera layers to
+  `CaptureWorkspaceView(appSettings:)`. Missing current evidence routes an
+  existing beta user directly to `.ready`. Because `CaptureWorkspaceView`
+  remains uninitialized until both gates are true, hardware and provider work
+  are shielded from onboarding frames.
+
+The current implementation remains release-held pending the defects and exact
+exit evidence in the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 2. The Scans Library (`ScansSheetView`, `ScansManager`)
 

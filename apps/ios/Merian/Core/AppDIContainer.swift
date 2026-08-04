@@ -40,6 +40,7 @@ import SwiftUI
     var supabaseManager = SupabaseManager.shared
     
     // MARK: - Dependencies (Analytics & Security)
+    var consentManager = ConsentManager.shared
     var revenueCatManager = RevenueCatManager.shared
     var usageManager = UsageManager.shared
     var gamificationManager = GamificationManager.shared
@@ -85,6 +86,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.archiveManager)
             .environment(container.photoLibraryManager)
             .environment(container.supabaseManager)
+            .environment(container.consentManager)
             .environment(container.revenueCatManager)
             .environment(container.usageManager)
             .environment(container.gamificationManager)

@@ -1,27 +1,222 @@
 import SwiftUI
 
 struct ReadyStepView: View {
-    // MARK: - Agreement State
-    @State private var hasAgreedToTerms = false
+    // MARK: - Consent State
+    @Environment(ConsentManager.self) private var consentManager
+    @State private var hasConfirmedAdultEligibility = false
+    @State private var hasAllowedGeminiProcessing = false
+    @State private var hasAllowedAnalytics = false
+    @State private var hasLoadedCurrentConsent = false
 
     // MARK: - Callbacks
-    let onFinish: () -> Void
-    
+    let onFinish: (_ analyticsEnabled: Bool) -> Void
+
+    // MARK: - Disclosure Copy
+    static let disclosure = ConsentPolicy.geminiDisclosureText
+    static let adultStatement = ConsentPolicy.adultConfirmationText
+    static let consentStatement = ConsentPolicy.combinedAcceptanceText
+    static let analyticsStatement = ConsentPolicy.analyticsDisclosureText
+    static let termsURL = PublicBrand.websiteURL(path: "terms")
+
+    static var linkedConsentStatement: AttributedString {
+        var statement = AttributedString(consentStatement)
+        guard let termsRange = statement.range(of: "terms") else { return statement }
+
+        statement[termsRange].link = termsURL
+        statement[termsRange].foregroundColor = .accentColor
+        return statement
+    }
+
+    static func canStartScanning(
+        adultConfirmed: Bool,
+        geminiAllowed: Bool,
+        analyticsAllowed _: Bool
+    ) -> Bool {
+        adultConfirmed && geminiAllowed
+    }
+
     // MARK: - Visual Layout
     var body: some View {
-        OnboardingStepWrapper(
-            imageName: "bird-magnifier",
-            title: "Explore. Identify. Contribute.",
-            subtitle: "Every capture contributes to a global database tracking wildlife and biodiversity.",
-            primaryButtonTitle: "Start scanning",
-            primaryButtonTextColor: Color(uiColor: .systemBackground),
-            primaryButtonColor: Color.primary,
-            primaryAction: {
-                guard hasAgreedToTerms else { return }
-                onFinish()
-            },
-            termsAgreement: $hasAgreedToTerms,
-            termsURL: PublicBrand.websiteURL(path: "terms")
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    OnboardingIllustration(imageName: "bird-magnifier")
+                        .padding(.top, OnboardingIllustration.topPadding)
+
+                    Text("Powered by AI")
+                        .font(.system(size: 38, weight: .bold))
+                        .foregroundStyle(Color.primary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 24)
+
+                    disclosureText
+                        .padding(.horizontal, 32)
+                        .padding(.top, 24)
+
+                    consentControls
+                        .padding(.horizontal, 32)
+                        .padding(.top, 24)
+
+                    Spacer(minLength: 24)
+
+                    actionButtons
+                        .padding(.horizontal, 32)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geometry.size.height)
+            }
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .onAppear {
+            guard !hasLoadedCurrentConsent else { return }
+            loadCurrentConsentState()
+            hasLoadedCurrentConsent = true
+        }
+        .onChange(of: consentManager.hasConfirmedCurrentAdultEligibility) { _, isConfirmed in
+            guard hasLoadedCurrentConsent else { return }
+            hasConfirmedAdultEligibility = isConfirmed
+        }
+        .onChange(of: consentManager.hasAcceptedCurrentTerms) { _, _ in
+            guard hasLoadedCurrentConsent else { return }
+            loadCurrentGeminiConsentState()
+        }
+        .onChange(of: consentManager.hasGrantedCurrentGeminiProcessing) { _, _ in
+            guard hasLoadedCurrentConsent else { return }
+            loadCurrentGeminiConsentState()
+        }
+        .onChange(of: consentManager.hasGrantedCurrentPostHogAnalytics) { _, isGranted in
+            guard hasLoadedCurrentConsent else { return }
+            hasAllowedAnalytics = isGranted
+        }
+    }
+
+    // MARK: - Disclosure
+    private var disclosureText: some View {
+        Text(Self.disclosure)
+            .font(.body)
+            .foregroundStyle(Color.secondary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - Consent
+    private var consentControls: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            consentRow(
+                isOn: $hasConfirmedAdultEligibility,
+                statement: Self.adultStatement,
+                accessibilityHint: "Required to start scanning",
+                accessibilityIdentifier: "Ready_AgeSwitch"
+            )
+
+            linkedGeminiConsentRow
+
+            consentRow(
+                isOn: $hasAllowedAnalytics,
+                statement: Self.analyticsStatement,
+                accessibilityHint: "Optional and does not affect app functionality",
+                accessibilityIdentifier: "Ready_AnalyticsSwitch"
+            )
+
+            Text("Your analytics choice applies to this account on all devices.")
+                .font(.caption)
+                .foregroundStyle(Color.secondary)
+                .padding(.leading, 63)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func consentRow(
+        isOn: Binding<Bool>,
+        statement: String,
+        accessibilityHint: String,
+        accessibilityIdentifier: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Toggle(isOn: isOn) {
+                EmptyView()
+            }
+            .labelsHidden()
+            .tint(.accentColor)
+            .fixedSize()
+            .accessibilityLabel(statement)
+            .accessibilityHint(accessibilityHint)
+            .accessibilityIdentifier(accessibilityIdentifier)
+
+            Text(statement)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.primary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var linkedGeminiConsentRow: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Toggle(isOn: $hasAllowedGeminiProcessing) {
+                EmptyView()
+            }
+            .labelsHidden()
+            .tint(.accentColor)
+            .fixedSize()
+            .accessibilityLabel(Self.consentStatement)
+            .accessibilityHint("Required to start scanning")
+            .accessibilityIdentifier("Ready_GeminiTermsSwitch")
+
+            Text(Self.linkedConsentStatement)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.primary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Actions
+    private var hasRequiredConsent: Bool {
+        Self.canStartScanning(
+            adultConfirmed: hasConfirmedAdultEligibility,
+            geminiAllowed: hasAllowedGeminiProcessing,
+            analyticsAllowed: hasAllowedAnalytics
         )
+    }
+
+    private func loadCurrentConsentState() {
+        hasConfirmedAdultEligibility = consentManager.hasConfirmedCurrentAdultEligibility
+        loadCurrentGeminiConsentState()
+        hasAllowedAnalytics = consentManager.hasGrantedCurrentPostHogAnalytics
+    }
+
+    private func loadCurrentGeminiConsentState() {
+        hasAllowedGeminiProcessing = consentManager.hasAcceptedCurrentTerms
+            && consentManager.hasGrantedCurrentGeminiProcessing
+    }
+
+    private var actionButtons: some View {
+        Button {
+            guard hasRequiredConsent else { return }
+            onFinish(hasAllowedAnalytics)
+        } label: {
+            Text("Start scanning")
+                .font(.headline)
+                .foregroundStyle(Color(uiColor: .systemBackground))
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.primary)
+                .clipShape(Capsule())
+        }
+        .disabled(!hasRequiredConsent)
+        .opacity(hasRequiredConsent ? 1 : 0.45)
+        .animation(.easeInOut(duration: 0.2), value: hasRequiredConsent)
+        .accessibilityIdentifier("Ready_StartScanning")
+        .accessibilityHint(
+            hasRequiredConsent
+                ? "Completes setup and opens the scanner"
+                : "Confirm you are 18 or older and allow Google Gemini data sharing to continue"
+        )
+        .padding(.bottom, 32)
     }
 }

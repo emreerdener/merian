@@ -230,6 +230,7 @@ struct MerianNetworkClientTests {
         
         // Inject so MerianNetworkClient hooks this instead of hitting live internet
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.overridingInferenceConsentCheck = {}
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
     }
 
@@ -340,6 +341,53 @@ struct MerianNetworkClientTests {
             onRequestBodySent: { probe.mark() }
         )
         #expect(probe.wasMarked)
+    }
+
+    @Test func testIdentifyMultiModalStopsBeforeDispatchWhenConsentIsMissing() async throws {
+        let probe = SendableCallbackProbe()
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            probe.mark()
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{}".utf8))
+        }
+        MerianNetworkClient.shared.overridingInferenceConsentCheck = {
+            throw MerianError.aiConsentRequired
+        }
+        defer {
+            MerianNetworkClient.shared.overridingInferenceConsentCheck = {}
+        }
+
+        do {
+            _ = try await MerianNetworkClient.shared.identifyMultiModal(
+                base64ImageDatas: ["AA=="],
+                telemetry: CaptureTelemetry(
+                    subjectDistanceInMeters: nil,
+                    gpsLatitude: nil,
+                    gpsLongitude: nil,
+                    gpsElevation: nil,
+                    locationName: nil,
+                    weatherCondition: nil,
+                    weatherTemperatureF: nil,
+                    timeOfDay: nil,
+                    timestamp: nil,
+                    zoomFactor: nil,
+                    estimatedSizeCm: nil
+                ),
+                clientScanId: "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6"
+            )
+            Issue.record("Expected missing consent to stop inference")
+        } catch MerianError.aiConsentRequired {
+            // Expected path.
+        } catch {
+            Issue.record("Expected MerianError.aiConsentRequired, got \(error)")
+        }
+
+        #expect(!probe.wasMarked)
     }
 
     @Test func testDeferredContextUpdateUsesOwnerScanEndpoint() async throws {

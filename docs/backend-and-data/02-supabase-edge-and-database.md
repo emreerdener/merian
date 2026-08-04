@@ -1,8 +1,12 @@
 # Supabase Edge and PostgreSQL Engine
 
-Naturebook uses Supabase as its backend platform. API keys are kept in
-`.xcconfig` files and never bundled into the client binary. All LLM and database
-operations execute server-side in Deno Edge Functions.
+Naturebook uses Supabase as its backend platform. The Supabase URL and
+publishable client key are build configuration and are necessarily compiled
+into the app; RLS and explicit object grants—not key secrecy—protect direct
+owner-scoped Data API access. Service-role credentials, provider keys, webhook
+secrets, and other privileged secrets remain server-only in Supabase Edge.
+Gemini provider calls and privileged database admission execute server-side in
+Deno Edge Functions.
 
 The normative joined success, retry, media, recovery, and deployment boundary
 for all scan producers is
@@ -28,6 +32,25 @@ are identified by a persistent Keychain-backed
 - **`users`**: Binds the IDFV (or authenticated UUID) to the product schema,
   tracking usage limits, subscription tier, public Explore display identity,
   avatar projection, and canonical `public_username` handle.
+- **`user_terms_acceptance_receipts`**: Immutable, account-owned evidence for
+  each accepted Terms version, including exact action copy, device action time,
+  app version/build, and an authoritative server-recorded time.
+- **`user_ai_consent_events`**: Immutable account-owned `granted` / `revoked`
+  history for a named AI provider and disclosure version. The latest
+  server-recorded event determines current provider permission.
+- **`user_adult_eligibility_receipts`**: Immutable evidence of the current 18+
+  self-attestation, including exact displayed text, method, device action time,
+  platform, app version/build, and authoritative server time. No birth date or
+  exact age is collected.
+- **`user_analytics_consent_events`**: Immutable account-wide PostHog grants
+  and revocations. Absence of a current grant means analytics is off; owner-only
+  Realtime INSERT events and foreground reconciliation propagate changes.
+
+The additive schema and static migration contracts establish the intended
+database boundary, but do not prove the iOS local-ledger, SDK-shutdown,
+account-transition, or synchronization lifecycle. Those client findings keep
+the candidate blocked in the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 - **`internal.user_species_scan_counts`
   (`20260724222838_optimize_species_count_trigger.sql`)**: A private
   `(user_id, species_id)` ledger with the number of matching scans. Four
@@ -105,12 +128,17 @@ Several utilities are shared across all Edge Functions via
   current rule rejects all variants beneath
   `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` without blocking
   the provider or species.
-- **`gemini.ts`**: Contains the physical module-level `_genAI` client wrapper
-  initialization and syntax-only JSON object extraction.
+- **`gemini.ts`**: Lazily constructs the paid-project `_genAI` client from only
+  `GEMINI_PAID_API_KEY` and owns syntax-only JSON object extraction. Missing
+  paid credentials fail before a provider request; there is no unpaid-key
+  fallback.
 - **`posthog.ts`**: A headless telemetry ingestion pipeline executing
   asynchronous `node-fetch` style queries to log per-scan events to PostHog for
   behavioral analytics (conversion funnel, scan frequency, species discovery
-  rate). Capture is best-effort behind a 2.5-second hard deadline so telemetry
+  rate). Before any PostHog request, it checks the latest current account-wide
+  consent event and fails closed on absence, revocation, or lookup failure. It
+  sends only the pseudonymous account UUID, never auth email or name. Capture
+  is best-effort behind a 2.5-second hard deadline so telemetry
   cannot consume an unbounded share of Edge wall-clock time. PostHog receives
   token counters for funnel/debug slicing, including video-attributed counters
   on video-backed multimodal scans, but authoritative LLM token cost analytics
@@ -189,7 +217,18 @@ authorization; forward migration
 the original analysis UUID, protocol fence, server-derived Flash fallback, and
 private complimentary linkage. `reserve_ai_quota(...)` is a service-role-only,
 `SECURITY DEFINER` RPC with an empty search path and an in-function
-`require_service_role()` check. In one transaction it:
+`require_service_role()` check. Migration
+`20260804020351_record_legal_consent_receipts.sql` also places
+`internal.require_current_ai_consent(user_id)` in both reservation overloads;
+`20260804033307_add_adult_and_analytics_consent.sql` advances its current bundle
+to adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini disclosure
+`2026-08-03.1`. Additive TestFlight mode accepts either a complete prior bundle
+or a complete current bundle until the owner-only strict cutover. After old
+builds are expired, `services/supabase/scripts/cutover_strict_ai_consent.sql`
+makes current evidence mandatory. Missing, partial, stale, or revoked evidence
+raises `ai_consent_required`; `_shared/aiQuota.ts` maps it to a caller-safe HTTP
+403.
+In one transaction the reservation then:
 
 1. Locks the authenticated user's row first, reads durable paid state and the
    rollout mode, and derives paid Pro → complimentary Pro → free. Legacy mode
@@ -1792,7 +1831,7 @@ that operate on anonymous IDFV boundaries:
 
 ## Security & Environment Validation
 
-- The `GEMINI_API_KEY` is absent from the iOS client bundle (`Info.plist` and
+- The `GEMINI_PAID_API_KEY` is absent from the iOS client bundle (`Info.plist` and
   `.xcconfig`). All LLM calls go through Supabase Edge Functions (`identify`,
   `identify-multimodal`, `enrich-scan`, `insight-chat`, etc.), which hold the
   key server-side.
@@ -2608,15 +2647,17 @@ optional controls are set in the Supabase Edge secret store via the CLI
   runtime provisioning lag without changing the standard `apikey`/legacy Bearer
   request protocol. A project-key rotation must pass the production deploy
   during overlap before the old key is revoked.
-- **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
-  `gemini-2.5-pro` model inferences.
+- **`GEMINI_PAID_API_KEY`**: Required for all `gemini-2.5-flash` and
+  `gemini-2.5-pro` model inferences. It must come from the approved
+  billing-enabled Google Cloud project; deployment validates and synchronizes
+  it, and runtime code has no alternate secret fallback.
 - **`AI_QUOTA_IP_HASH_SECRET`** (optional override): At least 32 high-entropy
   characters used to HMAC the proxy-observed client address for daily-rotating
   IP rate-limit buckets. When absent, Edge code uses a built-in server-only
   Supabase secret/service-role key with a quota-specific HMAC domain. The
   production workflow validates and synchronizes the override only when it is
   configured; an explicitly weak override fails closed.
-- The same **`GEMINI_API_KEY`** also authenticates the dedicated
+- The same **`GEMINI_PAID_API_KEY`** also authenticates the dedicated
   `gemini-2.5-flash` speech/non-speech classifier used by the fail-closed
   Explore audio publication gate. A valid content-addressed attestation can be
   reused while Gemini is unavailable; cache misses remain rejected when this

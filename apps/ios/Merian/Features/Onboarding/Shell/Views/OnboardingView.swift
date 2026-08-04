@@ -26,8 +26,10 @@ struct OnboardingView: View {
                 case .location:
                     LocationPermissionStepView(locationManagerDelegate: locationManagerDelegate) { advanceStep() }
                 case .ready:
-                    ReadyStepView {
-                        viewModel.completeOnboarding() // Triggers root view teardown safely without zero-frame animation artifacts
+                    ReadyStepView { analyticsEnabled in
+                        viewModel.completeOnboarding(
+                            analyticsEnabled: analyticsEnabled
+                        ) // Triggers root view teardown safely without zero-frame animation artifacts
                     }
                 }
             }

@@ -114,6 +114,7 @@
 		330693D42E143B0427986B32 /* LocalScanRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B38013EA163674C9FD9DD8 /* LocalScanRecord.swift */; };
 		33EC349074ED3DC487624F20 /* InsightPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F605B1E6C53AB4F0CE48C23 /* InsightPresentation.swift */; };
 		340E8B37587875468B6E04BB /* OfflineJobRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1465C46FDCC27851354CBC1A /* OfflineJobRecord.swift */; };
+		357A722DCDE9354080DD4DAF /* ConsentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 410DCC01C8385C93C6B43403 /* ConsentManager.swift */; };
 		35AF1057CB58CCEAAD8F3DFE /* SchemaV13.swift in Sources */ = {isa = PBXBuildFile; fileRef = E381DBD8187A400DB92FAAFD /* SchemaV13.swift */; };
 		36450C5D27A7DD284BCCF8D6 /* GamificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F340CAB78931C951CAD0AF0F /* GamificationManager.swift */; };
 		36606C1BF6B4909B3DB5A8A4 /* CardEntranceModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF327713018F9583A709567 /* CardEntranceModifier.swift */; };
@@ -707,6 +708,7 @@
 		3F88E24DC6B1709DCE67F546 /* SchemaV14.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV14.swift; sourceTree = "<group>"; };
 		408D6B5E4E86CCFDA8A69A85 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		4091758C197619E397B32D77 /* OnboardingStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStep.swift; sourceTree = "<group>"; };
+		410DCC01C8385C93C6B43403 /* ConsentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentManager.swift; sourceTree = "<group>"; };
 		410F2BC037A512F9A902F8CF /* OfflineQueueDurability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueDurability.swift; sourceTree = "<group>"; };
 		41E0C3C75AAC0ADFA8316D39 /* CandidateImageExpandedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateImageExpandedView.swift; sourceTree = "<group>"; };
 		425723D909583D5FCF661C3A /* OverviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewCard.swift; sourceTree = "<group>"; };
@@ -3332,6 +3334,7 @@
 			isa = PBXGroup;
 			children = (
 				7B43669DE64C6C9CE86BA20D /* CircuitBreakerManager.swift */,
+				410DCC01C8385C93C6B43403 /* ConsentManager.swift */,
 				21F87DC06ADD940406F7EE95 /* DeviceIdentityManager.swift */,
 				733AD50E8B6565B7A602E13F /* EntitlementManager.swift */,
 				2F4EAD03252E289E9516AC28 /* RevenueCatManager.swift */,
@@ -4136,6 +4139,7 @@
 				2DF24B72DE520F635E0AF624 /* ConfidenceHeader.swift in Sources */,
 				3093BD3EA3BEBA5BF5FC822D /* ConfidenceSpectrum.swift in Sources */,
 				3B268A402DC794837D352215 /* ConfirmedView.swift in Sources */,
+				357A722DCDE9354080DD4DAF /* ConsentManager.swift in Sources */,
 				7276AB42FBDCA2C78F21FDA9 /* CropSheetModifier.swift in Sources */,
 				5BED8AA7BF83BA3B5DD81242 /* DangerZone.swift in Sources */,
 				9AEA1781ABED270A3D1E0AA3 /* DateUtilities.swift in Sources */,

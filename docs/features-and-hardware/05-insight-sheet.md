@@ -1356,7 +1356,11 @@ identification decisions before falling back to the confidence-band logic:
 **Confidence bands** (when no review state is set — managed dynamically via
 `MerianConfig.confidenceBands(for: isPro)`):
 
-**Gemini 2.5 Flash (Free Tier)**
+**Gemini 2.5 Flash (Ordinary Naturebook Tier)**
+
+“Ordinary” is the app plan tier. The production provider request still uses the
+approved paid Gemini project; it is not a statement that Google processing is
+on unpaid-Service terms.
 
 | Band label     | Color  | Score range |
 | -------------- | ------ | ----------- |

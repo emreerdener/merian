@@ -4,7 +4,19 @@ Merian centralizes all iOS phase-transition logic inside `AppLifecycleManager` (
 
 ## Phase Contract
 
-`handleActivePhase()` and `handleInactivePhase()` are guarded by `AppSettings.hasCompletedOnboarding`. If onboarding has not been completed, they return immediately — no notification sync, queue work, or camera stop calls are triggered. `handleBackgroundPhase()` is intentionally minimal and always records the background timestamp for later timeout evaluation.
+`handleActivePhase()` and `handleInactivePhase()` are first guarded by
+`AppSettings.hasCompletedOnboarding`. If onboarding has not been completed, they
+return immediately. After that legacy routing gate, the active handler always
+schedules `ConsentManager.synchronizeWithCurrentSession()` so a closed required
+gate can hydrate account evidence or retry an offline withdrawal. All hardware,
+notification, usage, and queued provider work remains guarded by current adult,
+Terms, and Gemini consent. The inactive handler stops the camera after the
+onboarding guard. `handleBackgroundPhase()` is intentionally minimal and always
+records the background timestamp for later timeout evaluation.
+
+The current candidate still has open consent synchronization and test defects;
+the production exit evidence is canonical in the
+[consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ---
 
@@ -12,7 +24,8 @@ Merian centralizes all iOS phase-transition logic inside `AppLifecycleManager` (
 
 Triggered by `MerianApp.swift` when `scenePhase == .active`.
 
-**Synchronous triggers (Main thread):**
+After current required consent passes, the handler runs these **synchronous
+triggers (Main thread):**
 1. `UsageManager.evaluateDailyRefresh()` — resets daily scan token count if the calendar day has rolled over.
 2. `PushNotificationManager.setupDelegate()` — re-registers the UNUserNotificationCenter delegate.
 3. `PushNotificationManager.syncPermissionState()` — reconciles local notification settings with the OS authorization status to handle revocations in Settings.
@@ -38,7 +51,7 @@ quota blocks retain the receipt. See
 
 **Fresh-launch Explore preference:**
 `AppSettings.opensExploreOnLaunch` is default-off and sampled once when the app
-process is created. After onboarding, an ordinary launch may initialize the
+process is created. After onboarding and current required consent, an ordinary launch may initialize the
 Capture workspace with the root Explore feed presented over it. Foreground
 phase changes never resample the preference. Because the Capture workspace is
 still the root, this is an initial sheet presentation rather than a second app
@@ -62,15 +75,27 @@ event that accompanied the launch.
 **Internal Cross-Sheet Routing:**
 `AppEventPublisher` is also utilized for decoupled internal routing. For example, toast actions originating from the `InsightSheetViewModel` can dispatch specific intents (e.g., `.requestOpenNonBiologicalScansIntent`) that are captured by the `CaptureWorkspaceViewModel` and `ScansSheetView` to mutate root presentation states and push nested navigation views, completely avoiding tight coupling between sibling modal sheets.
 
-**Async `Task {}` (off Main thread):**
-1. `SupabaseManager.initializeGhostSession()` — ensures a valid anonymous or authenticated session exists before any network calls.
-2. `PushNotificationManager.syncRemotePushRegistrationIfPossible(reason: "app_active")` — reconciles the current APNs token with the server when possible.
-3. `OfflineQueueManager.purgeSoftDeletedRecords()` — removes local records that are safe to delete after sync.
-4. `OfflineQueueManager.syncPendingScans()` — drains queued captures immediately if `NWPathMonitor` shows connectivity.
-5. `OfflineQueueManager.replayInferenceForUploadedScans()` — re-enters any `OfflineQueuedScan` stuck in `.staged` or `.inferencing` state (upload confirmed but inference interrupted, e.g. app killed or suspended mid-inference). It polls `/check-scan-status` before resetting orphaned `.inferencing` scans: `found` scans are synced down, server-owned `processing` / `finalizing` jobs stay protected for another poll, retryable jobs respect `retry_after`, and true orphans return to `.staged`. It also reconciles `.uploading` orphans back to `.pending` on every call so scans whose `generateUploadURLs` request failed mid-session are visible on the next retry. `NWPathMonitor` only fires on connectivity *changes*, so this call is required here to recover stuck scans when the app returns to foreground on an already-stable connection.
-6. `SpeciesPreferredNameRepository.syncCloudPreferences(modelContext:)` — reconciles preferred species names when a model context is available. Clean lifecycle/auth syncs skip when a successful sync completed in the last 60 seconds, while local set/clear edits force a follow-up sync.
-7. `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` — removes local non-biological records older than `MerianConfig.nonBiologicalRetentionDays`, queues cloud-deletion tombstones, purges committed local media files, and kicks pending deletion sync. `NonBiologicalScansView` also invokes this on entry so stale rows clear immediately when the collection opens.
-8. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access). **Throttled to once per 15 minutes** via `UserDefaultsKeys.lastHistoricalSyncDate` to prevent redundant full-table network syncs on every foreground transition. The timestamp is stamped **before** the sync starts, not after — this is an optimistic lock that prevents two concurrent foreground handlers from both reading `distantPast` before either has written the timestamp.
+**Async tasks:**
+
+1. Before the required-consent guard,
+   `ConsentManager.synchronizeWithCurrentSession()` reconciles local and account
+   evidence. It must remain session-bound after every suspension point and must
+   push target-owned pending rows in the same synchronization pass.
+2. After the guard, `AppIconBadgeCoordinator` refreshes the Explore unread
+   count and `PushNotificationManager.syncRemotePushRegistrationIfPossible`
+   reconciles APNs state.
+3. `OfflineQueueManager.purgeSoftDeletedRecords()` removes safe local records.
+4. When a model context exists, preferred-name sync, expired non-biological
+   purge, and throttled historical scan download run. Historical sync stamps the
+   15-minute throttle before starting to prevent concurrent foreground handlers.
+5. `OfflineJobScheduler.drainRunnableJobs(using:)` drains work and recreates the
+   next process-local wake from durable retry dates. This scheduler owns pending
+   upload and interrupted-inference replay; the lifecycle manager no longer
+   calls `syncPendingScans()` or `replayInferenceForUploadedScans()` directly.
+
+Lifecycle tests must provide current required consent before expecting any work
+after item 1. The old onboarding-complete flag alone now intentionally returns
+before queue replay.
 
 ---
 
@@ -155,7 +180,12 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 - **Never trigger the paywall from `InferenceEngine`'s catch block.** The paywall is only shown from the `canPerformScan` gate in `Capture.swift` and `handlePhotoPickerSelection`. Network failures must never surface a paywall.
 - **Never add direct ViewModel references** to `AppLifecycleManager`. Publish typed `AppEventPublisher` events for UI side effects that need to cross from lifecycle/services into SwiftUI.
 - `syncHistoricalScansDown` is throttled to once per 15 minutes. Do not add additional call sites without also checking `UserDefaultsKeys.lastHistoricalSyncDate`.
-- **Always call `replayInferenceForUploadedScans()` immediately after `syncPendingScans()` in `handleActivePhase()`.** `NWPathMonitor` only fires when connectivity changes, not when the app returns to foreground on an already-stable connection. Without this call, scans whose upload completed while the app was backgrounded are permanently stuck and never recovered. Do not remove this call or move it to a throttled path.
+- **Always let `OfflineJobScheduler.drainRunnableJobs(using:)` own foreground
+  queue drain and replay after the required-consent guard.** `NWPathMonitor` only
+  fires when connectivity changes, while delayed Swift tasks do not survive
+  process termination. Do not restore direct lifecycle calls to
+  `syncPendingScans()` or `replayInferenceForUploadedScans()`; preserve the
+  scheduler's durable wake reconstruction.
 - All async work inside `handleActivePhase` is intentionally fire-and-forget (`Task {}`). Errors are logged but never surface to the user during a phase transition.
 
 ## 2026-04 Hardening Updates
@@ -169,7 +199,10 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
   exactly once. Non-corrupt legacy migration failures archive the old store
   bundle under `store-rescue/` and open a fresh persistent store instead of
   looping in safe mode.
-- `handleActivePhase()` continues to be the right place for replay recovery, but any new lifecycle work must not resurrect stale scan mutations. `InferenceEngine` now invalidates pending background writes whenever a scan is cancelled or a new scan begins.
+- `handleActivePhase()` continues to trigger scheduler-owned replay recovery,
+  but any new lifecycle work must not resurrect stale scan mutations.
+  `InferenceEngine` now invalidates pending background writes whenever a scan is
+  cancelled or a new scan begins.
 
 ## 2026-05 Startup Safety Update
 

@@ -18,6 +18,30 @@ lifecycle (signing in/out and deletion). It operates in conjunction with the
 `ProfileViewModel` and updates the app's global state and preferences through
 the injected `AppSettings` boundary.
 
+## Privacy and processing permissions
+
+Settings → Privacy & processing exposes the destructive **Withdraw Google Gemini
+permission** action. It is enabled only while the current disclosure version is
+granted. Confirmation appends an immutable local revocation event through the
+injected `ConsentManager`; the workspace and inference gates close immediately,
+then the event synchronizes to the active Supabase account. Because Naturebook
+has no non-AI identification mode, the disclosure screen replaces the main
+workspace until current adult confirmation, Terms, and Gemini permission are
+granted again.
+
+The same section exposes **Analytics & diagnostics**. Its binding appends an
+immutable account-wide PostHog grant or revocation through `ConsentManager`.
+Absence of a grant is off. Withdrawal disables capture and identity immediately,
+opts out and closes the SDK, synchronizes across devices, and never changes core
+functionality.
+
+That paragraph is the required behavior. This release candidate has not yet
+proved it: the current PostHog reset order may start a feature-flag reload during
+withdrawal, and offline ghost-account actions, account replacement, and Realtime
+startup/retry still have open findings. Keep the release held until the
+[production consent readiness record](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md)
+is closed.
+
 ## Account deletion
 
 `DeleteAccountSheet` calls the authenticated `safe-delete` Edge Function and
@@ -126,7 +150,8 @@ workspace launch.
 ## Fresh-launch contract
 
 `MerianApp` samples `opensExploreOnLaunch` once when a new process is created.
-It may present the generic Explore feed only after onboarding is complete.
+It may present the generic Explore feed only after onboarding and current
+required consent are complete.
 Returning from the background never resamples the preference and never reopens
 Explore.
 

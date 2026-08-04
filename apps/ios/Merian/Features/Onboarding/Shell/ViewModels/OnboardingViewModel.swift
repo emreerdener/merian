@@ -7,9 +7,20 @@ import SwiftUI
 
     // MARK: - Dependencies
     @ObservationIgnored private let appSettings: AppSettings
+    @ObservationIgnored private let consentManager: ConsentManager
 
-    init(appSettings: AppSettings? = nil) {
-        self.appSettings = appSettings ?? AppSettings.shared
+    init(
+        appSettings: AppSettings? = nil,
+        consentManager: ConsentManager? = nil
+    ) {
+        let resolvedSettings = appSettings ?? AppSettings.shared
+        let resolvedConsentManager = consentManager ?? ConsentManager.shared
+        self.appSettings = resolvedSettings
+        self.consentManager = resolvedConsentManager
+        if resolvedSettings.hasCompletedOnboarding,
+           !resolvedConsentManager.hasCurrentRequiredConsent {
+            currentStep = .ready
+        }
     }
     
     // MARK: - App Storage
@@ -26,7 +37,11 @@ import SwiftUI
         }
     }
     
-    func completeOnboarding() {
+    func completeOnboarding(analyticsEnabled: Bool) {
+        // Persist the legal action before opening the lifecycle/network gate.
+        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            analyticsEnabled: analyticsEnabled
+        )
         AppTelemetry.trackOnboardingCompleted()
         hasCompletedOnboarding = true
     }

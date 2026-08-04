@@ -943,9 +943,9 @@ triggering excessive SwiftUI view rebuilds.
 | Constant                               | Key string                               | Sites                                                                                                                                                                                                                                                                                      |
 | -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                             |
-| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | `AppSettings` typed property. `MerianApp` and `AppLifecycleManager` gate root/lifecycle behavior through the injected settings instance.                                                                                                                                                   |
+| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | Legacy routing preference only. `MerianApp` and active provider/hardware lifecycle behavior also require current adult, Terms, and Gemini consent through the injected `ConsentManager`.                                                                                                  |
 | `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                               |
-| `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`.                     |
+| `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                        |
 | `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                                                                                                                                      |
 | `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off. |
@@ -1559,13 +1559,18 @@ and `KeychainManager` migration logic. Do not inline
 
 - Not `@MainActor` — `PostHogSDK` is thread-safe, and the wrapper uses an
   `NSLock` around configuration and pending identity state.
-- `SupabaseManager` configures PostHog before it constructs the auth listener,
-  so restored-session identity events usually arrive after `setup()` has
-  completed. `configure()` is idempotent for secondary startup callsites.
+- Required contract: `ConsentManager` is the sole configuration authority. It
+  may configure and identify PostHog only after resolving a current grant for
+  the active account; startup, absence, withdrawal, and account transitions
+  must keep it off without starting a new request.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
-  still buffers a pending user ID if a future call races setup, but this is an
-  expected debug path rather than a warning.
-- Calls `reset()` on sign-out to clear the PostHog session.
+  buffers only a consented pending user ID if a call races setup.
+- Target shutdown order must opt out and close capture without triggering
+  remote configuration, then clear identity. The current wrapper instead calls
+  PostHog 3.69.0 `reset()` before opt-out and close; `reset()` may reload feature
+  flags. True account replacement also relies on a later auth-observer callback.
+  These are release blockers, not accepted manager behavior. See
+  [Production Consent Readiness](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 2026-04 Hardening Updates
 

@@ -3,7 +3,25 @@
 The `Analytics` directory manages the app's telemetry and product analytics infrastructure.
 
 ## Purpose
-This area integrates PostHog-backed app analytics. It provides a unified, cross-feature API for tracking user events, performance metrics, and gamification telemetry without coupling feature modules directly to the third-party analytics SDK.
+
+This area integrates optional, consent-gated PostHog app analytics. It provides
+a unified, cross-feature API without coupling feature modules directly to the
+third-party SDK. The required contract makes `ConsentManager` the sole
+lifecycle authority: without the latest account-wide grant, PostHog must not be
+configured or identified and every capture call must be rejected. Withdrawal
+must leave core functionality unchanged and shut down analytics without
+starting another SDK request.
+
+## Release status
+
+The consent architecture is implemented but this release candidate is held.
+The current withdrawal order calls PostHog 3.69.0 `reset()` before opt-out and
+close; that SDK method may reload feature flags. True OAuth account replacement
+also depends on the asynchronous auth observer to shut down the prior identity.
+Close `CONSENT-001` and `CONSENT-007`, then prove zero setup, identification,
+capture, or network activity before grant and after withdrawal/account change.
+See the
+[production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 ## Advisory local usage meter
 

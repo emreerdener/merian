@@ -85,7 +85,9 @@ At the same time, the current implementation is narrower than the stale document
 in other areas. The Apple Watch capture path does not have a complete iPhone
 receiver. Full UI localization, minor-specific compliance controls, targeted
 observation bounties, and several older growth concepts are not present as
-end-to-end features. The former Rive experience, TelemetryDeck stack, two-call
+end-to-end features. The self-attested 18+ gate exists but remains
+release-blocked and is not a claim of broader jurisdiction-specific minor
+compliance. The former Rive experience, TelemetryDeck stack, two-call
 identification design, free-media expiration policy, and old subscription price
 points must not be represented as current.
 
@@ -636,18 +638,39 @@ media costs, refunds, store fees, taxes, retention, and current vendor pricing.
 
 # 9. Onboarding, permissions, and account identity
 
-## 9.1 Onboarding - Implemented
+## 9.1 Onboarding - Implemented design, release-blocked
 
 Current onboarding contains four steps:
 
 1. Welcome.
 2. Camera.
 3. Location.
-4. Ready.
+4. Ready / **Powered by AI**.
+
+The final screen discloses: “Naturebook sends your scan data to Google Gemini,
+a third-party AI service, for identification.” It presents three left-aligned,
+initially-off switches in this order:
+
+1. “I confirm I am 18 or older.”
+2. “I accept the terms and allow this data sharing.” The word **terms** links
+   inline to the Terms of Service.
+3. “Share app usage and diagnostics with PostHog to help improve Naturebook.
+   Optional.”
+
+Only age confirmation and Terms/Gemini permission enable **Start scanning**.
+Analytics never blocks onboarding or core functionality. Existing beta users
+with the old onboarding flag but without current required evidence route
+directly to this screen without repeating Camera or Location.
 
 Photo-library and notification permissions are requested progressively at the
-point of need. Hardware initialization and ordinary synchronization are gated
-until onboarding is complete. The older six-step flow is retired.
+point of need. Hardware initialization, provider work, and ordinary
+synchronization are gated until onboarding and current required consent are
+complete; consent reconciliation itself still runs while the required gate is
+closed. The older six-step flow is retired.
+
+This is the intended product contract, not a production approval. The current
+candidate remains held by the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 9.2 Permission philosophy
 
@@ -757,17 +780,25 @@ say so before proceeding. Deletion user experience should clearly separate local
 removal, server completion, and the mandatory ownerless Scientific Data retained
 after account deletion.
 
-## 10.4 Analytics privacy boundary
+## 10.4 Consent, age, and analytics privacy boundary
 
 Product analytics is consolidated under PostHog. "Zero PII" should be
 interpreted as a telemetry collection boundary, not a claim that Naturebook
 processes no user data. The product necessarily processes observations, media,
 account identifiers, and optional location to provide its service.
 
+Naturebook uses self-attested 18+ eligibility and does not collect a birth date
+or exact age. Current adult, Terms, and Gemini evidence is required for AI
+identification. PostHog is a separate, optional, default-off account-wide
+choice with a Settings withdrawal control that must take effect immediately and
+must not change core functionality.
+
 The repository does not establish final App Store privacy nutrition labels, ATT
-conclusions, COPPA compliance, or jurisdiction-specific minor consent. Those are
-Requires review. No complete minor-specific precise-location gate, App Attest,
-or DeviceCheck enforcement was found in the reviewed paths.
+conclusions, jurisdiction-specific consent sufficiency, or production age-rating
+configuration. Those require review and owner evidence. The implemented client
+controls also remain release-blocked until every internal readiness finding is
+closed. No App Attest or DeviceCheck enforcement was found in the reviewed
+paths.
 
 ## 10.5 Localization status - Partial
 
@@ -981,8 +1012,8 @@ restrictions when backend dependencies are upgraded.
 ## 15.4 Direct and pinned dependencies
 
 The iOS project directly depends on RevenueCat, PostHog, Supabase Swift, and
-Google Sign-In. The reviewed lockfile includes PostHog 3.48.2, RevenueCat
-5.66.0, Supabase Swift 2.43.0, and Google Sign-In 9.1.0, plus transitive
+Google Sign-In. The reviewed lockfile includes PostHog 3.69.0, RevenueCat
+5.83.0, Supabase Swift 2.54.1, and Google Sign-In 9.2.0, plus transitive
 packages.
 
 Key Edge Function dependencies include Supabase JS 2.110.8, JOSE 5.9.6,
@@ -1006,12 +1037,18 @@ checklist is
 
 # 16. Telemetry, quality, and operations
 
-## 16.1 Analytics - Implemented
+## 16.1 Analytics - Implemented design, release-blocked
 
 PostHog is the consolidated application analytics provider. App initialization
 does not depend on a fixed startup sleep. Events should be minimal,
 purpose-bound, and reviewed for accidental observation, location, or account
 leakage.
+
+Production requires an explicit current account grant before SDK configuration,
+identity, capture, or network activity, and zero such activity after withdrawal
+or account change. The current iOS lifecycle does not yet prove those guarantees;
+see the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 Cost and usage truth lives in backend ledgers and SQL reporting rather than a
 client analytics event alone.
@@ -1088,7 +1125,7 @@ migrations, vendor credentials, and release flags.
 | Events and Seasonal Challenges       | Release-gated preview     | Server-authorized rollout, product rules, operations, and full tests.                |
 | Apple Watch logging                  | Partial                   | Implement phone receiver, reconciliation UI, failure handling, and end-to-end tests. |
 | Full localization                    | Partial                   | Localized resource architecture, content coverage, taxonomy rules, and QA.           |
-| Minor-specific controls              | Planned / Requires review | Age policy, consent design, location restrictions, legal review, and enforcement.    |
+| 18+ and third-party AI consent controls | Implemented gate / Release-blocked | Close the internal readiness record, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |
 | App Attest / DeviceCheck enforcement | Planned                   | Threat model, server verification, failure policy, and rollout.                      |
 | Targeted observation bounties        | Planned                   | Product model, abuse controls, incentives, backend, and UX.                          |
 | Insight-triggered 1 FPS camera idle  | Partial hook only         | Wire lifecycle calls and validate restoration across navigation and interruptions.   |

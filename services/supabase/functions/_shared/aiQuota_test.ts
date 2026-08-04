@@ -12,6 +12,7 @@ import {
   createAIProviderQuotaLease,
   deriveAIRequestId,
   hmacClientAddress,
+  quotaErrorForDatabaseMessage,
   resolveAIRequestId,
   resolveQuotaIpHashSecret,
 } from "./aiQuota.ts";
@@ -156,6 +157,19 @@ Deno.test("quota hashing uses an optional dedicated override or a server-only pl
         platformSecretKey: platform,
       }),
     AIQuotaError,
+  );
+});
+
+Deno.test("missing or withdrawn AI consent maps to a caller-safe 403", () => {
+  const error = quotaErrorForDatabaseMessage(
+    "ai_consent_required",
+  );
+
+  assertEquals(error.status, 403);
+  assertEquals(error.code, "ai_consent_required");
+  assertEquals(
+    error.message,
+    "Confirm you are 18 or older, accept the current Terms, and allow Google Gemini processing to continue.",
   );
 });
 

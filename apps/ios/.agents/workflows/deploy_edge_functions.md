@@ -1,44 +1,59 @@
 ---
-description: Deploying Supabase Edge Functions to Production
+description: Enter the reviewed Supabase production deployment workflow
 ---
 
-# 🚀 Supabase Edge Functions Deployment Runbook
+# Deploy Supabase Edge Functions
 
-Merian requires strict synchronization between the TypeScript (`services/supabase/functions/`) backend and the Swift natively parsed environment. This workflow guarantees that no regressions occur during an Edge deploy.
+Use the repository's canonical
+[Supabase deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md).
+This file is an agent entry point, not a second deployment procedure.
 
-## Step 1: Validate TypeScript Interfaces
-If you modified `merianResponseSchema` or any output JSON signatures, ensure you have already updated the Swift `InferenceEdgeDTOs.swift` file! An asynchronous crash will occur if the Deno payload fails the Codable parsing block on iOS.
+Production deployment authority is the reviewed GitHub `Production` workflow on
+an exact source SHA. Do not replace it with a local `supabase functions deploy`,
+dashboard deployment, ad-hoc database push, or manual secret mutation. The
+workflow enforces the exact Supabase CLI pin, complete migration history,
+Function fleet planning, secret synchronization, pre/post-deploy verification,
+and evidence artifacts.
 
-## Step 2: Deno Static Analysis
-Before pushing, run a local type check to ensure everything resolves cleanly.
+## Consent release hold
 
-// turbo
+Do not deploy the current consent candidate or run strict consent cutover until
+`CONSENT-001` through `CONSENT-008` are closed in the
+[production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
+From a corrected SHA, the bounded rollout is:
+
+1. Prove the complete hosted iOS gate and exact-version disposable database
+   replay.
+2. Deploy the additive schema and consent-gated Edge code while
+   `internal.ai_consent_rollout_config` remains `legacy_compatible`.
+3. Distribute and verify the corrected replacement TestFlight build.
+4. Expire old consent-incapable builds.
+5. Only then run the owner-only forward strict-cutover script and verify
+   deployed rejection fixtures.
+
+Never backfill or infer adult, Terms, Gemini, or analytics evidence.
+
+## Required local preflight
+
+Run the complete repository tooling and migration contracts; tests are not
+optional. If a response DTO or schema changes, update and compile the matching
+Swift DTO before deployment. Do not use real personal data in local or unpaid
+provider tests.
+
 ```bash
-cd services/supabase/functions
-deno check _shared/*.ts
-deno check identify/index.ts
-deno check enrich-scan/index.ts
+bash services/supabase/scripts/require_supabase_cli_version.sh
+bash services/supabase/scripts/test_supabase_tooling.sh
+make validate-supabase-migrations
 ```
 
-## Step 3: Run Unit Tests (Optional but Recommended)
-Test the payloads against active Supabase Ghost sessions. Ensure `.env` is properly loaded for integration blocks but never hardcoded into git.
+The exact production secret is `GEMINI_PAID_API_KEY`; no unpaid-key fallback is
+permitted. Do not treat its name or presence as billing/DPA evidence. A Google
+Cloud owner must archive active paid billing and DPA confirmation, rotate the
+key, let the production workflow synchronize it, smoke-test it, and revoke the
+superseded key. Never put a secret value in source, logs, tickets, or command
+output.
 
-## Step 4: Deploy All Functions
-Deploying replaces the live production functions immediately. Run this from the repository root. The command requires the Supabase CLI to be authenticated via `supabase login`.
-
-```bash
-supabase --workdir services functions deploy --project-ref [YOUR_PROJECT_ID]
-```
-
-## Step 5: Verify Secret Bindings
-If the newly deployed function relies on a new API Key (e.g. `GEMINI_PRO_KEY` or `GBIF_API_TOKEN`), you **must** bind it to the project securely via the CLI. It does not pull from your local `.env` automatically!
-
-```bash
-supabase secrets set --project-ref [YOUR_PROJECT_ID] NEW_SECRET_NAME=value
-```
-
-> [!CAUTION]
-> Never hardcode `GEMINI_API_KEY` directly inside the `.ts` files. Always extract it via `Deno.env.get("GEMINI_API_KEY")`.
-
-## Step 6: Post-Deploy Verification
-Check the Supabase Dashboard -> Edge Functions -> Logs. Trigger a test scan in the iOS application to verify that the HTTP 200 `EdgeResponseWrapper` is returning cleanly and without CORS or 500 timeout errors.
+After deployment, use the runbook's bounded positive and negative smokes and
+structured monitoring. Verify the fixed handler marker, caller-safe status/code,
+database state, and provider/analytics admission without printing credentials or
+operational response bodies.

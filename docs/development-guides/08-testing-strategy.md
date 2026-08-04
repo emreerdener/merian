@@ -200,6 +200,16 @@ verification gate for iOS changes. It reports a stable
 repository ruleset can require it without leaving unrelated pull requests
 pending. A fail-closed scope job starts the macOS work for:
 
+> **Current consent candidate:** the latest local unit-target attempt failed to
+> compile because
+> `OnboardingViewModelTests.testReadyTermsLinkTargetsTheFullTermsOfService()`
+> calls throwing `XCTUnwrap` from a non-throwing test method. Treat that run as
+> zero iOS test-execution evidence. After fixing the compile blocker,
+> `AppLifecycleManager` foreground replay coverage must inject current required
+> adult, Terms, and Gemini evidence; setting only the old onboarding-complete
+> flag now exercises an early return. See the
+> [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
+
 - anything under `apps/ios/` or the embedded companion under `apps/watch/`;
 - either generated Xcode project, `project.yml`, tracked build configuration,
   SwiftLint configuration, or iOS build scripts;
@@ -596,8 +606,19 @@ MerianTests/
   without touching the live PostHog SDK. The tests cover every public signal,
   preserved event names, `event_source = "ios_client"`, and the Pro
   paid/complimentary/historical-trial/free scan payload matrix.
-- **`PostHogManagerTests.swift`**: Smoke-tests `identifyUser` and `reset`
-  against the shared singleton to verify the SDK binding does not crash.
+- **`PostHogManagerTests.swift`**: Must use an observable SDK/network boundary,
+  not only no-crash singleton calls. It must prove no setup, identification,
+  capture, feature-flag reload, or network request before a current grant and
+  after withdrawal/account change. It must also lock every disabled automatic
+  capture mode. The current `reset()`-before-opt-out order does not satisfy this
+  contract.
+- **Consent lifecycle matrix**: Cover all three final-screen switch
+  combinations; no Gemini request without current age plus Terms/Gemini
+  evidence; optional analytics grant and withdrawal across devices; offline
+  revocation; ghost-to-permanent-account merge; account switching; foreground
+  synchronization; Realtime startup/failure recovery; idempotent retry; and
+  immutable/timestamp-protected RLS rows. Absence of an analytics grant must
+  remain off and analytics must never gate core functionality.
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
   math updates against user local scores so UI progression trackers do not skew
   unexpectedly.
@@ -1165,10 +1186,11 @@ actual import, and permission-denial UI require the physical-device checklist in
 - **`AppDIContainerTests.swift` preferred-name coverage**: Verifies matching
   normalized cloud values and existing tombstones are converged without an
   upsert, while real conflicts retain timestamp ordering.
-- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine
-  progression, ensuring hardware fallback steps prevent `Int` scalar
-  out-of-bounds crashes. Tests core persistence loops simulating `@AppStorage`
-  routing flags from the `.ready` boundary, fully offline.
+- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine,
+  the full inline Terms destination, final-screen required/optional switch
+  combinations, returning-user direct routing, and completion persistence.
+  Every throwing assertion must be declared correctly so this file cannot
+  prevent the entire unit target from compiling.
 
 ## Testing Identify Requests and Activity
 

@@ -15,8 +15,18 @@ final class AppLifecycleManager {
 
     /// Handles application transition to active foreground.
     func handleActivePhase() {
-        // Skip setup until onboarding is complete.
         guard container.appSettings.hasCompletedOnboarding else { return }
+
+        // Consent synchronization must also run while the required gate is
+        // closed. That lets an offline withdrawal retry and lets returning beta
+        // users discover account evidence without repeating onboarding.
+        Task {
+            try? await container.consentManager.synchronizeWithCurrentSession()
+        }
+
+        // Do not initialize hardware or drain provider work until the current
+        // adult, Terms, and third-party AI evidence is complete.
+        guard container.consentManager.hasCurrentRequiredConsent else { return }
 
         container.usageManager.evaluateDailyRefresh()
         container.pushNotificationManager.setupDelegate()

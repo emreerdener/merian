@@ -2,10 +2,16 @@
 
 The `Security` directory owns client-side identity boundaries that are shared
 across features: stable device identity, Keychain-backed flags, paid RevenueCat
-state, server-verified complimentary entitlement, and trust-and-safety guards. Supabase Auth session
-creation and OAuth orchestration live in `Core/Network/SupabaseManager`; this
-directory provides the secure local primitives and external identity bindings
-used by that manager.
+state, server-verified complimentary entitlement, versioned adult/Terms/AI
+consent, account-wide optional analytics permission, and
+trust-and-safety guards. Supabase Auth session creation and OAuth orchestration
+live in `Core/Network/SupabaseManager`; this directory provides the secure local
+primitives and external identity bindings used by that manager.
+
+The consent model below is the required production contract, not a release
+approval. The current candidate remains blocked by the internal findings and
+external owner confirmations in the
+[production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 ## Components
 
@@ -20,6 +26,13 @@ used by that manager.
   monotonic entitlement version. It also serializes stable scan/account funding
   reservations on `@MainActor`; the exposed booleans are UI hints, not an
   admission transaction.
+- `ConsentManager` owns the append-only local ledger for adult confirmation,
+  Terms acceptance, every Google Gemini grant/revocation, and optional PostHog
+  grant/revocation. It binds offline records to the first anonymous account,
+  synchronizes immutable account-owned rows, hydrates cross-device state, and
+  requires cloud-ready adult/Terms/Gemini evidence before iOS constructs an
+  inference request. The database quota boundary remains the authoritative
+  provider-dispatch gate.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor
   connectivity into continuous foreground retries.
@@ -116,12 +129,15 @@ clear the proof and buffer.
 The accepted product, API, offline, and rollout rules are canonical in
 [Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
-## Security invariants
+## Required security invariants
+
+These invariants must all be demonstrated in a clean compiled test run before
+the strict server cutover or a production submission.
 
 - The Supabase Auth UUID remains the RevenueCat App User ID across anonymous and
   OAuth-upgraded sessions.
 - Normal sign-out is device-local and clears RevenueCat/PostHog identity without
-  revoking other devices.
+  changing the durable account-wide analytics choice on other devices.
 - Client SDK keys are extractable app configuration, never service-role or
   provider secrets.
 - The iOS target must never contain `REVENUECAT_WEBHOOK_SECRET`,
@@ -131,6 +147,20 @@ The accepted product, API, offline, and rollout rules are canonical in
   lookup failures fail closed before AI provider dispatch.
 - Complimentary entitlement is current-session server state, never a Keychain
   or `UserDefaults` authorization flag.
+- Local consent state closes the app gate immediately, but it cannot authorize
+  Gemini by itself. Current versioned adult confirmation, Terms, and Gemini
+  evidence must also exist at the service-only quota boundary before provider
+  dispatch.
+- Unsynchronized local consent actions must follow a ghost-to-permanent-account
+  merge, and a stale or cancelled account sync must never install evidence for a
+  different session.
+- PostHog must never be configured, identified, captured, or allowed to issue a
+  request before the latest active account event grants permission. Withdrawal
+  and account change must opt out and close the SDK without starting another
+  request, clear identity, and leave core functionality unchanged.
+- Realtime account-wide analytics changes must start reliably after session
+  establishment and recover after channel failure; foreground reconciliation is
+  a second safety net, not the only synchronization mechanism.
 - Errors and identity values use explicit unified-log privacy annotations.
 
 See

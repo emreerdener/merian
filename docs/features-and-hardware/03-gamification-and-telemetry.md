@@ -114,32 +114,42 @@ sort" closures. These primitives are defined in
 
 ## Secure Telemetry Ecosystem
 
-Merian uses PostHog as its single product analytics system with a strict privacy
-boundary:
+Merian uses PostHog as its optional product analytics system with an explicit,
+account-wide permission boundary:
 
-- **iOS app analytics (`AppTelemetry`)** — PII-free product metrics routed to
-  PostHog with preserved event names and `event_source = "ios_client"`.
+> [!WARNING]
+> The architecture below is the required release invariant. The current
+> candidate is blocked because PostHog iOS 3.69.0 `reset()` can reload feature
+> flags before opt-out, local pending withdrawals are not safely migrated across
+> every ghost-to-existing-account handoff, and account-transition/Realtime races
+> still require regression coverage. See the
+> [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
+
+- **iOS app analytics (`AppTelemetry`)** — pseudonymous product metrics routed
+  to PostHog only after permission, with preserved event names and
+  `event_source = "ios_client"`.
 - **PostHog identity (`PostHogManager`)** — user-identified session and
-  lifecycle tracking, linked to the Supabase UUID and dynamically upgraded to
-  include authenticated metadata (email and name) via backend `$set` properties.
+  lifecycle tracking linked only to the Supabase UUID. Edge capture does not
+  send auth email or name.
 
 ### Initialization
 
-`AppTelemetry.initialize()` is called synchronously in `MerianApp.init()` after
-the dependency container has invoked `SupabaseManager.shared`, whose initializer
-configures PostHog before auth listening begins.
-
-`PostHogManager.configure()` remains idempotent, so both `SupabaseManager` and
-`AppTelemetry` can safely call it without double setup. Restored-session
-identity can be linked without the cold-start race where auth emits before
-PostHog exists.
+`AppTelemetry.initialize()` prepares only the first-party facade during app
+startup; it does not configure PostHog. `ConsentManager` resolves the active
+account's latest `user_analytics_consent_events` state and is the sole SDK
+lifecycle authority. Only a current grant configures and identifies PostHog.
+Absence, revocation, account change, or unresolved account state must disable
+the facade, clear identity, opt out, and close the SDK without starting a new
+PostHog request. The readiness record documents where the candidate currently
+falls short.
 
 ### `AppTelemetry` (PostHog Facade)
 
 Thin enum wrapper around app product events. All sends go through a private
 `send(_:with:)` helper that checks `isInitialized`, adds
 `event_source = "ios_client"`, and captures through `PostHogManager`. The
-`isInitialized` flag is protected by `NSLock` for thread safety.
+`isInitialized` flag is protected by `NSLock` for thread safety and stays false
+without account permission.
 
 **Signal inventory:**
 
@@ -152,7 +162,7 @@ Thin enum wrapper around app product events. All sends go through a private
 | `ScanQueuedForSync`              | `trackOfflineQueued()`                                     | —                                                                                           | Scan successfully written to offline queue after `context.save()`                                |
 | `ExternalImageImport`            | `trackExternalImageImport(outcome:)`                       | `outcome`, `event_source`                                                                   | Photos document import is received, staged, temporarily blocked, or terminally rejected           |
 | `CaptureGoalIndicator`           | `trackCaptureGoalIndicator(action:source:)`                | `action: "shown"/"opened"/"next"/"previous"`, `source: "field_trip"`                  | Active capture goal is presented, opened, or changed                                              |
-| `OnboardingCompleted`            | `trackOnboardingCompleted()`                               | —                                                                                           | User taps Continue on the `.ready` onboarding step                                               |
+| `OnboardingCompleted`            | `trackOnboardingCompleted()`                               | —                                                                                           | User taps **Start scanning** on `.ready`; emitted only when optional analytics is enabled         |
 | `SpeciesDictionaryOpened`        | `trackSpeciesDictionaryOpened(entryPoint:)`                | `entryPoint`                                                                                | Species dictionary sheet opens                                                                   |
 | `SpeciesDictionaryPageLoaded`    | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"`                      | Species dictionary page loads a public dictionary row                                            |
 | `SpeciesDictionaryNotFound`      | `trackSpeciesDictionaryNotFound(entryPoint:)`              | `entryPoint`                                                                                | Species dictionary lookup returns no public row                                                  |
@@ -208,11 +218,17 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
 **iOS Client (`PostHogManager`)**:
 
 - Not `@MainActor` — thread-safe wrapper around `PostHogSDK.shared`.
+- Rejects configuration, identity, and capture before permission. The required
+  withdrawal/account-change path clears identity, persists opt-out, and closes
+  the SDK without calling a request-producing reset path. This remains
+  release-blocked on `CONSENT-001` and `CONSENT-007`.
 - Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()`
   guards on this flag and buffers the latest user ID if a future call races
   configuration.
 - `captureApplicationLifecycleEvents = true` for automatic foreground/background
-  tracking. `captureScreenViews` and `captureElementInteractions` are disabled —
+  tracking after permission. Replay, screen views, element interactions,
+  surveys, swizzling, and push-notification capture are explicitly disabled.
+  `captureScreenViews` and `captureElementInteractions` are disabled —
   the former causes iOS 18 layout constraint warnings by inserting
   `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
 - Uses `identify(userId:)` to link the Supabase Auth UUID alongside RevenueCat's
@@ -221,14 +237,18 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
 - Employs `#if targetEnvironment(simulator)` to alias all development sessions
   as a static `"simulator"` identifier, aggressively decoupling test telemetry
   from live production metrics.
-- Calls `reset()` when `SupabaseManager.shared.signOut()` clears local session
-  state for the current device.
+- `reset()` currently routes sign-out through the same blocked withdrawal
+  sequence. Before release, account transition must suspend capture before
+  installing another session and shut down without a feature-flag reload.
 
 **Edge Functions (`_shared/posthog.ts`)**:
 
 - Uses the standard PostHog HTTP `/capture/` API to dispatch `ScanCompleted`,
   `EnrichmentCompleted`, `EncyclopedicLLMCompleted`, `DiagnosticLLMCompleted`,
-  and `GroupTagsLLMCompleted` events directly from the Supabase backend.
+  and `GroupTagsLLMCompleted` events from the Supabase backend only after a
+  current account grant. Every call first checks the latest server-recorded
+  PostHog event and performs no PostHog request on absence, revocation, or
+  lookup failure.
 - Scan completion events attach AI metrics including `llm_model`,
   `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens`, and where
   available `llm_thinking_tokens` / `llm_cached_tokens` to `user.id` to provide

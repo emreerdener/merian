@@ -226,9 +226,16 @@ async function quotaIpHash(req: Request): Promise<string> {
   return hash;
 }
 
-function quotaErrorForDatabaseMessage(
+export function quotaErrorForDatabaseMessage(
   databaseMessage: string,
 ): AIQuotaError {
+  if (databaseMessage.includes("ai_consent_required")) {
+    return new AIQuotaError(
+      403,
+      "ai_consent_required",
+      "Confirm you are 18 or older, accept the current Terms, and allow Google Gemini processing to continue.",
+    );
+  }
   if (databaseMessage.includes("client_update_required")) {
     return new AIQuotaError(
       426,

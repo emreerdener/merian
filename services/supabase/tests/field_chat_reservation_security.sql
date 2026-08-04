@@ -342,6 +342,77 @@ SET email = EXCLUDED.email,
     subscription_tier = EXCLUDED.subscription_tier,
     subscription_expires_at = EXCLUDED.subscription_expires_at;
 
+INSERT INTO public.user_adult_eligibility_receipts (
+    id,
+    user_id,
+    policy_version,
+    confirmed_at,
+    confirmation_method,
+    confirmation_text,
+    platform,
+    app_version,
+    app_build
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fcf0',
+    '00000000-0000-4000-8000-00000000fc01',
+    '2026-08-03',
+    pg_catalog.NOW(),
+    'self_attestation',
+    'I confirm I am 18 or older.',
+    'ios',
+    '1.0.3',
+    '275'
+);
+
+INSERT INTO public.user_terms_acceptance_receipts (
+    id,
+    user_id,
+    terms_version,
+    accepted_at,
+    acceptance_text,
+    platform,
+    app_version,
+    app_build
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fcf1',
+    '00000000-0000-4000-8000-00000000fc01',
+    '2026-08-03',
+    pg_catalog.NOW(),
+    'I accept the terms and allow this data sharing.',
+    'ios',
+    '1.0.3',
+    '275'
+);
+
+INSERT INTO public.user_ai_consent_events (
+    id,
+    user_id,
+    provider,
+    disclosure_version,
+    event_kind,
+    occurred_at,
+    disclosure_text,
+    action_text,
+    platform,
+    app_version,
+    app_build
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fcf2',
+    '00000000-0000-4000-8000-00000000fc01',
+    'google_gemini',
+    '2026-08-03.1',
+    'granted',
+    pg_catalog.NOW(),
+    'Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.',
+    'I accept the terms and allow this data sharing.',
+    'ios',
+    '1.0.3',
+    '275'
+);
+
 INSERT INTO public.scans (
     id,
     user_id,

@@ -93,7 +93,7 @@ Explore post or public-media snapshot is created or reactivated, the function:
 Rejected classifications and any fetch, provider, configuration, or
 response-shape failure return an error and leave the prior Explore state
 unchanged; nothing is shared. Transcripts and non-speech descriptions are not
-persisted or logged. This path reuses the existing `GEMINI_API_KEY` Edge secret.
+persisted or logged. This path reuses the paid-project `GEMINI_PAID_API_KEY` Edge secret.
 Manual reports remain necessary because model moderation cannot guarantee
 complete detection. The immutable publication policy is a Gemini system
 instruction so speech or lyrics inside untrusted media cannot replace it.

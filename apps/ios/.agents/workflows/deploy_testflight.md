@@ -8,6 +8,15 @@ Use the repository's canonical
 [iOS publishing runbook](../../../../docs/development-guides/14-ios-release-versioning.md).
 This file is an agent entry point, not a second deployment procedure.
 
+> **Consent release hold:** Do not archive or distribute the current consent
+> candidate. First close `CONSENT-001` through `CONSENT-008` and obtain the clean
+> hosted exact-SHA iOS result required by the
+> [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
+> The corrected replacement build may then enter the bounded TestFlight rollout;
+> strict server cutover still waits for old-build expiration and deployed
+> verification. Public production additionally requires archived App Store 18+
+> and paid Gemini billing/DPA evidence.
+
 The distribution authority is Xcode Organizer, not an agent or GitHub Actions:
 
 1. Update a clean local `main` checkout and run `make xcodegen`.

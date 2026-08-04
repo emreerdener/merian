@@ -50,6 +50,17 @@ Parser failures use stable public codes:
 |  413 | `payload_too_large`                                                |
 |  415 | `unsupported_media_type`                                           |
 
+Provider-backed routes additionally return HTTP `403` with code
+`ai_consent_required` when the authenticated account lacks the current 18+
+self-attestation, lacks the current Terms receipt, lacks the current Google
+Gemini grant, or has a later Gemini revocation. During the bounded replacement
+build window the server accepts only a complete prior or complete current
+bundle; after owner-only strict cutover, only adult policy `2026-08-03`, Terms
+`2026-08-03`, and Gemini disclosure `2026-08-03.1` pass. This failure occurs at
+the common database quota boundary before provider dispatch; clients must return
+the user to the disclosure screen rather than retrying the same request in a
+loop.
+
 Edge errors return:
 
 ```json
@@ -92,7 +103,9 @@ client-transport calls; CI enumerates those adapter modules and verifies each
 call receives a deadline-bound `Request`.
 
 Telemetry follows the same rule even though it is best-effort. PostHog capture
-has a 2.5-second deadline. A timeout or oversized provider diagnostic is logged
+first resolves the account's latest immutable analytics grant or revocation and
+fails closed when permission is absent or cannot be resolved. A permitted
+capture has a 2.5-second deadline. A timeout or provider diagnostic is logged
 privately and does not become a raw public API error.
 
 ## Deno `/field-trips` Edge Node
@@ -4134,7 +4147,7 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   failures return `503`. Neither failure creates, reactivates, or changes a
   public post. Successful shares return `200` with
   `publication_status = published`. The transcript and non-speech description
-  are not persisted, and the Edge runtime reuses `GEMINI_API_KEY`. Cache
+  are not persisted, and the Edge runtime reuses `GEMINI_PAID_API_KEY`. Cache
   lookup/store failures degrade to live classification rather than approving by
   default.
 - iOS accepts a `200` share response only when `success` is true, `scan_id`

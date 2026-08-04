@@ -154,6 +154,114 @@ BEGIN
         created_at = EXCLUDED.created_at,
         subscription_tier = EXCLUDED.subscription_tier;
 
+    INSERT INTO public.user_adult_eligibility_receipts (
+        id,
+        user_id,
+        policy_version,
+        confirmed_at,
+        confirmation_method,
+        confirmation_text,
+        platform,
+        app_version,
+        app_build
+    )
+    VALUES
+        (
+            '00000000-0000-4000-8000-00000000a9a0',
+            test_user_id,
+            '2026-08-03',
+            pg_catalog.NOW(),
+            'self_attestation',
+            'I confirm I am 18 or older.',
+            'ios',
+            '1.0.3',
+            '275'
+        ),
+        (
+            '00000000-0000-4000-8000-00000000a9b0',
+            paid_user_id,
+            '2026-08-03',
+            pg_catalog.NOW(),
+            'self_attestation',
+            'I confirm I am 18 or older.',
+            'ios',
+            '1.0.3',
+            '275'
+        );
+
+    INSERT INTO public.user_terms_acceptance_receipts (
+        id,
+        user_id,
+        terms_version,
+        accepted_at,
+        acceptance_text,
+        platform,
+        app_version,
+        app_build
+    )
+    VALUES
+        (
+            '00000000-0000-4000-8000-00000000a9a1',
+            test_user_id,
+            '2026-08-03',
+            pg_catalog.NOW(),
+            'I accept the terms and allow this data sharing.',
+            'ios',
+            '1.0.3',
+            '275'
+        ),
+        (
+            '00000000-0000-4000-8000-00000000a9b1',
+            paid_user_id,
+            '2026-08-03',
+            pg_catalog.NOW(),
+            'I accept the terms and allow this data sharing.',
+            'ios',
+            '1.0.3',
+            '275'
+        );
+
+    INSERT INTO public.user_ai_consent_events (
+        id,
+        user_id,
+        provider,
+        disclosure_version,
+        event_kind,
+        occurred_at,
+        disclosure_text,
+        action_text,
+        platform,
+        app_version,
+        app_build
+    )
+    VALUES
+        (
+            '00000000-0000-4000-8000-00000000a9a2',
+            test_user_id,
+            'google_gemini',
+            '2026-08-03.1',
+            'granted',
+            pg_catalog.NOW(),
+            'Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.',
+            'I accept the terms and allow this data sharing.',
+            'ios',
+            '1.0.3',
+            '275'
+        ),
+        (
+            '00000000-0000-4000-8000-00000000a9b2',
+            paid_user_id,
+            'google_gemini',
+            '2026-08-03.1',
+            'granted',
+            pg_catalog.NOW(),
+            'Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.',
+            'I accept the terms and allow this data sharing.',
+            'ios',
+            '1.0.3',
+            '275'
+        );
+
     SELECT entitlement.entitlement_version
     INTO STRICT version_before_cutover
     FROM internal.resolve_effective_entitlement(test_user_id) AS entitlement;

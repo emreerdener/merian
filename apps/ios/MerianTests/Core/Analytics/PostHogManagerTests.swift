@@ -1,5 +1,5 @@
-import XCTest
 @testable import Merian
+import XCTest
 
 @MainActor
 final class PostHogManagerTests: XCTestCase {
@@ -8,6 +8,7 @@ final class PostHogManagerTests: XCTestCase {
 
     override func setUp() async throws {
         postHogManager = PostHogManager.shared
+        postHogManager.reset()
     }
 
     override func tearDown() async throws {
@@ -18,11 +19,18 @@ final class PostHogManagerTests: XCTestCase {
 
     func testManagerInitializationAndBindings() {
         XCTAssertNotNil(postHogManager)
-        
-        // Ensure manual bind limits execute directly without breaking boundaries
+
+        XCTAssertFalse(postHogManager.hasConsent)
+        XCTAssertFalse(postHogManager.isCaptureEnabled)
+
+        // Identity is rejected while analytics permission is absent.
         postHogManager.identifyUser(userId: "testing_bound_uuid")
-        
-        // Assert we can wipe that same boundary
+
+        postHogManager.setConsentGranted(true, userId: "testing_bound_uuid")
+        XCTAssertTrue(postHogManager.hasConsent)
+
         postHogManager.reset()
+        XCTAssertFalse(postHogManager.hasConsent)
+        XCTAssertFalse(postHogManager.isCaptureEnabled)
     }
 }

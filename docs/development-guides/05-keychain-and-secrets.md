@@ -17,7 +17,7 @@ Merian.
 | `SUPABASE_ANON_KEY`                                | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
 | `REVENUECAT_API_KEY`                               | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift`       | Read-only build config, not secret; production export should use an iOS `appl_` key                                |
 | `POSTHOG_API_KEY`                                  | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
-| `GEMINI_API_KEY`                                   | Supabase Edge secret only                                                     | Never in iOS bundle                                                                                                |
+| `GEMINI_PAID_API_KEY`                              | Supabase Edge secret; must be rotated from the owner-confirmed billing-enabled Google Cloud project | Never in iOS bundle; current billing/DPA evidence is unverified                                                     |
 | `AI_QUOTA_IP_HASH_SECRET`                          | Optional GitHub Production override synchronized to Supabase Edge             | Dedicated HMAC key for rotating network quota buckets; never in clients or logs                                    |
 | `DWCA_PSEUDONYM_HMAC_KEY_V1`                       | GitHub `Production` secret synchronized to Supabase Edge                      | Base64 32-byte-or-longer HMAC key for versioned global-export user pseudonyms                                      |
 | `REVENUECAT_WEBHOOK_SECRET`                        | GitHub `Production` secret synchronized to Supabase Edge                      | Random webhook Authorization credential; never use the public iOS key                                              |
@@ -108,7 +108,11 @@ Merian uses two different categories of keys/configuration:
 `Info.plist`, iOS `.xcconfig` file, client component, or `NEXT_PUBLIC_` web
 environment variable.**
 
-- `GEMINI_API_KEY` — lives exclusively in Supabase Edge secrets. The iOS binary
+- `GEMINI_PAID_API_KEY` — must come from the approved billing-enabled Google
+  Cloud project and live exclusively in Supabase Edge secrets. The variable name
+  is not evidence: billing and DPA status remain unverified until the Cloud owner
+  archives confirmation, rotates the key, synchronizes it, smoke-tests it, and
+  revokes the prior key. The iOS binary
   has no knowledge of this key. All Gemini calls go through Supabase Edge
   inference endpoints, primarily `/identify-multimodal`; legacy `/identify`,
   `/identify-describe`, and `/audio-spec` remain server-side compatibility

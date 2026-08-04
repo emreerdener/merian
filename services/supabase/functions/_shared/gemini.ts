@@ -2,13 +2,33 @@ import { Content, GoogleGenAI } from "@google/genai";
 
 export const GEMINI_REQUEST_TIMEOUT_MS = 90_000;
 
-// Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
-export const _genAI = new GoogleGenAI({
-  apiKey: Deno.env.get("GEMINI_API_KEY")!,
-  httpOptions: {
-    timeout: GEMINI_REQUEST_TIMEOUT_MS,
+let paidGeminiClient: GoogleGenAI | null = null;
+
+function getPaidGeminiClient(): GoogleGenAI {
+  if (paidGeminiClient) return paidGeminiClient;
+
+  const apiKey = Deno.env.get("GEMINI_PAID_API_KEY")?.trim();
+  if (!apiKey) {
+    throw new Error("GEMINI_PAID_API_KEY is not configured.");
+  }
+
+  // Instantiated once per warm isolate after the first provider dispatch. Lazy
+  // construction keeps unit tests and non-provider routes hermetic while still
+  // failing closed before any Gemini request when the paid key is absent.
+  paidGeminiClient = new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      timeout: GEMINI_REQUEST_TIMEOUT_MS,
+    },
+  });
+  return paidGeminiClient;
+}
+
+export const _genAI: Pick<GoogleGenAI, "models"> = {
+  get models() {
+    return getPaidGeminiClient().models;
   },
-});
+};
 
 /**
  * Creates a thin Flash model wrapper for text-only structured-output calls

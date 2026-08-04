@@ -897,6 +897,10 @@ final class MerianNetworkClient {
     var overridingSession: URLSession? {
         didSet { resetSpeciesDictionaryCacheForTesting() }
     }
+
+    /// Keeps request-construction tests independent from Supabase while still
+    /// allowing dedicated tests to prove that consent failures stop dispatch.
+    var overridingInferenceConsentCheck: (@Sendable () async throws -> Void)?
     #endif
 
     private var activeSession: URLSession {
@@ -904,6 +908,16 @@ final class MerianNetworkClient {
         if let overridingSession { return overridingSession }
         #endif
         return session
+    }
+
+    private func ensureInferenceConsent() async throws {
+        #if DEBUG
+        if let overridingInferenceConsentCheck {
+            try await overridingInferenceConsentCheck()
+            return
+        }
+        #endif
+        try await ConsentManager.shared.ensureCloudConsentForInference()
     }
 
     /// Dedicated session with sensible timeouts, connection limits, and TLS pinning.
@@ -1734,6 +1748,7 @@ final class MerianNetworkClient {
         description: String? = nil,
         observationContextJSON: String? = nil
     ) async throws -> URLRequest {
+        try await ensureInferenceConsent()
         let functionUrl = try endpointURL("identify")
         let context = await makeInferenceRequestContext(telemetry: telemetry)
         let capturedR2ObjectKeys = r2ObjectKeys
@@ -1762,6 +1777,7 @@ final class MerianNetworkClient {
     }
 
     func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil, description: String? = nil, observationContextJSON: String? = nil) async throws -> Data {
+        try await ensureInferenceConsent()
         let functionUrl = try endpointURL("identify")
         let context = await makeInferenceRequestContext(telemetry: telemetry)
         let capturedR2ObjectKeys = r2ObjectKeys
@@ -1864,6 +1880,7 @@ final class MerianNetworkClient {
         clientScanId: String,
         preferredGoal: FieldTripPreferredGoal? = nil
     ) async throws -> URLRequest {
+        try await ensureInferenceConsent()
         let functionUrl = try endpointURL("identify-multimodal")
         let context = await makeInferenceRequestContext(telemetry: telemetry)
         let capturedR2ObjectKeys = r2ObjectKeys

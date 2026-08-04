@@ -20,7 +20,7 @@ durable app-sandbox copy before Capture begins this pipeline:
 2. **Durable Acceptance**: `OfflineQueueManager` persists the ordered media timeline and one stable `scan_id` before live inference. Eligible online work also persists a single-use foreground inference UUID on its scan-ingestion job; the live provider, persistence, UI, and cleanup paths carry that exact owner. An eligible live-camera still scan is temporarily excluded from background upload so it does not compete with the inline request.
 3. **Biological Inference (`InferenceEngine.swift`)**: The pinned network client
    sends all current still, gallery, audio, Describe, mixed-media, and video
-   submissions to `/identify-multimodal`, keeping `GEMINI_API_KEY` off the
+   submissions to `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY` off the
    client. The eligible live-camera still path first gives shutter-prefetched
    environmental context at most 150 ms; request-body completion then releases
    its durable queue source for R2/background recovery. Late context is applied

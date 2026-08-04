@@ -536,9 +536,11 @@ struct MerianApp: App {
     // MARK: - Lifecycle Bootstrapping
     @MainActor
     init() {
-        let appSettings = AppDIContainer.shared.appSettings
+        let dependencies = AppDIContainer.shared
+        let appSettings = dependencies.appSettings
         shouldOpenExploreOnFreshLaunch = AppLaunchPresentationPolicy.shouldOpenExplore(
-            hasCompletedOnboarding: appSettings.hasCompletedOnboarding,
+            hasCompletedOnboarding: appSettings.hasCompletedOnboarding
+                && dependencies.consentManager.hasCurrentRequiredConsent,
             opensExploreOnLaunch: appSettings.opensExploreOnLaunch
         )
 
@@ -576,8 +578,9 @@ struct MerianApp: App {
         if !TestExecutionCoordinator.isRunningTests {
             FieldTripEventsAvailability.logRolloutState()
 
-            // Initialize the app analytics facade after PostHog has been configured
-            // by SupabaseManager, before startup recovery can emit its event.
+            // Prepare the app analytics facade without starting PostHog. Startup
+            // recovery telemetry is intentionally dropped unless a previously
+            // granted account permission has already activated the sink.
             AppTelemetry.initialize()
             if let telemetryEvent = bootstrapOutcome.telemetryEvent {
                 AppTelemetry.trackStartupStoreRecovery(
@@ -1213,10 +1216,12 @@ struct MerianApp: App {
     var body: some Scene {
         WindowGroup {
             let appSettings = diContainer.appSettings
+            let consentManager = diContainer.consentManager
             Group {
                 if let container {
                     Group {
-                        if appSettings.hasCompletedOnboarding {
+                        if appSettings.hasCompletedOnboarding
+                            && consentManager.hasCurrentRequiredConsent {
                             CaptureWorkspaceView(
                                 appSettings: appSettings,
                                 opensExploreOnFreshLaunch: shouldOpenExploreOnFreshLaunch

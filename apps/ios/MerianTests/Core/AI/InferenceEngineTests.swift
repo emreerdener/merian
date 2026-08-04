@@ -18,6 +18,7 @@ struct InferenceEngineTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.overridingInferenceConsentCheck = {}
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
         UserDefaults.standard.set(
             MerianConfig.localLookalikesCacheResetVersion,

@@ -19,7 +19,7 @@ export default function PrivacyPolicyPage() {
       eyebrow="Naturebook legal"
       title="Privacy Policy"
       description="This policy explains what Naturebook collects, how it is used, and the controls available to you."
-      lastUpdated="August 2, 2026"
+      lastUpdated="August 3, 2026"
     >
       <LegalSection title="Overview">
         <Text>
@@ -39,6 +39,14 @@ export default function PrivacyPolicyPage() {
               anonymous device identity, Supabase user id, and, if you sign in,
               account details such as email, name, and avatar from Apple or
               Google.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              <strong>Adult confirmation:</strong>{" "}
+              the exact 18-or-older statement you confirm, its policy version,
+              confirmation time and method, platform, and app version. We do
+              not collect your birth date or exact age for this confirmation.
             </Text>
           </li>
           <li>
@@ -78,8 +86,14 @@ export default function PrivacyPolicyPage() {
           <li>
             <Text>
               <strong>Analytics and diagnostics:</strong>{" "}
-              app events, device state, crashes, performance signals, feature
-              usage, and support communications.
+              if you turn on the optional Analytics &amp; diagnostics control,
+              PostHog receives app events, a pseudonymous account identifier,
+              app and device state, coarse locale or region, performance and
+              reliability signals, feature usage, and event properties about
+              how a feature performed. Session replay, automatic screen views,
+              element capture, surveys, SDK swizzling, and push-notification
+              capture are disabled. Support communications are handled
+              separately when you contact us.
             </Text>
           </li>
           <li>
@@ -123,8 +137,8 @@ export default function PrivacyPolicyPage() {
             Naturebook does not persist the transcript or model description.
           </li>
           <li>
-            Understand app reliability, usage, subscription status, and feature
-            health.
+            When you separately allow optional analytics, understand app
+            reliability, usage, subscription status, and feature health.
           </li>
         </LegalList>
       </LegalSection>
@@ -177,6 +191,21 @@ export default function PrivacyPolicyPage() {
           PostHog, and Resend. These providers process information only as
           needed to provide, secure, analyze, or support Naturebook.
         </Text>
+        <Text>
+          Naturebook sends scan data to Google Gemini, a third-party AI
+          service, for identification and related AI features. Depending on the
+          feature, this may include photos, sampled video frames and video
+          audio, audio clips, written descriptions and questions, prior result
+          context, exact coordinates, elevation, approximate place information,
+          weather and temperature, capture time and month, locale, time zone,
+          region, and camera or observation context. The app requires your
+          affirmative permission before this sharing.
+        </Text>
+        <Text>
+          PostHog receives the optional analytics and diagnostics categories
+          described above only after an account-wide grant. Absence of a grant
+          means PostHog analytics are off.
+        </Text>
       </LegalSection>
 
       <LegalSection title="Your Choices">
@@ -190,6 +219,17 @@ export default function PrivacyPolicyPage() {
             photo to Naturebook.
           </li>
           <li>Change geoprivacy settings in Naturebook.</li>
+          <li>
+            Withdraw future Google Gemini scan processing in Naturebook
+            Settings. Identification remains unavailable until you grant the
+            required permission again.
+          </li>
+          <li>
+            Turn optional PostHog analytics on or off using Analytics &amp;
+            diagnostics in Naturebook Settings. Withdrawal applies immediately
+            on the current device, synchronizes across devices for your account,
+            and does not affect core functionality.
+          </li>
           <li>Unshare Explore posts or delete scans in the app.</li>
           <li>
             Stop or reset an unfinished Field trip to hide its active status
@@ -234,7 +274,9 @@ export default function PrivacyPolicyPage() {
         <Text>
           Naturebook is not directed to people under 18. If you believe a child
           has provided personal information without appropriate consent, contact
-          us so we can review and delete it where required.
+          us so we can review and delete it where required. Before scanning, the
+          app requires users to self-attest that they are 18 or older; it does
+          not collect a birth date or exact age for that confirmation.
         </Text>
       </LegalSection>
 

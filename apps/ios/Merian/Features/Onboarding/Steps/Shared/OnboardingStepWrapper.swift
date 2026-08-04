@@ -1,5 +1,37 @@
 import SwiftUI
 
+// MARK: - Normalized Illustration Stage
+struct OnboardingIllustration: View {
+    static let stageSize: CGFloat = 320
+    static let topPadding: CGFloat = 64
+
+    let imageName: String
+
+    private var scale: CGFloat {
+        switch imageName {
+        case "journal": 1.1
+        case "camera": 1.3
+        case "location": 1.2
+        case "bird-magnifier": 1.4
+        default: 1
+        }
+    }
+
+    private var horizontalOffset: CGFloat {
+        imageName == "bird-magnifier" ? -26 : 0
+    }
+
+    var body: some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: Self.stageSize, height: Self.stageSize)
+            .scaleEffect(scale)
+            .offset(x: horizontalOffset)
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Core Feature Presentation Primitive
 struct OnboardingStepWrapper: View {
     // MARK: - Visual Asset Matrix
@@ -18,10 +50,6 @@ struct OnboardingStepWrapper: View {
     let primaryButtonColor: SwiftUI.Color
     let primaryAction: () -> Void
 
-    // MARK: - Required Agreement
-    var termsAgreement: Binding<Bool>?
-    var termsURL: URL?
-    
     // MARK: - Secondary Action Fallback
     var secondaryButtonTitle: String?
     var secondaryAction: (() -> Void)?
@@ -38,95 +66,74 @@ struct OnboardingStepWrapper: View {
                 .background(primaryButtonColor)
                 .clipShape(Capsule())
         }
-        .disabled(isPrimaryButtonDisabled)
-        .opacity(isPrimaryButtonDisabled ? 0.45 : 1)
-        .animation(.easeInOut(duration: 0.2), value: isPrimaryButtonDisabled)
-        .accessibilityHint(isPrimaryButtonDisabled ? "Agree to the terms to continue" : "")
-    }
-
-    private var isPrimaryButtonDisabled: Bool {
-        termsAgreement?.wrappedValue == false
     }
 
     @ViewBuilder
-    private var termsAgreementView: some View {
-        if let termsAgreement, let termsURL {
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    termsAgreement.wrappedValue.toggle()
-                } label: {
-                    Label {
-                        Text("I agree to the terms")
-                            .font(.subheadline.weight(.medium))
-                    } icon: {
-                        Image(systemName: termsAgreement.wrappedValue ? "checkmark.square.fill" : "square")
-                            .font(.title3)
-                            .foregroundStyle(termsAgreement.wrappedValue ? Color.accentColor : Color.secondary)
-                    }
-                    .foregroundStyle(Color.primary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("I agree to the Terms of Service")
-                .accessibilityValue(termsAgreement.wrappedValue ? "Selected" : "Not selected")
-
-                Link("View the full Terms of Service", destination: termsURL)
-                    .font(.footnote.weight(.semibold))
-                    .padding(.leading, 32)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var illustration: some View {
+        if let imageName {
+            OnboardingIllustration(imageName: imageName)
+        } else if let iconColor, let iconCornerRadius, let iconText {
+            Rectangle()
+                .fill(iconColor)
+                .frame(width: 300, height: 300)
+                .clipShape(RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous))
+                .overlay(Text(iconText).foregroundColor(SwiftUI.Color.gray))
+                .frame(width: OnboardingIllustration.stageSize, height: OnboardingIllustration.stageSize)
+                .accessibilityHidden(true)
         }
     }
 
     // MARK: - Visual Layout
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            
-            // 1. Central Graphic Core
-            if let imageName = imageName {
-                Image(imageName)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(.horizontal, 32)
-            } else if let iconColor = iconColor, let iconCornerRadius = iconCornerRadius, let iconText = iconText {
-                Rectangle()
-                    .fill(iconColor)
-                    .frame(width: 300, height: 300)
-                    .clipShape(RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous))
-                    .overlay(Text(iconText).foregroundColor(SwiftUI.Color.gray))
-            }
-            
-            // 2. Messaging Display
-            VStack(spacing: 16) {
-                Text(title)
-                    .font(.system(size: 44, weight: .bold))
-                    .foregroundColor(SwiftUI.Color.primary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                
-                Text(subtitle)
-                    .font(.body)
-                    .foregroundColor(SwiftUI.Color.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 32)
-            }
-            
-            // 3. Agreements and Action Buttons
-            VStack(spacing: 24) {
-                termsAgreementView
-                primaryButton
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    // 1. Central Graphic Core
+                    illustration
+                        .padding(.top, OnboardingIllustration.topPadding)
 
-                if let secondaryTitle = secondaryButtonTitle, let secondaryAction = secondaryAction {
-                    Button(action: secondaryAction) {
-                        Text(secondaryTitle)
-                            .font(.subheadline)
+                    // 2. Messaging Display
+                    VStack(spacing: 16) {
+                        Text(title)
+                            .font(.system(size: 44, weight: .bold))
+                            .foregroundColor(SwiftUI.Color.primary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(subtitle)
+                            .font(.body)
                             .foregroundColor(SwiftUI.Color.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 32)
+                    }
+                    .padding(.top, 24)
+
+                    Spacer(minLength: 24)
+
+                    // 3. Action Buttons
+                    if let secondaryTitle = secondaryButtonTitle, let secondaryAction = secondaryAction {
+                        VStack(spacing: 24) {
+                            primaryButton
+                            Button(action: secondaryAction) {
+                                Text(secondaryTitle)
+                                    .font(.subheadline)
+                                    .foregroundColor(SwiftUI.Color.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 32)
+                    } else {
+                        primaryButton
+                            .padding(.horizontal, 32)
+                            .padding(.bottom, 64)
                     }
                 }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geometry.size.height)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, secondaryButtonTitle == nil ? 64 : 32)
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }

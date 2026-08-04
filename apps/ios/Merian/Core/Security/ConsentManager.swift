@@ -1,0 +1,1353 @@
+import Foundation
+import Observation
+import Supabase
+
+enum ConsentPolicy {
+    static let termsVersion = "2026-08-03"
+    static let adultEligibilityVersion = "2026-08-03"
+    static let geminiDisclosureVersion = "2026-08-03.1"
+    static let analyticsDisclosureVersion = "2026-08-03"
+    static let geminiProvider = "google_gemini"
+    static let analyticsProvider = "posthog"
+
+    static let adultConfirmationText = """
+    I confirm I am 18 or older.
+    """
+
+    static let geminiDisclosureText = """
+    Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.
+    """
+
+    static let combinedAcceptanceText = """
+    I accept the terms and allow this data sharing.
+    """
+
+    static let geminiWithdrawalText = """
+    I withdraw permission for Google Gemini to process future observations.
+    """
+
+    static let analyticsDisclosureText = """
+    Share app usage and diagnostics with PostHog to help improve Naturebook. Optional.
+    """
+
+    static let analyticsWithdrawalText = """
+    I withdraw permission for PostHog to process future app usage and diagnostics.
+    """
+}
+
+@MainActor
+@Observable
+final class ConsentManager {
+    enum AdultConfirmationMethod: String, Codable {
+        case selfAttestation = "self_attestation"
+    }
+
+    enum AIConsentEventKind: String, Codable {
+        case granted
+        case revoked
+    }
+
+    enum AnalyticsConsentEventKind: String, Codable {
+        case granted
+        case revoked
+    }
+
+    private enum LocalLedgerCodingKeys: String, CodingKey {
+        case activeUserId
+        case termsReceipts
+        case aiConsentEvents
+        case adultEligibilityReceipts
+        case analyticsConsentEvents
+    }
+
+    struct AdultEligibilityReceipt: Codable, Equatable {
+        let id: UUID
+        var ownerUserId: UUID?
+        var syncedUserId: UUID?
+        let policyVersion: String
+        let confirmedAt: Date
+        let confirmationMethod: AdultConfirmationMethod
+        let confirmationText: String
+        let platform: String
+        let appVersion: String
+        let appBuild: String
+        var recordedAt: Date?
+    }
+
+    struct TermsAcceptanceReceipt: Codable, Equatable {
+        let id: UUID
+        var ownerUserId: UUID?
+        var syncedUserId: UUID?
+        let termsVersion: String
+        let acceptedAt: Date
+        let acceptanceText: String
+        let platform: String
+        let appVersion: String
+        let appBuild: String
+        var recordedAt: Date?
+    }
+
+    struct AIConsentEvent: Codable, Equatable {
+        let id: UUID
+        var ownerUserId: UUID?
+        var syncedUserId: UUID?
+        let provider: String
+        let disclosureVersion: String
+        let eventKind: AIConsentEventKind
+        let occurredAt: Date
+        let disclosureText: String
+        let actionText: String
+        let platform: String
+        let appVersion: String
+        let appBuild: String
+        var recordedAt: Date?
+    }
+
+    struct AnalyticsConsentEvent: Codable, Equatable {
+        let id: UUID
+        var ownerUserId: UUID?
+        var syncedUserId: UUID?
+        let provider: String
+        let disclosureVersion: String
+        let eventKind: AnalyticsConsentEventKind
+        let occurredAt: Date
+        let disclosureText: String
+        let actionText: String
+        let platform: String
+        let appVersion: String
+        let appBuild: String
+        var recordedAt: Date?
+    }
+
+    private struct LocalLedger: Codable {
+        var activeUserId: UUID?
+        var termsReceipts: [TermsAcceptanceReceipt]
+        var aiConsentEvents: [AIConsentEvent]
+        var adultEligibilityReceipts: [AdultEligibilityReceipt]
+        var analyticsConsentEvents: [AnalyticsConsentEvent]
+
+        static let empty = LocalLedger(
+            activeUserId: nil,
+            termsReceipts: [],
+            aiConsentEvents: [],
+            adultEligibilityReceipts: [],
+            analyticsConsentEvents: []
+        )
+
+        init(
+            activeUserId: UUID?,
+            termsReceipts: [TermsAcceptanceReceipt],
+            aiConsentEvents: [AIConsentEvent],
+            adultEligibilityReceipts: [AdultEligibilityReceipt],
+            analyticsConsentEvents: [AnalyticsConsentEvent]
+        ) {
+            self.activeUserId = activeUserId
+            self.termsReceipts = termsReceipts
+            self.aiConsentEvents = aiConsentEvents
+            self.adultEligibilityReceipts = adultEligibilityReceipts
+            self.analyticsConsentEvents = analyticsConsentEvents
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: LocalLedgerCodingKeys.self)
+            activeUserId = try container.decodeIfPresent(UUID.self, forKey: .activeUserId)
+            termsReceipts = try container.decodeIfPresent(
+                [TermsAcceptanceReceipt].self,
+                forKey: .termsReceipts
+            ) ?? []
+            aiConsentEvents = try container.decodeIfPresent(
+                [AIConsentEvent].self,
+                forKey: .aiConsentEvents
+            ) ?? []
+            adultEligibilityReceipts = try container.decodeIfPresent(
+                [AdultEligibilityReceipt].self,
+                forKey: .adultEligibilityReceipts
+            ) ?? []
+            analyticsConsentEvents = try container.decodeIfPresent(
+                [AnalyticsConsentEvent].self,
+                forKey: .analyticsConsentEvents
+            ) ?? []
+        }
+    }
+
+    private struct AdultEligibilityReceiptInsert: Encodable {
+        let id: UUID
+        let user_id: UUID
+        let policy_version: String
+        let confirmed_at: String
+        let confirmation_method: String
+        let confirmation_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+    }
+
+    private struct TermsReceiptInsert: Encodable {
+        let id: UUID
+        let user_id: UUID
+        let terms_version: String
+        let accepted_at: String
+        let acceptance_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+    }
+
+    private struct AIConsentEventInsert: Encodable {
+        let id: UUID
+        let user_id: UUID
+        let provider: String
+        let disclosure_version: String
+        let event_kind: String
+        let occurred_at: String
+        let disclosure_text: String
+        let action_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+    }
+
+    private struct AnalyticsConsentEventInsert: Encodable {
+        let id: UUID
+        let user_id: UUID
+        let provider: String
+        let disclosure_version: String
+        let event_kind: String
+        let occurred_at: String
+        let disclosure_text: String
+        let action_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+    }
+
+    private struct CloudAdultEligibilityReceipt: Decodable {
+        let id: UUID
+        let user_id: UUID
+        let policy_version: String
+        let confirmed_at: String
+        let confirmation_method: String
+        let confirmation_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+        let recorded_at: String
+    }
+
+    private struct CloudTermsReceipt: Decodable {
+        let id: UUID
+        let user_id: UUID
+        let terms_version: String
+        let accepted_at: String
+        let acceptance_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+        let recorded_at: String
+    }
+
+    private struct CloudAIConsentEvent: Decodable {
+        let id: UUID
+        let user_id: UUID
+        let provider: String
+        let disclosure_version: String
+        let event_kind: String
+        let occurred_at: String
+        let disclosure_text: String
+        let action_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+        let recorded_at: String
+    }
+
+    private struct CloudAnalyticsConsentEvent: Decodable {
+        let id: UUID
+        let user_id: UUID
+        let provider: String
+        let disclosure_version: String
+        let event_kind: String
+        let occurred_at: String
+        let disclosure_text: String
+        let action_text: String
+        let platform: String
+        let app_version: String
+        let app_build: String
+        let recorded_at: String
+    }
+
+    private struct RemoteState {
+        let adultEligibilityReceipt: AdultEligibilityReceipt?
+        let termsReceipt: TermsAcceptanceReceipt?
+        let aiConsentEvent: AIConsentEvent?
+        let analyticsConsentEvent: AnalyticsConsentEvent?
+
+        var hasEvidence: Bool {
+            adultEligibilityReceipt != nil
+                || termsReceipt != nil
+                || aiConsentEvent != nil
+                || analyticsConsentEvent != nil
+        }
+    }
+
+    static let shared = ConsentManager()
+
+    private(set) var currentSessionUserId: UUID?
+    private(set) var hasConfirmedCurrentAdultEligibility = false
+    private(set) var hasAcceptedCurrentTerms = false
+    private(set) var hasGrantedCurrentGeminiProcessing = false
+    private(set) var hasGrantedCurrentPostHogAnalytics = false
+
+    var hasCurrentRequiredConsent: Bool {
+        let accountMatches = currentSessionUserId == nil
+            || ledger.activeUserId == nil
+            || currentSessionUserId == ledger.activeUserId
+        return accountMatches
+            && hasConfirmedCurrentAdultEligibility
+            && hasAcceptedCurrentTerms
+            && hasGrantedCurrentGeminiProcessing
+    }
+
+    var pendingCloudRecordCount: Int {
+        let activeUserId = ledger.activeUserId
+        let pendingAdultReceipts = ledger.adultEligibilityReceipts.filter {
+            guard $0.ownerUserId == activeUserId else { return false }
+            if let activeUserId {
+                return $0.syncedUserId != activeUserId
+            }
+            return true
+        }.count
+        let pendingTerms = ledger.termsReceipts.filter {
+            guard $0.ownerUserId == activeUserId else { return false }
+            if let activeUserId {
+                return $0.syncedUserId != activeUserId
+            }
+            return true
+        }.count
+        let pendingEvents = ledger.aiConsentEvents.filter {
+            guard $0.ownerUserId == activeUserId else { return false }
+            if let activeUserId {
+                return $0.syncedUserId != activeUserId
+            }
+            return true
+        }.count
+        let pendingAnalyticsEvents = ledger.analyticsConsentEvents.filter {
+            guard $0.ownerUserId == activeUserId else { return false }
+            if let activeUserId {
+                return $0.syncedUserId != activeUserId
+            }
+            return true
+        }.count
+        return pendingAdultReceipts
+            + pendingTerms
+            + pendingEvents
+            + pendingAnalyticsEvents
+    }
+
+    @ObservationIgnored private let userDefaults: UserDefaults
+    @ObservationIgnored private var ledger: LocalLedger
+    @ObservationIgnored private var hasObservedSession = false
+    @ObservationIgnored private var scheduledSyncTask: Task<Void, Never>?
+    @ObservationIgnored private var activeSyncTask: Task<Void, Error>?
+    @ObservationIgnored private var activeSyncUserId: UUID?
+    @ObservationIgnored private var analyticsConsentChannel: RealtimeChannelV2?
+    @ObservationIgnored private var analyticsConsentListenerTask: Task<Void, Never>?
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        if let data = userDefaults.data(forKey: UserDefaultsKeys.legalConsentLedger),
+           let decoded = try? JSONDecoder().decode(LocalLedger.self, from: data) {
+            self.ledger = decoded
+        } else {
+            self.ledger = .empty
+        }
+        refreshDerivedState()
+    }
+
+    deinit {
+        scheduledSyncTask?.cancel()
+        activeSyncTask?.cancel()
+        analyticsConsentListenerTask?.cancel()
+    }
+
+    func confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+        analyticsEnabled: Bool
+    ) {
+        let now = Date()
+        let ownerUserId = currentSessionUserId
+        if ledger.activeUserId != ownerUserId {
+            ledger.activeUserId = ownerUserId
+        }
+
+        if currentAdultEligibilityReceipt(ownerUserId: ownerUserId) == nil {
+            ledger.adultEligibilityReceipts.append(AdultEligibilityReceipt(
+                id: UUID(),
+                ownerUserId: ownerUserId,
+                syncedUserId: nil,
+                policyVersion: ConsentPolicy.adultEligibilityVersion,
+                confirmedAt: now,
+                confirmationMethod: .selfAttestation,
+                confirmationText: ConsentPolicy.adultConfirmationText,
+                platform: "ios",
+                appVersion: Self.appVersion,
+                appBuild: Self.appBuild,
+                recordedAt: nil
+            ))
+        }
+
+        if currentTermsReceipt(ownerUserId: ownerUserId) == nil {
+            ledger.termsReceipts.append(TermsAcceptanceReceipt(
+                id: UUID(),
+                ownerUserId: ownerUserId,
+                syncedUserId: nil,
+                termsVersion: ConsentPolicy.termsVersion,
+                acceptedAt: now,
+                acceptanceText: ConsentPolicy.combinedAcceptanceText,
+                platform: "ios",
+                appVersion: Self.appVersion,
+                appBuild: Self.appBuild,
+                recordedAt: nil
+            ))
+        }
+
+        if currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind != .granted {
+            ledger.aiConsentEvents.append(AIConsentEvent(
+                id: UUID(),
+                ownerUserId: ownerUserId,
+                syncedUserId: nil,
+                provider: ConsentPolicy.geminiProvider,
+                disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
+                eventKind: .granted,
+                occurredAt: now,
+                disclosureText: ConsentPolicy.geminiDisclosureText,
+                actionText: ConsentPolicy.combinedAcceptanceText,
+                platform: "ios",
+                appVersion: Self.appVersion,
+                appBuild: Self.appBuild,
+                recordedAt: nil
+            ))
+        }
+
+        appendAnalyticsConsentEventIfNeeded(
+            enabled: analyticsEnabled,
+            ownerUserId: ownerUserId,
+            occurredAt: now
+        )
+
+        persistAndRefresh()
+        applyAnalyticsPermissionToSDK()
+        scheduleSynchronization(createAnonymousSessionIfNeeded: true)
+    }
+
+    func setPostHogAnalyticsEnabled(_ enabled: Bool) {
+        let ownerUserId = currentSessionUserId ?? ledger.activeUserId
+        if ledger.activeUserId != ownerUserId {
+            ledger.activeUserId = ownerUserId
+        }
+
+        guard appendAnalyticsConsentEventIfNeeded(
+            enabled: enabled,
+            ownerUserId: ownerUserId,
+            occurredAt: Date()
+        ) else {
+            applyAnalyticsPermissionToSDK()
+            return
+        }
+
+        persistAndRefresh()
+        applyAnalyticsPermissionToSDK()
+        scheduleSynchronization(createAnonymousSessionIfNeeded: enabled)
+    }
+
+    func withdrawGeminiPermission() {
+        guard hasGrantedCurrentGeminiProcessing else { return }
+
+        let ownerUserId = currentSessionUserId ?? ledger.activeUserId
+        ledger.activeUserId = ownerUserId
+        ledger.aiConsentEvents.append(AIConsentEvent(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: nil,
+            provider: ConsentPolicy.geminiProvider,
+            disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
+            eventKind: .revoked,
+            occurredAt: Date(),
+            disclosureText: ConsentPolicy.geminiDisclosureText,
+            actionText: ConsentPolicy.geminiWithdrawalText,
+            platform: "ios",
+            appVersion: Self.appVersion,
+            appBuild: Self.appBuild,
+            recordedAt: nil
+        ))
+
+        persistAndRefresh()
+        scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+    }
+
+    func observeSession(userId: UUID?) {
+        let previousUserId = currentSessionUserId
+        hasObservedSession = true
+        currentSessionUserId = userId
+        refreshDerivedState()
+        applyAnalyticsPermissionToSDK()
+
+        if previousUserId != userId {
+            restartAnalyticsConsentUpdates(for: userId)
+        }
+
+        guard userId != nil else { return }
+        scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+    }
+
+    func ensureCloudConsentForInference() async throws {
+        guard hasCurrentRequiredConsent else {
+            throw MerianError.aiConsentRequired
+        }
+
+        await SupabaseManager.shared.initializeGhostSession()
+        let userId = try await SupabaseManager.shared.client.auth.session.user.id
+        currentSessionUserId = userId
+        refreshDerivedState()
+
+        guard hasCurrentRequiredConsent else {
+            throw MerianError.aiConsentRequired
+        }
+
+        try await synchronize(for: userId)
+        guard hasCloudReadyCurrentConsent(for: userId) else {
+            throw MerianError.aiConsentRequired
+        }
+    }
+
+    func synchronizeWithCurrentSession() async throws {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+        let userId = try await SupabaseManager.shared.client.auth.session.user.id
+        currentSessionUserId = userId
+        refreshDerivedState()
+        try await synchronize(for: userId)
+    }
+
+    private func scheduleSynchronization(createAnonymousSessionIfNeeded: Bool) {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+        scheduledSyncTask?.cancel()
+        scheduledSyncTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            if createAnonymousSessionIfNeeded {
+                await SupabaseManager.shared.initializeGhostSession()
+            }
+            try? await self.synchronizeWithCurrentSession()
+        }
+    }
+
+    private func synchronize(for userId: UUID) async throws {
+        if let activeSyncTask, activeSyncUserId == userId {
+            try await activeSyncTask.value
+            return
+        }
+
+        if activeSyncUserId != userId {
+            activeSyncTask?.cancel()
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try await self.performSynchronization(for: userId)
+        }
+        activeSyncTask = task
+        activeSyncUserId = userId
+
+        do {
+            try await task.value
+            if activeSyncUserId == userId {
+                activeSyncTask = nil
+                activeSyncUserId = nil
+            }
+        } catch {
+            if activeSyncUserId == userId {
+                activeSyncTask = nil
+                activeSyncUserId = nil
+            }
+            throw error
+        }
+    }
+
+    private func performSynchronization(for userId: UUID) async throws {
+        guard currentSessionUserId == userId else { return }
+
+        if ledger.activeUserId == nil,
+           ledger.adultEligibilityReceipts.contains(where: { $0.ownerUserId == nil })
+                || ledger.termsReceipts.contains(where: { $0.ownerUserId == nil })
+                || ledger.aiConsentEvents.contains(where: { $0.ownerUserId == nil })
+                || ledger.analyticsConsentEvents.contains(where: { $0.ownerUserId == nil }) {
+            bindUnownedRecords(to: userId)
+        }
+
+        if ledger.activeUserId == userId {
+            try await pushPendingRecords(for: userId)
+            let remoteState = try await fetchRemoteState(for: userId)
+            merge(remoteState, for: userId)
+            return
+        }
+
+        let remoteState = try await fetchRemoteState(for: userId)
+        guard remoteState.hasEvidence else {
+            refreshDerivedState()
+            return
+        }
+        merge(remoteState, for: userId)
+    }
+
+    private func bindUnownedRecords(to userId: UUID) {
+        ledger.activeUserId = userId
+        for index in ledger.adultEligibilityReceipts.indices
+        where ledger.adultEligibilityReceipts[index].ownerUserId == nil {
+            ledger.adultEligibilityReceipts[index].ownerUserId = userId
+        }
+        for index in ledger.termsReceipts.indices where ledger.termsReceipts[index].ownerUserId == nil {
+            ledger.termsReceipts[index].ownerUserId = userId
+        }
+        for index in ledger.aiConsentEvents.indices where ledger.aiConsentEvents[index].ownerUserId == nil {
+            ledger.aiConsentEvents[index].ownerUserId = userId
+        }
+        for index in ledger.analyticsConsentEvents.indices
+        where ledger.analyticsConsentEvents[index].ownerUserId == nil {
+            ledger.analyticsConsentEvents[index].ownerUserId = userId
+        }
+        persistAndRefresh()
+        applyAnalyticsPermissionToSDK()
+    }
+
+    private func pushPendingRecords(for userId: UUID) async throws {
+        let adultReceipts = ledger.adultEligibilityReceipts.filter {
+            $0.ownerUserId == userId && $0.syncedUserId != userId
+        }
+        for receipt in adultReceipts {
+            try Task.checkCancellation()
+            let synchronizedReceipt = try await insertAdultEligibilityReceipt(
+                receipt,
+                for: userId
+            )
+            if let index = ledger.adultEligibilityReceipts.firstIndex(where: {
+                $0.id == receipt.id
+            }) {
+                ledger.adultEligibilityReceipts[index] = synchronizedReceipt
+            }
+            persistAndRefresh()
+        }
+
+        let termsReceipts = ledger.termsReceipts.filter {
+            $0.ownerUserId == userId && $0.syncedUserId != userId
+        }
+        for receipt in termsReceipts {
+            try Task.checkCancellation()
+            let synchronizedReceipt = try await insertTermsReceipt(
+                receipt,
+                for: userId
+            )
+            if let index = ledger.termsReceipts.firstIndex(where: { $0.id == receipt.id }) {
+                ledger.termsReceipts[index] = synchronizedReceipt
+            }
+            persistAndRefresh()
+        }
+
+        let events = ledger.aiConsentEvents.filter {
+            $0.ownerUserId == userId && $0.syncedUserId != userId
+        }
+        for event in events {
+            try Task.checkCancellation()
+            let synchronizedEvent = try await insertAIConsentEvent(
+                event,
+                for: userId
+            )
+            if let index = ledger.aiConsentEvents.firstIndex(where: { $0.id == event.id }) {
+                ledger.aiConsentEvents[index] = synchronizedEvent
+            }
+            persistAndRefresh()
+        }
+
+        let analyticsEvents = ledger.analyticsConsentEvents.filter {
+            $0.ownerUserId == userId && $0.syncedUserId != userId
+        }
+        for event in analyticsEvents {
+            try Task.checkCancellation()
+            let synchronizedEvent = try await insertAnalyticsConsentEvent(
+                event,
+                for: userId
+            )
+            if let index = ledger.analyticsConsentEvents.firstIndex(where: {
+                $0.id == event.id
+            }) {
+                ledger.analyticsConsentEvents[index] = synchronizedEvent
+            }
+            persistAndRefresh()
+        }
+    }
+
+    private func insertAdultEligibilityReceipt(
+        _ receipt: AdultEligibilityReceipt,
+        for userId: UUID
+    ) async throws -> AdultEligibilityReceipt {
+        let row = AdultEligibilityReceiptInsert(
+            id: receipt.id,
+            user_id: userId,
+            policy_version: receipt.policyVersion,
+            confirmed_at: Self.timestamp(receipt.confirmedAt),
+            confirmation_method: receipt.confirmationMethod.rawValue,
+            confirmation_text: receipt.confirmationText,
+            platform: receipt.platform,
+            app_version: receipt.appVersion,
+            app_build: receipt.appBuild
+        )
+
+        do {
+            try await SupabaseManager.shared.client
+                .from("user_adult_eligibility_receipts")
+                .insert(row)
+                .execute()
+        } catch {
+            guard let existingReceipt = try await fetchAdultEligibilityReceipt(
+                id: receipt.id,
+                userId: userId
+            ) else {
+                throw error
+            }
+            return existingReceipt
+        }
+
+        guard let insertedReceipt = try await fetchAdultEligibilityReceipt(
+            id: receipt.id,
+            userId: userId
+        ) else {
+            throw MerianError.aiConsentRequired
+        }
+        return insertedReceipt
+    }
+
+    private func insertTermsReceipt(
+        _ receipt: TermsAcceptanceReceipt,
+        for userId: UUID
+    ) async throws -> TermsAcceptanceReceipt {
+        let row = TermsReceiptInsert(
+            id: receipt.id,
+            user_id: userId,
+            terms_version: receipt.termsVersion,
+            accepted_at: Self.timestamp(receipt.acceptedAt),
+            acceptance_text: receipt.acceptanceText,
+            platform: receipt.platform,
+            app_version: receipt.appVersion,
+            app_build: receipt.appBuild
+        )
+
+        do {
+            try await SupabaseManager.shared.client
+                .from("user_terms_acceptance_receipts")
+                .insert(row)
+                .execute()
+        } catch {
+            guard let existingReceipt = try await fetchTermsReceipt(
+                id: receipt.id,
+                userId: userId
+            ) else {
+                throw error
+            }
+            return existingReceipt
+        }
+
+        guard let insertedReceipt = try await fetchTermsReceipt(
+            id: receipt.id,
+            userId: userId
+        ) else {
+            throw MerianError.aiConsentRequired
+        }
+        return insertedReceipt
+    }
+
+    private func insertAIConsentEvent(
+        _ event: AIConsentEvent,
+        for userId: UUID
+    ) async throws -> AIConsentEvent {
+        let row = AIConsentEventInsert(
+            id: event.id,
+            user_id: userId,
+            provider: event.provider,
+            disclosure_version: event.disclosureVersion,
+            event_kind: event.eventKind.rawValue,
+            occurred_at: Self.timestamp(event.occurredAt),
+            disclosure_text: event.disclosureText,
+            action_text: event.actionText,
+            platform: event.platform,
+            app_version: event.appVersion,
+            app_build: event.appBuild
+        )
+
+        do {
+            try await SupabaseManager.shared.client
+                .from("user_ai_consent_events")
+                .insert(row)
+                .execute()
+        } catch {
+            guard let existingEvent = try await fetchAIConsentEvent(
+                id: event.id,
+                userId: userId
+            ) else {
+                throw error
+            }
+            return existingEvent
+        }
+
+        guard let insertedEvent = try await fetchAIConsentEvent(
+            id: event.id,
+            userId: userId
+        ) else {
+            throw MerianError.aiConsentRequired
+        }
+        return insertedEvent
+    }
+
+    private func insertAnalyticsConsentEvent(
+        _ event: AnalyticsConsentEvent,
+        for userId: UUID
+    ) async throws -> AnalyticsConsentEvent {
+        let row = AnalyticsConsentEventInsert(
+            id: event.id,
+            user_id: userId,
+            provider: event.provider,
+            disclosure_version: event.disclosureVersion,
+            event_kind: event.eventKind.rawValue,
+            occurred_at: Self.timestamp(event.occurredAt),
+            disclosure_text: event.disclosureText,
+            action_text: event.actionText,
+            platform: event.platform,
+            app_version: event.appVersion,
+            app_build: event.appBuild
+        )
+
+        do {
+            try await SupabaseManager.shared.client
+                .from("user_analytics_consent_events")
+                .insert(row)
+                .execute()
+        } catch {
+            guard let existingEvent = try await fetchAnalyticsConsentEvent(
+                id: event.id,
+                userId: userId
+            ) else {
+                throw error
+            }
+            return existingEvent
+        }
+
+        guard let insertedEvent = try await fetchAnalyticsConsentEvent(
+            id: event.id,
+            userId: userId
+        ) else {
+            throw MerianError.aiConsentRequired
+        }
+        return insertedEvent
+    }
+
+    private func fetchAdultEligibilityReceipt(
+        id: UUID,
+        userId: UUID
+    ) async throws -> AdultEligibilityReceipt? {
+        let rows: [CloudAdultEligibilityReceipt] = try await SupabaseManager.shared.client
+            .from("user_adult_eligibility_receipts")
+            .select("id,user_id,policy_version,confirmed_at,confirmation_method,confirmation_text,platform,app_version,app_build,recorded_at")
+            .eq("id", value: id)
+            .eq("user_id", value: userId)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first.flatMap(Self.localAdultEligibilityReceipt)
+    }
+
+    private func fetchTermsReceipt(
+        id: UUID,
+        userId: UUID
+    ) async throws -> TermsAcceptanceReceipt? {
+        let rows: [CloudTermsReceipt] = try await SupabaseManager.shared.client
+            .from("user_terms_acceptance_receipts")
+            .select("id,user_id,terms_version,accepted_at,acceptance_text,platform,app_version,app_build,recorded_at")
+            .eq("id", value: id)
+            .eq("user_id", value: userId)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first.flatMap(Self.localTermsReceipt)
+    }
+
+    private func fetchAIConsentEvent(
+        id: UUID,
+        userId: UUID
+    ) async throws -> AIConsentEvent? {
+        let rows: [CloudAIConsentEvent] = try await SupabaseManager.shared.client
+            .from("user_ai_consent_events")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .eq("id", value: id)
+            .eq("user_id", value: userId)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first.flatMap(Self.localAIConsentEvent)
+    }
+
+    private func fetchAnalyticsConsentEvent(
+        id: UUID,
+        userId: UUID
+    ) async throws -> AnalyticsConsentEvent? {
+        let rows: [CloudAnalyticsConsentEvent] = try await SupabaseManager.shared.client
+            .from("user_analytics_consent_events")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .eq("id", value: id)
+            .eq("user_id", value: userId)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first.flatMap(Self.localAnalyticsConsentEvent)
+    }
+
+    private func fetchRemoteState(for userId: UUID) async throws -> RemoteState {
+        async let adultRows: [CloudAdultEligibilityReceipt] = SupabaseManager.shared.client
+            .from("user_adult_eligibility_receipts")
+            .select("id,user_id,policy_version,confirmed_at,confirmation_method,confirmation_text,platform,app_version,app_build,recorded_at")
+            .eq("user_id", value: userId)
+            .eq("policy_version", value: ConsentPolicy.adultEligibilityVersion)
+            .order("recorded_at", ascending: false)
+            .order("id", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        async let termsRows: [CloudTermsReceipt] = SupabaseManager.shared.client
+            .from("user_terms_acceptance_receipts")
+            .select("id,user_id,terms_version,accepted_at,acceptance_text,platform,app_version,app_build,recorded_at")
+            .eq("user_id", value: userId)
+            .eq("terms_version", value: ConsentPolicy.termsVersion)
+            .order("recorded_at", ascending: false)
+            .order("id", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        async let eventRows: [CloudAIConsentEvent] = SupabaseManager.shared.client
+            .from("user_ai_consent_events")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .eq("user_id", value: userId)
+            .eq("provider", value: ConsentPolicy.geminiProvider)
+            .eq("disclosure_version", value: ConsentPolicy.geminiDisclosureVersion)
+            .order("recorded_at", ascending: false)
+            .order("id", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        async let analyticsRows: [CloudAnalyticsConsentEvent] = SupabaseManager.shared.client
+            .from("user_analytics_consent_events")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .eq("user_id", value: userId)
+            .eq("provider", value: ConsentPolicy.analyticsProvider)
+            .eq("disclosure_version", value: ConsentPolicy.analyticsDisclosureVersion)
+            .order("recorded_at", ascending: false)
+            .order("id", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        let adultEligibilityReceipt = try await adultRows.first.flatMap(
+            Self.localAdultEligibilityReceipt
+        )
+        let termsReceipt = try await termsRows.first.flatMap(Self.localTermsReceipt)
+        let aiConsentEvent = try await eventRows.first.flatMap(Self.localAIConsentEvent)
+        let analyticsConsentEvent = try await analyticsRows.first.flatMap(
+            Self.localAnalyticsConsentEvent
+        )
+        return RemoteState(
+            adultEligibilityReceipt: adultEligibilityReceipt,
+            termsReceipt: termsReceipt,
+            aiConsentEvent: aiConsentEvent,
+            analyticsConsentEvent: analyticsConsentEvent
+        )
+    }
+
+    private func merge(_ remoteState: RemoteState, for userId: UUID) {
+        if let receipt = remoteState.adultEligibilityReceipt {
+            if let index = ledger.adultEligibilityReceipts.firstIndex(where: {
+                $0.id == receipt.id
+            }) {
+                ledger.adultEligibilityReceipts[index] = receipt
+            } else {
+                ledger.adultEligibilityReceipts.append(receipt)
+            }
+        }
+
+        if let receipt = remoteState.termsReceipt {
+            if let index = ledger.termsReceipts.firstIndex(where: { $0.id == receipt.id }) {
+                ledger.termsReceipts[index] = receipt
+            } else {
+                ledger.termsReceipts.append(receipt)
+            }
+        }
+
+        if let event = remoteState.aiConsentEvent {
+            if let index = ledger.aiConsentEvents.firstIndex(where: { $0.id == event.id }) {
+                ledger.aiConsentEvents[index] = event
+            } else {
+                ledger.aiConsentEvents.append(event)
+            }
+        }
+
+        if let event = remoteState.analyticsConsentEvent {
+            if let index = ledger.analyticsConsentEvents.firstIndex(where: {
+                $0.id == event.id
+            }) {
+                ledger.analyticsConsentEvents[index] = event
+            } else {
+                ledger.analyticsConsentEvents.append(event)
+            }
+        }
+
+        ledger.activeUserId = userId
+        persistAndRefresh()
+        applyAnalyticsPermissionToSDK()
+    }
+
+    private func hasCloudReadyCurrentConsent(for userId: UUID) -> Bool {
+        guard ledger.activeUserId == userId,
+              currentAdultEligibilityReceipt(ownerUserId: userId)?.syncedUserId == userId,
+              currentTermsReceipt(ownerUserId: userId)?.syncedUserId == userId,
+              let event = currentAIConsentEvent(ownerUserId: userId) else {
+            return false
+        }
+        return event.eventKind == .granted && event.syncedUserId == userId
+    }
+
+    private func currentTermsReceipt(ownerUserId: UUID?) -> TermsAcceptanceReceipt? {
+        ledger.termsReceipts
+            .filter {
+                $0.ownerUserId == ownerUserId
+                    && $0.termsVersion == ConsentPolicy.termsVersion
+            }
+            .max { lhs, rhs in
+                (lhs.recordedAt ?? lhs.acceptedAt) < (rhs.recordedAt ?? rhs.acceptedAt)
+            }
+    }
+
+    private func currentAdultEligibilityReceipt(
+        ownerUserId: UUID?
+    ) -> AdultEligibilityReceipt? {
+        ledger.adultEligibilityReceipts
+            .filter {
+                $0.ownerUserId == ownerUserId
+                    && $0.policyVersion == ConsentPolicy.adultEligibilityVersion
+            }
+            .max { lhs, rhs in
+                (lhs.recordedAt ?? lhs.confirmedAt) < (rhs.recordedAt ?? rhs.confirmedAt)
+            }
+    }
+
+    private func currentAIConsentEvent(ownerUserId: UUID?) -> AIConsentEvent? {
+        let matchingEvents = ledger.aiConsentEvents.filter {
+            $0.ownerUserId == ownerUserId
+                && $0.provider == ConsentPolicy.geminiProvider
+                && $0.disclosureVersion == ConsentPolicy.geminiDisclosureVersion
+        }
+
+        // A newly appended device action is authoritative for the local gate
+        // until the server assigns its ordering timestamp. This keeps an
+        // offline withdrawal immediate even if the device clock moves back.
+        if let pendingEvent = matchingEvents.last(where: {
+            $0.syncedUserId == nil || $0.syncedUserId != $0.ownerUserId
+        }) {
+            return pendingEvent
+        }
+
+        return matchingEvents.max { lhs, rhs in
+            let lhsDate = lhs.recordedAt ?? lhs.occurredAt
+            let rhsDate = rhs.recordedAt ?? rhs.occurredAt
+            if lhsDate == rhsDate {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhsDate < rhsDate
+        }
+    }
+
+    private func currentAnalyticsConsentEvent(
+        ownerUserId: UUID?
+    ) -> AnalyticsConsentEvent? {
+        let matchingEvents = ledger.analyticsConsentEvents.filter {
+            $0.ownerUserId == ownerUserId
+                && $0.provider == ConsentPolicy.analyticsProvider
+                && $0.disclosureVersion == ConsentPolicy.analyticsDisclosureVersion
+        }
+
+        // A local withdrawal must win immediately while it is waiting for the
+        // account-wide event stream to assign its server ordering timestamp.
+        if let pendingEvent = matchingEvents.last(where: {
+            $0.syncedUserId == nil || $0.syncedUserId != $0.ownerUserId
+        }) {
+            return pendingEvent
+        }
+
+        return matchingEvents.max { lhs, rhs in
+            let lhsDate = lhs.recordedAt ?? lhs.occurredAt
+            let rhsDate = rhs.recordedAt ?? rhs.occurredAt
+            if lhsDate == rhsDate {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhsDate < rhsDate
+        }
+    }
+
+    @discardableResult
+    private func appendAnalyticsConsentEventIfNeeded(
+        enabled: Bool,
+        ownerUserId: UUID?,
+        occurredAt: Date
+    ) -> Bool {
+        let currentEvent = currentAnalyticsConsentEvent(ownerUserId: ownerUserId)
+        let currentlyEnabled = currentEvent?.eventKind == .granted
+        guard currentlyEnabled != enabled else { return false }
+
+        // No event is needed for the privacy-safe default state.
+        guard enabled || currentEvent != nil else { return false }
+
+        ledger.analyticsConsentEvents.append(AnalyticsConsentEvent(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: nil,
+            provider: ConsentPolicy.analyticsProvider,
+            disclosureVersion: ConsentPolicy.analyticsDisclosureVersion,
+            eventKind: enabled ? .granted : .revoked,
+            occurredAt: occurredAt,
+            disclosureText: ConsentPolicy.analyticsDisclosureText,
+            actionText: enabled
+                ? ConsentPolicy.analyticsDisclosureText
+                : ConsentPolicy.analyticsWithdrawalText,
+            platform: "ios",
+            appVersion: Self.appVersion,
+            appBuild: Self.appBuild,
+            recordedAt: nil
+        ))
+        return true
+    }
+
+    private func persistAndRefresh() {
+        if let data = try? JSONEncoder().encode(ledger) {
+            userDefaults.set(data, forKey: UserDefaultsKeys.legalConsentLedger)
+        }
+        refreshDerivedState()
+    }
+
+    private func refreshDerivedState() {
+        let ownerUserId: UUID?
+        if let currentSessionUserId {
+            ownerUserId = currentSessionUserId
+        } else if hasObservedSession {
+            // Once auth has explicitly resolved to no session, never expose a
+            // prior account's choices. Nil still permits a newly completed,
+            // not-yet-bound local action to remain effective until ghost auth
+            // assigns it an account UUID.
+            ownerUserId = nil
+        } else {
+            // During cold-start auth restoration, use the persisted account
+            // evidence provisionally. The first auth event either confirms it
+            // or immediately closes every gate for a different account.
+            ownerUserId = ledger.activeUserId
+        }
+        hasConfirmedCurrentAdultEligibility =
+            currentAdultEligibilityReceipt(ownerUserId: ownerUserId) != nil
+        hasAcceptedCurrentTerms = currentTermsReceipt(ownerUserId: ownerUserId) != nil
+        hasGrantedCurrentGeminiProcessing =
+            currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
+        hasGrantedCurrentPostHogAnalytics =
+            currentAnalyticsConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
+    }
+
+    private func applyAnalyticsPermissionToSDK() {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+
+        let ownerUserId = ledger.activeUserId
+        let accountMatches: Bool
+        if let ownerUserId {
+            accountMatches = currentSessionUserId == ownerUserId
+        } else {
+            accountMatches = currentSessionUserId == nil
+        }
+
+        let shouldEnable = accountMatches && hasGrantedCurrentPostHogAnalytics
+        PostHogManager.shared.setConsentGranted(
+            shouldEnable,
+            userId: shouldEnable
+                ? (currentSessionUserId ?? ownerUserId)?.uuidString
+                : nil
+        )
+        AppTelemetry.setAnalyticsConsentEnabled(
+            PostHogManager.shared.isCaptureEnabled
+        )
+    }
+
+    private func restartAnalyticsConsentUpdates(for userId: UUID?) {
+        analyticsConsentListenerTask?.cancel()
+        analyticsConsentListenerTask = nil
+
+        if let channel = analyticsConsentChannel {
+            analyticsConsentChannel = nil
+            Task {
+                await SupabaseManager.shared.client.removeChannel(channel)
+            }
+        }
+
+        guard let userId,
+              !TestExecutionCoordinator.isRunningTests else {
+            return
+        }
+
+        let channel = SupabaseManager.shared.client.channel(
+            "legal-analytics-consent-\(userId.uuidString)-\(UUID().uuidString)"
+        )
+        let changes = channel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "user_analytics_consent_events",
+            filter: .eq("user_id", value: userId.uuidString)
+        )
+        analyticsConsentChannel = channel
+
+        analyticsConsentListenerTask = Task { @MainActor [weak self] in
+            do {
+                try await channel.subscribeWithError()
+                for await _ in changes {
+                    guard !Task.isCancelled,
+                          self?.currentSessionUserId == userId else {
+                        break
+                    }
+                    try? await self?.synchronize(for: userId)
+                }
+            } catch {
+                MerianLog.general.debug(
+                    "Analytics consent Realtime subscription failed: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+            await SupabaseManager.shared.client.removeChannel(channel)
+        }
+    }
+
+    private static func localAdultEligibilityReceipt(
+        _ row: CloudAdultEligibilityReceipt
+    ) -> AdultEligibilityReceipt? {
+        guard let method = AdultConfirmationMethod(rawValue: row.confirmation_method),
+              let confirmedAt = date(row.confirmed_at),
+              let recordedAt = date(row.recorded_at) else {
+            return nil
+        }
+        return AdultEligibilityReceipt(
+            id: row.id,
+            ownerUserId: row.user_id,
+            syncedUserId: row.user_id,
+            policyVersion: row.policy_version,
+            confirmedAt: confirmedAt,
+            confirmationMethod: method,
+            confirmationText: row.confirmation_text,
+            platform: row.platform,
+            appVersion: row.app_version,
+            appBuild: row.app_build,
+            recordedAt: recordedAt
+        )
+    }
+
+    private static func localTermsReceipt(
+        _ row: CloudTermsReceipt
+    ) -> TermsAcceptanceReceipt? {
+        guard let acceptedAt = date(row.accepted_at),
+              let recordedAt = date(row.recorded_at) else {
+            return nil
+        }
+        return TermsAcceptanceReceipt(
+            id: row.id,
+            ownerUserId: row.user_id,
+            syncedUserId: row.user_id,
+            termsVersion: row.terms_version,
+            acceptedAt: acceptedAt,
+            acceptanceText: row.acceptance_text,
+            platform: row.platform,
+            appVersion: row.app_version,
+            appBuild: row.app_build,
+            recordedAt: recordedAt
+        )
+    }
+
+    private static func localAIConsentEvent(
+        _ row: CloudAIConsentEvent
+    ) -> AIConsentEvent? {
+        guard let eventKind = AIConsentEventKind(rawValue: row.event_kind),
+              let occurredAt = date(row.occurred_at),
+              let recordedAt = date(row.recorded_at) else {
+            return nil
+        }
+        return AIConsentEvent(
+            id: row.id,
+            ownerUserId: row.user_id,
+            syncedUserId: row.user_id,
+            provider: row.provider,
+            disclosureVersion: row.disclosure_version,
+            eventKind: eventKind,
+            occurredAt: occurredAt,
+            disclosureText: row.disclosure_text,
+            actionText: row.action_text,
+            platform: row.platform,
+            appVersion: row.app_version,
+            appBuild: row.app_build,
+            recordedAt: recordedAt
+        )
+    }
+
+    private static func localAnalyticsConsentEvent(
+        _ row: CloudAnalyticsConsentEvent
+    ) -> AnalyticsConsentEvent? {
+        guard let eventKind = AnalyticsConsentEventKind(rawValue: row.event_kind),
+              let occurredAt = date(row.occurred_at),
+              let recordedAt = date(row.recorded_at) else {
+            return nil
+        }
+        return AnalyticsConsentEvent(
+            id: row.id,
+            ownerUserId: row.user_id,
+            syncedUserId: row.user_id,
+            provider: row.provider,
+            disclosureVersion: row.disclosure_version,
+            eventKind: eventKind,
+            occurredAt: occurredAt,
+            disclosureText: row.disclosure_text,
+            actionText: row.action_text,
+            platform: row.platform,
+            appVersion: row.app_version,
+            appBuild: row.app_build,
+            recordedAt: recordedAt
+        )
+    }
+
+    private static func timestamp(_ date: Date) -> String {
+        date.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+    }
+
+    private static func date(_ timestamp: String) -> Date? {
+        if let date = try? Date(
+            timestamp,
+            strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        ) {
+            return date
+        }
+        return try? Date(
+            timestamp,
+            strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: false)
+        )
+    }
+
+    private static var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+    }
+
+    private static var appBuild: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+    }
+}

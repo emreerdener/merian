@@ -3764,10 +3764,94 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
   );
 });
 
+Deno.test("production consent documentation preserves the release hold and exit contract", async () => {
+  const [
+    canonical,
+    root,
+    docsIndex,
+    changelog,
+    onboarding,
+    product,
+    legal,
+    runbook,
+    backend,
+    api,
+    secrets,
+    releaseVersioning,
+    testflightEntry,
+    edgeDeploymentEntry,
+  ] = await Promise.all([
+    read("docs/legal/production-consent-readiness-2026-08-03.md"),
+    read("README.md"),
+    read("docs/README.md"),
+    read("CHANGELOG.md"),
+    read("docs/features-and-hardware/04-onboarding.md"),
+    read("docs/product/01-master-product-document.md"),
+    read("docs/legal/terms-counsel-review.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("services/supabase/README.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/development-guides/05-keychain-and-secrets.md"),
+    read("docs/development-guides/14-ios-release-versioning.md"),
+    read("apps/ios/.agents/workflows/deploy_testflight.md"),
+    read("apps/ios/.agents/workflows/deploy_edge_functions.md"),
+  ]);
+
+  const canonicalCompact = compact(canonical);
+  for (
+    const fragment of [
+      "**Blocked.**",
+      "Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.",
+      "I confirm I am 18 or older.",
+      "I accept the terms and allow this data sharing.",
+      "Share app usage and diagnostics with PostHog to help improve Naturebook. Optional.",
+      "adult policy and Terms versions are `2026-08-03`",
+      "Gemini disclosure version is `2026-08-03.1`",
+      "Apple App Review Guideline 5.1.2(i)",
+      "Cloud project with active billing",
+      "Production remains blocked until both the internal and external sections are closed",
+    ]
+  ) {
+    assertStringIncludes(canonicalCompact, fragment);
+  }
+  for (let index = 1; index <= 8; index += 1) {
+    assertStringIncludes(
+      canonical,
+      `CONSENT-00${index}`,
+    );
+  }
+
+  const readinessPath = "production-consent-readiness-2026-08-03.md";
+  for (
+    const source of [
+      root,
+      docsIndex,
+      changelog,
+      onboarding,
+      product,
+      legal,
+      runbook,
+      backend,
+      releaseVersioning,
+      testflightEntry,
+      edgeDeploymentEntry,
+    ]
+  ) {
+    assertStringIncludes(source, readinessPath);
+  }
+  assertStringIncludes(compact(api), "current 18+ self-attestation");
+  assertStringIncludes(
+    compact(secrets),
+    "billing and DPA status remain unverified",
+  );
+});
+
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {
   const maintainedFiles = [
+    "CHANGELOG.md",
     "README.md",
     "apps/admin/README.md",
+    "apps/ios/.agents/workflows/deploy_edge_functions.md",
     "apps/ios/.agents/workflows/deploy_testflight.md",
     "apps/ios/.agents/workflows/revenuecat_entitlements.md",
     "apps/ios/AppStore/ReleaseNotes/1.0.3.md",
@@ -3776,6 +3860,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "apps/ios/Merian/Core/Data/README.md",
     "apps/ios/Merian/Core/Network/README.md",
     "apps/ios/Merian/Core/Security/README.md",
+    "apps/ios/Merian/Features/Onboarding/Steps/README.md",
     "apps/ios/Merian/Features/Capture/Submission/README.md",
     "apps/ios/Merian/Features/Explore/Feed/README.md",
     "apps/ios/Merian/Features/Insights/Chat/README.md",
@@ -3804,6 +3889,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/18-complimentary-pro-scans.md",
     "docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md",
     "docs/codebase-map.md",
+    "docs/development-guides/02-app-lifecycle.md",
     "docs/development-guides/04-logging-and-debugging.md",
     "docs/development-guides/05-keychain-and-secrets.md",
     "docs/development-guides/06-error-handling.md",
@@ -3816,6 +3902,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/features-and-hardware/05-insight-sheet.md",
     "docs/features-and-hardware/02-revenue-and-identity.md",
     "docs/features-and-hardware/03-gamification-and-telemetry.md",
+    "docs/features-and-hardware/04-onboarding.md",
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/features-and-hardware/14-explore-author-profiles.md",
@@ -3832,6 +3919,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/incidents/2026-07-video-scan-canonical-finalization-regression.md",
     "docs/incidents/2026-07-xcode-export-build-number-rewrite.md",
     "docs/legal/terms-counsel-review.md",
+    "docs/legal/production-consent-readiness-2026-08-03.md",
     "docs/product/01-master-product-document.md",
     "docs/rfcs/active-capture-goal-context.md",
     "docs/system-architecture/01-system-architecture.md",

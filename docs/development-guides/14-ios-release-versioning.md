@@ -1,6 +1,17 @@
 # iOS Release Versioning and Xcode Organizer Runbook
 
-Last updated: July 31, 2026
+Last updated: August 3, 2026
+
+## Active Consent Release Hold
+
+Do not archive or distribute the current consent candidate. Close
+`CONSENT-001` through `CONSENT-008` and obtain the clean hosted exact-SHA iOS
+evidence defined by the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
+Only the corrected replacement build may enter the bounded TestFlight rollout.
+Public production also remains blocked on archived App Store 18+ and paid
+Gemini billing/DPA evidence. This hold adds prerequisites; it does not change
+the Organizer-only distribution authority below.
 
 ## Policy
 

@@ -638,7 +638,7 @@ separate from biological identification:
    deterministic PNG spectrogram and snapshots its URL into both post-owned and
    normalized scan media. Thumbnail failure is non-blocking and retains the
    speaker fallback.
-6. The Edge deployment reuses `GEMINI_API_KEY`. Transcripts and non-speech
+6. The Edge deployment reuses `GEMINI_PAID_API_KEY`. Transcripts and non-speech
    descriptions remain in function memory and are not written to Postgres,
    logs, or client payloads.
 

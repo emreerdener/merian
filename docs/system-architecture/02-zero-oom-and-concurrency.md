@@ -385,13 +385,15 @@ invocation blocks, orchestrating OS bindings behind UX gates.
 On a fresh cold-boot, SwiftUI evaluates the global `WindowGroup` environment and
 transitions `Environment(\.scenePhase)` from `.inactive` to `.active`.
 `MerianApp` observes this trigger and executes wake-up logic through
-`AppLifecycleManager` (bootstrapping `cameraManager.startSession()` and syncing
-offline records). Because this lifecycle hook fires milliseconds before the
+`AppLifecycleManager`. Camera session startup remains owned by the Capture
+workspace rather than the lifecycle manager. Because this phase hook fires milliseconds before the
 first `OnboardingView` renders, it previously bypassed Onboarding gating,
 forcing camera initialization and OS permission alerts onto the first Onboarding
 screen. To enforce bounded onboarding states, lifecycle code evaluates the
-injected `AppSettings.hasCompletedOnboarding` value and aborts all hardware
-pings, sync requests, and background evaluations until onboarding completes.
+injected `AppSettings.hasCompletedOnboarding` value before active hardware or
+queue work. After onboarding, it always allows consent reconciliation while the
+required gate is closed, but it aborts hardware, notification, usage, and queued
+provider work until current adult, Terms, and Gemini evidence also passes.
 
 ### SwiftUI Render Loop CPU Thrashing (`ScansThumbnailView`)
 
@@ -1575,12 +1577,14 @@ recovery surface if SwiftData cannot open the store.
 
 Deferring external SDK boot sequences via `DispatchQueue.main.asyncAfter` caused
 a UI hitch milliseconds after `CaptureWorkspaceView` finished rendering. Merian
-avoids delayed startup jolts by doing only lightweight analytics configuration
-in the launch path: `PostHogManager.configure()` is idempotent and invoked
-before Supabase starts listening for restored auth sessions, while
-`AppTelemetry.initialize()` only marks the app analytics facade ready once
-PostHog is configured. Heavy hardware work remains outside the critical render
-path.
+avoids delayed startup jolts by preparing only a disabled first-party analytics
+facade in the launch path. The required contract forbids PostHog configuration
+until `ConsentManager` resolves an explicit grant for the active account;
+absence, withdrawal, or account change must keep capture off and close the SDK
+without a new request. The current withdrawal and account-transition paths are
+release-blocked in the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
+Heavy hardware work remains outside the critical render path.
 
 ### Accelerate Vector Optimizations (`CameraManager`)
 
