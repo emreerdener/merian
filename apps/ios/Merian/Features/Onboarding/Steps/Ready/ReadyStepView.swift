@@ -105,25 +105,20 @@ struct ReadyStepView: View {
     private var consentControls: some View {
         VStack(alignment: .leading, spacing: 18) {
             consentRow(
-                isOn: $hasConfirmedAdultEligibility,
-                statement: Self.adultStatement,
-                accessibilityHint: "Required to start scanning",
-                accessibilityIdentifier: "Ready_AgeSwitch"
-            )
-
-            linkedGeminiConsentRow
-
-            consentRow(
                 isOn: $hasAllowedAnalytics,
                 statement: Self.analyticsStatement,
                 accessibilityHint: "Optional and does not affect app functionality",
                 accessibilityIdentifier: "Ready_AnalyticsSwitch"
             )
 
-            Text("Your analytics choice applies to this account on all devices.")
-                .font(.caption)
-                .foregroundStyle(Color.secondary)
-                .padding(.leading, 63)
+            consentRow(
+                isOn: $hasConfirmedAdultEligibility,
+                statement: Self.adultStatement,
+                accessibilityHint: "Required to start scanning",
+                accessibilityIdentifier: "Ready_AgeSwitch"
+            )
+
+            linkedGeminiConsentRow 
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -15,7 +15,7 @@ enum ConsentPolicy {
     """
 
     static let geminiDisclosureText = """
-    Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.
+    Naturebook sends observation data to Google Gemini for AI-powered identification.
     """
 
     static let combinedAcceptanceText = """
@@ -27,11 +27,11 @@ enum ConsentPolicy {
     """
 
     static let analyticsDisclosureText = """
-    Share app usage and diagnostics with PostHog to help improve Naturebook. Optional.
+    Share usage and diagnostics to help improve Naturebook.
     """
 
     static let analyticsWithdrawalText = """
-    I withdraw permission for PostHog to process future app usage and diagnostics.
+    I withdraw permission to process future usage and diagnostics.
     """
 }
 
