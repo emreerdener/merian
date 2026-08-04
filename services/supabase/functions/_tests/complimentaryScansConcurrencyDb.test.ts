@@ -87,6 +87,97 @@ async function setApplicationName(
   );
 }
 
+async function grantCurrentAIConsent(
+  client: Client,
+  userId: string,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.user_adult_eligibility_receipts (
+        id,
+        user_id,
+        policy_version,
+        confirmed_at,
+        confirmation_method,
+        confirmation_text,
+        platform,
+        app_version,
+        app_build
+      )
+      VALUES (
+        $1::UUID,
+        $2::UUID,
+        '2026-08-03',
+        pg_catalog.NOW(),
+        'self_attestation',
+        'I confirm I am 18 or older.',
+        'ios',
+        'test',
+        'ci'
+      )
+    `,
+    [crypto.randomUUID(), userId],
+  );
+
+  await client.queryArray(
+    `
+      INSERT INTO public.user_terms_acceptance_receipts (
+        id,
+        user_id,
+        terms_version,
+        accepted_at,
+        acceptance_text,
+        platform,
+        app_version,
+        app_build
+      )
+      VALUES (
+        $1::UUID,
+        $2::UUID,
+        '2026-08-03',
+        pg_catalog.NOW(),
+        'I accept the terms and allow this data sharing.',
+        'ios',
+        'test',
+        'ci'
+      )
+    `,
+    [crypto.randomUUID(), userId],
+  );
+
+  await client.queryArray(
+    `
+      INSERT INTO public.user_ai_consent_events (
+        id,
+        user_id,
+        provider,
+        disclosure_version,
+        event_kind,
+        occurred_at,
+        disclosure_text,
+        action_text,
+        platform,
+        app_version,
+        app_build
+      )
+      VALUES (
+        $1::UUID,
+        $2::UUID,
+        'google_gemini',
+        '2026-08-03.1',
+        'granted',
+        pg_catalog.NOW(),
+        'Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.',
+        'I accept the terms and allow this data sharing.',
+        'ios',
+        'test',
+        'ci'
+      )
+    `,
+    [crypto.randomUUID(), userId],
+  );
+}
+
 async function waitUntilAllCallersBlocked(
   observer: Client,
   applicationNames: string[],
@@ -161,6 +252,7 @@ Deno.test("Complimentary scans concurrency DB - three overlapping holds serializ
     if (!(await hasComplimentaryMigration(observer, label))) return;
 
     await insertUser(observer, userId, `Complimentary Concurrency ${suffix}`);
+    await grantCurrentAIConsent(observer, userId);
     const rollout = await observer.queryObject<RolloutState>(`
       SELECT
         config.entitlement_mode,

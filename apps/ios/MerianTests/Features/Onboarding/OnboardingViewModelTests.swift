@@ -125,7 +125,7 @@ final class OnboardingViewModelTests: XCTestCase {
         }
     }
 
-    func testReadyTermsLinkTargetsTheFullTermsOfService() {
+    func testReadyTermsLinkTargetsTheFullTermsOfService() throws {
         let statement = ReadyStepView.linkedConsentStatement
         let termsRange = try XCTUnwrap(statement.range(of: "terms"))
 
