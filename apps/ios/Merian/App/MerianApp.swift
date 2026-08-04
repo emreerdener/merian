@@ -69,6 +69,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 #if DEBUG
 enum UITestSeedCoordinator {
+    private static let requiredConsentArgument = "-seedCurrentRequiredConsent"
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
     private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
@@ -82,6 +83,19 @@ enum UITestSeedCoordinator {
 
     static var isEnabled: Bool {
         return TestExecutionCoordinator.isRunningUITests
+    }
+
+    @MainActor
+    static func prepareRequiredConsentIfNeeded(
+        consentManager: ConsentManager
+    ) {
+        guard isEnabled,
+              ProcessInfo.processInfo.arguments.contains(requiredConsentArgument) else {
+            return
+        }
+        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            analyticsEnabled: false
+        )
     }
 
     @MainActor
@@ -414,6 +428,11 @@ enum UITestSeedCoordinator {
     static var isEnabled: Bool { return false }
 
     @MainActor
+    static func prepareRequiredConsentIfNeeded(
+        consentManager _: ConsentManager
+    ) {}
+
+    @MainActor
     static func prepareIfNeeded(container _: ModelContainer) {}
 
     @discardableResult
@@ -537,6 +556,9 @@ struct MerianApp: App {
     @MainActor
     init() {
         let dependencies = AppDIContainer.shared
+        UITestSeedCoordinator.prepareRequiredConsentIfNeeded(
+            consentManager: dependencies.consentManager
+        )
         let appSettings = dependencies.appSettings
         shouldOpenExploreOnFreshLaunch = AppLaunchPresentationPolicy.shouldOpenExplore(
             hasCompletedOnboarding: appSettings.hasCompletedOnboarding

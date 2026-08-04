@@ -296,6 +296,7 @@ assert_contains 'main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"'
 assert_contains 'if [ ! -s "$app_uuids" ] || [ ! -s "$dsym_uuids" ]'
 assert_contains "dsym_uuid_match: true"
 assert_contains 'LC_ALL=C /usr/bin/strings -a "$main_binary"'
+assert_contains '"-seedCurrentRequiredConsent"'
 assert_contains '"-seedAchievementDetailFlow"'
 assert_contains '"-seedAchievementDeletionRefreshFlow"'
 assert_contains '"-seedQueuedAudioHandoffFlow"'
@@ -383,6 +384,29 @@ assert_file_contains "$ui_seed_source" 'appendASCII("RIFF")'
 assert_file_contains "$ui_seed_source" "#if DEBUG"
 assert_file_contains "$ui_seed_source" "#else"
 assert_file_contains "$ui_seed_source" "return TestExecutionCoordinator.isRunningUITests"
+assert_file_contains \
+  "$ui_seed_source" \
+  'private static let requiredConsentArgument = "-seedCurrentRequiredConsent"'
+assert_file_contains \
+  "$ui_seed_source" \
+  "ProcessInfo.processInfo.arguments.contains(requiredConsentArgument)"
+assert_file_contains "$ui_test_source" '"-seedCurrentRequiredConsent"'
+assert_file_count \
+  "$ui_seed_source" \
+  2 \
+  "static func prepareRequiredConsentIfNeeded("
+assert_file_contains \
+  "$ui_seed_source" \
+  "consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini("
+assert_file_contains "$ui_seed_source" "analyticsEnabled: false"
+assert_file_contains "$ui_seed_source" "consentManager _: ConsentManager"
+assert_file_contains \
+  "$ui_seed_source" \
+  "UITestSeedCoordinator.prepareRequiredConsentIfNeeded("
+assert_file_before \
+  "$ui_seed_source" \
+  "UITestSeedCoordinator.prepareRequiredConsentIfNeeded(" \
+  "shouldOpenExploreOnFreshLaunch = AppLaunchPresentationPolicy.shouldOpenExplore("
 assert_file_count \
   "$ui_seed_source" \
   2 \

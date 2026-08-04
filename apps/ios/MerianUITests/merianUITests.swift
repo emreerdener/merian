@@ -12,7 +12,12 @@ enum UITestAppLauncher {
     static func makeConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["UITesting"] = "true"
-        app.launchArguments += ["-skipOnboarding", "-mockCameraFeed", "-hasCompletedOnboarding", "YES"]
+        app.launchArguments += [
+            "-skipOnboarding",
+            "-seedCurrentRequiredConsent",
+            "-mockCameraFeed",
+            "-hasCompletedOnboarding", "YES"
+        ]
         app.launchArguments += extraArguments
         return app
     }
