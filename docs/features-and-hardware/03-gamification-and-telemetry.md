@@ -120,9 +120,10 @@ account-wide permission boundary:
 > [!WARNING]
 > The architecture below is the required release invariant. The current
 > source closes the reset-time transport leak and crash-safe ghost evidence
-> migration tracked as `CONSENT-001` and `CONSENT-002`. The release candidate
-> remains blocked by the account-transition, restoration, Realtime, and hosted
-> validation items in the
+> migration tracked as `CONSENT-001` and `CONSENT-002`, plus the restoration,
+> Realtime, and OAuth account-replacement findings tracked as `CONSENT-005`
+> through `CONSENT-007`. Internal test builds may continue. Public production
+> remains blocked by hosted exact-SHA validation and the external controls in the
 > [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 - **iOS app analytics (`AppTelemetry`)** — pseudonymous product metrics routed
@@ -140,8 +141,8 @@ account's latest `user_analytics_consent_events` state and is the sole SDK
 lifecycle authority. Only a current grant configures and identifies PostHog.
 Absence, revocation, account change, or unresolved account state must disable
 the facade, clear identity, opt out, and close the SDK without starting a new
-PostHog request. The readiness record documents where the candidate currently
-falls short.
+PostHog request. The source-complete lifecycle implementation and remaining
+hosted verification are recorded in the readiness record.
 
 ### `AppTelemetry` (PostHog Facade)
 
@@ -222,8 +223,10 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   withdrawal/direct-wrapper account-change path closes a per-SDK-session
   transport gate before preserving `reset → optOut → close`; delayed requests
   from an old transport remain blocked after a new grant opens. This closes
-  `CONSENT-001`; the broader OAuth installation race remains tracked as
-  `CONSENT-007`.
+  `CONSENT-001`. The outer OAuth boundary also closes analytics and consent
+  Realtime before a true account replacement, reconciles the actual SDK session
+  on success or failure, and generation-fences overlapping logins; this closes
+  `CONSENT-007` in source.
 - Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()`
   guards on this flag and buffers the latest user ID if a future call races
   configuration.
@@ -239,9 +242,11 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
 - Employs `#if targetEnvironment(simulator)` to alias all development sessions
   as a static `"simulator"` identifier, aggressively decoupling test telemetry
   from live production metrics.
-- `reset()` currently routes sign-out through the same blocked withdrawal
-  sequence. Before release, account transition must suspend capture before
-  installing another session and shut down without a feature-flag reload.
+- `reset()` routes sign-out through the same transport-blocked withdrawal
+  sequence. True-account OAuth replacement suppresses capture and closes
+  consent Realtime before installing another session, then reconciles the
+  SDK's actual account on success or failure. An older overlapping transition
+  cannot reopen capture.
 
 **Edge Functions (`_shared/posthog.ts`)**:
 

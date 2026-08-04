@@ -796,10 +796,11 @@ must not change core functionality.
 
 The repository does not establish final App Store privacy nutrition labels, ATT
 conclusions, jurisdiction-specific consent sufficiency, or production age-rating
-configuration. Those require review and owner evidence. The implemented client
-controls also remain release-blocked until every internal readiness finding is
-closed. No App Attest or DeviceCheck enforcement was found in the reviewed
-paths.
+configuration. Those require review and owner evidence. All tracked client
+findings are closed in source, but public production remains release-blocked
+until exact-SHA lifecycle/rollout evidence and the external controls are
+complete. Internal test builds may continue. No App Attest or DeviceCheck
+enforcement was found in the reviewed paths.
 
 ## 10.5 Localization status - Partial
 
@@ -1126,7 +1127,7 @@ migrations, vendor credentials, and release flags.
 | Events and Seasonal Challenges       | Release-gated preview     | Server-authorized rollout, product rules, operations, and full tests.                |
 | Apple Watch logging                  | Partial                   | Implement phone receiver, reconciliation UI, failure handling, and end-to-end tests. |
 | Full localization                    | Partial                   | Localized resource architecture, content coverage, taxonomy rules, and QA.           |
-| 18+ and third-party AI consent controls | Implemented gate / Release-blocked | Close the internal readiness record, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |
+| 18+ and third-party AI consent controls | Implemented gate / Production-blocked | Pass hosted exact-SHA lifecycle and replacement-build rollout gates, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |
 | App Attest / DeviceCheck enforcement | Planned                   | Threat model, server verification, failure policy, and rollout.                      |
 | Targeted observation bounties        | Planned                   | Product model, abuse controls, incentives, backend, and UX.                          |
 | Insight-triggered 1 FPS camera idle  | Partial hook only         | Wire lifecycle calls and validate restoration across navigation and interruptions.   |

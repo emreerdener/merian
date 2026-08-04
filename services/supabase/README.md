@@ -1120,8 +1120,10 @@ provider dispatch. Never infer or backfill acceptance.
 
 Keep Swift policy versions, the SQL gate, migration contracts, quota fixtures,
 and `legal_consent_security.sql` synchronized. Static backend contracts pass,
-but the overall candidate is still blocked by iOS lifecycle/test findings and
-external release evidence in the
+and all tracked iOS lifecycle findings are closed in source. Internal test
+builds may continue. Public production remains blocked by hosted exact-SHA
+runtime/rollout evidence, disposable-catalog replay, and external release
+evidence in the
 [production consent readiness record](../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 Terminal quota reservations ordinarily prune after 30 days.

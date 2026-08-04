@@ -672,7 +672,9 @@ enum SupabaseAuthTransitionError: LocalizedError {
                     providerSubject: providerSubject
                 )
 
-                let targetSession = try await client.auth.signInWithIdToken(credentials: credentials)
+                let targetSession = try await installOAuthSessionReplacingCurrentAccount(
+                    credentials: credentials
+                )
                 if targetSession.user.id.uuidString.lowercased() == ghostId {
                     try clearPendingGhostProfileMerges(ghostUserId: ghostId)
                 } else {
@@ -682,12 +684,59 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 }
             }
         } else {
-            _ = try await client.auth.signInWithIdToken(
-                credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
+            _ = try await installOAuthSessionReplacingCurrentAccount(
+                credentials: .init(
+                    provider: provider,
+                    idToken: idToken,
+                    accessToken: accessToken,
+                    nonce: nonce
+                )
             )
         }
 
         return previousUserId
+    }
+
+    private func installOAuthSessionReplacingCurrentAccount(
+        credentials: OpenIDConnectCredentials
+    ) async throws -> Session {
+        try await Self.performOAuthSessionReplacement(
+            suspendAnalytics: {
+                ConsentManager.shared.beginAnalyticsAccountTransition()
+            },
+            installSession: {
+                try await self.client.auth.signInWithIdToken(
+                    credentials: credentials
+                )
+            },
+            currentSession: {
+                self.client.auth.currentSession
+            },
+            reconcileSession: { generation, session in
+                self.reconcileOAuthSessionReplacement(
+                    generation: generation,
+                    session: session
+                )
+            }
+        )
+    }
+
+    private func reconcileOAuthSessionReplacement(
+        generation: UInt,
+        session: Session?
+    ) {
+        let resolvedSession = client.auth.currentSession ?? session
+        let activeSession = !isSigningOut && resolvedSession?.isExpired == false
+            ? resolvedSession
+            : nil
+        guard ConsentManager.shared.resolveAnalyticsAccountTransition(
+            generation: generation,
+            userId: activeSession?.user.id
+        ) else {
+            return
+        }
+        currentUser = activeSession?.user
+        isAuthenticated = activeSession != nil
     }
 
     @discardableResult
@@ -1020,6 +1069,23 @@ enum SupabaseAuthTransitionError: LocalizedError {
         try await rebindAndSynchronizeLocalEvidence()
         try Task.checkCancellation()
         try clearPendingHandoff()
+    }
+
+    static func performOAuthSessionReplacement<Value>(
+        suspendAnalytics: () -> UInt,
+        installSession: () async throws -> Value,
+        currentSession: () -> Value?,
+        reconcileSession: (UInt, Value?) -> Void
+    ) async throws -> Value {
+        let generation = suspendAnalytics()
+        do {
+            let installedSession = try await installSession()
+            reconcileSession(generation, installedSession)
+            return installedSession
+        } catch {
+            reconcileSession(generation, currentSession())
+            throw error
+        }
     }
 
     nonisolated static func shouldDiscardPendingGhostProfileMerge(

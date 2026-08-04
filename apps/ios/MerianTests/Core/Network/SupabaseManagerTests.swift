@@ -485,6 +485,126 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertEqual(calls, ["server", "local", "clear"])
     }
 
+    func testTargetAccountActivationPreservesPendingAndHistoricalEvidence() {
+        let previousUserId = UUID()
+        let targetUserId = UUID()
+        let source = ConsentManager.LocalLedger(
+            activeUserId: previousUserId,
+            termsReceipts: [
+                makeTermsReceipt(
+                    ownerUserId: targetUserId,
+                    syncedUserId: nil,
+                    recordedAt: nil
+                )
+            ],
+            aiConsentEvents: [
+                makeAIConsentEvent(
+                    ownerUserId: previousUserId,
+                    syncedUserId: previousUserId,
+                    recordedAt: Date(timeIntervalSince1970: 1_786_000_000)
+                )
+            ],
+            adultEligibilityReceipts: [
+                makeAdultReceipt(
+                    ownerUserId: targetUserId,
+                    syncedUserId: targetUserId,
+                    recordedAt: Date(timeIntervalSince1970: 1_786_000_001)
+                )
+            ],
+            analyticsConsentEvents: [
+                makeAnalyticsConsentEvent(
+                    ownerUserId: targetUserId,
+                    syncedUserId: nil,
+                    eventKind: .revoked,
+                    recordedAt: nil
+                )
+            ]
+        )
+
+        let activated = ConsentManager.activating(source, for: targetUserId)
+
+        XCTAssertEqual(activated.activeUserId, targetUserId)
+        XCTAssertEqual(activated.termsReceipts, source.termsReceipts)
+        XCTAssertEqual(activated.aiConsentEvents, source.aiConsentEvents)
+        XCTAssertEqual(
+            activated.adultEligibilityReceipts,
+            source.adultEligibilityReceipts
+        )
+        XCTAssertEqual(
+            activated.analyticsConsentEvents,
+            source.analyticsConsentEvents
+        )
+        XCTAssertEqual(
+            ConsentManager.activating(activated, for: targetUserId),
+            activated
+        )
+    }
+
+    func testOAuthSessionReplacementSuspendsBeforeInstallingAndReconcilesSuccess() async throws {
+        var calls: [String] = []
+
+        let installed = try await SupabaseManager.performOAuthSessionReplacement(
+            suspendAnalytics: {
+                calls.append("suspend")
+                return 41
+            },
+            installSession: {
+                calls.append("install")
+                return "target-session"
+            },
+            currentSession: {
+                calls.append("current")
+                return "unexpected-session"
+            },
+            reconcileSession: { generation, session in
+                calls.append("reconcile:\(generation):\(session ?? "nil")")
+            }
+        )
+
+        XCTAssertEqual(installed, "target-session")
+        XCTAssertEqual(calls, [
+            "suspend",
+            "install",
+            "reconcile:41:target-session"
+        ])
+    }
+
+    func testOAuthSessionReplacementReconcilesActualSessionOnFailure() async {
+        var calls: [String] = []
+
+        do {
+            let _: String = try await SupabaseManager.performOAuthSessionReplacement(
+                suspendAnalytics: {
+                    calls.append("suspend")
+                    return 42
+                },
+                installSession: {
+                    calls.append("install")
+                    throw OAuthSessionReplacementTestError.expected
+                },
+                currentSession: {
+                    calls.append("current")
+                    return "restored-session"
+                },
+                reconcileSession: { generation, session in
+                    calls.append("reconcile:\(generation):\(session ?? "nil")")
+                }
+            )
+            XCTFail("A failed session installation must be rethrown")
+        } catch OAuthSessionReplacementTestError.expected {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(calls, [
+            "suspend",
+            "install",
+            "current",
+            "reconcile:42:restored-session"
+        ])
+    }
+
     private func makeAdultReceipt(
         ownerUserId: UUID,
         syncedUserId: UUID?,
@@ -582,5 +702,9 @@ final class SupabaseManagerTests: XCTestCase {
 }
 
 private enum GhostHandoffTestError: Error {
+    case expected
+}
+
+private enum OAuthSessionReplacementTestError: Error {
     case expected
 }

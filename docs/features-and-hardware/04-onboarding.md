@@ -10,11 +10,13 @@ and the three-part required completion gate.
 > [!WARNING]
 > **Release status:** the internal-testing screen and evidence model are
 > implemented. The P1 local-ledger merge and PostHog withdrawal defects are
-> closed in source; account synchronization, exact-SHA CI, counsel approval,
-> and operator evidence still block production. Treat the
+> closed in source, as are the account-restoration, Realtime, and OAuth
+> lifecycle findings. Exact-SHA CI, counsel approval, and operator evidence
+> still block production. Treat the
 > guarantees below as required invariants until every item in the
 > [canonical consent readiness record](../legal/production-consent-readiness-2026-08-03.md)
-> is closed. Do not distribute the candidate or enable strict enforcement yet.
+> is closed. Internal test builds may continue; do not submit the candidate for
+> production or enable strict enforcement yet.
 
 ---
 
@@ -150,9 +152,16 @@ server mapping; every other ghost-owned record remains pending for the
 permanent account. A durable handoff suppresses analytics across restart until
 pending actions are pushed, authoritative state is refetched, and throwing
 verified queue removal succeeds. Analytics INSERT events are in the owner-scoped
-Realtime publication, but the client must also guarantee channel startup/retry
-independently of session-assignment order. Foreground synchronization remains
-the recovery path for missed events.
+Realtime publication. The client tracks the channel owner and confirmed
+subscriber separately from auth-session assignment, fences stale listeners by
+generation, and retries failed subscriptions for the same account with bounded
+backoff. Auth observation and foreground/session adoption both ensure the
+owner-scoped channel, while foreground refetch remains the recovery path for a
+missed event. When returning to an account, synchronization activates that
+account's local ledger and pushes its pending evidence before refetching remote
+state, so an offline revocation cannot be hidden by the previously active
+account. Analytics stays closed throughout that restoration and is applied only
+after the authoritative merge succeeds.
 
 Before any identification provider request is constructed or dispatched,
 `MerianNetworkClient` calls `ensureCloudConsentForInference()`. That method
@@ -175,6 +184,10 @@ withdrawal-triggered PostHog request, and no change to core functionality. The
 configured-host transport gate closes before `reset()` and cancels PostHog
 3.69.0's reset-time feature-flag reload locally while preserving
 `reset → optOut → close`; see completed `CONSENT-001` in the readiness record.
+Before OAuth installs a session that can replace the current account, the app
+synchronously suppresses analytics and stops consent Realtime. It reconciles
+the SDK's actual session on success or failure, and only the newest overlapping
+transition may reopen analytics for a currently granted account.
 
 ---
 

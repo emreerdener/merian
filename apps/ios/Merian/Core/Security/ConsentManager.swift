@@ -295,13 +295,6 @@ final class ConsentManager {
         let termsReceipt: TermsAcceptanceReceipt?
         let aiConsentEvent: AIConsentEvent?
         let analyticsConsentEvent: AnalyticsConsentEvent?
-
-        var hasEvidence: Bool {
-            adultEligibilityReceipt != nil
-                || termsReceipt != nil
-                || aiConsentEvent != nil
-                || analyticsConsentEvent != nil
-        }
     }
 
     static let shared = ConsentManager()
@@ -367,8 +360,16 @@ final class ConsentManager {
     @ObservationIgnored private var activeSyncGeneration: UInt?
     @ObservationIgnored private var synchronizationGeneration: UInt = 0
     @ObservationIgnored private var analyticsConsentChannel: RealtimeChannelV2?
+    @ObservationIgnored private var analyticsConsentChannelUserId: UUID?
+    @ObservationIgnored private var analyticsConsentSubscribedUserId: UUID?
     @ObservationIgnored private var analyticsConsentListenerTask: Task<Void, Never>?
+    @ObservationIgnored private var analyticsConsentRetryTask: Task<Void, Never>?
+    @ObservationIgnored private var analyticsConsentRetryUserId: UUID?
+    @ObservationIgnored private var analyticsConsentRetryAttempt = 0
+    @ObservationIgnored private var analyticsConsentSubscriptionGeneration: UInt = 0
     @ObservationIgnored private(set) var isAnalyticsSuppressedForGhostHandoff = false
+    @ObservationIgnored private(set) var isAnalyticsSuppressedForAccountTransition = false
+    @ObservationIgnored private var analyticsAccountTransitionGeneration: UInt = 0
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -385,6 +386,7 @@ final class ConsentManager {
         scheduledSyncTask?.cancel()
         activeSyncTask?.cancel()
         analyticsConsentListenerTask?.cancel()
+        analyticsConsentRetryTask?.cancel()
     }
 
     func confirmAdultAndAcceptCurrentTermsAndGrantGemini(
@@ -510,13 +512,39 @@ final class ConsentManager {
         currentSessionUserId = userId
         refreshDerivedState()
         applyAnalyticsPermissionToSDK()
-
-        if previousUserId != userId {
-            restartAnalyticsConsentUpdates(for: userId)
-        }
+        ensureAnalyticsConsentUpdates(for: userId)
 
         guard userId != nil else { return }
         scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+    }
+
+    /// Closes analytics before an OAuth operation can replace the active
+    /// account. The returned generation prevents an older overlapping login
+    /// from reopening capture after a newer transition has started.
+    @discardableResult
+    func beginAnalyticsAccountTransition() -> UInt {
+        analyticsAccountTransitionGeneration &+= 1
+        isAnalyticsSuppressedForAccountTransition = true
+        invalidateSynchronizationWork()
+        stopAnalyticsConsentUpdates()
+        applyAnalyticsPermissionToSDK()
+        return analyticsAccountTransitionGeneration
+    }
+
+    /// Reconciles the actual SDK session after either OAuth success or failure,
+    /// then reopens analytics only if that account has a current grant.
+    @discardableResult
+    func resolveAnalyticsAccountTransition(
+        generation: UInt,
+        userId: UUID?
+    ) -> Bool {
+        guard generation == analyticsAccountTransitionGeneration else {
+            return false
+        }
+        observeSession(userId: userId)
+        isAnalyticsSuppressedForAccountTransition = false
+        applyAnalyticsPermissionToSDK()
+        return true
     }
 
     /// Keeps analytics closed while a provider-bound ghost handoff is pending.
@@ -589,12 +617,9 @@ final class ConsentManager {
            currentSessionUserId != userId {
             throw ConsentHandoffError.activeAccountChanged
         }
-        let previousUserId = currentSessionUserId
         currentSessionUserId = userId
         refreshDerivedState()
-        if previousUserId != userId {
-            restartAnalyticsConsentUpdates(for: userId)
-        }
+        ensureAnalyticsConsentUpdates(for: userId)
 
         guard hasCurrentRequiredConsent else {
             throw MerianError.aiConsentRequired
@@ -624,12 +649,9 @@ final class ConsentManager {
            currentSessionUserId != userId {
             throw ConsentHandoffError.activeAccountChanged
         }
-        let previousUserId = currentSessionUserId
         currentSessionUserId = userId
         refreshDerivedState()
-        if previousUserId != userId {
-            restartAnalyticsConsentUpdates(for: userId)
-        }
+        ensureAnalyticsConsentUpdates(for: userId)
         try await synchronize(for: userId)
     }
 
@@ -704,25 +726,22 @@ final class ConsentManager {
             bindUnownedRecords(to: userId)
         }
 
-        if ledger.activeUserId == userId {
-            try await pushPendingRecords(for: userId, generation: generation)
-            let remoteState = try await fetchRemoteState(
-                for: userId,
-                generation: generation
-            )
-            merge(remoteState, for: userId)
-            return
-        }
-
+        activateLedger(for: userId)
+        try await pushPendingRecords(for: userId, generation: generation)
         let remoteState = try await fetchRemoteState(
             for: userId,
             generation: generation
         )
-        guard remoteState.hasEvidence else {
-            refreshDerivedState()
-            return
-        }
         merge(remoteState, for: userId)
+    }
+
+    private func activateLedger(for userId: UUID) {
+        guard ledger.activeUserId != userId else { return }
+        ledger = Self.activating(ledger, for: userId)
+        persistAndRefresh()
+        // Account restoration remains fail-closed while local actions are
+        // pushed and authoritative cloud state is refetched. `merge` applies
+        // the resolved permission only after both operations succeed.
     }
 
     private func bindUnownedRecords(to userId: UUID) {
@@ -1370,6 +1389,15 @@ final class ConsentManager {
         return rebound
     }
 
+    static func activating(
+        _ source: LocalLedger,
+        for userId: UUID
+    ) -> LocalLedger {
+        var activated = source
+        activated.activeUserId = userId
+        return activated
+    }
+
     private static func reboundSynchronizationOwner(
         _ synchronizedUserId: UUID?,
         from ghostUserId: UUID,
@@ -1468,6 +1496,7 @@ final class ConsentManager {
         }
 
         let shouldEnable = !isAnalyticsSuppressedForGhostHandoff
+            && !isAnalyticsSuppressedForAccountTransition
             && accountMatches
             && hasGrantedCurrentPostHogAnalytics
         PostHogManager.shared.setConsentGranted(
@@ -1481,21 +1510,42 @@ final class ConsentManager {
         )
     }
 
-    private func restartAnalyticsConsentUpdates(for userId: UUID?) {
-        analyticsConsentListenerTask?.cancel()
-        analyticsConsentListenerTask = nil
+    private func ensureAnalyticsConsentUpdates(for userId: UUID?) {
+        guard let userId else {
+            stopAnalyticsConsentUpdates()
+            return
+        }
+        guard !TestExecutionCoordinator.isRunningTests else { return }
 
-        if let channel = analyticsConsentChannel {
-            analyticsConsentChannel = nil
-            Task {
-                await SupabaseManager.shared.client.removeChannel(channel)
+        if analyticsConsentChannelUserId == userId,
+           let channel = analyticsConsentChannel,
+           analyticsConsentListenerTask != nil {
+            if analyticsConsentSubscribedUserId == nil {
+                // Initial subscription is still in flight.
+                return
+            }
+            switch channel.status {
+            case .subscribed, .subscribing:
+                return
+            case .unsubscribed, .unsubscribing:
+                break
             }
         }
 
-        guard let userId,
-              !TestExecutionCoordinator.isRunningTests else {
-            return
-        }
+        let isRetryingSameUser = analyticsConsentRetryUserId == userId
+        let isReplacingSameUser = analyticsConsentChannelUserId == userId
+        startAnalyticsConsentUpdates(
+            for: userId,
+            resetRetryAttempt: !isRetryingSameUser && !isReplacingSameUser
+        )
+    }
+
+    private func startAnalyticsConsentUpdates(
+        for userId: UUID,
+        resetRetryAttempt: Bool
+    ) {
+        stopAnalyticsConsentUpdates(resetRetryAttempt: resetRetryAttempt)
+        let generation = analyticsConsentSubscriptionGeneration
 
         let channel = SupabaseManager.shared.client.channel(
             "legal-analytics-consent-\(userId.uuidString)-\(UUID().uuidString)"
@@ -1507,24 +1557,146 @@ final class ConsentManager {
             filter: .eq("user_id", value: userId.uuidString)
         )
         analyticsConsentChannel = channel
+        analyticsConsentChannelUserId = userId
+        analyticsConsentSubscribedUserId = nil
 
         analyticsConsentListenerTask = Task { @MainActor [weak self] in
+            var shouldRetry = false
             do {
                 try await channel.subscribeWithError()
+                guard let self,
+                      self.isCurrentAnalyticsConsentSubscription(
+                          channel: channel,
+                          userId: userId,
+                          generation: generation
+                      ) else {
+                    await SupabaseManager.shared.client.removeChannel(channel)
+                    return
+                }
+                self.analyticsConsentSubscribedUserId = userId
+                self.analyticsConsentRetryAttempt = 0
+
                 for await _ in changes {
-                    guard !Task.isCancelled,
-                          self?.currentSessionUserId == userId else {
+                    guard self.isCurrentAnalyticsConsentSubscription(
+                        channel: channel,
+                        userId: userId,
+                        generation: generation
+                    ) else {
                         break
                     }
-                    try? await self?.synchronize(for: userId)
+                    try? await self.synchronize(for: userId)
                 }
+                shouldRetry = !Task.isCancelled
+            } catch is CancellationError {
+                shouldRetry = false
             } catch {
+                shouldRetry = !Task.isCancelled
                 MerianLog.general.debug(
                     "Analytics consent Realtime subscription failed: \(error.localizedDescription, privacy: .private)"
                 )
             }
-            await SupabaseManager.shared.client.removeChannel(channel)
+
+            await self?.finishAnalyticsConsentSubscription(
+                channel: channel,
+                userId: userId,
+                generation: generation,
+                shouldRetry: shouldRetry
+            )
         }
+    }
+
+    private func stopAnalyticsConsentUpdates(
+        resetRetryAttempt: Bool = true
+    ) {
+        analyticsConsentSubscriptionGeneration &+= 1
+        analyticsConsentRetryTask?.cancel()
+        analyticsConsentRetryTask = nil
+        analyticsConsentRetryUserId = nil
+        analyticsConsentListenerTask?.cancel()
+        analyticsConsentListenerTask = nil
+        analyticsConsentSubscribedUserId = nil
+        analyticsConsentChannelUserId = nil
+        if resetRetryAttempt {
+            analyticsConsentRetryAttempt = 0
+        }
+
+        if let channel = analyticsConsentChannel {
+            analyticsConsentChannel = nil
+            Task {
+                await SupabaseManager.shared.client.removeChannel(channel)
+            }
+        }
+    }
+
+    private func isCurrentAnalyticsConsentSubscription(
+        channel: RealtimeChannelV2,
+        userId: UUID,
+        generation: UInt
+    ) -> Bool {
+        !Task.isCancelled
+            && analyticsConsentSubscriptionGeneration == generation
+            && analyticsConsentChannel === channel
+            && analyticsConsentChannelUserId == userId
+            && currentSessionUserId == userId
+    }
+
+    private func finishAnalyticsConsentSubscription(
+        channel: RealtimeChannelV2,
+        userId: UUID,
+        generation: UInt,
+        shouldRetry: Bool
+    ) async {
+        await SupabaseManager.shared.client.removeChannel(channel)
+        guard analyticsConsentSubscriptionGeneration == generation,
+              analyticsConsentChannel === channel,
+              analyticsConsentChannelUserId == userId else {
+            return
+        }
+
+        analyticsConsentChannel = nil
+        analyticsConsentChannelUserId = nil
+        analyticsConsentSubscribedUserId = nil
+        analyticsConsentListenerTask = nil
+        guard shouldRetry,
+              currentSessionUserId == userId else {
+            return
+        }
+        scheduleAnalyticsConsentRetry(for: userId)
+    }
+
+    private func scheduleAnalyticsConsentRetry(for userId: UUID) {
+        analyticsConsentRetryAttempt += 1
+        let delay = Self.analyticsConsentRetryDelay(
+            attempt: analyticsConsentRetryAttempt
+        )
+        let generation = analyticsConsentSubscriptionGeneration
+        analyticsConsentRetryUserId = userId
+        analyticsConsentRetryTask?.cancel()
+        analyticsConsentRetryTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            guard let self,
+                  !Task.isCancelled,
+                  self.analyticsConsentSubscriptionGeneration == generation,
+                  self.analyticsConsentRetryUserId == userId,
+                  self.currentSessionUserId == userId else {
+                return
+            }
+            self.analyticsConsentRetryTask = nil
+            self.analyticsConsentRetryUserId = nil
+            self.startAnalyticsConsentUpdates(
+                for: userId,
+                resetRetryAttempt: false
+            )
+        }
+    }
+
+    static func analyticsConsentRetryDelay(attempt: Int) -> Double {
+        let boundedExponent = min(max(attempt - 1, 0), 5)
+        return min(pow(2, Double(boundedExponent)), 30)
     }
 
     private static func localAdultEligibilityReceipt(

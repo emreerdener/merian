@@ -19,7 +19,7 @@ export default function PrivacyChoicesPage() {
       eyebrow="Naturebook privacy"
       title="Privacy Choices"
       description="Manage permissions, public sharing, and deletion requests."
-      lastUpdated="August 2, 2026"
+      lastUpdated="August 4, 2026"
     >
       <LegalSection title="In-App Controls">
         <LegalList>
@@ -34,6 +34,18 @@ export default function PrivacyChoicesPage() {
           <li>
             Use Naturebook geoprivacy settings to choose open, obscured, or
             private location sharing behavior.
+          </li>
+          <li>
+            Turn optional Analytics &amp; diagnostics on or off in Naturebook
+            Settings. Withdrawal applies immediately on the current device,
+            synchronizes across devices for your account, and does not affect
+            core functionality.
+          </li>
+          <li>
+            Choose whether to accept required Google Gemini processing before
+            using identification. Naturebook has no non-AI identification mode
+            or separate Gemini switch in Settings; if you no longer want this
+            processing, do not submit scans or use AI features.
           </li>
           <li>
             Unshare Explore posts to remove them from public Explore surfaces.

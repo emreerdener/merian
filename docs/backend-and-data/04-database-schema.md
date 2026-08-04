@@ -201,13 +201,22 @@ entries in the ghost-profile merge manifest so all evidence follows the
 canonical signed-in account without deleting or combining rows.
 `user_analytics_consent_events` is also added to the Supabase Realtime
 publication so owner-scoped account changes can disable or enable capture on
-other active devices.
+other active devices. The iOS subscriber separately tracks requested and
+confirmed channel ownership, generation-fences stale callbacks, retries bounded
+failures for the same account, and repairs the subscription on foreground or
+session adoption.
 
-This database contract does not reparent actions that still exist only in the
-iOS local ledger, nor does source membership prove SDK lifecycle behavior.
-Production remains held until the client findings in the
-[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md)
-are closed and the schema is replayed against a fresh required-version catalog.
+Database merge policies can reparent only rows already synchronized to
+Supabase. After a confirmed server handoff, iOS now transforms the complete
+local ledger in one verified write: ghost-synchronized evidence becomes
+permanent-account synchronized evidence, while every other ghost-owned record
+becomes pending for that permanent account. It preserves record IDs, exact
+text, versions, client/server timestamps, platform, and app metadata, then
+pushes, refetches, and verifies durable queue removal. All tracked client
+findings are closed in source. Production remains held until the exact-SHA
+lifecycle gates pass and this schema is replayed against a fresh
+required-version catalog; see the
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 `internal.require_current_ai_consent(uuid)` currently requires adult policy
 version `2026-08-03`, Terms version `2026-08-03`, and provider

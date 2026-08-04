@@ -5,10 +5,14 @@
 **Blocked.** The repository contains the intended final onboarding surface,
 versioned consent evidence, server-side Gemini admission guard, optional
 analytics control, and legal copy. The two P1 consent-lifecycle defects from the
-second-pass review and the adjacent stale-sync/unit-fixture defects are complete
-in source. Remaining internal findings, hosted exact-SHA execution, and the
-external operator controls below must still close before this candidate is
-nominated for production.
+second-pass review, the adjacent stale-sync/unit-fixture defects, and the three
+account-restoration lifecycle findings are complete in source. Hosted exact-SHA
+execution and the external operator controls below must still close before this
+candidate is nominated for production.
+
+For internal test builds, the App Store, billing/DPA, and counsel approvals are
+explicitly deferred. That deferral permits continued engineering and internal
+beta validation; it does not authorize production submission or public release.
 
 The shorter disclosure, analytics label, and Analytics → Age → Terms ordering
 currently in the app are an explicit product-owner choice. They now carry fresh
@@ -87,16 +91,15 @@ engineering release controls; it is not a legal opinion.
 | `CONSENT-002` | P1 | **Complete in source — 2026-08-04.** Confirmed server handoff is followed by one verified local-ledger rebind across adult, Terms, Gemini, and analytics evidence, permanent-account synchronization/refetch, and only then throwing verified queue removal. Throwing Keychain reads preserve failure status; unreadable evidence is retained and keeps analytics fail-closed. Durable pending handoffs suppress analytics across restart. | Regression coverage preserves immutable fields, distinguishes synchronized from pending rows, proves idempotent server → local → removal sequencing/failure retention, and covers permanent grant → offline ghost revocation → merge/restart/second-device state. Hosted exact-SHA execution remains rollout evidence. |
 | `CONSENT-003` | P1 | **Complete in source — 2026-08-04.** The Terms-link test now declares `throws`. | Hosted iOS run 183 at `1559e3f646952a10752526560684d9afbf4bb78b` compiled and passed 1,333 unit tests. The current candidate SHA must repeat that result. |
 | `CONSENT-004` | P2 | **Complete in source — 2026-08-04.** Consent synchronization now invalidates stale work by generation and checks cancellation plus the SDK's synchronous active session after every network await and immediately before mutation/persistence. | Parser, strict lint, whole-module frontend type-check, and complete test-source type-check passed locally. A hosted deterministic account-switch runtime regression remains candidate evidence. |
-| `CONSENT-005` | P2 | When the persisted active ledger belongs to another account, synchronization fetches and merges the target but does not first flush pending local rows already owned by that target. Account-wide revocation can remain delayed until a later synchronization. | Activate and flush target-owned pending rows during account restoration, refetch authoritative state, and test offline revoke → switch away → switch back. |
-| `CONSENT-006` | P2 | Realtime startup is keyed to a change in `currentSessionUserId`. Another synchronization path can assign that ID before the auth observer, causing the observer to skip channel startup; failed subscriptions also lack an explicit retry owner. | Track the subscribed account independently, ensure one healthy owner-scoped channel after session adoption, retry after failure/foreground, and test cross-device grant and withdrawal. |
-| `CONSENT-007` | P2 | OAuth replacement relies on the asynchronous auth-state observer to shut down the prior account’s analytics rather than suspending capture before installing a different target session. | Suspend the analytics facade and SDK before a true account replacement, reconcile the actual session on failure, and test that no old-identity event crosses the transition. |
+| `CONSENT-005` | P2 | **Complete in source — 2026-08-04.** Every account synchronization now activates the target ledger, keeps analytics closed, pushes all target-owned pending adult, Terms, Gemini, and analytics rows, and only then refetches, merges, and applies authoritative state. An empty remote account still becomes active. | Unit coverage proves activation is idempotent and preserves pending/historical evidence. A source-order contract locks activate → push → fetch → merge and fail-closed activation. Hosted offline revoke → switch away → switch back execution remains candidate evidence. |
+| `CONSENT-006` | P2 | **Complete in source — 2026-08-04.** Analytics-consent Realtime tracks channel owner and confirmed subscribed owner independently of `currentSessionUserId`, generation-fences stale listeners, and assigns an explicit account-owned bounded retry. Session observation and foreground/session adoption both ensure or repair the channel. | Unit coverage locks bounded retry timing; source contracts verify unconditional session/foreground ensure, independent owner fields, generation fencing, and retry ownership. Hosted cross-device grant/withdrawal and reconnect execution remains candidate evidence. |
+| `CONSENT-007` | P2 | **Complete in source — 2026-08-04.** Every OAuth path that can replace an account synchronously suppresses the analytics facade, closes consent Realtime and invalidates stale synchronization before asking Supabase Auth to install the target session. Success and failure reconcile the SDK's actual current session; transition generations prevent an older overlapping login from reopening capture or replacing observable account state. | Unit coverage proves suspend → install → reconcile ordering, failure reconciliation, and newest-generation-only reopening. A source contract locks the production helper to the OAuth replacement path. Hosted account-replacement execution remains candidate evidence. |
 | `CONSENT-008` | P2 | **Complete in source — 2026-08-04.** The foreground replay test now injects and restores an isolated granted `ConsentManager`; a closed-gate negative test is retained. | Hosted iOS run 183 included this test in the 1,333-test passing unit gate. The current candidate SHA must repeat that result. |
 | `CONSENT-009` | P1 release gate | **Complete in source — 2026-08-04.** The retained internal-testing copy now uses fresh Gemini `2026-08-04.1` and analytics `2026-08-04` disclosure versions. A forward-only migration makes the newest Gemini action authoritative, preserves bounded prior-beta compatibility, and adds strict `2026-08-04` cutover without rewriting historical receipts. | Migration/source contracts and iOS tests must pass on the exact candidate SHA; TestFlight must prove accounts with only earlier versions return to the final consent screen and write exact new-version local/cloud evidence. |
 
-`CONSENT-001` through `CONSENT-004`, `CONSENT-008`, and `CONSENT-009` are closed
-in source. The three remaining findings, `CONSENT-005` through `CONSENT-007`,
-are release blockers. P2 denotes lower exploitability or a more specific race,
-not permission to defer the correction beyond production.
+`CONSENT-001` through `CONSENT-009` are closed in source. The current candidate
+still requires exact-SHA compiled/runtime evidence; “complete in source” is not
+itself a production approval.
 
 ## Verification Snapshot
 
@@ -142,25 +145,44 @@ The 2026-08-04 double-check on the final local working tree added this evidence:
 | Swift parser, strict SwiftLint, and `git diff --check` for the reviewed Swift files | Passed: zero diagnostics and zero lint violations |
 | Supabase formatting and documentation contracts | Passed: 713 files formatted; 17 tests, zero failures |
 
+The final 2026-08-04 account-lifecycle pass added this local evidence:
+
+| Check | Result |
+| --- | --- |
+| Complete 408-source iOS app-module frontend type-check against cached locked dependencies | Passed with zero diagnostics in the project's Swift 5 language mode |
+| Both changed XCTest sources type-checked against the freshly emitted reviewed app module | Passed with zero diagnostics |
+| Swift parser, strict SwiftLint, and `git diff --check` for changed implementation/test sources | Passed with zero diagnostics and zero lint violations |
+| Ghost merge, target flush, Realtime ownership/retry, and OAuth replacement source contracts | Passed: 6 tests, zero failures |
+| Complete Supabase Deno suite and formatting gate | Passed: 1,535 tests, zero failures, one ignored; 713 files formatted |
+| Full simulator unit/UI execution | Pending hosted exact-SHA workflow; this desktop sandbox cannot connect to CoreSimulator |
+
+The final 2026-08-04 documentation reconciliation added this evidence:
+
+| Check | Result |
+| --- | --- |
+| Public web TypeScript gate | Passed: `tsc --noEmit` |
+| Public web unit and source-contract suite | Passed: 60 tests, zero failures |
+| Supabase maintained-documentation contracts | Passed: 17 tests, including local-link and public Privacy control assertions |
+| Supabase formatting gate | Passed: 713 files formatted |
+| Stale consent-status search and `git diff --check` | Passed with no findings |
+
 ## Required Remediation and Rollout Order
 
-1. Correct `CONSENT-005` through `CONSENT-007` and add deterministic regression
-   coverage for every remaining scenario.
-2. Run the complete hosted **iOS Build and Test** workflow on the exact candidate
+1. Run the complete hosted **iOS Build and Test** workflow on the exact candidate
    SHA. Require a compiled and executed complete `merianTests` target, the
    focused UI smoke, and the unsigned Release validation archive.
-3. With Docker running and Supabase CLI 2.109.1, replay every migration into a
+2. With Docker running and Supabase CLI 2.109.1, replay every migration into a
    fresh disposable catalog; run all pgTAP fixtures, strict lint, and advisors.
-4. Apply only the additive consent schema and deploy consent-gated Edge code.
+3. Apply only the additive consent schema and deploy consent-gated Edge code.
    Keep `internal.ai_consent_rollout_config.enforcement_mode` at
    `legacy_compatible`.
-5. Distribute the corrected replacement TestFlight build. Verify all switch
+4. Distribute the corrected replacement TestFlight build. Verify all switch
    combinations, inline Terms navigation, VoiceOver, Dynamic Type, smallest
    supported screens, offline withdrawal, account switching, foreground
    reconciliation, Realtime propagation, and ghost-profile merging.
-6. Expire every older TestFlight build that cannot produce the current consent
+5. Expire every older TestFlight build that cannot produce the current consent
    bundle.
-7. Only then run the owner-only forward strict-cutover script and verify legacy,
+6. Only then run the owner-only forward strict-cutover script and verify legacy,
    partial, revoked, and current-complete accounts against the deployed server.
 
 Never backfill age, Terms, Gemini, or analytics evidence. Never relax the
@@ -180,5 +202,6 @@ Repository correctness does not close these operator-owned requirements:
 - Counsel must approve the final Terms, Privacy Policy, consent presentation,
   App Store privacy answers, operator identity, and regional release scope.
 
-Production remains blocked until both the internal and external sections are
-closed with exact-version, exact-build evidence.
+Production remains blocked until hosted exact-SHA validation and every external
+production control are closed with exact-version, exact-build evidence. Those
+operator controls remain deferred for internal-only test builds.

@@ -37,10 +37,15 @@ That paragraph is the required behavior. The withdrawal transport/order and
 offline ghost-account handoff findings are complete in source: reset-time
 feature-flag work is rejected locally after the transport gate closes, and a
 durable handoff suppresses analytics until local evidence is rebound, pushed,
-refetched, and the queue removal is verified. The broader account-replacement
-and Realtime startup/retry findings remain open. Keep the release held until the
+refetched, and the queue removal is verified. Account restoration activates and
+flushes the target ledger before refetch; Realtime has independent channel
+ownership, bounded retry, and foreground repair; OAuth account replacement
+suppresses analytics before session installation and reconciles the actual
+session afterward. All tracked findings are closed in source. Internal test
+builds may continue; keep public production held until the exact-SHA and
+external gates in the
 [production consent readiness record](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md)
-is closed.
+are complete.
 
 ## Account deletion
 

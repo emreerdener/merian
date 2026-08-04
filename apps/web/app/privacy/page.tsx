@@ -19,7 +19,7 @@ export default function PrivacyPolicyPage() {
       eyebrow="Naturebook legal"
       title="Privacy Policy"
       description="This policy explains what Naturebook collects, how it is used, and the controls available to you."
-      lastUpdated="August 3, 2026"
+      lastUpdated="August 4, 2026"
     >
       <LegalSection title="Overview">
         <Text>
@@ -220,9 +220,10 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>Change geoprivacy settings in Naturebook.</li>
           <li>
-            Withdraw future Google Gemini scan processing in Naturebook
-            Settings. Identification remains unavailable until you grant the
-            required permission again.
+            Choose whether to accept required Google Gemini processing before
+            using identification. Naturebook has no non-AI identification mode
+            or separate Gemini switch in Settings; if you no longer want this
+            processing, do not submit scans or use AI features.
           </li>
           <li>
             Turn optional PostHog analytics on or off using Analytics &amp;

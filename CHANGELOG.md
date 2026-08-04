@@ -18,11 +18,13 @@ TestFlight, App Store, support, and QA.
   intentionally provides no Gemini processing opt-out.
 - The retained Gemini and analytics wording now uses fresh disclosure versions,
   forcing a new user action without rewriting any earlier beta evidence.
-- This work is not production-ready yet. TestFlight replacement and strict
-  server cutover remain held until all findings and owner evidence in
+- All tracked consent findings are closed in source. Internal test builds may
+  continue, but public production and strict server cutover remain held until
+  exact-SHA validation, replacement-build rollout, disposable database replay,
+  and the operator evidence in
   [`production-consent-readiness-2026-08-03.md`](docs/legal/production-consent-readiness-2026-08-03.md)
-  are closed. Do not publish these bullets as App Store release notes before
-  that approval.
+  are complete. Do not publish these bullets as App Store release notes before
+  production approval.
 
 ### Three Pro Scans Included
 

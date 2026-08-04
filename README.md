@@ -18,12 +18,14 @@ steps are tracked in the
 
 > **Consent production release hold (2026-08-03):** The final Powered by AI
 > screen and versioned adult, Terms, Gemini, and optional PostHog evidence are
-> implemented, but the second-pass review found release-blocking local-ledger
-> merge, PostHog withdrawal, account-transition, and iOS test defects. Do not
-> distribute this consent candidate or enable strict server enforcement until
-> the internal findings, hosted exact-SHA iOS gate, exact-version disposable
-> database replay, App Store 18+ configuration, and paid Gemini billing/DPA
-> evidence are complete. See the
+> implemented. All tracked consent findings are closed in source, including
+> crash-safe ghost-ledger handoff, withdrawal-time PostHog transport blocking,
+> account restoration, Realtime repair, and OAuth account replacement. Internal
+> test builds may continue, but do not nominate the candidate for public
+> production or enable strict server enforcement until the hosted exact-SHA iOS
+> gate, exact-version disposable database replay, replacement-build rollout,
+> App Store 18+ configuration, and paid Gemini billing/DPA evidence are complete.
+> See the
 > [canonical consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
 
 > **Production release evidence gate (2026-07-28):** DwC-A exports are
@@ -640,13 +642,13 @@ expire, or the deletion backlog breaches its SLA. See the
 
 ### Privacy
 
-- The final onboarding screen explicitly states that Naturebook sends scan data
-  to Google Gemini, a third-party AI service. Scanning requires current 18+
+- The final onboarding screen states, “Naturebook sends observation data to
+  Google Gemini for AI-powered identification.” Scanning requires current 18+
   self-attestation, Terms acceptance, and Gemini data-sharing permission.
 - PostHog app usage and diagnostics are optional, account-wide, default-off in
   the absence of a grant, and withdrawable without changing core functionality.
-  The current candidate remains release-held on the implementation corrections
-  in the
+  The implementation findings are closed in source; the candidate remains
+  production-held on exact-SHA rollout evidence and external controls in the
   [consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
 - Geoprivacy is enforced server-side: `obscured` rounds coordinates to ~10km;
   `private` strips location entirely. Endangered species coordinates are

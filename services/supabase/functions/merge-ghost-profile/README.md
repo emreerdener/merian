@@ -198,6 +198,13 @@ absent. This closes `CONSENT-002` in source; hosted exact-SHA test execution
 remains required by the
 [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
+The OAuth session switch itself uses a separate generation-fenced analytics
+transition. Capture and the prior consent Realtime channel close before
+`signInWithIdToken`; success or failure then reconciles the Supabase SDK's
+actual current session. The durable handoff suppression above remains in force
+after that transition until server completion, local rebind/synchronization, and
+verified queue removal all succeed.
+
 The legacy payload cannot be made backward-compatible: it switches sessions
 before calling the server and carries no source-session proof. Treat this as a
 coordinated security rollout:

@@ -1576,8 +1576,10 @@ and `KeychainManager` migration logic. Do not inline
   feature-flag reload is rejected locally even during an immediate account
   switch. Permission generations also invalidate stale overlapping setup work.
   An injected `PostHogSDKClient` verifies gate state and SDK call order. This
-  closes `CONSENT-001`; the broader true-account installation race remains
-  tracked separately as `CONSENT-007`. See
+  closes `CONSENT-001`. `ConsentManager` also generation-fences true-account
+  replacement: analytics and the prior consent Realtime channel close before
+  OAuth installs another session, and only reconciliation of the newest actual
+  SDK session may reopen them. This closes `CONSENT-007` in source. See
   [Production Consent Readiness](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 2026-04 Hardening Updates

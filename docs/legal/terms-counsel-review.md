@@ -4,7 +4,7 @@ Status: internal working memo
 
 Product retention decision recorded: July 31, 2026
 
-Draft and release controls reviewed against repository behavior: August 3, 2026
+Draft and release controls reviewed against repository behavior: August 4, 2026
 
 Public draft: [`apps/web/app/terms/page.tsx`](../../apps/web/app/terms/page.tsx)
 
@@ -69,13 +69,16 @@ Current onboarding has welcome, camera, location, and ready steps:
 - [`OnboardingStep.swift`](../../apps/ios/Merian/Features/Onboarding/Steps/Models/OnboardingStep.swift)
 - [`ReadyStepView.swift`](../../apps/ios/Merian/Features/Onboarding/Steps/Ready/ReadyStepView.swift)
 
-The ready step now states that Naturebook sends scan data to Google Gemini, a third-party
-AI service, for identification. It presents three initially-off switches: required 18+
-self-attestation, required agreement to the inline-linked Terms plus permission for that
-data sharing, and separate optional PostHog analytics. Only the first two enable **Start
-scanning**. There is no separate Decline action because the app has no non-AI operating
-mode; withholding permission keeps scanning unavailable and prevents submission. The
-disclosure and linked legal copy state, before a new user can submit a scan:
+The product-owner-approved internal-testing disclosure is: “Naturebook sends observation
+data to Google Gemini for AI-powered identification.” It presents three initially-off
+switches in the retained Analytics → Age → Terms order: optional usage and diagnostics,
+required 18+ self-attestation, and required agreement to the inline-linked Terms plus
+permission for that data sharing. Only the final two enable **Start scanning**. The UI
+does not name PostHog; PostHog remains the documented analytics provider in the Terms and
+Privacy Policy. There is no separate Decline action because the app has no non-AI
+operating mode; withholding required permission keeps scanning unavailable and prevents
+submission. The onboarding disclosure and linked legal documents collectively state,
+before a new user can submit a scan:
 
 - which information may be sent, including media, descriptions, location, and
   environmental/capture context;
@@ -101,17 +104,18 @@ Settings intentionally provides no Gemini processing opt-out because the app has
 identification mode. Withholding permission keeps the scanner unavailable, while historical
 or remote revocation events still return the app to the disclosure gate.
 
-That design is not yet a verified production control. The second-pass review found that
-unsynchronized ghost-owned actions can be orphaned during account merge, stale/cancelled
-session fetches lack a post-await identity guard, target-owned pending actions may wait for
-a later sync, Realtime startup/retry is not guaranteed, and the consent unit-test target
-does not currently compile. These defects and the exact exit evidence are canonical in
-the
+All tracked client findings are closed in source. The implementation now rebinds the
+complete local ghost ledger before verified handoff removal, generation-fences stale
+session work, activates and flushes a restored account before refetch, independently owns
+and repairs the account-scoped Realtime subscription, suppresses analytics before OAuth
+session replacement, and fails closed until authoritative state is available. Local
+compiled/runtime evidence is recorded, but the exact candidate SHA still needs the hosted
+unit, UI-smoke, Release-archive, and disposable-database gates in the
 [production consent readiness record](./production-consent-readiness-2026-08-03.md).
 
-Release still requires the additive migration, replacement TestFlight build, old-build
-expiration, closure of every internal consent-readiness finding, owner-only strict cutover,
-deployed contract verification, renewed acceptance
+Internal test builds may continue without the deferred operator approvals. Public release
+still requires the additive migration, exact-SHA replacement TestFlight build, old-build
+expiration, owner-only strict cutover, deployed contract verification, renewed acceptance
 whenever a required material policy version changes, and final screenshots and an
 explanation in App Review notes. Qualified counsel must
 approve the final combined acceptance and disclosure copy; this engineering record is not
@@ -120,19 +124,24 @@ region.
 
 ### Implemented Analytics Design — Release-Blocked
 
-The intended design configures PostHog lifecycle events with a US host only after a
-separate optional grant. Replay, automatic screen views, element interactions, surveys,
-swizzling, and push capture are explicitly disabled. `ConsentManager` stores immutable
-account-wide grants and revocations; absence means off. Settings exposes **Analytics &
-diagnostics** without changing core functionality. Edge telemetry checks the same latest
-account event before every PostHog request and no longer sends auth email or name.
+The implemented design configures PostHog lifecycle events with a US host only after a
+separate optional grant. The user-facing switch says “Share usage and diagnostics to help
+improve Naturebook”; it does not name PostHog or display an “Optional” suffix. Replay,
+automatic screen views, element interactions, surveys, swizzling, and push capture are
+explicitly disabled. `ConsentManager` stores immutable account-wide grants and
+revocations; absence means off. Settings exposes **Analytics & diagnostics** without
+changing core functionality. Edge telemetry checks the same latest account event before
+every PostHog request and does not send auth email or name.
 
-The iOS lifecycle is not release-ready. [`PostHogManager.swift`](../../apps/ios/Merian/Core/Analytics/PostHogManager.swift)
-currently invokes PostHog 3.69.0 `reset()` before opt-out and close; that SDK call may
-reload feature flags and therefore can start a network request during withdrawal. Offline
-ghost-account revocations, account replacement, and Realtime startup/retry also have open
-findings. Production requires evidence of no PostHog setup, identification, capture, or
-network activity before grant and after withdrawal or account change.
+The withdrawal and account-lifecycle findings are closed in source.
+[`PostHogManager.swift`](../../apps/ios/Merian/Core/Analytics/PostHogManager.swift) installs
+a closed-by-default, host-scoped transport gate and closes it before preserving
+`reset → optOut → close`, so PostHog 3.69.0's feature-flag reload is cancelled locally.
+Durable ghost handoffs suppress analytics through rebind, synchronization, authoritative
+refetch, and verified queue removal. Account restoration, Realtime retry/repair, and OAuth
+replacement also fail closed. Production still requires exact-candidate evidence of no
+PostHog setup, identification, capture, or network activity before grant and after
+withdrawal or account change.
 
 Before release, counsel must still review the displayed choice and updated Privacy Policy,
 and the App Store privacy answers must match the actual event properties and US host.
@@ -150,8 +159,9 @@ and stores exact, versioned evidence locally and account-wide. It does not colle
 date or exact age. The strict server cutover requires current adult, Terms, and Gemini
 evidence before every provider reservation.
 
-The replacement build is not eligible for release until the internal readiness findings
-are closed and a clean compiled consent test run passes.
+The tracked implementation findings are closed in source and local compiled tests pass.
+The replacement build is not eligible for public release until the clean hosted exact-SHA
+gate passes; internal testing may continue under the readiness record.
 
 Public production remains blocked until App Store Connect carries the reviewed 18+ rating
 override and marketing/distribution are confirmed not directed toward minors. Product and

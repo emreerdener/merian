@@ -4740,28 +4740,30 @@ beta bundle; it never accepts partial evidence. The replacement app itself
 always requires current adult policy `2026-08-03`, Terms `2026-08-03`, Gemini
 disclosure `2026-08-04.1`, and analytics disclosure `2026-08-04`.
 
-> **Repository release hold (August 3, 2026):** Do not nominate a consent
-> candidate, distribute the replacement build, or run strict cutover until
-> `CONSENT-001` through `CONSENT-008` are closed in the
+> **Repository production hold (August 4, 2026):** `CONSENT-001` through
+> `CONSENT-009` are closed in source in the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
-> The current iOS unit target fails compilation in
-> `OnboardingViewModelTests`, so no iOS test execution from that run is valid.
-> Disposable catalog/RLS/pgTAP replay also remains locally unverified because
-> Docker is unavailable and the installed Supabase CLI is 2.101.0 rather than
-> the repository-required 2.109.1.
+> Internal test builds may continue. Do not nominate a public-production
+> candidate or run strict cutover until the exact candidate SHA passes the
+> hosted unit, UI-smoke, and validation-archive gates and a disposable catalog
+> replay passes with the repository-required Supabase CLI 2.109.1. The final
+> local pass compiled the reviewed app and test sources and passed the complete
+> Deno suite; it does not replace those hosted/runtime gates.
 
-1. From a corrected candidate SHA, first close all internal readiness findings.
-   Apply the additive migration and deploy consent-gated Edge telemetry. Run
+1. From the exact candidate SHA, confirm every source-complete readiness item
+   remains closed. Apply the additive migration and deploy consent-gated Edge
+   telemetry. Run
    migration contracts, all Edge tests, disposable-catalog pgTAP, the unsigned
    iOS simulator build/tests, and the Release archive gates from the candidate
    SHA. Confirm `legal_consent_security.sql`, all quota fixtures, and the full
    consent lifecycle matrix pass without skips or compile failures.
 2. Distribute the replacement TestFlight build. Existing testers without
    current evidence must enter directly at **Powered by AI**, without repeating
-   camera or location onboarding. Test every switch combination: age and
-   Gemini/Terms are required; PostHog is optional and never blocks scanning.
-   Exercise the inline Terms link, VoiceOver labels and hints, every supported
-   Dynamic Type size, and the smallest supported iPhone in both orientations.
+   camera or location onboarding. Test every switch combination in the retained
+   Analytics → Age → Terms order: age and Gemini/Terms are required; analytics
+   is optional and never blocks scanning. Exercise the inline Terms link,
+   VoiceOver labels and hints, every supported Dynamic Type size, and the
+   smallest supported iPhone in both orientations.
 3. Verify adult, Terms, Gemini, and optional analytics actions create immutable
    owner rows with server timestamps; no Gemini provider call occurs without
    all current required evidence; and no iOS or Edge PostHog request occurs

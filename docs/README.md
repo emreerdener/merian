@@ -69,10 +69,12 @@ as their permanent engineering identity.
   Production promotion remains an ordered, evidence-backed operation. See the
   [`joined remediation record`](./backend-and-data/19-security-and-reliability-remediation-2026-08-03.md).
 - **Consent production readiness (2026-08-03)**: The final adult, Terms,
-  third-party Google Gemini, and optional PostHog consent design is present, but
-  the candidate is **blocked** by consent synchronization, analytics-withdrawal,
-  and iOS test defects found in the second-pass review. App Store 18+ and paid
-  Gemini billing/DPA evidence also remain operator-owned blockers. See the
+  Google Gemini, and optional PostHog consent design is present. All tracked
+  implementation findings are closed in source, including synchronization,
+  analytics withdrawal, account restoration, Realtime repair, and OAuth account
+  replacement. Internal test builds may continue; public production remains
+  blocked on exact-SHA rollout evidence plus App Store 18+, paid Gemini
+  billing/DPA, and counsel evidence. See the
   [`canonical consent readiness record`](./legal/production-consent-readiness-2026-08-03.md).
 - **Current backend release verdict**: DwC-A exports are default-off for the
   initial launch at both the iOS presentation boundary and the canonical

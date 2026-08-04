@@ -35,11 +35,13 @@ owns native permission delegates such as `LocationPermissionDelegate`.
     observing authorization changes. Provides a transparent "Skip for now"
     fallback button, satisfying App Store Review requirements without alienating
     free users.
-- **Final consent surface (`ReadyStepView`)**: States that Naturebook sends scan
-  data to Google Gemini, a third-party AI service, and presents left-aligned
-  switches for required 18+ self-attestation, required inline-linked
-  Terms/data-sharing permission, and optional default-off PostHog analytics.
-  Only the first two enable **Start scanning**.
+- **Final consent surface (`ReadyStepView`)**: States, “Naturebook sends
+  observation data to Google Gemini for AI-powered identification,” and presents
+  left-aligned, initially-off switches in the retained Analytics → Age → Terms
+  order. Usage/diagnostics is optional; 18+ self-attestation and the
+  inline-linked Terms/data-sharing permission are required. Only the latter two
+  enable **Start scanning**. PostHog is the documented analytics provider, but
+  its name and an “Optional” suffix are intentionally absent from the UI label.
 - **Root View Handoff (`MerianApp`)**: Driven by the injected
   onboarding flag plus `ConsentManager.hasCurrentRequiredConsent`. When the user
   completes Step 4 with current required evidence, SwiftUI rewires the
@@ -49,8 +51,9 @@ owns native permission delegates such as `LocationPermissionDelegate`.
   remains uninitialized until both gates are true, hardware and provider work
   are shielded from onboarding frames.
 
-The current implementation remains release-held pending the defects and exact
-exit evidence in the
+All tracked implementation findings are closed in source. Internal test builds
+may continue; public production remains held pending exact-SHA rollout evidence
+and the external controls in the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 2. The Scans Library (`ScansSheetView`, `ScansManager`)

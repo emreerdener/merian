@@ -3773,6 +3773,8 @@ Deno.test("production consent documentation preserves the release hold and exit 
     releaseVersioning,
     testflightEntry,
     edgeDeploymentEntry,
+    privacy,
+    privacyChoices,
   ] = await Promise.all([
     read("docs/legal/production-consent-readiness-2026-08-03.md"),
     read("README.md"),
@@ -3788,6 +3790,8 @@ Deno.test("production consent documentation preserves the release hold and exit 
     read("docs/development-guides/14-ios-release-versioning.md"),
     read("apps/ios/.agents/workflows/deploy_testflight.md"),
     read("apps/ios/.agents/workflows/deploy_edge_functions.md"),
+    read("apps/web/app/privacy/page.tsx"),
+    read("apps/web/app/privacy-choices/page.tsx"),
   ]);
 
   const canonicalCompact = compact(canonical);
@@ -3802,7 +3806,9 @@ Deno.test("production consent documentation preserves the release hold and exit 
       "Gemini disclosure version is `2026-08-04.1`",
       "Apple App Review Guideline 5.1.2(i)",
       "Cloud project with active billing",
-      "Production remains blocked until both the internal and external sections are closed",
+      "`CONSENT-001` through `CONSENT-009` are closed in source",
+      "Production remains blocked until hosted exact-SHA validation and every external production control are closed",
+      "Those operator controls remain deferred for internal-only test builds",
     ]
   ) {
     assertStringIncludes(canonicalCompact, fragment);
@@ -3836,6 +3842,20 @@ Deno.test("production consent documentation preserves the release hold and exit 
   assertStringIncludes(
     compact(secrets),
     "billing and DPA status remain unverified",
+  );
+  for (const source of [privacy, privacyChoices]) {
+    assertStringIncludes(
+      compact(source),
+      "Naturebook has no non-AI identification mode or separate Gemini switch in Settings",
+    );
+  }
+  assertStringIncludes(
+    compact(privacy),
+    "Turn optional PostHog analytics on or off using Analytics &amp; diagnostics",
+  );
+  assertStringIncludes(
+    compact(privacyChoices),
+    "Turn optional Analytics &amp; diagnostics on or off in Naturebook Settings",
   );
 });
 

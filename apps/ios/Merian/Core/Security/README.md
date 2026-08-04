@@ -9,8 +9,9 @@ live in `Core/Network/SupabaseManager`; this directory provides the secure local
 primitives and external identity bindings used by that manager.
 
 The consent model below is the required production contract, not a release
-approval. The current candidate remains blocked by the internal findings and
-external owner confirmations in the
+approval. All tracked consent findings are complete in source, but the current
+candidate still requires hosted exact-SHA execution and the external owner
+confirmations in the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 ## Components
@@ -34,7 +35,13 @@ external owner confirmations in the
   inference request. After a confirmed provider-bound ghost handoff, it
   generation-cancels stale sync work, atomically rebinds all four local ledgers,
   pushes target-owned pending actions, and refetches before the durable handoff
-  can be removed. The database quota boundary remains the authoritative
+  can be removed. Normal account restoration also activates and flushes the
+  target account before remote refetch while analytics remains fail-closed.
+  Analytics-consent Realtime owns its subscribed account independently,
+  generation-fences stale channels, and retries failures with foreground
+  repair. OAuth account replacement closes analytics before session
+  installation and reconciles the SDK's actual session before a current grant
+  may reopen capture. The database quota boundary remains the authoritative
   provider-dispatch gate.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor

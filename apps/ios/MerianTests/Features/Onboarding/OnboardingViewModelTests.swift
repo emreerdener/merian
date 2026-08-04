@@ -315,4 +315,44 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertFalse(consentManager.hasCurrentRequiredConsent)
         XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
     }
+
+    func testOverlappingAccountTransitionsOnlyNewestResolutionReopensAnalytics() {
+        let originalUserId = UUID()
+        let replacementUserId = UUID()
+        consentManager.observeSession(userId: originalUserId)
+        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            analyticsEnabled: true
+        )
+
+        let firstGeneration = consentManager.beginAnalyticsAccountTransition()
+        let secondGeneration = consentManager.beginAnalyticsAccountTransition()
+        XCTAssertTrue(consentManager.isAnalyticsSuppressedForAccountTransition)
+
+        XCTAssertFalse(
+            consentManager.resolveAnalyticsAccountTransition(
+                generation: firstGeneration,
+                userId: originalUserId
+            )
+        )
+        XCTAssertTrue(consentManager.isAnalyticsSuppressedForAccountTransition)
+        XCTAssertEqual(consentManager.currentSessionUserId, originalUserId)
+
+        XCTAssertTrue(
+            consentManager.resolveAnalyticsAccountTransition(
+                generation: secondGeneration,
+                userId: replacementUserId
+            )
+        )
+        XCTAssertFalse(consentManager.isAnalyticsSuppressedForAccountTransition)
+        XCTAssertEqual(consentManager.currentSessionUserId, replacementUserId)
+        XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
+    }
+
+    func testAnalyticsConsentRealtimeRetryUsesBoundedExponentialBackoff() {
+        XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 1), 1)
+        XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 2), 2)
+        XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 3), 4)
+        XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 6), 30)
+        XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 100), 30)
+    }
 }

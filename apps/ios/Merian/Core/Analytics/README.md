@@ -26,10 +26,12 @@ PostHog 3.69.0's reset-time feature-flag reload is cancelled locally. SDK access
 is isolated behind `PostHogSDKClient`, and permission generations prevent stale
 overlapping setup work from completing for a replaced account.
 
-The broader OAuth session-installation race in `CONSENT-007` and the other
-readiness findings still require closure. Hosted verification must prove zero
-setup, identification, capture, or network activity before grant and after
-withdrawal/account change. See the
+`CONSENT-007` is also complete in source: true-account OAuth replacement closes
+analytics and consent Realtime before session installation, reconciles the
+actual SDK session on success or failure, and generation-fences overlapping
+logins. Hosted verification must still prove zero setup, identification,
+capture, or network activity before grant and after withdrawal/account change.
+See the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 ## Advisory local usage meter

@@ -15,8 +15,9 @@ The `Steps` directory contains the individual, user-facing screens that make up 
 
 The screen order and copy above are approved for internal testing, not frozen
 for production. The two P1 analytics-withdrawal and ghost-handoff defects are
-closed in source; remaining account synchronization, exact-SHA CI, counsel
-approval, and operator evidence still block release. The
+closed in source, as are account restoration, Realtime retry/repair, and OAuth
+account replacement. Internal test builds may continue; exact-SHA CI, counsel
+approval, and operator evidence still block public production. The
 canonical status and exit evidence are recorded in
 [Production Consent Readiness](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 

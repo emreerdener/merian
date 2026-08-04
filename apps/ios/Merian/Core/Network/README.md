@@ -394,6 +394,24 @@ empty or UUID-leaking summaries, and duplicate, oversized, unknown-category, or
 locally unsafe prompts become `MerianError.invalidResponse`; no success UI is
 applied.
 
+## OAuth account replacement
+
+Linking an OAuth identity to an anonymous user keeps the same Supabase UUID and
+does not replace the account. The provider-conflict fallback and ordinary OAuth
+sign-in can install a different UUID, so they use one replacement boundary:
+
+1. synchronously suppress analytics, invalidate stale consent synchronization,
+   and stop the prior consent Realtime channel;
+2. ask Supabase Auth to install the target session; and
+3. reconcile the SDK's actual current session on both success and failure.
+
+The consent transition is generation-fenced. A delayed completion from an older
+overlapping sign-in cannot reopen PostHog, restart a stale Realtime owner, or
+overwrite `currentUser` after a newer transition starts. A failed replacement
+restores the actual surviving session rather than assuming the preflight session
+still exists. Provider-bound ghost handoff suppression remains independently
+active until its durable queue has been fully reconciled.
+
 ## Sign-out transition
 
 `SupabaseManager` closes the authenticated-request gate and clears observable
