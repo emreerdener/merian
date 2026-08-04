@@ -88,7 +88,10 @@ collection upsert with valid JSON-array ordinality parsing while preserving the
 same accepted/rejected-ID semantics. Its paired
 `20260803215310_grant_collection_sync_invoker_privileges.sql` grants only the
 table operations required by the invoker routines; it does not restore
-table-wide owner updates:
+table-wide owner updates. The follow-up
+`20260804002819_fix_collection_membership_conflict_ambiguity.sql` replaces an
+ambiguous PL/pgSQL conflict-column list with the canonical composite primary key
+constraint:
 
 - `service_role` has no table-wide collection UPDATE and may directly update
   only `name` and `created_at`; it cannot reassign `user_id`;

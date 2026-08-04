@@ -16,6 +16,10 @@ const invokerPrivilegesMigrationUrl = new URL(
   "../../migrations/20260803215310_grant_collection_sync_invoker_privileges.sql",
   import.meta.url,
 );
+const membershipConflictRepairMigrationUrl = new URL(
+  "../../migrations/20260804002819_fix_collection_membership_conflict_ambiguity.sql",
+  import.meta.url,
+);
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();
@@ -143,5 +147,30 @@ Deno.test("collection invoker routines have only their required service table pr
   assert(
     !sql.includes("GRANT UPDATE ON TABLE public.collections TO service_role"),
     "The invoker repair must not restore table-wide collection ownership updates.",
+  );
+});
+
+Deno.test("collection membership insert avoids RETURNS TABLE conflict-target ambiguity", async () => {
+  const sql = compact(
+    await Deno.readTextFile(membershipConflictRepairMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.insert_owned_collection_scans( p_user_id UUID, p_rows JSONB )",
+      "SECURITY INVOKER SET search_path = ''",
+      "ON CONFLICT ON CONSTRAINT collection_scans_pkey DO NOTHING",
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '30s'",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("ON CONFLICT (collection_id, scan_id)"),
+    "The output parameter names make an unqualified conflict column list ambiguous in PL/pgSQL.",
   );
 });

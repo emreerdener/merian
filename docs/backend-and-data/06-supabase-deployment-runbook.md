@@ -4633,7 +4633,9 @@ exact deployed SHA and live smoke evidence for each phase.
    forward execution repair
    `20260803215309_fix_collection_owner_upsert_ordinality.sql`, followed by the
    invoker-privilege repair
-   `20260803215310_grant_collection_sync_invoker_privileges.sql`, before
+   `20260803215310_grant_collection_sync_invoker_privileges.sql`, and then the
+   membership-conflict repair
+   `20260804002819_fix_collection_membership_conflict_ambiguity.sql`, before
    deploying `sync-collections`. Verify foreign collection IDs are skipped and
    never reparented, cross-owner memberships fail through the RPC, direct
    service access, and authenticated RLS, table-wide service-role owner updates
