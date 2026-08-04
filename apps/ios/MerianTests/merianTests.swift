@@ -42,6 +42,10 @@ final class ScrollAwareToolbarTitleBadgeTests: XCTestCase {
 
 @MainActor
 final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
+    private static let entitlementTestUserID = UUID(
+        uuidString: "00000000-0000-4000-8000-000000000778"
+    )!
+
     private var previousProState = false
     private var previousSubscribedState = false
 
@@ -126,6 +130,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
         UsageManager.debugFreeScanLimitOverride = true
         UsageManager.shared.evaluateDailyRefresh()
+        activatePaidEntitlementAccountForTest()
     }
 
     private func restoreFreeScanLimitForTest() {
@@ -134,6 +139,17 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
         UsageManager.debugFreeScanLimitOverride = nil
         UsageManager.shared.evaluateDailyRefresh()
+        resetEntitlementAccountForTest()
+    }
+
+    private func activatePaidEntitlementAccountForTest() {
+        EntitlementManager.shared.resetForTesting(
+            userID: Self.entitlementTestUserID
+        )
+    }
+
+    private func resetEntitlementAccountForTest() {
+        EntitlementManager.shared.resetForTesting()
     }
 
     private func makeTempAudioFilename(prefix: String = "capture_vm_audio") throws -> String {
@@ -1080,6 +1096,9 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
     }
 
     func testOfflineVisualQueueFailureDiscardsStagedVideoFiles() async throws {
+        activatePaidEntitlementAccountForTest()
+        defer { resetEntitlementAccountForTest() }
+
         let diContainer = AppDIContainer.preview
         let originalContext = OfflineQueueManager.shared.modelContext
         let originalOnline = OfflineQueueManager.shared.isOnline
