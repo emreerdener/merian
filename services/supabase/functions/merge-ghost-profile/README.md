@@ -175,11 +175,27 @@ Auth user, and each database RPC independently derives authority from
 ## Rollout
 
 The database mapper reparents only rows already synchronized to Supabase. The
-iOS append-only consent ledger is a separate authority: after confirmed handoff,
-the client must atomically rebind unsynchronized ghost-owned adult, Terms,
-Gemini, and analytics actions to the permanent UUID, push them, and refetch
-current state. That client behavior is not yet verified and is tracked as
-`CONSENT-002` in the
+iOS append-only consent ledger is a separate authority. After confirmed server
+completion, the client now transforms the complete local ledger in one verified
+write: every ghost-owned adult, Terms, Gemini, and analytics record moves to the
+permanent UUID; records synchronized to the ghost become synchronized to the
+permanent UUID, while every other synchronization owner is cleared so the record
+remains pending. IDs, displayed text, client/server timestamps, policy versions,
+platform, and app metadata remain unchanged.
+
+The durable Keychain handoff suppresses analytics before and throughout this
+sequence, including after process restart. The client cancels stale ledger sync
+work, pushes pending permanent-account actions, refetches authoritative state,
+then removes the handoff with a throwing, read-after-write-verified Keychain
+operation. Any persistence, synchronization, refetch, cancellation, or removal
+failure retains the handoff for an idempotent retry. Only server-terminal
+`handoff_expired` and `handoff_invalid` responses discard a handoff without
+rebinding local evidence; those paths still refetch the permanent account before
+verified removal. Analytics can resume only after the durable queue is empty and
+permanent state is authoritative. Keychain read/decode uncertainty retains the
+original bytes and keeps analytics suppressed instead of treating the queue as
+absent. This closes `CONSENT-002` in source; hosted exact-SHA test execution
+remains required by the
 [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 The legacy payload cannot be made backward-compatible: it switches sessions

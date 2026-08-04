@@ -119,10 +119,10 @@ account-wide permission boundary:
 
 > [!WARNING]
 > The architecture below is the required release invariant. The current
-> candidate is blocked because PostHog iOS 3.69.0 `reset()` can reload feature
-> flags before opt-out, local pending withdrawals are not safely migrated across
-> every ghost-to-existing-account handoff, and account-transition/Realtime races
-> still require regression coverage. See the
+> source closes the reset-time transport leak and crash-safe ghost evidence
+> migration tracked as `CONSENT-001` and `CONSENT-002`. The release candidate
+> remains blocked by the account-transition, restoration, Realtime, and hosted
+> validation items in the
 > [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 - **iOS app analytics (`AppTelemetry`)** — pseudonymous product metrics routed
@@ -219,9 +219,11 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
 
 - Not `@MainActor` — thread-safe wrapper around `PostHogSDK.shared`.
 - Rejects configuration, identity, and capture before permission. The required
-  withdrawal/account-change path clears identity, persists opt-out, and closes
-  the SDK without calling a request-producing reset path. This remains
-  release-blocked on `CONSENT-001` and `CONSENT-007`.
+  withdrawal/direct-wrapper account-change path closes a per-SDK-session
+  transport gate before preserving `reset → optOut → close`; delayed requests
+  from an old transport remain blocked after a new grant opens. This closes
+  `CONSENT-001`; the broader OAuth installation race remains tracked as
+  `CONSENT-007`.
 - Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()`
   guards on this flag and buffers the latest user ID if a future call races
   configuration.

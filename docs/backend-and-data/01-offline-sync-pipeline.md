@@ -618,11 +618,10 @@ structured terminal reason for status polling. Inline foreground requests still
 depend on the iOS queue because raw media bytes are not stored in replay
 intents. Queue diagnostics can be exported through
 `OfflineQueueManager.writeQueueDiagnosticsExport(eventLimit:)`; the JSON
-contains jobs, redacted scan queue metadata, and bounded event rows only.
-Debug/TestFlight testers can generate and share it from Settings → Beta
-Diagnostics immediately after a smoke test. The artifact binds that evidence to
-the app version/build and embedded source revision/fingerprint/state. It never
-contains raw media paths or payload contents, descriptions, Field notes,
+contains jobs, redacted scan queue metadata, and bounded event rows only. This
+internal exporter is not exposed in Settings. The artifact binds that evidence
+to the app version/build and embedded source revision/fingerprint/state. It
+never contains raw media paths or payload contents, descriptions, Field notes,
 location/GPS, raw metadata, or arbitrary free-form error/event messages.
 Retained error codes and server status/stage values must match the canonical
 lowercase machine-token grammar or they are omitted.

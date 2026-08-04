@@ -8,9 +8,10 @@ document explains the four-step permission flow, versioned consent receipts,
 and the three-part required completion gate.
 
 > [!WARNING]
-> **Release status:** the intended screen and evidence model are implemented,
-> but the 2026-08-03 second pass found release-blocking local-ledger merge,
-> account-synchronization, PostHog withdrawal, and iOS test defects. Treat the
+> **Release status:** the internal-testing screen and evidence model are
+> implemented. The P1 local-ledger merge and PostHog withdrawal defects are
+> closed in source; account synchronization, final-copy re-versioning,
+> exact-SHA CI, and operator evidence still block production. Treat the
 > guarantees below as required invariants until every item in the
 > [canonical consent readiness record](../legal/production-consent-readiness-2026-08-03.md)
 > is closed. Do not distribute the candidate or enable strict enforcement yet.
@@ -47,7 +48,7 @@ enum OnboardingStep: Int, CaseIterable {
 | `.welcome` | `WelcomeStepView` | Branding screen — no permission request |
 | `.camera` | `CameraPermissionStepView` | Requests `AVCaptureDevice` camera permission |
 | `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` when-in-use authorization via `LocationPermissionDelegate` |
-| `.ready` | `ReadyStepView` | Explicitly discloses third-party Google Gemini data sharing and presents three initially-off, left-aligned switches: required 18+ self-attestation, required Terms/Gemini permission with an inline Terms link, and optional PostHog analytics. **Start scanning** requires only the first two switches. |
+| `.ready` | `ReadyStepView` | Names Google Gemini as the recipient of observation data for AI-powered identification and presents three initially-off, left-aligned switches in internal-testing order: optional usage/diagnostics, required 18+ self-attestation, and required Terms/data-sharing permission with an inline Terms link. **Start scanning** requires the two required switches only. |
 
 The first three step views use `OnboardingStepWrapper` for consistent layout
 and action chrome. The ready step uses a dedicated layout so the disclosure,
@@ -89,9 +90,9 @@ full lifecycle requires both `hasCompletedOnboarding` and
 - `AppLifecycleManager.handleBackgroundPhase()` always records the background
   time used by session-timeout recovery; it does not submit provider work.
 
-This means during onboarding or after AI permission withdrawal: no camera
-session starts, no inference request is built, and no offline submission drain
-runs.
+This means during onboarding or whenever current required consent evidence is
+absent: no camera session starts, no inference request is built, and no offline
+submission drain runs.
 
 ---
 
@@ -142,13 +143,16 @@ column-level `INSERT` grants. Clients have no `UPDATE` or `DELETE` path and
 cannot supply `recorded_at`; the latest server-recorded provider event
 determines cloud permission. Client-generated IDs make retries idempotent.
 Database ghost-to-signed-in merge policies reparent every synchronized
-immutable row without coalescing evidence. The current iOS candidate does not
-yet reparent unsynced local ghost-owned actions after a provider-bound handoff;
-that must be corrected before release so an offline withdrawal cannot be
-orphaned. Analytics INSERT events are in the owner-scoped Realtime publication,
-but the client must also guarantee channel startup/retry independently of
-session-assignment order. Foreground synchronization remains the recovery path
-for missed events.
+immutable row without coalescing evidence. After server completion, iOS now
+rebinds the complete local adult, Terms, Gemini, and analytics ledger to the
+permanent UUID in one verified write. Ghost-synchronized records follow the
+server mapping; every other ghost-owned record remains pending for the
+permanent account. A durable handoff suppresses analytics across restart until
+pending actions are pushed, authoritative state is refetched, and throwing
+verified queue removal succeeds. Analytics INSERT events are in the owner-scoped
+Realtime publication, but the client must also guarantee channel startup/retry
+independently of session-assignment order. Foreground synchronization remains
+the recovery path for missed events.
 
 Before any identification provider request is constructed or dispatched,
 `MerianNetworkClient` calls `ensureCloudConsentForInference()`. That method
@@ -160,16 +164,17 @@ before provider admission, so an outdated or modified client cannot bypass it.
 Missing or revoked evidence fails with `403 ai_consent_required` and no Gemini
 dispatch.
 
-Settings → Privacy & processing provides separate AI and analytics controls. AI
-withdrawal appends a versioned `revoked` event, closes the local workspace gate immediately, and
-synchronizes the event. Naturebook has no non-AI identification mode, so the
-user must return to the disclosure screen and grant current permission to use
-the scanner again. The required analytics-withdrawal invariant is immediate
-facade shutdown, identity clearing, SDK opt-out/closure, account-wide
-synchronization, no withdrawal-triggered PostHog request, and no change to core
-functionality. The resolved PostHog 3.69.0 `reset()` behavior means the current
-call order does not yet satisfy that invariant; see `CONSENT-001` in the
-readiness record.
+The first row in Settings → Resources is the optional Analytics & diagnostics
+control. Settings intentionally provides no Gemini processing opt-out:
+Naturebook has no non-AI identification mode, so a user who does not permit the
+required processing cannot use the scanner. Historical or remote AI revocation
+events remain supported and close the local workspace gate immediately. The
+required analytics-withdrawal invariant is immediate facade shutdown, identity
+clearing, SDK opt-out/closure, account-wide synchronization, no
+withdrawal-triggered PostHog request, and no change to core functionality. The
+configured-host transport gate closes before `reset()` and cancels PostHog
+3.69.0's reset-time feature-flag reload locally while preserving
+`reset → optOut → close`; see completed `CONSENT-001` in the readiness record.
 
 ---
 

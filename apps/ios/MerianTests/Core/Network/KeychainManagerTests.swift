@@ -61,6 +61,19 @@ struct KeychainManagerTests {
         #expect(manager.data(forKey: key) == nil)
     }
 
+    @Test func testThrowingReadAndVerifiedRemovalPreserveAbsenceSemantics() throws {
+        let manager = KeychainManager.shared
+        let key = testKey + "_verified_removal"
+        let value = Data("durable-handoff".utf8)
+
+        manager.removeObject(forKey: key)
+        #expect(manager.set(value, forKey: key))
+        #expect(try manager.dataOrThrow(forKey: key) == value)
+
+        try manager.removeObjectVerified(forKey: key)
+        #expect(try manager.dataOrThrow(forKey: key) == nil)
+    }
+
     @Test func testStringRoundTripsWithoutBooleanCoercion() async {
         let manager = KeychainManager.shared
         let key = testKey + "_string"

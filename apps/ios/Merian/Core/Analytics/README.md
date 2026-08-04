@@ -15,12 +15,21 @@ starting another SDK request.
 ## Release status
 
 The consent architecture is implemented but this release candidate is held.
-The current withdrawal order calls PostHog 3.69.0 `reset()` before opt-out and
-close; that SDK method may reload feature flags. True OAuth account replacement
-also depends on the asynchronous auth observer to shut down the prior identity.
-Close `CONSENT-001` and `CONSENT-007`, then prove zero setup, identification,
-capture, or network activity before grant and after withdrawal/account change.
-See the
+`CONSENT-001` is complete in source: PostHog's dedicated
+`URLSessionConfiguration` installs a closed-by-default, configured-host-only
+`URLProtocol` gate. Every SDK setup receives a unique transport ID; only the
+currently active ID is admitted, so reopening for a new grant cannot admit a
+delayed reset request from an old SDK session. A grant opens its ID immediately
+before setup. Withdrawal or a direct wrapper-level account transition disables
+app capture and closes the gate before preserving `reset → optOut → close`, so
+PostHog 3.69.0's reset-time feature-flag reload is cancelled locally. SDK access
+is isolated behind `PostHogSDKClient`, and permission generations prevent stale
+overlapping setup work from completing for a replaced account.
+
+The broader OAuth session-installation race in `CONSENT-007` and the other
+readiness findings still require closure. Hosted verification must prove zero
+setup, identification, capture, or network activity before grant and after
+withdrawal/account change. See the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 ## Advisory local usage meter

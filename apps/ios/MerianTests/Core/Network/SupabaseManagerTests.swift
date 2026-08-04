@@ -237,6 +237,340 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertEqual(decoded.handoffs, [unrelated, replacement])
     }
 
+    func testGhostConsentRebindPreservesImmutableEvidenceAndPendingState() {
+        let ghostUserId = UUID()
+        let permanentUserId = UUID()
+        let recordedAt = Date(timeIntervalSince1970: 1_786_000_000)
+
+        let adultReceipts = [
+            makeAdultReceipt(
+                ownerUserId: ghostUserId,
+                syncedUserId: ghostUserId,
+                recordedAt: recordedAt
+            ),
+            makeAdultReceipt(
+                ownerUserId: ghostUserId,
+                syncedUserId: nil,
+                recordedAt: nil
+            )
+        ]
+        let termsReceipts = [
+            makeTermsReceipt(
+                ownerUserId: ghostUserId,
+                syncedUserId: ghostUserId,
+                recordedAt: recordedAt
+            ),
+            makeTermsReceipt(
+                ownerUserId: ghostUserId,
+                syncedUserId: nil,
+                recordedAt: nil
+            )
+        ]
+        let aiEvents = [
+            makeAIConsentEvent(
+                ownerUserId: ghostUserId,
+                syncedUserId: ghostUserId,
+                recordedAt: recordedAt
+            ),
+            makeAIConsentEvent(
+                ownerUserId: ghostUserId,
+                syncedUserId: nil,
+                recordedAt: nil
+            )
+        ]
+        let analyticsEvents = [
+            makeAnalyticsConsentEvent(
+                ownerUserId: ghostUserId,
+                syncedUserId: ghostUserId,
+                eventKind: .granted,
+                recordedAt: recordedAt
+            ),
+            makeAnalyticsConsentEvent(
+                ownerUserId: ghostUserId,
+                syncedUserId: nil,
+                eventKind: .revoked,
+                recordedAt: nil
+            )
+        ]
+        let source = ConsentManager.LocalLedger(
+            activeUserId: ghostUserId,
+            termsReceipts: termsReceipts,
+            aiConsentEvents: aiEvents,
+            adultEligibilityReceipts: adultReceipts,
+            analyticsConsentEvents: analyticsEvents
+        )
+
+        let rebound = ConsentManager.rebinding(
+            source,
+            from: ghostUserId,
+            to: permanentUserId
+        )
+
+        XCTAssertEqual(rebound.activeUserId, permanentUserId)
+        XCTAssertEqual(
+            rebound,
+            ConsentManager.rebinding(
+                rebound,
+                from: ghostUserId,
+                to: permanentUserId
+            ),
+            "Rebinding must be idempotent for crash-safe handoff retries"
+        )
+
+        var expectedAdults = adultReceipts
+        var expectedTerms = termsReceipts
+        var expectedAI = aiEvents
+        var expectedAnalytics = analyticsEvents
+        for index in expectedAdults.indices {
+            expectedAdults[index].ownerUserId = permanentUserId
+            expectedAdults[index].syncedUserId = index == 0
+                ? permanentUserId
+                : nil
+        }
+        for index in expectedTerms.indices {
+            expectedTerms[index].ownerUserId = permanentUserId
+            expectedTerms[index].syncedUserId = index == 0
+                ? permanentUserId
+                : nil
+        }
+        for index in expectedAI.indices {
+            expectedAI[index].ownerUserId = permanentUserId
+            expectedAI[index].syncedUserId = index == 0
+                ? permanentUserId
+                : nil
+        }
+        for index in expectedAnalytics.indices {
+            expectedAnalytics[index].ownerUserId = permanentUserId
+            expectedAnalytics[index].syncedUserId = index == 0
+                ? permanentUserId
+                : nil
+        }
+
+        XCTAssertEqual(rebound.adultEligibilityReceipts, expectedAdults)
+        XCTAssertEqual(rebound.termsReceipts, expectedTerms)
+        XCTAssertEqual(rebound.aiConsentEvents, expectedAI)
+        XCTAssertEqual(rebound.analyticsConsentEvents, expectedAnalytics)
+    }
+
+    func testOfflineGhostAnalyticsRevocationWinsAfterMergeAndAcrossDevices() throws {
+        let ghostUserId = UUID()
+        let permanentUserId = UUID()
+        let grantRecordedAt = Date(timeIntervalSince1970: 1_786_000_000)
+        let revocation = makeAnalyticsConsentEvent(
+            ownerUserId: ghostUserId,
+            syncedUserId: nil,
+            eventKind: .revoked,
+            recordedAt: nil
+        )
+        let source = ConsentManager.LocalLedger(
+            activeUserId: ghostUserId,
+            termsReceipts: [],
+            aiConsentEvents: [],
+            adultEligibilityReceipts: [],
+            analyticsConsentEvents: [
+                makeAnalyticsConsentEvent(
+                    ownerUserId: permanentUserId,
+                    syncedUserId: permanentUserId,
+                    eventKind: .granted,
+                    recordedAt: grantRecordedAt
+                ),
+                revocation
+            ]
+        )
+        let rebound = ConsentManager.rebinding(
+            source,
+            from: ghostUserId,
+            to: permanentUserId
+        )
+
+        let suiteName = "merian.tests.ghost-consent.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        userDefaults.set(
+            try JSONEncoder().encode(rebound),
+            forKey: UserDefaultsKeys.legalConsentLedger
+        )
+
+        let mergedManager = ConsentManager(userDefaults: userDefaults)
+        mergedManager.observeSession(userId: permanentUserId)
+        XCTAssertFalse(mergedManager.hasGrantedCurrentPostHogAnalytics)
+
+        let restartedManager = ConsentManager(userDefaults: userDefaults)
+        restartedManager.observeSession(userId: permanentUserId)
+        XCTAssertFalse(restartedManager.hasGrantedCurrentPostHogAnalytics)
+
+        var secondDeviceLedger = rebound
+        let revocationIndex = try XCTUnwrap(
+            secondDeviceLedger.analyticsConsentEvents.firstIndex {
+                $0.id == revocation.id
+            }
+        )
+        secondDeviceLedger.analyticsConsentEvents[revocationIndex].syncedUserId =
+            permanentUserId
+        secondDeviceLedger.analyticsConsentEvents[revocationIndex].recordedAt =
+            grantRecordedAt.addingTimeInterval(1)
+        userDefaults.set(
+            try JSONEncoder().encode(secondDeviceLedger),
+            forKey: UserDefaultsKeys.legalConsentLedger
+        )
+
+        let secondDeviceManager = ConsentManager(userDefaults: userDefaults)
+        secondDeviceManager.observeSession(userId: permanentUserId)
+        XCTAssertFalse(secondDeviceManager.hasGrantedCurrentPostHogAnalytics)
+    }
+
+    func testGhostHandoffClearsQueueOnlyAfterServerAndLocalCompletion() async throws {
+        var calls: [String] = []
+
+        try await SupabaseManager.finalizeGhostProfileHandoff(
+            completeServerHandoff: { calls.append("server") },
+            rebindAndSynchronizeLocalEvidence: { calls.append("local") },
+            clearPendingHandoff: { calls.append("clear") }
+        )
+
+        XCTAssertEqual(calls, ["server", "local", "clear"])
+    }
+
+    func testGhostHandoffRetainsQueueWhenServerOrLocalCompletionFails() async {
+        var serverFailureCalls: [String] = []
+        do {
+            try await SupabaseManager.finalizeGhostProfileHandoff(
+                completeServerHandoff: {
+                    serverFailureCalls.append("server")
+                    throw GhostHandoffTestError.expected
+                },
+                rebindAndSynchronizeLocalEvidence: {
+                    serverFailureCalls.append("local")
+                },
+                clearPendingHandoff: {
+                    serverFailureCalls.append("clear")
+                }
+            )
+            XCTFail("Server failure must remain retryable")
+        } catch {}
+        XCTAssertEqual(serverFailureCalls, ["server"])
+
+        var localFailureCalls: [String] = []
+        do {
+            try await SupabaseManager.finalizeGhostProfileHandoff(
+                completeServerHandoff: {
+                    localFailureCalls.append("server")
+                },
+                rebindAndSynchronizeLocalEvidence: {
+                    localFailureCalls.append("local")
+                    throw GhostHandoffTestError.expected
+                },
+                clearPendingHandoff: {
+                    localFailureCalls.append("clear")
+                }
+            )
+            XCTFail("Local evidence failure must retain the durable handoff")
+        } catch {}
+        XCTAssertEqual(localFailureCalls, ["server", "local"])
+    }
+
+    func testGhostHandoffRemovalFailureRemainsRetryable() async {
+        var calls: [String] = []
+        do {
+            try await SupabaseManager.finalizeGhostProfileHandoff(
+                completeServerHandoff: { calls.append("server") },
+                rebindAndSynchronizeLocalEvidence: { calls.append("local") },
+                clearPendingHandoff: {
+                    calls.append("clear")
+                    throw GhostHandoffTestError.expected
+                }
+            )
+            XCTFail("A failed verified queue write must be retried")
+        } catch {}
+        XCTAssertEqual(calls, ["server", "local", "clear"])
+    }
+
+    private func makeAdultReceipt(
+        ownerUserId: UUID,
+        syncedUserId: UUID?,
+        recordedAt: Date?
+    ) -> ConsentManager.AdultEligibilityReceipt {
+        ConsentManager.AdultEligibilityReceipt(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: syncedUserId,
+            policyVersion: ConsentPolicy.adultEligibilityVersion,
+            confirmedAt: Date(timeIntervalSince1970: 1_785_999_900),
+            confirmationMethod: .selfAttestation,
+            confirmationText: ConsentPolicy.adultConfirmationText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt
+        )
+    }
+
+    private func makeTermsReceipt(
+        ownerUserId: UUID,
+        syncedUserId: UUID?,
+        recordedAt: Date?
+    ) -> ConsentManager.TermsAcceptanceReceipt {
+        ConsentManager.TermsAcceptanceReceipt(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: syncedUserId,
+            termsVersion: ConsentPolicy.termsVersion,
+            acceptedAt: Date(timeIntervalSince1970: 1_785_999_900),
+            acceptanceText: ConsentPolicy.combinedAcceptanceText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt
+        )
+    }
+
+    private func makeAIConsentEvent(
+        ownerUserId: UUID,
+        syncedUserId: UUID?,
+        recordedAt: Date?
+    ) -> ConsentManager.AIConsentEvent {
+        ConsentManager.AIConsentEvent(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: syncedUserId,
+            provider: ConsentPolicy.geminiProvider,
+            disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
+            eventKind: .granted,
+            occurredAt: Date(timeIntervalSince1970: 1_785_999_900),
+            disclosureText: ConsentPolicy.geminiDisclosureText,
+            actionText: ConsentPolicy.combinedAcceptanceText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt
+        )
+    }
+
+    private func makeAnalyticsConsentEvent(
+        ownerUserId: UUID,
+        syncedUserId: UUID?,
+        eventKind: ConsentManager.AnalyticsConsentEventKind,
+        recordedAt: Date?
+    ) -> ConsentManager.AnalyticsConsentEvent {
+        ConsentManager.AnalyticsConsentEvent(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: syncedUserId,
+            provider: ConsentPolicy.analyticsProvider,
+            disclosureVersion: ConsentPolicy.analyticsDisclosureVersion,
+            eventKind: eventKind,
+            occurredAt: Date(timeIntervalSince1970: 1_785_999_900),
+            disclosureText: ConsentPolicy.analyticsDisclosureText,
+            actionText: eventKind == .granted
+                ? ConsentPolicy.analyticsDisclosureText
+                : ConsentPolicy.analyticsWithdrawalText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt
+        )
+    }
+
     private func makeUnsignedJWT(payload: [String: String]) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: payload)
         let payloadSegment = data.base64EncodedString()
@@ -245,4 +579,8 @@ final class SupabaseManagerTests: XCTestCase {
             .replacingOccurrences(of: "=", with: "")
         return "header.\(payloadSegment).signature"
     }
+}
+
+private enum GhostHandoffTestError: Error {
+    case expected
 }

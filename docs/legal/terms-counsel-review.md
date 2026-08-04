@@ -97,8 +97,9 @@ disclosure.
 Every iOS inference entry point verifies that the current rows reached the active account
 before constructing its provider request. Both service-only `reserve_ai_quota` overloads
 repeat the check before provider admission, so a modified or stale client fails closed.
-Settings provides a confirmed Gemini withdrawal action that appends a revocation event and
-immediately returns the app to the disclosure gate.
+Settings intentionally provides no Gemini processing opt-out because the app has no non-AI
+identification mode. Withholding permission keeps the scanner unavailable, while historical
+or remote revocation events still return the app to the disclosure gate.
 
 That design is not yet a verified production control. The second-pass review found that
 unsynchronized ghost-owned actions can be orphaned during account merge, stale/cancelled

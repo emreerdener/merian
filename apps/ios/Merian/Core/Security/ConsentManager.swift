@@ -35,6 +35,20 @@ enum ConsentPolicy {
     """
 }
 
+enum ConsentHandoffError: LocalizedError {
+    case activeAccountChanged
+    case ledgerPersistenceFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .activeAccountChanged:
+            return "The active account changed during consent migration."
+        case .ledgerPersistenceFailed:
+            return "The migrated consent ledger could not be persisted."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class ConsentManager {
@@ -119,7 +133,7 @@ final class ConsentManager {
         var recordedAt: Date?
     }
 
-    private struct LocalLedger: Codable {
+    struct LocalLedger: Codable, Equatable {
         var activeUserId: UUID?
         var termsReceipts: [TermsAcceptanceReceipt]
         var aiConsentEvents: [AIConsentEvent]
@@ -350,8 +364,11 @@ final class ConsentManager {
     @ObservationIgnored private var scheduledSyncTask: Task<Void, Never>?
     @ObservationIgnored private var activeSyncTask: Task<Void, Error>?
     @ObservationIgnored private var activeSyncUserId: UUID?
+    @ObservationIgnored private var activeSyncGeneration: UInt?
+    @ObservationIgnored private var synchronizationGeneration: UInt = 0
     @ObservationIgnored private var analyticsConsentChannel: RealtimeChannelV2?
     @ObservationIgnored private var analyticsConsentListenerTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var isAnalyticsSuppressedForGhostHandoff = false
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -486,6 +503,9 @@ final class ConsentManager {
 
     func observeSession(userId: UUID?) {
         let previousUserId = currentSessionUserId
+        if previousUserId != userId {
+            invalidateSynchronizationWork()
+        }
         hasObservedSession = true
         currentSessionUserId = userId
         refreshDerivedState()
@@ -499,15 +519,82 @@ final class ConsentManager {
         scheduleSynchronization(createAnonymousSessionIfNeeded: false)
     }
 
+    /// Keeps analytics closed while a provider-bound ghost handoff is pending.
+    /// SupabaseManager reconstructs this state from its durable Keychain queue
+    /// before exposing a restored account's analytics permission.
+    func setAnalyticsSuppressedForGhostHandoff(_ suppressed: Bool) {
+        guard isAnalyticsSuppressedForGhostHandoff != suppressed else { return }
+        isAnalyticsSuppressedForGhostHandoff = suppressed
+        applyAnalyticsPermissionToSDK()
+    }
+
+    /// Rebinds immutable local evidence after the server has transactionally
+    /// moved synchronized ghost rows to the permanent account. The transformed
+    /// ledger is persisted before pending permanent-account actions are pushed
+    /// and authoritative account state is fetched again.
+    func rebindAndSynchronizeGhostEvidence(
+        from ghostUserId: UUID,
+        to permanentUserId: UUID
+    ) async throws {
+        setAnalyticsSuppressedForGhostHandoff(true)
+        try Task.checkCancellation()
+
+        let session = try await SupabaseManager.shared.client.auth.session
+        try Task.checkCancellation()
+        guard !session.user.isAnonymous,
+              session.user.id == permanentUserId,
+              currentSessionUserId == permanentUserId,
+              SupabaseManager.shared.currentUser?.id == permanentUserId else {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+        invalidateSynchronizationWork()
+
+        let reboundLedger = Self.rebinding(
+            ledger,
+            from: ghostUserId,
+            to: permanentUserId
+        )
+        try replaceLedgerWithVerifiedPersistence(reboundLedger)
+        applyAnalyticsPermissionToSDK()
+
+        try await synchronize(for: permanentUserId)
+        let finalSession = try await SupabaseManager.shared.client.auth.session
+        try Task.checkCancellation()
+        guard !finalSession.user.isAnonymous,
+              finalSession.user.id == permanentUserId,
+              currentSessionUserId == permanentUserId,
+              SupabaseManager.shared.currentUser?.id == permanentUserId else {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+    }
+
     func ensureCloudConsentForInference() async throws {
         guard hasCurrentRequiredConsent else {
             throw MerianError.aiConsentRequired
         }
 
         await SupabaseManager.shared.initializeGhostSession()
+        let adoptionGeneration = synchronizationGeneration
         let userId = try await SupabaseManager.shared.client.auth.session.user.id
+        try Task.checkCancellation()
+        guard synchronizationGeneration == adoptionGeneration else {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+        guard SupabaseManager.shared.client.auth.currentSession?.user.id
+                == userId else {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+        if hasObservedSession,
+           let currentSessionUserId,
+           currentSessionUserId != userId {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+        let previousUserId = currentSessionUserId
         currentSessionUserId = userId
         refreshDerivedState()
+        if previousUserId != userId {
+            restartAnalyticsConsentUpdates(for: userId)
+        }
 
         guard hasCurrentRequiredConsent else {
             throw MerianError.aiConsentRequired
@@ -521,9 +608,28 @@ final class ConsentManager {
 
     func synchronizeWithCurrentSession() async throws {
         guard !TestExecutionCoordinator.isRunningTests else { return }
+        try Task.checkCancellation()
+        let adoptionGeneration = synchronizationGeneration
         let userId = try await SupabaseManager.shared.client.auth.session.user.id
+        try Task.checkCancellation()
+        guard synchronizationGeneration == adoptionGeneration else {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+        guard SupabaseManager.shared.client.auth.currentSession?.user.id
+                == userId else {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+        if hasObservedSession,
+           let currentSessionUserId,
+           currentSessionUserId != userId {
+            throw ConsentHandoffError.activeAccountChanged
+        }
+        let previousUserId = currentSessionUserId
         currentSessionUserId = userId
         refreshDerivedState()
+        if previousUserId != userId {
+            restartAnalyticsConsentUpdates(for: userId)
+        }
         try await synchronize(for: userId)
     }
 
@@ -532,47 +638,63 @@ final class ConsentManager {
         scheduledSyncTask?.cancel()
         scheduledSyncTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            guard !Task.isCancelled else { return }
             if createAnonymousSessionIfNeeded {
                 await SupabaseManager.shared.initializeGhostSession()
             }
+            guard !Task.isCancelled else { return }
             try? await self.synchronizeWithCurrentSession()
         }
     }
 
     private func synchronize(for userId: UUID) async throws {
-        if let activeSyncTask, activeSyncUserId == userId {
+        let generation = synchronizationGeneration
+        if let activeSyncTask,
+           activeSyncUserId == userId,
+           activeSyncGeneration == generation {
             try await activeSyncTask.value
             return
         }
 
-        if activeSyncUserId != userId {
+        if activeSyncUserId != userId || activeSyncGeneration != generation {
             activeSyncTask?.cancel()
         }
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            try await self.performSynchronization(for: userId)
+            try await self.performSynchronization(
+                for: userId,
+                generation: generation
+            )
         }
         activeSyncTask = task
         activeSyncUserId = userId
+        activeSyncGeneration = generation
 
         do {
             try await task.value
-            if activeSyncUserId == userId {
+            if activeSyncUserId == userId,
+               activeSyncGeneration == generation {
                 activeSyncTask = nil
                 activeSyncUserId = nil
+                activeSyncGeneration = nil
             }
         } catch {
-            if activeSyncUserId == userId {
+            if activeSyncUserId == userId,
+               activeSyncGeneration == generation {
                 activeSyncTask = nil
                 activeSyncUserId = nil
+                activeSyncGeneration = nil
             }
             throw error
         }
     }
 
-    private func performSynchronization(for userId: UUID) async throws {
-        guard currentSessionUserId == userId else { return }
+    private func performSynchronization(
+        for userId: UUID,
+        generation: UInt
+    ) async throws {
+        try validateSynchronization(for: userId, generation: generation)
 
         if ledger.activeUserId == nil,
            ledger.adultEligibilityReceipts.contains(where: { $0.ownerUserId == nil })
@@ -583,13 +705,19 @@ final class ConsentManager {
         }
 
         if ledger.activeUserId == userId {
-            try await pushPendingRecords(for: userId)
-            let remoteState = try await fetchRemoteState(for: userId)
+            try await pushPendingRecords(for: userId, generation: generation)
+            let remoteState = try await fetchRemoteState(
+                for: userId,
+                generation: generation
+            )
             merge(remoteState, for: userId)
             return
         }
 
-        let remoteState = try await fetchRemoteState(for: userId)
+        let remoteState = try await fetchRemoteState(
+            for: userId,
+            generation: generation
+        )
         guard remoteState.hasEvidence else {
             refreshDerivedState()
             return
@@ -617,16 +745,21 @@ final class ConsentManager {
         applyAnalyticsPermissionToSDK()
     }
 
-    private func pushPendingRecords(for userId: UUID) async throws {
+    private func pushPendingRecords(
+        for userId: UUID,
+        generation: UInt
+    ) async throws {
         let adultReceipts = ledger.adultEligibilityReceipts.filter {
             $0.ownerUserId == userId && $0.syncedUserId != userId
         }
         for receipt in adultReceipts {
-            try Task.checkCancellation()
+            try validateSynchronization(for: userId, generation: generation)
             let synchronizedReceipt = try await insertAdultEligibilityReceipt(
                 receipt,
-                for: userId
+                for: userId,
+                generation: generation
             )
+            try validateSynchronization(for: userId, generation: generation)
             if let index = ledger.adultEligibilityReceipts.firstIndex(where: {
                 $0.id == receipt.id
             }) {
@@ -639,11 +772,13 @@ final class ConsentManager {
             $0.ownerUserId == userId && $0.syncedUserId != userId
         }
         for receipt in termsReceipts {
-            try Task.checkCancellation()
+            try validateSynchronization(for: userId, generation: generation)
             let synchronizedReceipt = try await insertTermsReceipt(
                 receipt,
-                for: userId
+                for: userId,
+                generation: generation
             )
+            try validateSynchronization(for: userId, generation: generation)
             if let index = ledger.termsReceipts.firstIndex(where: { $0.id == receipt.id }) {
                 ledger.termsReceipts[index] = synchronizedReceipt
             }
@@ -654,11 +789,13 @@ final class ConsentManager {
             $0.ownerUserId == userId && $0.syncedUserId != userId
         }
         for event in events {
-            try Task.checkCancellation()
+            try validateSynchronization(for: userId, generation: generation)
             let synchronizedEvent = try await insertAIConsentEvent(
                 event,
-                for: userId
+                for: userId,
+                generation: generation
             )
+            try validateSynchronization(for: userId, generation: generation)
             if let index = ledger.aiConsentEvents.firstIndex(where: { $0.id == event.id }) {
                 ledger.aiConsentEvents[index] = synchronizedEvent
             }
@@ -669,11 +806,13 @@ final class ConsentManager {
             $0.ownerUserId == userId && $0.syncedUserId != userId
         }
         for event in analyticsEvents {
-            try Task.checkCancellation()
+            try validateSynchronization(for: userId, generation: generation)
             let synchronizedEvent = try await insertAnalyticsConsentEvent(
                 event,
-                for: userId
+                for: userId,
+                generation: generation
             )
+            try validateSynchronization(for: userId, generation: generation)
             if let index = ledger.analyticsConsentEvents.firstIndex(where: {
                 $0.id == event.id
             }) {
@@ -685,7 +824,8 @@ final class ConsentManager {
 
     private func insertAdultEligibilityReceipt(
         _ receipt: AdultEligibilityReceipt,
-        for userId: UUID
+        for userId: UUID,
+        generation: UInt
     ) async throws -> AdultEligibilityReceipt {
         let row = AdultEligibilityReceiptInsert(
             id: receipt.id,
@@ -704,20 +844,26 @@ final class ConsentManager {
                 .from("user_adult_eligibility_receipts")
                 .insert(row)
                 .execute()
+            try validateSynchronization(for: userId, generation: generation)
         } catch {
-            guard let existingReceipt = try await fetchAdultEligibilityReceipt(
+            try validateSynchronization(for: userId, generation: generation)
+            let existingReceipt = try await fetchAdultEligibilityReceipt(
                 id: receipt.id,
                 userId: userId
-            ) else {
+            )
+            try validateSynchronization(for: userId, generation: generation)
+            guard let existingReceipt else {
                 throw error
             }
             return existingReceipt
         }
 
-        guard let insertedReceipt = try await fetchAdultEligibilityReceipt(
+        let insertedReceipt = try await fetchAdultEligibilityReceipt(
             id: receipt.id,
             userId: userId
-        ) else {
+        )
+        try validateSynchronization(for: userId, generation: generation)
+        guard let insertedReceipt else {
             throw MerianError.aiConsentRequired
         }
         return insertedReceipt
@@ -725,7 +871,8 @@ final class ConsentManager {
 
     private func insertTermsReceipt(
         _ receipt: TermsAcceptanceReceipt,
-        for userId: UUID
+        for userId: UUID,
+        generation: UInt
     ) async throws -> TermsAcceptanceReceipt {
         let row = TermsReceiptInsert(
             id: receipt.id,
@@ -743,20 +890,26 @@ final class ConsentManager {
                 .from("user_terms_acceptance_receipts")
                 .insert(row)
                 .execute()
+            try validateSynchronization(for: userId, generation: generation)
         } catch {
-            guard let existingReceipt = try await fetchTermsReceipt(
+            try validateSynchronization(for: userId, generation: generation)
+            let existingReceipt = try await fetchTermsReceipt(
                 id: receipt.id,
                 userId: userId
-            ) else {
+            )
+            try validateSynchronization(for: userId, generation: generation)
+            guard let existingReceipt else {
                 throw error
             }
             return existingReceipt
         }
 
-        guard let insertedReceipt = try await fetchTermsReceipt(
+        let insertedReceipt = try await fetchTermsReceipt(
             id: receipt.id,
             userId: userId
-        ) else {
+        )
+        try validateSynchronization(for: userId, generation: generation)
+        guard let insertedReceipt else {
             throw MerianError.aiConsentRequired
         }
         return insertedReceipt
@@ -764,7 +917,8 @@ final class ConsentManager {
 
     private func insertAIConsentEvent(
         _ event: AIConsentEvent,
-        for userId: UUID
+        for userId: UUID,
+        generation: UInt
     ) async throws -> AIConsentEvent {
         let row = AIConsentEventInsert(
             id: event.id,
@@ -785,20 +939,26 @@ final class ConsentManager {
                 .from("user_ai_consent_events")
                 .insert(row)
                 .execute()
+            try validateSynchronization(for: userId, generation: generation)
         } catch {
-            guard let existingEvent = try await fetchAIConsentEvent(
+            try validateSynchronization(for: userId, generation: generation)
+            let existingEvent = try await fetchAIConsentEvent(
                 id: event.id,
                 userId: userId
-            ) else {
+            )
+            try validateSynchronization(for: userId, generation: generation)
+            guard let existingEvent else {
                 throw error
             }
             return existingEvent
         }
 
-        guard let insertedEvent = try await fetchAIConsentEvent(
+        let insertedEvent = try await fetchAIConsentEvent(
             id: event.id,
             userId: userId
-        ) else {
+        )
+        try validateSynchronization(for: userId, generation: generation)
+        guard let insertedEvent else {
             throw MerianError.aiConsentRequired
         }
         return insertedEvent
@@ -806,7 +966,8 @@ final class ConsentManager {
 
     private func insertAnalyticsConsentEvent(
         _ event: AnalyticsConsentEvent,
-        for userId: UUID
+        for userId: UUID,
+        generation: UInt
     ) async throws -> AnalyticsConsentEvent {
         let row = AnalyticsConsentEventInsert(
             id: event.id,
@@ -827,20 +988,26 @@ final class ConsentManager {
                 .from("user_analytics_consent_events")
                 .insert(row)
                 .execute()
+            try validateSynchronization(for: userId, generation: generation)
         } catch {
-            guard let existingEvent = try await fetchAnalyticsConsentEvent(
+            try validateSynchronization(for: userId, generation: generation)
+            let existingEvent = try await fetchAnalyticsConsentEvent(
                 id: event.id,
                 userId: userId
-            ) else {
+            )
+            try validateSynchronization(for: userId, generation: generation)
+            guard let existingEvent else {
                 throw error
             }
             return existingEvent
         }
 
-        guard let insertedEvent = try await fetchAnalyticsConsentEvent(
+        let insertedEvent = try await fetchAnalyticsConsentEvent(
             id: event.id,
             userId: userId
-        ) else {
+        )
+        try validateSynchronization(for: userId, generation: generation)
+        guard let insertedEvent else {
             throw MerianError.aiConsentRequired
         }
         return insertedEvent
@@ -906,7 +1073,10 @@ final class ConsentManager {
         return rows.first.flatMap(Self.localAnalyticsConsentEvent)
     }
 
-    private func fetchRemoteState(for userId: UUID) async throws -> RemoteState {
+    private func fetchRemoteState(
+        for userId: UUID,
+        generation: UInt
+    ) async throws -> RemoteState {
         async let adultRows: [CloudAdultEligibilityReceipt] = SupabaseManager.shared.client
             .from("user_adult_eligibility_receipts")
             .select("id,user_id,policy_version,confirmed_at,confirmation_method,confirmation_text,platform,app_version,app_build,recorded_at")
@@ -953,12 +1123,20 @@ final class ConsentManager {
             .execute()
             .value
 
-        let adultEligibilityReceipt = try await adultRows.first.flatMap(
+        let resolvedRows = try await (
+            adultRows,
+            termsRows,
+            eventRows,
+            analyticsRows
+        )
+        try validateSynchronization(for: userId, generation: generation)
+
+        let adultEligibilityReceipt = resolvedRows.0.first.flatMap(
             Self.localAdultEligibilityReceipt
         )
-        let termsReceipt = try await termsRows.first.flatMap(Self.localTermsReceipt)
-        let aiConsentEvent = try await eventRows.first.flatMap(Self.localAIConsentEvent)
-        let analyticsConsentEvent = try await analyticsRows.first.flatMap(
+        let termsReceipt = resolvedRows.1.first.flatMap(Self.localTermsReceipt)
+        let aiConsentEvent = resolvedRows.2.first.flatMap(Self.localAIConsentEvent)
+        let analyticsConsentEvent = resolvedRows.3.first.flatMap(
             Self.localAnalyticsConsentEvent
         )
         return RemoteState(
@@ -1131,6 +1309,121 @@ final class ConsentManager {
         return true
     }
 
+    static func rebinding(
+        _ source: LocalLedger,
+        from ghostUserId: UUID,
+        to permanentUserId: UUID
+    ) -> LocalLedger {
+        var rebound = source
+        rebound.activeUserId = permanentUserId
+
+        for index in rebound.adultEligibilityReceipts.indices
+        where rebound.adultEligibilityReceipts[index].ownerUserId == ghostUserId {
+            let synchronizedUserId = rebound
+                .adultEligibilityReceipts[index].syncedUserId
+            rebound.adultEligibilityReceipts[index].ownerUserId = permanentUserId
+            rebound.adultEligibilityReceipts[index].syncedUserId =
+                reboundSynchronizationOwner(
+                    synchronizedUserId,
+                    from: ghostUserId,
+                    to: permanentUserId
+                )
+        }
+
+        for index in rebound.termsReceipts.indices
+        where rebound.termsReceipts[index].ownerUserId == ghostUserId {
+            let synchronizedUserId = rebound.termsReceipts[index].syncedUserId
+            rebound.termsReceipts[index].ownerUserId = permanentUserId
+            rebound.termsReceipts[index].syncedUserId =
+                reboundSynchronizationOwner(
+                    synchronizedUserId,
+                    from: ghostUserId,
+                    to: permanentUserId
+                )
+        }
+
+        for index in rebound.aiConsentEvents.indices
+        where rebound.aiConsentEvents[index].ownerUserId == ghostUserId {
+            let synchronizedUserId = rebound.aiConsentEvents[index].syncedUserId
+            rebound.aiConsentEvents[index].ownerUserId = permanentUserId
+            rebound.aiConsentEvents[index].syncedUserId =
+                reboundSynchronizationOwner(
+                    synchronizedUserId,
+                    from: ghostUserId,
+                    to: permanentUserId
+                )
+        }
+
+        for index in rebound.analyticsConsentEvents.indices
+        where rebound.analyticsConsentEvents[index].ownerUserId == ghostUserId {
+            let synchronizedUserId = rebound
+                .analyticsConsentEvents[index].syncedUserId
+            rebound.analyticsConsentEvents[index].ownerUserId = permanentUserId
+            rebound.analyticsConsentEvents[index].syncedUserId =
+                reboundSynchronizationOwner(
+                    synchronizedUserId,
+                    from: ghostUserId,
+                    to: permanentUserId
+                )
+        }
+
+        return rebound
+    }
+
+    private static func reboundSynchronizationOwner(
+        _ synchronizedUserId: UUID?,
+        from ghostUserId: UUID,
+        to permanentUserId: UUID
+    ) -> UUID? {
+        guard synchronizedUserId == ghostUserId else {
+            return nil
+        }
+        return permanentUserId
+    }
+
+    private func replaceLedgerWithVerifiedPersistence(
+        _ candidate: LocalLedger
+    ) throws {
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(candidate)
+        } catch {
+            throw ConsentHandoffError.ledgerPersistenceFailed
+        }
+
+        userDefaults.set(data, forKey: UserDefaultsKeys.legalConsentLedger)
+        guard userDefaults.data(forKey: UserDefaultsKeys.legalConsentLedger)
+            == data else {
+            throw ConsentHandoffError.ledgerPersistenceFailed
+        }
+
+        ledger = candidate
+        refreshDerivedState()
+    }
+
+    private func invalidateSynchronizationWork() {
+        synchronizationGeneration &+= 1
+        scheduledSyncTask?.cancel()
+        scheduledSyncTask = nil
+        activeSyncTask?.cancel()
+        activeSyncTask = nil
+        activeSyncUserId = nil
+        activeSyncGeneration = nil
+    }
+
+    private func validateSynchronization(
+        for userId: UUID,
+        generation: UInt
+    ) throws {
+        try Task.checkCancellation()
+        guard currentSessionUserId == userId,
+              SupabaseManager.shared.client.auth.currentSession?.user.id
+                == userId,
+              synchronizationGeneration == generation else {
+            throw CancellationError()
+        }
+    }
+
     private func persistAndRefresh() {
         if let data = try? JSONEncoder().encode(ledger) {
             userDefaults.set(data, forKey: UserDefaultsKeys.legalConsentLedger)
@@ -1174,7 +1467,9 @@ final class ConsentManager {
             accountMatches = currentSessionUserId == nil
         }
 
-        let shouldEnable = accountMatches && hasGrantedCurrentPostHogAnalytics
+        let shouldEnable = !isAnalyticsSuppressedForGhostHandoff
+            && accountMatches
+            && hasGrantedCurrentPostHogAnalytics
         PostHogManager.shared.setConsentGranted(
             shouldEnable,
             userId: shouldEnable

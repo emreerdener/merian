@@ -258,8 +258,4 @@ Do not close this incident until all of the following are retained:
 6. opening and leaving the library open produces no unchanged-state diagnostic
    storm; and
 7. the restored observation opens Insight and Field Chat and can publish to
-   Explore; and
-8. the same Debug/TestFlight transaction's Settings → Beta Diagnostics export
-   identifies the exact app revision/fingerprint/state and retains its bounded
-   queue/upload/staging/inference/completion lifecycle plus exact error/status
-   evidence without private paths, content, location, or arbitrary messages.
+   Explore.

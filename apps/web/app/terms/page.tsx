@@ -126,15 +126,14 @@ export default function TermsPage() {
           secure, troubleshoot, and maintain that feature.
         </Text>
         <Text>
-          If you do not permit this processing, do not submit scans or use
-          Naturebook&apos;s AI features. Because identification is the
-          Service&apos;s central function, declining required AI processing
-          means the core identification Service will not be available. You may
-          withdraw permission for future Google Gemini processing through the
-          AI processing control in Settings. Withdrawal disables future core
-          identification until you grant permission again, does not delete
-          applicable content or your account, and does not invalidate
-          processing already performed lawfully.
+          If you do not permit or no longer want this processing, do not submit
+          scans or use Naturebook&apos;s AI features. Because identification is
+          the Service&apos;s central function, declining required AI processing
+          means the core identification Service will not be available.
+          Naturebook does not provide an in-app control that disables Google
+          Gemini processing while retaining access to core identification.
+          Stopping use does not delete applicable content or your account and
+          does not invalidate processing already performed lawfully.
         </Text>
         <Text>
           We will not materially expand the information sent to third-party AI

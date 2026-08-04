@@ -830,8 +830,7 @@
         {
           "title": "Improved",
           "items": [
-            "Queued image, video, audio, and description scans now keep retry state across app restarts, show clearer retry or needs-attention status, and preserve user media during transient failures.",
-            "Debug and TestFlight Settings can now share provenance-bound, row-capped offline queue diagnostics without media paths or payload contents, descriptions, Field notes, location, GPS, raw metadata, or free-form error messages."
+            "Queued image, video, audio, and description scans now keep retry state across app restarts, show clearer retry or needs-attention status, and preserve user media during transient failures."
           ]
         }
       ]

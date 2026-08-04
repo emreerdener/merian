@@ -34,31 +34,3 @@ struct ProfileViewModelTests {
         #expect(viewModel.isGuestUser == true || viewModel.isGuestUser == false)
     }
 }
-
-@Suite("Offline Queue Diagnostics Availability Tests")
-struct OfflineQueueDiagnosticsAvailabilityTests {
-    @Test func allowedUserCanSeeDiagnosticsInAnEligibleBuild() {
-        #expect(OfflineQueueDiagnosticsAvailability.isEnabled(
-            email: "  ERDENER.EMRE@GMAIL.COM ",
-            isEligibleBuild: true
-        ))
-    }
-
-    @Test func otherUsersAndGuestsCannotSeeDiagnostics() {
-        #expect(!OfflineQueueDiagnosticsAvailability.isEnabled(
-            email: "someone@example.com",
-            isEligibleBuild: true
-        ))
-        #expect(!OfflineQueueDiagnosticsAvailability.isEnabled(
-            email: nil,
-            isEligibleBuild: true
-        ))
-    }
-
-    @Test func diagnosticsRemainHiddenInAppStoreBuilds() {
-        #expect(!OfflineQueueDiagnosticsAvailability.isEnabled(
-            email: OfflineQueueDiagnosticsAvailability.allowedEmail,
-            isEligibleBuild: false
-        ))
-    }
-}

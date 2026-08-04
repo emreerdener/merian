@@ -178,6 +178,20 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
     private func setupAuthStateListener() async {
         for await state in client.auth.authStateChanges {
+            do {
+                let pendingHandoffs = try loadPendingGhostProfileMergeQueue()
+                ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
+                    !pendingHandoffs.isEmpty
+                )
+            } catch {
+                // A read or decode failure is uncertainty, not evidence that
+                // the durable handoff is absent. Keep analytics fail-closed.
+                ConsentManager.shared
+                    .setAnalyticsSuppressedForGhostHandoff(true)
+                MerianLog.auth.error(
+                    "Could not read the guest handoff queue; analytics remains suppressed: \(error.localizedDescription, privacy: .private)"
+                )
+            }
             if let session = state.session, !session.isExpired {
                 guard !isSigningOut else {
                     MerianLog.auth.debug("Ignored authenticated SDK event while sign-out is in progress.")
@@ -630,7 +644,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
                     credentials: credentials
                 )
                 if let previousUserId {
-                    clearPendingGhostProfileMerges(
+                    try clearPendingGhostProfileMerges(
                         ghostUserId: previousUserId
                     )
                 }
@@ -660,7 +674,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
                 let targetSession = try await client.auth.signInWithIdToken(credentials: credentials)
                 if targetSession.user.id.uuidString.lowercased() == ghostId {
-                    clearPendingGhostProfileMerges(ghostUserId: ghostId)
+                    try clearPendingGhostProfileMerges(ghostUserId: ghostId)
                 } else {
                     _ = await completePendingGhostProfileMergeIfNeeded(
                         expectedTargetUserId: targetSession.user.id.uuidString
@@ -700,11 +714,13 @@ enum SupabaseAuthTransitionError: LocalizedError {
             handoffSecret: response.handoff_secret,
             expiresAt: response.expires_at
         )
+        let existingHandoffs = try loadPendingGhostProfileMergeQueue()
         let queue = Self.enqueuingPendingGhostProfileMerge(
             pending,
-            in: loadPendingGhostProfileMergeQueue()
+            in: existingHandoffs
         )
         try persistPendingGhostProfileMergeQueue(queue)
+        ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(true)
         MerianLog.auth.debug("Secured provider-bound guest profile handoff.")
         return pending
     }
@@ -748,8 +764,21 @@ enum SupabaseAuthTransitionError: LocalizedError {
         expectedTargetUserId: String?
     ) async -> Bool {
         guard !Task.isCancelled, !isSigningOut else { return false }
-        let pendingHandoffs = loadPendingGhostProfileMergeQueue()
-        guard !pendingHandoffs.isEmpty else { return true }
+        let pendingHandoffs: [PendingGhostProfileMerge]
+        do {
+            pendingHandoffs = try loadPendingGhostProfileMergeQueue()
+        } catch {
+            ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(true)
+            MerianLog.auth.error(
+                "Guest profile upgrade remains pending because its durable queue is unreadable: \(error.localizedDescription, privacy: .private)"
+            )
+            return false
+        }
+        guard !pendingHandoffs.isEmpty else {
+            ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(false)
+            return true
+        }
+        ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(true)
 
         do {
             let session = try await client.auth.session
@@ -762,32 +791,83 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 return false
             }
 
+            guard let targetUUID = UUID(uuidString: targetUserId) else {
+                MerianLog.auth.error("Refused guest merge for an invalid active account UUID.")
+                return false
+            }
+
             var allHandoffsResolved = true
             for pending in pendingHandoffs {
                 guard !Task.isCancelled, !isSigningOut else { return false }
 
                 do {
-                    try await client.functions.invoke(
-                        "merge-ghost-profile",
-                        options: .init(
-                            body: GhostProfileMergeCompletePayload(
-                                handoff_id: pending.handoffId,
-                                handoff_secret: pending.handoffSecret
+                    guard let ghostUUID = UUID(uuidString: pending.ghostUserId) else {
+                        throw SupabaseAuthTransitionError.guestMergeSessionChanged
+                    }
+                    try await Self.finalizeGhostProfileHandoff(
+                        completeServerHandoff: {
+                            try await self.client.functions.invoke(
+                                "merge-ghost-profile",
+                                options: .init(
+                                    body: GhostProfileMergeCompletePayload(
+                                        handoff_id: pending.handoffId,
+                                        handoff_secret: pending.handoffSecret
+                                    )
+                                )
                             )
-                        )
+                        },
+                        rebindAndSynchronizeLocalEvidence: {
+                            try await ConsentManager.shared
+                                .rebindAndSynchronizeGhostEvidence(
+                                    from: ghostUUID,
+                                    to: targetUUID
+                                )
+                        },
+                        clearPendingHandoff: {
+                            guard !self.isSigningOut,
+                                  self.currentUser?.id == targetUUID,
+                                  ConsentManager.shared.currentSessionUserId
+                                    == targetUUID else {
+                                throw SupabaseAuthTransitionError
+                                    .guestMergeSessionChanged
+                            }
+                            try self.clearPendingGhostProfileMerge(
+                                handoffId: pending.handoffId
+                            )
+                        }
                     )
                     guard !Task.isCancelled, !isSigningOut else { return false }
-
-                    clearPendingGhostProfileMerge(handoffId: pending.handoffId)
                     MerianLog.auth.debug(
                         "Guest profile upgrade finalized for \(pending.ghostUserId, privacy: .private)"
                     )
                 } catch {
                     if Self.shouldDiscardPendingGhostProfileMerge(after: error) {
-                        clearPendingGhostProfileMerge(handoffId: pending.handoffId)
-                        MerianLog.auth.error(
-                            "Discarded a terminal guest profile handoff: \(error.localizedDescription, privacy: .private)"
-                        )
+                        do {
+                            // Terminal handoffs are never rebound locally, but
+                            // the permanent account must still be authoritative
+                            // before removing the durable suppression marker.
+                            try await ConsentManager.shared
+                                .synchronizeWithCurrentSession()
+                            try Task.checkCancellation()
+                            guard !isSigningOut,
+                                  currentUser?.id == targetUUID,
+                                  ConsentManager.shared.currentSessionUserId
+                                    == targetUUID else {
+                                throw SupabaseAuthTransitionError
+                                    .guestMergeSessionChanged
+                            }
+                            try clearPendingGhostProfileMerge(
+                                handoffId: pending.handoffId
+                            )
+                            MerianLog.auth.error(
+                                "Discarded a terminal guest profile handoff: \(error.localizedDescription, privacy: .private)"
+                            )
+                        } catch {
+                            allHandoffsResolved = false
+                            MerianLog.auth.error(
+                                "Terminal guest handoff cleanup remains pending: \(error.localizedDescription, privacy: .private)"
+                            )
+                        }
                     } else {
                         allHandoffsResolved = false
                         MerianLog.auth.error(
@@ -796,10 +876,11 @@ enum SupabaseAuthTransitionError: LocalizedError {
                     }
                 }
             }
-            if allHandoffsResolved {
-                try? await ConsentManager.shared.synchronizeWithCurrentSession()
+            let queueIsEmpty = try loadPendingGhostProfileMergeQueue().isEmpty
+            if allHandoffsResolved && queueIsEmpty {
+                ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(false)
             }
-            return allHandoffsResolved
+            return allHandoffsResolved && queueIsEmpty
         } catch {
             MerianLog.auth.error(
                 "Guest profile upgrade retry could not read the active session: \(error.localizedDescription, privacy: .private)"
@@ -824,26 +905,25 @@ enum SupabaseAuthTransitionError: LocalizedError {
         }
     }
 
-    private func loadPendingGhostProfileMergeQueue() -> [PendingGhostProfileMerge] {
-        guard let data = KeychainManager.shared.data(
+    private func loadPendingGhostProfileMergeQueue() throws -> [PendingGhostProfileMerge] {
+        guard let data = try KeychainManager.shared.dataOrThrow(
             forKey: KeychainKeys.pendingGhostProfileMerge
         ) else {
             return []
         }
 
-        do {
-            if let queue = try? JSONDecoder().decode(
-                PendingGhostProfileMergeQueue.self,
-                from: data
-            ), queue.version == 1 {
-                return queue.handoffs
-            }
+        if let queue = try? JSONDecoder().decode(
+            PendingGhostProfileMergeQueue.self,
+            from: data
+        ), queue.version == 1 {
+            return queue.handoffs
+        }
 
-            // Backward compatibility for builds that stored one handoff record.
-            let legacy = try JSONDecoder().decode(
-                PendingGhostProfileMerge.self,
-                from: data
-            )
+        // Backward compatibility for builds that stored one handoff record.
+        if let legacy = try? JSONDecoder().decode(
+            PendingGhostProfileMerge.self,
+            from: data
+        ) {
             do {
                 try persistPendingGhostProfileMergeQueue([legacy])
             } catch {
@@ -854,18 +934,19 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 )
             }
             return [legacy]
-        } catch {
-            KeychainManager.shared.removeObject(forKey: KeychainKeys.pendingGhostProfileMerge)
-            MerianLog.auth.error("Discarded an unreadable guest profile handoff queue.")
-            return []
         }
+
+        MerianLog.auth.error(
+            "Retained an unreadable guest profile handoff queue; analytics remains suppressed."
+        )
+        throw SupabaseAuthTransitionError.guestMergeHandoffPersistenceFailed
     }
 
     private func persistPendingGhostProfileMergeQueue(
         _ handoffs: [PendingGhostProfileMerge]
     ) throws {
         if handoffs.isEmpty {
-            KeychainManager.shared.removeObject(
+            try KeychainManager.shared.removeObjectVerified(
                 forKey: KeychainKeys.pendingGhostProfileMerge
             )
             return
@@ -879,37 +960,30 @@ enum SupabaseAuthTransitionError: LocalizedError {
             forKey: KeychainKeys.pendingGhostProfileMerge,
             accessibility: .whenUnlockedThisDeviceOnly
         ),
-        KeychainManager.shared.data(
+        try KeychainManager.shared.dataOrThrow(
             forKey: KeychainKeys.pendingGhostProfileMerge
         ) == encoded else {
             throw SupabaseAuthTransitionError.guestMergeHandoffPersistenceFailed
         }
     }
 
-    private func clearPendingGhostProfileMerge(handoffId: String) {
-        let remaining = loadPendingGhostProfileMergeQueue().filter {
+    private func clearPendingGhostProfileMerge(handoffId: String) throws {
+        let remaining = try loadPendingGhostProfileMergeQueue().filter {
             $0.handoffId.caseInsensitiveCompare(handoffId) != .orderedSame
         }
-        do {
-            try persistPendingGhostProfileMergeQueue(remaining)
-        } catch {
-            MerianLog.auth.error(
-                "Could not update the guest profile handoff queue: \(error.localizedDescription, privacy: .private)"
-            )
-        }
+        try persistPendingGhostProfileMergeQueue(remaining)
     }
 
-    private func clearPendingGhostProfileMerges(ghostUserId: String) {
-        let remaining = loadPendingGhostProfileMergeQueue().filter {
+    private func clearPendingGhostProfileMerges(
+        ghostUserId: String
+    ) throws {
+        let remaining = try loadPendingGhostProfileMergeQueue().filter {
             $0.ghostUserId.caseInsensitiveCompare(ghostUserId) != .orderedSame
         }
-        do {
-            try persistPendingGhostProfileMergeQueue(remaining)
-        } catch {
-            MerianLog.auth.error(
-                "Could not update the guest profile handoff queue: \(error.localizedDescription, privacy: .private)"
-            )
-        }
+        try persistPendingGhostProfileMergeQueue(remaining)
+        ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
+            !remaining.isEmpty
+        )
     }
 
     private func cancelGhostProfileMergeTask() {
@@ -934,6 +1008,18 @@ enum SupabaseAuthTransitionError: LocalizedError {
         }
         updated.append(pending)
         return updated
+    }
+
+    static func finalizeGhostProfileHandoff(
+        completeServerHandoff: () async throws -> Void,
+        rebindAndSynchronizeLocalEvidence: () async throws -> Void,
+        clearPendingHandoff: () throws -> Void
+    ) async throws {
+        try await completeServerHandoff()
+        try Task.checkCancellation()
+        try await rebindAndSynchronizeLocalEvidence()
+        try Task.checkCancellation()
+        try clearPendingHandoff()
     }
 
     nonisolated static func shouldDiscardPendingGhostProfileMerge(

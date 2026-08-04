@@ -20,25 +20,25 @@ the injected `AppSettings` boundary.
 
 ## Privacy and processing permissions
 
-Settings → Privacy & processing exposes the destructive **Withdraw Google Gemini
-permission** action. It is enabled only while the current disclosure version is
-granted. Confirmation appends an immutable local revocation event through the
-injected `ConsentManager`; the workspace and inference gates close immediately,
-then the event synchronizes to the active Supabase account. Because Naturebook
-has no non-AI identification mode, the disclosure screen replaces the main
-workspace until current adult confirmation, Terms, and Gemini permission are
-granted again.
+Google Gemini processing is required for Naturebook's core identification
+experience. Permission is granted through the required onboarding disclosure,
+and Settings intentionally provides no Gemini processing opt-out. A user who
+does not permit that processing cannot use the scanner. The consent ledger and
+inference gates still fail closed when required evidence is missing, outdated,
+or revoked by historical or remote account state.
 
-The same section exposes **Analytics & diagnostics**. Its binding appends an
-immutable account-wide PostHog grant or revocation through `ConsentManager`.
-Absence of a grant is off. Withdrawal disables capture and identity immediately,
-opts out and closes the SDK, synchronizes across devices, and never changes core
-functionality.
+The first row in Settings → Resources is **Analytics & diagnostics**. Its binding
+appends an immutable account-wide PostHog grant or revocation through
+`ConsentManager`.
+Absence of a grant is off. Withdrawal opts out and closes the SDK, synchronizes
+across devices, and never changes core functionality.
 
-That paragraph is the required behavior. This release candidate has not yet
-proved it: the current PostHog reset order may start a feature-flag reload during
-withdrawal, and offline ghost-account actions, account replacement, and Realtime
-startup/retry still have open findings. Keep the release held until the
+That paragraph is the required behavior. The withdrawal transport/order and
+offline ghost-account handoff findings are complete in source: reset-time
+feature-flag work is rejected locally after the transport gate closes, and a
+durable handoff suppresses analytics until local evidence is rebound, pushed,
+refetched, and the queue removal is verified. The broader account-replacement
+and Realtime startup/retry findings remain open. Keep the release held until the
 [production consent readiness record](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md)
 is closed.
 
@@ -182,20 +182,3 @@ Reduced Motion, to verify wrapping, ring readability, timeout, manual dismissal,
 haptics, and the tap target. Preview payloads bypass RPCs, progress mutation,
 achievement persistence, dictionary mutation, analytics, and local push
 delivery.
-
-## Beta offline-queue diagnostics
-
-Debug and TestFlight builds expose **Beta Diagnostics** in Settings only for
-`erdener.emre@gmail.com`. Generate the artifact after an offline/reconnect
-smoke, then use **Share offline queue diagnostics** before deleting the tested
-observation. The bounded JSON contains
-app version/build, embedded source revision/fingerprint/state, queue/job
-identifiers, lifecycle kinds, timestamps, retry/error codes, HTTP status, and
-server status/stage. Only canonical lowercase machine tokens survive in the
-retained error/status/stage fields. It never exports media paths or payload
-contents, descriptions, Field notes, location/GPS, raw metadata, or arbitrary
-persisted error/event messages. App Store builds do not expose this control.
-The artifact declares `formatVersion: 1`; jobs, scans, and events are each
-capped at 500 rows, and caller-supplied event limits are clamped to 1...500 so
-zero cannot accidentally mean “unlimited.” The temporary file uses complete
-data protection; refreshing the artifact removes the previous Settings export.

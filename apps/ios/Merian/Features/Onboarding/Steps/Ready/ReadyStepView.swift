@@ -17,14 +17,24 @@ struct ReadyStepView: View {
     static let consentStatement = ConsentPolicy.combinedAcceptanceText
     static let analyticsStatement = ConsentPolicy.analyticsDisclosureText
     static let termsURL = PublicBrand.websiteURL(path: "terms")
+    static let requiredIndicator = " *"
+
+    static func appendingRequiredIndicator(to statement: AttributedString) -> AttributedString {
+        var markedStatement = statement
+        var indicator = AttributedString(requiredIndicator)
+        indicator.font = .caption2.weight(.bold)
+        indicator.foregroundColor = .red
+        markedStatement.append(indicator)
+        return markedStatement
+    }
 
     static var linkedConsentStatement: AttributedString {
         var statement = AttributedString(consentStatement)
-        guard let termsRange = statement.range(of: "terms") else { return statement }
-
-        statement[termsRange].link = termsURL
-        statement[termsRange].foregroundColor = .accentColor
-        return statement
+        if let termsRange = statement.range(of: "terms") {
+            statement[termsRange].link = termsURL
+            statement[termsRange].foregroundColor = .accentColor
+        }
+        return appendingRequiredIndicator(to: statement)
     }
 
     static func canStartScanning(
@@ -114,6 +124,7 @@ struct ReadyStepView: View {
             consentRow(
                 isOn: $hasConfirmedAdultEligibility,
                 statement: Self.adultStatement,
+                isRequired: true,
                 accessibilityHint: "Required to start scanning",
                 accessibilityIdentifier: "Ready_AgeSwitch"
             )
@@ -126,6 +137,7 @@ struct ReadyStepView: View {
     private func consentRow(
         isOn: Binding<Bool>,
         statement: String,
+        isRequired: Bool = false,
         accessibilityHint: String,
         accessibilityIdentifier: String
     ) -> some View {
@@ -140,7 +152,11 @@ struct ReadyStepView: View {
             .accessibilityHint(accessibilityHint)
             .accessibilityIdentifier(accessibilityIdentifier)
 
-            Text(statement)
+            Text(
+                isRequired
+                    ? Self.appendingRequiredIndicator(to: AttributedString(statement))
+                    : AttributedString(statement)
+            )
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color.primary)
                 .multilineTextAlignment(.leading)

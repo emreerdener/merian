@@ -84,22 +84,26 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(restoredManager.pendingCloudRecordCount, 3)
     }
 
-    func testReadyStepClearlyDisclosesGeminiProcessingBeforeConsent() {
+    func testReadyStepMatchesStoredConsentCopyAndPurposeBeforeConsent() {
         let disclosure = ReadyStepView.disclosure
         let consent = ReadyStepView.consentStatement
         let adult = ReadyStepView.adultStatement
         let analytics = ReadyStepView.analyticsStatement
 
+        XCTAssertEqual(disclosure, ConsentPolicy.geminiDisclosureText)
+        XCTAssertEqual(consent, ConsentPolicy.combinedAcceptanceText)
+        XCTAssertEqual(adult, ConsentPolicy.adultConfirmationText)
+        XCTAssertEqual(analytics, ConsentPolicy.analyticsDisclosureText)
+
         let completeSurface = [disclosure, consent, adult, analytics].joined(separator: " ")
         for requiredDisclosure in [
-            "scan data",
+            "observation data",
             "terms",
             "Google Gemini",
-            "third-party AI service",
-            "identification",
+            "AI-powered identification",
             "18 or older",
-            "PostHog",
-            "Optional"
+            "usage and diagnostics",
+            "improve Naturebook"
         ] {
             XCTAssertTrue(
                 completeSurface.contains(requiredDisclosure),
@@ -131,6 +135,25 @@ final class OnboardingViewModelTests: XCTestCase {
 
         XCTAssertEqual(statement[termsRange].link, ReadyStepView.termsURL)
         XCTAssertTrue(ReadyStepView.termsURL.absoluteString.hasSuffix("/terms"))
+    }
+
+    func testReadyRequiredConsentStatementsEndWithRedAsterisk() throws {
+        let statements = [
+            ReadyStepView.appendingRequiredIndicator(
+                to: AttributedString(ReadyStepView.adultStatement)
+            ),
+            ReadyStepView.linkedConsentStatement
+        ]
+
+        for statement in statements {
+            XCTAssertTrue(
+                String(statement.characters).hasSuffix(ReadyStepView.requiredIndicator)
+            )
+            let indicatorRange = try XCTUnwrap(statement.range(of: "*"))
+            XCTAssertEqual(statement[indicatorRange].foregroundColor, Color.red)
+        }
+
+        XCTAssertFalse(ReadyStepView.analyticsStatement.hasSuffix("*"))
     }
 
     func testLegacyCompletionRoutesDirectlyToCurrentConsentStep() {

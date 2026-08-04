@@ -680,12 +680,12 @@ triggering excessive SwiftUI view rebuilds.
   pipeline progresses.
 - **Diagnostics export**: `writeQueueDiagnosticsExport(eventLimit:)` writes
   support JSON containing job rows, redacted queued-scan metadata, and queue
-  events only. Debug/TestFlight Settings expose the explicit generate/share
-  control. App version/build and embedded source revision/fingerprint/state bind
-  the artifact to its exact binary. It intentionally omits raw media paths and
-  payload contents, descriptions, Field notes, location/GPS, raw metadata, and
-  arbitrary persisted error/event messages. Retained error/status/stage fields
-  accept canonical lowercase machine tokens only.
+  events only. This internal exporter is not exposed in Settings. App
+  version/build and embedded source revision/fingerprint/state bind the artifact
+  to its exact binary. It intentionally omits raw media paths and payload
+  contents, descriptions, Field notes, location/GPS, raw metadata, and arbitrary
+  persisted error/event messages. Retained error/status/stage fields accept
+  canonical lowercase machine tokens only.
   The versioned export caps jobs, scans, and events at 500 rows each and clamps
   all requested event limits to 1...500; zero never falls through to a
   persistence API's “no limit” behavior. The temporary JSON uses complete data
@@ -1331,6 +1331,9 @@ and `KeychainManager` migration logic. Do not inline
 - Supports `Bool`, `String`, and `Data` values. Callers may select
   `AfterFirstUnlockThisDeviceOnly` (the default) or the stricter
   `WhenUnlockedThisDeviceOnly` accessibility used by bearer merge proofs.
+- Durable state machines use throwing reads and verified removal so
+  `errSecItemNotFound` remains distinguishable from Security.framework failure.
+  An unreadable handoff queue is retained and keeps analytics fail-closed.
 - **`migrateFromUserDefaults()`**: The `init` migration logic was extracted into
   a named method for clarity.
 
@@ -1565,11 +1568,16 @@ and `KeychainManager` migration logic. Do not inline
   must keep it off without starting a new request.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
   buffers only a consented pending user ID if a call races setup.
-- Target shutdown order must opt out and close capture without triggering
-  remote configuration, then clear identity. The current wrapper instead calls
-  PostHog 3.69.0 `reset()` before opt-out and close; `reset()` may reload feature
-  flags. True account replacement also relies on a later auth-observer callback.
-  These are release blockers, not accepted manager behavior. See
+- PostHog's dedicated session carries a configured-host-only `URLProtocol`
+  transport gate. It is closed by default, gives each SDK setup a unique
+  transport ID, opens that ID immediately before consented setup, and closes
+  after app capture is disabled but before `reset → optOut → close`. A newer
+  grant cannot reopen an old session's ID, so PostHog 3.69.0's reset-time
+  feature-flag reload is rejected locally even during an immediate account
+  switch. Permission generations also invalidate stale overlapping setup work.
+  An injected `PostHogSDKClient` verifies gate state and SDK call order. This
+  closes `CONSENT-001`; the broader true-account installation race remains
+  tracked separately as `CONSENT-007`. See
   [Production Consent Readiness](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 2026-04 Hardening Updates

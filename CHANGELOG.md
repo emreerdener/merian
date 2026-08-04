@@ -13,8 +13,9 @@ TestFlight, App Store, support, and QA.
   optional PostHog analytics choice. Existing beta users missing current
   evidence return directly to that screen.
 - Versioned adult, Terms, Gemini, and analytics actions use an append-only local
-  ledger and immutable account-owned Supabase evidence. Settings adds Gemini
-  withdrawal and an optional account-wide **Analytics & diagnostics** switch.
+  ledger and immutable account-owned Supabase evidence. Settings exposes the
+  optional account-wide **Analytics & diagnostics** switch under Resources and
+  intentionally provides no Gemini processing opt-out.
 - This work is not production-ready yet. TestFlight replacement and strict
   server cutover remain held until all findings and owner evidence in
   [`production-consent-readiness-2026-08-03.md`](docs/legal/production-consent-readiness-2026-08-03.md)
@@ -292,18 +293,6 @@ TestFlight, App Store, support, and QA.
   information. The redundant queued heading, upload explainer, and
   media/file-size summary have been removed; actionable retry timing and errors
   remain available.
-- Debug and TestFlight Settings → Beta Diagnostics can now generate and share
-  the bounded durable offline-queue ledger after a reconnect smoke instead of
-  depending on an incomplete high-volume console capture. The support JSON
-  retains lifecycle kinds, timestamps, retry/error codes, HTTP status, server
-  status/stage, and embedded source revision/fingerprint/state while excluding
-  media paths and payload contents, descriptions, Field notes, location/GPS, raw
-  metadata, and arbitrary free-form messages. Retained error/status/stage values
-  must be canonical lowercase machine tokens. Its versioned schema caps jobs,
-  scans, and events at 500 rows each and clamps internal event-limit requests to
-  1...500, preventing zero from becoming an accidental unlimited fetch. Export
-  files use complete data protection, and refreshing Settings removes the
-  previous temporary artifact.
 - Fixed a TestFlight-confirmed queued-scan deadlock after a retryable cloud
   ingestion failure. The app now preserves one exact retry through any required
   media re-upload and lets that delayed generation send its Identify request
@@ -1770,11 +1759,6 @@ TestFlight, App Store, support, and QA.
   upload, analysis, cloud-deletion, or collection-sync failures pause for
   attention, and repeated server replay failures turn terminal, instead of
   retrying indefinitely.
-- Added redacted offline queue diagnostics for support, including queued job
-  state and recent queue events. Debug/TestFlight Settings now expose the
-  explicit generate/share control, and the artifact excludes media paths and
-  payload contents, descriptions, Field notes, location/GPS, raw metadata, and
-  arbitrary free-form error/event messages.
 - Added Image and Video media filters to the Scans filter sheet.
 - Restored the Explore posts scan filter so the Scans library can show scans
   that have already been shared to Explore.

@@ -31,7 +31,10 @@ external owner confirmations in the
   grant/revocation. It binds offline records to the first anonymous account,
   synchronizes immutable account-owned rows, hydrates cross-device state, and
   requires cloud-ready adult/Terms/Gemini evidence before iOS constructs an
-  inference request. The database quota boundary remains the authoritative
+  inference request. After a confirmed provider-bound ghost handoff, it
+  generation-cancels stale sync work, atomically rebinds all four local ledgers,
+  pushes target-owned pending actions, and refetches before the durable handoff
+  can be removed. The database quota boundary remains the authoritative
   provider-dispatch gate.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor

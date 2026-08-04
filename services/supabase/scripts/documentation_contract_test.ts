@@ -1178,7 +1178,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     settingsImplementationSource,
     settingsReadmeSource,
     offlineQueueTestsSource,
-    diagnosticsAvailabilityTestsSource,
+    profileViewModelTestsSource,
   ] = await Promise.all([
     read("README.md"),
     read("docs/README.md"),
@@ -1540,17 +1540,18 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   for (
     const source of [
-      changelogSource,
       offlineSource,
       loggingSource,
       settingsReadmeSource,
+      retryIncidentSource,
     ]
   ) {
-    const canonicalSource = compact(source);
-    assertStringIncludes(canonicalSource, "Beta Diagnostics");
-    assertStringIncludes(canonicalSource, "source revision/fingerprint/state");
-    assertStringIncludes(canonicalSource, "arbitrary");
+    assert(
+      !source.includes("Beta Diagnostics"),
+      "The retired Beta Diagnostics Settings section must not return.",
+    );
   }
+  assertStringIncludes(compact(offlineSource), "not exposed in Settings");
   for (
     const implementationFragment of [
       "let formatVersion: Int",
@@ -1575,33 +1576,25 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     );
   }
   for (
-    const settingsFragment of [
-      "if OfflineQueueDiagnosticsAvailability.isEnabledForCurrentBuild(",
-      "email: viewModel.userEmail",
+    const retiredSettingsFragment of [
+      "OfflineQueueDiagnosticsAvailability",
+      "queueDiagnosticsURL",
       "Share offline queue diagnostics",
-      ".writeQueueDiagnosticsExport()",
-      "enum OfflineQueueDiagnosticsAvailability",
-      "guard isEligibleBuild else { return false }",
-      ".lowercased() == allowedEmail",
-      "#if DEBUG",
-      '"sandboxReceipt"',
+      "generateQueueDiagnostics",
+      "Beta Diagnostics",
     ]
   ) {
-    assertStringIncludes(settingsImplementationSource, settingsFragment);
-  }
-  for (
-    const availabilityTestFragment of [
-      "allowedUserCanSeeDiagnosticsInAnEligibleBuild",
-      "otherUsersAndGuestsCannotSeeDiagnostics",
-      "diagnosticsRemainHiddenInAppStoreBuilds",
-      "isEligibleBuild: false",
-    ]
-  ) {
-    assertStringIncludes(
-      diagnosticsAvailabilityTestsSource,
-      availabilityTestFragment,
+    assert(
+      !settingsImplementationSource.includes(retiredSettingsFragment),
+      `Retired Settings diagnostics code returned: ${retiredSettingsFragment}`,
     );
   }
+  assert(
+    !profileViewModelTestsSource.includes(
+      "OfflineQueueDiagnosticsAvailabilityTests",
+    ),
+    "The retired Settings diagnostics availability tests must not return.",
+  );
   for (
     const testFragment of [
       "queueDiagnosticsExportOmitsPrivateAndFreeFormValues",
@@ -3801,10 +3794,10 @@ Deno.test("production consent documentation preserves the release hold and exit 
   for (
     const fragment of [
       "**Blocked.**",
-      "Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.",
+      "Naturebook sends observation data to Google Gemini for AI-powered identification.",
       "I confirm I am 18 or older.",
       "I accept the terms and allow this data sharing.",
-      "Share app usage and diagnostics with PostHog to help improve Naturebook. Optional.",
+      "Share usage and diagnostics to help improve Naturebook.",
       "adult policy and Terms versions are `2026-08-03`",
       "Gemini disclosure version is `2026-08-03.1`",
       "Apple App Review Guideline 5.1.2(i)",
@@ -3814,7 +3807,7 @@ Deno.test("production consent documentation preserves the release hold and exit 
   ) {
     assertStringIncludes(canonicalCompact, fragment);
   }
-  for (let index = 1; index <= 8; index += 1) {
+  for (let index = 1; index <= 9; index += 1) {
     assertStringIncludes(
       canonical,
       `CONSENT-00${index}`,

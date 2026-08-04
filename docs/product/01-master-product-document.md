@@ -647,15 +647,14 @@ Current onboarding contains four steps:
 3. Location.
 4. Ready / **Powered by AI**.
 
-The final screen discloses: “Naturebook sends your scan data to Google Gemini,
-a third-party AI service, for identification.” It presents three left-aligned,
+The internal-testing screen discloses: “Naturebook sends observation data to
+Google Gemini for AI-powered identification.” It presents three left-aligned,
 initially-off switches in this order:
 
-1. “I confirm I am 18 or older.”
-2. “I accept the terms and allow this data sharing.” The word **terms** links
+1. “Share usage and diagnostics to help improve Naturebook.”
+2. “I confirm I am 18 or older.”
+3. “I accept the terms and allow this data sharing.” The word **terms** links
    inline to the Terms of Service.
-3. “Share app usage and diagnostics with PostHog to help improve Naturebook.
-   Optional.”
 
 Only age confirmation and Terms/Gemini permission enable **Start scanning**.
 Analytics never blocks onboarding or core functionality. Existing beta users
@@ -668,8 +667,10 @@ synchronization are gated until onboarding and current required consent are
 complete; consent reconciliation itself still runs while the required gate is
 closed. The older six-step flow is retired.
 
-This is the intended product contract, not a production approval. The current
-candidate remains held by the
+This is the current internal-testing product contract, not a production copy
+freeze or approval. Fresh disclosure versions are required after counsel
+approves final production text so immutable receipts do not mix text under one
+version. The current candidate remains held by the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 9.2 Permission philosophy

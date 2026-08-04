@@ -8,6 +8,23 @@ import Security
 /// Used for storing sensitive device-bound state (for example OAuth status and
 /// account-upgrade proofs) that must survive app deletion.
 final class KeychainManager {
+    enum AccessError: LocalizedError {
+        case unexpectedItemType
+        case unexpectedStatus(OSStatus)
+        case verificationFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .unexpectedItemType:
+                return "The Keychain item did not contain data."
+            case let .unexpectedStatus(status):
+                return "Keychain access failed with status \(status)."
+            case .verificationFailed:
+                return "The Keychain mutation could not be verified."
+            }
+        }
+    }
+
     enum Accessibility {
         case afterFirstUnlockThisDeviceOnly
         case whenUnlockedThisDeviceOnly
@@ -73,6 +90,20 @@ final class KeychainManager {
     }
 
     func data(forKey key: String) -> Data? {
+        do {
+            return try dataOrThrow(forKey: key)
+        } catch {
+            MerianLog.network.error(
+                "Keychain read failed for \(key, privacy: .private): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// Reads while preserving `errSecItemNotFound` versus an actual Keychain
+    /// failure. Durable state machines must use this API so uncertainty cannot
+    /// be mistaken for absence.
+    func dataOrThrow(forKey key: String) throws -> Data? {
         if shouldUseTestStore {
             return UserDefaults.standard.data(forKey: testStoreKey(for: key))
         }
@@ -84,26 +115,49 @@ final class KeychainManager {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
 
-        if status == errSecSuccess {
-            return item as? Data
+        switch status {
+        case errSecSuccess:
+            guard let data = item as? Data else {
+                throw AccessError.unexpectedItemType
+            }
+            return data
+        case errSecItemNotFound:
+            return nil
+        default:
+            throw AccessError.unexpectedStatus(status)
         }
-
-        if status != errSecItemNotFound {
-            MerianLog.network.error("Keychain read failed for \(key, privacy: .private): \(status, privacy: .public)")
-        }
-
-        return nil
     }
 
     func removeObject(forKey key: String) {
+        do {
+            try removeObjectVerified(forKey: key)
+        } catch {
+            MerianLog.network.error(
+                "Keychain delete failed for \(key, privacy: .private): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    /// Deletes and verifies absence while preserving Security.framework error
+    /// status. This prevents a failed verification read from looking like a
+    /// successful deletion.
+    func removeObjectVerified(forKey key: String) throws {
         if shouldUseTestStore {
             clearTestValue(forKey: key)
+            guard UserDefaults.standard.data(
+                forKey: testStoreKey(for: key)
+            ) == nil else {
+                throw AccessError.verificationFailed
+            }
             return
         }
 
         let status = SecItemDelete(baseQuery(for: key) as CFDictionary)
-        if status != errSecSuccess && status != errSecItemNotFound {
-            MerianLog.network.error("Keychain delete failed for \(key, privacy: .private): \(status, privacy: .public)")
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw AccessError.unexpectedStatus(status)
+        }
+        guard try dataOrThrow(forKey: key) == nil else {
+            throw AccessError.verificationFailed
         }
     }
 

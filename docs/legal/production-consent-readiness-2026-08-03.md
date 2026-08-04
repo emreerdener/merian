@@ -4,9 +4,18 @@
 
 **Blocked.** The repository contains the intended final onboarding surface,
 versioned consent evidence, server-side Gemini admission guard, optional
-analytics control, and legal copy. A second-pass review found internal defects
-that must be corrected and verified before this candidate is distributed to
-TestFlight or nominated for production.
+analytics control, and legal copy. The two P1 consent-lifecycle defects from the
+second-pass review and the adjacent stale-sync/unit-fixture defects are complete
+in source. Remaining internal findings, hosted exact-SHA execution, and the
+external operator controls below must still close before this candidate is
+nominated for production.
+
+The shorter disclosure, analytics label, and Analytics → Age → Terms ordering
+currently in the app are an explicit product-owner choice for internal testing.
+They are documented below as the current surface, but they are not a production
+freeze: final copy approval and fresh disclosure versions remain required before
+external distribution so immutable receipts never mix different text under one
+version.
 
 This record is the canonical status source for the adult, Terms, Google Gemini,
 and PostHog consent release. Architecture documents describe the required end
@@ -17,18 +26,17 @@ state; they do not override the release hold recorded here.
 The onboarding order remains Welcome → Camera → Location → Powered by AI. The
 final screen must show this disclosure before its controls:
 
-> Naturebook sends your scan data to Google Gemini, a third-party AI service,
-> for identification.
+> Naturebook sends observation data to Google Gemini for AI-powered
+> identification.
 
 It presents three initially-off, left-aligned switches:
 
-1. **Required:** “I confirm I am 18 or older.”
-2. **Required:** “I accept the terms and allow this data sharing.” The word
+1. **Optional:** “Share usage and diagnostics to help improve Naturebook.”
+2. **Required:** “I confirm I am 18 or older.”
+3. **Required:** “I accept the terms and allow this data sharing.” The word
    “terms” links to the full Terms of Service.
-3. **Optional:** “Share app usage and diagnostics with PostHog to help improve
-   Naturebook. Optional.”
 
-Only the first two switches gate **Start scanning**. Withholding or withdrawing
+Only the two required switches gate **Start scanning**. Withholding or withdrawing
 analytics permission must never block core functionality. Existing beta users
 without current required evidence return directly to Powered by AI without
 repeating Camera or Location.
@@ -75,17 +83,21 @@ engineering release controls; it is not a legal opinion.
 
 | ID | Priority | Finding | Required exit evidence |
 | --- | --- | --- | --- |
-| `CONSENT-001` | P1 | `PostHogManager.setConsentGranted(false, ...)` calls PostHog `reset()` before `optOut()`. In resolved PostHog iOS 3.69.0, `reset()` reloads feature flags and can start a PostHog request during withdrawal. | Remove the request-producing reset path, retain immediate identity clearing/opt-out/SDK closure, and prove with an injected network/SDK test that withdrawal starts no PostHog request. |
-| `CONSENT-002` | P1 | A provider-bound ghost merge reparents synchronized server rows but does not reparent unsynced records in the local consent ledger. An offline PostHog revocation owned by the ghost can be orphaned while a prior server grant follows the permanent account. | After a confirmed handoff, atomically move local evidence from ghost UUID to target UUID, leave unsynced actions pending for the target, mark already-synchronized rows consistently with server reparenting, push pending rows, refetch, and test grant/revoke permutations. |
-| `CONSENT-003` | P1 | The complete iOS unit-test target does not compile: `testReadyTermsLinkTargetsTheFullTermsOfService()` uses throwing `XCTUnwrap` without declaring `throws` or handling the error. | Correct the test and retain a green complete `merianTests` target on the hosted exact-SHA iOS gate. |
-| `CONSENT-004` | P2 | Consent synchronization checks the active session only before awaited network work. A cancelled old-account fetch can still reach `merge(...)` if cancellation is not propagated promptly. | Check cancellation and session identity after each await and immediately before every merge/persist/SDK transition; add a deterministic account-switch race test. |
+| `CONSENT-001` | P1 | **Complete in source — 2026-08-04.** A closed-by-default, host-scoped `URLProtocol` transport gate is installed on PostHog's dedicated session. Every setup receives a unique transport ID, so opening a new grant cannot admit a delayed old-session request. Withdrawal disables app capture and closes the gate before preserving `reset → optOut → close`; permission generations reject stale overlapping setup/activation work. SDK calls use an injectable adapter. | Regression coverage verifies shutdown order, gate state at reset, no downstream connection while closed, old-session denial after a new transport opens, configure/withdraw and configure/account-switch races, repeated withdrawal, and subsequent opt-in/identity. Hosted exact-SHA execution remains rollout evidence. |
+| `CONSENT-002` | P1 | **Complete in source — 2026-08-04.** Confirmed server handoff is followed by one verified local-ledger rebind across adult, Terms, Gemini, and analytics evidence, permanent-account synchronization/refetch, and only then throwing verified queue removal. Throwing Keychain reads preserve failure status; unreadable evidence is retained and keeps analytics fail-closed. Durable pending handoffs suppress analytics across restart. | Regression coverage preserves immutable fields, distinguishes synchronized from pending rows, proves idempotent server → local → removal sequencing/failure retention, and covers permanent grant → offline ghost revocation → merge/restart/second-device state. Hosted exact-SHA execution remains rollout evidence. |
+| `CONSENT-003` | P1 | **Complete in source — 2026-08-04.** The Terms-link test now declares `throws`. | Hosted iOS run 183 at `1559e3f646952a10752526560684d9afbf4bb78b` compiled and passed 1,333 unit tests. The current candidate SHA must repeat that result. |
+| `CONSENT-004` | P2 | **Complete in source — 2026-08-04.** Consent synchronization now invalidates stale work by generation and checks cancellation plus the SDK's synchronous active session after every network await and immediately before mutation/persistence. | Parser, strict lint, whole-module frontend type-check, and complete test-source type-check passed locally. A hosted deterministic account-switch runtime regression remains candidate evidence. |
 | `CONSENT-005` | P2 | When the persisted active ledger belongs to another account, synchronization fetches and merges the target but does not first flush pending local rows already owned by that target. Account-wide revocation can remain delayed until a later synchronization. | Activate and flush target-owned pending rows during account restoration, refetch authoritative state, and test offline revoke → switch away → switch back. |
 | `CONSENT-006` | P2 | Realtime startup is keyed to a change in `currentSessionUserId`. Another synchronization path can assign that ID before the auth observer, causing the observer to skip channel startup; failed subscriptions also lack an explicit retry owner. | Track the subscribed account independently, ensure one healthy owner-scoped channel after session adoption, retry after failure/foreground, and test cross-device grant and withdrawal. |
 | `CONSENT-007` | P2 | OAuth replacement relies on the asynchronous auth-state observer to shut down the prior account’s analytics rather than suspending capture before installing a different target session. | Suspend the analytics facade and SDK before a true account replacement, reconcile the actual session on failure, and test that no old-identity event crosses the transition. |
-| `CONSENT-008` | P2 | `AppLifecycleManagerTests.testHandleActivePhasePlaysBackStagedScans()` marks onboarding complete but does not provide current required consent. The production foreground path now returns before replay on a clean runner. | Inject an isolated granted `ConsentManager`, restore it after the test, and retain foreground replay plus closed-gate negative tests. |
+| `CONSENT-008` | P2 | **Complete in source — 2026-08-04.** The foreground replay test now injects and restores an isolated granted `ConsentManager`; a closed-gate negative test is retained. | Hosted iOS run 183 included this test in the 1,333-test passing unit gate. The current candidate SHA must repeat that result. |
+| `CONSENT-009` | P1 release gate | The current internal-testing Gemini and analytics text changed after the `2026-08-03.1` / `2026-08-03` versions were introduced. Internal receipts can therefore contain different exact text under those versions. | Freeze counsel-approved production copy, assign fresh Gemini and analytics disclosure versions, require the final surface again for every account, and verify newly written local/cloud receipts contain exactly that text. Do not rewrite existing receipts. |
 
-All eight items are release blockers. P2 denotes lower exploitability or a more
-specific race, not permission to defer the correction beyond production.
+`CONSENT-001` through `CONSENT-004` and `CONSENT-008` are closed in source. The
+four remaining findings, `CONSENT-005` through `CONSENT-007` and the
+production-freeze item `CONSENT-009`, are release blockers. P2 denotes lower
+exploitability or a more specific race, not permission to defer the correction
+beyond production.
 
 ## Verification Snapshot
 
@@ -107,10 +119,35 @@ Static migration tests confirm the intended append-only ACL/RLS/publication
 shape, but they do not replace a fresh disposable database replay with the
 exact CLI or the hosted complete iOS result.
 
+The 2026-08-04 remediation pass additionally produced this local evidence:
+
+| Check | Result |
+| --- | --- |
+| Whole-app direct Xcode 26.6 frontend type-check against cached locked iOS dependencies | Passed with zero diagnostics |
+| Optimized whole-module Release/device frontend type-check against PostHog 3.69.0-matching locked modules | Passed with zero diagnostics |
+| Complete 85-source iOS unit-test frontend type-check against the freshly emitted app module | Passed; five pre-existing constant-`#expect(true)` notes only |
+| Exact final PostHog and ghost-handoff regression source frontend type-check | Passed with zero diagnostics |
+| Swift parser and `git diff --check` for the five changed implementation/test files | Passed |
+| PostHog transport/order and ghost-ledger/handoff regression sources | Compiled; hosted runtime execution is still required because this desktop sandbox cannot connect to CoreSimulator |
+| Hosted iOS run 183 at `1559e3f646952a10752526560684d9afbf4bb78b` | Unit gate passed: 1,333 tests; validation Release archive passed; queued-audio UI smoke failed because the Scans tab button did not appear |
+
+The 2026-08-04 double-check on the final local working tree added this evidence:
+
+| Check | Result |
+| --- | --- |
+| Focused PostHog, Keychain, and ghost-handoff simulator regressions | Passed; withdrawal order/gate behavior, per-session transport isolation, re-opt-in, ledger rebinding, and failure sequencing executed |
+| Complete iOS unit-test target | Passed: 1,344 tests, zero failures |
+| Deterministic queued-audio completion UI smoke | Passed locally: one test, zero failures |
+| Unsigned generic optimized Release build | Passed with zero build diagnostics |
+| Validation Release archive | Correctly refused the dirty review checkout; the unmodified preflight requires a clean exact SHA, so CI archive evidence remains required |
+| Swift parser, strict SwiftLint, and `git diff --check` for the reviewed Swift files | Passed: zero diagnostics and zero lint violations |
+| Supabase formatting and documentation contracts | Passed: 713 files formatted; 17 tests, zero failures |
+
 ## Required Remediation and Rollout Order
 
-1. Correct `CONSENT-001` through `CONSENT-008` and add deterministic regression
-   coverage for every scenario.
+1. Correct `CONSENT-005` through `CONSENT-007`, freeze and re-version the final
+   production copy for `CONSENT-009`, and add deterministic regression coverage
+   for every remaining scenario.
 2. Run the complete hosted **iOS Build and Test** workflow on the exact candidate
    SHA. Require a compiled and executed complete `merianTests` target, the
    focused UI smoke, and the unsigned Release validation archive.

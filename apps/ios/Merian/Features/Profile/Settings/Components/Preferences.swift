@@ -6,10 +6,7 @@ struct Preferences: View {
     @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
     @Environment(SupabaseManager.self) private var supabase
     @Environment(AppSettings.self) private var appSettings
-    @Environment(ConsentManager.self) private var consentManager
     @Environment(RevenueCatManager.self) private var revenueCatManager
-
-    @State private var showingGeminiWithdrawalConfirmation = false
 
     @Binding var defaultGeoprivacy: String
     @Binding var managePlanActive: Bool
@@ -192,43 +189,6 @@ struct Preferences: View {
 
         } header: {
             Text("Workspace")
-        }
-
-        // MARK: - Privacy & Processing Permissions
-        Section {
-            SettingsToggleRow(
-                title: "Analytics & diagnostics",
-                description: "Optionally share pseudonymous app usage and diagnostics with PostHog. This account-wide choice never affects core functionality.",
-                isOn: Binding(
-                    get: { consentManager.hasGrantedCurrentPostHogAnalytics },
-                    set: { consentManager.setPostHogAnalyticsEnabled($0) }
-                ),
-                icon: "chart.bar.fill",
-                iconColor: .teal
-            )
-
-            Button(role: .destructive) {
-                showingGeminiWithdrawalConfirmation = true
-            } label: {
-                Label("Withdraw Google Gemini permission", systemImage: "hand.raised.fill")
-            }
-            .disabled(!consentManager.hasGrantedCurrentGeminiProcessing)
-        } header: {
-            Text("Privacy & processing")
-        } footer: {
-            Text("Analytics permission applies to this account on all devices and can be withdrawn without affecting the app. Withdrawing Gemini permission stops future scan identification until you grant it again from the disclosure screen.")
-        }
-        .confirmationDialog(
-            "Withdraw Google Gemini permission?",
-            isPresented: $showingGeminiWithdrawalConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Withdraw permission", role: .destructive) {
-                consentManager.withdrawGeminiPermission()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Naturebook cannot identify observations without Google Gemini processing.")
         }
 
         #if DEBUG

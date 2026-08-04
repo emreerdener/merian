@@ -3,6 +3,7 @@ import SwiftUI
 
 struct Community: View {
     @Environment(AppSettings.self) private var appSettings
+    @Environment(ConsentManager.self) private var consentManager
 
     @Binding var changelogActive: Bool
     @Binding var safariUrl: URL?
@@ -11,6 +12,17 @@ struct Community: View {
     
     var body: some View {
         Section {
+            SettingsToggleRow(
+                title: "Analytics & diagnostics",
+                description: "Optionally share pseudonymous app usage and diagnostics with PostHog. This account-wide choice never affects core functionality.",
+                isOn: Binding(
+                    get: { consentManager.hasGrantedCurrentPostHogAnalytics },
+                    set: { consentManager.setPostHogAnalyticsEnabled($0) }
+                ),
+                icon: "chart.bar.fill",
+                iconColor: .teal
+            )
+
             Button("Rate Naturebook") {
                 if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                     SKStoreReviewController.requestReview(in: scene)
