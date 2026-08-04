@@ -3799,7 +3799,7 @@ Deno.test("production consent documentation preserves the release hold and exit 
       "I accept the terms and allow this data sharing.",
       "Share usage and diagnostics to help improve Naturebook.",
       "adult policy and Terms versions are `2026-08-03`",
-      "Gemini disclosure version is `2026-08-03.1`",
+      "Gemini disclosure version is `2026-08-04.1`",
       "Apple App Review Guideline 5.1.2(i)",
       "Cloud project with active billing",
       "Production remains blocked until both the internal and external sections are closed",

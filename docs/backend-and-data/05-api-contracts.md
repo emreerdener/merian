@@ -54,9 +54,9 @@ Provider-backed routes additionally return HTTP `403` with code
 `ai_consent_required` when the authenticated account lacks the current 18+
 self-attestation, lacks the current Terms receipt, lacks the current Google
 Gemini grant, or has a later Gemini revocation. During the bounded replacement
-build window the server accepts only a complete prior or complete current
+build window the server accepts only an explicitly allowlisted complete beta
 bundle; after owner-only strict cutover, only adult policy `2026-08-03`, Terms
-`2026-08-03`, and Gemini disclosure `2026-08-03.1` pass. This failure occurs at
+`2026-08-03`, and Gemini disclosure `2026-08-04.1` pass. This failure occurs at
 the common database quota boundary before provider dispatch; clients must return
 the user to the disclosure screen rather than retrying the same request in a
 loop.

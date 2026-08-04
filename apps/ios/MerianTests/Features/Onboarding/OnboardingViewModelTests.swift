@@ -84,6 +84,94 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(restoredManager.pendingCloudRecordCount, 3)
     }
 
+    func testPriorDisclosureVersionsReturnCompletedBetaUserToReadyStep() throws {
+        let now = Date()
+        let priorLedger = ConsentManager.LocalLedger(
+            activeUserId: nil,
+            termsReceipts: [
+                ConsentManager.TermsAcceptanceReceipt(
+                    id: UUID(),
+                    ownerUserId: nil,
+                    syncedUserId: nil,
+                    termsVersion: ConsentPolicy.termsVersion,
+                    acceptedAt: now,
+                    acceptanceText: ConsentPolicy.combinedAcceptanceText,
+                    platform: "ios",
+                    appVersion: "1.0.3",
+                    appBuild: "275",
+                    recordedAt: nil
+                )
+            ],
+            aiConsentEvents: [
+                ConsentManager.AIConsentEvent(
+                    id: UUID(),
+                    ownerUserId: nil,
+                    syncedUserId: nil,
+                    provider: ConsentPolicy.geminiProvider,
+                    disclosureVersion: "2026-08-03.1",
+                    eventKind: .granted,
+                    occurredAt: now,
+                    disclosureText: "Prior internal-test disclosure",
+                    actionText: ConsentPolicy.combinedAcceptanceText,
+                    platform: "ios",
+                    appVersion: "1.0.3",
+                    appBuild: "275",
+                    recordedAt: nil
+                )
+            ],
+            adultEligibilityReceipts: [
+                ConsentManager.AdultEligibilityReceipt(
+                    id: UUID(),
+                    ownerUserId: nil,
+                    syncedUserId: nil,
+                    policyVersion: ConsentPolicy.adultEligibilityVersion,
+                    confirmedAt: now,
+                    confirmationMethod: .selfAttestation,
+                    confirmationText: ConsentPolicy.adultConfirmationText,
+                    platform: "ios",
+                    appVersion: "1.0.3",
+                    appBuild: "275",
+                    recordedAt: nil
+                )
+            ],
+            analyticsConsentEvents: [
+                ConsentManager.AnalyticsConsentEvent(
+                    id: UUID(),
+                    ownerUserId: nil,
+                    syncedUserId: nil,
+                    provider: ConsentPolicy.analyticsProvider,
+                    disclosureVersion: "2026-08-03",
+                    eventKind: .granted,
+                    occurredAt: now,
+                    disclosureText: "Prior internal-test disclosure",
+                    actionText: "Prior internal-test grant",
+                    platform: "ios",
+                    appVersion: "1.0.3",
+                    appBuild: "275",
+                    recordedAt: nil
+                )
+            ]
+        )
+        userDefaults.set(
+            try JSONEncoder().encode(priorLedger),
+            forKey: UserDefaultsKeys.legalConsentLedger
+        )
+        appSettings.hasCompletedOnboarding = true
+
+        let restoredManager = ConsentManager(userDefaults: userDefaults)
+        let restoredViewModel = OnboardingViewModel(
+            appSettings: appSettings,
+            consentManager: restoredManager
+        )
+
+        XCTAssertTrue(restoredManager.hasConfirmedCurrentAdultEligibility)
+        XCTAssertTrue(restoredManager.hasAcceptedCurrentTerms)
+        XCTAssertFalse(restoredManager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertFalse(restoredManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertFalse(restoredManager.hasCurrentRequiredConsent)
+        XCTAssertEqual(restoredViewModel.currentStep, .ready)
+    }
+
     func testReadyStepMatchesStoredConsentCopyAndPurposeBeforeConsent() {
         let disclosure = ReadyStepView.disclosure
         let consent = ReadyStepView.consentStatement

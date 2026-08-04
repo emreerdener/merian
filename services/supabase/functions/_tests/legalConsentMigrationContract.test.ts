@@ -8,6 +8,10 @@ const currentGateMigrationUrl = new URL(
   "../../migrations/20260804033307_add_adult_and_analytics_consent.sql",
   import.meta.url,
 );
+const currentDisclosureMigrationUrl = new URL(
+  "../../migrations/20260804215234_bump_consent_disclosure_versions.sql",
+  import.meta.url,
+);
 
 function normalized(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
@@ -106,16 +110,45 @@ Deno.test("quota gate supports the reviewed cutover to current adult, Terms, and
   );
   assertStringIncludes(
     cutover,
-    "SET enforcement_mode = 'strict_2026_08_03'",
+    "SET enforcement_mode = 'strict_2026_08_04'",
   );
   assertStringIncludes(
     cutover,
-    "WHERE config_key = 'current' AND enforcement_mode = 'legacy_compatible'",
+    "WHERE config_key = 'current' AND enforcement_mode IN ( 'legacy_compatible', 'strict_2026_08_03' )",
   );
 });
 
+Deno.test("disclosure bump is forward-only, authoritative, and preserves bounded beta compatibility", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(currentDisclosureMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "DROP CONSTRAINT ai_consent_rollout_config_enforcement_mode_check",
+      "'strict_2026_08_04'",
+      "CREATE OR REPLACE FUNCTION internal.require_current_ai_consent",
+      "events.disclosure_version = '2026-08-04.1'",
+      "A grant, revocation, or partial bundle for the newest disclosure",
+      "IF enforcement_mode = 'strict_2026_08_04'",
+      "events.disclosure_version = '2026-08-03.1'",
+      "OR enforcement_mode = 'strict_2026_08_03'",
+      "events.disclosure_version = '2026-08-03'",
+      "receipts.policy_version = '2026-08-03'",
+      "receipts.terms_version = '2026-08-03'",
+      "ORDER BY events.recorded_at DESC, events.id DESC",
+      "RAISE EXCEPTION 'ai_consent_required'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(!sql.includes("CREATE TABLE public.user_ai_consent_events"));
+  assert(!sql.includes("UPDATE public.user_ai_consent_events"));
+});
+
 Deno.test("Swift and backend consent versions cannot drift", async () => {
-  const sql = await Deno.readTextFile(currentGateMigrationUrl);
+  const sql = await Deno.readTextFile(currentDisclosureMigrationUrl);
   const swift = await Deno.readTextFile(
     new URL(
       "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
@@ -125,14 +158,21 @@ Deno.test("Swift and backend consent versions cannot drift", async () => {
   const quota = await Deno.readTextFile(
     new URL("../_shared/aiQuota.ts", import.meta.url),
   );
+  const postHog = await Deno.readTextFile(
+    new URL("../_shared/posthog.ts", import.meta.url),
+  );
 
   assertStringIncludes(swift, 'adultEligibilityVersion = "2026-08-03"');
   assertStringIncludes(swift, 'termsVersion = "2026-08-03"');
-  assertStringIncludes(swift, 'geminiDisclosureVersion = "2026-08-03.1"');
-  assertStringIncludes(swift, 'analyticsDisclosureVersion = "2026-08-03"');
+  assertStringIncludes(swift, 'geminiDisclosureVersion = "2026-08-04.1"');
+  assertStringIncludes(swift, 'analyticsDisclosureVersion = "2026-08-04"');
   assertStringIncludes(sql, "policy_version = '2026-08-03'");
   assertStringIncludes(sql, "terms_version = '2026-08-03'");
-  assertStringIncludes(sql, "disclosure_version = '2026-08-03.1'");
+  assertStringIncludes(sql, "disclosure_version = '2026-08-04.1'");
+  assertStringIncludes(
+    postHog,
+    'POSTHOG_DISCLOSURE_VERSION = "2026-08-04"',
+  );
   assertStringIncludes(
     quota,
     'databaseMessage.includes("ai_consent_required")',

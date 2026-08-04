@@ -667,10 +667,10 @@ synchronization are gated until onboarding and current required consent are
 complete; consent reconciliation itself still runs while the required gate is
 closed. The older six-step flow is retired.
 
-This is the current internal-testing product contract, not a production copy
-freeze or approval. Fresh disclosure versions are required after counsel
-approves final production text so immutable receipts do not mix text under one
-version. The current candidate remains held by the
+This is the retained product contract, not production approval. It now carries
+fresh disclosure versions; any later material text change requires another
+version before new evidence is accepted. The current candidate remains held by
+the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 9.2 Permission philosophy

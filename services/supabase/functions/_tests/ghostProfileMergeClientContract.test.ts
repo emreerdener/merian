@@ -51,7 +51,7 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
   assertStringIncludes(source, "accessibility: .whenUnlockedThisDeviceOnly");
   assertStringIncludes(
     source,
-    "KeychainManager.shared.data( forKey: KeychainKeys.pendingGhostProfileMerge ) == encoded",
+    "try KeychainManager.shared.dataOrThrow( forKey: KeychainKeys.pendingGhostProfileMerge ) == encoded",
   );
 });
 
@@ -72,7 +72,7 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
   );
   assertStringIncludes(
     performerSource,
-    'try await client.functions.invoke( "merge-ghost-profile"',
+    'try await self.client.functions.invoke( "merge-ghost-profile"',
   );
   assertStringIncludes(
     performerSource,

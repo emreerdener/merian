@@ -9,10 +9,13 @@ SET LOCAL lock_timeout = '10s';
 SET LOCAL statement_timeout = '30s';
 
 UPDATE internal.ai_consent_rollout_config
-SET enforcement_mode = 'strict_2026_08_03',
+SET enforcement_mode = 'strict_2026_08_04',
     changed_at = pg_catalog.NOW()
 WHERE config_key = 'current'
-  AND enforcement_mode = 'legacy_compatible';
+  AND enforcement_mode IN (
+      'legacy_compatible',
+      'strict_2026_08_03'
+  );
 
 DO $cutover$
 BEGIN
@@ -20,7 +23,7 @@ BEGIN
         SELECT 1
         FROM internal.ai_consent_rollout_config AS config
         WHERE config.config_key = 'current'
-          AND config.enforcement_mode = 'strict_2026_08_03'
+          AND config.enforcement_mode = 'strict_2026_08_04'
     ) THEN
         RAISE EXCEPTION 'strict_ai_consent_cutover_failed'
             USING ERRCODE = '55000';

@@ -3,7 +3,7 @@ import { fetchWithDeadline } from "./outbound.ts";
 import { createServiceRoleClientFromEnvironmentWithOptions } from "./serviceRoleClient.ts";
 
 const POSTHOG_REQUEST_TIMEOUT_MS = 2_500;
-const POSTHOG_DISCLOSURE_VERSION = "2026-08-03";
+const POSTHOG_DISCLOSURE_VERSION = "2026-08-04";
 
 export async function hasCurrentPostHogConsent(
   userId: string,

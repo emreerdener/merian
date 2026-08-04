@@ -10,8 +10,8 @@ and the three-part required completion gate.
 > [!WARNING]
 > **Release status:** the internal-testing screen and evidence model are
 > implemented. The P1 local-ledger merge and PostHog withdrawal defects are
-> closed in source; account synchronization, final-copy re-versioning,
-> exact-SHA CI, and operator evidence still block production. Treat the
+> closed in source; account synchronization, exact-SHA CI, counsel approval,
+> and operator evidence still block production. Treat the
 > guarantees below as required invariants until every item in the
 > [canonical consent readiness record](../legal/production-consent-readiness-2026-08-03.md)
 > is closed. Do not distribute the candidate or enable strict enforcement yet.
@@ -118,8 +118,8 @@ version and routes every account without that version back to the same step.
 ## Versioned Consent Evidence
 
 `ConsentPolicy` currently pins adult policy and Terms versions `2026-08-03`,
-Gemini disclosure version `2026-08-03.1`, PostHog disclosure version
-`2026-08-03`, and providers `google_gemini` and `posthog`. The exact displayed
+Gemini disclosure version `2026-08-04.1`, PostHog disclosure version
+`2026-08-04`, and providers `google_gemini` and `posthog`. The exact displayed
 statement is stored with each action, along with a client-generated UUID,
 device action time, platform, app version, and app build. Adult eligibility is
 self-attested on every supported iOS version; Naturebook does not collect a

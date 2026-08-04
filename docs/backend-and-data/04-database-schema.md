@@ -211,7 +211,7 @@ are closed and the schema is replayed against a fresh required-version catalog.
 
 `internal.require_current_ai_consent(uuid)` currently requires adult policy
 version `2026-08-03`, Terms version `2026-08-03`, and provider
-`google_gemini` disclosure version `2026-08-03.1`. The latest AI event is
+`google_gemini` disclosure version `2026-08-04.1`. The latest AI event is
 ordered by `(recorded_at DESC, id DESC)` and must be `granted`. Both
 service-only `reserve_ai_quota` overloads call the helper before provider
 admission. A policy copy or material-purpose change must update the Swift policy

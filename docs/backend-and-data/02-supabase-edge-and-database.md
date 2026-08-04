@@ -221,9 +221,11 @@ private complimentary linkage. `reserve_ai_quota(...)` is a service-role-only,
 `20260804020351_record_legal_consent_receipts.sql` also places
 `internal.require_current_ai_consent(user_id)` in both reservation overloads;
 `20260804033307_add_adult_and_analytics_consent.sql` advances its current bundle
-to adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini disclosure
-`2026-08-03.1`. Additive TestFlight mode accepts either a complete prior bundle
-or a complete current bundle until the owner-only strict cutover. After old
+to adult policy `2026-08-03` and Terms `2026-08-03`; forward migration
+`20260804215234_bump_consent_disclosure_versions.sql` advances Gemini to
+`2026-08-04.1`. Additive TestFlight mode accepts only the complete newest or an
+explicitly allowlisted complete prior beta bundle until owner-only strict
+cutover. After old
 builds are expired, `services/supabase/scripts/cutover_strict_ai_consent.sql`
 makes current evidence mandatory. Missing, partial, stale, or revoked evidence
 raises `ai_consent_required`; `_shared/aiQuota.ts` maps it to a caller-safe HTTP

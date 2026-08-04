@@ -5,8 +5,8 @@ import Supabase
 enum ConsentPolicy {
     static let termsVersion = "2026-08-03"
     static let adultEligibilityVersion = "2026-08-03"
-    static let geminiDisclosureVersion = "2026-08-03.1"
-    static let analyticsDisclosureVersion = "2026-08-03"
+    static let geminiDisclosureVersion = "2026-08-04.1"
+    static let analyticsDisclosureVersion = "2026-08-04"
     static let geminiProvider = "google_gemini"
     static let analyticsProvider = "posthog"
 

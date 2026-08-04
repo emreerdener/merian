@@ -4730,13 +4730,15 @@ requires explicit incident authority and one reviewed owner transaction.
 
 Migration `20260804033307_add_adult_and_analytics_consent.sql` adds immutable
 adult-confirmation and PostHog event tables, owner-only RLS/ACLs, merge policies,
-and owner-scoped analytics Realtime propagation. It initially leaves
+and owner-scoped analytics Realtime propagation. Forward migration
+`20260804215234_bump_consent_disclosure_versions.sql` advances the retained
+Gemini and analytics copy without rewriting historical evidence. It leaves
 `internal.ai_consent_rollout_config.enforcement_mode` at
 `legacy_compatible`. During this bounded TestFlight transition, the quota guard
-accepts either the complete prior consent bundle or the complete current bundle;
-it never accepts partial evidence. The replacement app itself always requires
-current adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini disclosure
-`2026-08-03.1`.
+accepts the complete newest bundle or an explicitly allowlisted complete prior
+beta bundle; it never accepts partial evidence. The replacement app itself
+always requires current adult policy `2026-08-03`, Terms `2026-08-03`, Gemini
+disclosure `2026-08-04.1`, and analytics disclosure `2026-08-04`.
 
 > **Repository release hold (August 3, 2026):** Do not nominate a consent
 > candidate, distribute the replacement build, or run strict cutover until
@@ -4769,7 +4771,7 @@ current adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini disclosure
    beta can depend on the legacy consent versions.
 5. As database owner, run
    `psql "$MERIAN_DATABASE_URL" -v ON_ERROR_STOP=1 -f services/supabase/scripts/cutover_strict_ai_consent.sql`.
-   Confirm the single config row reads `strict_2026_08_03`, legacy-only fixtures
+   Confirm the single config row reads `strict_2026_08_04`, legacy-only fixtures
    receive `403 ai_consent_required`, and current-complete accounts still reach
    Gemini. This one-way operation enables strict server enforcement.
 

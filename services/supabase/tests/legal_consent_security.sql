@@ -375,7 +375,7 @@ VALUES (
     '00000000-0000-4000-8000-00000000e123',
     '00000000-0000-4000-8000-00000000e102',
     'google_gemini',
-    '2026-08-03.1',
+    '2026-08-04.1',
     'revoked',
     pg_catalog.NOW(),
     'Current disclosure supersedes legacy evidence.',
@@ -496,11 +496,11 @@ VALUES (
     '00000000-0000-4000-8000-00000000e115',
     '00000000-0000-4000-8000-00000000e101',
     'posthog',
-    '2026-08-03',
+    '2026-08-04',
     'granted',
     pg_catalog.NOW(),
-    'Share app usage and diagnostics with PostHog to help improve Naturebook. Optional.',
-    'Share app usage and diagnostics with PostHog to help improve Naturebook. Optional.',
+    'Share usage and diagnostics to help improve Naturebook.',
+    'Share usage and diagnostics to help improve Naturebook.',
     'ios',
     '1.0.3',
     '275'
@@ -627,7 +627,7 @@ BEGIN
             '00000000-0000-4000-8000-00000000e118',
             '00000000-0000-4000-8000-00000000e101',
             'google_gemini',
-            '2026-08-03.1',
+            '2026-08-04.1',
             'granted',
             pg_catalog.NOW(),
             'Spoofed timestamp attempt',
@@ -661,7 +661,7 @@ BEGIN
             '00000000-0000-4000-8000-00000000e116',
             '00000000-0000-4000-8000-00000000e101',
             'posthog',
-            '2026-08-03',
+            '2026-08-04',
             'granted',
             pg_catalog.NOW(),
             'Spoofed timestamp attempt',
@@ -685,7 +685,7 @@ SELECT internal.require_current_ai_consent(
 );
 
 UPDATE internal.ai_consent_rollout_config
-SET enforcement_mode = 'strict_2026_08_03',
+SET enforcement_mode = 'strict_2026_08_04',
     changed_at = pg_catalog.NOW()
 WHERE config_key = 'current';
 
@@ -693,7 +693,7 @@ DO $test$
 BEGIN
     BEGIN
         PERFORM internal.require_current_ai_consent(
-            '00000000-0000-4000-8000-00000000e102'
+            '00000000-0000-4000-8000-00000000e101'
         );
         RAISE EXCEPTION 'legacy consent passed after strict cutover';
     EXCEPTION
@@ -723,10 +723,10 @@ VALUES (
     '00000000-0000-4000-8000-00000000e113',
     '00000000-0000-4000-8000-00000000e101',
     'google_gemini',
-    '2026-08-03.1',
+    '2026-08-04.1',
     'revoked',
     pg_catalog.NOW(),
-    'Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.',
+    'Naturebook sends observation data to Google Gemini for AI-powered identification.',
     'I withdraw permission for future observations.',
     'ios',
     '1.0.3',
@@ -768,10 +768,10 @@ VALUES (
     '00000000-0000-4000-8000-00000000e114',
     '00000000-0000-4000-8000-00000000e101',
     'google_gemini',
-    '2026-08-03.1',
+    '2026-08-04.1',
     'granted',
     pg_catalog.NOW(),
-    'Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.',
+    'Naturebook sends observation data to Google Gemini for AI-powered identification.',
     'I accept the terms and allow this data sharing.',
     'ios',
     '1.0.3',
@@ -801,10 +801,10 @@ VALUES (
     '00000000-0000-4000-8000-00000000e118',
     '00000000-0000-4000-8000-00000000e101',
     'posthog',
-    '2026-08-03',
+    '2026-08-04',
     'revoked',
     pg_catalog.NOW(),
-    'Share app usage and diagnostics with PostHog to help improve Naturebook. Optional.',
+    'Share usage and diagnostics to help improve Naturebook.',
     'I withdraw permission for PostHog to process future app usage and diagnostics.',
     'ios',
     '1.0.3',
@@ -821,7 +821,7 @@ BEGIN
     FROM public.user_analytics_consent_events AS events
     WHERE events.user_id = '00000000-0000-4000-8000-00000000e101'
       AND events.provider = 'posthog'
-      AND events.disclosure_version = '2026-08-03'
+      AND events.disclosure_version = '2026-08-04'
     ORDER BY events.recorded_at DESC, events.id DESC
     LIMIT 1;
 

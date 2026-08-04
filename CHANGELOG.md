@@ -9,13 +9,15 @@ TestFlight, App Store, support, and QA.
 ### Consent and Privacy Controls — Release-Gated
 
 - The final onboarding screen now combines 18+ self-attestation, required Terms
-  and explicit Google Gemini third-party data-sharing permission, and a separate
-  optional PostHog analytics choice. Existing beta users missing current
+  and permission to send observation data to Google Gemini for AI-powered
+  identification, and a separate optional analytics choice. Existing beta users missing current
   evidence return directly to that screen.
 - Versioned adult, Terms, Gemini, and analytics actions use an append-only local
   ledger and immutable account-owned Supabase evidence. Settings exposes the
   optional account-wide **Analytics & diagnostics** switch under Resources and
   intentionally provides no Gemini processing opt-out.
+- The retained Gemini and analytics wording now uses fresh disclosure versions,
+  forcing a new user action without rewriting any earlier beta evidence.
 - This work is not production-ready yet. TestFlight replacement and strict
   server cutover remain held until all findings and owner evidence in
   [`production-consent-readiness-2026-08-03.md`](docs/legal/production-consent-readiness-2026-08-03.md)

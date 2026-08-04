@@ -11,11 +11,10 @@ external operator controls below must still close before this candidate is
 nominated for production.
 
 The shorter disclosure, analytics label, and Analytics → Age → Terms ordering
-currently in the app are an explicit product-owner choice for internal testing.
-They are documented below as the current surface, but they are not a production
-freeze: final copy approval and fresh disclosure versions remain required before
-external distribution so immutable receipts never mix different text under one
-version.
+currently in the app are an explicit product-owner choice. They now carry fresh
+Gemini and analytics disclosure versions so immutable receipts do not mix
+different text under one version. Counsel approval of that retained copy remains
+an external production requirement.
 
 This record is the canonical status source for the adult, Terms, Google Gemini,
 and PostHog consent release. Architecture documents describe the required end
@@ -46,7 +45,8 @@ repeating Camera or Location.
 - Adult eligibility uses self-attestation on every supported iOS version. Do
   not collect a birth date or exact age.
 - Current adult policy and Terms versions are `2026-08-03`; the current Google
-  Gemini disclosure version is `2026-08-03.1`.
+  Gemini disclosure version is `2026-08-04.1`, and the current analytics
+  disclosure version is `2026-08-04`.
 - Adult, Terms, Gemini, and PostHog actions use immutable, versioned evidence
   containing the exact displayed text, device action time, platform, app
   version/build, and a server-controlled timestamp.
@@ -91,13 +91,12 @@ engineering release controls; it is not a legal opinion.
 | `CONSENT-006` | P2 | Realtime startup is keyed to a change in `currentSessionUserId`. Another synchronization path can assign that ID before the auth observer, causing the observer to skip channel startup; failed subscriptions also lack an explicit retry owner. | Track the subscribed account independently, ensure one healthy owner-scoped channel after session adoption, retry after failure/foreground, and test cross-device grant and withdrawal. |
 | `CONSENT-007` | P2 | OAuth replacement relies on the asynchronous auth-state observer to shut down the prior account’s analytics rather than suspending capture before installing a different target session. | Suspend the analytics facade and SDK before a true account replacement, reconcile the actual session on failure, and test that no old-identity event crosses the transition. |
 | `CONSENT-008` | P2 | **Complete in source — 2026-08-04.** The foreground replay test now injects and restores an isolated granted `ConsentManager`; a closed-gate negative test is retained. | Hosted iOS run 183 included this test in the 1,333-test passing unit gate. The current candidate SHA must repeat that result. |
-| `CONSENT-009` | P1 release gate | The current internal-testing Gemini and analytics text changed after the `2026-08-03.1` / `2026-08-03` versions were introduced. Internal receipts can therefore contain different exact text under those versions. | Freeze counsel-approved production copy, assign fresh Gemini and analytics disclosure versions, require the final surface again for every account, and verify newly written local/cloud receipts contain exactly that text. Do not rewrite existing receipts. |
+| `CONSENT-009` | P1 release gate | **Complete in source — 2026-08-04.** The retained internal-testing copy now uses fresh Gemini `2026-08-04.1` and analytics `2026-08-04` disclosure versions. A forward-only migration makes the newest Gemini action authoritative, preserves bounded prior-beta compatibility, and adds strict `2026-08-04` cutover without rewriting historical receipts. | Migration/source contracts and iOS tests must pass on the exact candidate SHA; TestFlight must prove accounts with only earlier versions return to the final consent screen and write exact new-version local/cloud evidence. |
 
-`CONSENT-001` through `CONSENT-004` and `CONSENT-008` are closed in source. The
-four remaining findings, `CONSENT-005` through `CONSENT-007` and the
-production-freeze item `CONSENT-009`, are release blockers. P2 denotes lower
-exploitability or a more specific race, not permission to defer the correction
-beyond production.
+`CONSENT-001` through `CONSENT-004`, `CONSENT-008`, and `CONSENT-009` are closed
+in source. The three remaining findings, `CONSENT-005` through `CONSENT-007`,
+are release blockers. P2 denotes lower exploitability or a more specific race,
+not permission to defer the correction beyond production.
 
 ## Verification Snapshot
 
@@ -145,9 +144,8 @@ The 2026-08-04 double-check on the final local working tree added this evidence:
 
 ## Required Remediation and Rollout Order
 
-1. Correct `CONSENT-005` through `CONSENT-007`, freeze and re-version the final
-   production copy for `CONSENT-009`, and add deterministic regression coverage
-   for every remaining scenario.
+1. Correct `CONSENT-005` through `CONSENT-007` and add deterministic regression
+   coverage for every remaining scenario.
 2. Run the complete hosted **iOS Build and Test** workflow on the exact candidate
    SHA. Require a compiled and executed complete `merianTests` target, the
    focused UI smoke, and the unsigned Release validation archive.

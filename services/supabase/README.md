@@ -1093,7 +1093,10 @@ make a newly metered retry.
 
 Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql` add the legal prerequisite
-to both quota overloads. `user_adult_eligibility_receipts` stores versioned 18+
+to both quota overloads. Forward migration
+`20260804215234_bump_consent_disclosure_versions.sql` advances the retained
+Gemini copy to `2026-08-04.1` without rewriting evidence.
+`user_adult_eligibility_receipts` stores versioned 18+
 self-attestation without a birth date or exact age;
 `user_terms_acceptance_receipts` stores immutable current-version Terms
 evidence; `user_ai_consent_events` stores immutable, versioned Google Gemini
@@ -1107,8 +1110,9 @@ client update/delete path. Their user foreign keys are registered as
 conflict-free `reparent` rows in the ghost-merge policy manifest. Analytics
 events are published to owner-scoped Realtime. During the replacement-build
 window, `internal.ai_consent_rollout_config` remains `legacy_compatible` and
-accepts only a complete prior or complete current bundle. After old builds are
-expired, the owner-only cutover script selects `strict_2026_08_03`; current
+accepts only the newest complete bundle or an explicitly allowlisted complete
+prior beta bundle. After old builds are expired, the owner-only cutover script
+selects `strict_2026_08_04`; current
 adult, Terms, and latest granted Gemini evidence must then exist before
 `reserve_ai_quota(...)` proceeds. Missing or revoked evidence raises
 `ai_consent_required`, which `_shared/aiQuota.ts` exposes as HTTP 403 before
