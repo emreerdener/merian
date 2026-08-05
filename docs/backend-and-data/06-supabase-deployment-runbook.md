@@ -45,12 +45,19 @@ backend changes.
 
 Use `.github/workflows/supabase-candidate-validation.yml` when the objective is
 exact-SHA evidence without production access. **Supabase Candidate Validation**
-runs on relevant pull requests, supports manual dispatch, and can be called by
-another workflow. It uses a disposable database and has no GitHub Production
-environment, production secrets, database push, Function deployment, or
-production smoke. The production workflow declares this reusable gate as a
-required predecessor; only its subsequent `deploy` job enters the Production
-environment. A green candidate run proves the reviewed source and disposable
+runs a lightweight scope job on every pull request, supports manual dispatch,
+and can be called by another workflow. The detector uses the complete git event
+range rather than workflow path filters, includes every repository root read or
+scanned by its contracts, and requires full validation when comparison fails or
+a changed path is not explicitly reviewed as build-only.
+Manual, merge-queue, and reusable non-PR calls always validate. Configure
+repository rules to require `Supabase Candidate Validation / Candidate
+readiness`. The complete gate uses a disposable database and has no GitHub
+Production environment, production secrets, database push, Function
+deployment, or production smoke. The production workflow declares this
+reusable gate as a required predecessor; only its subsequent `deploy` job
+enters the Production environment. A green candidate run proves the reviewed
+source and disposable
 catalog, not that production changed.
 
 The deploy workflow is a backend production gate only. It must not wait for the

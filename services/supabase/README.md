@@ -50,8 +50,13 @@ mutation. The separate production job requires it before `db push`.
 ### Validation-Only Candidate Workflow
 
 `.github/workflows/supabase-candidate-validation.yml` is the reusable backend
-evidence gate. It runs for relevant pull requests, supports manual dispatch, and
-is called by `.github/workflows/deploy.yml` before the Production job. It checks
+evidence gate. It reports a stable **Candidate readiness** result on every pull
+request, supports manual dispatch, and is called by `.github/workflows/deploy.yml`
+before the Production job. Its full-history scope detector treats `.github`,
+`apps`, `docs`, `scripts`, `services/supabase`, and the maintained root contract
+files as inputs because the executable suite reads or scans them. Resolution
+failure and unclassified new roots force complete validation; manual,
+merge-queue, and reusable non-PR invocations are never scoped out. It checks
 an exact clean checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`, validates
 the complete Function dependency graph and tooling contracts, replays every
 migration into a disposable database, discovers every pgTAP catalog, executes
@@ -1526,9 +1531,10 @@ deno check --frozen \
   services/supabase/functions/<function>/index.ts
 ```
 
-The relevant pull request must then pass **Supabase Candidate Validation**. A
-local source/unit pass cannot substitute for its exact-SHA migration replay,
-database concurrency fixtures, pgTAP catalogs, lint, and advisors.
+The pull request must then pass the stable **Supabase Candidate Validation /
+Candidate readiness** check. A local source/unit pass cannot substitute for its
+exact-SHA migration replay, database concurrency fixtures, pgTAP catalogs, lint,
+and advisors when the fail-closed scope requires the complete gate.
 
 `test_supabase_tooling.sh` dynamically type-checks every standard script and
 runs every standard `*_test.ts`, including the ghost-user suites and the static

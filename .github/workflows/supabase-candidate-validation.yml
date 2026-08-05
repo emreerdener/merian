@@ -1,14 +1,12 @@
 name: Supabase Candidate Validation
 
 on:
+  # Always report the final gate for pull requests. The lightweight scope job
+  # resolves the complete change set without GitHub's event path-filter limit.
   pull_request:
-    paths:
-      - ".github/workflows/deploy.yml"
-      - ".github/workflows/supabase-candidate-validation.yml"
-      - "scripts/ci-run-summary.sh"
-      - "scripts/test-ci-run-summary.sh"
-      - "apps/ios/Merian/Core/Security/ConsentManager.swift"
-      - "services/supabase/**"
+  merge_group:
+    types:
+      - checks_requested
   workflow_dispatch:
   workflow_call:
 
@@ -20,8 +18,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Determine Supabase candidate scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.candidate-scope.outputs.should_run }}
+      reason: ${{ steps.candidate-scope.outputs.reason }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The detector compares the complete event range rather than relying
+          # on GitHub's path-filtered changed-file window.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Summarize workflow context
+        env:
+          WORKFLOW_PURPOSE: "Fail-closed scope plus validation-only Supabase release evidence without production access."
+          WORKFLOW_REASON: "The final check reports on every pull request; complete disposable-database validation runs for every inspected contract input and every reusable, manual, or merge-queue invocation."
+        run: bash scripts/ci-run-summary.sh
+
+      - name: Test candidate scope detector
+        run: bash scripts/test-ci-detect-supabase-candidate-source-changes.sh
+
+      - name: Determine complete validation scope
+        id: candidate-scope
+        run: bash scripts/ci-detect-supabase-candidate-source-changes.sh
+
   validate:
     name: Validate exact candidate SHA
+    needs: scope
+    if: needs.scope.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     defaults:
@@ -41,7 +71,7 @@ jobs:
       - name: Summarize workflow context
         env:
           WORKFLOW_PURPOSE: "Validation-only Supabase release gate: verify Edge code, replay migrations, exercise database concurrency, and run database lint without accessing production."
-          WORKFLOW_REASON: "Runs for relevant pull requests, manual exact-SHA validation, and as the prerequisite of the production Supabase deployment workflow."
+          WORKFLOW_REASON: "The fail-closed scope job required complete validation for this pull request, merge-queue commit, manual candidate, or reusable production prerequisite."
         run: bash ../scripts/ci-run-summary.sh
 
       - name: Test workflow summary rendering
@@ -161,3 +191,55 @@ jobs:
             echo "- Production secrets: not used"
             echo "- Production mutations: none"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  candidate-readiness:
+    name: Candidate readiness
+    needs:
+      - scope
+      - validate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Enforce Supabase candidate result
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          SHOULD_RUN: ${{ needs.scope.outputs.should_run }}
+          SCOPE_REASON: ${{ needs.scope.outputs.reason }}
+          VALIDATION_RESULT: ${{ needs.validate.result }}
+        run: |
+          {
+            echo "### Supabase candidate-readiness decision"
+            echo
+            echo "- Source SHA: \`$GITHUB_SHA\`"
+            echo "- Scope job: \`${SCOPE_RESULT}\`"
+            echo "- Complete validation required: \`${SHOULD_RUN:-unknown}\`"
+            echo "- Scope reason: ${SCOPE_REASON:-unavailable}"
+            echo "- Disposable candidate validation: \`${VALIDATION_RESULT}\`"
+            echo "- Production environment: not used"
+            echo "- Production secrets: not used"
+            echo "- Production mutations: none"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$SCOPE_RESULT" != "success" ]; then
+            echo "The Supabase candidate scope job did not succeed." >&2
+            exit 1
+          fi
+
+          if [ "$SHOULD_RUN" != "true" ]; then
+            if [ "$VALIDATION_RESULT" != "skipped" ]; then
+              echo "Complete validation ran unexpectedly for an out-of-scope change." >&2
+              exit 1
+            fi
+            echo "No Supabase candidate contract input changed; the required check reports success."
+            exit 0
+          fi
+
+          if [ "$VALIDATION_RESULT" != "success" ]; then
+            echo "Supabase candidate validation result: ${VALIDATION_RESULT:-unknown}." >&2
+            echo "The complete disposable-database gate must pass." >&2
+            exit 1
+          fi
+
+          echo "The exact workflow SHA passed complete Supabase candidate validation."

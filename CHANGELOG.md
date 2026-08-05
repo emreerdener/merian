@@ -23,6 +23,10 @@ TestFlight, App Store, support, and QA.
   merge before any local evidence or analytics state can change. A separate
   validation-only Supabase workflow provides fresh-catalog and concurrency
   evidence without receiving production credentials or deploying anything.
+- Supabase candidate assurance now reports a stable result on every pull
+  request. Its full-history scope detector includes every app, documentation,
+  workflow, script, and backend root inspected by the executable contracts and
+  requires complete validation for unresolved ranges or unclassified new roots.
 - Onboarding now completes only after its versioned consent evidence is saved
   and read back successfully. Analytics withdrawal closes capture immediately
   and keeps an independently persisted, replayable withdrawal journal, so a

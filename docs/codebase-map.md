@@ -212,8 +212,11 @@ fallback. Its fixture test prevents expected negative-path application logs from
 replacing the actual failed test and assertion in the job summary.
 
 Backend candidate assurance lives in **Supabase Candidate Validation**
-(`.github/workflows/supabase-candidate-validation.yml`). Relevant pull requests,
-manual candidate refs, and `.github/workflows/deploy.yml` reuse that workflow to
+(`.github/workflows/supabase-candidate-validation.yml`). A fail-closed scope job
+runs on every pull request and reports the stable **Candidate readiness** check;
+manual candidate refs, merge-queue commits, and `.github/workflows/deploy.yml`
+force complete validation. The scope covers the full contract-input roots and
+unresolved or unclassified comparisons fail closed. The workflow can then
 verify a clean exact SHA with pinned tools, full migration replay, discovered
 pgTAP catalogs, Edge/database-concurrency tests, lint, and advisors against a
 disposable database. It has no Production environment, production secrets, or

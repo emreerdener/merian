@@ -883,12 +883,14 @@ supabase --workdir services functions deploy
 
 That is the emergency manual full-fleet command, not a candidate-validation
 path. Use **Supabase Candidate Validation** to replay and test an exact SHA in a
-disposable database without production secrets or mutations. Production
-deployment runs through the
-path-filtered GitHub workflow, which validates frozen function-local dependency
-graphs, requires exact name parity with `services/supabase/config.toml`, and
-deploys only transitive runtime consumers in bounded batches. The fleet size is
-derived rather than hard-coded. Before reporting success, it derives that same
+disposable database without production secrets or mutations. Its stable
+readiness check reports on every pull request, and its fail-closed scope job
+requires complete validation for every input inspected by the candidate suite.
+Production deployment runs through the path-filtered GitHub workflow, which
+validates frozen function-local dependency graphs, requires exact name parity
+with `services/supabase/config.toml`, and deploys only transitive runtime
+consumers in bounded batches. The fleet size is derived rather than hard-coded.
+Before reporting success, it derives that same
 canonical inventory and verifies that every production route reaches code with
 `X-Merian-Handler: 1`. The two intentional gateway-verified routes receive only
 a validated legacy anon JWT for this preflight; a publishable key is never sent

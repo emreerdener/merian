@@ -133,8 +133,37 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   ]);
 
   assertStringIncludes(candidateWorkflow, "  pull_request:");
+  assertStringIncludes(candidateWorkflow, "  merge_group:");
   assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");
   assertStringIncludes(candidateWorkflow, "  workflow_call:");
+  assert(
+    !/^\s{4}paths(?:-ignore)?:/m.test(candidateWorkflow),
+    "Candidate validation must report on every pull request and scope work inside the workflow.",
+  );
+  assertStringIncludes(
+    candidateWorkflow,
+    "bash scripts/test-ci-detect-supabase-candidate-source-changes.sh",
+  );
+  assertStringIncludes(
+    candidateWorkflow,
+    "bash scripts/ci-detect-supabase-candidate-source-changes.sh",
+  );
+  assertStringIncludes(candidateWorkflow, "needs: scope");
+  assertStringIncludes(
+    candidateWorkflow,
+    "if: needs.scope.outputs.should_run == 'true'",
+  );
+  assertStringIncludes(candidateWorkflow, "candidate-readiness:");
+  assertStringIncludes(candidateWorkflow, "name: Candidate readiness");
+  assertStringIncludes(candidateWorkflow, "if: always()");
+  assertStringIncludes(
+    candidateWorkflow,
+    'if [ "$SCOPE_RESULT" != "success" ]; then',
+  );
+  assertStringIncludes(
+    candidateWorkflow,
+    'if [ "$VALIDATION_RESULT" != "success" ]; then',
+  );
   assertStringIncludes(candidateWorkflow, "deno-version: v2.9.4");
   assertStringIncludes(candidateWorkflow, "version: 2.109.1");
   assertStringIncludes(candidateWorkflow, "fetch-depth: 0");

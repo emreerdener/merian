@@ -67,6 +67,7 @@ validate-edge-dto-contract:
 	bash services/supabase/scripts/validate_edge_dto_contract.sh
 
 test-supabase-tooling:
+	bash scripts/test-ci-detect-supabase-candidate-source-changes.sh
 	bash services/supabase/scripts/test_supabase_tooling.sh
 
 validate-supabase-migrations:

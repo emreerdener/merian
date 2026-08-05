@@ -84,17 +84,26 @@ fails when it cannot connect.
 
 **Supabase Candidate Validation**
 (`.github/workflows/supabase-candidate-validation.yml`) is the hosted,
-validation-only release gate for that complete sequence. It runs on relevant
-pull requests, supports manual dispatch for an immutable candidate ref, and is
-reused as the prerequisite of `.github/workflows/deploy.yml`. The workflow
-verifies a clean exact checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`,
+validation-only release gate for that complete sequence. It reports on every
+pull request, supports manual dispatch for an immutable candidate ref, and is
+reused as the prerequisite of `.github/workflows/deploy.yml`. A lightweight,
+full-history scope job reports the stable **Candidate readiness** check. The
+detector covers every root read or scanned by the suite:
+`.github`, `apps`, `docs`, `scripts`, `services/supabase`, and the maintained
+root contracts. An unresolved comparison requires full validation rather than
+silently skipping it, and a new unclassified repository root is in scope until
+explicitly reviewed as build-only. Manual, merge-queue, and reusable non-PR
+invocations always run the complete gate. The workflow verifies a clean exact
+checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`,
 checks every deployable Function graph, replays all migrations into a disposable
 database, discovers every pgTAP catalog, runs the complete Deno task with
 `SUPABASE_DB_TEST_URL`, and finishes with database lint plus security and
 performance advisors. It declares no Production environment, receives no
 production secrets, and contains no migration push, Function deployment, or
 production smoke. A green candidate run is therefore database/runtime evidence,
-not proof of deployment.
+not proof of deployment. Repository rules should require `Supabase Candidate
+Validation / Candidate readiness`, not the conditionally executed validation
+job.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
