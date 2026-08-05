@@ -22,7 +22,7 @@ production. A green candidate run does not authorize deployment.
 
 ## Consent release hold
 
-`CONSENT-001` through `CONSENT-009` are closed in source. Do not enter the
+`CONSENT-001` through `CONSENT-010` are closed in source. Do not enter the
 Production job or run strict consent cutover until the same immutable SHA passes
 both hosted gates and the external production controls in the
 [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).

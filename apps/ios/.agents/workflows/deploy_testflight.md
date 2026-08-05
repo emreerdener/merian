@@ -8,7 +8,7 @@ Use the repository's canonical
 [iOS publishing runbook](../../../../docs/development-guides/14-ios-release-versioning.md).
 This file is an agent entry point, not a second deployment procedure.
 
-> **Consent release hold:** `CONSENT-001` through `CONSENT-009` are closed in
+> **Consent release hold:** `CONSENT-001` through `CONSENT-010` are closed in
 > source. Internal TestFlight builds may be archived and distributed after the
 > clean hosted exact-SHA iOS gate passes. That does not establish public
 > production readiness: **Supabase Candidate Validation** must also pass the
