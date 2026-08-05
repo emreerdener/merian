@@ -180,13 +180,23 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
   const finalIdentityFence = mergeSource.indexOf(
     "try validateSynchronization(for: userId, generation: generation)",
   );
-  const firstMutation = mergeSource.indexOf(
-    "ledger.adultEligibilityReceipts",
+  const candidateSnapshot = mergeSource.indexOf("var candidate = ledger");
+  const firstCandidateMutation = mergeSource.indexOf(
+    "candidate.adultEligibilityReceipts",
+  );
+  const verifiedPersistence = mergeSource.indexOf(
+    "try persistLedger(candidate)",
+  );
+  const analyticsApplication = mergeSource.indexOf(
+    "applyAnalyticsPermissionToSDK()",
   );
   assert(
     mergeStart >= 0 && mergeEnd > mergeStart && finalIdentityFence >= 0 &&
-      firstMutation > finalIdentityFence,
-    "The final identity fence must run inside merge before any ledger mutation",
+      candidateSnapshot > finalIdentityFence &&
+      firstCandidateMutation > candidateSnapshot &&
+      verifiedPersistence > firstCandidateMutation &&
+      analyticsApplication > verifiedPersistence,
+    "The final identity fence must run inside merge before candidate mutation, verified persistence, or analytics changes",
   );
   assertStringIncludes(
     source,
