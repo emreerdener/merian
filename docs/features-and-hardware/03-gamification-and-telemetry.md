@@ -144,11 +144,16 @@ account's latest `user_analytics_consent_events` state and is the sole SDK
 lifecycle authority. Only a current grant configures and identifies PostHog.
 Absence, revocation, account change, or unresolved account state must disable
 the facade, clear identity, opt out, and close the SDK without starting a new
-PostHog request. The source-complete lifecycle implementation and remaining
-hosted verification are recorded in the readiness record. An account sync may
-apply a grant only after its final merge rechecks cancellation, observed user,
-the Supabase SDK session, and synchronization generation inside the mutation
-boundary.
+PostHog request. A restored or changed authenticated session enters a distinct
+remote-authority wait state before cached consent can reach the SDK. It resolves
+to enabled only after the current account's authoritative grant is written to
+the local ledger successfully; a missing grant, revocation, fetch failure, or
+write failure remains disabled. Repeated same-account auth notifications retain
+an already resolved state instead of needlessly cycling PostHog. The
+source-complete lifecycle implementation and remaining hosted verification are
+recorded in the readiness record. An account sync may apply a grant only after
+its final merge rechecks cancellation, observed user, the Supabase SDK session,
+and synchronization generation inside the mutation boundary.
 
 Withdrawal also closes the in-process gate before storage, writes the exact
 revocation to an independent Keychain journal, and only then atomically replaces

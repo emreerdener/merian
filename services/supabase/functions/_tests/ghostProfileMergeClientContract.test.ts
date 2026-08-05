@@ -12,6 +12,10 @@ const consentManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
   import.meta.url,
 );
+const onboardingTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Features/Onboarding/OnboardingViewModelTests.swift",
+  import.meta.url,
+);
 
 function compact(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
@@ -136,7 +140,28 @@ Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async
 });
 
 Deno.test("iOS flushes target-owned pending consent before account refetch", async () => {
-  const source = compact(await Deno.readTextFile(consentManagerUrl));
+  const [source, testSource] = await Promise.all([
+    Deno.readTextFile(consentManagerUrl).then(compact),
+    Deno.readTextFile(onboardingTestsUrl).then(compact),
+  ]);
+  const observeStart = source.indexOf("func observeSession(userId: UUID?)");
+  const observeEnd = source.indexOf(
+    "func beginAnalyticsAccountTransition()",
+    observeStart,
+  );
+  const observe = source.slice(observeStart, observeEnd);
+  const awaitRemote = observe.indexOf(
+    "requireAuthoritativeAnalyticsRefresh(for: userId)",
+  );
+  const applyObservedPermission = observe.indexOf(
+    "applyAnalyticsPermissionToSDK()",
+  );
+  assert(
+    observeStart >= 0 && observeEnd > observeStart && awaitRemote >= 0 &&
+      applyObservedPermission > awaitRemote,
+    "A restored session must enter its remote-authority wait state before analytics can be applied",
+  );
+
   const synchronizationStart = source.indexOf(
     "private func performSynchronization(",
   );
@@ -187,6 +212,9 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
   const verifiedPersistence = mergeSource.indexOf(
     "try persistLedger(candidate)",
   );
+  const authoritativeResolution = mergeSource.indexOf(
+    "analyticsCloudAuthorityState = .resolvedRemote(",
+  );
   const analyticsApplication = mergeSource.indexOf(
     "applyAnalyticsPermissionToSDK()",
   );
@@ -195,8 +223,9 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
       candidateSnapshot > finalIdentityFence &&
       firstCandidateMutation > candidateSnapshot &&
       verifiedPersistence > firstCandidateMutation &&
-      analyticsApplication > verifiedPersistence,
-    "The final identity fence must run inside merge before candidate mutation, verified persistence, or analytics changes",
+      authoritativeResolution > verifiedPersistence &&
+      analyticsApplication > authoritativeResolution,
+    "The final identity fence must precede mutation and persistence, and only persisted authoritative state may reopen analytics",
   );
   assertStringIncludes(
     source,
@@ -218,6 +247,26 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     activationStart >= 0 && activationEnd > activationStart &&
       !activation.includes("applyAnalyticsPermissionToSDK()"),
     "Account restoration must keep analytics closed until authoritative merge succeeds",
+  );
+  assertStringIncludes(
+    source,
+    "analyticsCloudAuthorityState.allowsCapture( for: currentSessionUserId )",
+  );
+  assertStringIncludes(
+    testSource,
+    "testRestoredCachedAnalyticsGrantStaysClosedUntilRemoteRevocationMerges",
+  );
+  assertStringIncludes(
+    testSource,
+    "testRestoredCachedAnalyticsGrantStaysClosedWhenRemoteGrantIsAbsent",
+  );
+  assertStringIncludes(
+    testSource,
+    "testRestoredAnalyticsGrantOpensOnlyAfterAuthoritativeMerge",
+  );
+  assertStringIncludes(
+    testSource,
+    "testFailedAuthoritativeMergeKeepsRestoredAnalyticsClosed",
   );
 });
 

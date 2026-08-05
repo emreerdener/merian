@@ -652,6 +652,10 @@ final class OnboardingViewModelTests: XCTestCase {
         let ledgerBeforeMerge = userDefaults.data(
             forKey: UserDefaultsKeys.legalConsentLedger
         )
+        XCTAssertEqual(
+            consentManager.analyticsCloudAuthorityState,
+            .awaitingRemote(userId: replacementUserId)
+        )
         XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
 
         XCTAssertThrowsError(
@@ -670,11 +674,247 @@ final class OnboardingViewModelTests: XCTestCase {
         }
 
         XCTAssertEqual(consentManager.currentSessionUserId, replacementUserId)
+        XCTAssertEqual(
+            consentManager.analyticsCloudAuthorityState,
+            .awaitingRemote(userId: replacementUserId)
+        )
         XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
         XCTAssertEqual(
             userDefaults.data(forKey: UserDefaultsKeys.legalConsentLedger),
             ledgerBeforeMerge
         )
+    }
+
+    func testRestoredCachedAnalyticsGrantStaysClosedUntilRemoteRevocationMerges() throws {
+        let store = FaultInjectingConsentLedgerStore()
+        let ownerUserId = UUID()
+        let localGrant = makeAnalyticsEvent(
+            ownerUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_000)
+        )
+        store.ledgerData = try JSONEncoder().encode(
+            ConsentManager.LocalLedger(
+                activeUserId: ownerUserId,
+                termsReceipts: [],
+                aiConsentEvents: [],
+                adultEligibilityReceipts: [],
+                analyticsConsentEvents: [localGrant]
+            )
+        )
+        var applications: [AppliedAnalyticsPermission] = []
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { enabled, userId in
+                applications.append(.init(enabled: enabled, userId: userId))
+            }
+        )
+
+        XCTAssertTrue(manager.hasGrantedCurrentPostHogAnalytics)
+        manager.observeSession(userId: ownerUserId)
+
+        XCTAssertEqual(
+            manager.analyticsCloudAuthorityState,
+            .awaitingRemote(userId: ownerUserId)
+        )
+        XCTAssertEqual(
+            applications,
+            [.init(enabled: false, userId: nil)]
+        )
+
+        let remoteRevocation = makeAnalyticsEvent(
+            ownerUserId: ownerUserId,
+            eventKind: .revoked,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_001)
+        )
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: nil,
+                analyticsConsentEvent: remoteRevocation
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertEqual(
+            manager.analyticsCloudAuthorityState,
+            .resolvedRemote(userId: ownerUserId, granted: false)
+        )
+        XCTAssertFalse(manager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertFalse(applications.contains(where: \.enabled))
+
+        var restartedApplications: [AppliedAnalyticsPermission] = []
+        let restarted = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { enabled, userId in
+                restartedApplications.append(
+                    .init(enabled: enabled, userId: userId)
+                )
+            }
+        )
+        restarted.observeSession(userId: ownerUserId)
+
+        XCTAssertEqual(
+            restarted.analyticsCloudAuthorityState,
+            .awaitingRemote(userId: ownerUserId)
+        )
+        XCTAssertEqual(
+            restartedApplications,
+            [.init(enabled: false, userId: nil)]
+        )
+    }
+
+    func testRestoredCachedAnalyticsGrantStaysClosedWhenRemoteGrantIsAbsent() throws {
+        let store = FaultInjectingConsentLedgerStore()
+        let ownerUserId = UUID()
+        let localGrant = makeAnalyticsEvent(
+            ownerUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_000)
+        )
+        store.ledgerData = try JSONEncoder().encode(
+            ConsentManager.LocalLedger(
+                activeUserId: ownerUserId,
+                termsReceipts: [],
+                aiConsentEvents: [],
+                adultEligibilityReceipts: [],
+                analyticsConsentEvents: [localGrant]
+            )
+        )
+        var applications: [AppliedAnalyticsPermission] = []
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { enabled, userId in
+                applications.append(.init(enabled: enabled, userId: userId))
+            }
+        )
+
+        manager.observeSession(userId: ownerUserId)
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: nil,
+                analyticsConsentEvent: nil
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertEqual(
+            manager.analyticsCloudAuthorityState,
+            .resolvedRemote(userId: ownerUserId, granted: false)
+        )
+        XCTAssertFalse(applications.contains(where: { $0.enabled }))
+    }
+
+    func testRestoredAnalyticsGrantOpensOnlyAfterAuthoritativeMerge() throws {
+        let store = FaultInjectingConsentLedgerStore()
+        let ownerUserId = UUID()
+        let remoteGrant = makeAnalyticsEvent(
+            ownerUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_000)
+        )
+        store.ledgerData = try JSONEncoder().encode(
+            ConsentManager.LocalLedger(
+                activeUserId: ownerUserId,
+                termsReceipts: [],
+                aiConsentEvents: [],
+                adultEligibilityReceipts: [],
+                analyticsConsentEvents: [remoteGrant]
+            )
+        )
+        var applications: [AppliedAnalyticsPermission] = []
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { enabled, userId in
+                applications.append(.init(enabled: enabled, userId: userId))
+            }
+        )
+
+        manager.observeSession(userId: ownerUserId)
+        XCTAssertEqual(applications.map(\.enabled), [false])
+
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: nil,
+                analyticsConsentEvent: remoteGrant
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertEqual(
+            manager.analyticsCloudAuthorityState,
+            .resolvedRemote(userId: ownerUserId, granted: true)
+        )
+        XCTAssertEqual(applications.map(\.enabled), [false, true])
+        XCTAssertEqual(applications.last?.userId, ownerUserId.uuidString)
+
+        manager.observeSession(userId: ownerUserId)
+
+        XCTAssertEqual(
+            manager.analyticsCloudAuthorityState,
+            .resolvedRemote(userId: ownerUserId, granted: true)
+        )
+        XCTAssertEqual(applications.map(\.enabled), [false, true, true])
+    }
+
+    func testFailedAuthoritativeMergeKeepsRestoredAnalyticsClosed() throws {
+        let store = FaultInjectingConsentLedgerStore()
+        let ownerUserId = UUID()
+        let localGrant = makeAnalyticsEvent(
+            ownerUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_000)
+        )
+        store.ledgerData = try JSONEncoder().encode(
+            ConsentManager.LocalLedger(
+                activeUserId: ownerUserId,
+                termsReceipts: [],
+                aiConsentEvents: [],
+                adultEligibilityReceipts: [],
+                analyticsConsentEvents: [localGrant]
+            )
+        )
+        var applications: [AppliedAnalyticsPermission] = []
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { enabled, userId in
+                applications.append(.init(enabled: enabled, userId: userId))
+            }
+        )
+        manager.observeSession(userId: ownerUserId)
+        store.failLedgerWrites = true
+
+        XCTAssertThrowsError(
+            try manager.merge(
+                ConsentManager.RemoteState(
+                    adultEligibilityReceipt: nil,
+                    termsReceipt: nil,
+                    aiConsentEvent: nil,
+                    analyticsConsentEvent: localGrant
+                ),
+                for: ownerUserId,
+                generation: 1
+            )
+        )
+
+        XCTAssertEqual(
+            manager.analyticsCloudAuthorityState,
+            .awaitingRemote(userId: ownerUserId)
+        )
+        XCTAssertEqual(applications.map(\.enabled), [false])
     }
 
     func testAnalyticsConsentRealtimeRetryUsesBoundedExponentialBackoff() {
@@ -684,6 +924,35 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 6), 30)
         XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 100), 30)
     }
+
+    private func makeAnalyticsEvent(
+        ownerUserId: UUID,
+        eventKind: ConsentManager.AnalyticsConsentEventKind,
+        recordedAt: Date
+    ) -> ConsentManager.AnalyticsConsentEvent {
+        ConsentManager.AnalyticsConsentEvent(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            provider: ConsentPolicy.analyticsProvider,
+            disclosureVersion: ConsentPolicy.analyticsDisclosureVersion,
+            eventKind: eventKind,
+            occurredAt: recordedAt.addingTimeInterval(-1),
+            disclosureText: ConsentPolicy.analyticsDisclosureText,
+            actionText: eventKind == .granted
+                ? ConsentPolicy.analyticsDisclosureText
+                : ConsentPolicy.analyticsWithdrawalText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt
+        )
+    }
+}
+
+private struct AppliedAnalyticsPermission: Equatable {
+    let enabled: Bool
+    let userId: String?
 }
 
 private final class FaultInjectingConsentLedgerStore: ConsentLedgerStoring {

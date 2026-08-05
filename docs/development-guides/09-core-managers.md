@@ -1566,6 +1566,12 @@ and `KeychainManager` migration logic. Do not inline
   may configure and identify PostHog only after resolving a current grant for
   the active account; startup, absence, withdrawal, and account transitions
   must keep it off without starting a new request.
+- `ConsentManager` models analytics cloud authority separately from cached
+  ledger choice: local-only, awaiting the active account's remote state, or a
+  resolved remote grant/revocation. Session restoration enters the awaiting
+  state before cached values are refreshed. Only a successfully persisted,
+  identity-fenced authoritative grant can reach `PostHogManager`; remote
+  absence, revocation, fetch failure, and persistence failure stay closed.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
   buffers only a consented pending user ID if a call races setup.
 - PostHog's dedicated session carries a configured-host-only `URLProtocol`

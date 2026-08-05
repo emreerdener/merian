@@ -167,13 +167,18 @@ subscriber separately from auth-session assignment, fences stale listeners by
 generation, and retries failed subscriptions for the same account with bounded
 backoff. Auth observation and foreground/session adoption both ensure the
 owner-scoped channel, while foreground refetch remains the recovery path for a
-missed event. When returning to an account, synchronization activates that
+missed event. When returning to an account, auth observation first moves
+analytics into an explicit remote-authority wait state, before cached ledger
+state is refreshed or applied to the SDK. Synchronization then activates that
 account's local ledger and pushes its pending evidence before refetching remote
 state, so an offline revocation cannot be hidden by the previously active
-account. Analytics stays closed throughout that restoration and is applied only
-after the authoritative merge succeeds. Immediately before that merge mutates
-or persists any evidence, it again requires an uncancelled task, the expected
-observed account, the matching synchronous Supabase SDK session, and the same
+account. Only an authoritative current-version grant that survives an
+identity-fenced, verified ledger write resolves the account to enabled. Remote
+absence, revocation, network failure, or persistence failure leaves analytics
+closed. A repeated same-account auth notification after resolution does not
+flap a healthy SDK session. Immediately before the merge mutates or persists
+any evidence, it again requires an uncancelled task, the expected observed
+account, the matching synchronous Supabase SDK session, and the same
 synchronization generation. An old-account fetch that returns late therefore
 cannot change the active ledger or reopen analytics.
 

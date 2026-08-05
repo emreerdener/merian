@@ -83,6 +83,26 @@ final class ConsentManager {
         case revoked
     }
 
+    /// Separates a cached analytics choice from permission to operate the SDK.
+    /// Authenticated capture is allowed only after the active account's latest
+    /// server state survives the synchronization identity and storage fences.
+    enum AnalyticsCloudAuthorityState: Equatable {
+        case localOnly
+        case awaitingRemote(userId: UUID)
+        case resolvedRemote(userId: UUID, granted: Bool)
+
+        func allowsCapture(for sessionUserId: UUID?) -> Bool {
+            switch (self, sessionUserId) {
+            case (.localOnly, nil):
+                return true
+            case let (.resolvedRemote(resolvedUserId, true), sessionUserId?):
+                return resolvedUserId == sessionUserId
+            default:
+                return false
+            }
+        }
+    }
+
     private enum LocalLedgerCodingKeys: String, CodingKey {
         case activeUserId
         case termsReceipts
@@ -385,6 +405,11 @@ final class ConsentManager {
     }
 
     @ObservationIgnored private let ledgerStore: ConsentLedgerStoring
+    @ObservationIgnored private let currentSDKUserIdProvider: @MainActor () -> UUID?
+    @ObservationIgnored private let analyticsPermissionApplier: @MainActor (
+        Bool,
+        String?
+    ) -> Void
     @ObservationIgnored private var ledger: LocalLedger
     @ObservationIgnored private var pendingAnalyticsRevocationJournal: AnalyticsRevocationJournal?
     @ObservationIgnored private var isLedgerStorageUncertain: Bool
@@ -407,6 +432,8 @@ final class ConsentManager {
     @ObservationIgnored private(set) var isAnalyticsSuppressedForGhostHandoff = false
     @ObservationIgnored private(set) var isAnalyticsSuppressedForAccountTransition = false
     @ObservationIgnored private var analyticsAccountTransitionGeneration: UInt = 0
+    @ObservationIgnored private(set) var analyticsCloudAuthorityState:
+        AnalyticsCloudAuthorityState = .localOnly
 
     convenience init() {
         self.init(ledgerStore: DurableConsentLedgerStore())
@@ -420,8 +447,25 @@ final class ConsentManager {
         )
     }
 
-    init(ledgerStore: ConsentLedgerStoring) {
+    init(
+        ledgerStore: ConsentLedgerStoring,
+        currentSDKUserIdProvider: @escaping @MainActor () -> UUID? = {
+            SupabaseManager.shared.client.auth.currentSession?.user.id
+        },
+        analyticsPermissionApplier: @escaping @MainActor (
+            Bool,
+            String?
+        ) -> Void = { enabled, userId in
+            guard !TestExecutionCoordinator.isRunningTests else { return }
+            PostHogManager.shared.setConsentGranted(enabled, userId: userId)
+            AppTelemetry.setAnalyticsConsentEnabled(
+                PostHogManager.shared.isCaptureEnabled
+            )
+        }
+    ) {
         self.ledgerStore = ledgerStore
+        self.currentSDKUserIdProvider = currentSDKUserIdProvider
+        self.analyticsPermissionApplier = analyticsPermissionApplier
 
         do {
             if let data = try ledgerStore.loadLedgerData() {
@@ -694,6 +738,11 @@ final class ConsentManager {
         if previousUserId != userId {
             invalidateSynchronizationWork()
         }
+        if let userId {
+            requireAuthoritativeAnalyticsRefresh(for: userId)
+        } else {
+            analyticsCloudAuthorityState = .localOnly
+        }
         hasObservedSession = true
         currentSessionUserId = userId
         refreshDerivedState()
@@ -811,7 +860,9 @@ final class ConsentManager {
             throw ConsentHandoffError.activeAccountChanged
         }
         currentSessionUserId = userId
+        requireAuthoritativeAnalyticsRefresh(for: userId)
         refreshDerivedState()
+        applyAnalyticsPermissionToSDK()
         ensureAnalyticsConsentUpdates(for: userId)
 
         guard hasCurrentRequiredConsent else {
@@ -843,7 +894,9 @@ final class ConsentManager {
             throw ConsentHandoffError.activeAccountChanged
         }
         currentSessionUserId = userId
+        requireAuthoritativeAnalyticsRefresh(for: userId)
         refreshDerivedState()
+        applyAnalyticsPermissionToSDK()
         ensureAnalyticsConsentUpdates(for: userId)
         try await synchronize(for: userId)
     }
@@ -863,6 +916,8 @@ final class ConsentManager {
     }
 
     private func synchronize(for userId: UUID) async throws {
+        requireAuthoritativeAnalyticsRefresh(for: userId)
+        applyAnalyticsPermissionToSDK()
         let generation = synchronizationGeneration
         if let activeSyncTask,
            activeSyncUserId == userId,
@@ -1427,7 +1482,35 @@ final class ConsentManager {
 
         candidate.activeUserId = userId
         try persistLedger(candidate)
+        analyticsCloudAuthorityState = .resolvedRemote(
+            userId: userId,
+            granted: Self.isAuthoritativeAnalyticsGrant(
+                remoteState.analyticsConsentEvent,
+                for: userId
+            )
+        )
         applyAnalyticsPermissionToSDK()
+    }
+
+    private func requireAuthoritativeAnalyticsRefresh(for userId: UUID) {
+        if case let .resolvedRemote(resolvedUserId, _) =
+            analyticsCloudAuthorityState,
+           resolvedUserId == userId {
+            return
+        }
+        analyticsCloudAuthorityState = .awaitingRemote(userId: userId)
+    }
+
+    static func isAuthoritativeAnalyticsGrant(
+        _ event: AnalyticsConsentEvent?,
+        for userId: UUID
+    ) -> Bool {
+        guard let event else { return false }
+        return event.ownerUserId == userId
+            && event.syncedUserId == userId
+            && event.provider == ConsentPolicy.analyticsProvider
+            && event.disclosureVersion == ConsentPolicy.analyticsDisclosureVersion
+            && event.eventKind == .granted
     }
 
     private func hasCloudReadyCurrentConsent(for userId: UUID) -> Bool {
@@ -1674,7 +1757,7 @@ final class ConsentManager {
             expectedUserId: userId,
             expectedGeneration: generation,
             observedUserId: currentSessionUserId,
-            sdkUserId: SupabaseManager.shared.client.auth.currentSession?.user.id,
+            sdkUserId: currentSDKUserIdProvider(),
             currentGeneration: synchronizationGeneration,
             isCancelled: Task.isCancelled
         ) else {
@@ -1928,8 +2011,6 @@ final class ConsentManager {
     }
 
     private func applyAnalyticsPermissionToSDK() {
-        guard !TestExecutionCoordinator.isRunningTests else { return }
-
         let ownerUserId = ledger.activeUserId
         let accountMatches: Bool
         if let ownerUserId {
@@ -1940,6 +2021,9 @@ final class ConsentManager {
 
         let shouldEnable = !isAnalyticsSuppressedForGhostHandoff
             && !isAnalyticsSuppressedForAccountTransition
+            && analyticsCloudAuthorityState.allowsCapture(
+                for: currentSessionUserId
+            )
             && !isLedgerStorageUncertain
             && !isRevocationIntentStorageUncertain
             && !isAnalyticsWithdrawalInProgress
@@ -1948,14 +2032,11 @@ final class ConsentManager {
             )
             && accountMatches
             && hasGrantedCurrentPostHogAnalytics
-        PostHogManager.shared.setConsentGranted(
+        analyticsPermissionApplier(
             shouldEnable,
-            userId: shouldEnable
+            shouldEnable
                 ? (currentSessionUserId ?? ownerUserId)?.uuidString
                 : nil
-        )
-        AppTelemetry.setAnalyticsConsentEnabled(
-            PostHogManager.shared.isCaptureEnabled
         )
     }
 

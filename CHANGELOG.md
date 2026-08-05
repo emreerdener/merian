@@ -23,6 +23,11 @@ TestFlight, App Store, support, and QA.
   merge before any local evidence or analytics state can change. A separate
   validation-only Supabase workflow provides fresh-catalog and concurrency
   evidence without receiving production credentials or deploying anything.
+- Restored accounts now hold analytics in an explicit remote-authority wait
+  state before cached consent is refreshed or applied. PostHog can reopen only
+  after the current account's authoritative grant survives the final verified,
+  identity-fenced ledger write; remote absence, revocation, fetch failure, or
+  persistence failure remains off.
 - Supabase candidate assurance now reports a stable result on every pull
   request. Its full-history scope detector includes every app, documentation,
   workflow, script, and backend root inspected by the executable contracts and

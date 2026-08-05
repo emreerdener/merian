@@ -108,9 +108,12 @@ All tracked client findings are closed in source. The implementation now rebinds
 complete local ghost ledger before verified handoff removal, generation-fences stale
 session work, activates and flushes a restored account before refetch, independently owns
 and repairs the account-scoped Realtime subscription, suppresses analytics before OAuth
-session replacement, and fails closed until authoritative state is available. Local
-compiled/runtime evidence is recorded, but the exact candidate SHA still needs the hosted
-unit, UI-smoke, Release-archive, and disposable-database gates in the
+session replacement, and enters an explicit remote-authority wait state before cached
+analytics consent can reach PostHog. Only a successfully persisted, identity-fenced
+current-account grant enables analytics; remote absence, revocation, fetch failure, or
+write failure remains off. Local compiled/runtime evidence is recorded, but the exact
+candidate SHA still needs the hosted unit, UI-smoke, Release-archive, and
+disposable-database gates in the
 [production consent readiness record](./production-consent-readiness-2026-08-03.md).
 
 Internal test builds may continue without the deferred operator approvals. Public release
@@ -139,9 +142,10 @@ a closed-by-default, host-scoped transport gate and closes it before preserving
 `reset → optOut → close`, so PostHog 3.69.0's feature-flag reload is cancelled locally.
 Durable ghost handoffs suppress analytics through rebind, synchronization, authoritative
 refetch, and verified queue removal. Account restoration, Realtime retry/repair, and OAuth
-replacement also fail closed. Production still requires exact-candidate evidence of no
-PostHog setup, identification, capture, or network activity before grant and after
-withdrawal or account change.
+replacement also fail closed. Restored sessions cannot reuse a cached local grant while
+the account-wide state is unresolved; only the verified final merge may reopen capture.
+Production still requires exact-candidate evidence of no PostHog setup, identification,
+capture, or network activity before grant and after withdrawal or account change.
 
 Before release, counsel must still review the displayed choice and updated Privacy Policy,
 and the App Store privacy answers must match the actual event properties and US host.
