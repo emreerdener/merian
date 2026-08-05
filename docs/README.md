@@ -40,6 +40,17 @@ as their permanent engineering identity.
   [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
   and
   [`release runbook`](./development-guides/14-ios-release-versioning.md#daily-development-and-ci).
+- **Supabase candidate assurance**: Relevant pull requests, manual candidate
+  refs, and the production deployment workflow use **Supabase Candidate
+  Validation** to verify the exact clean SHA with pinned Deno/Supabase tooling,
+  migration replay, every pgTAP catalog, the complete Edge/database-concurrency
+  suite, lint, and advisors against a disposable database. It has no Production
+  environment or secrets and performs no production mutation. The separate
+  production job requires this reusable gate before receiving deployment
+  access. See the
+  [`testing strategy`](./development-guides/08-testing-strategy.md#supabase-functions-and-tooling)
+  and
+  [`deployment runbook`](./backend-and-data/06-supabase-deployment-runbook.md).
 - **Prelaunch access and purchase QA**: Release and TestFlight use the normal
   free/Pro meter and authoritative server quota; unlimited meter bypasses are
   DEBUG-only. Testers can still open Settings → Plan directly. Debug simulator
@@ -71,10 +82,11 @@ as their permanent engineering identity.
 - **Consent production readiness (2026-08-03)**: The final adult, Terms,
   Google Gemini, and optional PostHog consent design is present. All tracked
   implementation findings are closed in source, including synchronization,
-  analytics withdrawal, account restoration, Realtime repair, and OAuth account
-  replacement. Internal test builds may continue; public production remains
-  blocked on exact-SHA rollout evidence plus App Store 18+, paid Gemini
-  billing/DPA, and counsel evidence. See the
+  analytics withdrawal, target-account restoration, the final account/session
+  merge fence, Realtime repair, and OAuth account replacement. Internal test
+  builds may continue; public production remains blocked until **iOS Build and
+  Test** and **Supabase Candidate Validation** pass the same candidate SHA, plus
+  App Store 18+, paid Gemini billing/DPA, and counsel evidence. See the
   [`canonical consent readiness record`](./legal/production-consent-readiness-2026-08-03.md).
 - **Current backend release verdict**: DwC-A exports are default-off for the
   initial launch at both the iOS presentation boundary and the canonical
@@ -315,7 +327,7 @@ as their permanent engineering identity.
 ### Legal & Release Readiness
 
 - **[`/legal/production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md)**
-  — Canonical release hold, internal consent findings, verification snapshot,
+  — Canonical release hold, source status, same-SHA hosted evidence table,
   rollout order, and external App Store/Gemini/counsel exit evidence.
 - **[`/legal/terms-counsel-review.md`](./legal/terms-counsel-review.md)**
   — Internal legal working memo covering public Terms alignment, unresolved
@@ -384,10 +396,11 @@ as their permanent engineering identity.
   and `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
   inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
-  — CI-first Supabase deployment path, required GitHub secrets, local emergency
-  fallback, frozen function-local dependency configs, dependency-aware batched
-  deploys, staged identification-latency and Identify Activity rollout gates,
-  and post-deploy smoke checks.
+  — Validation-only Supabase candidate gate, separately authorized production
+  deployment path, required GitHub secrets, local emergency fallback, frozen
+  function-local dependency configs, dependency-aware batched deploys, staged
+  identification-latency and Identify Activity rollout gates, and post-deploy
+  smoke checks.
 - **[`/backend-and-data/07-community-taxonomy-import-checklist.md`](./backend-and-data/07-community-taxonomy-import-checklist.md)**
   — Running checklist for bounded GBIF Community Taxonomy imports, completed
   Birds batches, next offsets, and operational follow-ups.

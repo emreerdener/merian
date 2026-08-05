@@ -14,8 +14,10 @@ Terms, and Gemini consent. The inactive handler stops the camera after the
 onboarding guard. `handleBackgroundPhase()` is intentionally minimal and always
 records the background timestamp for later timeout evaluation.
 
-The current candidate still has open consent synchronization and test defects;
-the production exit evidence is canonical in the
+The account-switch synchronization, Realtime retry ownership, OAuth analytics
+suppression, and adjacent consent test defects are closed in source. Hosted
+exact-SHA iOS and validation-only Supabase execution remain pending; the
+production exit evidence is canonical in the
 [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ---

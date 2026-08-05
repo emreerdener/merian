@@ -9,10 +9,11 @@ and the three-part required completion gate.
 
 > [!WARNING]
 > **Release status:** the internal-testing screen and evidence model are
-> implemented. The P1 local-ledger merge and PostHog withdrawal defects are
-> closed in source, as are the account-restoration, Realtime, and OAuth
-> lifecycle findings. Exact-SHA CI, counsel approval, and operator evidence
-> still block production. Treat the
+> implemented. `CONSENT-001` through `CONSENT-009` are closed in source,
+> including the local-ledger handoff, PostHog withdrawal, account restoration,
+> final synchronization merge fence, Realtime, and OAuth lifecycle findings.
+> Same-SHA hosted iOS and validation-only Supabase evidence, counsel approval,
+> and operator evidence still block production. Treat the
 > guarantees below as required invariants until every item in the
 > [canonical consent readiness record](../legal/production-consent-readiness-2026-08-03.md)
 > is closed. Internal test builds may continue; do not submit the candidate for
@@ -161,7 +162,11 @@ missed event. When returning to an account, synchronization activates that
 account's local ledger and pushes its pending evidence before refetching remote
 state, so an offline revocation cannot be hidden by the previously active
 account. Analytics stays closed throughout that restoration and is applied only
-after the authoritative merge succeeds.
+after the authoritative merge succeeds. Immediately before that merge mutates
+or persists any evidence, it again requires an uncancelled task, the expected
+observed account, the matching synchronous Supabase SDK session, and the same
+synchronization generation. An old-account fetch that returns late therefore
+cannot change the active ledger or reopen analytics.
 
 Before any identification provider request is constructed or dispatched,
 `MerianNetworkClient` calls `ensureCloudConsentForInference()`. That method

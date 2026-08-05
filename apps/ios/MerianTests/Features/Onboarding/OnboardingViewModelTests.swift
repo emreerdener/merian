@@ -348,6 +348,82 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
     }
 
+    func testSynchronizationContextRequiresCurrentUncancelledAccount() {
+        let expectedUserId = UUID()
+        let otherUserId = UUID()
+        let expectedGeneration: UInt = 7
+
+        XCTAssertTrue(
+            ConsentManager.isSynchronizationContextCurrent(
+                expectedUserId: expectedUserId,
+                expectedGeneration: expectedGeneration,
+                observedUserId: expectedUserId,
+                sdkUserId: expectedUserId,
+                currentGeneration: expectedGeneration,
+                isCancelled: false
+            )
+        )
+
+        let invalidContexts: [(UUID?, UUID?, UInt, Bool)] = [
+            (otherUserId, expectedUserId, expectedGeneration, false),
+            (nil, expectedUserId, expectedGeneration, false),
+            (expectedUserId, otherUserId, expectedGeneration, false),
+            (expectedUserId, nil, expectedGeneration, false),
+            (expectedUserId, expectedUserId, expectedGeneration + 1, false),
+            (expectedUserId, expectedUserId, expectedGeneration, true)
+        ]
+
+        for (observedUserId, sdkUserId, currentGeneration, isCancelled) in invalidContexts {
+            XCTAssertFalse(
+                ConsentManager.isSynchronizationContextCurrent(
+                    expectedUserId: expectedUserId,
+                    expectedGeneration: expectedGeneration,
+                    observedUserId: observedUserId,
+                    sdkUserId: sdkUserId,
+                    currentGeneration: currentGeneration,
+                    isCancelled: isCancelled
+                )
+            )
+        }
+    }
+
+    func testStaleSynchronizationMergeCannotMutateReplacementAccountLedger() throws {
+        let originalUserId = UUID()
+        let replacementUserId = UUID()
+        consentManager.observeSession(userId: originalUserId)
+        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            analyticsEnabled: true
+        )
+        consentManager.observeSession(userId: replacementUserId)
+
+        let ledgerBeforeMerge = userDefaults.data(
+            forKey: UserDefaultsKeys.legalConsentLedger
+        )
+        XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
+
+        XCTAssertThrowsError(
+            try consentManager.merge(
+                ConsentManager.RemoteState(
+                    adultEligibilityReceipt: nil,
+                    termsReceipt: nil,
+                    aiConsentEvent: nil,
+                    analyticsConsentEvent: nil
+                ),
+                for: originalUserId,
+                generation: 0
+            )
+        ) { error in
+            XCTAssertTrue(error is CancellationError)
+        }
+
+        XCTAssertEqual(consentManager.currentSessionUserId, replacementUserId)
+        XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(
+            userDefaults.data(forKey: UserDefaultsKeys.legalConsentLedger),
+            ledgerBeforeMerge
+        )
+    }
+
     func testAnalyticsConsentRealtimeRetryUsesBoundedExponentialBackoff() {
         XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 1), 1)
         XCTAssertEqual(ConsentManager.analyticsConsentRetryDelay(attempt: 2), 2)

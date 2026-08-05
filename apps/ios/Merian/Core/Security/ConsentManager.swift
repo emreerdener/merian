@@ -290,7 +290,7 @@ final class ConsentManager {
         let recorded_at: String
     }
 
-    private struct RemoteState {
+    struct RemoteState {
         let adultEligibilityReceipt: AdultEligibilityReceipt?
         let termsReceipt: TermsAcceptanceReceipt?
         let aiConsentEvent: AIConsentEvent?
@@ -732,7 +732,11 @@ final class ConsentManager {
             for: userId,
             generation: generation
         )
-        merge(remoteState, for: userId)
+        try merge(
+            remoteState,
+            for: userId,
+            generation: generation
+        )
     }
 
     private func activateLedger(for userId: UUID) {
@@ -1166,7 +1170,13 @@ final class ConsentManager {
         )
     }
 
-    private func merge(_ remoteState: RemoteState, for userId: UUID) {
+    func merge(
+        _ remoteState: RemoteState,
+        for userId: UUID,
+        generation: UInt
+    ) throws {
+        try validateSynchronization(for: userId, generation: generation)
+
         if let receipt = remoteState.adultEligibilityReceipt {
             if let index = ledger.adultEligibilityReceipts.firstIndex(where: {
                 $0.id == receipt.id
@@ -1443,13 +1453,30 @@ final class ConsentManager {
         for userId: UUID,
         generation: UInt
     ) throws {
-        try Task.checkCancellation()
-        guard currentSessionUserId == userId,
-              SupabaseManager.shared.client.auth.currentSession?.user.id
-                == userId,
-              synchronizationGeneration == generation else {
+        guard Self.isSynchronizationContextCurrent(
+            expectedUserId: userId,
+            expectedGeneration: generation,
+            observedUserId: currentSessionUserId,
+            sdkUserId: SupabaseManager.shared.client.auth.currentSession?.user.id,
+            currentGeneration: synchronizationGeneration,
+            isCancelled: Task.isCancelled
+        ) else {
             throw CancellationError()
         }
+    }
+
+    nonisolated static func isSynchronizationContextCurrent(
+        expectedUserId: UUID,
+        expectedGeneration: UInt,
+        observedUserId: UUID?,
+        sdkUserId: UUID?,
+        currentGeneration: UInt,
+        isCancelled: Bool
+    ) -> Bool {
+        !isCancelled
+            && observedUserId == expectedUserId
+            && sdkUserId == expectedUserId
+            && currentGeneration == expectedGeneration
     }
 
     private func persistAndRefresh() {

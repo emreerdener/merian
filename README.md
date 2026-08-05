@@ -20,11 +20,13 @@ steps are tracked in the
 > screen and versioned adult, Terms, Gemini, and optional PostHog evidence are
 > implemented. All tracked consent findings are closed in source, including
 > crash-safe ghost-ledger handoff, withdrawal-time PostHog transport blocking,
-> account restoration, Realtime repair, and OAuth account replacement. Internal
-> test builds may continue, but do not nominate the candidate for public
-> production or enable strict server enforcement until the hosted exact-SHA iOS
-> gate, exact-version disposable database replay, replacement-build rollout,
-> App Store 18+ configuration, and paid Gemini billing/DPA evidence are complete.
+> target-account restoration, final in-merge account/session fencing, Realtime
+> repair, and OAuth account replacement. Internal test builds may continue, but
+> do not nominate the candidate for public production or enable strict server
+> enforcement until **iOS Build and Test** and the validation-only **Supabase
+> Candidate Validation** workflow are green on the same immutable SHA, followed
+> by replacement-build rollout, App Store 18+ configuration, and paid Gemini
+> billing/DPA evidence.
 > See the
 > [canonical consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
 
@@ -877,7 +879,10 @@ supabase --workdir services db push
 supabase --workdir services functions deploy
 ```
 
-That is the manual full-fleet command. Production deployment runs through the
+That is the emergency manual full-fleet command, not a candidate-validation
+path. Use **Supabase Candidate Validation** to replay and test an exact SHA in a
+disposable database without production secrets or mutations. Production
+deployment runs through the
 path-filtered GitHub workflow, which validates frozen function-local dependency
 graphs, requires exact name parity with `services/supabase/config.toml`, and
 deploys only transitive runtime consumers in bounded batches. The fleet size is
@@ -934,7 +939,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/backend-and-data/12-explore-media-health-and-quarantine.md` | Reversible Explore media-loss policy, origin verification, owner communication, recovery, security, and rollout |
 | `docs/backend-and-data/18-complimentary-pro-scans.md`             | Normative three-credit ledger, reservation, settlement, protocol, iOS, merge, security, and rollout contract     |
 | `docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md` | Joined collection, upload, funding, redirect, taxonomy, rollout, and evidence record |
-| `docs/legal/production-consent-readiness-2026-08-03.md`         | Canonical adult, Terms, Gemini, analytics, verification, remediation, and release-hold record                         |
+| `docs/legal/production-consent-readiness-2026-08-03.md`         | Canonical adult, Terms, Gemini, analytics, source status, exact-SHA evidence, and release-hold record                 |
 | `docs/development-guides/`                                        | Core managers reference, app lifecycle, testing strategy                                                        |
 | `docs/incidents/`                                                 | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
 | `docs/rfcs/active-capture-goal-context.md`                        | Long-term source-agnostic Capture goal architecture and extension contract                                      |

@@ -83,97 +83,65 @@ Checked against the official sources on August 3, 2026:
 This repository record translates those platform/provider requirements into
 engineering release controls; it is not a legal opinion.
 
-## Internal Release Blockers
+## Source Status
 
-| ID | Priority | Finding | Required exit evidence |
-| --- | --- | --- | --- |
-| `CONSENT-001` | P1 | **Complete in source — 2026-08-04.** A closed-by-default, host-scoped `URLProtocol` transport gate is installed on PostHog's dedicated session. Every setup receives a unique transport ID, so opening a new grant cannot admit a delayed old-session request. Withdrawal disables app capture and closes the gate before preserving `reset → optOut → close`; permission generations reject stale overlapping setup/activation work. SDK calls use an injectable adapter. | Regression coverage verifies shutdown order, gate state at reset, no downstream connection while closed, old-session denial after a new transport opens, configure/withdraw and configure/account-switch races, repeated withdrawal, and subsequent opt-in/identity. Hosted exact-SHA execution remains rollout evidence. |
-| `CONSENT-002` | P1 | **Complete in source — 2026-08-04.** Confirmed server handoff is followed by one verified local-ledger rebind across adult, Terms, Gemini, and analytics evidence, permanent-account synchronization/refetch, and only then throwing verified queue removal. Throwing Keychain reads preserve failure status; unreadable evidence is retained and keeps analytics fail-closed. Durable pending handoffs suppress analytics across restart. | Regression coverage preserves immutable fields, distinguishes synchronized from pending rows, proves idempotent server → local → removal sequencing/failure retention, and covers permanent grant → offline ghost revocation → merge/restart/second-device state. Hosted exact-SHA execution remains rollout evidence. |
-| `CONSENT-003` | P1 | **Complete in source — 2026-08-04.** The Terms-link test now declares `throws`. | Hosted iOS run 183 at `1559e3f646952a10752526560684d9afbf4bb78b` compiled and passed 1,333 unit tests. The current candidate SHA must repeat that result. |
-| `CONSENT-004` | P2 | **Complete in source — 2026-08-04.** Consent synchronization now invalidates stale work by generation and checks cancellation plus the SDK's synchronous active session after every network await and immediately before mutation/persistence. | Parser, strict lint, whole-module frontend type-check, and complete test-source type-check passed locally. A hosted deterministic account-switch runtime regression remains candidate evidence. |
-| `CONSENT-005` | P2 | **Complete in source — 2026-08-04.** Every account synchronization now activates the target ledger, keeps analytics closed, pushes all target-owned pending adult, Terms, Gemini, and analytics rows, and only then refetches, merges, and applies authoritative state. An empty remote account still becomes active. | Unit coverage proves activation is idempotent and preserves pending/historical evidence. A source-order contract locks activate → push → fetch → merge and fail-closed activation. Hosted offline revoke → switch away → switch back execution remains candidate evidence. |
-| `CONSENT-006` | P2 | **Complete in source — 2026-08-04.** Analytics-consent Realtime tracks channel owner and confirmed subscribed owner independently of `currentSessionUserId`, generation-fences stale listeners, and assigns an explicit account-owned bounded retry. Session observation and foreground/session adoption both ensure or repair the channel. | Unit coverage locks bounded retry timing; source contracts verify unconditional session/foreground ensure, independent owner fields, generation fencing, and retry ownership. Hosted cross-device grant/withdrawal and reconnect execution remains candidate evidence. |
-| `CONSENT-007` | P2 | **Complete in source — 2026-08-04.** Every OAuth path that can replace an account synchronously suppresses the analytics facade, closes consent Realtime and invalidates stale synchronization before asking Supabase Auth to install the target session. Success and failure reconcile the SDK's actual current session; transition generations prevent an older overlapping login from reopening capture or replacing observable account state. | Unit coverage proves suspend → install → reconcile ordering, failure reconciliation, and newest-generation-only reopening. A source contract locks the production helper to the OAuth replacement path. Hosted account-replacement execution remains candidate evidence. |
-| `CONSENT-008` | P2 | **Complete in source — 2026-08-04.** The foreground replay test now injects and restores an isolated granted `ConsentManager`; a closed-gate negative test is retained. | Hosted iOS run 183 included this test in the 1,333-test passing unit gate. The current candidate SHA must repeat that result. |
-| `CONSENT-009` | P1 release gate | **Complete in source — 2026-08-04.** The retained internal-testing copy now uses fresh Gemini `2026-08-04.1` and analytics `2026-08-04` disclosure versions. A forward-only migration makes the newest Gemini action authoritative, preserves bounded prior-beta compatibility, and adds strict `2026-08-04` cutover without rewriting historical receipts. | Migration/source contracts and iOS tests must pass on the exact candidate SHA; TestFlight must prove accounts with only earlier versions return to the final consent screen and write exact new-version local/cloud evidence. |
+`CONSENT-001` through `CONSENT-009` are closed in source. “Closed in source” is
+not exact-SHA runtime evidence and is not a production approval.
 
-`CONSENT-001` through `CONSENT-009` are closed in source. The current candidate
-still requires exact-SHA compiled/runtime evidence; “complete in source” is not
-itself a production approval.
+| ID | Implemented control | Remaining evidence |
+| --- | --- | --- |
+| `CONSENT-001` | PostHog uses a closed-by-default, host-scoped transport gate. Withdrawal closes transport before preserving `reset → optOut → close`, and permission generations reject stale setup work. | Exact-SHA hosted regression execution. |
+| `CONSENT-002` | Ghost handoff durably rebinds all four immutable ledgers, synchronizes/refetches the permanent account, and only then removes the retry proof. Analytics remains suppressed until completion. | Exact-SHA hosted handoff execution. |
+| `CONSENT-004` | Synchronization generation-fences every awaited operation. The final merge independently rechecks cancellation, observed account, synchronous Supabase SDK session, and generation before any ledger mutation, persistence, or analytics change. | Exact-SHA account-switch regression execution. |
+| `CONSENT-005` | Restoring an account activates its ledger with analytics closed, pushes every target-owned pending adult, Terms, Gemini, and analytics row, then refetches and merges authoritative state. | Exact-SHA offline revoke → switch away → return execution. |
+| `CONSENT-006` | Analytics-consent Realtime independently owns channel and subscribed-user identity, generation-fences stale listeners, and gives failed subscriptions an account-owned bounded retry. | Exact-SHA reconnect and cross-device execution. |
+| `CONSENT-007` | OAuth replacement suppresses analytics and closes consent Realtime before session installation; success and failure reconcile the SDK's actual session under a transition generation. | Exact-SHA account-replacement execution. |
+| `CONSENT-009` | The retained internal copy has distinct Gemini and analytics disclosure versions, and forward-only server compatibility preserves immutable historical receipts. | Exact-SHA migration/client contracts and replacement-build validation. |
 
-## Verification Snapshot
+### Superseded Fixed Test Defects
 
-The 2026-08-03 second pass produced this local evidence:
+- `CONSENT-003` was the missing `throws` declaration in the inline Terms-link
+  test. It is fixed and is no longer an active blocker.
+- `CONSENT-008` was a foreground-replay fixture that did not inject isolated
+  granted consent. It is fixed, retains its closed-gate negative case, and is no
+  longer an active blocker.
 
-| Check | Result |
-| --- | --- |
-| Unsigned generic iOS Simulator build | Passed: `** BUILD SUCCEEDED **` |
-| SwiftLint | Passed: 808 files, zero violations |
-| Swift parser check for changed consent/analytics/lifecycle views | Passed |
-| Supabase migration source contracts | Passed: 246 tests |
-| Focused legal-consent, PostHog, paid-Gemini, and quota tests | Passed: 18 tests |
-| Public web tests | Passed: 60 tests |
-| iOS CI tooling contracts and project source membership | Passed |
-| Complete iOS unit-test target | **Failed during compilation** on `CONSENT-003`; no execution evidence is valid |
-| Disposable PostgreSQL catalog/RLS/pgTAP replay | **Not run locally**: Docker was unavailable and installed Supabase CLI 2.101.0 did not match the reviewed 2.109.1 pin |
+Older hosted and local runs remain useful diagnostic history, but their test
+totals and outcomes are not current-candidate evidence. In particular, the
+earlier hosted iOS run whose queued-audio smoke failed and the earlier Supabase
+run whose database concurrency fixture failed are superseded. The subsequent
+source fixes must be proven together on one new, unchanged candidate SHA.
 
-Static migration tests confirm the intended append-only ACL/RLS/publication
-shape, but they do not replace a fresh disposable database replay with the
-exact CLI or the hosted complete iOS result.
+## Current Exact-SHA Evidence
 
-The 2026-08-04 remediation pass additionally produced this local evidence:
+No green hosted evidence for the post-fence candidate is recorded yet. Do not
+copy counts from older or local runs into this table; populate it only from the
+two workflow summaries for the same immutable candidate SHA.
 
-| Check | Result |
-| --- | --- |
-| Whole-app direct Xcode 26.6 frontend type-check against cached locked iOS dependencies | Passed with zero diagnostics |
-| Optimized whole-module Release/device frontend type-check against PostHog 3.69.0-matching locked modules | Passed with zero diagnostics |
-| Complete 85-source iOS unit-test frontend type-check against the freshly emitted app module | Passed; five pre-existing constant-`#expect(true)` notes only |
-| Exact final PostHog and ghost-handoff regression source frontend type-check | Passed with zero diagnostics |
-| Swift parser and `git diff --check` for the five changed implementation/test files | Passed |
-| PostHog transport/order and ghost-ledger/handoff regression sources | Compiled; hosted runtime execution is still required because this desktop sandbox cannot connect to CoreSimulator |
-| Hosted iOS run 183 at `1559e3f646952a10752526560684d9afbf4bb78b` | Unit gate passed: 1,333 tests; validation Release archive passed; queued-audio UI smoke failed because the Scans tab button did not appear |
+| Gate | Required result | Current result |
+| --- | --- | --- |
+| **iOS Build and Test** | Complete unit target, queued-audio UI smoke, and validation Release archive all green on one clean SHA. | Pending a new hosted run. |
+| **Supabase Candidate Validation** | Clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green. | Pending a new hosted validation-only run. |
+| Production Supabase deployment | Separate operator action after release authorization; it must require the reusable candidate gate first. | Not part of candidate validation and not authorized by a validation-only run. |
 
-The 2026-08-04 double-check on the final local working tree added this evidence:
-
-| Check | Result |
-| --- | --- |
-| Focused PostHog, Keychain, and ghost-handoff simulator regressions | Passed; withdrawal order/gate behavior, per-session transport isolation, re-opt-in, ledger rebinding, and failure sequencing executed |
-| Complete iOS unit-test target | Passed: 1,344 tests, zero failures |
-| Deterministic queued-audio completion UI smoke | Passed locally: one test, zero failures |
-| Unsigned generic optimized Release build | Passed with zero build diagnostics |
-| Validation Release archive | Correctly refused the dirty review checkout; the unmodified preflight requires a clean exact SHA, so CI archive evidence remains required |
-| Swift parser, strict SwiftLint, and `git diff --check` for the reviewed Swift files | Passed: zero diagnostics and zero lint violations |
-| Supabase formatting and documentation contracts | Passed: 713 files formatted; 17 tests, zero failures |
-
-The final 2026-08-04 account-lifecycle pass added this local evidence:
-
-| Check | Result |
-| --- | --- |
-| Complete 408-source iOS app-module frontend type-check against cached locked dependencies | Passed with zero diagnostics in the project's Swift 5 language mode |
-| Both changed XCTest sources type-checked against the freshly emitted reviewed app module | Passed with zero diagnostics |
-| Swift parser, strict SwiftLint, and `git diff --check` for changed implementation/test sources | Passed with zero diagnostics and zero lint violations |
-| Ghost merge, target flush, Realtime ownership/retry, and OAuth replacement source contracts | Passed: 6 tests, zero failures |
-| Complete Supabase Deno suite and formatting gate | Passed: 1,535 tests, zero failures, one ignored; 713 files formatted |
-| Full simulator unit/UI execution | Pending hosted exact-SHA workflow; this desktop sandbox cannot connect to CoreSimulator |
-
-The final 2026-08-04 documentation reconciliation added this evidence:
-
-| Check | Result |
-| --- | --- |
-| Public web TypeScript gate | Passed: `tsc --noEmit` |
-| Public web unit and source-contract suite | Passed: 60 tests, zero failures |
-| Supabase maintained-documentation contracts | Passed: 17 tests, including local-link and public Privacy control assertions |
-| Supabase formatting gate | Passed: 713 files formatted |
-| Stale consent-status search and `git diff --check` | Passed with no findings |
+The candidate workflow has no Production environment, production secrets,
+migration push, Function deployment, or production smoke. Its disposable
+database is release evidence without production mutation. The workflow-reported
+SHA, run URL, test totals, iOS archive fingerprint/version/build, and database
+result become canonical only after both hosted gates pass on the same SHA.
 
 ## Required Remediation and Rollout Order
 
 1. Run the complete hosted **iOS Build and Test** workflow on the exact candidate
    SHA. Require a compiled and executed complete `merianTests` target, the
    focused UI smoke, and the unsigned Release validation archive.
-2. With Docker running and Supabase CLI 2.109.1, replay every migration into a
-   fresh disposable catalog; run all pgTAP fixtures, strict lint, and advisors.
-3. Apply only the additive consent schema and deploy consent-gated Edge code.
+2. Run **Supabase Candidate Validation** on that unchanged SHA. Require its
+   validation-only disposable replay, all pgTAP fixtures, complete Edge and
+   database-concurrency suite, strict lint, and advisors to pass without a
+   Production environment or production secrets.
+3. After separate production authorization, use **Deploy Merian to Supabase**.
+   Its production job must first require the reusable candidate gate, then
+   apply only the additive consent schema and deploy consent-gated Edge code.
    Keep `internal.ai_consent_rollout_config.enforcement_mode` at
    `legacy_compatible`.
 4. Distribute the corrected replacement TestFlight build. Verify all switch

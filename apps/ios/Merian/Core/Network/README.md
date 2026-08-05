@@ -394,6 +394,29 @@ empty or UUID-leaking summaries, and duplicate, oversized, unknown-category, or
 locally unsafe prompts become `MerianError.invalidResponse`; no success UI is
 applied.
 
+## Consent synchronization identity boundary
+
+Session observation never treats assignment of `currentSessionUserId` as proof
+that account consent is current. Synchronization first activates the target
+ledger with analytics fail-closed, pushes every target-owned pending adult,
+Terms, Gemini, and analytics row, fetches the account's authoritative state,
+and only then merges. Returning to a previously used account therefore flushes
+an offline revocation before remote state can be applied.
+
+Every network await rechecks task cancellation, the observed account, the
+Supabase SDK's synchronous `auth.currentSession` user, and the synchronization
+generation. The final merge repeats that complete check inside the mutation
+boundary immediately before changing or persisting the ledger or applying
+analytics. A stale request can finish at the transport layer, but it cannot
+install evidence, change the active ledger, or reopen PostHog for a replacement
+account.
+
+Analytics-consent Realtime owns its requested channel user and confirmed
+subscribed user independently of session observation. Failed subscriptions
+retain an account-owned bounded retry, while session adoption and foreground
+repair ensure the current channel without allowing a stale retry to attach to a
+new account.
+
 ## OAuth account replacement
 
 Linking an OAuth identity to an anonymous user keeps the same Supabase UUID and

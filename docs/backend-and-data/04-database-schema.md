@@ -212,10 +212,14 @@ local ledger in one verified write: ghost-synchronized evidence becomes
 permanent-account synchronized evidence, while every other ghost-owned record
 becomes pending for that permanent account. It preserves record IDs, exact
 text, versions, client/server timestamps, platform, and app metadata, then
-pushes, refetches, and verifies durable queue removal. All tracked client
-findings are closed in source. Production remains held until the exact-SHA
-lifecycle gates pass and this schema is replayed against a fresh
-required-version catalog; see the
+pushes and refetches. The final client merge independently rechecks
+cancellation, observed user, the synchronous Supabase SDK session, and
+synchronization generation before mutating or persisting evidence or applying
+analytics; durable queue removal follows successful reconciliation. All tracked
+client findings are closed in source. Production remains held until the same
+candidate SHA passes **iOS Build and Test** and validation-only **Supabase
+Candidate Validation**, including a fresh required-version catalog replay; see
+the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 `internal.require_current_ai_consent(uuid)` currently requires adult policy

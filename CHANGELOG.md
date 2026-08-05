@@ -18,6 +18,11 @@ TestFlight, App Store, support, and QA.
   intentionally provides no Gemini processing opt-out.
 - The retained Gemini and analytics wording now uses fresh disclosure versions,
   forcing a new user action without rewriting any earlier beta evidence.
+- Account switching now revalidates the observed user, Supabase SDK session,
+  cancellation state, and synchronization generation inside the final consent
+  merge before any local evidence or analytics state can change. A separate
+  validation-only Supabase workflow provides fresh-catalog and concurrency
+  evidence without receiving production credentials or deploying anything.
 - All tracked consent findings are closed in source. Internal test builds may
   continue, but public production and strict server cutover remain held until
   exact-SHA validation, replacement-build rollout, disposable database replay,

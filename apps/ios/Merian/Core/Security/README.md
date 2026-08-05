@@ -37,6 +37,11 @@ confirmations in the
   pushes target-owned pending actions, and refetches before the durable handoff
   can be removed. Normal account restoration also activates and flushes the
   target account before remote refetch while analytics remains fail-closed.
+  Synchronization preserves the order target activation → all target-owned
+  pending pushes → authoritative fetch → merge. The merge itself performs a
+  final synchronous fence over task cancellation, the observed account, the
+  Supabase SDK's current session, and the synchronization generation before it
+  can mutate or persist the ledger or apply analytics.
   Analytics-consent Realtime owns its subscribed account independently,
   generation-fences stale channels, and retries failures with foreground
   repair. OAuth account replacement closes analytics before session
@@ -163,7 +168,9 @@ the strict server cutover or a production submission.
   dispatch.
 - Unsynchronized local consent actions must follow a ghost-to-permanent-account
   merge, and a stale or cancelled account sync must never install evidence for a
-  different session.
+  different session. Every awaited network boundary and the final synchronous
+  merge must agree on the observed user, SDK session, and synchronization
+  generation before evidence or analytics can change.
 - PostHog must never be configured, identified, captured, or allowed to issue a
   request before the latest active account event grants permission. Withdrawal
   and account change must opt out and close the SDK without starting another

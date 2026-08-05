@@ -8,7 +8,8 @@ Last updated: August 4, 2026
 and TestFlight builds may be archived and distributed for testing under the
 ordinary gates below. Do not nominate the current consent candidate for public
 production or run strict server cutover until the clean hosted exact-SHA iOS
-evidence and disposable database replay defined by the
+evidence and validation-only **Supabase Candidate Validation** result are green
+on the same immutable SHA, as defined by the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 Only the current-version replacement build may enter the bounded TestFlight
 rollout. Public production also remains blocked on archived App Store 18+ and paid
@@ -26,6 +27,12 @@ GitHub Actions has a separate validation role. It compiles and tests the exact
 workflow SHA and creates an unsigned Release archive with
 `MERIAN_IOS_VALIDATION_ARCHIVE=1`. That archive proves Release compilation but
 is never signed, exported, or uploaded.
+
+Backend evidence is likewise validation-only: **Supabase Candidate Validation**
+replays the exact SHA into a disposable database without a Production
+environment, production secrets, or deployment. Public release nomination
+requires its green SHA to match the iOS workflow SHA. The separate Supabase
+production job remains an operator-authorized deployment action.
 
 Do not add a second publisher through GitHub Actions, Fastlane, command-line
 export scripts, or a manually forced distribution identity. Two upload paths

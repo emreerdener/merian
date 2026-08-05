@@ -41,9 +41,12 @@ refetched, and the queue removal is verified. Account restoration activates and
 flushes the target ledger before refetch; Realtime has independent channel
 ownership, bounded retry, and foreground repair; OAuth account replacement
 suppresses analytics before session installation and reconciles the actual
-session afterward. All tracked findings are closed in source. Internal test
-builds may continue; keep public production held until the exact-SHA and
-external gates in the
+session afterward. The final synchronization merge rechecks task cancellation,
+observed user, Supabase SDK session, and synchronization generation before an
+account-wide grant can alter the ledger or reopen capture. All tracked findings
+are closed in source. Internal test builds may continue; keep public production
+held until the same SHA passes the hosted iOS and Supabase candidate gates and
+the external controls in the
 [production consent readiness record](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md)
 are complete.
 

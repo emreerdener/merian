@@ -43,6 +43,16 @@ manual `workflow_dispatch` runs, execute `.github/workflows/deploy.yml`.
 Frontend-only and docs-only commits do not automatically deploy production
 backend changes.
 
+Use `.github/workflows/supabase-candidate-validation.yml` when the objective is
+exact-SHA evidence without production access. **Supabase Candidate Validation**
+runs on relevant pull requests, supports manual dispatch, and can be called by
+another workflow. It uses a disposable database and has no GitHub Production
+environment, production secrets, database push, Function deployment, or
+production smoke. The production workflow declares this reusable gate as a
+required predecessor; only its subsequent `deploy` job enters the Production
+environment. A green candidate run proves the reviewed source and disposable
+catalog, not that production changed.
+
 The deploy workflow is a backend production gate only. It must not wait for the
 iOS simulator startup-safety lane, and the iOS lane must not be treated as proof
 that Supabase migrations or Edge Functions deployed. The deployment and iOS
@@ -55,7 +65,9 @@ changed-file bullets and then append a truncation marker.
 because `set -o pipefail` would otherwise turn an expected SIGPIPE into exit 141
 before validation or deployment begins.
 
-The workflow performs the following steps:
+The production workflow first requires the reusable candidate gate, then its
+Production job performs the following defense-in-depth validation and deployment
+steps:
 
 1. Writes the workflow context summary and exercises its large-change regression
    test.
@@ -5081,7 +5093,16 @@ this matrix from an empty REST response.
 
 ## Manual Production Deploy
 
-Use the manual GitHub Actions dispatch first:
+First obtain non-production exact-SHA evidence:
+
+1. Open the GitHub repository and go to **Actions**.
+2. Select **Supabase Candidate Validation**.
+3. Click **Run workflow** on the immutable candidate ref.
+4. Confirm the summary reports the intended SHA, a clean checkout, every
+   disposable database gate green, and no production mutation.
+
+That run does not authorize or perform deployment. After separate production
+authorization, use the production dispatch:
 
 1. Open the GitHub repository.
 2. Go to **Actions**.

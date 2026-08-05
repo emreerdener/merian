@@ -41,7 +41,15 @@ Before contributing, please review our core architectural tenets. Refactoring co
     ```
     Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your personal Apple Developer Team ID. Do not hardcode a real team ID into `project.yml` or the shared `Signing.xcconfig`. Keep signing automatic and do not set `CODE_SIGN_IDENTITY`; Xcode selects Apple Development locally and Apple Distribution for an authorized archive.
 4.  **Client Config**: App-facing runtime values live in `Config.xcconfig`, with ignored machine-local overrides in `Config.local.xcconfig`. These values ship in the app bundle and are not backend-only secrets. Backend secrets, including Gemini and service-role keys, belong only in Supabase Edge Function secrets. The tracked defaults currently target production Supabase, so Debug simulator launches warn and still connect; use local/staging overrides for routine work. Set `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1` only for an intentional production smoke run, because it suppresses the warning without sandboxing writes or anonymous users. Local and unsigned validation archives may use a RevenueCat `test_` key; the Xcode Release archive preflight hard-requires the production iOS key beginning with `appl_`.
-5.  **Backend Operations**: Production Supabase deploys run through GitHub Actions using token-based CLI auth, not a developer's interactive local login. See [`docs/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md) for the CI path, required secrets, and smoke checks. From the repo root, the local emergency fallback remains:
+5.  **Backend Operations**: Use **Supabase Candidate Validation** for exact-SHA
+    database and Edge evidence without production access. It runs on relevant
+    pull requests, supports manual dispatch, and is reused by the production
+    workflow. Production Supabase deploys remain a separate GitHub `Production`
+    job using token-based CLI auth, not a developer's interactive local login;
+    that job cannot start until the reusable candidate gate passes. See
+    [`docs/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)
+    for the two workflow boundaries, required secrets, and smoke checks. From
+    the repo root, the local emergency fallback remains:
     ```bash
     make db-push
     make functions-deploy
@@ -139,6 +147,13 @@ Before contributing, please review our core architectural tenets. Refactoring co
   `_shared/encoding.ts` where available. The fleet uses one exact Supabase SDK.
   Keep `_shared/claimsAuth.ts` out of `_shared/edgeHandler.ts` because claims
   verification is an opt-in route policy, not because it uses another SDK.
+  A relevant pull request then runs
+  `.github/workflows/supabase-candidate-validation.yml`. That workflow checks a
+  clean exact SHA, uses Deno `2.9.4` and Supabase CLI `2.109.1`, replays the
+  complete migration history into a disposable database, runs every pgTAP and
+  Edge/database-concurrency test, and finishes with lint plus advisors. It has
+  no production secrets or deployment step. Do not dispatch
+  `.github/workflows/deploy.yml` merely to obtain candidate evidence.
 - **Internal Admin**: Before opening a pull request that changes `apps/admin`,
   and before deploying it, run the complete frozen production gate:
   ```bash

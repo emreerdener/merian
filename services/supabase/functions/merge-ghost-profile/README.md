@@ -186,8 +186,11 @@ platform, and app metadata remain unchanged.
 The durable Keychain handoff suppresses analytics before and throughout this
 sequence, including after process restart. The client cancels stale ledger sync
 work, pushes pending permanent-account actions, refetches authoritative state,
-then removes the handoff with a throwing, read-after-write-verified Keychain
-operation. Any persistence, synchronization, refetch, cancellation, or removal
+then performs a final in-merge fence over task cancellation, observed account,
+the Supabase SDK's synchronous session, and synchronization generation before
+any evidence, persistence, or analytics change. It removes the handoff only
+afterward with a throwing, read-after-write-verified Keychain operation. Any
+persistence, synchronization, refetch, cancellation, identity drift, or removal
 failure retains the handoff for an idempotent retry. Only server-terminal
 `handoff_expired` and `handoff_invalid` responses discard a handoff without
 rebinding local evidence; those paths still refetch the permanent account before
@@ -209,11 +212,11 @@ The legacy payload cannot be made backward-compatible: it switches sessions
 before calling the server and carries no source-session proof. Treat this as a
 coordinated security rollout:
 
-1. Clear every release hold and disposable-CI evidence gate in the deployment
-   runbook. The production workflow must pass the fresh database replay,
-   complete catalog and Edge suites, two-session concurrency schedules, strict
-   lint, and advisors for the exact release SHA. No hosted staging project or
-   manual SHA variable is required.
+1. Clear every release hold and run **Supabase Candidate Validation** on the
+   exact release SHA. Its production-isolated disposable database must pass the
+   fresh replay, complete catalog and Edge suites, two-session concurrency
+   schedules, strict lint, and advisors. No hosted staging project or manual SHA
+   variable is required, and this evidence run does not deploy anything.
 2. Ship the proof-capable iOS client (or place the OAuth-conflict path behind a
    minimum-version gate).
 3. Deploy the reviewed Edge Function with the expanded mapper; deploy the Auth

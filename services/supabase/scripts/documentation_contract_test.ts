@@ -3773,6 +3773,16 @@ Deno.test("production consent documentation preserves the release hold and exit 
     releaseVersioning,
     testflightEntry,
     edgeDeploymentEntry,
+    testing,
+    contributing,
+    codebaseMap,
+    securityReadme,
+    networkReadme,
+    analyticsReadme,
+    onboardingSteps,
+    telemetry,
+    databaseSchema,
+    mergeReadme,
     privacy,
     privacyChoices,
   ] = await Promise.all([
@@ -3790,6 +3800,16 @@ Deno.test("production consent documentation preserves the release hold and exit 
     read("docs/development-guides/14-ios-release-versioning.md"),
     read("apps/ios/.agents/workflows/deploy_testflight.md"),
     read("apps/ios/.agents/workflows/deploy_edge_functions.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/CONTRIBUTING.md"),
+    read("docs/codebase-map.md"),
+    read("apps/ios/Merian/Core/Security/README.md"),
+    read("apps/ios/Merian/Core/Network/README.md"),
+    read("apps/ios/Merian/Core/Analytics/README.md"),
+    read("apps/ios/Merian/Features/Onboarding/Steps/README.md"),
+    read("docs/features-and-hardware/03-gamification-and-telemetry.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("services/supabase/functions/merge-ghost-profile/README.md"),
     read("apps/web/app/privacy/page.tsx"),
     read("apps/web/app/privacy-choices/page.tsx"),
   ]);
@@ -3807,6 +3827,9 @@ Deno.test("production consent documentation preserves the release hold and exit 
       "Apple App Review Guideline 5.1.2(i)",
       "Cloud project with active billing",
       "`CONSENT-001` through `CONSENT-009` are closed in source",
+      "Superseded Fixed Test Defects",
+      "Supabase Candidate Validation",
+      "No green hosted evidence for the post-fence candidate is recorded yet",
       "Production remains blocked until hosted exact-SHA validation and every external production control are closed",
       "Those operator controls remain deferred for internal-only test builds",
     ]
@@ -3817,6 +3840,55 @@ Deno.test("production consent documentation preserves the release hold and exit 
     assertStringIncludes(
       canonical,
       `CONSENT-00${index}`,
+    );
+  }
+  assert(
+    !canonical.includes("1,333") &&
+      !canonical.includes("1,344") &&
+      !canonical.includes("dirty review checkout"),
+    "The current readiness record must not present superseded totals or dirty-worktree diagnostics as candidate evidence.",
+  );
+  for (const source of [runbook, testing]) {
+    assertStringIncludes(source, "supabase-candidate-validation.yml");
+    assertStringIncludes(source, "Supabase Candidate Validation");
+    assertStringIncludes(source, "production secrets");
+  }
+  for (
+    const source of [
+      root,
+      docsIndex,
+      contributing,
+      codebaseMap,
+      backend,
+      releaseVersioning,
+      testflightEntry,
+      edgeDeploymentEntry,
+    ]
+  ) {
+    assertStringIncludes(source, "Supabase Candidate Validation");
+  }
+  for (
+    const source of [
+      securityReadme,
+      networkReadme,
+      analyticsReadme,
+      onboarding,
+      onboardingSteps,
+      telemetry,
+      databaseSchema,
+      mergeReadme,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "synchronization generation");
+  }
+  for (const source of [testflightEntry, edgeDeploymentEntry]) {
+    assertStringIncludes(
+      compact(source),
+      "`CONSENT-001` through `CONSENT-009` are closed in source",
+    );
+    assert(
+      !source.includes("CONSENT-001` through `CONSENT-008"),
+      "Agent release entry points must not restore the superseded eight-finding consent status.",
     );
   }
 

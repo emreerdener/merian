@@ -59,6 +59,8 @@ high-sensitivity deployment. Configure the repository ruleset to require
 Vercel Deployment Check. Checked-in workflow YAML creates the check but does not
 itself prevent a direct merge or production promotion.
 
+## Supabase Functions and Tooling
+
 The complete Supabase Edge source/unit suite is the checked-in Deno task:
 
 ```bash
@@ -79,6 +81,20 @@ subset whose permissions happen to pass. Pure request-mapping tests, including
 inherited from the developer shell. Live database behavior belongs to the
 disposable catalog or an explicitly configured `SUPABASE_DB_TEST_URL` test that
 fails when it cannot connect.
+
+**Supabase Candidate Validation**
+(`.github/workflows/supabase-candidate-validation.yml`) is the hosted,
+validation-only release gate for that complete sequence. It runs on relevant
+pull requests, supports manual dispatch for an immutable candidate ref, and is
+reused as the prerequisite of `.github/workflows/deploy.yml`. The workflow
+verifies a clean exact checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`,
+checks every deployable Function graph, replays all migrations into a disposable
+database, discovers every pgTAP catalog, runs the complete Deno task with
+`SUPABASE_DB_TEST_URL`, and finishes with database lint plus security and
+performance advisors. It declares no Production environment, receives no
+production secrets, and contains no migration push, Function deployment, or
+production smoke. A green candidate run is therefore database/runtime evidence,
+not proof of deployment.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -200,14 +216,12 @@ verification gate for iOS changes. It reports a stable
 repository ruleset can require it without leaving unrelated pull requests
 pending. A fail-closed scope job starts the macOS work for:
 
-> **Current consent candidate:** the latest local unit-target attempt failed to
-> compile because
-> `OnboardingViewModelTests.testReadyTermsLinkTargetsTheFullTermsOfService()`
-> calls throwing `XCTUnwrap` from a non-throwing test method. Treat that run as
-> zero iOS test-execution evidence. After fixing the compile blocker,
-> `AppLifecycleManager` foreground replay coverage must inject current required
-> adult, Terms, and Gemini evidence; setting only the old onboarding-complete
-> flag now exercises an early return. See the
+> **Current consent candidate:** the former Terms-link compile defect and
+> foreground-replay consent fixture are fixed and no longer active blockers.
+> Account synchronization now also performs its identity check inside the final
+> merge before any ledger or analytics mutation. Require a new hosted run on the
+> unchanged candidate SHA; older totals and local runs are diagnostic history,
+> not release evidence. See the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 - anything under `apps/ios/` or the embedded companion under `apps/watch/`;
@@ -2131,7 +2145,8 @@ Flash reconciliation, optional historical envelopes, third-result persistence,
 countdowns/exhaustion, Pro-only modes, and paid-only badges. See the normative
 [`complimentary scan contract`](../backend-and-data/18-complimentary-pro-scans.md#verification-map).
 
-The production workflow applies all migrations to a disposable database and runs
+The reusable candidate gate—and the production workflow that requires it—apply
+all migrations to a disposable database and run
 `bash services/supabase/scripts/test_database_catalogs.sh`. That gate discovers
 every `services/supabase/tests/*.sql` fixture, rejects an empty suite, and
 prevents a new catalog contract from being omitted by a selected CI list. Do not

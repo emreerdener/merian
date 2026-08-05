@@ -1,0 +1,163 @@
+name: Supabase Candidate Validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/deploy.yml"
+      - ".github/workflows/supabase-candidate-validation.yml"
+      - "scripts/ci-run-summary.sh"
+      - "scripts/test-ci-run-summary.sh"
+      - "apps/ios/Merian/Core/Security/ConsentManager.swift"
+      - "services/supabase/**"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-candidate-validation-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate exact candidate SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: services
+
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout exact workflow SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Summarize workflow context
+        env:
+          WORKFLOW_PURPOSE: "Validation-only Supabase release gate: verify Edge code, replay migrations, exercise database concurrency, and run database lint without accessing production."
+          WORKFLOW_REASON: "Runs for relevant pull requests, manual exact-SHA validation, and as the prerequisite of the production Supabase deployment workflow."
+        run: bash ../scripts/ci-run-summary.sh
+
+      - name: Test workflow summary rendering
+        run: bash ../scripts/test-ci-run-summary.sh
+
+      - name: Verify exact clean source revision
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$GITHUB_SHA" ]; then
+            echo "Expected workflow SHA $GITHUB_SHA, checked out $actual_sha." >&2
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "Checkout is dirty before Supabase candidate validation." >&2
+            git status --short
+            exit 1
+          fi
+          echo "Verified clean candidate revision $actual_sha"
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.9.4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+
+      - name: Validate reviewed Supabase CLI
+        run: bash supabase/scripts/require_supabase_cli_version.sh
+
+      - name: Gate whole-tree Supabase formatting
+        run: deno fmt --check supabase/functions supabase/scripts
+
+      - name: Gate whole-tree Supabase TypeScript lint
+        run: |
+          deno lint --config supabase/functions/deno.json \
+            supabase/functions \
+            supabase/scripts
+
+      - name: Test complete Supabase tooling suite
+        run: bash supabase/scripts/test_supabase_tooling.sh
+
+      - name: Validate isolated Edge Function dependency graphs
+        run: |
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase \
+            supabase/scripts/sync_function_deno_configs.ts --check
+
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase \
+            supabase/scripts/validate_function_dependencies.ts
+
+          checked=0
+          for entrypoint in supabase/functions/*/index.ts; do
+            function_dir="${entrypoint%/index.ts}"
+            deno check --frozen \
+              --config "$function_dir/deno.json" \
+              "$entrypoint"
+            checked=$((checked + 1))
+          done
+          echo "Checked $checked Edge Function entrypoints with deploy-time configs."
+
+      - name: Test production workflow security
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions/deno.json,../.github/workflows \
+            supabase/functions/_tests/workflowSecurity.test.ts
+
+      - name: Validate Supabase migration contracts
+        run: bash supabase/scripts/validate_migration_contracts.sh
+
+      - name: Start disposable database
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-schema-validation-placeholder
+        run: supabase db start
+
+      - name: Validate database security catalogs
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: bash supabase/scripts/test_database_catalogs.sh
+
+      - name: Test complete Edge Function and database concurrency suite
+        env:
+          SUPABASE_DB_TEST_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: deno task --config supabase/functions/deno.json test
+
+      - name: Validate database lint and advisors
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          supabase db lint --local --schema public,internal \
+            --level warning --fail-on warning
+          supabase db advisors --local --type security \
+            --level warn --fail-on error
+          supabase db advisors --local --type performance \
+            --level warn --fail-on error
+
+      - name: Stop disposable database
+        if: always()
+        env:
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: supabase stop --no-backup
+
+      - name: Summarize candidate evidence
+        if: always()
+        env:
+          VALIDATION_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "### Supabase candidate validation"
+            echo
+            echo "- Source SHA: \`$GITHUB_SHA\`"
+            echo "- Result: $VALIDATION_STATUS"
+            echo "- Production environment: not used"
+            echo "- Production secrets: not used"
+            echo "- Production mutations: none"
+          } >> "$GITHUB_STEP_SUMMARY"

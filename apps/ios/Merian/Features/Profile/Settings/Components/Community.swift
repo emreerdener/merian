@@ -23,25 +23,42 @@ struct Community: View {
                 iconColor: .teal
             )
 
-            Button("Rate Naturebook") {
+            Button {
                 if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                     SKStoreReviewController.requestReview(in: scene)
                 }
+            } label: {
+                Label("Rate Naturebook", systemImage: "star.fill")
             }
-            Button("Give us feedback") {
+
+            Button {
                 showFeedbackSurvey = true
+            } label: {
+                Label("Give us feedback", systemImage: "bubble.left.fill")
             }
-            Button("Invite a friend") {
+
+            Button {
                 ReferralShareContent.presentShareSheet()
+            } label: {
+                Label("Invite a friend", systemImage: "person.badge.plus")
             }
-            Button("Changelog") {
+
+            Button {
                 changelogActive = true
+            } label: {
+                Label("Changelog", systemImage: "clock.arrow.circlepath")
             }
-            Button("Community guidelines") {
+
+            Button {
                 openWebPage(path: "/guidelines")
+            } label: {
+                Label("Community guidelines", systemImage: "person.3.fill")
             }
-            Button("Terms of service & Privacy Policy") {
+
+            Button {
                 openWebPage(path: "/legal")
+            } label: {
+                Label("Terms of service & Privacy Policy", systemImage: "doc.text.fill")
             }
         } header: {
             Text("Resources")

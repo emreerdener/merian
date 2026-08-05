@@ -9,14 +9,18 @@ struct DangerZone: View {
 
     var body: some View {
         Section {
-            Button("Clear local cache") {
+            Button {
                 clearLocalCache()
+            } label: {
+                Label("Clear local cache", systemImage: "arrow.counterclockwise.circle")
             }
             .foregroundColor(.red)
 
             if !supabase.isGuestUser {
-                Button("Sign out") {
+                Button {
                     showSignOutConfirmation = true
+                } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
                 .foregroundColor(.red)
                 .confirmationDialog(
@@ -31,8 +35,10 @@ struct DangerZone: View {
                 }
             }
 
-            Button("Delete account & data") {
+            Button {
                 showDeleteConfirmation = true
+            } label: {
+                Label("Delete account & data", systemImage: "trash.fill")
             }
             .foregroundColor(.red)
         }

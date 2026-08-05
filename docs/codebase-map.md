@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-08-03.
+Last reviewed: 2026-08-04.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -80,7 +80,7 @@ release checklist.
 
 | Area                         | File                                                                                                        | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| SwiftUI app entry            | `apps/ios/Merian/App/MerianApp.swift`                                                                       | Builds the `ModelContainer` from `CurrentSchema` using store-aware migration selection, delegates duplicate-checksum fallback, corruption quarantine, and legacy migration rescue to `Core/Data/StoreRecovery/`, configures `ScanRepository`, migrates species display preferences, initializes app analytics outside tests, applies global theme to `UIWindow`, handles canonical `naturebook://` and legacy `merian://` Explore/species/scan/library deep links plus Naturebook/Merian Universal Links, and classifies file URLs for the Photos document-import inbox before Supabase auth handling. |
+| SwiftUI app entry            | `apps/ios/Merian/App/MerianApp.swift`                                                                       | Builds the `ModelContainer` from `CurrentSchema` using store-aware migration selection, delegates duplicate-checksum fallback, corruption quarantine, and legacy migration rescue to `Core/Data/StoreRecovery/`, configures `ScanRepository`, migrates species display preferences, prepares the first-party analytics facade outside tests without configuring PostHog, applies global theme to `UIWindow`, handles canonical `naturebook://` and legacy `merian://` Explore/species/scan/library deep links plus Naturebook/Merian Universal Links, and classifies file URLs for the Photos document-import inbox before Supabase auth handling. |
 | App delegate bridge          | `apps/ios/Merian/App/MerianApp.swift`                                                                       | Owns background `URLSession` completion handoff and push token callbacks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`, `apps/ios/Merian/Configuration/Merian-Bridging-Header.h` | Converts launch-time SwiftData/Core Data Objective-C exceptions into Swift errors so store recovery can run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Dependency container         | `apps/ios/Merian/Core/AppDIContainer.swift`                                                                 | Injects hardware, AI, sync, network, analytics, security, settings, and profile dependencies through SwiftUI `@Environment`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -210,6 +210,16 @@ require only `iOS Build and Test / Production readiness`. On failure,
 summary first, then the failed test tree, and uses the raw build log only as a
 fallback. Its fixture test prevents expected negative-path application logs from
 replacing the actual failed test and assertion in the job summary.
+
+Backend candidate assurance lives in **Supabase Candidate Validation**
+(`.github/workflows/supabase-candidate-validation.yml`). Relevant pull requests,
+manual candidate refs, and `.github/workflows/deploy.yml` reuse that workflow to
+verify a clean exact SHA with pinned tools, full migration replay, discovered
+pgTAP catalogs, Edge/database-concurrency tests, lint, and advisors against a
+disposable database. It has no Production environment, production secrets, or
+mutation step. The production workflow's separate `deploy` job depends on this
+gate and is the only job that receives Production access, pushes migrations,
+deploys Functions, or runs production smokes.
 
 Historical schema snapshots V1 through V39 live under
 `apps/ios/Merian/Models/Schema/`. V40 through V50 live in `SchemaVersions.swift`

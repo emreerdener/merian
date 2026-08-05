@@ -120,10 +120,12 @@ account-wide permission boundary:
 > [!WARNING]
 > The architecture below is the required release invariant. The current
 > source closes the reset-time transport leak and crash-safe ghost evidence
-> migration tracked as `CONSENT-001` and `CONSENT-002`, plus the restoration,
-> Realtime, and OAuth account-replacement findings tracked as `CONSENT-005`
-> through `CONSENT-007`. Internal test builds may continue. Public production
-> remains blocked by hosted exact-SHA validation and the external controls in the
+> migration tracked as `CONSENT-001` and `CONSENT-002`, plus the final
+> synchronization identity fence, target-account restoration, Realtime, and
+> OAuth account-replacement findings tracked as `CONSENT-004` through
+> `CONSENT-007`. All findings through `CONSENT-009` are closed in source.
+> Internal test builds may continue. Public production remains blocked by
+> same-SHA hosted iOS/Supabase validation and the external controls in the
 > [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 - **iOS app analytics (`AppTelemetry`)** — pseudonymous product metrics routed
@@ -142,7 +144,10 @@ lifecycle authority. Only a current grant configures and identifies PostHog.
 Absence, revocation, account change, or unresolved account state must disable
 the facade, clear identity, opt out, and close the SDK without starting a new
 PostHog request. The source-complete lifecycle implementation and remaining
-hosted verification are recorded in the readiness record.
+hosted verification are recorded in the readiness record. An account sync may
+apply a grant only after its final merge rechecks cancellation, observed user,
+the Supabase SDK session, and synchronization generation inside the mutation
+boundary.
 
 ### `AppTelemetry` (PostHog Facade)
 

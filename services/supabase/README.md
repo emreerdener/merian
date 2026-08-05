@@ -42,8 +42,26 @@ ordinary comma-separated invocation. In particular, write
 `pg_catalog.SUBSTRING(value FROM pattern)`: the `FROM`, `FOR`, and `SIMILAR`
 forms are unqualified SQL expressions. The migration execution contract scans
 the complete migration fleet for this parser seam, but static checks are not
-deployment evidence. The pinned CLI must still build the disposable database and
-run every `tests/*.sql` catalog fixture before production `db push`.
+deployment evidence. **Supabase Candidate Validation** must still use the pinned
+CLI to build the disposable database and run every `tests/*.sql` catalog fixture
+on the exact candidate SHA. That validation-only run has no production access or
+mutation. The separate production job requires it before `db push`.
+
+### Validation-Only Candidate Workflow
+
+`.github/workflows/supabase-candidate-validation.yml` is the reusable backend
+evidence gate. It runs for relevant pull requests, supports manual dispatch, and
+is called by `.github/workflows/deploy.yml` before the Production job. It checks
+an exact clean checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`, validates
+the complete Function dependency graph and tooling contracts, replays every
+migration into a disposable database, discovers every pgTAP catalog, executes
+the complete Edge/database-concurrency suite, and runs database lint plus
+security/performance advisors.
+
+The candidate workflow declares no Production environment, receives no
+production secrets, and contains no database push, Function deployment, or
+production smoke. Its green summary is exact-SHA database/runtime evidence; it
+is not evidence that production changed and does not authorize deployment.
 
 Catalog fixtures preserve production signup behavior. An `auth.users` insert
 fires `on_auth_user_created` and can create `public.users` synchronously; a
@@ -1439,13 +1457,15 @@ Forward migration
 Edge mapper implement the four release-hold fixes: unconditional permanent
 RevenueCat queue repair, user-before-queue claim fencing, collision-only
 Community actor handling, and retryable mapping for both ledger diagnostics.
-The release hold remains until the production workflow's clean disposable
-replay, every catalog test, automated two-session schedules, complete Edge
-suite, strict lint, and advisors pass from the exact SHA with Supabase CLI
-`2.109.1`; static contracts or a focused SQL test are not release-equivalent
-evidence. The workflow detects Ghost migration or Function deltas since the last
-successful release and predeploys the expanded mapper plus cleanup worker before
-`db push`; manual dispatch and an unsafe baseline take the same fail-closed path.
+The release hold remains until **Supabase Candidate Validation** passes its clean
+disposable replay, every catalog test, automated two-session schedules,
+complete Edge suite, strict lint, and advisors from the exact SHA with Supabase
+CLI `2.109.1`; static contracts or a focused SQL test are not
+release-equivalent evidence. After separate production authorization, the
+dependent Production job detects Ghost migration or Function deltas since the
+last successful release and predeploys the expanded mapper plus cleanup worker
+before `db push`; manual dispatch and an unsafe baseline take the same
+fail-closed path.
 No hosted staging project or operator-managed SHA attestation is required. A
 privacy-safe scheduled monitor and the production post-deploy gate report
 aggregate recent prepared receipts, overdue Auth cleanup, and destination
@@ -1505,6 +1525,10 @@ deno check --frozen \
   --config services/supabase/functions/<function>/deno.json \
   services/supabase/functions/<function>/index.ts
 ```
+
+The relevant pull request must then pass **Supabase Candidate Validation**. A
+local source/unit pass cannot substitute for its exact-SHA migration replay,
+database concurrency fixtures, pgTAP catalogs, lint, and advisors.
 
 `test_supabase_tooling.sh` dynamically type-checks every standard script and
 runs every standard `*_test.ts`, including the ghost-user suites and the static
@@ -1887,6 +1911,12 @@ guest session. Do not run a historical version of the cleanup script after the
 secure merge migration.
 
 ## Deployment
+
+Run **Supabase Candidate Validation** when the goal is release evidence without
+production access. Do not dispatch the production workflow merely to prove a
+candidate. `.github/workflows/deploy.yml` first reuses the same validation gate;
+only its dependent `deploy` job enters GitHub `Production`, receives secrets,
+pushes migrations, deploys Functions, and performs production smokes.
 
 ### Database Migrations
 

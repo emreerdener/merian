@@ -155,7 +155,7 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
   const fetch = synchronization.indexOf(
     "let remoteState = try await fetchRemoteState(",
   );
-  const merge = synchronization.indexOf("merge(remoteState, for: userId)");
+  const merge = synchronization.indexOf("try merge(");
 
   assert(
     synchronizationStart >= 0 &&
@@ -166,6 +166,33 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
       merge > fetch,
     "Target restoration must activate and flush its pending evidence before authoritative refetch",
   );
+  assertStringIncludes(
+    synchronization,
+    "for: userId, generation: generation",
+  );
+
+  const mergeStart = source.indexOf("func merge(");
+  const mergeEnd = source.indexOf(
+    "private func hasCloudReadyCurrentConsent(",
+    mergeStart,
+  );
+  const mergeSource = source.slice(mergeStart, mergeEnd);
+  const finalIdentityFence = mergeSource.indexOf(
+    "try validateSynchronization(for: userId, generation: generation)",
+  );
+  const firstMutation = mergeSource.indexOf(
+    "ledger.adultEligibilityReceipts",
+  );
+  assert(
+    mergeStart >= 0 && mergeEnd > mergeStart && finalIdentityFence >= 0 &&
+      firstMutation > finalIdentityFence,
+    "The final identity fence must run inside merge before any ledger mutation",
+  );
+  assertStringIncludes(
+    source,
+    "static func isSynchronizationContextCurrent(",
+  );
+  assertStringIncludes(source, "isCancelled: Task.isCancelled");
   assert(
     !synchronization.includes("guard remoteState.hasEvidence"),
     "An empty target account must still become the active local ledger",

@@ -52,8 +52,9 @@ owns native permission delegates such as `LocationPermissionDelegate`.
   are shielded from onboarding frames.
 
 All tracked implementation findings are closed in source. Internal test builds
-may continue; public production remains held pending exact-SHA rollout evidence
-and the external controls in the
+may continue; public production remains held until **iOS Build and Test** and
+**Supabase Candidate Validation** pass the same immutable SHA and the external
+controls in the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 2. The Scans Library (`ScansSheetView`, `ScansManager`)

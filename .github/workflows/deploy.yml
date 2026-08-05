@@ -23,7 +23,12 @@ permissions:
   contents: read
 
 jobs:
+  candidate-validation:
+    name: Validate candidate without production access
+    uses: ./.github/workflows/supabase-candidate-validation.yml
+
   deploy:
+    needs: candidate-validation
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: Production

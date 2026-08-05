@@ -15,16 +15,23 @@ workflow enforces the exact Supabase CLI pin, complete migration history,
 Function fleet planning, secret synchronization, pre/post-deploy verification,
 and evidence artifacts.
 
+Use **Supabase Candidate Validation** first when the objective is evidence. It
+replays the exact candidate against a disposable database and runs the complete
+Edge/database suite without receiving production secrets or mutating
+production. A green candidate run does not authorize deployment.
+
 ## Consent release hold
 
-Do not deploy the current consent candidate or run strict consent cutover until
-`CONSENT-001` through `CONSENT-008` are closed in the
+`CONSENT-001` through `CONSENT-009` are closed in source. Do not enter the
+Production job or run strict consent cutover until the same immutable SHA passes
+both hosted gates and the external production controls in the
 [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
-From a corrected SHA, the bounded rollout is:
+The bounded rollout is:
 
-1. Prove the complete hosted iOS gate and exact-version disposable database
-   replay.
-2. Deploy the additive schema and consent-gated Edge code while
+1. Prove **iOS Build and Test** and **Supabase Candidate Validation** on the same
+   SHA. The latter is validation-only and must report no production mutation.
+2. After separate production authorization, deploy the additive schema and
+   consent-gated Edge code while
    `internal.ai_consent_rollout_config` remains `legacy_compatible`.
 3. Distribute and verify the corrected replacement TestFlight build.
 4. Expire old consent-incapable builds.

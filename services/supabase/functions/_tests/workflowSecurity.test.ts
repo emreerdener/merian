@@ -124,6 +124,62 @@ Deno.test("production Supabase CLI telemetry is disabled at job scope", async ()
   );
 });
 
+Deno.test("Supabase candidate validation is reusable and production-isolated", async () => {
+  const [candidateWorkflow, deployWorkflow] = await Promise.all([
+    Deno.readTextFile(
+      new URL("supabase-candidate-validation.yml", workflowsDirectory),
+    ),
+    Deno.readTextFile(new URL("deploy.yml", workflowsDirectory)),
+  ]);
+
+  assertStringIncludes(candidateWorkflow, "  pull_request:");
+  assertStringIncludes(candidateWorkflow, "  workflow_dispatch:");
+  assertStringIncludes(candidateWorkflow, "  workflow_call:");
+  assertStringIncludes(candidateWorkflow, "deno-version: v2.9.4");
+  assertStringIncludes(candidateWorkflow, "version: 2.109.1");
+  assertStringIncludes(candidateWorkflow, "fetch-depth: 0");
+  assertStringIncludes(candidateWorkflow, "persist-credentials: false");
+  assertStringIncludes(candidateWorkflow, "git status --porcelain");
+  assertStringIncludes(candidateWorkflow, "supabase db start");
+  assertStringIncludes(
+    candidateWorkflow,
+    "bash supabase/scripts/test_database_catalogs.sh",
+  );
+  assertStringIncludes(
+    candidateWorkflow,
+    "deno task --config supabase/functions/deno.json test",
+  );
+  assertStringIncludes(candidateWorkflow, "supabase db lint --local");
+  assertStringIncludes(candidateWorkflow, "supabase db advisors --local");
+  assertStringIncludes(candidateWorkflow, "supabase stop --no-backup");
+  assert(
+    !candidateWorkflow.includes("environment: Production") &&
+      !candidateWorkflow.includes("secrets.") &&
+      !candidateWorkflow.includes("supabase db push") &&
+      !candidateWorkflow.includes("deploy_function_batches.sh"),
+    "Candidate validation must not receive production access or perform production mutations.",
+  );
+
+  const prerequisite = deployWorkflow.indexOf(
+    "candidate-validation:\n    name: Validate candidate without production access",
+  );
+  const reusableCall = deployWorkflow.indexOf(
+    "uses: ./.github/workflows/supabase-candidate-validation.yml",
+    prerequisite,
+  );
+  const deployJob = deployWorkflow.indexOf("  deploy:", reusableCall);
+  const dependency = deployWorkflow.indexOf(
+    "needs: candidate-validation",
+    deployJob,
+  );
+  assert(
+    prerequisite >= 0 && reusableCall > prerequisite &&
+      deployJob > reusableCall &&
+      dependency > deployJob,
+    "Production deployment must require the reusable candidate validation job first.",
+  );
+});
+
 Deno.test("every runner job has an explicit bounded timeout", async () => {
   const sources = await workflowSources();
 

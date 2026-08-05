@@ -29,7 +29,12 @@ overlapping setup work from completing for a replaced account.
 `CONSENT-007` is also complete in source: true-account OAuth replacement closes
 analytics and consent Realtime before session installation, reconciles the
 actual SDK session on success or failure, and generation-fences overlapping
-logins. Hosted verification must still prove zero setup, identification,
+logins. Target-account restoration keeps capture closed while pending actions
+are pushed and authoritative state is fetched. Its final merge independently
+rejects cancellation, observed-user, SDK-session, or synchronization-generation
+drift before any old account grant can reopen analytics. This synchronization
+generation fence is inside the mutation boundary. Hosted verification must
+still prove zero setup, identification,
 capture, or network activity before grant and after withdrawal/account change.
 See the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
