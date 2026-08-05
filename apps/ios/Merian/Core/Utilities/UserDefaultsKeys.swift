@@ -127,6 +127,9 @@ enum UserDefaultsKeys {
     static let enrichedSpeciesTimestamps = "enrichedSpeciesTimestamps"
     /// Version marker for one-time local similar-species cache resets.
     static let localLookalikesCacheResetVersion = "localLookalikesCacheResetVersion"
+    /// Test-suite compatibility key. Production withdrawal journals are stored
+    /// independently from the ledger in Keychain.
+    static let analyticsRevocationIntent = "analyticsRevocationIntent.v1"
 }
 
 enum KeychainKeys {
@@ -135,6 +138,9 @@ enum KeychainKeys {
     /// Provider-bound, one-use proof retained until the server confirms that
     /// both the guest data merge and Auth cleanup completed.
     static let pendingGhostProfileMerge = "Merian_PendingGhostProfileMerge"
+    /// Write-ahead journal that keeps analytics fail-closed if the larger
+    /// consent ledger cannot persist one or more account-wide withdrawals.
+    static let analyticsRevocationIntent = "Merian_AnalyticsRevocationIntent_v1"
 }
 
 enum ScanLibraryEvents {

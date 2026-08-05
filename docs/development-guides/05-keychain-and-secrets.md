@@ -33,6 +33,8 @@ Merian.
 | `SUPABASE_SERVICE_ROLE_KEY`                        | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                       |
 | `Merian_HasAuthenticatedOAuth`                     | `KeychainManager` (`kSecClassGenericPassword`)                                | Security-sensitive auth flag, migrated from `UserDefaults` on first run                                            |
 | `Merian_PendingGhostProfileMerge`                  | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
+| `Merian_AnalyticsRevocationIntent_v1`              | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                          | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified |
+| Consent ledger                                     | File-protected Application Support JSON                                       | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy |
 | Device IDFV (`Merian_Device_IDFV`)                 | `DeviceIdentityManager` (`kSecClassGenericPassword`)                          | Persisted across reinstalls within the same vendor group                                                           |
 | `hasCompletedOnboarding`                           | `UserDefaults`                                                                | Non-sensitive preference                                                                                           |
 | `isAchievementNotificationsEnabled`                | `UserDefaults`                                                                | Non-sensitive preference                                                                                           |
@@ -325,6 +327,7 @@ Currently stored keys:
 | --------------------------------- | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Merian_HasAuthenticatedOAuth`    | `Bool`      | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; used by `MerianNetworkClient` to decide whether a 401 triggers re-auth or Ghost regeneration |
 | `Merian_PendingGhostProfileMerge` | JSON `Data` | `WhenUnlockedThisDeviceOnly`     | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades          |
+| `Merian_AnalyticsRevocationIntent_v1` | JSON `Data` | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                               |
 
 The merge queue is persisted and read back successfully before the app switches
 away from the anonymous session. A newer handoff replaces only another handoff
@@ -342,6 +345,25 @@ handle for a newer session.
 `ThisDeviceOnly` items do not migrate through backups or device transfer. Never
 copy the merge proof into `UserDefaults`, logs, analytics, crash metadata, an
 App Group, iCloud Keychain, or a request URL.
+
+### Consent ledger durability
+
+`DurableConsentLedgerStore` keeps the complete consent ledger at
+`Application Support/Naturebook/Consent/ledger-v1.json`. Every save uses an
+atomic replacement, applies complete-until-first-authentication file protection,
+reads the result back, and compares the exact bytes. A one-time migration writes
+and verifies this file before removing `UserDefaultsKeys.legalConsentLedger`, so
+an older stale grant cannot become the fallback authority.
+
+Analytics withdrawal uses two independent boundaries. `ConsentManager` closes
+capture in memory first, then writes the exact revocation event to
+`Merian_AnalyticsRevocationIntent_v1`, then replaces the main ledger. The
+Keychain payload is a journal, not a single slot: simultaneous offline actions
+for different accounts remain distinct. A failed main write leaves the journal
+in place across restart; recovery appends the same IDs, text, versions, and
+timestamps to the ledger and only then verifies journal removal. If both writes
+fail, the current process remains off and the Settings surface reports that the
+withdrawal still needs durable storage.
 
 ---
 

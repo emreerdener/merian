@@ -123,7 +123,8 @@ account-wide permission boundary:
 > migration tracked as `CONSENT-001` and `CONSENT-002`, plus the final
 > synchronization identity fence, target-account restoration, Realtime, and
 > OAuth account-replacement findings tracked as `CONSENT-004` through
-> `CONSENT-007`. All findings through `CONSENT-009` are closed in source.
+> `CONSENT-007`, plus the verified local-ledger and withdrawal-journal boundary
+> tracked as `CONSENT-010`. All findings through `CONSENT-010` are closed in source.
 > Internal test builds may continue. Public production remains blocked by
 > same-SHA hosted iOS/Supabase validation and the external controls in the
 > [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
@@ -148,6 +149,12 @@ hosted verification are recorded in the readiness record. An account sync may
 apply a grant only after its final merge rechecks cancellation, observed user,
 the Supabase SDK session, and synchronization generation inside the mutation
 boundary.
+
+Withdrawal also closes the in-process gate before storage, writes the exact
+revocation to an independent Keychain journal, and only then atomically replaces
+the append-only ledger. A failed primary write therefore remains off across
+restart and replays the original event; the versioned journal retains distinct
+pending actions for multiple accounts.
 
 ### `AppTelemetry` (PostHog Facade)
 

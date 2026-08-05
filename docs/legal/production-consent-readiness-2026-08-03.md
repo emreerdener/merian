@@ -4,9 +4,10 @@
 
 **Blocked.** The repository contains the intended final onboarding surface,
 versioned consent evidence, server-side Gemini admission guard, optional
-analytics control, and legal copy. The two P1 consent-lifecycle defects from the
-second-pass review, the adjacent stale-sync/unit-fixture defects, and the three
-account-restoration lifecycle findings are complete in source. Hosted exact-SHA
+analytics control, and legal copy. The reviewed consent-lifecycle defects,
+including durable local-write and withdrawal recovery, the adjacent
+stale-sync/unit-fixture defects, and the account-restoration lifecycle findings
+are complete in source. Hosted exact-SHA
 execution and the external operator controls below must still close before this
 candidate is nominated for production.
 
@@ -55,6 +56,10 @@ repeating Camera or Location.
   containing the exact displayed text, device action time, platform, app
   version/build, and a server-controlled timestamp.
 - Absence of a current PostHog grant means analytics is off.
+- The local ledger is installed in memory only after a throwing, verified atomic
+  file replacement. Analytics withdrawal closes capture first and records its
+  exact event in an independent Keychain journal before the main ledger write;
+  pending journal entries remain fail-closed and replayable across restart.
 - Local required evidence closes the UI gate, but Gemini remains unauthorized
   until current adult, Terms, and Gemini evidence exists on the active Supabase
   account and the service-only quota boundary accepts it.
@@ -85,7 +90,7 @@ engineering release controls; it is not a legal opinion.
 
 ## Source Status
 
-`CONSENT-001` through `CONSENT-009` are closed in source. “Closed in source” is
+`CONSENT-001` through `CONSENT-010` are closed in source. “Closed in source” is
 not exact-SHA runtime evidence and is not a production approval.
 
 | ID | Implemented control | Remaining evidence |
@@ -97,6 +102,7 @@ not exact-SHA runtime evidence and is not a production approval.
 | `CONSENT-006` | Analytics-consent Realtime independently owns channel and subscribed-user identity, generation-fences stale listeners, and gives failed subscriptions an account-owned bounded retry. | Exact-SHA reconnect and cross-device execution. |
 | `CONSENT-007` | OAuth replacement suppresses analytics and closes consent Realtime before session installation; success and failure reconcile the SDK's actual session under a transition generation. | Exact-SHA account-replacement execution. |
 | `CONSENT-009` | The retained internal copy has distinct Gemini and analytics disclosure versions, and forward-only server compatibility preserves immutable historical receipts. | Exact-SHA migration/client contracts and replacement-build validation. |
+| `CONSENT-010` | Consent mutations use a throwing, fault-injectable storage boundary and transactional candidate ledger. Onboarding completes only after a verified atomic file write. Analytics withdrawal closes capture first, journals exact revocation events independently in Keychain, remains off across failed writes/restart, preserves multiple accounts, and clears the journal only after ledger durability. | Exact-SHA fault-injection, restart-replay, onboarding, account-switch, full-unit, and Release archive execution. |
 
 ### Superseded Fixed Test Defects
 

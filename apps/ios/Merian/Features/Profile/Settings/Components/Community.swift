@@ -4,6 +4,8 @@ import SwiftUI
 struct Community: View {
     @Environment(AppSettings.self) private var appSettings
     @Environment(ConsentManager.self) private var consentManager
+    @State private var consentSaveErrorMessage = ""
+    @State private var isShowingConsentSaveError = false
 
     @Binding var changelogActive: Bool
     @Binding var safariUrl: URL?
@@ -17,7 +19,18 @@ struct Community: View {
                 description: "Optionally share pseudonymous app usage and diagnostics with PostHog. This account-wide choice never affects core functionality.",
                 isOn: Binding(
                     get: { consentManager.hasGrantedCurrentPostHogAnalytics },
-                    set: { consentManager.setPostHogAnalyticsEnabled($0) }
+                    set: { isEnabled in
+                        do {
+                            try consentManager.setPostHogAnalyticsEnabled(
+                                isEnabled
+                            )
+                        } catch {
+                            consentSaveErrorMessage = isEnabled
+                                ? "Analytics remains off because your choice could not be saved."
+                                : "Analytics remains off, but the withdrawal still needs to finish saving."
+                            isShowingConsentSaveError = true
+                        }
+                    }
                 ),
                 icon: "chart.bar.fill",
                 iconColor: .teal
@@ -62,6 +75,14 @@ struct Community: View {
             }
         } header: {
             Text("Resources")
+        }
+        .alert(
+            "Analytics setting not saved",
+            isPresented: $isShowingConsentSaveError
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(consentSaveErrorMessage)
         }
     }
 

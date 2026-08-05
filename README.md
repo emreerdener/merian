@@ -20,8 +20,10 @@ steps are tracked in the
 > screen and versioned adult, Terms, Gemini, and optional PostHog evidence are
 > implemented. All tracked consent findings are closed in source, including
 > crash-safe ghost-ledger handoff, withdrawal-time PostHog transport blocking,
-> target-account restoration, final in-merge account/session fencing, Realtime
-> repair, and OAuth account replacement. Internal test builds may continue, but
+> verified atomic local-ledger persistence, restart-safe multi-account
+> withdrawal journaling, target-account restoration, final in-merge
+> account/session fencing, Realtime repair, and OAuth account replacement.
+> Internal test builds may continue, but
 > do not nominate the candidate for public production or enable strict server
 > enforcement until **iOS Build and Test** and the validation-only **Supabase
 > Candidate Validation** workflow are green on the same immutable SHA, followed

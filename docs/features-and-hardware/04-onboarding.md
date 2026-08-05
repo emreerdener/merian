@@ -9,7 +9,7 @@ and the three-part required completion gate.
 
 > [!WARNING]
 > **Release status:** the internal-testing screen and evidence model are
-> implemented. `CONSENT-001` through `CONSENT-009` are closed in source,
+> implemented. `CONSENT-001` through `CONSENT-010` are closed in source,
 > including the local-ledger handoff, PostHog withdrawal, account restoration,
 > final synchronization merge fence, Realtime, and OAuth lifecycle findings.
 > Same-SHA hosted iOS and validation-only Supabase evidence, counsel approval,
@@ -28,6 +28,7 @@ and the three-part required completion gate.
 | `Steps/Models/OnboardingStep.swift` | Defines the four steps in order |
 | `Shell/ViewModels/OnboardingViewModel.swift` | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag |
 | `Core/Security/ConsentManager.swift` | Owns the local append-only consent ledger, current policy versions, account synchronization, and inference gate |
+| `Core/Security/ConsentLedgerStore.swift` | Throwing, fault-injectable storage boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal |
 | `Shell/Views/OnboardingView.swift` | Root view, switches content based on `currentStep` |
 | `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission`, `Steps/Ready` | One self-contained SwiftUI view per onboarding step |
 | `Steps/Shared/OnboardingStepWrapper.swift` | Shared step layout and action-button chrome |
@@ -69,20 +70,23 @@ func advanceStep() {
     }
 }
 
-func completeOnboarding(analyticsEnabled: Bool) {
-    consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+func completeOnboarding(analyticsEnabled: Bool) throws {
+    try consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
         analyticsEnabled: analyticsEnabled
-    ) // durable local write first
+    ) // verified atomic local write first
     AppTelemetry.trackOnboardingCompleted()  // fires before flag write — activation funnel signal
     hasCompletedOnboarding = true            // writes through AppSettings/UserDefaults("hasCompletedOnboarding")
 }
 ```
 
 `completeOnboarding(analyticsEnabled:)` is called on the `.ready` step. It first
-appends the current adult-confirmation receipt, Terms receipt, Gemini grant,
-and optional analytics grant to the append-only local ledger, then records the
-activation event when analytics is allowed and writes the onboarding flag. The
-local legal action is therefore durable before the workspace can open. The
+builds a candidate containing the current adult-confirmation receipt, Terms
+receipt, Gemini grant, and optional analytics action. It installs that candidate
+in memory only after the throwing store verifies an atomic file replacement,
+then records the activation event when analytics is allowed and writes the
+onboarding flag. A failure leaves the completion flag false, keeps scanning and
+analytics disabled, and presents a retryable alert on the same screen. The local
+legal action is therefore durable before the workspace can open. The
 full lifecycle requires both `hasCompletedOnboarding` and
 `ConsentManager.hasCurrentRequiredConsent`:
 
@@ -128,10 +132,15 @@ device action time, platform, app version, and app build. Adult eligibility is
 self-attested on every supported iOS version; Naturebook does not collect a
 birth date or exact age.
 
-`ConsentManager` writes an append-only JSON ledger to
-`UserDefaultsKeys.legalConsentLedger` immediately, including while the first
-anonymous Supabase session is still being created. It later binds unowned
-records to that account and synchronizes them to:
+`ConsentManager` writes the append-only JSON ledger through
+`ConsentLedgerStore` immediately, including while the first anonymous Supabase
+session is still being created. Production storage uses the file-protected
+`Application Support/Naturebook/Consent/ledger-v1.json`, atomically replaces it,
+and verifies the exact bytes before the candidate becomes live. The store
+migrates and removes the former `UserDefaultsKeys.legalConsentLedger` copy only
+after verifying the file. Tests can inject a deterministic store and independent
+read/write/cleanup faults. The manager later binds unowned records to the active
+account and synchronizes them to:
 
 - `public.user_adult_eligibility_receipts`;
 - `public.user_terms_acceptance_receipts`;
@@ -186,6 +195,11 @@ events remain supported and close the local workspace gate immediately. The
 required analytics-withdrawal invariant is immediate facade shutdown, identity
 clearing, SDK opt-out/closure, account-wide synchronization, no
 withdrawal-triggered PostHog request, and no change to core functionality. The
+exact revocation event is first appended to a versioned, read-back-verified
+Keychain journal. If the main ledger write fails, that journal forces analytics
+off after restart and replays every pending account's original ID, text, and
+timestamp when storage recovers. A verified ledger write is required before the
+journal is removed; cleanup failure remains conservatively off. The
 configured-host transport gate closes before `reset()` and cancels PostHog
 3.69.0's reset-time feature-flag reload locally while preserving
 `reset → optOut → close`; see completed `CONSENT-001` in the readiness record.

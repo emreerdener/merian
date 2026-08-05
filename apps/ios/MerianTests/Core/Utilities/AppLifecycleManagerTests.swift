@@ -159,7 +159,7 @@ struct AppLifecycleManagerTests {
         userDefaults.removePersistentDomain(forName: suiteName)
         let manager = ConsentManager(userDefaults: userDefaults)
         if granted {
-            manager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            try manager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
                 analyticsEnabled: false
             )
         }

@@ -4753,7 +4753,7 @@ always requires current adult policy `2026-08-03`, Terms `2026-08-03`, Gemini
 disclosure `2026-08-04.1`, and analytics disclosure `2026-08-04`.
 
 > **Repository production hold (August 4, 2026):** `CONSENT-001` through
-> `CONSENT-009` are closed in source in the
+> `CONSENT-010` are closed in source in the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 > Internal test builds may continue. Do not nominate a public-production
 > candidate or run strict cutover until the exact candidate SHA passes the

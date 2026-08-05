@@ -29,7 +29,15 @@ confirmations in the
   admission transaction.
 - `ConsentManager` owns the append-only local ledger for adult confirmation,
   Terms acceptance, every Google Gemini grant/revocation, and optional PostHog
-  grant/revocation. It binds offline records to the first anonymous account,
+  grant/revocation. `ConsentLedgerStore` persists that ledger as an atomically
+  replaced, file-protected, read-back-verified Application Support file and
+  migrates the former `UserDefaults` copy before removing it. Analytics
+  withdrawal first records the exact immutable revocation event in an
+  independently verified Keychain journal; a failed ledger write therefore
+  remains fail-closed across restart and can be replayed without changing its
+  ID or timestamp. The journal retains multiple account-owned withdrawals
+  rather than overwriting one during account switching. `ConsentManager` binds
+  offline records to the first anonymous account,
   synchronizes immutable account-owned rows, hydrates cross-device state, and
   requires cloud-ready adult/Terms/Gemini evidence before iOS constructs an
   inference request. After a confirmed provider-bound ghost handoff, it
@@ -175,6 +183,12 @@ the strict server cutover or a production submission.
   request before the latest active account event grants permission. Withdrawal
   and account change must opt out and close the SDK without starting another
   request, clear identity, and leave core functionality unchanged.
+- Every user-facing consent mutation must build a candidate ledger and install
+  it in memory only after the throwing storage boundary verifies the complete
+  atomic write. Onboarding cannot set its completion flag after a failed write.
+  Analytics withdrawal closes capture before storage, writes its Keychain
+  journal before the primary ledger, and remains off while either recovery or
+  journal cleanup is pending.
 - Realtime account-wide analytics changes must start reliably after session
   establishment and recover after channel failure; foreground reconciliation is
   a second safety net, not the only synchronization mechanism.

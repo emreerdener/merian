@@ -6,6 +6,8 @@ struct OnboardingView: View {
     // MARK: - State Dependencies
     @State private var viewModel = OnboardingViewModel()
     @State private var locationManagerDelegate = LocationPermissionDelegate()
+    @State private var consentSaveErrorMessage = ""
+    @State private var isShowingConsentSaveError = false
     
     // MARK: - Visual Layout
     var body: some View {
@@ -27,9 +29,14 @@ struct OnboardingView: View {
                     LocationPermissionStepView(locationManagerDelegate: locationManagerDelegate) { advanceStep() }
                 case .ready:
                     ReadyStepView { analyticsEnabled in
-                        viewModel.completeOnboarding(
-                            analyticsEnabled: analyticsEnabled
-                        ) // Triggers root view teardown safely without zero-frame animation artifacts
+                        do {
+                            try viewModel.completeOnboarding(
+                                analyticsEnabled: analyticsEnabled
+                            ) // Triggers root view teardown safely without zero-frame animation artifacts
+                        } catch {
+                            consentSaveErrorMessage = error.localizedDescription
+                            isShowingConsentSaveError = true
+                        }
                     }
                 }
             }
@@ -38,6 +45,16 @@ struct OnboardingView: View {
                 insertion: .move(edge: .trailing).combined(with: .opacity),
                 removal: .move(edge: .leading).combined(with: .opacity)
             ))
+        }
+        .alert(
+            "Couldn’t save your choices",
+            isPresented: $isShowingConsentSaveError
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(
+                "Scanning and analytics remain disabled. \(consentSaveErrorMessage)"
+            )
         }
     }
     

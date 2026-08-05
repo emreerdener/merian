@@ -23,6 +23,10 @@ TestFlight, App Store, support, and QA.
   merge before any local evidence or analytics state can change. A separate
   validation-only Supabase workflow provides fresh-catalog and concurrency
   evidence without receiving production credentials or deploying anything.
+- Onboarding now completes only after its versioned consent evidence is saved
+  and read back successfully. Analytics withdrawal closes capture immediately
+  and keeps an independently persisted, replayable withdrawal journal, so a
+  failed ledger write cannot restore a previous grant after relaunch.
 - All tracked consent findings are closed in source. Internal test builds may
   continue, but public production and strict server cutover remain held until
   exact-SHA validation, replacement-build rollout, disposable database replay,

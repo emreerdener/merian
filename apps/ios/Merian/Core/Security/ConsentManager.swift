@@ -49,6 +49,23 @@ enum ConsentHandoffError: LocalizedError {
     }
 }
 
+enum ConsentPersistenceError: LocalizedError {
+    case storedLedgerUnavailable
+    case revocationIntentInvalid
+    case encodingFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .storedLedgerUnavailable:
+            return "Naturebook could not safely access your saved consent record. Please try again."
+        case .revocationIntentInvalid:
+            return "Naturebook could not verify the saved analytics withdrawal. Analytics will remain off."
+        case .encodingFailed:
+            return "Naturebook could not prepare your consent record for secure storage."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class ConsentManager {
@@ -131,6 +148,22 @@ final class ConsentManager {
         let appVersion: String
         let appBuild: String
         var recordedAt: Date?
+    }
+
+    struct AnalyticsRevocationIntent: Codable, Equatable {
+        var event: AnalyticsConsentEvent
+    }
+
+    struct AnalyticsRevocationJournal: Codable, Equatable {
+        static let currentFormatVersion = 1
+
+        let formatVersion: Int
+        var intents: [AnalyticsRevocationIntent]
+
+        init(intents: [AnalyticsRevocationIntent]) {
+            formatVersion = Self.currentFormatVersion
+            self.intents = intents
+        }
     }
 
     struct LocalLedger: Codable, Equatable {
@@ -351,8 +384,12 @@ final class ConsentManager {
             + pendingAnalyticsEvents
     }
 
-    @ObservationIgnored private let userDefaults: UserDefaults
+    @ObservationIgnored private let ledgerStore: ConsentLedgerStoring
     @ObservationIgnored private var ledger: LocalLedger
+    @ObservationIgnored private var pendingAnalyticsRevocationJournal: AnalyticsRevocationJournal?
+    @ObservationIgnored private var isLedgerStorageUncertain: Bool
+    @ObservationIgnored private var isRevocationIntentStorageUncertain: Bool
+    @ObservationIgnored private var isAnalyticsWithdrawalInProgress = false
     @ObservationIgnored private var hasObservedSession = false
     @ObservationIgnored private var scheduledSyncTask: Task<Void, Never>?
     @ObservationIgnored private var activeSyncTask: Task<Void, Error>?
@@ -371,13 +408,91 @@ final class ConsentManager {
     @ObservationIgnored private(set) var isAnalyticsSuppressedForAccountTransition = false
     @ObservationIgnored private var analyticsAccountTransitionGeneration: UInt = 0
 
-    init(userDefaults: UserDefaults = .standard) {
-        self.userDefaults = userDefaults
-        if let data = userDefaults.data(forKey: UserDefaultsKeys.legalConsentLedger),
-           let decoded = try? JSONDecoder().decode(LocalLedger.self, from: data) {
-            self.ledger = decoded
-        } else {
-            self.ledger = .empty
+    convenience init() {
+        self.init(ledgerStore: DurableConsentLedgerStore())
+    }
+
+    convenience init(userDefaults: UserDefaults) {
+        self.init(
+            ledgerStore: UserDefaultsConsentLedgerStore(
+                userDefaults: userDefaults
+            )
+        )
+    }
+
+    init(ledgerStore: ConsentLedgerStoring) {
+        self.ledgerStore = ledgerStore
+
+        do {
+            if let data = try ledgerStore.loadLedgerData() {
+                do {
+                    ledger = try JSONDecoder().decode(LocalLedger.self, from: data)
+                    isLedgerStorageUncertain = false
+                } catch {
+                    ledger = .empty
+                    isLedgerStorageUncertain = true
+                    MerianLog.auth.error("Consent ledger decoding failed; all consent gates remain closed.")
+                }
+            } else {
+                ledger = .empty
+                isLedgerStorageUncertain = false
+            }
+        } catch {
+            ledger = .empty
+            isLedgerStorageUncertain = true
+            MerianLog.auth.error(
+                "Consent ledger loading failed; all consent gates remain closed: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            if let data = try ledgerStore.loadAnalyticsRevocationIntentData() {
+                do {
+                    let journal = try JSONDecoder().decode(
+                        AnalyticsRevocationJournal.self,
+                        from: data
+                    )
+                    if journal.formatVersion
+                        == AnalyticsRevocationJournal.currentFormatVersion,
+                       !journal.intents.isEmpty,
+                       journal.intents.allSatisfy({ intent in
+                           intent.event.eventKind == .revoked
+                               && intent.event.provider
+                                   == ConsentPolicy.analyticsProvider
+                       }) {
+                        pendingAnalyticsRevocationJournal = journal
+                        isRevocationIntentStorageUncertain = false
+                    } else {
+                        pendingAnalyticsRevocationJournal = nil
+                        isRevocationIntentStorageUncertain = true
+                    }
+                } catch {
+                    pendingAnalyticsRevocationJournal = nil
+                    isRevocationIntentStorageUncertain = true
+                    MerianLog.auth.error("Analytics withdrawal journal decoding failed; analytics remains disabled.")
+                }
+            } else {
+                pendingAnalyticsRevocationJournal = nil
+                isRevocationIntentStorageUncertain = false
+            }
+        } catch {
+            pendingAnalyticsRevocationJournal = nil
+            isRevocationIntentStorageUncertain = true
+            MerianLog.auth.error(
+                "Analytics withdrawal journal loading failed; analytics remains disabled: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        if !isLedgerStorageUncertain,
+           !isRevocationIntentStorageUncertain,
+           pendingAnalyticsRevocationJournal != nil {
+            do {
+                try recoverPendingAnalyticsRevocation()
+            } catch {
+                MerianLog.auth.error(
+                    "Analytics withdrawal recovery remains pending: \(error.localizedDescription, privacy: .private)"
+                )
+            }
         }
         refreshDerivedState()
     }
@@ -391,15 +506,21 @@ final class ConsentManager {
 
     func confirmAdultAndAcceptCurrentTermsAndGrantGemini(
         analyticsEnabled: Bool
-    ) {
+    ) throws {
+        try ensureLedgerStorageAvailable()
+        if analyticsEnabled {
+            try ensureRevocationIntentStorageAvailable()
+        }
+
         let now = Date()
         let ownerUserId = currentSessionUserId
-        if ledger.activeUserId != ownerUserId {
-            ledger.activeUserId = ownerUserId
+        var candidate = ledgerByApplyingPendingAnalyticsRevocation(to: ledger)
+        if candidate.activeUserId != ownerUserId {
+            candidate.activeUserId = ownerUserId
         }
 
         if currentAdultEligibilityReceipt(ownerUserId: ownerUserId) == nil {
-            ledger.adultEligibilityReceipts.append(AdultEligibilityReceipt(
+            candidate.adultEligibilityReceipts.append(AdultEligibilityReceipt(
                 id: UUID(),
                 ownerUserId: ownerUserId,
                 syncedUserId: nil,
@@ -415,7 +536,7 @@ final class ConsentManager {
         }
 
         if currentTermsReceipt(ownerUserId: ownerUserId) == nil {
-            ledger.termsReceipts.append(TermsAcceptanceReceipt(
+            candidate.termsReceipts.append(TermsAcceptanceReceipt(
                 id: UUID(),
                 ownerUserId: ownerUserId,
                 syncedUserId: nil,
@@ -430,7 +551,7 @@ final class ConsentManager {
         }
 
         if currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind != .granted {
-            ledger.aiConsentEvents.append(AIConsentEvent(
+            candidate.aiConsentEvents.append(AIConsentEvent(
                 id: UUID(),
                 ownerUserId: ownerUserId,
                 syncedUserId: nil,
@@ -447,43 +568,108 @@ final class ConsentManager {
             ))
         }
 
-        appendAnalyticsConsentEventIfNeeded(
+        let analyticsEvent = appendAnalyticsConsentEventIfNeeded(
+            to: &candidate,
             enabled: analyticsEnabled,
             ownerUserId: ownerUserId,
             occurredAt: now
         )
 
-        persistAndRefresh()
+        let persistenceEvent: AnalyticsConsentEvent?
+        if let analyticsEvent {
+            persistenceEvent = analyticsEvent
+        } else if analyticsEnabled,
+                  pendingAnalyticsRevocationJournal != nil {
+            persistenceEvent = Self.currentAnalyticsConsentEvent(
+                ownerUserId: ownerUserId,
+                in: candidate
+            )
+        } else if !analyticsEnabled {
+            persistenceEvent = pendingAnalyticsRevocationEvent(
+                for: ownerUserId
+            )
+        } else {
+            persistenceEvent = nil
+        }
+        if persistenceEvent?.eventKind == .revoked {
+            isAnalyticsWithdrawalInProgress = true
+            refreshDerivedState()
+            applyAnalyticsPermissionToSDK()
+        }
+        try persistConsentChange(
+            candidate,
+            analyticsEvent: persistenceEvent
+        )
         applyAnalyticsPermissionToSDK()
         scheduleSynchronization(createAnonymousSessionIfNeeded: true)
     }
 
-    func setPostHogAnalyticsEnabled(_ enabled: Bool) {
-        let ownerUserId = currentSessionUserId ?? ledger.activeUserId
-        if ledger.activeUserId != ownerUserId {
-            ledger.activeUserId = ownerUserId
+    func setPostHogAnalyticsEnabled(_ enabled: Bool) throws {
+        try ensureLedgerStorageAvailable()
+        if enabled {
+            try ensureRevocationIntentStorageAvailable()
+        } else {
+            // Privacy withdrawal is effective in-process before either durable
+            // boundary is touched.
+            isAnalyticsWithdrawalInProgress = true
+            refreshDerivedState()
+            applyAnalyticsPermissionToSDK()
         }
 
-        guard appendAnalyticsConsentEventIfNeeded(
+        let ownerUserId = currentSessionUserId ?? ledger.activeUserId
+        var candidate = ledgerByApplyingPendingAnalyticsRevocation(to: ledger)
+        if candidate.activeUserId != ownerUserId {
+            candidate.activeUserId = ownerUserId
+        }
+
+        let analyticsEvent = appendAnalyticsConsentEventIfNeeded(
+            to: &candidate,
             enabled: enabled,
             ownerUserId: ownerUserId,
             occurredAt: Date()
-        ) else {
+        )
+
+        let recoveryEvent: AnalyticsConsentEvent?
+        if enabled,
+           analyticsEvent == nil,
+           pendingAnalyticsRevocationJournal != nil {
+            recoveryEvent = Self.currentAnalyticsConsentEvent(
+                ownerUserId: ownerUserId,
+                in: candidate
+            )
+        } else if !enabled,
+           analyticsEvent == nil,
+           let pendingEvent = pendingAnalyticsRevocationEvent(
+               for: ownerUserId
+           ) {
+            recoveryEvent = pendingEvent
+        } else {
+            recoveryEvent = analyticsEvent
+        }
+
+        guard candidate != ledger || recoveryEvent != nil else {
+            isAnalyticsWithdrawalInProgress = false
+            refreshDerivedState()
             applyAnalyticsPermissionToSDK()
             return
         }
 
-        persistAndRefresh()
+        try persistConsentChange(
+            candidate,
+            analyticsEvent: recoveryEvent
+        )
         applyAnalyticsPermissionToSDK()
         scheduleSynchronization(createAnonymousSessionIfNeeded: enabled)
     }
 
-    func withdrawGeminiPermission() {
+    func withdrawGeminiPermission() throws {
         guard hasGrantedCurrentGeminiProcessing else { return }
+        try ensureLedgerStorageAvailable()
 
         let ownerUserId = currentSessionUserId ?? ledger.activeUserId
-        ledger.activeUserId = ownerUserId
-        ledger.aiConsentEvents.append(AIConsentEvent(
+        var candidate = ledger
+        candidate.activeUserId = ownerUserId
+        candidate.aiConsentEvents.append(AIConsentEvent(
             id: UUID(),
             ownerUserId: ownerUserId,
             syncedUserId: nil,
@@ -499,7 +685,7 @@ final class ConsentManager {
             recordedAt: nil
         ))
 
-        persistAndRefresh()
+        try persistLedger(candidate)
         scheduleSynchronization(createAnonymousSessionIfNeeded: false)
     }
 
@@ -577,12 +763,19 @@ final class ConsentManager {
         }
         invalidateSynchronizationWork()
 
+        try rebindPendingAnalyticsRevocationJournal(
+            from: ghostUserId,
+            to: permanentUserId
+        )
         let reboundLedger = Self.rebinding(
-            ledger,
+            ledgerByApplyingPendingAnalyticsRevocation(to: ledger),
             from: ghostUserId,
             to: permanentUserId
         )
         try replaceLedgerWithVerifiedPersistence(reboundLedger)
+        if pendingAnalyticsRevocationJournal != nil {
+            try recoverPendingAnalyticsRevocation()
+        }
         applyAnalyticsPermissionToSDK()
 
         try await synchronize(for: permanentUserId)
@@ -717,16 +910,19 @@ final class ConsentManager {
         generation: UInt
     ) async throws {
         try validateSynchronization(for: userId, generation: generation)
+        if pendingAnalyticsRevocationJournal != nil {
+            try recoverPendingAnalyticsRevocation()
+        }
 
         if ledger.activeUserId == nil,
            ledger.adultEligibilityReceipts.contains(where: { $0.ownerUserId == nil })
                 || ledger.termsReceipts.contains(where: { $0.ownerUserId == nil })
                 || ledger.aiConsentEvents.contains(where: { $0.ownerUserId == nil })
                 || ledger.analyticsConsentEvents.contains(where: { $0.ownerUserId == nil }) {
-            bindUnownedRecords(to: userId)
+            try bindUnownedRecords(to: userId)
         }
 
-        activateLedger(for: userId)
+        try activateLedger(for: userId)
         try await pushPendingRecords(for: userId, generation: generation)
         let remoteState = try await fetchRemoteState(
             for: userId,
@@ -739,32 +935,35 @@ final class ConsentManager {
         )
     }
 
-    private func activateLedger(for userId: UUID) {
+    private func activateLedger(for userId: UUID) throws {
         guard ledger.activeUserId != userId else { return }
-        ledger = Self.activating(ledger, for: userId)
-        persistAndRefresh()
+        let candidate = Self.activating(ledger, for: userId)
+        try persistLedger(candidate)
         // Account restoration remains fail-closed while local actions are
         // pushed and authoritative cloud state is refetched. `merge` applies
         // the resolved permission only after both operations succeed.
     }
 
-    private func bindUnownedRecords(to userId: UUID) {
-        ledger.activeUserId = userId
-        for index in ledger.adultEligibilityReceipts.indices
-        where ledger.adultEligibilityReceipts[index].ownerUserId == nil {
-            ledger.adultEligibilityReceipts[index].ownerUserId = userId
+    private func bindUnownedRecords(to userId: UUID) throws {
+        var candidate = ledgerByApplyingPendingAnalyticsRevocation(to: ledger)
+        candidate.activeUserId = userId
+        for index in candidate.adultEligibilityReceipts.indices
+        where candidate.adultEligibilityReceipts[index].ownerUserId == nil {
+            candidate.adultEligibilityReceipts[index].ownerUserId = userId
         }
-        for index in ledger.termsReceipts.indices where ledger.termsReceipts[index].ownerUserId == nil {
-            ledger.termsReceipts[index].ownerUserId = userId
+        for index in candidate.termsReceipts.indices
+        where candidate.termsReceipts[index].ownerUserId == nil {
+            candidate.termsReceipts[index].ownerUserId = userId
         }
-        for index in ledger.aiConsentEvents.indices where ledger.aiConsentEvents[index].ownerUserId == nil {
-            ledger.aiConsentEvents[index].ownerUserId = userId
+        for index in candidate.aiConsentEvents.indices
+        where candidate.aiConsentEvents[index].ownerUserId == nil {
+            candidate.aiConsentEvents[index].ownerUserId = userId
         }
-        for index in ledger.analyticsConsentEvents.indices
-        where ledger.analyticsConsentEvents[index].ownerUserId == nil {
-            ledger.analyticsConsentEvents[index].ownerUserId = userId
+        for index in candidate.analyticsConsentEvents.indices
+        where candidate.analyticsConsentEvents[index].ownerUserId == nil {
+            candidate.analyticsConsentEvents[index].ownerUserId = userId
         }
-        persistAndRefresh()
+        try persistLedger(candidate)
         applyAnalyticsPermissionToSDK()
     }
 
@@ -783,12 +982,13 @@ final class ConsentManager {
                 generation: generation
             )
             try validateSynchronization(for: userId, generation: generation)
-            if let index = ledger.adultEligibilityReceipts.firstIndex(where: {
+            var candidate = ledger
+            if let index = candidate.adultEligibilityReceipts.firstIndex(where: {
                 $0.id == receipt.id
             }) {
-                ledger.adultEligibilityReceipts[index] = synchronizedReceipt
+                candidate.adultEligibilityReceipts[index] = synchronizedReceipt
             }
-            persistAndRefresh()
+            try persistLedger(candidate)
         }
 
         let termsReceipts = ledger.termsReceipts.filter {
@@ -802,10 +1002,13 @@ final class ConsentManager {
                 generation: generation
             )
             try validateSynchronization(for: userId, generation: generation)
-            if let index = ledger.termsReceipts.firstIndex(where: { $0.id == receipt.id }) {
-                ledger.termsReceipts[index] = synchronizedReceipt
+            var candidate = ledger
+            if let index = candidate.termsReceipts.firstIndex(where: {
+                $0.id == receipt.id
+            }) {
+                candidate.termsReceipts[index] = synchronizedReceipt
             }
-            persistAndRefresh()
+            try persistLedger(candidate)
         }
 
         let events = ledger.aiConsentEvents.filter {
@@ -819,10 +1022,13 @@ final class ConsentManager {
                 generation: generation
             )
             try validateSynchronization(for: userId, generation: generation)
-            if let index = ledger.aiConsentEvents.firstIndex(where: { $0.id == event.id }) {
-                ledger.aiConsentEvents[index] = synchronizedEvent
+            var candidate = ledger
+            if let index = candidate.aiConsentEvents.firstIndex(where: {
+                $0.id == event.id
+            }) {
+                candidate.aiConsentEvents[index] = synchronizedEvent
             }
-            persistAndRefresh()
+            try persistLedger(candidate)
         }
 
         let analyticsEvents = ledger.analyticsConsentEvents.filter {
@@ -836,12 +1042,13 @@ final class ConsentManager {
                 generation: generation
             )
             try validateSynchronization(for: userId, generation: generation)
-            if let index = ledger.analyticsConsentEvents.firstIndex(where: {
+            var candidate = ledger
+            if let index = candidate.analyticsConsentEvents.firstIndex(where: {
                 $0.id == event.id
             }) {
-                ledger.analyticsConsentEvents[index] = synchronizedEvent
+                candidate.analyticsConsentEvents[index] = synchronizedEvent
             }
-            persistAndRefresh()
+            try persistLedger(candidate)
         }
     }
 
@@ -1176,45 +1383,50 @@ final class ConsentManager {
         generation: UInt
     ) throws {
         try validateSynchronization(for: userId, generation: generation)
+        var candidate = ledger
 
         if let receipt = remoteState.adultEligibilityReceipt {
-            if let index = ledger.adultEligibilityReceipts.firstIndex(where: {
+            if let index = candidate.adultEligibilityReceipts.firstIndex(where: {
                 $0.id == receipt.id
             }) {
-                ledger.adultEligibilityReceipts[index] = receipt
+                candidate.adultEligibilityReceipts[index] = receipt
             } else {
-                ledger.adultEligibilityReceipts.append(receipt)
+                candidate.adultEligibilityReceipts.append(receipt)
             }
         }
 
         if let receipt = remoteState.termsReceipt {
-            if let index = ledger.termsReceipts.firstIndex(where: { $0.id == receipt.id }) {
-                ledger.termsReceipts[index] = receipt
+            if let index = candidate.termsReceipts.firstIndex(where: {
+                $0.id == receipt.id
+            }) {
+                candidate.termsReceipts[index] = receipt
             } else {
-                ledger.termsReceipts.append(receipt)
+                candidate.termsReceipts.append(receipt)
             }
         }
 
         if let event = remoteState.aiConsentEvent {
-            if let index = ledger.aiConsentEvents.firstIndex(where: { $0.id == event.id }) {
-                ledger.aiConsentEvents[index] = event
+            if let index = candidate.aiConsentEvents.firstIndex(where: {
+                $0.id == event.id
+            }) {
+                candidate.aiConsentEvents[index] = event
             } else {
-                ledger.aiConsentEvents.append(event)
+                candidate.aiConsentEvents.append(event)
             }
         }
 
         if let event = remoteState.analyticsConsentEvent {
-            if let index = ledger.analyticsConsentEvents.firstIndex(where: {
+            if let index = candidate.analyticsConsentEvents.firstIndex(where: {
                 $0.id == event.id
             }) {
-                ledger.analyticsConsentEvents[index] = event
+                candidate.analyticsConsentEvents[index] = event
             } else {
-                ledger.analyticsConsentEvents.append(event)
+                candidate.analyticsConsentEvents.append(event)
             }
         }
 
-        ledger.activeUserId = userId
-        persistAndRefresh()
+        candidate.activeUserId = userId
+        try persistLedger(candidate)
         applyAnalyticsPermissionToSDK()
     }
 
@@ -1281,7 +1493,17 @@ final class ConsentManager {
     private func currentAnalyticsConsentEvent(
         ownerUserId: UUID?
     ) -> AnalyticsConsentEvent? {
-        let matchingEvents = ledger.analyticsConsentEvents.filter {
+        Self.currentAnalyticsConsentEvent(
+            ownerUserId: ownerUserId,
+            in: ledger
+        )
+    }
+
+    private static func currentAnalyticsConsentEvent(
+        ownerUserId: UUID?,
+        in source: LocalLedger
+    ) -> AnalyticsConsentEvent? {
+        let matchingEvents = source.analyticsConsentEvents.filter {
             $0.ownerUserId == ownerUserId
                 && $0.provider == ConsentPolicy.analyticsProvider
                 && $0.disclosureVersion == ConsentPolicy.analyticsDisclosureVersion
@@ -1307,18 +1529,22 @@ final class ConsentManager {
 
     @discardableResult
     private func appendAnalyticsConsentEventIfNeeded(
+        to candidate: inout LocalLedger,
         enabled: Bool,
         ownerUserId: UUID?,
         occurredAt: Date
-    ) -> Bool {
-        let currentEvent = currentAnalyticsConsentEvent(ownerUserId: ownerUserId)
+    ) -> AnalyticsConsentEvent? {
+        let currentEvent = Self.currentAnalyticsConsentEvent(
+            ownerUserId: ownerUserId,
+            in: candidate
+        )
         let currentlyEnabled = currentEvent?.eventKind == .granted
-        guard currentlyEnabled != enabled else { return false }
+        guard currentlyEnabled != enabled else { return nil }
 
         // No event is needed for the privacy-safe default state.
-        guard enabled || currentEvent != nil else { return false }
+        guard enabled || currentEvent != nil else { return nil }
 
-        ledger.analyticsConsentEvents.append(AnalyticsConsentEvent(
+        let event = AnalyticsConsentEvent(
             id: UUID(),
             ownerUserId: ownerUserId,
             syncedUserId: nil,
@@ -1334,8 +1560,9 @@ final class ConsentManager {
             appVersion: Self.appVersion,
             appBuild: Self.appBuild,
             recordedAt: nil
-        ))
-        return true
+        )
+        candidate.analyticsConsentEvents.append(event)
+        return event
     }
 
     static func rebinding(
@@ -1422,21 +1649,11 @@ final class ConsentManager {
     private func replaceLedgerWithVerifiedPersistence(
         _ candidate: LocalLedger
     ) throws {
-        let data: Data
         do {
-            data = try JSONEncoder().encode(candidate)
+            try persistLedger(candidate)
         } catch {
             throw ConsentHandoffError.ledgerPersistenceFailed
         }
-
-        userDefaults.set(data, forKey: UserDefaultsKeys.legalConsentLedger)
-        guard userDefaults.data(forKey: UserDefaultsKeys.legalConsentLedger)
-            == data else {
-            throw ConsentHandoffError.ledgerPersistenceFailed
-        }
-
-        ledger = candidate
-        refreshDerivedState()
     }
 
     private func invalidateSynchronizationWork() {
@@ -1479,11 +1696,205 @@ final class ConsentManager {
             && currentGeneration == expectedGeneration
     }
 
-    private func persistAndRefresh() {
-        if let data = try? JSONEncoder().encode(ledger) {
-            userDefaults.set(data, forKey: UserDefaultsKeys.legalConsentLedger)
+    private func ensureLedgerStorageAvailable() throws {
+        guard !isLedgerStorageUncertain else {
+            throw ConsentPersistenceError.storedLedgerUnavailable
         }
+    }
+
+    private func ensureRevocationIntentStorageAvailable() throws {
+        guard !isRevocationIntentStorageUncertain else {
+            throw ConsentPersistenceError.revocationIntentInvalid
+        }
+    }
+
+    private func persistLedger(_ candidate: LocalLedger) throws {
+        try ensureLedgerStorageAvailable()
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(candidate)
+        } catch {
+            throw ConsentPersistenceError.encodingFailed
+        }
+        try ledgerStore.saveLedgerData(data)
+        ledger = candidate
         refreshDerivedState()
+    }
+
+    private func persistConsentChange(
+        _ candidate: LocalLedger,
+        analyticsEvent: AnalyticsConsentEvent?
+    ) throws {
+        switch analyticsEvent?.eventKind {
+        case .revoked:
+            guard let analyticsEvent else { return }
+            try persistAnalyticsRevocation(
+                candidate,
+                event: analyticsEvent
+            )
+        case .granted:
+            try ensureRevocationIntentStorageAvailable()
+            try persistLedger(candidate)
+            if pendingAnalyticsRevocationJournal != nil {
+                do {
+                    try clearAnalyticsRevocationJournal()
+                } catch {
+                    isAnalyticsWithdrawalInProgress = true
+                    refreshDerivedState()
+                    throw error
+                }
+            }
+            isAnalyticsWithdrawalInProgress = false
+            refreshDerivedState()
+        case nil:
+            try persistLedger(candidate)
+        }
+    }
+
+    private func persistAnalyticsRevocation(
+        _ candidate: LocalLedger,
+        event: AnalyticsConsentEvent
+    ) throws {
+        if pendingAnalyticsRevocationIntents.contains(where: {
+            $0.event.id == event.id
+        }) {
+            // The write-ahead record was already verified by an earlier
+            // attempt, so retry only the primary ledger boundary.
+        } else {
+            let intent = AnalyticsRevocationIntent(event: event)
+            var journal = pendingAnalyticsRevocationJournal
+                ?? AnalyticsRevocationJournal(intents: [])
+            journal.intents.append(intent)
+            do {
+                try saveAnalyticsRevocationJournal(journal)
+            } catch {
+                // The atomic ledger remains a second independent way to make
+                // the withdrawal durable. Only fail if both boundaries fail.
+                do {
+                    try persistLedger(candidate)
+                    isAnalyticsWithdrawalInProgress = false
+                    refreshDerivedState()
+                    return
+                } catch {
+                    refreshDerivedState()
+                    throw error
+                }
+            }
+        }
+
+        do {
+            try persistLedger(candidate)
+        } catch {
+            // The intent is already durable and is deliberately retained.
+            // It will be replayed on restart or the next retry.
+            refreshDerivedState()
+            throw error
+        }
+
+        do {
+            try clearAnalyticsRevocationJournal()
+        } catch {
+            // Cleanup failure is privacy-safe: the durable ledger contains the
+            // revocation and the retained intent continues to force analytics
+            // off. Recovery will retry deletion on the next launch.
+            MerianLog.auth.error(
+                "Analytics withdrawal journal cleanup remains pending: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+        isAnalyticsWithdrawalInProgress = false
+        refreshDerivedState()
+    }
+
+    private var pendingAnalyticsRevocationIntents: [AnalyticsRevocationIntent] {
+        pendingAnalyticsRevocationJournal?.intents ?? []
+    }
+
+    private func saveAnalyticsRevocationJournal(
+        _ journal: AnalyticsRevocationJournal
+    ) throws {
+        try ensureRevocationIntentStorageAvailable()
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(journal)
+        } catch {
+            throw ConsentPersistenceError.encodingFailed
+        }
+        try ledgerStore.saveAnalyticsRevocationIntentData(data)
+        pendingAnalyticsRevocationJournal = journal
+        isRevocationIntentStorageUncertain = false
+        refreshDerivedState()
+    }
+
+    private func clearAnalyticsRevocationJournal() throws {
+        try ledgerStore.clearAnalyticsRevocationIntentData()
+        pendingAnalyticsRevocationJournal = nil
+        isRevocationIntentStorageUncertain = false
+        refreshDerivedState()
+    }
+
+    private func recoverPendingAnalyticsRevocation() throws {
+        guard pendingAnalyticsRevocationJournal != nil else { return }
+        let candidate = ledgerByApplyingPendingAnalyticsRevocation(to: ledger)
+        try persistLedger(candidate)
+        try clearAnalyticsRevocationJournal()
+        isAnalyticsWithdrawalInProgress = false
+        refreshDerivedState()
+    }
+
+    private func rebindPendingAnalyticsRevocationJournal(
+        from ghostUserId: UUID,
+        to permanentUserId: UUID
+    ) throws {
+        guard var journal = pendingAnalyticsRevocationJournal else { return }
+        var didChange = false
+        for index in journal.intents.indices
+        where journal.intents[index].event.ownerUserId == ghostUserId {
+            journal.intents[index].event.ownerUserId = permanentUserId
+            journal.intents[index].event.syncedUserId =
+                Self.reboundSynchronizationOwner(
+                    journal.intents[index].event.syncedUserId,
+                    from: ghostUserId,
+                    to: permanentUserId
+                )
+            didChange = true
+        }
+        guard didChange else { return }
+        try saveAnalyticsRevocationJournal(journal)
+    }
+
+    private func ledgerByApplyingPendingAnalyticsRevocation(
+        to source: LocalLedger
+    ) -> LocalLedger {
+        guard !pendingAnalyticsRevocationIntents.isEmpty else { return source }
+        var candidate = source
+        for intent in pendingAnalyticsRevocationIntents
+        where !candidate.analyticsConsentEvents.contains(where: {
+            $0.id == intent.event.id
+        }) {
+            candidate.analyticsConsentEvents.append(intent.event)
+        }
+        return candidate
+    }
+
+    private func pendingAnalyticsRevocationEvent(
+        for ownerUserId: UUID?
+    ) -> AnalyticsConsentEvent? {
+        for intent in pendingAnalyticsRevocationIntents.reversed() {
+            let effectiveEvent = ledger.analyticsConsentEvents.first(where: {
+                $0.id == intent.event.id
+            }) ?? intent.event
+            if effectiveEvent.ownerUserId == nil
+                || effectiveEvent.ownerUserId == ownerUserId {
+                return effectiveEvent
+            }
+        }
+        return nil
+    }
+
+    private func pendingAnalyticsRevocationApplies(
+        to ownerUserId: UUID?
+    ) -> Bool {
+        pendingAnalyticsRevocationEvent(for: ownerUserId) != nil
     }
 
     private func refreshDerivedState() {
@@ -1507,8 +1918,13 @@ final class ConsentManager {
         hasAcceptedCurrentTerms = currentTermsReceipt(ownerUserId: ownerUserId) != nil
         hasGrantedCurrentGeminiProcessing =
             currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
-        hasGrantedCurrentPostHogAnalytics =
+        let hasStoredAnalyticsGrant =
             currentAnalyticsConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
+        hasGrantedCurrentPostHogAnalytics = !isLedgerStorageUncertain
+            && !isRevocationIntentStorageUncertain
+            && !isAnalyticsWithdrawalInProgress
+            && !pendingAnalyticsRevocationApplies(to: ownerUserId)
+            && hasStoredAnalyticsGrant
     }
 
     private func applyAnalyticsPermissionToSDK() {
@@ -1524,6 +1940,12 @@ final class ConsentManager {
 
         let shouldEnable = !isAnalyticsSuppressedForGhostHandoff
             && !isAnalyticsSuppressedForAccountTransition
+            && !isLedgerStorageUncertain
+            && !isRevocationIntentStorageUncertain
+            && !isAnalyticsWithdrawalInProgress
+            && !pendingAnalyticsRevocationApplies(
+                to: currentSessionUserId ?? ownerUserId
+            )
             && accountMatches
             && hasGrantedCurrentPostHogAnalytics
         PostHogManager.shared.setConsentGranted(

@@ -93,7 +93,7 @@ enum UITestSeedCoordinator {
               ProcessInfo.processInfo.arguments.contains(requiredConsentArgument) else {
             return
         }
-        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+        try? consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
             analyticsEnabled: false
         )
     }

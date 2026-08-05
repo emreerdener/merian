@@ -37,9 +37,9 @@ import SwiftUI
         }
     }
     
-    func completeOnboarding(analyticsEnabled: Bool) {
+    func completeOnboarding(analyticsEnabled: Bool) throws {
         // Persist the legal action before opening the lifecycle/network gate.
-        consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+        try consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
             analyticsEnabled: analyticsEnabled
         )
         AppTelemetry.trackOnboardingCompleted()

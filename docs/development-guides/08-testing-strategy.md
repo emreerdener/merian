@@ -624,8 +624,17 @@ MerianTests/
   not only no-crash singleton calls. It must prove no setup, identification,
   capture, feature-flag reload, or network request before a current grant and
   after withdrawal/account change. It must also lock every disabled automatic
-  capture mode. The current `reset()`-before-opt-out order does not satisfy this
-  contract.
+  capture mode. The host-scoped transport gate must close before the preserved
+  `reset → optOut → close` sequence so reset-time feature-flag reload is rejected
+  locally.
+- **`ConsentLedgerStore` failure matrix**: Inject ledger read/write, revocation
+  journal read/write/cleanup, and restart failures independently. Onboarding may
+  complete only after a verified atomic ledger write. A failed analytics
+  withdrawal must close the in-memory gate immediately, retain the exact event
+  in the Keychain journal across restart, replay it without changing immutable
+  evidence, and preserve multiple account-owned withdrawals while storage is
+  unavailable. Also test the independent fallback where journal write fails but
+  the atomic ledger succeeds.
 - **Consent lifecycle matrix**: Cover all three final-screen switch
   combinations; no Gemini request without current age plus Terms/Gemini
   evidence; optional analytics grant and withdrawal across devices; offline

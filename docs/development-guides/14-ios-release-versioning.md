@@ -4,7 +4,7 @@ Last updated: August 4, 2026
 
 ## Active Consent Release Hold
 
-`CONSENT-001` through `CONSENT-009` are closed in source. Internal development
+`CONSENT-001` through `CONSENT-010` are closed in source. Internal development
 and TestFlight builds may be archived and distributed for testing under the
 ordinary gates below. Do not nominate the current consent candidate for public
 production or run strict server cutover until the clean hosted exact-SHA iOS
