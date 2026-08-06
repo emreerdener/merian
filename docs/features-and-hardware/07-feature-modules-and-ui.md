@@ -42,14 +42,19 @@ owns native permission delegates such as `LocationPermissionDelegate`.
   inline-linked Terms/data-sharing permission are required. Only the latter two
   enable **Start scanning**. PostHog is the documented analytics provider, but
   its name and an “Optional” suffix are intentionally absent from the UI label.
-- **Root View Handoff (`MerianApp`)**: Driven by the injected
-  onboarding flag plus `ConsentManager.hasCurrentRequiredConsent`. When the user
-  completes Step 4 with current required evidence, SwiftUI rewires the
-  `WindowGroup`, unmounting `OnboardingView` and mapping the camera layers to
-  `CaptureWorkspaceView(appSettings:)`. Missing current evidence routes an
-  existing beta user directly to `.ready`. Because `CaptureWorkspaceView`
-  remains uninitialized until both gates are true, hardware and provider work
-  are shielded from onboarding frames.
+- **Root View Handoff (`MerianApp`)**: `AppRootPresentationPolicy` combines the
+  injected onboarding flag, `ConsentManager.hasCurrentRequiredConsent`, and
+  `ConsentManager.isRestoringRequiredConsent`. When the user completes Step 4
+  with current required evidence, SwiftUI rewires the `WindowGroup`, unmounting
+  `OnboardingView` and mapping the camera layers to
+  `CaptureWorkspaceView(appSettings:)`. A completed user with unresolved
+  account evidence remains on a black, launch-matched restoration surface; a
+  short restore shows no additional chrome, and a progress indicator appears
+  after 350 milliseconds. Only after reconciliation proves evidence absent does
+  the existing user enter `.ready`. Because both `OnboardingView` and
+  `CaptureWorkspaceView` remain uninitialized during restoration, approval
+  controls, hardware, and provider work cannot flash into an indeterminate
+  launch frame.
 
 All tracked implementation findings are closed in source. Internal test builds
 may continue; public production remains held until **iOS Build and Test** and

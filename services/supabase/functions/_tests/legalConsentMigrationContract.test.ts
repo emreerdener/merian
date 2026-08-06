@@ -16,6 +16,10 @@ const causalConsentMigrationUrl = new URL(
   "../../migrations/20260806024844_enforce_causal_consent_streams.sql",
   import.meta.url,
 );
+const providerHeadAuthorityMigrationUrl = new URL(
+  "../../migrations/20260806144105_authorize_consent_from_provider_stream_heads.sql",
+  import.meta.url,
+);
 
 function normalized(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
@@ -226,6 +230,83 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
   );
   assert(!swift.includes('.from("user_ai_consent_events") .insert'));
   assert(!swift.includes('.from("user_analytics_consent_events") .insert'));
+});
+
+Deno.test("consent authorization starts from the all-version provider stream head", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(providerHeadAuthorityMigrationUrl),
+  );
+  const headSelectionStart = sql.indexOf(
+    "SELECT events.event_kind, events.disclosure_version",
+  );
+  const headSelectionEnd = sql.indexOf("LIMIT 1", headSelectionStart);
+  assert(headSelectionStart >= 0 && headSelectionEnd > headSelectionStart);
+  const headSelection = sql.slice(headSelectionStart, headSelectionEnd);
+  const headGrantCheck = sql.indexOf(
+    "IF stream_head_event_kind IS DISTINCT FROM 'granted'",
+    headSelectionEnd,
+  );
+  const rolloutLookup = sql.indexOf(
+    "SELECT config.enforcement_mode",
+    headSelectionEnd,
+  );
+  assert(
+    headGrantCheck > headSelectionEnd && rolloutLookup > headGrantCheck,
+    "Authorization must resolve and deny from the provider head before reading rollout configuration.",
+  );
+
+  for (
+    const fragment of [
+      "INTO stream_head_event_kind, stream_head_disclosure_version",
+      "events.provider = 'google_gemini'",
+      "ORDER BY events.consent_revision DESC",
+      "IF stream_head_event_kind IS DISTINCT FROM 'granted'",
+      "stream_head_disclosure_version = '2026-08-04.1'",
+      "stream_head_disclosure_version = '2026-08-03.1'",
+      "stream_head_disclosure_version = '2026-08-03'",
+      "enforcement_mode <> 'strict_2026_08_04'",
+      "enforcement_mode = 'legacy_compatible'",
+      "Unknown/future disclosure versions fail closed",
+      "REVOKE ALL ON FUNCTION internal.require_current_ai_consent(UUID) FROM PUBLIC, anon, authenticated, service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+  assert(
+    !headSelection.includes("events.disclosure_version ="),
+    "The authoritative provider-head query must not pre-filter a disclosure version.",
+  );
+
+  const postHog = normalized(
+    await Deno.readTextFile(new URL("../_shared/posthog.ts", import.meta.url)),
+  );
+  assertStringIncludes(postHog, '.select("event_kind,disclosure_version")');
+  assertStringIncludes(
+    postHog,
+    '.order("consent_revision", { ascending: false })',
+  );
+  assert(!postHog.includes('.eq("disclosure_version"'));
+
+  const swift = normalized(
+    await Deno.readTextFile(
+      new URL(
+        "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
+        import.meta.url,
+      ),
+    ),
+  );
+  assertStringIncludes(
+    swift,
+    "granted: Self.isAuthoritativeAnalyticsGrant( remoteState.analyticsConsentStreamHead",
+  );
+  assertStringIncludes(
+    swift,
+    "guard let streamHead = currentAIConsentStreamHead(",
+  );
+  assertStringIncludes(
+    swift,
+    "guard let streamHead = currentAnalyticsConsentStreamHead(",
+  );
 });
 
 Deno.test("consent concurrency coverage overlaps both provider conflict orders", async () => {

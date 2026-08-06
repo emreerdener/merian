@@ -65,21 +65,54 @@ remote URLs before network/media frameworks see them. See the
   events retain the parent returned by the server. Fetch-after-error recovery
   also compares every immutable payload field before accepting an existing ID,
   while allowing the server-rebased parent of a revocation. The authoritative
-  fetch
-  includes the all-version stream head so subsequent local actions attach to
-  the actual head. The merge itself performs a
+  fetch includes the all-version stream head so subsequent local actions attach
+  to the actual head. Local Gemini and PostHog permissions also start from that
+  same head: a revocation under any disclosure version closes the gate, and only
+  an exact current-version head grant may authorize the current app. The merge
+  itself performs a
   final synchronous fence over task cancellation, the observed account, the
   Supabase SDK's current session, and the synchronization generation before it
   can mutate or persist the ledger or apply analytics.
   Analytics-consent Realtime owns its subscribed account independently,
   generation-fences stale channels, and retries failures with foreground
   repair. OAuth account replacement closes analytics before session
-  installation and reconciles the SDK's actual session before a current grant
-  may reopen capture. The database quota boundary remains the authoritative
-  provider-dispatch gate.
+  installation and reconciles the SDK's actual session before a
+  current-disclosure grant at the all-version head may reopen capture. The
+  database quota boundary remains the authoritative provider-dispatch gate.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor
   connectivity into continuous foreground retries.
+
+## Required-consent launch restoration
+
+`ConsentManager` exposes launch-restoration state separately from
+`hasCurrentRequiredConsent`. Missing local evidence is not enough to conclude
+that the user must approve again because an authenticated account may restore
+the current adult, Terms, and Gemini records moments later.
+
+| State | Meaning |
+|---|---|
+| `.awaitingInitialSession` | No initial auth result has been observed yet. |
+| `.reconciling(userId:)` | The active account lacks current local evidence and its pending rows plus authoritative remote state are being reconciled. |
+| `.resolved` | The initial session has no further restoration work, or the account reconciliation attempt has completed. |
+
+`isRestoringRequiredConsent` is true only while required consent is missing and
+the enum has not resolved. Current required evidence always wins and makes the
+computed value false. `AppRootPresentationPolicy` in `MerianApp.swift` uses that
+signal to hold a completed user on a launch-matched neutral surface instead of
+mounting the approval screen during an in-flight restore.
+
+The state resolves after an identity-fenced authoritative merge, including a
+merge that proves the evidence absent. It also resolves after a
+non-cancellation sync failure so launch cannot become an indefinite spinner;
+all provider and hardware gates remain closed, and the user is routed to the
+required Ready screen. Cancellation preserves the pending state because an
+account or synchronization generation may be changing. A duplicate auth event
+for the same resolved session does not reopen restoration.
+
+See the
+[Onboarding Flow](../../../../../docs/features-and-hardware/04-onboarding.md#root-presentation-gate)
+for the complete root matrix and UI behavior.
 
 ## RevenueCat contract
 

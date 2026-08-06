@@ -39,8 +39,9 @@ are identified by a persistent Keychain-backed
   history for a named AI provider and disclosure version. Direct client inserts
   are denied; an authenticated causal RPC accepts a grant only from the
   currently observed stream head, while a revocation is accepted and rebased to
-  the locked current head. The monotonic server revision determines provider
-  permission.
+  the locked current head. Authorization first resolves the all-version greatest
+  server revision; any head revocation denies before the head grant's disclosure
+  version and rollout bundle are evaluated.
 - **`user_adult_eligibility_receipts`**: Immutable evidence of the current 18+
   self-attestation, including exact displayed text, method, device action time,
   platform, app version/build, and authoritative server time. No birth date or
@@ -50,7 +51,8 @@ are identified by a persistent Keychain-backed
   grant means analytics is off; owner-only Realtime INSERT events and foreground
   reconciliation propagate accepted changes. A delayed stale grant is rejected
   without insertion; a delayed revocation is rebased and accepted so withdrawal
-  remains deny-wins.
+  remains deny-wins. Both iOS and Edge analytics require the all-version head
+  itself to be a current-version grant.
 
 The additive schema and static migration contracts establish the intended
 database boundary, but do not prove the iOS local-ledger, SDK-shutdown,

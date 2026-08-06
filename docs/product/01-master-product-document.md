@@ -659,8 +659,11 @@ initially-off switches in this order:
 
 Only age confirmation and Terms/Gemini permission enable **Start scanning**.
 Analytics never blocks onboarding or core functionality. Existing beta users
-with the old onboarding flag but without current required evidence route
-directly to this screen without repeating Camera or Location.
+with the old onboarding flag remain on a launch-matched neutral surface while
+the initial session and authoritative account evidence are restored. If that
+resolved account still lacks current required evidence, they route directly to
+this screen without repeating Camera or Location. If restoration supplies the
+evidence, they open the scanner without seeing the approval controls.
 
 Photo-library and notification permissions are requested progressively at the
 point of need. Hardware initialization, provider work, and ordinary
@@ -801,7 +804,10 @@ while that parent remains current; a revocation is accepted and rebased to the
 locked current head. It assigns the monotonic revision used for authorization,
 so a delayed offline grant cannot override a committed revocation and a delayed
 withdrawal cannot leave a newer grant enabled. Device and upload timestamps are
-audit evidence, not conflict-resolution clocks.
+audit evidence, not conflict-resolution clocks. Gemini, Edge PostHog, and iOS
+first select the greatest provider revision across all disclosure versions. A
+head revocation denies immediately; only a head grant may then be checked
+against the current or temporarily allowlisted disclosure bundle.
 
 The main app now has a source-controlled privacy manifest declaring the reviewed
 data categories, no tracking, and approved reasons for its current
@@ -1071,9 +1077,11 @@ purpose-bound, and reviewed for accidental observation, location, or account
 leakage.
 
 Production requires an explicit current account grant before SDK configuration,
-identity, capture, or network activity, and zero such activity after withdrawal
-or account change. Those lifecycle and causal-ordering controls are closed in
-source but still require hosted exact-SHA proof; see the
+identity, capture, or network activity. That grant must itself be the
+all-version provider head; an older-disclosure head revocation remains off.
+There must be zero such activity after withdrawal or account change. Those
+lifecycle and causal-ordering controls are closed in source but still require
+hosted exact-SHA proof; see the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 Cost and usage truth lives in backend ledgers and SQL reporting rather than a
@@ -1096,23 +1104,27 @@ percentage.
 Each release should exercise at minimum:
 
 1. New install through the four-step onboarding flow.
-2. Anonymous still scan, queued acceptance, identification, and Insight.
-3. Offline submission, relaunch, and later synchronization.
-4. Online complimentary verification, three durable Pro results, fourth-scan
+2. Completed-account cold launch with the local consent ledger absent: the
+   neutral restoration surface must proceed directly to the scanner when the
+   account restores current evidence, and to Ready only when evidence resolves
+   absent. The approval screen must not flash during either pending path.
+3. Anonymous still scan, queued acceptance, identification, and Insight.
+4. Offline submission, relaunch, and later synchronization.
+5. Online complimentary verification, three durable Pro results, fourth-scan
    Flash fallback, third-result persistence, stale-response rejection, and
    offline complimentary locking.
-5. Paid Pro activation/restoration, purchase during an in-flight complimentary
+6. Paid Pro activation/restoration, purchase during an in-flight complimentary
    scan, and paid-only badges.
-6. Short video and audio limits.
-7. Image import with and without EXIF context.
-8. Automatic photo/video Photos saves with the preference on and off, plus
+7. Short video and audio limits.
+8. Image import with and without EXIF context.
+9. Automatic photo/video Photos saves with the preference on and off, plus
    video-only, mixed, local, cloud, single, and batch explicit Downloads.
-9. Open, obscured, and private public projections.
-10. Explore post, report, block, and moderator handling.
-11. Field-trip assignment and goal progress.
-12. Individual scan deletion and account deletion.
-13. Personal and public export generation.
-14. Thermal, background, constrained-network, and low-storage behavior.
+10. Open, obscured, and private public projections.
+11. Explore post, report, block, and moderator handling.
+12. Field-trip assignment and goal progress.
+13. Individual scan deletion and account deletion.
+14. Personal and public export generation.
+15. Thermal, background, constrained-network, and low-storage behavior.
 
 Apple Watch capture should not enter the release-critical "complete" set until
 the phone receiver and end-to-end tests exist.

@@ -304,6 +304,20 @@ VALUES
         pg_catalog.NOW(),
         pg_catalog.NOW(),
         FALSE
+    ),
+    (
+        '00000000-0000-0000-0000-000000000000',
+        '00000000-0000-4000-8000-00000000e103',
+        'authenticated',
+        'authenticated',
+        'legal-consent-upgrade@example.invalid',
+        pg_catalog.NOW(),
+        pg_catalog.NOW(),
+        '{"provider":"email","providers":["email"]}',
+        '{}'::JSONB,
+        pg_catalog.NOW(),
+        pg_catalog.NOW(),
+        FALSE
     );
 
 INSERT INTO public.users (
@@ -330,6 +344,15 @@ VALUES
         'legal-consent-other@example.invalid',
         'legal_consent_other',
         'Legal Consent Other',
+        'alias',
+        'free',
+        pg_catalog.NOW()
+    ),
+    (
+        '00000000-0000-4000-8000-00000000e103',
+        'legal-consent-upgrade@example.invalid',
+        'legal_consent_upgrade',
+        'Legal Consent Upgrade',
         'alias',
         'free',
         pg_catalog.NOW()
@@ -1054,6 +1077,205 @@ BEGIN
             '00000000-0000-4000-8000-00000000e101'
         );
         RAISE EXCEPTION 'stale offline AI grant reopened provider access';
+    EXCEPTION
+        WHEN SQLSTATE 'P0001' THEN
+            IF SQLERRM <> 'ai_consent_required' THEN
+                RAISE;
+            END IF;
+    END;
+END;
+$test$;
+
+-- A queued withdrawal can survive an app upgrade with its original disclosure
+-- version. It must still close the account/provider stream after a newer-
+-- disclosure grant and must never be hidden by a version-filtered read.
+INSERT INTO public.user_adult_eligibility_receipts (
+    id,
+    user_id,
+    policy_version,
+    confirmed_at,
+    confirmation_method,
+    confirmation_text,
+    platform,
+    app_version,
+    app_build
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000e140',
+    '00000000-0000-4000-8000-00000000e103',
+    '2026-08-03',
+    pg_catalog.NOW(),
+    'self_attestation',
+    'I confirm I am 18 or older.',
+    'ios',
+    '1.0.3',
+    '275'
+);
+
+INSERT INTO public.user_terms_acceptance_receipts (
+    id,
+    user_id,
+    terms_version,
+    accepted_at,
+    acceptance_text,
+    platform,
+    app_version,
+    app_build
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000e141',
+    '00000000-0000-4000-8000-00000000e103',
+    '2026-08-03',
+    pg_catalog.NOW(),
+    'I accept the terms and allow this data sharing.',
+    'ios',
+    '1.0.3',
+    '275'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.SET_CONFIG(
+    'request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-00000000e103","role":"authenticated"}',
+    TRUE
+);
+
+SELECT *
+FROM public.append_user_ai_consent_event(
+    '00000000-0000-4000-8000-00000000e142',
+    '2026-08-03.1',
+    'granted',
+    '2026-08-05T10:00:00Z'::TIMESTAMPTZ,
+    'Prior TestFlight Google Gemini disclosure.',
+    'I allow Google Gemini processing.',
+    'ios',
+    '1.0.3',
+    '274',
+    NULL
+);
+
+SELECT *
+FROM public.append_user_analytics_consent_event(
+    '00000000-0000-4000-8000-00000000e143',
+    '2026-08-03',
+    'granted',
+    '2026-08-05T10:00:00Z'::TIMESTAMPTZ,
+    'Prior TestFlight analytics disclosure.',
+    'Share usage and diagnostics to help improve Naturebook.',
+    'ios',
+    '1.0.3',
+    '274',
+    NULL
+);
+
+SELECT *
+FROM public.append_user_ai_consent_event(
+    '00000000-0000-4000-8000-00000000e144',
+    '2026-08-04.1',
+    'granted',
+    '2026-08-05T12:00:00Z'::TIMESTAMPTZ,
+    'Naturebook sends observation data to Google Gemini for AI-powered identification.',
+    'I accept the terms and allow this data sharing.',
+    'ios',
+    '1.0.3',
+    '275',
+    '00000000-0000-4000-8000-00000000e142'
+);
+
+SELECT *
+FROM public.append_user_analytics_consent_event(
+    '00000000-0000-4000-8000-00000000e145',
+    '2026-08-04',
+    'granted',
+    '2026-08-05T12:00:00Z'::TIMESTAMPTZ,
+    'Share usage and diagnostics to help improve Naturebook.',
+    'Share usage and diagnostics to help improve Naturebook.',
+    'ios',
+    '1.0.3',
+    '275',
+    '00000000-0000-4000-8000-00000000e143'
+);
+
+SELECT *
+FROM public.append_user_ai_consent_event(
+    '00000000-0000-4000-8000-00000000e146',
+    '2026-08-03.1',
+    'revoked',
+    '2026-08-05T11:00:00Z'::TIMESTAMPTZ,
+    'Prior TestFlight Google Gemini disclosure.',
+    'A prior app queued this withdrawal before upgrading.',
+    'ios',
+    '1.0.3',
+    '274',
+    -- This was the head observed before the app upgrade. The RPC must accept
+    -- the explicit withdrawal and rebase it over the newer current grant.
+    '00000000-0000-4000-8000-00000000e142'
+);
+
+SELECT *
+FROM public.append_user_analytics_consent_event(
+    '00000000-0000-4000-8000-00000000e147',
+    '2026-08-03',
+    'revoked',
+    '2026-08-05T11:00:00Z'::TIMESTAMPTZ,
+    'Prior TestFlight analytics disclosure.',
+    'A prior app queued this analytics withdrawal before upgrading.',
+    'ios',
+    '1.0.3',
+    '274',
+    -- Same stale-parent upgrade sequence for the analytics stream.
+    '00000000-0000-4000-8000-00000000e143'
+);
+RESET ROLE;
+
+DO $test$
+DECLARE
+    ai_head_kind TEXT;
+    ai_head_version TEXT;
+    ai_head_parent UUID;
+    analytics_head_kind TEXT;
+    analytics_head_version TEXT;
+    analytics_head_parent UUID;
+BEGIN
+    SELECT
+        events.event_kind,
+        events.disclosure_version,
+        events.causal_parent_id
+    INTO STRICT ai_head_kind, ai_head_version, ai_head_parent
+    FROM public.user_ai_consent_events AS events
+    WHERE events.user_id = '00000000-0000-4000-8000-00000000e103'
+      AND events.provider = 'google_gemini'
+    ORDER BY events.consent_revision DESC
+    LIMIT 1;
+
+    SELECT
+        events.event_kind,
+        events.disclosure_version,
+        events.causal_parent_id
+    INTO STRICT
+        analytics_head_kind,
+        analytics_head_version,
+        analytics_head_parent
+    FROM public.user_analytics_consent_events AS events
+    WHERE events.user_id = '00000000-0000-4000-8000-00000000e103'
+      AND events.provider = 'posthog'
+    ORDER BY events.consent_revision DESC
+    LIMIT 1;
+
+    IF ai_head_kind <> 'revoked'
+       OR ai_head_version <> '2026-08-03.1'
+       OR ai_head_parent <> '00000000-0000-4000-8000-00000000e144'
+       OR analytics_head_kind <> 'revoked'
+       OR analytics_head_version <> '2026-08-03'
+       OR analytics_head_parent <> '00000000-0000-4000-8000-00000000e145' THEN
+        RAISE EXCEPTION 'cross-version withdrawals were not rebased as provider stream heads';
+    END IF;
+
+    BEGIN
+        PERFORM internal.require_current_ai_consent(
+            '00000000-0000-4000-8000-00000000e103'
+        );
+        RAISE EXCEPTION 'an older-disclosure AI withdrawal was ignored';
     EXCEPTION
         WHEN SQLSTATE 'P0001' THEN
             IF SQLERRM <> 'ai_consent_required' THEN

@@ -530,7 +530,8 @@ final class SupabaseManagerTests: XCTestCase {
                 termsReceipt: nil,
                 aiConsentEvent: remoteRevocation,
                 analyticsConsentEvent: nil,
-                aiConsentStreamHead: remoteRevocation
+                aiConsentStreamHead: remoteRevocation,
+                analyticsConsentStreamHead: nil
             ),
             for: ownerUserId,
             generation: 1
@@ -599,6 +600,7 @@ final class SupabaseManagerTests: XCTestCase {
                 termsReceipt: nil,
                 aiConsentEvent: nil,
                 analyticsConsentEvent: remoteRevocation,
+                aiConsentStreamHead: nil,
                 analyticsConsentStreamHead: remoteRevocation
             ),
             for: ownerUserId,
@@ -613,6 +615,127 @@ final class SupabaseManagerTests: XCTestCase {
         restarted.observeSession(userId: ownerUserId)
         XCTAssertFalse(restarted.hasGrantedCurrentPostHogAnalytics)
         XCTAssertEqual(restarted.pendingCloudRecordCount, 0)
+    }
+
+    func testOlderDisclosureAIRevocationAtStreamHeadClosesCurrentGrant() throws {
+        let ownerUserId = UUID()
+        let currentGrant = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_100),
+            consentRevision: 60
+        )
+        let olderDisclosureRevocation = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            disclosureVersion: "2026-08-03.1",
+            eventKind: .revoked,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_200),
+            causalParentId: currentGrant.id,
+            consentRevision: 61
+        )
+        let suiteName = "merian.tests.cross-version-ai-consent.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsConsentLedgerStore(userDefaults: userDefaults)
+        try store.saveLedgerData(JSONEncoder().encode(ConsentManager.LocalLedger(
+            activeUserId: ownerUserId,
+            termsReceipts: [],
+            aiConsentEvents: [currentGrant],
+            adultEligibilityReceipts: [],
+            analyticsConsentEvents: []
+        )))
+
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        XCTAssertTrue(manager.hasGrantedCurrentGeminiProcessing)
+        manager.observeSession(userId: ownerUserId)
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: currentGrant,
+                analyticsConsentEvent: nil,
+                aiConsentStreamHead: olderDisclosureRevocation,
+                analyticsConsentStreamHead: nil
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertFalse(manager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertEqual(manager.pendingCloudRecordCount, 0)
+
+        let restarted = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        XCTAssertFalse(restarted.hasGrantedCurrentGeminiProcessing)
+    }
+
+    func testOlderDisclosureAnalyticsRevocationAtStreamHeadClosesCurrentGrant() throws {
+        let ownerUserId = UUID()
+        let currentGrant = makeAnalyticsConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_100),
+            consentRevision: 70
+        )
+        let olderDisclosureRevocation = makeAnalyticsConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            disclosureVersion: "2026-08-03",
+            eventKind: .revoked,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_200),
+            causalParentId: currentGrant.id,
+            consentRevision: 71
+        )
+        let suiteName = "merian.tests.cross-version-analytics-consent.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsConsentLedgerStore(userDefaults: userDefaults)
+        try store.saveLedgerData(JSONEncoder().encode(ConsentManager.LocalLedger(
+            activeUserId: ownerUserId,
+            termsReceipts: [],
+            aiConsentEvents: [],
+            adultEligibilityReceipts: [],
+            analyticsConsentEvents: [currentGrant]
+        )))
+
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        XCTAssertTrue(manager.hasGrantedCurrentPostHogAnalytics)
+        manager.observeSession(userId: ownerUserId)
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: nil,
+                analyticsConsentEvent: currentGrant,
+                aiConsentStreamHead: nil,
+                analyticsConsentStreamHead: olderDisclosureRevocation
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertEqual(
+            manager.analyticsCloudAuthorityState,
+            .resolvedRemote(userId: ownerUserId, granted: false)
+        )
+        XCTAssertFalse(manager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(manager.pendingCloudRecordCount, 0)
+
+        let restarted = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        XCTAssertFalse(restarted.hasGrantedCurrentPostHogAnalytics)
     }
 
     func testGhostHandoffClearsQueueOnlyAfterServerAndLocalCompletion() async throws {
@@ -843,6 +966,7 @@ final class SupabaseManagerTests: XCTestCase {
     private func makeAIConsentEvent(
         ownerUserId: UUID,
         syncedUserId: UUID?,
+        disclosureVersion: String = ConsentPolicy.geminiDisclosureVersion,
         eventKind: ConsentManager.AIConsentEventKind = .granted,
         recordedAt: Date?,
         causalParentId: UUID? = nil,
@@ -855,7 +979,7 @@ final class SupabaseManagerTests: XCTestCase {
             ownerUserId: ownerUserId,
             syncedUserId: syncedUserId,
             provider: ConsentPolicy.geminiProvider,
-            disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
+            disclosureVersion: disclosureVersion,
             eventKind: eventKind,
             occurredAt: Date(timeIntervalSince1970: 1_785_999_900),
             disclosureText: ConsentPolicy.geminiDisclosureText,
@@ -876,6 +1000,7 @@ final class SupabaseManagerTests: XCTestCase {
     private func makeAnalyticsConsentEvent(
         ownerUserId: UUID,
         syncedUserId: UUID?,
+        disclosureVersion: String = ConsentPolicy.analyticsDisclosureVersion,
         eventKind: ConsentManager.AnalyticsConsentEventKind,
         recordedAt: Date?,
         causalParentId: UUID? = nil,
@@ -888,7 +1013,7 @@ final class SupabaseManagerTests: XCTestCase {
             ownerUserId: ownerUserId,
             syncedUserId: syncedUserId,
             provider: ConsentPolicy.analyticsProvider,
-            disclosureVersion: ConsentPolicy.analyticsDisclosureVersion,
+            disclosureVersion: disclosureVersion,
             eventKind: eventKind,
             occurredAt: Date(timeIntervalSince1970: 1_785_999_900),
             disclosureText: ConsentPolicy.analyticsDisclosureText,

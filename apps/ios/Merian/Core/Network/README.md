@@ -411,6 +411,13 @@ Terms, Gemini, and analytics row, fetches the account's authoritative state,
 and only then merges. Returning to a previously used account therefore flushes
 an offline revocation before remote state can be applied.
 
+The remote read retains current-disclosure rows as evidence but separately
+fetches each provider's all-version greatest `consentRevision`. The final merge
+uses that provider-wide head—not the version-filtered row—as permission
+authority and as the causal parent for the next local action. A delayed
+revocation created under older disclosure copy therefore closes Gemini and
+PostHog even when a current-version grant is also present locally.
+
 Every network await rechecks task cancellation, the observed account, the
 Supabase SDK's synchronous `auth.currentSession` user, and the synchronization
 generation. The final merge repeats that complete check inside the mutation

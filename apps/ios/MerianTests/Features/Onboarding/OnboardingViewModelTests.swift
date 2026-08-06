@@ -39,6 +39,63 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentStep, .welcome, "ViewModel should strictly start at the .welcome step on cold boot.")
         XCTAssertFalse(viewModel.hasCompletedOnboarding, "AppStorage bypass flag should explicitly be false initially.")
     }
+
+    func testMissingConsentWaitsForInitialSessionBeforePresentation() {
+        XCTAssertEqual(
+            consentManager.requiredConsentRestorationState,
+            .awaitingInitialSession
+        )
+        XCTAssertTrue(consentManager.isRestoringRequiredConsent)
+
+        consentManager.observeSession(userId: nil)
+
+        XCTAssertEqual(consentManager.requiredConsentRestorationState, .resolved)
+        XCTAssertFalse(consentManager.isRestoringRequiredConsent)
+    }
+
+    func testMissingAccountConsentWaitsUntilAuthoritativeMergeCompletes() throws {
+        let ownerUserId = UUID()
+        let store = FaultInjectingConsentLedgerStore()
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { _, _ in }
+        )
+
+        manager.observeSession(userId: ownerUserId)
+
+        XCTAssertEqual(
+            manager.requiredConsentRestorationState,
+            .reconciling(userId: ownerUserId)
+        )
+        XCTAssertTrue(manager.isRestoringRequiredConsent)
+
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: nil,
+                analyticsConsentEvent: nil,
+                aiConsentStreamHead: nil,
+                analyticsConsentStreamHead: nil
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertEqual(manager.requiredConsentRestorationState, .resolved)
+        XCTAssertFalse(manager.isRestoringRequiredConsent)
+        XCTAssertFalse(manager.hasCurrentRequiredConsent)
+
+        manager.observeSession(userId: ownerUserId)
+
+        XCTAssertEqual(
+            manager.requiredConsentRestorationState,
+            .resolved,
+            "A duplicate auth event must not put a resolved account back behind the launch gate."
+        )
+        XCTAssertFalse(manager.isRestoringRequiredConsent)
+    }
     
     func testAdvanceStepProgression() {
         // Initial boundary is welcome
@@ -664,7 +721,9 @@ final class OnboardingViewModelTests: XCTestCase {
                     adultEligibilityReceipt: nil,
                     termsReceipt: nil,
                     aiConsentEvent: nil,
-                    analyticsConsentEvent: nil
+                    analyticsConsentEvent: nil,
+                    aiConsentStreamHead: nil,
+                    analyticsConsentStreamHead: nil
                 ),
                 for: originalUserId,
                 generation: 0
@@ -733,7 +792,9 @@ final class OnboardingViewModelTests: XCTestCase {
                 adultEligibilityReceipt: nil,
                 termsReceipt: nil,
                 aiConsentEvent: nil,
-                analyticsConsentEvent: remoteRevocation
+                analyticsConsentEvent: remoteRevocation,
+                aiConsentStreamHead: nil,
+                analyticsConsentStreamHead: remoteRevocation
             ),
             for: ownerUserId,
             generation: 1
@@ -800,7 +861,9 @@ final class OnboardingViewModelTests: XCTestCase {
                 adultEligibilityReceipt: nil,
                 termsReceipt: nil,
                 aiConsentEvent: nil,
-                analyticsConsentEvent: nil
+                analyticsConsentEvent: nil,
+                aiConsentStreamHead: nil,
+                analyticsConsentStreamHead: nil
             ),
             for: ownerUserId,
             generation: 1
@@ -847,7 +910,9 @@ final class OnboardingViewModelTests: XCTestCase {
                 adultEligibilityReceipt: nil,
                 termsReceipt: nil,
                 aiConsentEvent: nil,
-                analyticsConsentEvent: remoteGrant
+                analyticsConsentEvent: remoteGrant,
+                aiConsentStreamHead: nil,
+                analyticsConsentStreamHead: remoteGrant
             ),
             for: ownerUserId,
             generation: 1
@@ -903,7 +968,9 @@ final class OnboardingViewModelTests: XCTestCase {
                     adultEligibilityReceipt: nil,
                     termsReceipt: nil,
                     aiConsentEvent: nil,
-                    analyticsConsentEvent: localGrant
+                    analyticsConsentEvent: localGrant,
+                    aiConsentStreamHead: nil,
+                    analyticsConsentStreamHead: localGrant
                 ),
                 for: ownerUserId,
                 generation: 1

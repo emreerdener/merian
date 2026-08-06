@@ -37,6 +37,25 @@ enum AppLaunchPresentationPolicy {
     }
 }
 
+enum AppRootPresentation: Equatable {
+    case onboarding
+    case restoringConsent
+    case workspace
+}
+
+enum AppRootPresentationPolicy {
+    static func presentation(
+        hasCompletedOnboarding: Bool,
+        hasCurrentRequiredConsent: Bool,
+        isRestoringRequiredConsent: Bool
+    ) -> AppRootPresentation {
+        guard hasCompletedOnboarding else { return .onboarding }
+        if hasCurrentRequiredConsent { return .workspace }
+        if isRestoringRequiredConsent { return .restoringConsent }
+        return .onboarding
+    }
+}
+
 private struct StartupStoreStateKey: EnvironmentKey {
     static let defaultValue: StartupStoreState = .normal
 }
@@ -531,6 +550,32 @@ struct StartupRecoveryNoticeView: View {
         #else
         return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
         #endif
+    }
+}
+
+private struct ConsentRestorationView: View {
+    @State private var showsProgress = false
+
+    var body: some View {
+        ZStack {
+            // Match LaunchScreen.storyboard so quick account restoration does
+            // not introduce another transient surface during cold launch.
+            Color.black.ignoresSafeArea()
+
+            if showsProgress {
+                ProgressView()
+                    .tint(.white.opacity(0.7))
+                    .accessibilityLabel("Restoring your choices")
+            }
+        }
+        .task {
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+                showsProgress = true
+            } catch {
+                // The restoration view disappeared before feedback was needed.
+            }
+        }
     }
 }
 
@@ -1242,13 +1287,19 @@ struct MerianApp: App {
             Group {
                 if let container {
                     Group {
-                        if appSettings.hasCompletedOnboarding
-                            && consentManager.hasCurrentRequiredConsent {
+                        switch AppRootPresentationPolicy.presentation(
+                            hasCompletedOnboarding: appSettings.hasCompletedOnboarding,
+                            hasCurrentRequiredConsent: consentManager.hasCurrentRequiredConsent,
+                            isRestoringRequiredConsent: consentManager.isRestoringRequiredConsent
+                        ) {
+                        case .workspace:
                             CaptureWorkspaceView(
                                 appSettings: appSettings,
                                 opensExploreOnFreshLaunch: shouldOpenExploreOnFreshLaunch
                             )
-                        } else {
+                        case .restoringConsent:
+                            ConsentRestorationView()
+                        case .onboarding:
                             OnboardingView()
                         }
                     }

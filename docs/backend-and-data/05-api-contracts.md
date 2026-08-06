@@ -53,8 +53,11 @@ Parser failures use stable public codes:
 Provider-backed routes additionally return HTTP `403` with code
 `ai_consent_required` when the authenticated account lacks the current 18+
 self-attestation, lacks the current Terms receipt, lacks the current Google
-Gemini grant, or resolves a revoked event at the greatest accepted consent
-revision. During the bounded replacement build window the server accepts only
+Gemini grant, or resolves a revoked all-version provider head at the greatest
+accepted consent revision. The head is selected before disclosure compatibility,
+so a withdrawal created under an older disclosure cannot be hidden by a prior
+current-version grant. During the bounded replacement build window the server
+accepts only
 an explicitly allowlisted complete beta bundle; after owner-only strict
 cutover, only adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini
 disclosure `2026-08-04.1` pass. This failure occurs at the common database quota
@@ -161,10 +164,11 @@ client-transport calls; CI enumerates those adapter modules and verifies each
 call receives a deadline-bound `Request`.
 
 Telemetry follows the same rule even though it is best-effort. PostHog capture
-first resolves the account's latest immutable analytics grant or revocation and
-fails closed when permission is absent or cannot be resolved. A permitted
-capture has a 2.5-second deadline. A timeout or provider diagnostic is logged
-privately and does not become a raw public API error.
+first resolves the account/provider greatest `consent_revision` without a
+disclosure-version filter. A missing head or head revocation fails closed; only
+a head grant carrying the current analytics disclosure permits delivery. A
+permitted capture has a 2.5-second deadline. A timeout or provider diagnostic is
+logged privately and does not become a raw public API error.
 
 ## Deno `/field-trips` Edge Node
 

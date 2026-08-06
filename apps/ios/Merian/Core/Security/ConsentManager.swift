@@ -103,6 +103,14 @@ final class ConsentManager {
         }
     }
 
+    /// Prevents a completed user from being routed through the approval screen
+    /// while the restored account's required consent is still being fetched.
+    enum RequiredConsentRestorationState: Equatable {
+        case awaitingInitialSession
+        case reconciling(userId: UUID)
+        case resolved
+    }
+
     private enum LocalLedgerCodingKeys: String, CodingKey {
         case activeUserId
         case termsReceipts
@@ -381,8 +389,8 @@ final class ConsentManager {
             termsReceipt: TermsAcceptanceReceipt?,
             aiConsentEvent: AIConsentEvent?,
             analyticsConsentEvent: AnalyticsConsentEvent?,
-            aiConsentStreamHead: AIConsentEvent? = nil,
-            analyticsConsentStreamHead: AnalyticsConsentEvent? = nil
+            aiConsentStreamHead: AIConsentEvent?,
+            analyticsConsentStreamHead: AnalyticsConsentEvent?
         ) {
             self.adultEligibilityReceipt = adultEligibilityReceipt
             self.termsReceipt = termsReceipt
@@ -400,6 +408,8 @@ final class ConsentManager {
     private(set) var hasAcceptedCurrentTerms = false
     private(set) var hasGrantedCurrentGeminiProcessing = false
     private(set) var hasGrantedCurrentPostHogAnalytics = false
+    private(set) var requiredConsentRestorationState:
+        RequiredConsentRestorationState = .awaitingInitialSession
 
     var hasCurrentRequiredConsent: Bool {
         let accountMatches = currentSessionUserId == nil
@@ -409,6 +419,14 @@ final class ConsentManager {
             && hasConfirmedCurrentAdultEligibility
             && hasAcceptedCurrentTerms
             && hasGrantedCurrentGeminiProcessing
+    }
+
+    var isRestoringRequiredConsent: Bool {
+        guard !hasCurrentRequiredConsent else { return false }
+        if case .resolved = requiredConsentRestorationState {
+            return false
+        }
+        return true
     }
 
     var pendingCloudRecordCount: Int {
@@ -801,6 +819,15 @@ final class ConsentManager {
         hasObservedSession = true
         currentSessionUserId = userId
         refreshDerivedState()
+        if let userId, !hasCurrentRequiredConsent {
+            let alreadyResolvedThisSession = previousUserId == userId
+                && requiredConsentRestorationState == .resolved
+            if !alreadyResolvedThisSession {
+                requiredConsentRestorationState = .reconciling(userId: userId)
+            }
+        } else {
+            requiredConsentRestorationState = .resolved
+        }
         applyAnalyticsPermissionToSDK()
         ensureAnalyticsConsentUpdates(for: userId)
 
@@ -966,7 +993,15 @@ final class ConsentManager {
                 await SupabaseManager.shared.initializeGhostSession()
             }
             guard !Task.isCancelled else { return }
-            try? await self.synchronizeWithCurrentSession()
+            do {
+                try await self.synchronizeWithCurrentSession()
+            } catch is CancellationError {
+                return
+            } catch {
+                if let userId = self.currentSessionUserId {
+                    self.resolveRequiredConsentRestorationIfNeeded(for: userId)
+                }
+            }
         }
     }
 
@@ -1004,6 +1039,14 @@ final class ConsentManager {
                 activeSyncUserId = nil
                 activeSyncGeneration = nil
             }
+        } catch is CancellationError {
+            if activeSyncUserId == userId,
+               activeSyncGeneration == generation {
+                activeSyncTask = nil
+                activeSyncUserId = nil
+                activeSyncGeneration = nil
+            }
+            throw CancellationError()
         } catch {
             if activeSyncUserId == userId,
                activeSyncGeneration == generation {
@@ -1011,6 +1054,7 @@ final class ConsentManager {
                 activeSyncUserId = nil
                 activeSyncGeneration = nil
             }
+            resolveRequiredConsentRestorationIfNeeded(for: userId)
             throw error
         }
     }
@@ -1633,11 +1677,22 @@ final class ConsentManager {
         analyticsCloudAuthorityState = .resolvedRemote(
             userId: userId,
             granted: Self.isAuthoritativeAnalyticsGrant(
-                remoteState.analyticsConsentEvent,
+                remoteState.analyticsConsentStreamHead,
                 for: userId
             )
         )
         applyAnalyticsPermissionToSDK()
+        resolveRequiredConsentRestorationIfNeeded(for: userId)
+    }
+
+    private func resolveRequiredConsentRestorationIfNeeded(for userId: UUID) {
+        guard case let .reconciling(expectedUserId) =
+                requiredConsentRestorationState,
+              expectedUserId == userId,
+              currentSessionUserId == userId else {
+            return
+        }
+        requiredConsentRestorationState = .resolved
     }
 
     private func requireAuthoritativeAnalyticsRefresh(for userId: UUID) {
@@ -1703,23 +1758,16 @@ final class ConsentManager {
         ownerUserId: UUID?,
         in source: LocalLedger
     ) -> AIConsentEvent? {
-        let matchingEvents = source.aiConsentEvents.filter {
-            $0.ownerUserId == ownerUserId
-                && $0.provider == ConsentPolicy.geminiProvider
-                && $0.disclosureVersion == ConsentPolicy.geminiDisclosureVersion
-                && !isSuperseded($0)
+        // Resolve the provider-wide head before checking its disclosure. A
+        // prior-version revocation may be the newest accepted user action.
+        guard let streamHead = currentAIConsentStreamHead(
+            ownerUserId: ownerUserId,
+            in: source
+        ), streamHead.disclosureVersion
+            == ConsentPolicy.geminiDisclosureVersion else {
+            return nil
         }
-
-        // A newly appended device action is authoritative for the local gate
-        // until the server assigns its ordering timestamp. This keeps an
-        // offline withdrawal immediate even if the device clock moves back.
-        if let pendingEvent = matchingEvents.last(where: {
-            $0.syncedUserId == nil || $0.syncedUserId != $0.ownerUserId
-        }) {
-            return pendingEvent
-        }
-
-        return matchingEvents.max(by: aiConsentEventPrecedes)
+        return streamHead
     }
 
     private func currentAnalyticsConsentEvent(
@@ -1735,22 +1783,16 @@ final class ConsentManager {
         ownerUserId: UUID?,
         in source: LocalLedger
     ) -> AnalyticsConsentEvent? {
-        let matchingEvents = source.analyticsConsentEvents.filter {
-            $0.ownerUserId == ownerUserId
-                && $0.provider == ConsentPolicy.analyticsProvider
-                && $0.disclosureVersion == ConsentPolicy.analyticsDisclosureVersion
-                && !isSuperseded($0)
+        // Only the all-version provider head can authorize the SDK. Filtering
+        // first would hide a delayed withdrawal from older disclosure copy.
+        guard let streamHead = currentAnalyticsConsentStreamHead(
+            ownerUserId: ownerUserId,
+            in: source
+        ), streamHead.disclosureVersion
+            == ConsentPolicy.analyticsDisclosureVersion else {
+            return nil
         }
-
-        // A local withdrawal must win immediately while it is waiting for the
-        // account-wide event stream to assign its server ordering timestamp.
-        if let pendingEvent = matchingEvents.last(where: {
-            $0.syncedUserId == nil || $0.syncedUserId != $0.ownerUserId
-        }) {
-            return pendingEvent
-        }
-
-        return matchingEvents.max(by: analyticsConsentEventPrecedes)
+        return streamHead
     }
 
     private static func currentAIConsentStreamHead(

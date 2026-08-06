@@ -91,7 +91,11 @@ as their permanent engineering identity.
   analytics withdrawal, target-account restoration, the final account/session
   merge fence, Realtime repair, OAuth account replacement, and server-serialized
   causal handling that rejects delayed offline grants while rebasing revocations
-  onto the locked current head. Internal test
+  onto the locked current head. Gemini, PostHog, and iOS permission resolve that
+  all-version head before disclosure compatibility, so any head revocation stays
+  deny-wins across app upgrades. Completed users remain on a launch-matched
+  neutral root until required account evidence resolves, rather than briefly
+  seeing approval controls during restoration. Internal test
   builds may continue; public production remains blocked until **iOS Build and
   Test** and **Supabase Candidate Validation** pass the same candidate SHA, plus
   App Store 18+, paid Gemini billing/DPA, and counsel evidence. See the

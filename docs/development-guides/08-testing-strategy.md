@@ -233,7 +233,10 @@ pending. A fail-closed scope job starts the macOS work for:
 > **Current consent candidate:** the former Terms-link compile defect and
 > foreground-replay consent fixture are fixed and no longer active blockers.
 > Account synchronization now also performs its identity check inside the final
-> merge before any ledger or analytics mutation. Require a new hosted run on the
+> merge before any ledger or analytics mutation. Provider authorization now
+> resolves the all-version stream head before disclosure compatibility, so an
+> older-disclosure head revocation cannot be hidden by a current-version grant.
+> Require a new hosted run on the
 > unchanged candidate SHA; older totals and local runs are diagnostic history,
 > not release evidence. See the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
@@ -707,9 +710,10 @@ MerianTests/
   paid/complimentary/historical-trial/free scan payload matrix.
 - **`PostHogManagerTests.swift`**: Must use an observable SDK/network boundary,
   not only no-crash singleton calls. It must prove no setup, identification,
-  capture, feature-flag reload, or network request before a current grant and
-  after withdrawal/account change. It must also lock every disabled automatic
-  capture mode. The host-scoped transport gate must close before the preserved
+  capture, feature-flag reload, or network request before a current-disclosure
+  grant at the all-version provider head and after withdrawal/account change. It
+  must also lock every disabled automatic capture mode. The host-scoped
+  transport gate must close before the preserved
   `reset → optOut → close` sequence so reset-time feature-flag reload is rejected
   locally.
 - **`ConsentLedgerStore` failure matrix**: Inject ledger read/write, revocation
@@ -726,10 +730,23 @@ MerianTests/
   revocation; ghost-to-permanent-account merge; account switching; foreground
   synchronization; Realtime startup/failure recovery; idempotent retry; and
   immutable/timestamp-protected RLS rows. Absence of an analytics grant must
-  remain off and analytics must never gate core functionality. For both Gemini
-  and analytics, cover both inverse cross-device orders: a delayed offline grant
-  after a synchronized revocation is rejected, while a delayed offline
-  revocation after a synchronized grant is accepted and rebased to that grant.
+  remain off and analytics must never gate core functionality. The launch
+  matrix must distinguish unresolved evidence from resolved absence: clear the
+  local ledger for a completed account, verify no Ready frame appears while
+  remote evidence is restored, then verify the restored-evidence path opens the
+  workspace and the truly-absent path opens Ready. Also cover first-launch
+  Welcome, a non-cancellation restore failure without an indefinite spinner,
+  cancellation during account replacement, and duplicate same-account auth
+  events after resolution. For both Gemini and analytics, cover both inverse
+  cross-device orders: a delayed offline grant after a synchronized revocation
+  is rejected, while a delayed offline revocation after a synchronized grant is
+  accepted and rebased to that grant.
+  Repeat the revocation case across an app upgrade: create it under the prior
+  disclosure and old observed parent, append a current-version grant, then
+  upload the queued revocation. Database coverage must assert that both RPCs
+  rebase its stored parent to the current grant; Edge and iOS coverage must
+  assert that the all-version revoked head denies even while a current-version
+  grant row exists.
   Retry the latter with its originally observed parent to prove event-ID
   idempotency, assert iOS persists the server-returned accepted parent and
   revision, and retain database assertions that the account-row lock precedes
@@ -737,6 +754,13 @@ MerianTests/
   `_tests/legalConsentConcurrencyDb.test.ts`, which blocks both provider callers
   on the account row, releases them together, and requires a revoked final head
   for both lock-acquisition orders.
+  Cross-disclosure ownership is split deliberately: `legal_consent_security.sql`
+  executes the stale-parent rebase and Gemini denial in PostgreSQL;
+  `_shared/posthog_test.ts`, `_shared/aiQuota_test.ts`, and
+  `_tests/legalConsentMigrationContract.test.ts` lock the Edge queries, denial
+  mapping, and head-before-rollout source contract; and
+  `SupabaseManagerTests` proves both iOS gates remain closed after merge and
+  restart when an older-disclosure revocation owns the greater revision.
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
   math updates against user local scores so UI progression trackers do not skew
   unexpectedly.
@@ -1198,12 +1222,15 @@ MerianTests/
 - **Launch presentation and explicit-route precedence**: `AppDIContainerTests`
   proves `opensExploreOnLaunch` defaults off, persists an enabled value, reloads
   from external `UserDefaults`, and requires both completed onboarding and
-  opt-in. `CaptureWorkspaceViewModelRefinementTests` initializes generic
-  Explore, then verifies Photos/Files imports, Explore post routes, community
-  requests, scan routes, and the Scans library replace it. The import case also
-  sends the foreground timeout event and asserts the staged image and required
-  crop survive. Foreground returns must never be modeled as another
-  launch-policy evaluation.
+  opt-in. The same suite locks the root matrix: incomplete onboarding presents
+  onboarding, completed/current consent presents the workspace,
+  completed/pending consent presents restoration, and completed/resolved
+  missing consent returns to onboarding. `CaptureWorkspaceViewModelRefinementTests`
+  initializes generic Explore, then verifies Photos/Files imports, Explore post
+  routes, community requests, scan routes, and the Scans library replace it. The
+  import case also sends the foreground timeout event and asserts the staged
+  image and required crop survive. Foreground returns must never be modeled as
+  another launch-policy evaluation.
 - **`AppTelemetryTests.testExternalImageImportEventContainsOnlyOutcomeAndClientSource`**:
   Guards the privacy boundary by asserting the event contains only `outcome` and
   `event_source`.
@@ -1306,9 +1333,12 @@ actual import, and permission-denial UI require the physical-device checklist in
   upsert, while real conflicts retain timestamp ordering.
 - **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine,
   the full inline Terms destination, final-screen required/optional switch
-  combinations, returning-user direct routing, and completion persistence.
-  Every throwing assertion must be declared correctly so this file cannot
-  prevent the entire unit target from compiling.
+  combinations, returning-user direct routing, and completion persistence. It
+  also proves missing evidence waits for the initial session, authenticated
+  missing evidence remains pending through authoritative merge, and a duplicate
+  same-account auth event cannot re-enter restoration after resolution. Every
+  throwing assertion must be declared correctly so this file cannot prevent the
+  entire unit target from compiling.
 
 ## Testing Identify Requests and Activity
 

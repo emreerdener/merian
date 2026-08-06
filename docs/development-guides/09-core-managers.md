@@ -943,7 +943,7 @@ triggering excessive SwiftUI view rebuilds.
 | Constant                               | Key string                               | Sites                                                                                                                                                                                                                                                                                      |
 | -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                             |
-| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | Legacy routing preference only. `MerianApp` and active provider/hardware lifecycle behavior also require current adult, Terms, and Gemini consent through the injected `ConsentManager`.                                                                                                  |
+| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | Legacy routing preference only. `MerianApp` combines it with current required consent and the manager's pending restoration signal to choose onboarding, a launch-matched restoration surface, or the workspace. Active provider/hardware lifecycle behavior still requires current adult, Terms, and Gemini consent.                            |
 | `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                               |
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                        |
@@ -1563,9 +1563,10 @@ and `KeychainManager` migration logic. Do not inline
 - Not `@MainActor` — `PostHogSDK` is thread-safe, and the wrapper uses an
   `NSLock` around configuration and pending identity state.
 - Required contract: `ConsentManager` is the sole configuration authority. It
-  may configure and identify PostHog only after resolving a current grant for
-  the active account; startup, absence, withdrawal, and account transitions
-  must keep it off without starting a new request.
+  may configure and identify PostHog only after resolving a current-disclosure
+  grant that is also the active account's all-version provider head; startup,
+  absence, withdrawal, and account transitions must keep it off without starting
+  a new request.
 - `ConsentManager` models analytics cloud authority separately from cached
   ledger choice: local-only, awaiting the active account's remote state, or a
   resolved remote grant/revocation. Session restoration enters the awaiting
@@ -1577,8 +1578,11 @@ and `KeychainManager` migration logic. Do not inline
   persists its returned accepted parent and server-issued revision, marks stale
   grant rejections as superseded local evidence, and fetches the all-version
   stream head before a new action can extend it. The RPC rebases revocations to
-  the locked head so withdrawal wins a concurrent grant. A fetch-before-push
-  reorder is not an acceptable substitute for that atomic database decision.
+  the locked head so withdrawal wins a concurrent grant. Local and remote
+  permission checks also evaluate that all-version head first: any head revocation
+  closes the provider regardless of disclosure version, and only the exact head
+  grant may be checked against current policy. A fetch-before-push reorder is not
+  an acceptable substitute for that atomic database decision.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
   buffers only a consented pending user ID if a call races setup.
 - PostHog's dedicated session carries a configured-host-only `URLProtocol`

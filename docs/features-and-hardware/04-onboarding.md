@@ -25,9 +25,10 @@ and the three-part required completion gate.
 
 | File | Role |
 |---|---|
+| `App/MerianApp.swift` | Applies the three-state root presentation policy: onboarding, required-consent restoration, or workspace |
 | `Steps/Models/OnboardingStep.swift` | Defines the four steps in order |
 | `Shell/ViewModels/OnboardingViewModel.swift` | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag |
-| `Core/Security/ConsentManager.swift` | Owns the local append-only consent ledger, current policy versions, account synchronization, and inference gate |
+| `Core/Security/ConsentManager.swift` | Owns the local append-only consent ledger, current policy versions, account synchronization, launch-restoration state, and inference gate |
 | `Core/Security/ConsentLedgerStore.swift` | Throwing, fault-injectable storage boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal |
 | `Shell/Views/OnboardingView.swift` | Root view, switches content based on `currentStep` |
 | `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission`, `Steps/Ready` | One self-contained SwiftUI view per onboarding step |
@@ -103,7 +104,7 @@ submission drain runs.
 
 ---
 
-## The `hasCompletedOnboarding` Gate
+## Root Presentation Gate
 
 `OnboardingViewModel` exposes `hasCompletedOnboarding` as a computed property backed by its injected `AppSettings` boundary:
 
@@ -114,13 +115,47 @@ var hasCompletedOnboarding: Bool {
 }
 ```
 
-`MerianApp.swift` reads this flag together with the observable consent manager
-to choose `OnboardingView` or `CaptureWorkspaceView`. Production construction
-uses the shared managers; tests inject isolated settings and consent ledgers.
-An older install with completed onboarding but no current receipt enters
-directly at `.ready`, without repeating the camera and location primers. A
-material adult policy, Terms, or Gemini disclosure change increments its policy
-version and routes every account without that version back to the same step.
+`MerianApp.swift` reads this flag together with
+`ConsentManager.hasCurrentRequiredConsent` and
+`ConsentManager.isRestoringRequiredConsent`. Production construction uses the
+shared managers; tests inject isolated settings and consent ledgers.
+
+| Root inputs | Presentation |
+|---|---|
+| Onboarding is incomplete | `OnboardingView`, beginning at `.welcome` |
+| Onboarding is complete and current required consent is present | `CaptureWorkspaceView` |
+| Onboarding is complete, current evidence is missing locally, and restoration is pending | Launch-screen-matched `ConsentRestorationView` |
+| Onboarding is complete, restoration has resolved, and current evidence is still missing | `OnboardingView`, beginning at `.ready` |
+
+The restoration surface is deliberately neutral: it matches the black launch
+screen and delays its progress indicator for 350 milliseconds. A quick account
+restore therefore introduces no visible intermediate screen, while a slower
+restore still provides accessible feedback. It does not mount approval controls
+or initialize the Capture workspace.
+
+`ConsentManager.RequiredConsentRestorationState` distinguishes evidence that is
+not known yet from evidence that is known to be absent:
+
+- `.awaitingInitialSession` covers startup before the initial auth result.
+- `.reconciling(userId:)` covers an authenticated account whose local ledger
+  does not yet prove current adult, Terms, and Gemini consent.
+- `.resolved` means the initial result is authoritative enough to choose a real
+  root. A successful merge resolves the state; a non-cancellation sync failure
+  also resolves it fail-closed so the user is not trapped behind an indefinite
+  launch surface. Cancellation leaves the in-flight state pending for the next
+  account/session transition.
+
+A repeated auth notification for the same resolved account must not re-enter
+restoration. `isRestoringRequiredConsent` also becomes false immediately when
+current required evidence is already present, regardless of the stored enum
+case.
+
+An older install with completed onboarding but no current receipt therefore
+enters directly at `.ready` only after initial session restoration determines
+that the receipt is genuinely absent; it never flashes `.ready` while account
+evidence is still being fetched. A material adult policy, Terms, or Gemini
+disclosure change increments its policy version and routes every account
+without that version back to the same step after reconciliation.
 
 ## Versioned Consent Evidence
 
@@ -192,10 +227,11 @@ concurrent cross-device race. The refetch includes both the current disclosure s
 the all-version stream head, so new local actions attach to the actual provider
 head. A delayed offline grant whose parent predates another device's revocation
 is rejected and cannot gain authority from a newer server receipt time. Only an
-authoritative current-version grant that survives an
-identity-fenced, verified ledger write resolves the account to enabled. Remote
-absence, revocation, network failure, or persistence failure leaves analytics
-closed. A repeated same-account auth notification after resolution does not
+all-version head that is itself an authoritative current-version grant and
+survives an identity-fenced, verified ledger write resolves the account to
+enabled. Remote absence, a head revocation under any disclosure version, network
+failure, or persistence failure leaves analytics closed. A repeated same-account
+auth notification after resolution does not
 flap a healthy SDK session. Immediately before the merge mutates or persists
 any evidence, it again requires an uncancelled task, the expected observed
 account, the matching synchronous Supabase SDK session, and the same

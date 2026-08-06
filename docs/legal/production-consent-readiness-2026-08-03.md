@@ -9,7 +9,10 @@ including durable local-write and withdrawal recovery, the adjacent
 stale-sync/unit-fixture defects, and the account-restoration lifecycle findings
 are complete in source. AI and analytics streams now also reject delayed
 offline grants whose causal parent is no longer authoritative and rebase
-revocations onto the locked current head. Hosted exact-SHA execution and the
+revocations onto the locked current head. Every permission consumer now resolves
+that all-version head before evaluating a grant's disclosure bundle, so a
+withdrawal under an older disclosure cannot be hidden by a current-version
+grant. Hosted exact-SHA execution and the
 external operator controls below must still close before this candidate is
 nominated for production.
 
@@ -74,8 +77,11 @@ It presents three initially-off, left-aligned switches:
 
 Only the two required switches gate **Start scanning**. Withholding or withdrawing
 analytics permission must never block core functionality. Existing beta users
-without current required evidence return directly to Powered by AI without
-repeating Camera or Location.
+stay on a launch-matched neutral surface while the initial session and
+authoritative consent evidence are reconciled. If the resolved account still
+lacks current required evidence, they return directly to Powered by AI without
+repeating Camera or Location; restored evidence opens the workspace without
+presenting approval controls.
 
 ## Evidence and Enforcement Contract
 
@@ -110,7 +116,10 @@ repeating Camera or Location.
   The response returns the accepted parent and immutable server revision used
   for authorization. Direct client inserts are forbidden. A rejected stale
   grant remains local superseded evidence and cannot become authoritative
-  merely because it reconnects later.
+  merely because it reconnects later. Gemini, Edge PostHog, and iOS all resolve
+  the all-version greatest revision first. Any head revocation denies; only that
+  exact head, when granted, may proceed to current or allowlisted disclosure
+  checks.
 
 ## Primary Policy Basis
 
@@ -145,7 +154,7 @@ not exact-SHA runtime evidence and is not a production approval.
 | `CONSENT-007` | OAuth replacement suppresses analytics and closes consent Realtime before session installation; success and failure reconcile the SDK's actual session under a transition generation. | Exact-SHA account-replacement execution. |
 | `CONSENT-009` | The retained internal copy has distinct Gemini and analytics disclosure versions, and forward-only server compatibility preserves immutable historical receipts. | Exact-SHA migration/client contracts and replacement-build validation. |
 | `CONSENT-010` | Consent mutations use a throwing, fault-injectable storage boundary and transactional candidate ledger. Onboarding completes only after a verified atomic file write. Analytics withdrawal closes capture first, journals exact revocation events independently in Keychain, remains off across failed writes/restart, preserves multiple accounts, and clears the journal only after ledger durability. | Exact-SHA fault-injection, restart-replay, onboarding, account-switch, full-unit, and Release archive execution. |
-| `CONSENT-011` | AI and analytics writes lock the account row against ghost merge, then use account/provider causal RPCs under transaction-scoped advisory locks. The database atomically rejects stale grants, rebases revocations to the current head, issues the only authoritative monotonic `consent_revision`, and denies authenticated direct inserts and sequence access. iOS retains rejected grants as superseded evidence, persists the server-returned accepted parent, fetches the all-version stream head, and orders accepted events by revision. Gemini authorization and Edge analytics use the same revision authority. The disposable-database `legalConsentConcurrencyDb.test.ts` fixture releases overlapping grant/revocation callers and requires a revoked final head for both providers. | Exact-SHA inverse-order iOS execution plus pinned-CLI fresh-catalog replay of both cross-device directions, the overlapping concurrency fixture, revocation retry idempotency, and RPC ACL/locking contracts. |
+| `CONSENT-011` | AI and analytics writes lock the account row against ghost merge, then use account/provider causal RPCs under transaction-scoped advisory locks. The database atomically rejects stale grants, rebases revocations to the current head, issues the only authoritative monotonic `consent_revision`, and denies authenticated direct inserts and sequence access. iOS retains rejected grants as superseded evidence, persists the server-returned accepted parent, fetches the all-version stream head, and orders accepted events by revision. Gemini authorization, Edge analytics, and iOS permission first evaluate that provider-wide head: every head revocation denies regardless of disclosure version and before rollout configuration is read, while only the exact head grant may enter current or legacy bundle checks. Database, Edge, and iOS fixtures include a prior-disclosure revocation uploaded after a current-version grant; the database fixture submits the old observed causal parent and verifies that the RPC rebases both providers onto the newer grant before authorization denies. The disposable-database `legalConsentConcurrencyDb.test.ts` fixture also releases overlapping grant/revocation callers and requires a revoked final head for both providers. | Exact-SHA inverse-order and cross-disclosure iOS execution plus pinned-CLI fresh-catalog replay of both cross-device directions, the overlapping concurrency fixture, revocation retry idempotency, and RPC ACL/locking contracts. |
 
 ### Superseded Fixed Test Defects
 
@@ -189,26 +198,35 @@ result become canonical only after both hosted gates pass on the same SHA.
    database-concurrency suite, strict lint, and advisors to pass without a
    Production environment or production secrets.
 3. Upload the corrected replacement binary and let App Store Connect finish
-   processing it, but do not distribute it while the causal RPC is absent.
+   processing it, but do not distribute it while the causal RPC or provider-head
+   authorization migration is absent.
 4. After separate production authorization, open the consent maintenance
    window. Suspend consent-changing app access and expire every older
    TestFlight build that writes Gemini or analytics events directly.
 5. Use **Deploy Merian to Supabase**. Its production job must first require the
-   reusable candidate gate, then apply the causal consent migration and deploy
-   consent-gated Edge code. Verify authenticated callers cannot insert directly,
+   reusable candidate gate, then apply the causal consent and provider-head
+   authorization migrations and deploy consent-gated Edge code. Verify
+   authenticated callers cannot insert directly,
    both compare-and-append RPCs return a monotonic revision and accepted parent,
    stale grants are rejected, stale revocations are rebased, and the inverse
-   AI/analytics fixtures pass. Keep
+   AI/analytics fixtures pass, including prior-disclosure revocations after
+   current-version grants. Keep
    `internal.ai_consent_rollout_config.enforcement_mode` at
    `legacy_compatible`.
 6. Distribute the processed replacement TestFlight build. Verify all switch
    combinations, inline Terms navigation, VoiceOver, Dynamic Type, smallest
    supported screens, offline withdrawal, account switching, foreground
-   reconciliation, Realtime propagation, ghost-profile merging, and both inverse
-   sequences for each provider: another device revokes before a delayed offline
-   grant reconnects, and another device grants before a delayed offline
-   revocation reconnects. The grant must be rejected in the first sequence; the
-   revocation must be accepted and rebased in the second.
+   reconciliation, Realtime propagation, ghost-profile merging, and cold launch
+   with completed onboarding after clearing only the local consent ledger. The
+   latter must stay on the launch-matched restoration surface and open the
+   workspace without a Powered by AI frame when the account restores current
+   evidence; a genuinely absent account must proceed to Powered by AI only after
+   reconciliation resolves. Also verify both inverse sequences for each
+   provider: another device revokes before a delayed offline grant reconnects,
+   and another device grants before a delayed offline revocation reconnects. The
+   grant must be rejected in the first sequence; the revocation must be accepted
+   and rebased in the second, and every consumer must deny when that revocation
+   carries a prior disclosure version.
 7. Only then run the owner-only forward strict-cutover script and verify legacy,
    partial, revoked, and current-complete accounts against the deployed server.
 

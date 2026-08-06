@@ -7,8 +7,9 @@ The `Analytics` directory manages the app's telemetry and product analytics infr
 This area integrates optional, consent-gated PostHog app analytics. It provides
 a unified, cross-feature API without coupling feature modules directly to the
 third-party SDK. The required contract makes `ConsentManager` the sole
-lifecycle authority: without the latest account-wide grant, PostHog must not be
-configured or identified and every capture call must be rejected. Withdrawal
+lifecycle authority: unless the all-disclosure provider head is a grant for the
+current analytics disclosure, PostHog must not be configured or identified and
+every capture call must be rejected. Withdrawal
 must leave core functionality unchanged and shut down analytics without
 starting another SDK request.
 
@@ -39,8 +40,12 @@ authenticated database RPC serializes compare-and-append, and a stale offline
 grant is rejected instead of acquiring authority from its later upload time.
 A revocation is accepted under the same lock and rebased to the current head,
 so concurrent or delayed withdrawal remains deny-wins. iOS stores the accepted
-parent and orders state only by the server-issued `consentRevision`. Hosted
-verification must still prove zero setup, identification,
+parent and orders state only by the server-issued `consentRevision`. Both the
+iOS SDK lifecycle gate and Edge PostHog capture resolve the provider-wide
+greatest revision across every disclosure version before testing compatibility.
+A head revocation under older disclosure copy therefore stays authoritative;
+only a head grant carrying the current analytics disclosure may enable capture.
+Hosted verification must still prove zero setup, identification,
 capture, or network activity before grant and after withdrawal/account change.
 See the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).

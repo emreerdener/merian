@@ -7,7 +7,18 @@ The `Steps` directory contains the individual, user-facing screens that make up 
 - **Welcome**: The initial greeting screen introducing the user to Merian.
 - **CameraPermission**: The screen explaining the need for camera access to capture organisms.
 - **LocationPermission**: The screen explaining the need for location access to provide accurate ecological context.
-- **Ready**: The final disclosure names Google Gemini as the recipient of observation data for AI-powered identification. Three left-aligned switches appear in the product-owner-selected internal-testing order: optional usage/diagnostics, required 18+ self-attestation, and required Terms/data-sharing permission with an inline Terms link. Only the two required switches gate **Start scanning**. Completion first appends exact, versioned adult, Terms, Gemini, and optional analytics evidence locally, then synchronizes immutable rows to the active Supabase account. Existing beta users missing current required evidence route directly here without repeating Camera or Location.
+- **Ready**: The final disclosure names Google Gemini as the recipient of
+  observation data for AI-powered identification. Three left-aligned switches
+  appear in the product-owner-selected internal-testing order: optional
+  usage/diagnostics, required 18+ self-attestation, and required
+  Terms/data-sharing permission with an inline Terms link. Only the two required
+  switches gate **Start scanning**. Completion first appends exact, versioned
+  adult, Terms, Gemini, and optional analytics evidence locally, then
+  synchronizes immutable rows to the active Supabase account. Existing beta
+  users route directly here without repeating Camera or Location only after
+  launch reconciliation establishes that current required account evidence is
+  genuinely absent; while that result is pending, `MerianApp` keeps the
+  onboarding shell unmounted.
 - **Shared**: Common UI elements used across multiple steps (e.g., standard layout templates, primary action buttons).
 - **Models**: Defines the data structures or enums representing the different onboarding steps.
 

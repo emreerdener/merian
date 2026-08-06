@@ -177,7 +177,10 @@ Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql` add four exposed but
 owner-scoped append-only tables. Forward migration
 `20260806024844_enforce_causal_consent_streams.sql` replaces receipt-time
-authority for the two mutable provider streams with an atomic causal protocol:
+authority for the two mutable provider streams with an atomic causal protocol.
+Forward migration
+`20260806144105_authorize_consent_from_provider_stream_heads.sql` makes the
+provider-wide greatest revision the mandatory first authorization decision:
 
 - `public.user_adult_eligibility_receipts`: UUID primary key, `user_id`, adult
   policy version, device confirmation time, `self_attestation` method, exact
@@ -242,11 +245,15 @@ Candidate Validation**, including a fresh required-version catalog replay; see
 the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
-`internal.require_current_ai_consent(uuid)` currently requires adult policy
-version `2026-08-03`, Terms version `2026-08-03`, and provider
-  `google_gemini` disclosure version `2026-08-04.1`. The latest AI event is
-  ordered by `consent_revision DESC` and must be `granted`; device time and
-  `recorded_at` remain evidence, not authorization clocks. Both
+`internal.require_current_ai_consent(uuid)` first selects the all-version
+`google_gemini` provider head by `consent_revision DESC`. A missing head or a
+head revocation under any disclosure version denies immediately, before rollout
+configuration is read. Only a head grant proceeds to the rollout
+matrix: the current bundle requires adult policy
+`2026-08-03`, Terms `2026-08-03`, and Gemini disclosure `2026-08-04.1`; older
+complete grants remain bounded by `enforcement_mode`. Unknown future versions
+fail closed. Device time and `recorded_at` remain evidence, not authorization
+clocks. Both
 service-only `reserve_ai_quota` overloads call the helper before provider
 admission. A policy copy or material-purpose change must update the Swift policy
 and this database gate together and require a new user action.

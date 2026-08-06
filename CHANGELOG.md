@@ -8,10 +8,14 @@ TestFlight, App Store, support, and QA.
 
 ### Consent and Privacy Controls — Release-Gated
 
+- Cold launch now keeps completed users on a launch-matched restoration surface
+  while account consent is reconciled, instead of briefly flashing the approval
+  screen before opening the scanner.
 - The final onboarding screen now combines 18+ self-attestation, required Terms
   and permission to send observation data to Google Gemini for AI-powered
-  identification, and a separate optional analytics choice. Existing beta users missing current
-  evidence return directly to that screen.
+  identification, and a separate optional analytics choice. Existing beta users
+  return directly to that screen only when account reconciliation confirms that
+  current evidence is absent.
 - Versioned adult, Terms, Gemini, and analytics actions use an append-only local
   ledger and immutable account-owned Supabase evidence. Settings exposes the
   optional account-wide **Analytics & diagnostics** switch under Resources and
@@ -33,6 +37,8 @@ TestFlight, App Store, support, and QA.
   offline grant, the delayed grant is rejected instead of becoming current when
   it reconnects. If an older offline revocation reconnects after a newer grant,
   the server rebases and accepts the withdrawal so permission remains deny-wins.
+  Gemini authorization, PostHog delivery, and iOS permission gates all resolve
+  that provider-wide, all-disclosure head before checking grant compatibility.
 - Supabase candidate assurance now reports a stable result on every pull
   request. Its full-history scope detector includes every app, documentation,
   workflow, script, and backend root inspected by the executable contracts and

@@ -22,6 +22,36 @@ production exit evidence is canonical in the
 
 ---
 
+## Cold-Launch Root Presentation
+
+Scene-phase handling and root presentation are separate contracts.
+`MerianApp` evaluates `AppRootPresentationPolicy` before mounting either the
+onboarding flow or Capture workspace:
+
+1. Incomplete onboarding presents `OnboardingView` immediately.
+2. Completed onboarding plus current required consent presents
+   `CaptureWorkspaceView`.
+3. Completed onboarding plus missing local evidence presents
+   `ConsentRestorationView` while `ConsentManager` is awaiting the initial auth
+   result or reconciling the restored account.
+4. If reconciliation resolves without current evidence, the app presents
+   onboarding at `.ready`; if the authoritative merge restores the evidence,
+   it opens the workspace directly.
+
+`ConsentRestorationView` matches the black launch screen and waits 350
+milliseconds before showing an accessible progress indicator. It prevents a
+completed user from seeing actionable approval controls for a fraction of a
+second while account evidence loads. A non-cancellation reconciliation failure
+resolves the launch state fail-closed, allowing the required-consent screen to
+remain available; cancellation caused by account/session replacement keeps the
+transition pending until the replacement is evaluated.
+
+This presentation policy does not weaken the phase contract below. Hardware,
+provider requests, ordinary sync, and queued work still require both completed
+onboarding and current required consent.
+
+---
+
 ### `handleActivePhase()`
 
 Triggered by `MerianApp.swift` when `scenePhase == .active`.

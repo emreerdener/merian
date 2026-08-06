@@ -89,7 +89,8 @@ before a new user can submit a scan:
 
 Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql`, plus forward migration
-`20260806024844_enforce_causal_consent_streams.sql` and
+`20260806024844_enforce_causal_consent_streams.sql`, forward migration
+`20260806144105_authorize_consent_from_provider_stream_heads.sql`, and
 `ConsentManager.swift`, establish the intended evidence boundary. Before the
 workspace opens, the app appends local adult-confirmation, Terms, and Gemini
 actions with separate policy versions, exact displayed copy, client UUID,
@@ -104,7 +105,10 @@ database RPC accepts a grant only if its parent remains current, but always
 accepts a revocation and rebases it to the locked current head. The returned
 server revision—not device time or upload receipt time—orders permission. A
 delayed offline grant therefore cannot supersede another device's withdrawal,
-and a delayed withdrawal cannot leave a newer grant enabled.
+and a delayed withdrawal cannot leave a newer grant enabled. Authorization
+first resolves the greatest provider revision across every disclosure version.
+Any head revocation denies before rollout compatibility is consulted; only a
+head grant may enter the current or temporarily allowlisted disclosure checks.
 
 Every iOS inference entry point verifies that the current rows reached the active account
 before constructing its provider request. Both service-only `reserve_ai_quota` overloads

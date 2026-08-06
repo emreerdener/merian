@@ -160,7 +160,7 @@ Deno.test("quota hashing uses an optional dedicated override or a server-only pl
   );
 });
 
-Deno.test("missing or withdrawn AI consent maps to a caller-safe 403", () => {
+Deno.test("provider-head revocation maps to a caller-safe AI Edge denial", () => {
   const error = quotaErrorForDatabaseMessage(
     "ai_consent_required",
   );

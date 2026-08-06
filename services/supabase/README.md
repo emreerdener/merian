@@ -1120,7 +1120,10 @@ to both quota overloads. Forward migration
 `20260804215234_bump_consent_disclosure_versions.sql` advances the retained
 Gemini copy to `2026-08-04.1` without rewriting evidence. Forward migration
 `20260806024844_enforce_causal_consent_streams.sql` replaces receipt-time
-authority for AI and analytics with server-issued causal revisions.
+authority for AI and analytics with server-issued causal revisions. Forward
+migration `20260806144105_authorize_consent_from_provider_stream_heads.sql`
+then requires authorization consumers to resolve the all-version provider head
+before disclosure compatibility or rollout configuration.
 `user_adult_eligibility_receipts` stores versioned 18+
 self-attestation without a birth date or exact age;
 `user_terms_acceptance_receipts` stores immutable current-version Terms
@@ -1151,9 +1154,15 @@ events are published to owner-scoped Realtime. During the replacement-build
 window, `internal.ai_consent_rollout_config` remains `legacy_compatible` and
 accepts only the newest complete bundle or an explicitly allowlisted complete
 prior beta bundle. After old builds are expired, the owner-only cutover script
-selects `strict_2026_08_04`; current
-adult, Terms, and greatest-revision granted Gemini evidence must then exist before
-`reserve_ai_quota(...)` proceeds. Missing or revoked evidence raises
+selects `strict_2026_08_04`; current adult, Terms, and the all-version Gemini
+stream head must then form the current granted bundle before
+`reserve_ai_quota(...)` proceeds. The gate always reads the provider-wide
+greatest `consent_revision` first: a head revocation under any disclosure
+version denies before rollout configuration is read, while an older head grant
+is considered only when the rollout mode explicitly permits its complete
+bundle. Edge PostHog authorization uses
+the same provider-head rule and additionally requires that exact head grant to
+carry the current analytics disclosure. Missing or revoked evidence raises
 `ai_consent_required`, which `_shared/aiQuota.ts` exposes as HTTP 403 before
 provider dispatch. Never infer or backfill acceptance.
 
@@ -1162,8 +1171,14 @@ migration contracts, quota fixtures, and `legal_consent_security.sql`
 synchronized. The pgTAP fixture must retain both inverse cross-device cases:
 an older offline AI/analytics grant reconnects after another device's
 revocation and is rejected; an older offline revocation reconnects after a
-newer grant and is accepted, rebased, and remains idempotent on retry. Static
-contracts lock the account-row-before-stream lock order, and
+newer grant and is accepted, rebased, and remains idempotent on retry. The latter
+fixture must also cover a revocation created under a prior disclosure version so
+no version-filtered permission read can hide the provider head. Model the real
+upgrade race: append a prior-version grant, append the current-version grant
+from that parent, then submit the queued prior-version revocation with the old
+observed parent. Assert that the RPC accepts it, rewrites its accepted parent to
+the current grant for both providers, and leaves each all-version head revoked.
+Static contracts lock the account-row-before-stream lock order, and
 `legalConsentConcurrencyDb.test.ts` releases overlapping grant/revocation
 callers for both providers and requires the final head to remain revoked. Static
 backend contracts pass,

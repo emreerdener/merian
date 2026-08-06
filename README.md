@@ -24,7 +24,13 @@ steps are tracked in the
 > withdrawal journaling, target-account restoration, final in-merge
 > account/session fencing, Realtime repair, OAuth account replacement, and
 > atomic rejection of delayed offline AI/analytics grants plus deny-wins
-> rebasing of revocations onto the locked server head.
+> rebasing of revocations onto the locked server head. Gemini authorization,
+> Edge PostHog delivery, and iOS permission gates now resolve the provider-wide
+> greatest revision across all disclosure versions first: any head revocation
+> denies, and only a head grant may enter disclosure/rollout checks.
+> Completed users also remain on a launch-matched neutral root until required
+> account evidence resolves, so approval controls are never a transient startup
+> state.
 > Internal test builds may continue, but
 > do not nominate the candidate for public production or enable strict server
 > enforcement until **iOS Build and Test** and the validation-only **Supabase

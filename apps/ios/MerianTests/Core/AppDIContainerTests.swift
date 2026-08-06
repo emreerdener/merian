@@ -132,6 +132,29 @@ struct AppDIContainerTests {
         ))
     }
 
+    @Test func testRootPresentationWaitsForRequiredConsentRestoration() {
+        #expect(AppRootPresentationPolicy.presentation(
+            hasCompletedOnboarding: false,
+            hasCurrentRequiredConsent: false,
+            isRestoringRequiredConsent: true
+        ) == .onboarding)
+        #expect(AppRootPresentationPolicy.presentation(
+            hasCompletedOnboarding: true,
+            hasCurrentRequiredConsent: false,
+            isRestoringRequiredConsent: true
+        ) == .restoringConsent)
+        #expect(AppRootPresentationPolicy.presentation(
+            hasCompletedOnboarding: true,
+            hasCurrentRequiredConsent: true,
+            isRestoringRequiredConsent: true
+        ) == .workspace)
+        #expect(AppRootPresentationPolicy.presentation(
+            hasCompletedOnboarding: true,
+            hasCurrentRequiredConsent: false,
+            isRestoringRequiredConsent: false
+        ) == .onboarding)
+    }
+
     @Test func testCaptureGoalProgressDefaultsOnAndPersistsExplicitOff() {
         let suiteName = "merian.tests.capture-goal-progress.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

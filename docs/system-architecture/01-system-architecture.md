@@ -386,7 +386,10 @@ single-responsibility functions under `/services/supabase/functions/`.
   client event names and marking iOS-emitted events with
   `event_source = "ios_client"`.
 - PostHog identity uses the Supabase UUID; neither iOS nor Edge telemetry sends
-  auth email or name. `ConsentManager` must centrally reject capture otherwise.
+  auth email or name. `ConsentManager` and the Edge helper resolve the
+  provider-wide greatest accepted revision across all disclosure versions. Any
+  head revocation rejects capture; only a head grant with the current analytics
+  disclosure may configure or deliver to PostHog.
 - The app privacy manifest conservatively declares the potential linked
   analytics categories while declaring no tracking. That declaration is not an
   analytics grant and does not change the closed-by-default transport. Its
@@ -402,9 +405,17 @@ single-responsibility functions under `/services/supabase/functions/`.
 
 - **Instant Cold Boot:** `AppTelemetry.initialize()` prepares a disabled
   first-party facade in `MerianApp.init()` without starting PostHog. After auth
-  resolution, only a current account grant may let `ConsentManager` configure
-  and identify the SDK. Heavy `CameraManager` hardware initialization
+  resolution, only a current-disclosure grant that is itself the all-version
+  provider head may let `ConsentManager` configure and identify the SDK. Heavy
+  `CameraManager` hardware initialization
   (`AVCaptureSession.beginConfiguration`) stays off the critical render path.
+- **Root Presentation While Restoring Consent:** A completed user with missing
+  local required evidence remains on a black surface matching the launch screen
+  while the initial auth result and authoritative consent merge are pending. A
+  350-millisecond delay prevents progress chrome from flashing during quick
+  restores. `MerianApp` mounts the Capture workspace if evidence returns, or
+  mounts onboarding at `.ready` if reconciliation resolves without it; neither
+  actionable root is constructed while the result is unknown.
 - **RAM Image Cache (`ImageCache`):** A thread-safe `@unchecked Sendable`
   `NSCache` stores downsampled scan thumbnails in RAM, avoiding massive disk I/O
   thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM

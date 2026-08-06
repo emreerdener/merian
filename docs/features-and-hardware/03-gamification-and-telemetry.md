@@ -160,9 +160,10 @@ public-policy fact, update all affected artifacts before merge.
 
 `AppTelemetry.initialize()` prepares only the first-party facade during app
 startup; it does not configure PostHog. `ConsentManager` resolves the active
-account's highest accepted `consent_revision` in
-`user_analytics_consent_events` and is the sole SDK
-lifecycle authority. Only a current grant configures and identifies PostHog.
+account's all-version highest accepted `consent_revision` in
+`user_analytics_consent_events` and is the sole SDK lifecycle authority. Any
+head revocation closes capture regardless of disclosure version; only a head
+grant carrying the current disclosure configures and identifies PostHog.
 Absence, revocation, account change, or unresolved account state must disable
 the facade, clear identity, opt out, and close the SDK without starting a new
 PostHog request. A restored or changed authenticated session enters a distinct
@@ -293,9 +294,10 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   `EnrichmentCompleted`, `EncyclopedicLLMCompleted`, `DiagnosticLLMCompleted`,
   and `GroupTagsLLMCompleted` events from the Supabase backend only after a
   current account grant. Every call first checks the greatest server-issued
-  PostHog `consent_revision` and performs no PostHog request on absence,
-  revocation, or lookup failure. Upload receipt time and device time never
-  determine authority.
+  PostHog `consent_revision` across all disclosure versions and performs no
+  PostHog request unless that exact head is a current-version grant. Absence,
+  any head revocation, an older-version head grant, or lookup failure stays
+  closed. Upload receipt time and device time never determine authority.
 - Scan completion events attach AI metrics including `llm_model`,
   `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens`, and where
   available `llm_thinking_tokens` / `llm_cached_tokens` to `user.id` to provide

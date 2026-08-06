@@ -31,7 +31,10 @@ The first row in Settings → Resources is **Analytics & diagnostics**. Its bind
 appends an immutable account-wide PostHog grant or revocation through
 `ConsentManager`.
 Absence of a grant is off. Withdrawal opts out and closes the SDK, synchronizes
-across devices, and never changes core functionality.
+across devices, and never changes core functionality. The displayed and applied
+state comes from the provider-wide greatest accepted revision across all
+disclosure versions. An older-disclosure revocation at that head remains off;
+only a current-disclosure head grant can reopen PostHog.
 
 That paragraph is the required behavior. The withdrawal transport/order and
 offline ghost-account handoff findings are complete in source: reset-time

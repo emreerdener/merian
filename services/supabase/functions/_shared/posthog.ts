@@ -5,6 +5,18 @@ import { createServiceRoleClientFromEnvironmentWithOptions } from "./serviceRole
 const POSTHOG_REQUEST_TIMEOUT_MS = 2_500;
 const POSTHOG_DISCLOSURE_VERSION = "2026-08-04";
 
+type AnalyticsConsentStreamHead = {
+  event_kind: string;
+  disclosure_version: string;
+};
+
+export function isCurrentPostHogConsentHead(
+  streamHead: AnalyticsConsentStreamHead | null | undefined,
+): boolean {
+  return streamHead?.event_kind === "granted" &&
+    streamHead.disclosure_version === POSTHOG_DISCLOSURE_VERSION;
+}
+
 export async function hasCurrentPostHogConsent(
   userId: string,
   fetcher: typeof fetch = fetch,
@@ -17,10 +29,9 @@ export async function hasCurrentPostHogConsent(
     });
     const { data, error } = await supabaseAdmin
       .from("user_analytics_consent_events")
-      .select("event_kind")
+      .select("event_kind,disclosure_version")
       .eq("user_id", userId)
       .eq("provider", "posthog")
-      .eq("disclosure_version", POSTHOG_DISCLOSURE_VERSION)
       .order("consent_revision", { ascending: false })
       .limit(1);
 
@@ -28,7 +39,7 @@ export async function hasCurrentPostHogConsent(
       console.error("PostHog permission lookup failed. Skipping telemetry.");
       return false;
     }
-    return data?.[0]?.event_kind === "granted";
+    return isCurrentPostHogConsentHead(data?.[0]);
   } catch {
     console.error("PostHog permission lookup failed. Skipping telemetry.");
     return false;

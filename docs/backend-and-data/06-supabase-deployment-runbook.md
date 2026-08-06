@@ -4767,6 +4767,13 @@ and analytics inserts with locked compare-and-append RPCs, and makes revision
 order authoritative. An older client can read history but cannot record a new
 AI or analytics action after this migration.
 
+Forward migration
+`20260806144105_authorize_consent_from_provider_stream_heads.sql` completes that
+boundary for authorization. Gemini quota admission selects the all-version head
+and denies a missing or revoked head before reading rollout configuration. Edge
+PostHog and iOS apply the same provider-head-first rule; only the exact head
+grant may be checked against current disclosure compatibility.
+
 > **Repository production hold (August 4, 2026):** `CONSENT-001` through
 > `CONSENT-011` are closed in source in the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
@@ -4785,13 +4792,14 @@ AI or analytics action after this migration.
    consent lifecycle matrix pass without skips or compile failures.
 2. Archive and upload the replacement TestFlight binary, let App Store Connect
    finish processing it, and record the exact SHA/version/build. Do not
-   distribute it while its causal RPCs are absent.
+   distribute it while its causal RPCs or provider-head authorization are absent.
 3. After separate production authorization, open a consent maintenance window.
    Suspend consent-changing access and expire every older TestFlight build that
    writes AI or analytics events directly. If the affected cohort cannot be
    stopped, do not continue with this one-step protocol.
-4. Use the reviewed production workflow to apply the causal migration and
-   deploy consent-gated Edge telemetry while rollout mode remains
+4. Use the reviewed production workflow to apply the causal and provider-head
+   authorization migrations and deploy consent-gated Edge telemetry while
+   rollout mode remains
    `legacy_compatible`. Prove direct authenticated inserts and revision-sequence
    access fail, both RPCs take the account-row lock before the provider-stream
    lock and are authenticated/idempotent, and the inverse-order AI and analytics
@@ -4814,10 +4822,15 @@ AI or analytics action after this migration.
    providers must remain revoked. Then reproduce Device A offline revocation →
    Device B synchronized grant → Device A reconnect; each revocation must be
    accepted, rebased to Device B's grant, remain idempotent when retried with its
-   originally observed parent, and leave the provider revoked. Verify no
+   originally observed parent, and leave the provider revoked. Repeat that
+   sequence with Device A's queued revocation carrying the prior disclosure
+   version and the causal parent it observed before Device B's current-version
+   grant. Verify the stored accepted parent becomes Device B's grant and the
+   all-version head remains revoked for both Gemini and PostHog. Verify no
    Gemini provider call occurs without
    all current required evidence; and no iOS or Edge PostHog request occurs
-   without a latest grant. Verify Settings withdrawal is immediate,
+   unless the provider-wide head itself is a current-disclosure grant. Verify
+   Settings withdrawal is immediate,
    account-wide, and leaves core functionality unchanged.
 7. As database owner, run
    `psql "$MERIAN_DATABASE_URL" -v ON_ERROR_STOP=1 -f services/supabase/scripts/cutover_strict_ai_consent.sql`.
