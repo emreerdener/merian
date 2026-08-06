@@ -4295,7 +4295,8 @@ manually dispatch `iOS Build and Test` against that exact revision after the
 backend gate is green. Verify the scope reason identifies manual dispatch, the
 full unit-test target passes, the exact queued-scan completion UI smoke reports
 one passed and zero skipped cases, and the validation-only Release archive
-succeeds from the same SHA with `privacy_manifest_valid: true`. A green scope
+succeeds from the same SHA with `privacy_manifest_valid: true` and
+`transport_security: "ats-default"`. A green scope
 job with skipped macOS jobs proves only that changed-file classification
 worked; it does not satisfy the release gate.
 
@@ -4759,8 +4760,15 @@ beta bundle; it never accepts partial evidence. The replacement app itself
 always requires current adult policy `2026-08-03`, Terms `2026-08-03`, Gemini
 disclosure `2026-08-04.1`, and analytics disclosure `2026-08-04`.
 
+Forward migration `20260806024844_enforce_causal_consent_streams.sql` is an
+intentional compatibility boundary, not an additive coexistence migration. It
+adds server-only revisions and causal parents, replaces authenticated direct AI
+and analytics inserts with locked compare-and-append RPCs, and makes revision
+order authoritative. An older client can read history but cannot record a new
+AI or analytics action after this migration.
+
 > **Repository production hold (August 4, 2026):** `CONSENT-001` through
-> `CONSENT-010` are closed in source in the
+> `CONSENT-011` are closed in source in the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 > Internal test builds may continue. Do not nominate a public-production
 > candidate or run strict cutover until the exact candidate SHA passes the
@@ -4770,35 +4778,57 @@ disclosure `2026-08-04.1`, and analytics disclosure `2026-08-04`.
 > Deno suite; it does not replace those hosted/runtime gates.
 
 1. From the exact candidate SHA, confirm every source-complete readiness item
-   remains closed. Apply the additive migration and deploy consent-gated Edge
-   telemetry. Run
-   migration contracts, all Edge tests, disposable-catalog pgTAP, the unsigned
+   remains closed. Run migration contracts, all Edge tests,
+   disposable-catalog pgTAP, the unsigned
    iOS simulator build/tests, and the Release archive gates from the candidate
    SHA. Confirm `legal_consent_security.sql`, all quota fixtures, and the full
    consent lifecycle matrix pass without skips or compile failures.
-2. Distribute the replacement TestFlight build. Existing testers without
+2. Archive and upload the replacement TestFlight binary, let App Store Connect
+   finish processing it, and record the exact SHA/version/build. Do not
+   distribute it while its causal RPCs are absent.
+3. After separate production authorization, open a consent maintenance window.
+   Suspend consent-changing access and expire every older TestFlight build that
+   writes AI or analytics events directly. If the affected cohort cannot be
+   stopped, do not continue with this one-step protocol.
+4. Use the reviewed production workflow to apply the causal migration and
+   deploy consent-gated Edge telemetry while rollout mode remains
+   `legacy_compatible`. Prove direct authenticated inserts and revision-sequence
+   access fail, both RPCs take the account-row lock before the provider-stream
+   lock and are authenticated/idempotent, and the inverse-order AI and analytics
+   pgTAP cases reject delayed grants and rebase delayed revocations. Require
+   `_tests/legalConsentConcurrencyDb.test.ts` to run against the disposable
+   catalog and prove an overlapping grant/revocation pair ends revoked for each
+   provider.
+5. Distribute the processed replacement TestFlight build. Existing testers without
    current evidence must enter directly at **Powered by AI**, without repeating
    camera or location onboarding. Test every switch combination in the retained
    Analytics → Age → Terms order: age and Gemini/Terms are required; analytics
    is optional and never blocks scanning. Exercise the inline Terms link,
    VoiceOver labels and hints, every supported Dynamic Type size, and the
    smallest supported iPhone in both orientations.
-3. Verify adult, Terms, Gemini, and optional analytics actions create immutable
-   owner rows with server timestamps; no Gemini provider call occurs without
+6. Verify adult and Terms actions create immutable owner receipts, while Gemini
+   and optional analytics actions create immutable causally linked rows with
+   increasing server revisions and the accepted parent returned by the RPC.
+   Reproduce Device A offline grant → Device B synchronized revocation → Device
+   A reconnect for both providers; the stale grants must be rejected and both
+   providers must remain revoked. Then reproduce Device A offline revocation →
+   Device B synchronized grant → Device A reconnect; each revocation must be
+   accepted, rebased to Device B's grant, remain idempotent when retried with its
+   originally observed parent, and leave the provider revoked. Verify no
+   Gemini provider call occurs without
    all current required evidence; and no iOS or Edge PostHog request occurs
    without a latest grant. Verify Settings withdrawal is immediate,
    account-wide, and leaves core functionality unchanged.
-4. Expire every older TestFlight build in App Store Connect. Confirm no active
-   beta can depend on the legacy consent versions.
-5. As database owner, run
+7. As database owner, run
    `psql "$MERIAN_DATABASE_URL" -v ON_ERROR_STOP=1 -f services/supabase/scripts/cutover_strict_ai_consent.sql`.
    Confirm the single config row reads `strict_2026_08_04`, legacy-only fixtures
    receive `403 ai_consent_required`, and current-complete accounts still reach
    Gemini. This one-way operation enables strict server enforcement.
 
 Do not run the strict cutover before the replacement build is verified and old
-builds are expired. Do not backfill, infer, or fabricate age, Terms, Gemini, or
-analytics events.
+builds are expired. Do not deploy the causal ACL cutover while a direct-writing
+build remains active. Do not backfill, infer, or fabricate age, Terms, Gemini,
+or analytics events.
 
 ### Production release blockers
 
@@ -4820,12 +4850,12 @@ external controls below:
 Record the evidence locations and accountable owners in the release ticket;
 never put API-key material in the ticket or repository.
 
-If a consent-incapable App Store build has a public production cohort, do not
-use this one-step cutover unchanged. Prepare a separately reviewed staged
-migration that creates the append-only schema before iOS distribution and adds
-the provider gate only after a forced-update boundary. A temporary ungated
-period is a legal/privacy policy decision and requires explicit release and
-counsel authority; never backfill acceptance or fabricate grant events.
+If a direct-writing or consent-incapable App Store build has a public production
+cohort, do not use this one-step cutover unchanged. Prepare a separately
+reviewed two-phase protocol and forced-update boundary that preserves causal
+ordering without accepting stale writes. A temporary ungated period is a
+legal/privacy policy decision and requires explicit release and counsel
+authority; never backfill acceptance or fabricate grant events.
 
 ## Required and Optional GitHub Secrets
 
@@ -5579,7 +5609,8 @@ After deployment:
   or hidden iOS UI alone are not sign-off. Require the stable hosted
   `iOS Build and Test / Production readiness` result, including the full
   unit-test target, exact queued-scan completion UI smoke, and independent
-  unsigned Release archive with `privacy_manifest_valid: true`, plus the frozen
+  unsigned Release archive with `privacy_manifest_valid: true` and
+  `transport_security: "ats-default"`, plus the frozen
   public-web
   install/audit/test/type-check/build gate for the same release SHA. Do not
   require active-export maximum-shape/provider proof for this default-off

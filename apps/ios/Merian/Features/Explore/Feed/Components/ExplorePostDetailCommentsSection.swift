@@ -532,8 +532,9 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     private func resolvedAuthorAvatarUrl(for comment: ExploreComment) -> URL? {
-        if let avatarUrlString = comment.authorAvatarUrl,
-           let avatarUrl = URL(string: avatarUrlString) {
+        if let avatarUrl = SecureTransportPolicy.httpsURL(
+            from: comment.authorAvatarUrl
+        ) {
             return avatarUrl
         }
 
@@ -543,8 +544,9 @@ struct ExplorePostDetailCommentsSection: View {
         }
 
         if post.authorUserId.lowercased() == comment.authorUserId.lowercased(),
-           let postAvatarUrlString = post.authorAvatarUrl,
-           let postAvatarUrl = URL(string: postAvatarUrlString) {
+           let postAvatarUrl = SecureTransportPolicy.httpsURL(
+               from: post.authorAvatarUrl
+           ) {
             return postAvatarUrl
         }
 

@@ -53,13 +53,71 @@ Parser failures use stable public codes:
 Provider-backed routes additionally return HTTP `403` with code
 `ai_consent_required` when the authenticated account lacks the current 18+
 self-attestation, lacks the current Terms receipt, lacks the current Google
-Gemini grant, or has a later Gemini revocation. During the bounded replacement
-build window the server accepts only an explicitly allowlisted complete beta
-bundle; after owner-only strict cutover, only adult policy `2026-08-03`, Terms
-`2026-08-03`, and Gemini disclosure `2026-08-04.1` pass. This failure occurs at
-the common database quota boundary before provider dispatch; clients must return
-the user to the disclosure screen rather than retrying the same request in a
-loop.
+Gemini grant, or resolves a revoked event at the greatest accepted consent
+revision. During the bounded replacement build window the server accepts only
+an explicitly allowlisted complete beta bundle; after owner-only strict
+cutover, only adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini
+disclosure `2026-08-04.1` pass. This failure occurs at the common database quota
+boundary before provider dispatch; clients must return the user to the
+disclosure screen rather than retrying the same request in a loop.
+
+## Causal Consent Append RPC Contract
+
+The iOS client appends mutable provider permission only through these
+authenticated PostgREST RPCs:
+
+- `append_user_ai_consent_event(...)`, fixed to the caller's
+  `google_gemini` stream;
+- `append_user_analytics_consent_event(...)`, fixed to the caller's `posthog`
+  stream.
+
+Both accept the same parameters: `p_id`, `p_disclosure_version`,
+`p_event_kind`, `p_occurred_at`, `p_disclosure_text`, `p_action_text`,
+`p_platform`, `p_app_version`, `p_app_build`, and the nullable
+`p_causal_parent_id` observed when the local action was created. The caller
+cannot supply a user ID, provider, server timestamp, or revision. Direct table
+inserts and sequence access are denied.
+
+Each call returns exactly one row with this shape:
+
+```json
+{
+  "accepted": true,
+  "event_revision": 42,
+  "accepted_parent_id": "previous-event-uuid-or-null",
+  "authoritative_revision": 42,
+  "authoritative_event_id": "submitted-or-current-event-uuid",
+  "recorded_at": "server-timestamp-or-null"
+}
+```
+
+The RPC first locks the caller's `public.users` row against ghost-profile merge,
+then serializes the account/provider stream with a transaction-scoped advisory
+lock. Under that lock:
+
+- a grant is inserted only when `p_causal_parent_id` equals the current head;
+- a stale grant returns `accepted = false`, no event revision or timestamp, and
+  the authoritative head without inserting a row;
+- a revocation is always accepted and stores the locked current head as
+  `accepted_parent_id`, even when the caller observed an older parent; and
+- an accepted event receives the server's monotonic `event_revision`.
+
+The client must persist the returned accepted parent and revision. It retains a
+rejected grant only as superseded local evidence. `occurred_at` and
+`recorded_at` are audit evidence and never order provider authorization.
+
+Reusing an event ID is idempotent only when every immutable payload field
+matches. A revocation retry may repeat its originally observed parent because
+the stored parent can have been rebased; any other mismatch raises
+`consent_event_id_conflict` (`23505`). Missing authentication or an unavailable
+caller account fails with `42501`. After an ambiguous transport failure, a
+fetched row is confirmation only when its immutable payload matches the
+attempted event, with the same revocation-parent exception.
+
+The schema, rollout, concurrency, and release-evidence requirements are defined
+in the [database schema](./04-database-schema.md),
+[Supabase deployment runbook](./06-supabase-deployment-runbook.md), and
+[production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 Edge errors return:
 

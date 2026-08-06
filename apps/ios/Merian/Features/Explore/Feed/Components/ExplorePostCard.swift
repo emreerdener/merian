@@ -226,8 +226,9 @@ struct ExplorePostCard: View {
     }
 
     private var resolvedAuthorAvatarUrl: URL? {
-        if let avatarUrlString = post.authorAvatarUrl,
-           let avatarUrl = URL(string: avatarUrlString) {
+        if let avatarUrl = SecureTransportPolicy.httpsURL(
+            from: post.authorAvatarUrl
+        ) {
             return avatarUrl
         }
 
@@ -1487,7 +1488,9 @@ struct ExplorePublicMediaView: View {
     @discardableResult
     private func configurePlayerIfNeeded(forceRebuildForRecovery: Bool = false) -> AVPlayer? {
         guard let videoURLString = videoURLStringForPlayerConfiguration(forceRebuildForRecovery: forceRebuildForRecovery),
-              let url = URL(string: videoURLString) else {
+              let url = SecureTransportPolicy.httpsURL(
+                  from: videoURLString
+              ) else {
             cleanupPlayer()
             return nil
         }

@@ -9,6 +9,23 @@ struct SerializedMediaItemTests {
         return try #require(String(data: data, encoding: .utf8))
     }
 
+    @Test func storedMediaReferenceResolvesOnlyHTTPSForRemoteStorage() {
+        let secure = StoredMediaReference.remoteURL(
+            "https://cdn.example.com/image.webp"
+        )
+        let cleartext = StoredMediaReference.remoteURL(
+            "http://cdn.example.com/image.webp"
+        )
+
+        #expect(secure.resolvedURL?.scheme == "https")
+        #expect(cleartext.resolvedURL == nil)
+        #expect(
+            StoredMediaReference.absolutePath(
+                "file:///tmp/image.webp"
+            ).resolvedURL?.isFileURL == true
+        )
+    }
+
     @Test func localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror() throws {
         let jsonItems: [SerializedMediaItem] = [.image(.documents("json-primary.webp"))]
         let relationshipItems: [SerializedMediaItem] = [.image(.documents("relationship-stale.webp"))]

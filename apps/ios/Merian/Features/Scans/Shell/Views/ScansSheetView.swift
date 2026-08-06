@@ -401,8 +401,9 @@ struct ScansSheetView: View {
             ].compactMap { $0 } + record.capturedMediaSnapshot.thumbnailImagePaths
 
             for mediaPath in mediaPaths {
-                guard let sourceUrl = URL(string: mediaPath),
-                      sourceUrl.scheme?.lowercased() == "https",
+                guard let sourceUrl = SecureTransportPolicy.httpsURL(
+                    from: mediaPath
+                ),
                       seenSourceUrls.insert(sourceUrl.absoluteString).inserted,
                       let localUrl = LocalScanMediaRecoveryResolver
                           .existingLocalImageURL(for: sourceUrl) else {

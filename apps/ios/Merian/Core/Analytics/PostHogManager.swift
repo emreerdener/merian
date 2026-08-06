@@ -62,7 +62,9 @@ final class PostHogConsentNetworkGate: @unchecked Sendable {
     /// the process lifetime so a delayed request from an old session cannot be
     /// admitted when a newer consented session opens.
     func register(host: String) -> String? {
-        guard let normalizedHost = URL(string: host)?.host?.lowercased() else {
+        guard let normalizedHost = SecureTransportPolicy.httpsURL(
+            from: host
+        )?.host?.lowercased() else {
             return nil
         }
         let transportId = UUID().uuidString

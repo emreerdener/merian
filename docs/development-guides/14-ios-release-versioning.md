@@ -4,9 +4,11 @@ Last updated: August 5, 2026
 
 ## Active Consent Release Hold
 
-`CONSENT-001` through `CONSENT-010` are closed in source. Internal development
-and TestFlight builds may be archived and distributed for testing under the
-ordinary gates below. Do not nominate the current consent candidate for public
+`CONSENT-001` through `CONSENT-011` are closed in source. Internal development
+and the causal-consent replacement may be archived/uploaded for processing
+under the ordinary gates below, but that build must not be distributed before
+the RPC/ACL migration is deployed in the approved maintenance window and every
+direct-writing build is expired or suspended. Do not nominate the current consent candidate for public
 production or run strict server cutover until the clean hosted exact-SHA iOS
 evidence and validation-only **Supabase Candidate Validation** result are green
 on the same immutable SHA, as defined by the
@@ -19,6 +21,10 @@ Store answers remain release evidence under the
 [iOS App Privacy Manifest Contract](./16-ios-privacy-manifest.md). This hold adds
 prerequisites; it does not change the Organizer-only distribution authority
 below.
+
+The global ATS exception is also removed. Source and signed archives must retain
+ATS defaults and credential-free HTTPS origins under the
+[iOS App Transport Security Contract](./17-ios-transport-security.md).
 
 ## Policy
 
@@ -100,6 +106,7 @@ git pull --ff-only
 make xcodegen
 make validate-ios-project
 make validate-ios-privacy-manifest
+make validate-ios-transport-security
 make validate-ios-versioning
 ```
 
@@ -124,6 +131,8 @@ The archive embeds:
 - `MERIAN_SOURCE_FINGERPRINT`
 - `MERIAN_SOURCE_STATE`
 - the main app's validated `PrivacyInfo.xcprivacy`
+- a main-app `Info.plist` with ATS defaults and a resolved credential-free HTTPS
+  Supabase origin
 
 The source state must be `clean`.
 
@@ -206,6 +215,8 @@ The iOS project guardrails verify that:
   once, with the reviewed collection declarations and required API reasons;
 - the final archive contains that manifest at the application-bundle root and
   passes `scripts/validate-ios-privacy-manifest.sh`;
+- the final archive rejects every ATS exception or insecure/unresolved Supabase
+  origin and records `transport_security: "ats-default"`;
 - the local archive preflight requires clean source and production client
   configuration;
 - no GitHub Actions workflow contains Apple signing credentials or an App Store
@@ -277,6 +288,7 @@ For every external beta or App Review submission, record:
 - source Git SHA;
 - CI **iOS Build and Test** run;
 - archive evidence showing `privacy_manifest_valid: true`;
+- archive evidence showing `transport_security: "ats-default"`;
 - Organizer archive creation date;
 - aggregate privacy-report evidence identifier and reconciliation decision;
 - App Store privacy-answer and ATT owner/counsel approval status;

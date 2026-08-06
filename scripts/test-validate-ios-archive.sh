@@ -68,6 +68,7 @@ write_plist(
         "MERIAN_SOURCE_REVISION": source_revision,
         "MERIAN_SOURCE_FINGERPRINT": source_fingerprint,
         "MERIAN_SOURCE_STATE": "clean",
+        "SUPABASE_URL": "https://project.supabase.co",
     },
 )
 
@@ -100,6 +101,8 @@ output="$("${validation_command[@]}")" \
   || fail "archive fixture with a valid privacy manifest must pass"
 grep -Fq "privacyManifest=valid" <<<"$output" \
   || fail "archive validation did not report a valid privacy manifest"
+grep -Fq "transportSecurity=ats-default" <<<"$output" \
+  || fail "archive validation did not report ATS-default transport security"
 
 rm "$bundled_privacy_manifest"
 assert_fails_with \
@@ -123,4 +126,21 @@ assert_fails_with \
   "NSPrivacyTracking must be false" \
   "${validation_command[@]}"
 
-echo "iOS Release archive privacy-manifest tests passed."
+cp "$privacy_manifest" "$bundled_privacy_manifest"
+python3 - "$app_path/Info.plist" <<'PY'
+import plistlib
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+with path.open("rb") as plist_file:
+    info = plistlib.load(plist_file)
+info["NSAppTransportSecurity"] = {"NSAllowsArbitraryLoads": True}
+with path.open("wb") as plist_file:
+    plistlib.dump(info, plist_file, sort_keys=False)
+PY
+assert_fails_with \
+  "NSAllowsArbitraryLoads must not enable" \
+  "${validation_command[@]}"
+
+echo "iOS Release archive privacy-manifest and transport-security tests passed."

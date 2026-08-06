@@ -33,8 +33,14 @@ logins. Target-account restoration keeps capture closed while pending actions
 are pushed and authoritative state is fetched. Its final merge independently
 rejects cancellation, observed-user, SDK-session, or synchronization-generation
 drift before any old account grant can reopen analytics. This synchronization
-generation fence is inside the mutation boundary. Hosted verification must
-still prove zero setup, identification,
+generation fence is inside the mutation boundary. `CONSENT-011` is also closed
+in source: every local PostHog action names its observed stream head, the
+authenticated database RPC serializes compare-and-append, and a stale offline
+grant is rejected instead of acquiring authority from its later upload time.
+A revocation is accepted under the same lock and rebased to the current head,
+so concurrent or delayed withdrawal remains deny-wins. iOS stores the accepted
+parent and orders state only by the server-issued `consentRevision`. Hosted
+verification must still prove zero setup, identification,
 capture, or network activity before grant and after withdrawal/account change.
 See the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).

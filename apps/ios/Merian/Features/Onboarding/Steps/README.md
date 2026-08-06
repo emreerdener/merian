@@ -18,7 +18,13 @@ for production. The two P1 analytics-withdrawal and ghost-handoff defects are
 closed in source, as are account restoration, Realtime retry/repair, and OAuth
 account replacement. The final synchronization merge also rechecks task
 cancellation, observed account, Supabase SDK session, and synchronization
-generation before it can persist evidence or apply analytics. Internal test
+generation before it can persist evidence or apply analytics. AI and analytics
+actions also carry the provider head observed when they were created; the
+database atomically rejects a delayed offline grant if another device has
+already changed that head. A revocation instead rebases onto the locked current
+head so a stale device cannot leave permission enabled; the server-only
+revision orders accepted state.
+Internal test
 builds may continue; same-SHA hosted iOS/Supabase validation, counsel approval,
 and operator evidence still block public production. The
 canonical status and exit evidence are recorded in

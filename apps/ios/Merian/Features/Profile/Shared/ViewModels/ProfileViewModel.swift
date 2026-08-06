@@ -71,11 +71,11 @@ final class ProfileViewModel {
     
     var userAvatarURL: URL? {
         if let publicAvatarUrl,
-           let url = URL(string: publicAvatarUrl) {
+           let url = SecureTransportPolicy.httpsURL(from: publicAvatarUrl) {
             return url
         }
         if let avatarStr = supabase.currentUser?.userMetadata["avatar_url"]?.stringValue ?? supabase.currentUser?.userMetadata["picture"]?.stringValue,
-           let url = URL(string: avatarStr) {
+           let url = SecureTransportPolicy.httpsURL(from: avatarStr) {
             return url
         }
         return nil

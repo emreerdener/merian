@@ -531,10 +531,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         return FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
     }
 
-    private func resolvedVideoPath(for videoFilePath: String) -> String {
+    private func resolvedVideoPath(for videoFilePath: String) -> String? {
         let normalizedPath = videoFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalizedPath.hasPrefix("http://") || normalizedPath.hasPrefix("https://") {
-            return normalizedPath
+            return SecureTransportPolicy.httpsURL(
+                from: normalizedPath
+            )?.absoluteString
         }
         if normalizedPath.hasPrefix("/") {
             if FileManager.default.fileExists(atPath: normalizedPath) {
@@ -587,10 +589,19 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     }
                     return nil
                 }
-                items.append(.video(
-                    resolvedVideoPath(for: videoFilePath),
-                    fallbackImage: fallbackImage
-                ))
+                if let videoPath = resolvedVideoPath(for: videoFilePath) {
+                    items.append(.video(
+                        videoPath,
+                        fallbackImage: fallbackImage
+                    ))
+                } else if let fallbackImage {
+                    switch fallbackImage {
+                    case .liveImage(let data):
+                        items.append(.liveImage(data))
+                    case .imagePath(let path):
+                        items.append(.image(path))
+                    }
+                }
             case .description(let context):
                 guard !context.isEmpty else { continue }
                 items.append(.description(context))

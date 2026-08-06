@@ -22,7 +22,7 @@ production. A green candidate run does not authorize deployment.
 
 ## Consent release hold
 
-`CONSENT-001` through `CONSENT-010` are closed in source. Do not enter the
+`CONSENT-001` through `CONSENT-011` are closed in source. Do not enter the
 Production job or run strict consent cutover until the same immutable SHA passes
 both hosted gates and the external production controls in the
 [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
@@ -30,15 +30,21 @@ The bounded rollout is:
 
 1. Prove **iOS Build and Test** and **Supabase Candidate Validation** on the same
    SHA. The latter is validation-only and must report no production mutation.
-2. After separate production authorization, deploy the additive schema and
-   consent-gated Edge code while
-   `internal.ai_consent_rollout_config` remains `legacy_compatible`.
-3. Distribute and verify the corrected replacement TestFlight build.
-4. Expire old consent-incapable builds.
-5. Only then run the owner-only forward strict-cutover script and verify
+2. Upload and process the corrected replacement TestFlight binary without
+   distributing it.
+3. Open the approved maintenance window; suspend consent-changing access and
+   expire every direct-writing build.
+4. Deploy the causal RPC/ACL migration and consent-gated Edge code while
+   `internal.ai_consent_rollout_config` remains `legacy_compatible`. Verify
+   direct inserts fail and both inverse-order fixtures reject stale grants.
+5. Distribute and verify the processed replacement TestFlight build.
+6. Only then run the owner-only forward strict-cutover script and verify
    deployed rejection fixtures.
 
 Never backfill or infer adult, Terms, Gemini, or analytics evidence.
+If a public cohort cannot be forced off the direct-insert protocol, stop and
+use a separately reviewed two-phase migration; do not deploy this ACL cutover
+unchanged.
 
 ## Required local preflight
 

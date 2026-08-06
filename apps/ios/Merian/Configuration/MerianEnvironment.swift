@@ -128,8 +128,8 @@ enum MerianEnvironment {
         let revenueCatApiKey = value(for: Keys.revenueCatApiKey, in: infoDictionary, issues: &issues) ?? ""
         let postHogApiKey = value(for: Keys.postHogApiKey, in: infoDictionary, issues: &issues) ?? ""
 
-        let supabaseURL = URL(string: supabaseUrl)
-        if supabaseURL?.scheme == nil || supabaseURL?.host == nil {
+        let supabaseURL = SecureTransportPolicy.httpsURL(from: supabaseUrl)
+        if supabaseURL == nil {
             issues.append(.invalidSupabaseURL(supabaseUrl))
         }
 

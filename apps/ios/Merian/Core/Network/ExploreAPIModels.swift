@@ -1066,8 +1066,7 @@ struct ExploreAuthorProfile: Decodable, Equatable {
     let ownerPublicationSummary: ExploreOwnerPublicationSummary?
 
     var authorAvatarURL: URL? {
-        guard let authorAvatarUrl else { return nil }
-        return URL(string: authorAvatarUrl)
+        SecureTransportPolicy.httpsURL(from: authorAvatarUrl)
     }
 
     var publicAuthorDisplayName: String {

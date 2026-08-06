@@ -28,6 +28,11 @@ TestFlight, App Store, support, and QA.
   after the current account's authoritative grant survives the final verified,
   identity-fenced ledger write; remote absence, revocation, fetch failure, or
   persistence failure remains off.
+- Cross-device Gemini and analytics changes now use a server-serialized causal
+  revision. If one device revokes permission while another holds an older
+  offline grant, the delayed grant is rejected instead of becoming current when
+  it reconnects. If an older offline revocation reconnects after a newer grant,
+  the server rebases and accepts the withdrawal so permission remains deny-wins.
 - Supabase candidate assurance now reports a stable result on every pull
   request. Its full-history scope detector includes every app, documentation,
   workflow, script, and backend root inspected by the executable contracts and
@@ -48,6 +53,10 @@ TestFlight, App Store, support, and QA.
   metadata, and low-storage write admission. Source, archive, and exported-IPA
   guardrails are in place; public promotion still requires the signed archive's
   aggregate Xcode privacy report and reconciled App Store privacy answers.
+- The main iOS app now retains App Transport Security defaults. Configured
+  origins, signed transfer URLs, avatars, and remote observation/reference media
+  must be credential-free HTTPS, and source/archive/exported-IPA guardrails
+  reject insecure exceptions or origins.
 
 ### Three Pro Scans Included
 

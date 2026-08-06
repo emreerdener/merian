@@ -34,6 +34,9 @@ import Observation
 
     /// Downloads generated dataset archives while protecting cellular bandwidth via strict file caching.
     func downloadArchive(id: String, url: URL) async throws -> URL {
+        guard SecureTransportPolicy.isSecureRemoteURL(url) else {
+            throw URLError(.unsupportedURL)
+        }
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw URLError(.cannotCreateFile)
         }

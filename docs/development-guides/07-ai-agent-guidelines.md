@@ -43,6 +43,9 @@ The `docs/` folder contains the master reference for the application:
   changing an Apple required-reason API, privacy manifest, SDK, executable,
   analytics property, data-collection purpose, identity-linking behavior, or
   tracking behavior.
+- Refer to `docs/development-guides/17-ios-transport-security.md` before
+  changing ATS configuration, configured origins, signed URLs, or any boundary
+  that converts a backend-supplied string into a remote URL.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk →
   cache → display image flow.
 - Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before
@@ -68,6 +71,10 @@ The `docs/` folder contains the master reference for the application:
   validator, fixtures, canonical privacy inventory, and generated project
   together; run `make validate-ios-privacy-manifest` and
   `make test-ios-ci-tooling`.
+- The main app must retain ATS defaults. App-configured and remotely supplied
+  network URLs must pass the shared credential-free HTTPS boundary; local-file
+  handling must remain explicit. Run `make validate-ios-transport-security`
+  and the adversarial archive/IPA fixtures whenever that boundary changes.
 - Do not hardcode a real Apple Developer Team ID in `project.yml` or shared
   tracked config. Signing must flow through `Signing.xcconfig` -> optional
   `Signing.local.xcconfig`, with the local file ignored by git.

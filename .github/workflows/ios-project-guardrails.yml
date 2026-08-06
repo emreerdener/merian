@@ -37,6 +37,7 @@ on:
       - "scripts/test-validate-ios-archive.sh"
       - "scripts/test-validate-ios-exported-ipa.sh"
       - "scripts/test-validate-ios-privacy-manifest.sh"
+      - "scripts/test-validate-ios-transport-security.sh"
       - "scripts/test-validate-ios-critical-test-results.sh"
       - "scripts/test-validate-ios-focused-test-results.sh"
       - "scripts/test-ci-detect-ios-build-source-changes.sh"
@@ -44,6 +45,7 @@ on:
       - "scripts/validate-ios-critical-test-results.sh"
       - "scripts/validate-ios-focused-test-results.sh"
       - "scripts/validate-ios-privacy-manifest.sh"
+      - "scripts/validate-ios-transport-security.sh"
       - "scripts/validate-ios-versioning.sh"
       - "services/supabase/functions/_shared/identify/contract.ts"
       - "services/supabase/functions/_shared/identify/contract_test.ts"
@@ -91,6 +93,7 @@ on:
       - "scripts/test-validate-ios-archive.sh"
       - "scripts/test-validate-ios-exported-ipa.sh"
       - "scripts/test-validate-ios-privacy-manifest.sh"
+      - "scripts/test-validate-ios-transport-security.sh"
       - "scripts/test-validate-ios-critical-test-results.sh"
       - "scripts/test-validate-ios-focused-test-results.sh"
       - "scripts/test-ci-detect-ios-build-source-changes.sh"
@@ -98,6 +101,7 @@ on:
       - "scripts/validate-ios-critical-test-results.sh"
       - "scripts/validate-ios-focused-test-results.sh"
       - "scripts/validate-ios-privacy-manifest.sh"
+      - "scripts/validate-ios-transport-security.sh"
       - "scripts/validate-ios-versioning.sh"
       - "services/supabase/functions/_shared/identify/contract.ts"
       - "services/supabase/functions/_shared/identify/contract_test.ts"
@@ -144,6 +148,9 @@ jobs:
 
       - name: Validate iOS release versioning guardrails
         run: make validate-ios-versioning
+
+      - name: Validate iOS transport security guardrails
+        run: make validate-ios-transport-security
 
       - name: Validate SwiftData migration source guardrails
         run: make validate-ios-migration-guardrails

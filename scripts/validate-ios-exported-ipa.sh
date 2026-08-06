@@ -169,6 +169,9 @@ extract_plist "$root_privacy_entry" "$main_privacy_manifest"
 if ! bash "$script_dir/validate-ios-privacy-manifest.sh" "$main_privacy_manifest"; then
   fail "main app privacy manifest is invalid."
 fi
+if ! bash "$script_dir/validate-ios-transport-security.sh" "$main_info"; then
+  fail "main app transport-security configuration is invalid."
+fi
 
 main_package_type="$(read_plist_value "$main_info" "CFBundlePackageType")"
 main_bundle_id="$(read_plist_value "$main_info" "CFBundleIdentifier")"
@@ -237,5 +240,5 @@ final_ipa_sha256="$(hash_ipa)"
 [[ "$final_ipa_sha256" == "$initial_ipa_sha256" ]] \
   || fail "IPA contents changed while metadata was being validated."
 
-echo "Exported IPA metadata verified for ${main_bundle_id} ${main_version} (${main_build}); source=${main_source_revision} fingerprint=${main_source_fingerprint} state=clean; privacyManifest=valid; embeddedComponents=${component_count}."
+echo "Exported IPA metadata verified for ${main_bundle_id} ${main_version} (${main_build}); source=${main_source_revision} fingerprint=${main_source_fingerprint} state=clean; privacyManifest=valid; transportSecurity=ats-default; embeddedComponents=${component_count}."
 echo "ipa_sha256=${final_ipa_sha256}"

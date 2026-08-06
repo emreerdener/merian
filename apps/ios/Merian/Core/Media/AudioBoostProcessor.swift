@@ -90,7 +90,7 @@ actor AudioBoostProcessor {
     }
 
     private static func resolveSource(_ source: String) async throws -> AudioSourceLease {
-        if let remoteURL = URL(string: source), remoteURL.scheme == "https" {
+        if let remoteURL = SecureTransportPolicy.httpsURL(from: source) {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = 30
             let (downloadURL, response) = try await URLSession.shared.download(for: request)

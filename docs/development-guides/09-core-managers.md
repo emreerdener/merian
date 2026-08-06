@@ -1572,6 +1572,13 @@ and `KeychainManager` migration logic. Do not inline
   state before cached values are refreshed. Only a successfully persisted,
   identity-fenced authoritative grant can reach `PostHogManager`; remote
   absence, revocation, fetch failure, and persistence failure stay closed.
+- AI and analytics actions record the provider event observed at creation.
+  `ConsentManager` sends them only through the authenticated causal append RPC,
+  persists its returned accepted parent and server-issued revision, marks stale
+  grant rejections as superseded local evidence, and fetches the all-version
+  stream head before a new action can extend it. The RPC rebases revocations to
+  the locked head so withdrawal wins a concurrent grant. A fetch-before-push
+  reorder is not an acceptable substitute for that atomic database decision.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
   buffers only a consented pending user ID if a call races setup.
 - PostHog's dedicated session carries a configured-host-only `URLProtocol`

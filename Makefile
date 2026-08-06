@@ -1,4 +1,4 @@
-.PHONY: help xcodegen validate-ios-project validate-ios-privacy-manifest validate-ios-versioning test-ios-project-resources test-ios-privacy-manifest test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen validate-ios-project validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -8,11 +8,13 @@ help:
 	@printf "  iOS release: Product > Archive, then Organizer > Distribute App\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-privacy-manifest    Validate app privacy declarations and required API reasons\n"
+	@printf "  make validate-ios-transport-security  Enforce ATS defaults and HTTPS-only app origins\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-project-resources       Test adversarial generated-project phase fixtures\n"
 	@printf "  make test-ios-privacy-manifest        Test privacy manifest fail-closed validation\n"
-	@printf "  make test-ios-archive-validation      Test archived-app privacy manifest enforcement\n"
-	@printf "  make test-ios-exported-ipa-validation Test exported-IPA privacy manifest enforcement\n"
+	@printf "  make test-ios-transport-security      Test ATS/HTTPS fail-closed validation\n"
+	@printf "  make test-ios-archive-validation      Test archived-app privacy and ATS enforcement\n"
+	@printf "  make test-ios-exported-ipa-validation Test exported-IPA privacy and ATS enforcement\n"
 	@printf "  make test-ios-versioning              Run focused release-versioning script tests\n"
 	@printf "  make test-ios-xcode-release-workflow  Check Xcode-only release workflow invariants\n"
 	@printf "  make test-ios-ci-tooling              Test portable iOS CI workflow/result invariants\n"
@@ -37,6 +39,11 @@ validate-ios-project:
 validate-ios-privacy-manifest:
 	bash scripts/validate-ios-privacy-manifest.sh
 
+validate-ios-transport-security:
+	bash scripts/validate-ios-transport-security.sh \
+		apps/ios/Merian/Configuration/Info.plist \
+		--allow-build-settings
+
 validate-ios-versioning:
 	bash scripts/validate-ios-versioning.sh
 
@@ -45,6 +52,9 @@ test-ios-project-resources:
 
 test-ios-privacy-manifest:
 	bash scripts/test-validate-ios-privacy-manifest.sh
+
+test-ios-transport-security:
+	bash scripts/test-validate-ios-transport-security.sh
 
 test-ios-archive-validation:
 	bash scripts/test-validate-ios-archive.sh
@@ -61,6 +71,7 @@ test-ios-xcode-release-workflow:
 test-ios-ci-tooling:
 	bash scripts/test-check-ios-project-resources.sh
 	bash scripts/test-validate-ios-privacy-manifest.sh
+	bash scripts/test-validate-ios-transport-security.sh
 	bash scripts/test-validate-ios-archive.sh
 	bash scripts/test-validate-ios-exported-ipa.sh
 	bash scripts/test-ios-versioning.sh

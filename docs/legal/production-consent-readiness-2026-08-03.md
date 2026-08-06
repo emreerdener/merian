@@ -7,9 +7,11 @@ versioned consent evidence, server-side Gemini admission guard, optional
 analytics control, and legal copy. The reviewed consent-lifecycle defects,
 including durable local-write and withdrawal recovery, the adjacent
 stale-sync/unit-fixture defects, and the account-restoration lifecycle findings
-are complete in source. Hosted exact-SHA
-execution and the external operator controls below must still close before this
-candidate is nominated for production.
+are complete in source. AI and analytics streams now also reject delayed
+offline grants whose causal parent is no longer authoritative and rebase
+revocations onto the locked current head. Hosted exact-SHA execution and the
+external operator controls below must still close before this candidate is
+nominated for production.
 
 For internal test builds, the App Store, billing/DPA, and counsel approvals are
 explicitly deferred. That deferral permits continued engineering and internal
@@ -41,6 +43,19 @@ requires the exact-SHA archive to report `privacy_manifest_valid: true`, then a
 reviewed Xcode aggregate privacy report from the signed archive and matching
 owner/counsel-approved App Store answers. See the
 [iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
+
+## Adjacent iOS Transport Security Status
+
+The global `NSAllowsArbitraryLoads` exception is removed in source. The app now
+requires credential-free HTTPS for configured origins and backend-supplied
+remote media, while ATS remains the independent operating-system backstop.
+Source, archive, and exported-IPA validators reject broad, media, web-content,
+local-network, and domain-scoped exceptions.
+
+Production evidence still requires the exact-SHA archive to report
+`transport_security: "ats-default"`, and the signed Organizer archive must
+pass the same final-bundle check. See the
+[iOS App Transport Security Contract](../development-guides/17-ios-transport-security.md).
 
 ## Required Product Contract
 
@@ -86,6 +101,16 @@ repeating Camera or Location.
 - Reauthentication, account change, withdrawal, offline retry, and
   ghost-to-existing-account merging must preserve the latest user action and
   must never infer or fabricate consent.
+- Gemini and PostHog mutations name the account/provider event observed when
+  the action was created. An authenticated `SECURITY DEFINER` causal
+  compare-and-append
+  RPC locks the account against ghost merge and then serializes that stream. It
+  accepts a grant only from the current causal parent; a revocation is accepted
+  and rebased to the locked current head so withdrawal wins either race order.
+  The response returns the accepted parent and immutable server revision used
+  for authorization. Direct client inserts are forbidden. A rejected stale
+  grant remains local superseded evidence and cannot become authoritative
+  merely because it reconnects later.
 
 ## Primary Policy Basis
 
@@ -107,7 +132,7 @@ engineering release controls; it is not a legal opinion.
 
 ## Source Status
 
-`CONSENT-001` through `CONSENT-010` are closed in source. “Closed in source” is
+`CONSENT-001` through `CONSENT-011` are closed in source. “Closed in source” is
 not exact-SHA runtime evidence and is not a production approval.
 
 | ID | Implemented control | Remaining evidence |
@@ -120,6 +145,7 @@ not exact-SHA runtime evidence and is not a production approval.
 | `CONSENT-007` | OAuth replacement suppresses analytics and closes consent Realtime before session installation; success and failure reconcile the SDK's actual session under a transition generation. | Exact-SHA account-replacement execution. |
 | `CONSENT-009` | The retained internal copy has distinct Gemini and analytics disclosure versions, and forward-only server compatibility preserves immutable historical receipts. | Exact-SHA migration/client contracts and replacement-build validation. |
 | `CONSENT-010` | Consent mutations use a throwing, fault-injectable storage boundary and transactional candidate ledger. Onboarding completes only after a verified atomic file write. Analytics withdrawal closes capture first, journals exact revocation events independently in Keychain, remains off across failed writes/restart, preserves multiple accounts, and clears the journal only after ledger durability. | Exact-SHA fault-injection, restart-replay, onboarding, account-switch, full-unit, and Release archive execution. |
+| `CONSENT-011` | AI and analytics writes lock the account row against ghost merge, then use account/provider causal RPCs under transaction-scoped advisory locks. The database atomically rejects stale grants, rebases revocations to the current head, issues the only authoritative monotonic `consent_revision`, and denies authenticated direct inserts and sequence access. iOS retains rejected grants as superseded evidence, persists the server-returned accepted parent, fetches the all-version stream head, and orders accepted events by revision. Gemini authorization and Edge analytics use the same revision authority. The disposable-database `legalConsentConcurrencyDb.test.ts` fixture releases overlapping grant/revocation callers and requires a revoked final head for both providers. | Exact-SHA inverse-order iOS execution plus pinned-CLI fresh-catalog replay of both cross-device directions, the overlapping concurrency fixture, revocation retry idempotency, and RPC ACL/locking contracts. |
 
 ### Superseded Fixed Test Defects
 
@@ -143,7 +169,7 @@ two workflow summaries for the same immutable candidate SHA.
 
 | Gate | Required result | Current result |
 | --- | --- | --- |
-| **iOS Build and Test** | Complete unit target, queued-audio UI smoke, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true`. | Pending a new hosted run. |
+| **iOS Build and Test** | Complete unit target, queued-audio UI smoke, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`. | Pending a new hosted run. |
 | **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green. | Pending a new hosted validation-only run. |
 | Production Supabase deployment | Separate operator action after release authorization; it must require the reusable candidate gate first. | Not part of candidate validation and not authorized by a validation-only run. |
 
@@ -162,22 +188,38 @@ result become canonical only after both hosted gates pass on the same SHA.
    validation-only disposable replay, all pgTAP fixtures, complete Edge and
    database-concurrency suite, strict lint, and advisors to pass without a
    Production environment or production secrets.
-3. After separate production authorization, use **Deploy Merian to Supabase**.
-   Its production job must first require the reusable candidate gate, then
-   apply only the additive consent schema and deploy consent-gated Edge code.
-   Keep `internal.ai_consent_rollout_config.enforcement_mode` at
+3. Upload the corrected replacement binary and let App Store Connect finish
+   processing it, but do not distribute it while the causal RPC is absent.
+4. After separate production authorization, open the consent maintenance
+   window. Suspend consent-changing app access and expire every older
+   TestFlight build that writes Gemini or analytics events directly.
+5. Use **Deploy Merian to Supabase**. Its production job must first require the
+   reusable candidate gate, then apply the causal consent migration and deploy
+   consent-gated Edge code. Verify authenticated callers cannot insert directly,
+   both compare-and-append RPCs return a monotonic revision and accepted parent,
+   stale grants are rejected, stale revocations are rebased, and the inverse
+   AI/analytics fixtures pass. Keep
+   `internal.ai_consent_rollout_config.enforcement_mode` at
    `legacy_compatible`.
-4. Distribute the corrected replacement TestFlight build. Verify all switch
+6. Distribute the processed replacement TestFlight build. Verify all switch
    combinations, inline Terms navigation, VoiceOver, Dynamic Type, smallest
    supported screens, offline withdrawal, account switching, foreground
-   reconciliation, Realtime propagation, and ghost-profile merging.
-5. Expire every older TestFlight build that cannot produce the current consent
-   bundle.
-6. Only then run the owner-only forward strict-cutover script and verify legacy,
+   reconciliation, Realtime propagation, ghost-profile merging, and both inverse
+   sequences for each provider: another device revokes before a delayed offline
+   grant reconnects, and another device grants before a delayed offline
+   revocation reconnects. The grant must be rejected in the first sequence; the
+   revocation must be accepted and rebased in the second.
+7. Only then run the owner-only forward strict-cutover script and verify legacy,
    partial, revoked, and current-complete accounts against the deployed server.
 
 Never backfill age, Terms, Gemini, or analytics evidence. Never relax the
 provider guard to recover availability.
+
+This maintenance cutover is valid only while the affected cohort can be
+stopped and every direct-writing build can be expired. If any consent-capable
+public App Store cohort cannot be forced off before the ACL/RPC migration, the
+one-step sequence is unsafe: prepare a separately reviewed two-phase protocol
+and forced-update boundary instead of deploying this migration unchanged.
 
 ## External Production Blockers
 

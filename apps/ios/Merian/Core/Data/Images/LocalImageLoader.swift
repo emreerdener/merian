@@ -11,29 +11,29 @@ enum ExternalReferenceImagePolicy {
     /// Matching its iNaturalist media directory also catches resized filename variants
     /// and query strings without affecting any other European wildcat imagery.
     static func isAllowed(_ url: URL) -> Bool {
+        guard SecureTransportPolicy.isSecureRemoteURL(url) else { return false }
         let host = url.host?.lowercased() ?? ""
         let path = url.path.lowercased()
         return host != suppressedHost || !path.hasPrefix(suppressedPathPrefix)
     }
 
     static func isAllowed(_ rawValue: String) -> Bool {
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let url = URL(string: trimmed) else { return true }
+        guard let url = SecureTransportPolicy.httpsURL(from: rawValue) else {
+            return false
+        }
         return isAllowed(url)
     }
 
     static func sanitizedURL(_ rawValue: String?) -> String? {
-        guard let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty,
-              isAllowed(trimmed) else {
+        guard let url = SecureTransportPolicy.httpsURL(from: rawValue),
+              isAllowed(url) else {
             return nil
         }
-        return trimmed
+        return url.absoluteString
     }
 
     static func url(from rawValue: String?) -> URL? {
-        guard let sanitized = sanitizedURL(rawValue),
-              let url = URL(string: sanitized),
+        guard let url = SecureTransportPolicy.httpsURL(from: rawValue),
               isAllowed(url) else {
             return nil
         }
@@ -614,8 +614,7 @@ enum LocalScanMediaRecoveryResolver {
     }
 
     private static func durableRemoteImageURL(from rawValue: String?) -> URL? {
-        guard let rawValue,
-              let url = URL(string: rawValue),
+        guard let url = ExternalReferenceImagePolicy.url(from: rawValue),
               !candidateFileNames(for: url).isEmpty else {
             return nil
         }
@@ -1117,10 +1116,17 @@ actor LocalImageLoader {
     // MARK: - Asset Orchestration
     func loadImage(fromPath imagePath: String?, fallbackUrl: String? = nil, maxDimension: Int = 1024) async -> UIImage? {
         let safeImagePath: String?
-        if let imagePath, imagePath.lowercased().starts(with: "http") {
-            safeImagePath = ExternalReferenceImagePolicy.sanitizedURL(imagePath)
+        if let imagePath {
+            let trimmed = imagePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let parsed = URL(string: trimmed),
+               parsed.scheme != nil,
+               !parsed.isFileURL {
+                safeImagePath = ExternalReferenceImagePolicy.sanitizedURL(trimmed)
+            } else {
+                safeImagePath = trimmed.isEmpty ? nil : trimmed
+            }
         } else {
-            safeImagePath = imagePath
+            safeImagePath = nil
         }
         let safeFallbackUrl = ExternalReferenceImagePolicy.sanitizedURLList(fallbackUrl)
 
@@ -1142,7 +1148,9 @@ actor LocalImageLoader {
         
         let fetchTask = Task.detached(priority: .userInitiated) { () -> UIImage? in
             // 3. Remote URL Execution (if 'imagePath' is actually a cloud URL payload directly)
-            if let safePath = safeImagePath, safePath.lowercased().starts(with: "http"), let remoteUrl = URL(string: safePath) {
+            if let remoteUrl = ExternalReferenceImagePolicy.url(
+                from: safeImagePath
+            ) {
                 if let localURL = LocalScanMediaRecoveryResolver.existingLocalImageURL(for: remoteUrl),
                    let localImage = await LocalImageLoader.decodeImage(
                        url: localURL,
@@ -1162,7 +1170,7 @@ actor LocalImageLoader {
                 }
             }
             // 4. Local File Extraction directly off Main Thread
-            else if let safePath = safeImagePath, !safePath.isEmpty, !safePath.lowercased().starts(with: "http") {
+            else if let safePath = safeImagePath, !safePath.isEmpty {
                 if let image = await LocalImageLoader.loadLocal(
                     path: safePath,
                     cacheKey: cacheKey,
@@ -1176,7 +1184,7 @@ actor LocalImageLoader {
             if let fallbackUrlString = safeFallbackUrl {
                 let urls = fallbackUrlString.components(separatedBy: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .compactMap { URL(string: $0) }
+                    .compactMap { ExternalReferenceImagePolicy.url(from: $0) }
 
                 for url in urls {
                     // We intentionally do NOT check `Task.isCancelled` here because this is a
@@ -1276,7 +1284,11 @@ actor LocalImageLoader {
 
     /// Downloads a remote URL, downsamples, and caches — entirely off the actor executor.
     static nonisolated func fetchRemote(url: URL, cacheKey: String, maxSize: CGFloat = 500) async -> UIImage? {
-        if Task.isCancelled || !ExternalReferenceImagePolicy.isAllowed(url) { return nil }
+        if Task.isCancelled
+            || !SecureTransportPolicy.isSecureRemoteURL(url)
+            || !ExternalReferenceImagePolicy.isAllowed(url) {
+            return nil
+        }
 
         for attempt in 1...RemoteImageRetryPolicy.maximumAttempts {
             if Task.isCancelled { return nil }

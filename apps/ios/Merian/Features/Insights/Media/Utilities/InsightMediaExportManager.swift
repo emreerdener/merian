@@ -11,11 +11,9 @@ enum ApprovedRemoteMedia {
             .compactMap { segment in
                 let trimmed = segment.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty,
-                      let components = URLComponents(string: trimmed),
-                      components.scheme?.lowercased() == "https",
-                      let host = components.host?.lowercased(),
-                      approvedHosts.contains(host),
-                      let url = components.url else {
+                      let url = SecureTransportPolicy.httpsURL(from: trimmed),
+                      let host = url.host?.lowercased(),
+                      approvedHosts.contains(host) else {
                     return nil
                 }
                 return url
@@ -357,6 +355,9 @@ actor ExportProcessingActor {
     }
 
     func extractRemoteImage(from remoteURL: URL, maxSize: CGFloat) async -> UIImage? {
+        guard SecureTransportPolicy.isSecureRemoteURL(remoteURL) else {
+            return nil
+        }
         do {
             let (data, response) = try await ExportProcessingActor.mediaSession.data(from: remoteURL)
             guard let httpResponse = response as? HTTPURLResponse,
@@ -383,6 +384,10 @@ actor ExportProcessingActor {
         var result = MediaSaveResult()
 
         for remoteURL in remoteURLs {
+            guard SecureTransportPolicy.isSecureRemoteURL(remoteURL) else {
+                result.record(mediaKind, success: false)
+                continue
+            }
             let success: Bool
             do {
                 let (fileURL, response) = try await ExportProcessingActor.mediaSession.download(from: remoteURL)

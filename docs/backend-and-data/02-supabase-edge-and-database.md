@@ -36,15 +36,21 @@ are identified by a persistent Keychain-backed
   each accepted Terms version, including exact action copy, device action time,
   app version/build, and an authoritative server-recorded time.
 - **`user_ai_consent_events`**: Immutable account-owned `granted` / `revoked`
-  history for a named AI provider and disclosure version. The latest
-  server-recorded event determines current provider permission.
+  history for a named AI provider and disclosure version. Direct client inserts
+  are denied; an authenticated causal RPC accepts a grant only from the
+  currently observed stream head, while a revocation is accepted and rebased to
+  the locked current head. The monotonic server revision determines provider
+  permission.
 - **`user_adult_eligibility_receipts`**: Immutable evidence of the current 18+
   self-attestation, including exact displayed text, method, device action time,
   platform, app version/build, and authoritative server time. No birth date or
   exact age is collected.
 - **`user_analytics_consent_events`**: Immutable account-wide PostHog grants
-  and revocations. Absence of a current grant means analytics is off; owner-only
-  Realtime INSERT events and foreground reconciliation propagate changes.
+  and revocations under the same causal revision protocol. Absence of a current
+  grant means analytics is off; owner-only Realtime INSERT events and foreground
+  reconciliation propagate accepted changes. A delayed stale grant is rejected
+  without insertion; a delayed revocation is rebased and accepted so withdrawal
+  remains deny-wins.
 
 The additive schema and static migration contracts establish the intended
 database boundary, but do not prove the iOS local-ledger, SDK-shutdown,

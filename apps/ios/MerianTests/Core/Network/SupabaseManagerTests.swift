@@ -362,18 +362,20 @@ final class SupabaseManagerTests: XCTestCase {
             eventKind: .revoked,
             recordedAt: nil
         )
+        let permanentGrant = makeAnalyticsConsentEvent(
+            ownerUserId: permanentUserId,
+            syncedUserId: permanentUserId,
+            eventKind: .granted,
+            recordedAt: grantRecordedAt,
+            consentRevision: 60
+        )
         let source = ConsentManager.LocalLedger(
             activeUserId: ghostUserId,
             termsReceipts: [],
             aiConsentEvents: [],
             adultEligibilityReceipts: [],
             analyticsConsentEvents: [
-                makeAnalyticsConsentEvent(
-                    ownerUserId: permanentUserId,
-                    syncedUserId: permanentUserId,
-                    eventKind: .granted,
-                    recordedAt: grantRecordedAt
-                ),
+                permanentGrant,
                 revocation
             ]
         )
@@ -409,6 +411,10 @@ final class SupabaseManagerTests: XCTestCase {
             permanentUserId
         secondDeviceLedger.analyticsConsentEvents[revocationIndex].recordedAt =
             grantRecordedAt.addingTimeInterval(1)
+        secondDeviceLedger.analyticsConsentEvents[revocationIndex]
+            .causalParentId = permanentGrant.id
+        secondDeviceLedger.analyticsConsentEvents[revocationIndex]
+            .consentRevision = 61
         userDefaults.set(
             try JSONEncoder().encode(secondDeviceLedger),
             forKey: UserDefaultsKeys.legalConsentLedger
@@ -417,6 +423,196 @@ final class SupabaseManagerTests: XCTestCase {
         let secondDeviceManager = ConsentManager(userDefaults: userDefaults)
         secondDeviceManager.observeSession(userId: permanentUserId)
         XCTAssertFalse(secondDeviceManager.hasGrantedCurrentPostHogAnalytics)
+    }
+
+    func testOfflineAIRevocationClosesPermissionAcrossRestart() throws {
+        let ownerUserId = UUID()
+        let grant = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_050_000),
+            consentRevision: 60
+        )
+        let revocation = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: nil,
+            eventKind: .revoked,
+            recordedAt: nil,
+            causalParentId: grant.id
+        )
+        let source = ConsentManager.LocalLedger(
+            activeUserId: ownerUserId,
+            termsReceipts: [],
+            aiConsentEvents: [grant, revocation],
+            adultEligibilityReceipts: [],
+            analyticsConsentEvents: []
+        )
+        let suiteName = "merian.tests.offline-ai-revocation.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsConsentLedgerStore(userDefaults: userDefaults)
+        try store.saveLedgerData(JSONEncoder().encode(source))
+
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        XCTAssertFalse(manager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertEqual(manager.pendingCloudRecordCount, 1)
+
+        let restarted = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        XCTAssertFalse(restarted.hasGrantedCurrentGeminiProcessing)
+        XCTAssertEqual(restarted.pendingCloudRecordCount, 1)
+    }
+
+    func testInverseOrderCrossDeviceAIRevocationSupersedesOfflineGrant() throws {
+        let ownerUserId = UUID()
+        let baseline = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_100),
+            consentRevision: 40
+        )
+        let remoteRevocation = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            eventKind: .revoked,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_050),
+            causalParentId: baseline.id,
+            consentRevision: 41
+        )
+        let staleOfflineGrant = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: nil,
+            eventKind: .granted,
+            recordedAt: nil,
+            causalParentId: baseline.id,
+            supersededByEventId: remoteRevocation.id,
+            supersededByRevision: 41
+        )
+        let suiteName = "merian.tests.inverse-ai-consent.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        userDefaults.set(
+            try JSONEncoder().encode(ConsentManager.LocalLedger(
+                activeUserId: ownerUserId,
+                termsReceipts: [makeTermsReceipt(
+                    ownerUserId: ownerUserId,
+                    syncedUserId: ownerUserId,
+                    recordedAt: Date(timeIntervalSince1970: 1_786_100_000)
+                )],
+                aiConsentEvents: [baseline, staleOfflineGrant],
+                adultEligibilityReceipts: [makeAdultReceipt(
+                    ownerUserId: ownerUserId,
+                    syncedUserId: ownerUserId,
+                    recordedAt: Date(timeIntervalSince1970: 1_786_100_000)
+                )],
+                analyticsConsentEvents: []
+            )),
+            forKey: UserDefaultsKeys.legalConsentLedger
+        )
+
+        let manager = ConsentManager(
+            ledgerStore: UserDefaultsConsentLedgerStore(
+                userDefaults: userDefaults
+            ),
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        manager.observeSession(userId: ownerUserId)
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: remoteRevocation,
+                analyticsConsentEvent: nil,
+                aiConsentStreamHead: remoteRevocation
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertFalse(manager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertEqual(manager.pendingCloudRecordCount, 0)
+
+        let restarted = ConsentManager(userDefaults: userDefaults)
+        XCTAssertFalse(restarted.hasGrantedCurrentGeminiProcessing)
+        restarted.observeSession(userId: ownerUserId)
+        XCTAssertFalse(restarted.hasGrantedCurrentGeminiProcessing)
+        XCTAssertEqual(restarted.pendingCloudRecordCount, 0)
+    }
+
+    func testInverseOrderCrossDeviceAnalyticsRevocationSupersedesOfflineGrant() throws {
+        let ownerUserId = UUID()
+        let baseline = makeAnalyticsConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            eventKind: .granted,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_100),
+            consentRevision: 50
+        )
+        let remoteRevocation = makeAnalyticsConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            eventKind: .revoked,
+            recordedAt: Date(timeIntervalSince1970: 1_786_100_050),
+            causalParentId: baseline.id,
+            consentRevision: 51
+        )
+        let staleOfflineGrant = makeAnalyticsConsentEvent(
+            ownerUserId: ownerUserId,
+            syncedUserId: nil,
+            eventKind: .granted,
+            recordedAt: nil,
+            causalParentId: baseline.id,
+            supersededByEventId: remoteRevocation.id,
+            supersededByRevision: 51
+        )
+        let suiteName = "merian.tests.inverse-analytics-consent.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        userDefaults.set(
+            try JSONEncoder().encode(ConsentManager.LocalLedger(
+                activeUserId: ownerUserId,
+                termsReceipts: [],
+                aiConsentEvents: [],
+                adultEligibilityReceipts: [],
+                analyticsConsentEvents: [baseline, staleOfflineGrant]
+            )),
+            forKey: UserDefaultsKeys.legalConsentLedger
+        )
+
+        let manager = ConsentManager(
+            ledgerStore: UserDefaultsConsentLedgerStore(
+                userDefaults: userDefaults
+            ),
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        manager.observeSession(userId: ownerUserId)
+        try manager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: nil,
+                termsReceipt: nil,
+                aiConsentEvent: nil,
+                analyticsConsentEvent: remoteRevocation,
+                analyticsConsentStreamHead: remoteRevocation
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+
+        XCTAssertFalse(manager.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(manager.pendingCloudRecordCount, 0)
+
+        let restarted = ConsentManager(userDefaults: userDefaults)
+        XCTAssertFalse(restarted.hasGrantedCurrentPostHogAnalytics)
+        restarted.observeSession(userId: ownerUserId)
+        XCTAssertFalse(restarted.hasGrantedCurrentPostHogAnalytics)
+        XCTAssertEqual(restarted.pendingCloudRecordCount, 0)
     }
 
     func testGhostHandoffClearsQueueOnlyAfterServerAndLocalCompletion() async throws {
@@ -647,7 +843,12 @@ final class SupabaseManagerTests: XCTestCase {
     private func makeAIConsentEvent(
         ownerUserId: UUID,
         syncedUserId: UUID?,
-        recordedAt: Date?
+        eventKind: ConsentManager.AIConsentEventKind = .granted,
+        recordedAt: Date?,
+        causalParentId: UUID? = nil,
+        consentRevision: Int64? = nil,
+        supersededByEventId: UUID? = nil,
+        supersededByRevision: Int64? = nil
     ) -> ConsentManager.AIConsentEvent {
         ConsentManager.AIConsentEvent(
             id: UUID(),
@@ -655,14 +856,20 @@ final class SupabaseManagerTests: XCTestCase {
             syncedUserId: syncedUserId,
             provider: ConsentPolicy.geminiProvider,
             disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
-            eventKind: .granted,
+            eventKind: eventKind,
             occurredAt: Date(timeIntervalSince1970: 1_785_999_900),
             disclosureText: ConsentPolicy.geminiDisclosureText,
-            actionText: ConsentPolicy.combinedAcceptanceText,
+            actionText: eventKind == .granted
+                ? ConsentPolicy.combinedAcceptanceText
+                : ConsentPolicy.geminiWithdrawalText,
             platform: "ios",
             appVersion: "1.0.3",
             appBuild: "275",
-            recordedAt: recordedAt
+            recordedAt: recordedAt,
+            causalParentId: causalParentId,
+            consentRevision: consentRevision,
+            supersededByEventId: supersededByEventId,
+            supersededByRevision: supersededByRevision
         )
     }
 
@@ -670,7 +877,11 @@ final class SupabaseManagerTests: XCTestCase {
         ownerUserId: UUID,
         syncedUserId: UUID?,
         eventKind: ConsentManager.AnalyticsConsentEventKind,
-        recordedAt: Date?
+        recordedAt: Date?,
+        causalParentId: UUID? = nil,
+        consentRevision: Int64? = nil,
+        supersededByEventId: UUID? = nil,
+        supersededByRevision: Int64? = nil
     ) -> ConsentManager.AnalyticsConsentEvent {
         ConsentManager.AnalyticsConsentEvent(
             id: UUID(),
@@ -687,7 +898,11 @@ final class SupabaseManagerTests: XCTestCase {
             platform: "ios",
             appVersion: "1.0.3",
             appBuild: "275",
-            recordedAt: recordedAt
+            recordedAt: recordedAt,
+            causalParentId: causalParentId,
+            consentRevision: consentRevision,
+            supersededByEventId: supersededByEventId,
+            supersededByRevision: supersededByRevision
         )
     }
 

@@ -111,6 +111,22 @@ controls. The complete declaration inventory, change rules, verification
 commands, and release-evidence boundary are canonical in the
 [`iOS App Privacy Manifest Contract`](../development-guides/16-ios-privacy-manifest.md).
 
+## Transport Security Contract
+
+The main application retains App Transport Security defaults. It has no broad,
+media, web-content, local-network, or domain exception, and app-configured or
+backend-supplied remote URLs must be credential-free HTTPS before reaching a
+network/media framework. `SecureTransportPolicy` owns the shared application
+boundary; ATS remains an independent operating-system backstop.
+
+`scripts/validate-ios-transport-security.sh` parses both the configured source
+plist and the final built `Info.plist`. Project guardrails, the exact-SHA
+Release archive, and the Organizer IPA verifier all fail closed on an exception,
+HTTP/credentialed Supabase origin, or unresolved archived build setting.
+Archive evidence records `transport_security: "ats-default"`. The full change
+and evidence contract is canonical in the
+[`iOS App Transport Security Contract`](../development-guides/17-ios-transport-security.md).
+
 ## Promotion Model
 
 The processed App Store Connect build selected for QA is immutable. Internal

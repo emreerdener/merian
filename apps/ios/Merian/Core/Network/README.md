@@ -20,6 +20,14 @@ smoke test, the Xcode Run environment variable
 diagnostic. It does not redirect traffic, isolate rows, or prevent a cleared
 session from creating an anonymous production user.
 
+Every resolved Supabase origin must be credential-free HTTPS.
+`MerianEnvironment`, `MerianSupabaseClientFactory`, and
+`MerianNetworkClient` enforce `SecureTransportPolicy` before constructing a
+client or Edge endpoint. Signed upload URLs and remote media references are
+validated at their corresponding request boundaries. The main application has
+no ATS exception; see the
+[iOS App Transport Security Contract](../../../../../docs/development-guides/17-ios-transport-security.md).
+
 ## `MerianNetworkClient`
 
 - Builds authenticated requests to Supabase Edge Functions and retains the

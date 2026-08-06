@@ -109,3 +109,18 @@ make validate-ios-project
 make validate-ios-privacy-manifest
 make test-ios-ci-tooling
 ```
+
+## Transport Security
+
+The main application uses App Transport Security defaults and has no broad or
+domain-scoped exception. `SecureTransportPolicy` accepts backend-provided
+remote URLs only when they are credential-free HTTPS; app-owned file URLs and
+local paths remain available for captured media. The Supabase origin is
+validated under the same rule before client construction.
+
+Run `make validate-ios-transport-security` for the tracked plist and
+`make test-ios-transport-security` for adversarial fixtures. Archive and IPA
+validation inspect the final built `Info.plist`, and hosted archive evidence
+must contain `transport_security: "ats-default"`. See the
+[iOS App Transport Security Contract](../../docs/development-guides/17-ios-transport-security.md)
+for the complete boundary and release gate.

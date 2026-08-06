@@ -3774,6 +3774,8 @@ Deno.test("production consent documentation preserves the release hold and exit 
     testflightEntry,
     edgeDeploymentEntry,
     testing,
+    transportContract,
+    agentGuidelines,
     contributing,
     codebaseMap,
     securityReadme,
@@ -3801,6 +3803,8 @@ Deno.test("production consent documentation preserves the release hold and exit 
     read("apps/ios/.agents/workflows/deploy_testflight.md"),
     read("apps/ios/.agents/workflows/deploy_edge_functions.md"),
     read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/development-guides/17-ios-transport-security.md"),
+    read("docs/development-guides/07-ai-agent-guidelines.md"),
     read("docs/CONTRIBUTING.md"),
     read("docs/codebase-map.md"),
     read("apps/ios/Merian/Core/Security/README.md"),
@@ -3826,7 +3830,9 @@ Deno.test("production consent documentation preserves the release hold and exit 
       "Gemini disclosure version is `2026-08-04.1`",
       "Apple App Review Guideline 5.1.2(i)",
       "Cloud project with active billing",
-      "`CONSENT-001` through `CONSENT-010` are closed in source",
+      "`CONSENT-001` through `CONSENT-011` are closed in source",
+      "causal compare-and-append",
+      'transport_security: "ats-default"',
       "Superseded Fixed Test Defects",
       "Supabase Candidate Validation",
       "No green hosted evidence for the post-fence candidate is recorded yet",
@@ -3836,7 +3842,7 @@ Deno.test("production consent documentation preserves the release hold and exit 
   ) {
     assertStringIncludes(canonicalCompact, fragment);
   }
-  for (let index = 1; index <= 10; index += 1) {
+  for (let index = 1; index <= 11; index += 1) {
     assertStringIncludes(
       canonical,
       `CONSENT-${String(index).padStart(3, "0")}`,
@@ -3884,13 +3890,78 @@ Deno.test("production consent documentation preserves the release hold and exit 
   for (const source of [testflightEntry, edgeDeploymentEntry]) {
     assertStringIncludes(
       compact(source),
-      "`CONSENT-001` through `CONSENT-010` are closed in source",
+      "`CONSENT-001` through `CONSENT-011` are closed in source",
     );
     assert(
-      !source.includes("CONSENT-001` through `CONSENT-009"),
-      "Agent release entry points must not restore the superseded nine-finding consent status.",
+      !source.includes("CONSENT-001` through `CONSENT-010"),
+      "Agent release entry points must not restore the superseded ten-finding consent status.",
     );
   }
+
+  for (
+    const fragment of [
+      "NSAllowsArbitraryLoads",
+      "SecureTransportPolicy",
+      'transport_security": "ats-default',
+      "make validate-ios-transport-security",
+      "make test-ios-transport-security",
+      "https://developer.apple.com/documentation/security/preventing-insecure-network-connections",
+    ]
+  ) {
+    assertStringIncludes(transportContract, fragment);
+  }
+  for (
+    const source of [
+      root,
+      docsIndex,
+      testing,
+      releaseVersioning,
+      agentGuidelines,
+      contributing,
+      codebaseMap,
+    ]
+  ) {
+    assertStringIncludes(source, "17-ios-transport-security.md");
+  }
+  for (
+    const source of [
+      root,
+      testing,
+      releaseVersioning,
+      agentGuidelines,
+      contributing,
+    ]
+  ) {
+    assertStringIncludes(source, "make validate-ios-transport-security");
+  }
+  for (const source of [canonical, onboarding, backend, databaseSchema]) {
+    assertStringIncludes(compact(source), "consent_revision");
+    assertStringIncludes(compact(source), "causal");
+  }
+  for (const source of [canonical, runbook, backend, testing, codebaseMap]) {
+    assertStringIncludes(source, "legalConsentConcurrencyDb.test.ts");
+  }
+
+  const apiCompact = compact(api);
+  for (
+    const fragment of [
+      "append_user_ai_consent_event",
+      "append_user_analytics_consent_event",
+      "accepted_parent_id",
+      "a stale grant returns `accepted = false`",
+      "a revocation is always accepted",
+      "consent_event_id_conflict",
+      "`occurred_at` and `recorded_at` are audit evidence and never order provider authorization",
+    ]
+  ) {
+    assertStringIncludes(apiCompact, fragment);
+  }
+  assert(
+    !docsIndex.includes(
+      "atomic causal rejection of delayed offline AI/analytics branches",
+    ),
+    "The documentation index must distinguish stale-grant rejection from deny-wins revocation rebasing.",
+  );
 
   const readinessPath = "production-consent-readiness-2026-08-03.md";
   for (
@@ -3910,7 +3981,7 @@ Deno.test("production consent documentation preserves the release hold and exit 
   ) {
     assertStringIncludes(source, readinessPath);
   }
-  assertStringIncludes(compact(api), "current 18+ self-attestation");
+  assertStringIncludes(apiCompact, "current 18+ self-attestation");
   assertStringIncludes(
     compact(secrets),
     "billing and DPA status remain unverified",
@@ -3938,6 +4009,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "apps/admin/README.md",
     "apps/ios/.agents/workflows/deploy_edge_functions.md",
     "apps/ios/.agents/workflows/deploy_testflight.md",
+    "apps/ios/README.md",
     "apps/ios/.agents/workflows/revenuecat_entitlements.md",
     "apps/ios/AppStore/ReleaseNotes/1.0.3.md",
     "apps/ios/Merian/Core/AI/README.md",
@@ -3984,6 +4056,8 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/development-guides/10-safety-and-moderation.md",
     "docs/development-guides/11-swiftdata-and-api-gotchas.md",
     "docs/development-guides/14-ios-release-versioning.md",
+    "docs/development-guides/16-ios-privacy-manifest.md",
+    "docs/development-guides/17-ios-transport-security.md",
     "docs/features-and-hardware/05-insight-sheet.md",
     "docs/features-and-hardware/02-revenue-and-identity.md",
     "docs/features-and-hardware/03-gamification-and-telemetry.md",

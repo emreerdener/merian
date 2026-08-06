@@ -9,7 +9,7 @@ and the three-part required completion gate.
 
 > [!WARNING]
 > **Release status:** the internal-testing screen and evidence model are
-> implemented. `CONSENT-001` through `CONSENT-010` are closed in source,
+> implemented. `CONSENT-001` through `CONSENT-011` are closed in source,
 > including the local-ledger handoff, PostHog withdrawal, account restoration,
 > final synchronization merge fence, Realtime, and OAuth lifecycle findings.
 > Same-SHA hosted iOS and validation-only Supabase evidence, counsel approval,
@@ -150,10 +150,24 @@ account and synchronizes them to:
   row is the account-wide PostHog choice. Absence of a grant means analytics is
   off.
 
-All four tables use owner-only RLS and explicit authenticated `SELECT` and
-column-level `INSERT` grants. Clients have no `UPDATE` or `DELETE` path and
-cannot supply `recorded_at`; the latest server-recorded provider event
-determines cloud permission. Client-generated IDs make retries idempotent.
+All four tables use owner-only RLS and explicit authenticated `SELECT` grants.
+Adult and Terms receipts retain narrow column-level `INSERT` grants. Gemini and
+PostHog tables deny direct client insertion: authenticated callers mutate them
+only through their provider-specific causal compare-and-append RPC. Each local
+provider action stores the event ID it observed as `causal_parent_id`; the RPC
+locks the account against ghost merge and serializes the provider stream in one
+transaction. It accepts a grant only if that parent is still current; it always
+accepts a revocation and rebases it to the locked current head so withdrawal is
+deny-wins. The returned accepted parent is persisted locally, and the
+server-only monotonic `consent_revision`—not `occurred_at`, upload receipt time,
+or a device clock—determines cloud permission. Client-generated IDs keep an
+accepted retry idempotent, while a stale grant returns the authoritative head
+without inserting a row and is retained locally as superseded evidence.
+After an ambiguous network failure, iOS accepts a fetched row only when its
+immutable payload matches the attempted append; the accepted parent may differ
+only for a revocation that the server rebased.
+Clients have no `UPDATE` or `DELETE` path and cannot supply `recorded_at` or the
+revision.
 Database ghost-to-signed-in merge policies reparent every synchronized
 immutable row without coalescing evidence. After server completion, iOS now
 rebinds the complete local adult, Terms, Gemini, and analytics ledger to the
@@ -171,8 +185,14 @@ missed event. When returning to an account, auth observation first moves
 analytics into an explicit remote-authority wait state, before cached ledger
 state is refreshed or applied to the SDK. Synchronization then activates that
 account's local ledger and pushes its pending evidence before refetching remote
-state, so an offline revocation cannot be hidden by the previously active
-account. Only an authoritative current-version grant that survives an
+state. That order is safe because each AI/analytics append atomically locks and
+resolves its observed causal parent: grants compare it with the current head,
+while revocations rebase to that head. Merely fetching first would not close a
+concurrent cross-device race. The refetch includes both the current disclosure state and
+the all-version stream head, so new local actions attach to the actual provider
+head. A delayed offline grant whose parent predates another device's revocation
+is rejected and cannot gain authority from a newer server receipt time. Only an
+authoritative current-version grant that survives an
 identity-fenced, verified ledger write resolves the account to enabled. Remote
 absence, revocation, network failure, or persistence failure leaves analytics
 closed. A repeated same-account auth notification after resolution does not

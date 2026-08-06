@@ -36,11 +36,14 @@ as their permanent engineering identity.
   UI smoke, then independently inspect an unsigned Release archive from the
   exact workflow SHA. The main app's source and archived bundle must also carry
   the exact reviewed `PrivacyInfo.xcprivacy`; archive evidence records
-  `privacy_manifest_valid: true`. Repository rules must require the stable
+  `privacy_manifest_valid: true`. The final main-app plist must retain ATS
+  defaults and credential-free HTTPS origins; archive evidence records
+  `transport_security: "ats-default"`. Repository rules must require the stable
   `iOS Build and Test / Production readiness` result; the focused Startup Safety
   lane is supplementary. See the
   [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate),
   [`iOS privacy manifest contract`](./development-guides/16-ios-privacy-manifest.md),
+  [`iOS transport security contract`](./development-guides/17-ios-transport-security.md),
   and
   [`release runbook`](./development-guides/14-ios-release-versioning.md#routine-testflight-upload).
 - **Supabase candidate assurance**: Relevant pull requests, manual candidate
@@ -86,7 +89,9 @@ as their permanent engineering identity.
   Google Gemini, and optional PostHog consent design is present. All tracked
   implementation findings are closed in source, including synchronization,
   analytics withdrawal, target-account restoration, the final account/session
-  merge fence, Realtime repair, and OAuth account replacement. Internal test
+  merge fence, Realtime repair, OAuth account replacement, and server-serialized
+  causal handling that rejects delayed offline grants while rebasing revocations
+  onto the locked current head. Internal test
   builds may continue; public production remains blocked until **iOS Build and
   Test** and **Supabase Candidate Validation** pass the same candidate SHA, plus
   App Store 18+, paid Gemini billing/DPA, and counsel evidence. See the
@@ -98,6 +103,13 @@ as their permanent engineering identity.
   a green exact-SHA archive, a reviewed Xcode aggregate privacy report, and
   reconciled App Store Connect answers; SDK manifests remain additive. See the
   [`canonical manifest contract`](./development-guides/16-ios-privacy-manifest.md).
+- **iOS transport security (2026-08-05)**: The broad ATS exception is removed.
+  Shared URL validation admits only credential-free HTTPS remote origins while
+  preserving app-owned local files, and source/archive/exported-IPA guardrails
+  reject ATS exceptions or insecure Supabase configuration. Production still
+  requires exact-SHA archive evidence containing
+  `transport_security: "ats-default"`. See the
+  [`canonical transport contract`](./development-guides/17-ios-transport-security.md).
 - **Current backend release verdict**: DwC-A exports are default-off for the
   initial launch at both the iOS presentation boundary and the canonical
   PostgreSQL intake/processing/download boundary. Existing nonterminal work is
@@ -609,7 +621,8 @@ as their permanent engineering identity.
   — Architecture constraints and conventions for AI coding agents working on
   this codebase.
 - **[`/development-guides/08-testing-strategy.md`](./development-guides/08-testing-strategy.md)**
-  — Swift testing isolation using in-memory SwiftData and local context mocks.
+  — Cross-platform test commands, disposable-database and compiled-iOS gates,
+  SwiftData isolation, privacy/ATS checks, and release-evidence requirements.
 - **[`/development-guides/09-core-managers.md`](./development-guides/09-core-managers.md)**
   — Deep dive into singleton instances across Merian (e.g.
   `HardwareOrchestrator`).
@@ -637,6 +650,9 @@ as their permanent engineering identity.
   — Main-app privacy declarations, required-reason API and collected-data
   inventories, contributor change rules, archive/IPA validation, and App Store
   evidence requirements.
+- **[`/development-guides/17-ios-transport-security.md`](./development-guides/17-ios-transport-security.md)**
+  — ATS-default and HTTPS-only URL boundary, source/archive/IPA validation,
+  contributor rules, and release evidence requirements.
 
 ## About Naturebook
 

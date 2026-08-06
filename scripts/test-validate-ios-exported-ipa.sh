@@ -90,6 +90,7 @@ write_plist(
         "MERIAN_SOURCE_REVISION": source_revision,
         "MERIAN_SOURCE_FINGERPRINT": source_fingerprint,
         "MERIAN_SOURCE_STATE": "clean",
+        "SUPABASE_URL": "https://project.supabase.co",
     },
 )
 
@@ -113,6 +114,8 @@ output="$(validation_command "$valid_ipa")" \
   || fail "IPA fixture with a valid root privacy manifest must pass"
 grep -Fq "privacyManifest=valid" <<<"$output" \
   || fail "IPA validation did not report a valid privacy manifest"
+grep -Fq "transportSecurity=ats-default" <<<"$output" \
+  || fail "IPA validation did not report ATS-default transport security"
 
 missing_ipa="$test_root/missing-privacy.ipa"
 mv "$bundled_privacy_manifest" "$test_root/PrivacyInfo.xcprivacy"
@@ -140,4 +143,23 @@ assert_fails_with \
   "NSPrivacyTracking must be false" \
   validation_command "$invalid_ipa"
 
-echo "iOS exported-IPA privacy-manifest tests passed."
+cp "$privacy_manifest" "$bundled_privacy_manifest"
+python3 - "$app_path/Info.plist" <<'PY'
+import plistlib
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+with path.open("rb") as plist_file:
+    info = plistlib.load(plist_file)
+info["NSAppTransportSecurity"] = {"NSAllowsArbitraryLoads": True}
+with path.open("wb") as plist_file:
+    plistlib.dump(info, plist_file, sort_keys=False)
+PY
+invalid_ats_ipa="$test_root/invalid-ats.ipa"
+build_ipa "$invalid_ats_ipa"
+assert_fails_with \
+  "NSAllowsArbitraryLoads must not enable" \
+  validation_command "$invalid_ats_ipa"
+
+echo "iOS exported-IPA privacy-manifest and transport-security tests passed."

@@ -1080,8 +1080,9 @@ struct ExplorePostDetailView: View {
     }
 
     private func resolvedAuthorAvatarUrl(for post: ExplorePost) -> URL? {
-        if let avatarUrlString = post.authorAvatarUrl,
-           let avatarUrl = URL(string: avatarUrlString) {
+        if let avatarUrl = SecureTransportPolicy.httpsURL(
+            from: post.authorAvatarUrl
+        ) {
             return avatarUrl
         }
 

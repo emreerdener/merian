@@ -941,7 +941,9 @@ final class MerianNetworkClient {
             MerianLog.network.error("Network request blocked because Supabase environment configuration is incomplete.")
             throw MerianError.invalidURL
         }
-        guard let url = URL(string: "\(supabaseUrl)/functions/v1/\(function)") else {
+        guard let url = SecureTransportPolicy.httpsURL(
+            from: "\(supabaseUrl)/functions/v1/\(function)"
+        ) else {
             throw MerianError.invalidURL
         }
         return url
@@ -2140,7 +2142,9 @@ final class MerianNetworkClient {
         contentType: String,
         contentLength: Int
     ) throws -> URLRequest {
-        guard let signedURL = URL(string: uploadURL.signedUrl) else {
+        guard let signedURL = SecureTransportPolicy.httpsURL(
+            from: uploadURL.signedUrl
+        ) else {
             throw MerianError.invalidURL
         }
         guard uploadURL.requiredHeaders.count == 2,

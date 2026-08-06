@@ -3480,7 +3480,7 @@ struct FieldTripCoverImage: View {
                 .resizable()
                 .scaledToFill()
                 .clipped()
-        } else if let urlString, let url = URL(string: urlString) {
+        } else if let url = SecureTransportPolicy.httpsURL(from: urlString) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):

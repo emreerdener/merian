@@ -3,7 +3,11 @@ import Supabase
 
 enum MerianSupabaseClientFactory {
     static func makeClient(emitLocalSessionAsInitialSession: Bool = true) -> SupabaseClient {
-        let url = URL(string: MerianEnvironment.supabaseUrl) ?? URL(string: MerianEnvironment.fallbackSupabaseURL)!
+        let url = SecureTransportPolicy.httpsURL(
+            from: MerianEnvironment.supabaseUrl
+        ) ?? SecureTransportPolicy.httpsURL(
+            from: MerianEnvironment.fallbackSupabaseURL
+        )!
         return SupabaseClient(
             supabaseURL: url,
             supabaseKey: MerianEnvironment.supabaseAnonKey,

@@ -299,6 +299,32 @@ the signed Organizer archive to generate and review Xcode's aggregate privacy
 report under the
 [iOS App Privacy Manifest Contract](./16-ios-privacy-manifest.md).
 
+### Transport Security Validation
+
+Transport security has the same three evidence layers:
+
+1. `make validate-ios-transport-security` parses the tracked main-app plist,
+   rejects every broad/media/web/local/domain ATS exception, and permits only a
+   credential-free HTTPS `SUPABASE_URL` or the tracked build-setting placeholder.
+2. The current-SHA Release archive validator parses the final
+   `Merian.app/Info.plist`, rejects unresolved settings and exceptions, and
+   records `transport_security: "ats-default"` only after that check passes.
+3. The exported-IPA validator repeats the check against the final
+   `Payload/Merian.app/Info.plist`.
+
+Run the source and adversarial fixtures with:
+
+```bash
+make validate-ios-transport-security
+make test-ios-transport-security
+```
+
+The Swift suites independently prove `SecureTransportPolicy` rejects HTTP,
+non-network schemes, credentials, and missing hosts, while preserving HTTPS and
+app-owned local files. The loader fixture verifies rejection happens before an
+HTTP request is dispatched. See the
+[iOS App Transport Security Contract](./17-ios-transport-security.md).
+
 1. **Full iOS unit tests** resolves only locked package versions, validates the
    generated-project source membership against `project.yml`, compiles the app
    plus both shared test bundles with `build-for-testing`, and executes the
@@ -486,11 +512,14 @@ report under the
    revision/fingerprint/state to match the exact clean workflow checkout, and
    requires the main app dSYM UUID to match the compiled binary. It also
    requires and validates the app-owned privacy manifest at the root of the
-   application bundle. It records `privacy_manifest_valid: true` only after
-   that bundled-copy validation and `ui_test_seed_markers_absent: true` only
-   after the binary-string audit above pass. Signing is disabled only because
+   application bundle, and verifies ATS defaults plus HTTPS-only app
+   configuration in the final `Info.plist`. It records
+   `privacy_manifest_valid: true` and
+   `transport_security: "ats-default"` only after those bundled-copy checks.
+   It records `ui_test_seed_markers_absent: true` only after the binary-string
+   audit above passes. Signing is disabled only because
    hosted CI has no distribution identity; this is compile, link, archive,
-   provenance, privacy-manifest, dSYM, and shipping-seed exclusion
+   provenance, privacy-manifest, transport-security, dSYM, and shipping-seed exclusion
    validation—not a distributable App Store artifact.
 
 The final Production readiness job uses `if: always()` and requires both macOS
@@ -603,6 +632,8 @@ failure:
 | Queued-scan UI smoke or focused-result validation                     | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require exactly one protected case. |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
 | Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted. |
+| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                    |
+| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                        |
 | Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.              |
 | Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                                           |
 
@@ -690,7 +721,17 @@ MerianTests/
   revocation; ghost-to-permanent-account merge; account switching; foreground
   synchronization; Realtime startup/failure recovery; idempotent retry; and
   immutable/timestamp-protected RLS rows. Absence of an analytics grant must
-  remain off and analytics must never gate core functionality.
+  remain off and analytics must never gate core functionality. For both Gemini
+  and analytics, cover both inverse cross-device orders: a delayed offline grant
+  after a synchronized revocation is rejected, while a delayed offline
+  revocation after a synchronized grant is accepted and rebased to that grant.
+  Retry the latter with its originally observed parent to prove event-ID
+  idempotency, assert iOS persists the server-returned accepted parent and
+  revision, and retain database assertions that the account-row lock precedes
+  the provider-stream advisory lock. The disposable database suite must execute
+  `_tests/legalConsentConcurrencyDb.test.ts`, which blocks both provider callers
+  on the account row, releases them together, and requires a revoked final head
+  for both lock-acquisition orders.
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
   math updates against user local scores so UI progression trackers do not skew
   unexpectedly.

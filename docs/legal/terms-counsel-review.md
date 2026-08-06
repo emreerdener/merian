@@ -88,14 +88,23 @@ before a new user can submit a scan:
 - what withholding permission does.
 
 Migrations `20260804020351_record_legal_consent_receipts.sql` and
-`20260804033307_add_adult_and_analytics_consent.sql`, together with
+`20260804033307_add_adult_and_analytics_consent.sql`, plus forward migration
+`20260806024844_enforce_causal_consent_streams.sql` and
 `ConsentManager.swift`, establish the intended evidence boundary. Before the
-workspace opens, the app appends local adult-confirmation, Terms, and Gemini actions with
-separate policy versions, exact displayed copy, client UUID, device action time, platform,
-app version, and build. It synchronizes those records to immutable, owner-only Supabase
-tables with a server-controlled recorded time and no client update/delete path. Existing
-installs with the old onboarding flag but no current evidence enter directly at this
-disclosure.
+workspace opens, the app appends local adult-confirmation, Terms, and Gemini
+actions with separate policy versions, exact displayed copy, client UUID,
+device action time, platform, app version, and build. It synchronizes those
+records to immutable, owner-only Supabase tables with server-controlled
+timestamps and no client update/delete path. Existing installs with the old
+onboarding flag but no current evidence enter directly at this disclosure.
+
+Gemini and optional PostHog actions also carry the provider event observed when
+the action was created. Direct client inserts are forbidden. The authenticated
+database RPC accepts a grant only if its parent remains current, but always
+accepts a revocation and rebases it to the locked current head. The returned
+server revision—not device time or upload receipt time—orders permission. A
+delayed offline grant therefore cannot supersede another device's withdrawal,
+and a delayed withdrawal cannot leave a newer grant enabled.
 
 Every iOS inference entry point verifies that the current rows reached the active account
 before constructing its provider request. Both service-only `reserve_ai_quota` overloads

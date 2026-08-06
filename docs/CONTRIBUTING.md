@@ -30,6 +30,11 @@ Before contributing, please review our core architectural tenets. Refactoring co
     first-party app code. Read the
     [`iOS App Privacy Manifest Contract`](./development-guides/16-ios-privacy-manifest.md)
     before making the change.
+7.  **HTTPS and ATS Defaults**: Remote origins and backend-supplied media must
+    remain credential-free HTTPS. Do not add a broad or domain-scoped ATS
+    exception to accommodate an insecure producer. Update the URL boundary,
+    validators, fixtures, and documentation together under the
+    [`iOS App Transport Security Contract`](./development-guides/17-ios-transport-security.md).
 
 ## Setting Up the Development Environment
 
@@ -101,6 +106,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
   ```bash
   make validate-ios-project
   make validate-ios-privacy-manifest
+  make validate-ios-transport-security
   make validate-ios-versioning
   make validate-ios-migration-guardrails
   make test-ios-ci-tooling
@@ -221,6 +227,11 @@ Before contributing, please review our core architectural tenets. Refactoring co
     tracking, SDK composition, or executable ownership must update the privacy
     manifest contract and all affected technical, public-policy, App Store, and
     counsel-review artifacts in the same pull request.
+    A change to ATS configuration, a remote origin, signed URL handling, or a
+    backend-supplied media URL boundary must retain credential-free HTTPS,
+    update the transport-security contract when the boundary changes, and pass
+    source/archive/IPA transport fixtures. Do not introduce an ATS exception to
+    accommodate an HTTP producer.
 5.  Push to the branch locally.
 6.  Open a Pull Request describing the changes, explicitly mentioning if you changed any core network layer boundaries or AVFoundation settings.
 

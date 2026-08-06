@@ -175,7 +175,9 @@ before production deployment.
 
 Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql` add four exposed but
-owner-scoped append-only tables:
+owner-scoped append-only tables. Forward migration
+`20260806024844_enforce_causal_consent_streams.sql` replaces receipt-time
+authority for the two mutable provider streams with an atomic causal protocol:
 
 - `public.user_adult_eligibility_receipts`: UUID primary key, `user_id`, adult
   policy version, device confirmation time, `self_attestation` method, exact
@@ -187,16 +189,34 @@ owner-scoped append-only tables:
 - `public.user_ai_consent_events`: UUID primary key, `user_id`, constrained
   provider, `disclosure_version`, `event_kind` (`granted` or `revoked`), device
   `occurred_at`, exact disclosure/action text, platform, app version/build, and
-  server-controlled `recorded_at`;
+  server-controlled `recorded_at`, server-only monotonic `consent_revision`,
+  and the accepted event's `causal_parent_id`;
 - `public.user_analytics_consent_events`: UUID primary key, `user_id`, PostHog
   disclosure version, `granted` / `revoked` event kind, device action time,
   exact disclosure/action text, platform, app version/build, and
-  server-controlled `recorded_at`.
+  server-controlled `recorded_at`, server-only monotonic `consent_revision`,
+  and the accepted event's `causal_parent_id`.
 
-Authenticated users may select and insert only their own rows under RLS. The
-insert ACL lists every client field except `recorded_at`; no table grants
-client update or delete. Ordered owner/version indexes support current-state
-lookups. All four user foreign keys are registered as conflict-free `reparent`
+Authenticated users may select only their own rows under RLS. Adult and Terms
+receipts retain narrow column-level insert ACLs. AI and analytics event tables
+deny direct client insertion and sequence access; callers use
+`append_user_ai_consent_event(...)` or
+`append_user_analytics_consent_event(...)`. Each `SECURITY DEFINER` routine
+authenticates with `auth.uid()`, locks the caller's `public.users` row
+`FOR KEY SHARE` to serialize against ghost-profile merge, then takes a
+transaction-scoped advisory lock for the caller/provider stream. Under that
+lock, a grant whose supplied parent is not current returns `accepted = false`
+with the authoritative head. A revocation always appends and stores that current
+head as its accepted parent, so a stale device cannot preserve a grant. Every
+accepted response returns the stored parent and the only authoritative server
+revision. No table grants client insert, update, delete, or sequence access.
+Reusing an event ID with different immutable content raises
+`consent_event_id_conflict`. An exact revocation retry may repeat its originally
+observed parent after server rebasing; the existing stored parent is returned.
+Exact `(user_id, provider, consent_revision DESC)` stream-head indexes and
+partial causal-parent indexes support authorization lookup and the self-foreign
+keys. All four user foreign keys
+are registered as conflict-free `reparent`
 entries in the ghost-profile merge manifest so all evidence follows the
 canonical signed-in account without deleting or combining rows.
 `user_analytics_consent_events` is also added to the Supabase Realtime
@@ -224,8 +244,9 @@ the
 
 `internal.require_current_ai_consent(uuid)` currently requires adult policy
 version `2026-08-03`, Terms version `2026-08-03`, and provider
-`google_gemini` disclosure version `2026-08-04.1`. The latest AI event is
-ordered by `(recorded_at DESC, id DESC)` and must be `granted`. Both
+  `google_gemini` disclosure version `2026-08-04.1`. The latest AI event is
+  ordered by `consent_revision DESC` and must be `granted`; device time and
+  `recorded_at` remain evidence, not authorization clocks. Both
 service-only `reserve_ai_quota` overloads call the helper before provider
 admission. A policy copy or material-purpose change must update the Swift policy
 and this database gate together and require a new user action.

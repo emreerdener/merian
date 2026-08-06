@@ -18,6 +18,46 @@ struct LocalImageLoaderTests {
         }
     }
 
+    @Test func secureTransportPolicyAdmitsOnlyCredentialFreeHTTPSRemotes() {
+        #expect(
+            SecureTransportPolicy.httpsURL(
+                from: " https://media.merian.app/path/image.webp?width=900 "
+            )?.scheme == "https"
+        )
+        for rejected in [
+            "http://media.merian.app/path/image.webp",
+            "ftp://media.merian.app/path/image.webp",
+            "https://user:secret@media.merian.app/path/image.webp",
+            "https:///path/image.webp",
+            "not a URL"
+        ] {
+            #expect(SecureTransportPolicy.httpsURL(from: rejected) == nil)
+        }
+    }
+
+    @Test func secureTransportPolicyResolvesLocalMediaWithoutAdmittingHTTP() {
+        #expect(
+            SecureTransportPolicy.localFileOrHTTPSURL(
+                from: "/tmp/image.webp"
+            )?.isFileURL == true
+        )
+        #expect(
+            SecureTransportPolicy.localFileOrHTTPSURL(
+                from: "file:///tmp/image.webp"
+            )?.isFileURL == true
+        )
+        #expect(
+            SecureTransportPolicy.localFileOrHTTPSURL(
+                from: "https://media.merian.app/image.webp"
+            )?.scheme == "https"
+        )
+        #expect(
+            SecureTransportPolicy.localFileOrHTTPSURL(
+                from: "http://media.merian.app/image.webp"
+            ) == nil
+        )
+    }
+
     @Test func asyncPermitPoolBoundsWorkWithoutBlockingWaits() async {
         let pool = AsyncPermitPool(limit: 2)
         let probe = ConcurrencyProbe()
@@ -69,6 +109,22 @@ struct LocalImageLoaderTests {
         #expect(ExternalReferenceImagePolicy.isAllowed(
             "https://api.gbif.org/v1/image/605615444.jpg"
         ))
+        #expect(!ExternalReferenceImagePolicy.isAllowed(
+            "http://api.gbif.org/v1/image/605615444.jpg"
+        ))
+        #expect(ExternalReferenceImagePolicy.sanitizedURL(
+            "http://media.merian.app/image.webp"
+        ) == nil)
+    }
+
+    @Test func localImageLoaderRejectsCleartextRemotePathsBeforeDispatch() async {
+        let image = await LocalImageLoader.shared.loadImage(
+            fromPath: "http://media.merian.app/image.webp",
+            fallbackUrl: "http://media.merian.app/fallback.webp",
+            maxDimension: 100
+        )
+
+        #expect(image == nil)
     }
 
     @Test func externalReferenceImagePolicyPromotesTheNextLegacyURL() {

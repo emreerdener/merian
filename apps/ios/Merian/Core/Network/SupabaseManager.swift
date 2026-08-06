@@ -121,7 +121,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
         guard let urlString = currentUser?.userMetadata["avatar_url"]?.stringValue ?? currentUser?.userMetadata["picture"]?.stringValue else {
             return nil
         }
-        return URL(string: urlString)
+        return SecureTransportPolicy.httpsURL(from: urlString)
     }
 
     // MARK: - Apple Sign-In State

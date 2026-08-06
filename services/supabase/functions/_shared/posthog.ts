@@ -21,8 +21,7 @@ export async function hasCurrentPostHogConsent(
       .eq("user_id", userId)
       .eq("provider", "posthog")
       .eq("disclosure_version", POSTHOG_DISCLOSURE_VERSION)
-      .order("recorded_at", { ascending: false })
-      .order("id", { ascending: false })
+      .order("consent_revision", { ascending: false })
       .limit(1);
 
     if (error) {

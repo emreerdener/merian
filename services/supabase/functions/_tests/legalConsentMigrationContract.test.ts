@@ -12,6 +12,10 @@ const currentDisclosureMigrationUrl = new URL(
   "../../migrations/20260804215234_bump_consent_disclosure_versions.sql",
   import.meta.url,
 );
+const causalConsentMigrationUrl = new URL(
+  "../../migrations/20260806024844_enforce_causal_consent_streams.sql",
+  import.meta.url,
+);
 
 function normalized(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
@@ -147,8 +151,103 @@ Deno.test("disclosure bump is forward-only, authoritative, and preserves bounded
   assert(!sql.includes("UPDATE public.user_ai_consent_events"));
 });
 
+Deno.test("consent appends are atomically causal and server-revisioned", async () => {
+  const sql = normalized(await Deno.readTextFile(causalConsentMigrationUrl));
+
+  for (
+    const fragment of [
+      "ADD COLUMN consent_revision BIGINT",
+      "ADD COLUMN causal_parent_id UUID",
+      "ALTER COLUMN consent_revision SET NOT NULL",
+      "UNIQUE (consent_revision)",
+      "CREATE INDEX user_ai_consent_stream_head_idx",
+      "CREATE INDEX user_analytics_consent_stream_head_idx",
+      "CREATE INDEX user_ai_consent_causal_parent_idx",
+      "CREATE INDEX user_analytics_consent_causal_parent_idx",
+      "REVOKE INSERT ON TABLE public.user_ai_consent_events, public.user_analytics_consent_events FROM PUBLIC, anon, authenticated, service_role",
+      "REVOKE INSERT ( id, user_id, provider, disclosure_version, event_kind, occurred_at, disclosure_text, action_text, platform, app_version, app_build ) ON TABLE public.user_ai_consent_events FROM authenticated",
+      'DROP POLICY "Users can append their own AI consent events"',
+      "CREATE OR REPLACE FUNCTION public.append_user_ai_consent_event",
+      "CREATE OR REPLACE FUNCTION public.append_user_analytics_consent_event",
+      "SECURITY DEFINER SET search_path = ''",
+      "FOR KEY SHARE",
+      "PG_ADVISORY_XACT_LOCK",
+      "IF p_event_kind IS DISTINCT FROM 'revoked' AND p_causal_parent_id IS DISTINCT FROM current_event_id",
+      "accepted_parent_id UUID",
+      "accepted_parent_id := current_event_id",
+      "accepted := FALSE",
+      "ORDER BY events.consent_revision DESC",
+      "GRANT EXECUTE ON FUNCTION public.append_user_ai_consent_event",
+      "GRANT EXECUTE ON FUNCTION public.append_user_analytics_consent_event",
+      "REVOKE ALL ON SEQUENCE public.user_ai_consent_revision_seq, public.user_analytics_consent_revision_seq FROM PUBLIC, anon, authenticated, service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const swift = normalized(
+    await Deno.readTextFile(
+      new URL(
+        "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
+        import.meta.url,
+      ),
+    ),
+  );
+  assertStringIncludes(swift, 'rpc( "append_user_ai_consent_event"');
+  assertStringIncludes(
+    swift,
+    'rpc( "append_user_analytics_consent_event"',
+  );
+  assertStringIncludes(swift, "causalParentId");
+  assertStringIncludes(swift, "consentRevision");
+  assertStringIncludes(swift, "supersededByEventId");
+  assertStringIncludes(swift, "let accepted_parent_id: UUID?");
+  assertStringIncludes(swift, "matchesAIConsentAppendRetry");
+  assertStringIncludes(swift, "matchesAnalyticsConsentAppendRetry");
+  assertEquals(
+    swift.match(/causalParentId: row\.causal_parent_id/g)?.length,
+    2,
+  );
+  assertEquals(
+    swift.match(/consentRevision: row\.consent_revision/g)?.length,
+    2,
+  );
+  assertEquals(sql.match(/FOR KEY SHARE/g)?.length, 2);
+  assertEquals(sql.match(/PG_ADVISORY_XACT_LOCK/g)?.length, 2);
+  assert(
+    sql.indexOf("FOR KEY SHARE") < sql.indexOf("PG_ADVISORY_XACT_LOCK"),
+    "Consent RPCs must take the account row lock before their advisory lock.",
+  );
+  assert(!swift.includes('.from("user_ai_consent_events") .insert'));
+  assert(!swift.includes('.from("user_analytics_consent_events") .insert'));
+});
+
+Deno.test("consent concurrency coverage overlaps both provider conflict orders", async () => {
+  const fixture = normalized(
+    await Deno.readTextFile(
+      new URL("./legalConsentConcurrencyDb.test.ts", import.meta.url),
+    ),
+  );
+  for (
+    const fragment of [
+      "append_user_ai_consent_event",
+      "append_user_analytics_consent_event",
+      "FOR UPDATE",
+      "wait_event_type = 'Lock'",
+      '"granted"',
+      '"revoked"',
+      "Promise.all([ delayedGrant, revocation, ])",
+      "revocationRevision > baselineRevision",
+      'assertEquals(latest.event_kind, "revoked")',
+    ]
+  ) {
+    assertStringIncludes(fixture, fragment);
+  }
+});
+
 Deno.test("Swift and backend consent versions cannot drift", async () => {
-  const sql = await Deno.readTextFile(currentDisclosureMigrationUrl);
+  const disclosureSql = await Deno.readTextFile(currentDisclosureMigrationUrl);
+  const causalSql = await Deno.readTextFile(causalConsentMigrationUrl);
   const swift = await Deno.readTextFile(
     new URL(
       "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
@@ -166,12 +265,17 @@ Deno.test("Swift and backend consent versions cannot drift", async () => {
   assertStringIncludes(swift, 'termsVersion = "2026-08-03"');
   assertStringIncludes(swift, 'geminiDisclosureVersion = "2026-08-04.1"');
   assertStringIncludes(swift, 'analyticsDisclosureVersion = "2026-08-04"');
-  assertStringIncludes(sql, "policy_version = '2026-08-03'");
-  assertStringIncludes(sql, "terms_version = '2026-08-03'");
-  assertStringIncludes(sql, "disclosure_version = '2026-08-04.1'");
+  assertStringIncludes(causalSql, "policy_version = '2026-08-03'");
+  assertStringIncludes(causalSql, "terms_version = '2026-08-03'");
+  assertStringIncludes(causalSql, "disclosure_version = '2026-08-04.1'");
+  assertStringIncludes(disclosureSql, "'strict_2026_08_04'");
   assertStringIncludes(
     postHog,
     'POSTHOG_DISCLOSURE_VERSION = "2026-08-04"',
+  );
+  assertStringIncludes(
+    postHog,
+    '.order("consent_revision", { ascending: false })',
   );
   assertStringIncludes(
     quota,

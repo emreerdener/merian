@@ -473,7 +473,7 @@ private struct FieldTripRemoteImage: View {
     let urlString: String?
 
     var body: some View {
-        if let urlString, let url = URL(string: urlString) {
+        if let url = SecureTransportPolicy.httpsURL(from: urlString) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
@@ -527,8 +527,9 @@ private struct FieldTripCommentRow: View {
 
     @ViewBuilder
     private var avatar: some View {
-        if let avatarUrlString = comment.authorAvatarUrl,
-           let avatarURL = URL(string: avatarUrlString) {
+        if let avatarURL = SecureTransportPolicy.httpsURL(
+            from: comment.authorAvatarUrl
+        ) {
             AsyncImage(url: avatarURL) { phase in
                 switch phase {
                 case .success(let image):

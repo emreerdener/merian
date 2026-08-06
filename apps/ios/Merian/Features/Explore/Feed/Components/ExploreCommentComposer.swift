@@ -155,8 +155,9 @@ struct ExploreCommentComposer: View {
 
     @ViewBuilder
     private func suggestionAvatar(_ suggestion: ExploreMentionSuggestion) -> some View {
-        if let avatarUrlString = suggestion.avatarUrl,
-           let avatarUrl = URL(string: avatarUrlString) {
+        if let avatarUrl = SecureTransportPolicy.httpsURL(
+            from: suggestion.avatarUrl
+        ) {
             AsyncImage(url: avatarUrl) { phase in
                 switch phase {
                 case .success(let image):

@@ -454,8 +454,7 @@ actor AudioSpectrogramThumbnailLoader {
     }
 
     private static nonisolated func resolveAudioURL(from audioPath: String) async -> ResolvedAudioURL? {
-        if let remoteURL = URL(string: audioPath),
-           remoteURL.scheme == "https" {
+        if let remoteURL = SecureTransportPolicy.httpsURL(from: audioPath) {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = 30
 

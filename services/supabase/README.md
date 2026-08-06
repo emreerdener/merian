@@ -1118,7 +1118,9 @@ Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql` add the legal prerequisite
 to both quota overloads. Forward migration
 `20260804215234_bump_consent_disclosure_versions.sql` advances the retained
-Gemini copy to `2026-08-04.1` without rewriting evidence.
+Gemini copy to `2026-08-04.1` without rewriting evidence. Forward migration
+`20260806024844_enforce_causal_consent_streams.sql` replaces receipt-time
+authority for AI and analytics with server-issued causal revisions.
 `user_adult_eligibility_receipts` stores versioned 18+
 self-attestation without a birth date or exact age;
 `user_terms_acceptance_receipts` stores immutable current-version Terms
@@ -1127,22 +1129,44 @@ grants and revocations; and `user_analytics_consent_events` stores optional,
 account-wide PostHog grants and revocations. Absence of an analytics grant means
 off and never blocks provider or core app functionality.
 
-All four tables use owner-only RLS, explicit authenticated `SELECT` and
-column-level `INSERT` grants, server-controlled ordering timestamps, and no
-client update/delete path. Their user foreign keys are registered as
+All four tables use owner-only RLS and explicit authenticated `SELECT` grants.
+Adult and Terms receipts retain narrow column-level inserts. AI and analytics
+deny authenticated direct inserts and sequence access: clients call
+`append_user_ai_consent_event(...)` or
+`append_user_analytics_consent_event(...)` with the provider-stream event they
+observed. Each `SECURITY DEFINER` RPC authenticates the caller,
+locks the account row against ghost-profile merge, then transaction-locks the
+provider stream. A grant is inserted only when its observed parent is still
+current; a revocation is always accepted and causally rebased to that locked
+head so permission fails closed. Accepted rows return their actual parent and
+receive the only authoritative monotonic `consent_revision`; stale grants
+return the authoritative head without a row. Event-ID retries must match every
+immutable payload field; a rebased revocation may repeat its originally
+observed parent, and iOS validates any fetch-after-error row before treating the
+append as recovered.
+Device `occurred_at` and server `recorded_at` remain evidence and never order
+authorization. No client has an update/delete path. User foreign keys are registered as
 conflict-free `reparent` rows in the ghost-merge policy manifest. Analytics
 events are published to owner-scoped Realtime. During the replacement-build
 window, `internal.ai_consent_rollout_config` remains `legacy_compatible` and
 accepts only the newest complete bundle or an explicitly allowlisted complete
 prior beta bundle. After old builds are expired, the owner-only cutover script
 selects `strict_2026_08_04`; current
-adult, Terms, and latest granted Gemini evidence must then exist before
+adult, Terms, and greatest-revision granted Gemini evidence must then exist before
 `reserve_ai_quota(...)` proceeds. Missing or revoked evidence raises
 `ai_consent_required`, which `_shared/aiQuota.ts` exposes as HTTP 403 before
 provider dispatch. Never infer or backfill acceptance.
 
-Keep Swift policy versions, the SQL gate, migration contracts, quota fixtures,
-and `legal_consent_security.sql` synchronized. Static backend contracts pass,
+Keep Swift policy versions, causal RPC payload/result shapes, the SQL gate,
+migration contracts, quota fixtures, and `legal_consent_security.sql`
+synchronized. The pgTAP fixture must retain both inverse cross-device cases:
+an older offline AI/analytics grant reconnects after another device's
+revocation and is rejected; an older offline revocation reconnects after a
+newer grant and is accepted, rebased, and remains idempotent on retry. Static
+contracts lock the account-row-before-stream lock order, and
+`legalConsentConcurrencyDb.test.ts` releases overlapping grant/revocation
+callers for both providers and requires the final head to remain revoked. Static
+backend contracts pass,
 and all tracked iOS lifecycle findings are closed in source. Internal test
 builds may continue. Public production remains blocked by hosted exact-SHA
 runtime/rollout evidence, disposable-catalog replay, and external release

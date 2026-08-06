@@ -128,7 +128,8 @@ account-wide permission boundary:
 > synchronization identity fence, target-account restoration, Realtime, and
 > OAuth account-replacement findings tracked as `CONSENT-004` through
 > `CONSENT-007`, plus the verified local-ledger and withdrawal-journal boundary
-> tracked as `CONSENT-010`. All findings through `CONSENT-010` are closed in source.
+> tracked as `CONSENT-010` and the causal cross-device ordering boundary tracked
+> as `CONSENT-011`. All findings through `CONSENT-011` are closed in source.
 > Internal test builds may continue. Public production remains blocked by
 > same-SHA hosted iOS/Supabase validation and the external controls in the
 > [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
@@ -159,7 +160,8 @@ public-policy fact, update all affected artifacts before merge.
 
 `AppTelemetry.initialize()` prepares only the first-party facade during app
 startup; it does not configure PostHog. `ConsentManager` resolves the active
-account's latest `user_analytics_consent_events` state and is the sole SDK
+account's highest accepted `consent_revision` in
+`user_analytics_consent_events` and is the sole SDK
 lifecycle authority. Only a current grant configures and identifies PostHog.
 Absence, revocation, account change, or unresolved account state must disable
 the facade, clear identity, opt out, and close the SDK without starting a new
@@ -290,9 +292,10 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
 - Uses the standard PostHog HTTP `/capture/` API to dispatch `ScanCompleted`,
   `EnrichmentCompleted`, `EncyclopedicLLMCompleted`, `DiagnosticLLMCompleted`,
   and `GroupTagsLLMCompleted` events from the Supabase backend only after a
-  current account grant. Every call first checks the latest server-recorded
-  PostHog event and performs no PostHog request on absence, revocation, or
-  lookup failure.
+  current account grant. Every call first checks the greatest server-issued
+  PostHog `consent_revision` and performs no PostHog request on absence,
+  revocation, or lookup failure. Upload receipt time and device time never
+  determine authority.
 - Scan completion events attach AI metrics including `llm_model`,
   `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens`, and where
   available `llm_thinking_tokens` / `llm_cached_tokens` to `user.id` to provide

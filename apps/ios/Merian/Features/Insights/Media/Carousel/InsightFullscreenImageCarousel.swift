@@ -390,12 +390,7 @@ private struct FullscreenVideoView: View {
     }
 
     private func resolvedURL(_ rawPath: String) -> URL? {
-        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        if let url = URL(string: trimmed), url.scheme == "http" || url.scheme == "https" || url.scheme == "file" {
-            return url
-        }
-        return URL(fileURLWithPath: trimmed)
+        SecureTransportPolicy.localFileOrHTTPSURL(from: rawPath)
     }
 }
 

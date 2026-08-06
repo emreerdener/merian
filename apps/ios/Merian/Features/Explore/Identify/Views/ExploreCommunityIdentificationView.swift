@@ -1109,8 +1109,7 @@ private struct CommunityIdentificationActivityRow: View {
 
     @ViewBuilder
     private var thumbnail: some View {
-        if let thumbnailUrl = item.thumbnailUrl,
-           let url = URL(string: thumbnailUrl) {
+        if let url = SecureTransportPolicy.httpsURL(from: item.thumbnailUrl) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
@@ -1317,7 +1316,7 @@ private struct CommunityIdentificationGridCard: View {
 
     @ViewBuilder
     private var image: some View {
-        if let url = URL(string: item.heroImageUrl) {
+        if let url = SecureTransportPolicy.httpsURL(from: item.heroImageUrl) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):

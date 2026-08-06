@@ -286,7 +286,7 @@ the native iOS source tree.
 | Store recovery | `apps/ios/Merian/Core/Data/StoreRecovery/` | SwiftData store metadata parsing, source-aware migration hints, duplicate-checksum detection, corruption-gated quarantine, legacy migration rescue archives, safe-mode decision support, and sanitized recovery manifests.                                                                                                                                                                |
 | Hardware       | `apps/ios/Merian/Core/Hardware/`           | Camera, environment context, audio, spectrogram, haptics, thermal/battery orchestration, and push token management.                                                                                                                                                                                                                                                                       |
 | Network        | `apps/ios/Merian/Core/Network/`            | Supabase auth/client facade, TLS-pinned network client, subject-bound Insight/Explore Field Chat DTO validation, private Field trip completion-scan DTO mapping, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager.                                                                                                                                           |
-| Security       | `apps/ios/Merian/Core/Security/`           | Circuit breaker, device identity, paid RevenueCat state, current-launch versioned complimentary entitlement, append-only versioned adult/Terms/Gemini/PostHog consent ledger and sync, atomic verified ledger-file storage, Keychain withdrawal journal, and social guard. The canonical hold is [`production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md).                                                                 |
+| Security       | `apps/ios/Merian/Core/Security/`           | Circuit breaker, device identity, paid RevenueCat state, current-launch versioned complimentary entitlement, append-only versioned adult/Terms/Gemini/PostHog consent ledger and sync, causal provider append with stale-grant rejection and deny-wins revocation rebasing, atomic verified ledger-file storage, Keychain withdrawal journal, and social guard. The canonical hold is [`production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md).                                                                 |
 | UI             | `apps/ios/Merian/Core/UI/`                 | Shared controls, tab bar, media mode toggle, domain-neutral goal progress ring, slide-to-confirm, reusable modifiers, and theme model.                                                                                                                                                                                                                                                    |
 | Utilities      | `apps/ios/Merian/Core/Utilities/`          | App lifecycle, app events, config constants, field notes repository, image downsampling, errors, sharing, date/size helpers, and UserDefaults keys.                                                                                                                                                                                                                                       |
 
@@ -834,6 +834,15 @@ ACLs, plus the starter-level catalog and deny-by-default Backyard enrollment
 trigger/backfill, in `_tests/fieldTripsMigrationContract.test.ts` and
 `_tests/fieldTripProgressDb.test.ts`.
 
+Consent causal coverage spans
+`_tests/legalConsentMigrationContract.test.ts`,
+`_tests/legalConsentConcurrencyDb.test.ts`,
+`tests/legal_consent_security.sql`, and the iOS `ConsentManager`/
+`SupabaseManager` suites. Static contracts lock RPC shape, privileges, indexes,
+and account-row-before-stream lock order. The disposable-database fixture
+releases overlapping grant and revocation calls for both Gemini and PostHog and
+requires a revoked final head with monotonic revisions in either order.
+
 Missing-image repair coverage spans
 `repair-scan-image/{validation,worker}_test.ts`,
 `_tests/{accountDeletionMigrationContract,migrationMediaContract}.test.ts`,
@@ -851,6 +860,15 @@ inventory and change contract live in
 App Store answers, and counsel approval remain operator evidence rather than
 repository-generated facts.
 
+App transport assurance spans configured origins, URL-construction boundaries,
+source plist, archive, and export. `SecureTransportPolicy.swift` admits only
+credential-free HTTPS for remote strings while preserving app-owned local
+files. `scripts/validate-ios-transport-security.sh` rejects broad and
+domain-scoped ATS exceptions plus insecure Supabase origins; the archive and
+IPA validators repeat the check against the built `Info.plist`, and exact-SHA
+archive evidence records `transport_security: "ats-default"`. The normative
+contract lives in `docs/development-guides/17-ios-transport-security.md`.
+
 ## Documentation Maintenance Checklist
 
 When changing the codebase, update docs in the same change if any of these move:
@@ -860,6 +878,8 @@ When changing the codebase, update docs in the same change if any of these move:
 - Privacy manifests, required-reason API use, collected-data categories,
   purposes, identity linking, tracking, SDK composition, or executable bundle
   ownership.
+- ATS exceptions, configured remote origins, signed URL handling, or any
+  backend-supplied URL boundary.
 - Edge Function request/response bodies, auth policy, config entries, or storage
   lifecycle behavior.
 - Destructive queue claim authority, live-owner vetoes, account-isolation

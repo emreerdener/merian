@@ -199,7 +199,10 @@ struct OverviewCard: View {
                         WikipediaSummarySection(text: extract)
                     }
                     
-                    if hasWiki, let wikiString = data.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
+                    if hasWiki,
+                       let wikiUrl = SecureTransportPolicy.httpsURL(
+                           from: data.wikipediaUrl
+                       ) {
                         WikipediaReadMoreButton {
                             selectedWikiURL = wikiUrl
                             isSafariPresented = true

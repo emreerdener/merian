@@ -22,7 +22,9 @@ steps are tracked in the
 > crash-safe ghost-ledger handoff, withdrawal-time PostHog transport blocking,
 > verified atomic local-ledger persistence, restart-safe multi-account
 > withdrawal journaling, target-account restoration, final in-merge
-> account/session fencing, Realtime repair, and OAuth account replacement.
+> account/session fencing, Realtime repair, OAuth account replacement, and
+> atomic rejection of delayed offline AI/analytics grants plus deny-wins
+> rebasing of revocations onto the locked server head.
 > Internal test builds may continue, but
 > do not nominate the candidate for public production or enable strict server
 > enforcement until **iOS Build and Test** and the validation-only **Supabase
@@ -42,6 +44,15 @@ steps are tracked in the
 > manifests, the public policy, App Store Connect answers, and counsel review.
 > See the
 > [iOS privacy manifest contract](docs/development-guides/16-ios-privacy-manifest.md).
+
+> **iOS transport security status (2026-08-05):** The main app no longer
+> disables App Transport Security. App-configured origins and backend-supplied
+> remote media are accepted only as credential-free HTTPS, with ATS retained as
+> an independent platform backstop. Source, archive, and exported-IPA
+> validators reject broad or domain-scoped exceptions and insecure Supabase
+> origins. Public promotion still requires exact-SHA archive evidence reporting
+> `transport_security: "ats-default"`. See the
+> [iOS transport security contract](docs/development-guides/17-ios-transport-security.md).
 
 > **Production release evidence gate (2026-07-28):** DwC-A exports are
 > authoritatively disabled for the initial launch by migration
@@ -778,6 +789,7 @@ From the repo root:
 ```bash
 make xcodegen
 make validate-ios-privacy-manifest
+make validate-ios-transport-security
 make validate-ios-versioning
 make test-ios-ci-tooling
 make db-push

@@ -1092,6 +1092,9 @@ final class CaptureWorkspaceViewModel {
     }
 
     private nonisolated static func downloadRefinementImage(from remoteURL: URL) async throws -> URL? {
+        guard SecureTransportPolicy.isSecureRemoteURL(remoteURL) else {
+            throw URLError(.unsupportedURL)
+        }
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 120

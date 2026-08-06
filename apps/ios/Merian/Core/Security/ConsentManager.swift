@@ -152,6 +152,16 @@ final class ConsentManager {
         let appVersion: String
         let appBuild: String
         var recordedAt: Date?
+        /// Event this device had observed when the action was created. Grants
+        /// require this head; revocations may be rebased to the server head.
+        var causalParentId: UUID?
+        /// Server-issued monotonic ordering value. Never derived from a device
+        /// clock or predicted for an offline event.
+        var consentRevision: Int64?
+        /// A rejected offline grant remains immutable local evidence but is
+        /// excluded from current permission and future upload attempts.
+        var supersededByEventId: UUID?
+        var supersededByRevision: Int64?
     }
 
     struct AnalyticsConsentEvent: Codable, Equatable {
@@ -168,6 +178,10 @@ final class ConsentManager {
         let appVersion: String
         let appBuild: String
         var recordedAt: Date?
+        var causalParentId: UUID?
+        var consentRevision: Int64?
+        var supersededByEventId: UUID?
+        var supersededByRevision: Int64?
     }
 
     struct AnalyticsRevocationIntent: Codable, Equatable {
@@ -260,32 +274,39 @@ final class ConsentManager {
         let app_build: String
     }
 
-    private struct AIConsentEventInsert: Encodable {
-        let id: UUID
-        let user_id: UUID
-        let provider: String
-        let disclosure_version: String
-        let event_kind: String
-        let occurred_at: String
-        let disclosure_text: String
-        let action_text: String
-        let platform: String
-        let app_version: String
-        let app_build: String
+    private struct AIConsentEventAppend: Encodable {
+        let p_id: UUID
+        let p_disclosure_version: String
+        let p_event_kind: String
+        let p_occurred_at: String
+        let p_disclosure_text: String
+        let p_action_text: String
+        let p_platform: String
+        let p_app_version: String
+        let p_app_build: String
+        let p_causal_parent_id: UUID?
     }
 
-    private struct AnalyticsConsentEventInsert: Encodable {
-        let id: UUID
-        let user_id: UUID
-        let provider: String
-        let disclosure_version: String
-        let event_kind: String
-        let occurred_at: String
-        let disclosure_text: String
-        let action_text: String
-        let platform: String
-        let app_version: String
-        let app_build: String
+    private struct AnalyticsConsentEventAppend: Encodable {
+        let p_id: UUID
+        let p_disclosure_version: String
+        let p_event_kind: String
+        let p_occurred_at: String
+        let p_disclosure_text: String
+        let p_action_text: String
+        let p_platform: String
+        let p_app_version: String
+        let p_app_build: String
+        let p_causal_parent_id: UUID?
+    }
+
+    private struct CloudConsentAppendResult: Decodable {
+        let accepted: Bool
+        let event_revision: Int64?
+        let accepted_parent_id: UUID?
+        let authoritative_revision: Int64
+        let authoritative_event_id: UUID?
+        let recorded_at: String?
     }
 
     private struct CloudAdultEligibilityReceipt: Decodable {
@@ -326,6 +347,8 @@ final class ConsentManager {
         let app_version: String
         let app_build: String
         let recorded_at: String
+        let causal_parent_id: UUID?
+        let consent_revision: Int64
     }
 
     private struct CloudAnalyticsConsentEvent: Decodable {
@@ -341,6 +364,8 @@ final class ConsentManager {
         let app_version: String
         let app_build: String
         let recorded_at: String
+        let causal_parent_id: UUID?
+        let consent_revision: Int64
     }
 
     struct RemoteState {
@@ -348,6 +373,24 @@ final class ConsentManager {
         let termsReceipt: TermsAcceptanceReceipt?
         let aiConsentEvent: AIConsentEvent?
         let analyticsConsentEvent: AnalyticsConsentEvent?
+        let aiConsentStreamHead: AIConsentEvent?
+        let analyticsConsentStreamHead: AnalyticsConsentEvent?
+
+        init(
+            adultEligibilityReceipt: AdultEligibilityReceipt?,
+            termsReceipt: TermsAcceptanceReceipt?,
+            aiConsentEvent: AIConsentEvent?,
+            analyticsConsentEvent: AnalyticsConsentEvent?,
+            aiConsentStreamHead: AIConsentEvent? = nil,
+            analyticsConsentStreamHead: AnalyticsConsentEvent? = nil
+        ) {
+            self.adultEligibilityReceipt = adultEligibilityReceipt
+            self.termsReceipt = termsReceipt
+            self.aiConsentEvent = aiConsentEvent
+            self.analyticsConsentEvent = analyticsConsentEvent
+            self.aiConsentStreamHead = aiConsentStreamHead
+            self.analyticsConsentStreamHead = analyticsConsentStreamHead
+        }
     }
 
     static let shared = ConsentManager()
@@ -386,6 +429,8 @@ final class ConsentManager {
         }.count
         let pendingEvents = ledger.aiConsentEvents.filter {
             guard $0.ownerUserId == activeUserId else { return false }
+            guard $0.supersededByEventId == nil,
+                  $0.supersededByRevision == nil else { return false }
             if let activeUserId {
                 return $0.syncedUserId != activeUserId
             }
@@ -393,6 +438,8 @@ final class ConsentManager {
         }.count
         let pendingAnalyticsEvents = ledger.analyticsConsentEvents.filter {
             guard $0.ownerUserId == activeUserId else { return false }
+            guard $0.supersededByEventId == nil,
+                  $0.supersededByRevision == nil else { return false }
             if let activeUserId {
                 return $0.syncedUserId != activeUserId
             }
@@ -608,7 +655,11 @@ final class ConsentManager {
                 platform: "ios",
                 appVersion: Self.appVersion,
                 appBuild: Self.appBuild,
-                recordedAt: nil
+                recordedAt: nil,
+                causalParentId: Self.currentAIConsentStreamHead(
+                    ownerUserId: ownerUserId,
+                    in: candidate
+                )?.id
             ))
         }
 
@@ -726,7 +777,11 @@ final class ConsentManager {
             platform: "ios",
             appVersion: Self.appVersion,
             appBuild: Self.appBuild,
-            recordedAt: nil
+            recordedAt: nil,
+            causalParentId: Self.currentAIConsentStreamHead(
+                ownerUserId: ownerUserId,
+                in: candidate
+            )?.id
         ))
 
         try persistLedger(candidate)
@@ -1067,7 +1122,10 @@ final class ConsentManager {
         }
 
         let events = ledger.aiConsentEvents.filter {
-            $0.ownerUserId == userId && $0.syncedUserId != userId
+            $0.ownerUserId == userId
+                && $0.syncedUserId != userId
+                && $0.supersededByEventId == nil
+                && $0.supersededByRevision == nil
         }
         for event in events {
             try validateSynchronization(for: userId, generation: generation)
@@ -1087,7 +1145,10 @@ final class ConsentManager {
         }
 
         let analyticsEvents = ledger.analyticsConsentEvents.filter {
-            $0.ownerUserId == userId && $0.syncedUserId != userId
+            $0.ownerUserId == userId
+                && $0.syncedUserId != userId
+                && $0.supersededByEventId == nil
+                && $0.supersededByRevision == nil
         }
         for event in analyticsEvents {
             try validateSynchronization(for: userId, generation: generation)
@@ -1205,26 +1266,56 @@ final class ConsentManager {
         for userId: UUID,
         generation: UInt
     ) async throws -> AIConsentEvent {
-        let row = AIConsentEventInsert(
-            id: event.id,
-            user_id: userId,
-            provider: event.provider,
-            disclosure_version: event.disclosureVersion,
-            event_kind: event.eventKind.rawValue,
-            occurred_at: Self.timestamp(event.occurredAt),
-            disclosure_text: event.disclosureText,
-            action_text: event.actionText,
-            platform: event.platform,
-            app_version: event.appVersion,
-            app_build: event.appBuild
+        let parameters = AIConsentEventAppend(
+            p_id: event.id,
+            p_disclosure_version: event.disclosureVersion,
+            p_event_kind: event.eventKind.rawValue,
+            p_occurred_at: Self.timestamp(event.occurredAt),
+            p_disclosure_text: event.disclosureText,
+            p_action_text: event.actionText,
+            p_platform: event.platform,
+            p_app_version: event.appVersion,
+            p_app_build: event.appBuild,
+            p_causal_parent_id: event.causalParentId
         )
 
         do {
-            try await SupabaseManager.shared.client
-                .from("user_ai_consent_events")
-                .insert(row)
+            let results: [CloudConsentAppendResult] = try await SupabaseManager
+                .shared.client
+                .rpc(
+                    "append_user_ai_consent_event",
+                    params: parameters
+                )
                 .execute()
+                .value
             try validateSynchronization(for: userId, generation: generation)
+
+            guard results.count == 1 else {
+                throw MerianError.invalidResponse
+            }
+            let result = results[0]
+            guard result.accepted else {
+                var supersededEvent = event
+                supersededEvent.supersededByEventId =
+                    result.authoritative_event_id
+                supersededEvent.supersededByRevision =
+                    result.authoritative_revision
+                return supersededEvent
+            }
+
+            guard let eventRevision = result.event_revision,
+                  let recordedAtString = result.recorded_at,
+                  let recordedAt = Self.date(recordedAtString) else {
+                throw MerianError.invalidResponse
+            }
+            var synchronizedEvent = event
+            synchronizedEvent.syncedUserId = userId
+            synchronizedEvent.causalParentId = result.accepted_parent_id
+            synchronizedEvent.consentRevision = eventRevision
+            synchronizedEvent.recordedAt = recordedAt
+            synchronizedEvent.supersededByEventId = nil
+            synchronizedEvent.supersededByRevision = nil
+            return synchronizedEvent
         } catch {
             try validateSynchronization(for: userId, generation: generation)
             let existingEvent = try await fetchAIConsentEvent(
@@ -1232,21 +1323,16 @@ final class ConsentManager {
                 userId: userId
             )
             try validateSynchronization(for: userId, generation: generation)
-            guard let existingEvent else {
+            guard let existingEvent,
+                  Self.matchesAIConsentAppendRetry(
+                      existingEvent,
+                      requested: event,
+                      userId: userId
+                  ) else {
                 throw error
             }
             return existingEvent
         }
-
-        let insertedEvent = try await fetchAIConsentEvent(
-            id: event.id,
-            userId: userId
-        )
-        try validateSynchronization(for: userId, generation: generation)
-        guard let insertedEvent else {
-            throw MerianError.aiConsentRequired
-        }
-        return insertedEvent
     }
 
     private func insertAnalyticsConsentEvent(
@@ -1254,26 +1340,56 @@ final class ConsentManager {
         for userId: UUID,
         generation: UInt
     ) async throws -> AnalyticsConsentEvent {
-        let row = AnalyticsConsentEventInsert(
-            id: event.id,
-            user_id: userId,
-            provider: event.provider,
-            disclosure_version: event.disclosureVersion,
-            event_kind: event.eventKind.rawValue,
-            occurred_at: Self.timestamp(event.occurredAt),
-            disclosure_text: event.disclosureText,
-            action_text: event.actionText,
-            platform: event.platform,
-            app_version: event.appVersion,
-            app_build: event.appBuild
+        let parameters = AnalyticsConsentEventAppend(
+            p_id: event.id,
+            p_disclosure_version: event.disclosureVersion,
+            p_event_kind: event.eventKind.rawValue,
+            p_occurred_at: Self.timestamp(event.occurredAt),
+            p_disclosure_text: event.disclosureText,
+            p_action_text: event.actionText,
+            p_platform: event.platform,
+            p_app_version: event.appVersion,
+            p_app_build: event.appBuild,
+            p_causal_parent_id: event.causalParentId
         )
 
         do {
-            try await SupabaseManager.shared.client
-                .from("user_analytics_consent_events")
-                .insert(row)
+            let results: [CloudConsentAppendResult] = try await SupabaseManager
+                .shared.client
+                .rpc(
+                    "append_user_analytics_consent_event",
+                    params: parameters
+                )
                 .execute()
+                .value
             try validateSynchronization(for: userId, generation: generation)
+
+            guard results.count == 1 else {
+                throw MerianError.invalidResponse
+            }
+            let result = results[0]
+            guard result.accepted else {
+                var supersededEvent = event
+                supersededEvent.supersededByEventId =
+                    result.authoritative_event_id
+                supersededEvent.supersededByRevision =
+                    result.authoritative_revision
+                return supersededEvent
+            }
+
+            guard let eventRevision = result.event_revision,
+                  let recordedAtString = result.recorded_at,
+                  let recordedAt = Self.date(recordedAtString) else {
+                throw MerianError.invalidResponse
+            }
+            var synchronizedEvent = event
+            synchronizedEvent.syncedUserId = userId
+            synchronizedEvent.causalParentId = result.accepted_parent_id
+            synchronizedEvent.consentRevision = eventRevision
+            synchronizedEvent.recordedAt = recordedAt
+            synchronizedEvent.supersededByEventId = nil
+            synchronizedEvent.supersededByRevision = nil
+            return synchronizedEvent
         } catch {
             try validateSynchronization(for: userId, generation: generation)
             let existingEvent = try await fetchAnalyticsConsentEvent(
@@ -1281,21 +1397,16 @@ final class ConsentManager {
                 userId: userId
             )
             try validateSynchronization(for: userId, generation: generation)
-            guard let existingEvent else {
+            guard let existingEvent,
+                  Self.matchesAnalyticsConsentAppendRetry(
+                      existingEvent,
+                      requested: event,
+                      userId: userId
+                  ) else {
                 throw error
             }
             return existingEvent
         }
-
-        let insertedEvent = try await fetchAnalyticsConsentEvent(
-            id: event.id,
-            userId: userId
-        )
-        try validateSynchronization(for: userId, generation: generation)
-        guard let insertedEvent else {
-            throw MerianError.aiConsentRequired
-        }
-        return insertedEvent
     }
 
     private func fetchAdultEligibilityReceipt(
@@ -1334,7 +1445,7 @@ final class ConsentManager {
     ) async throws -> AIConsentEvent? {
         let rows: [CloudAIConsentEvent] = try await SupabaseManager.shared.client
             .from("user_ai_consent_events")
-            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at,causal_parent_id,consent_revision")
             .eq("id", value: id)
             .eq("user_id", value: userId)
             .limit(1)
@@ -1349,7 +1460,7 @@ final class ConsentManager {
     ) async throws -> AnalyticsConsentEvent? {
         let rows: [CloudAnalyticsConsentEvent] = try await SupabaseManager.shared.client
             .from("user_analytics_consent_events")
-            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at,causal_parent_id,consent_revision")
             .eq("id", value: id)
             .eq("user_id", value: userId)
             .limit(1)
@@ -1386,24 +1497,45 @@ final class ConsentManager {
 
         async let eventRows: [CloudAIConsentEvent] = SupabaseManager.shared.client
             .from("user_ai_consent_events")
-            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at,causal_parent_id,consent_revision")
             .eq("user_id", value: userId)
             .eq("provider", value: ConsentPolicy.geminiProvider)
             .eq("disclosure_version", value: ConsentPolicy.geminiDisclosureVersion)
-            .order("recorded_at", ascending: false)
-            .order("id", ascending: false)
+            .order("consent_revision", ascending: false)
             .limit(1)
             .execute()
             .value
 
         async let analyticsRows: [CloudAnalyticsConsentEvent] = SupabaseManager.shared.client
             .from("user_analytics_consent_events")
-            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at,causal_parent_id,consent_revision")
             .eq("user_id", value: userId)
             .eq("provider", value: ConsentPolicy.analyticsProvider)
             .eq("disclosure_version", value: ConsentPolicy.analyticsDisclosureVersion)
-            .order("recorded_at", ascending: false)
-            .order("id", ascending: false)
+            .order("consent_revision", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        // The current disclosure may have no row while an older disclosure
+        // still owns the provider stream head. Fetch that head independently
+        // so the next local action carries the causal token it truly observed.
+        async let aiStreamHeadRows: [CloudAIConsentEvent] = SupabaseManager.shared.client
+            .from("user_ai_consent_events")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at,causal_parent_id,consent_revision")
+            .eq("user_id", value: userId)
+            .eq("provider", value: ConsentPolicy.geminiProvider)
+            .order("consent_revision", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        async let analyticsStreamHeadRows: [CloudAnalyticsConsentEvent] = SupabaseManager.shared.client
+            .from("user_analytics_consent_events")
+            .select("id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build,recorded_at,causal_parent_id,consent_revision")
+            .eq("user_id", value: userId)
+            .eq("provider", value: ConsentPolicy.analyticsProvider)
+            .order("consent_revision", ascending: false)
             .limit(1)
             .execute()
             .value
@@ -1412,7 +1544,9 @@ final class ConsentManager {
             adultRows,
             termsRows,
             eventRows,
-            analyticsRows
+            analyticsRows,
+            aiStreamHeadRows,
+            analyticsStreamHeadRows
         )
         try validateSynchronization(for: userId, generation: generation)
 
@@ -1424,11 +1558,19 @@ final class ConsentManager {
         let analyticsConsentEvent = resolvedRows.3.first.flatMap(
             Self.localAnalyticsConsentEvent
         )
+        let aiConsentStreamHead = resolvedRows.4.first.flatMap(
+            Self.localAIConsentEvent
+        )
+        let analyticsConsentStreamHead = resolvedRows.5.first.flatMap(
+            Self.localAnalyticsConsentEvent
+        )
         return RemoteState(
             adultEligibilityReceipt: adultEligibilityReceipt,
             termsReceipt: termsReceipt,
             aiConsentEvent: aiConsentEvent,
-            analyticsConsentEvent: analyticsConsentEvent
+            analyticsConsentEvent: analyticsConsentEvent,
+            aiConsentStreamHead: aiConsentStreamHead,
+            analyticsConsentStreamHead: analyticsConsentStreamHead
         )
     }
 
@@ -1460,7 +1602,10 @@ final class ConsentManager {
             }
         }
 
-        if let event = remoteState.aiConsentEvent {
+        for event in [
+            remoteState.aiConsentEvent,
+            remoteState.aiConsentStreamHead
+        ].compactMap({ $0 }) {
             if let index = candidate.aiConsentEvents.firstIndex(where: {
                 $0.id == event.id
             }) {
@@ -1470,7 +1615,10 @@ final class ConsentManager {
             }
         }
 
-        if let event = remoteState.analyticsConsentEvent {
+        for event in [
+            remoteState.analyticsConsentEvent,
+            remoteState.analyticsConsentStreamHead
+        ].compactMap({ $0 }) {
             if let index = candidate.analyticsConsentEvents.firstIndex(where: {
                 $0.id == event.id
             }) {
@@ -1548,10 +1696,18 @@ final class ConsentManager {
     }
 
     private func currentAIConsentEvent(ownerUserId: UUID?) -> AIConsentEvent? {
-        let matchingEvents = ledger.aiConsentEvents.filter {
+        Self.currentAIConsentEvent(ownerUserId: ownerUserId, in: ledger)
+    }
+
+    private static func currentAIConsentEvent(
+        ownerUserId: UUID?,
+        in source: LocalLedger
+    ) -> AIConsentEvent? {
+        let matchingEvents = source.aiConsentEvents.filter {
             $0.ownerUserId == ownerUserId
                 && $0.provider == ConsentPolicy.geminiProvider
                 && $0.disclosureVersion == ConsentPolicy.geminiDisclosureVersion
+                && !isSuperseded($0)
         }
 
         // A newly appended device action is authoritative for the local gate
@@ -1563,14 +1719,7 @@ final class ConsentManager {
             return pendingEvent
         }
 
-        return matchingEvents.max { lhs, rhs in
-            let lhsDate = lhs.recordedAt ?? lhs.occurredAt
-            let rhsDate = rhs.recordedAt ?? rhs.occurredAt
-            if lhsDate == rhsDate {
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-            return lhsDate < rhsDate
-        }
+        return matchingEvents.max(by: aiConsentEventPrecedes)
     }
 
     private func currentAnalyticsConsentEvent(
@@ -1590,6 +1739,7 @@ final class ConsentManager {
             $0.ownerUserId == ownerUserId
                 && $0.provider == ConsentPolicy.analyticsProvider
                 && $0.disclosureVersion == ConsentPolicy.analyticsDisclosureVersion
+                && !isSuperseded($0)
         }
 
         // A local withdrawal must win immediately while it is waiting for the
@@ -1600,14 +1750,95 @@ final class ConsentManager {
             return pendingEvent
         }
 
-        return matchingEvents.max { lhs, rhs in
-            let lhsDate = lhs.recordedAt ?? lhs.occurredAt
-            let rhsDate = rhs.recordedAt ?? rhs.occurredAt
-            if lhsDate == rhsDate {
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-            return lhsDate < rhsDate
+        return matchingEvents.max(by: analyticsConsentEventPrecedes)
+    }
+
+    private static func currentAIConsentStreamHead(
+        ownerUserId: UUID?,
+        in source: LocalLedger
+    ) -> AIConsentEvent? {
+        let matchingEvents = source.aiConsentEvents.filter {
+            $0.ownerUserId == ownerUserId
+                && $0.provider == ConsentPolicy.geminiProvider
+                && !isSuperseded($0)
         }
+        if let pendingEvent = matchingEvents.last(where: {
+            $0.syncedUserId == nil || $0.syncedUserId != $0.ownerUserId
+        }) {
+            return pendingEvent
+        }
+        return matchingEvents.max(by: aiConsentEventPrecedes)
+    }
+
+    private static func currentAnalyticsConsentStreamHead(
+        ownerUserId: UUID?,
+        in source: LocalLedger
+    ) -> AnalyticsConsentEvent? {
+        let matchingEvents = source.analyticsConsentEvents.filter {
+            $0.ownerUserId == ownerUserId
+                && $0.provider == ConsentPolicy.analyticsProvider
+                && !isSuperseded($0)
+        }
+        if let pendingEvent = matchingEvents.last(where: {
+            $0.syncedUserId == nil || $0.syncedUserId != $0.ownerUserId
+        }) {
+            return pendingEvent
+        }
+        return matchingEvents.max(by: analyticsConsentEventPrecedes)
+    }
+
+    private static func isSuperseded(_ event: AIConsentEvent) -> Bool {
+        event.supersededByEventId != nil || event.supersededByRevision != nil
+    }
+
+    private static func isSuperseded(_ event: AnalyticsConsentEvent) -> Bool {
+        event.supersededByEventId != nil || event.supersededByRevision != nil
+    }
+
+    private static func aiConsentEventPrecedes(
+        _ lhs: AIConsentEvent,
+        _ rhs: AIConsentEvent
+    ) -> Bool {
+        if let lhsRevision = lhs.consentRevision,
+           let rhsRevision = rhs.consentRevision,
+           lhsRevision != rhsRevision {
+            return lhsRevision < rhsRevision
+        }
+        if lhs.consentRevision == nil, rhs.consentRevision != nil {
+            return true
+        }
+        if lhs.consentRevision != nil, rhs.consentRevision == nil {
+            return false
+        }
+        let lhsDate = lhs.recordedAt ?? lhs.occurredAt
+        let rhsDate = rhs.recordedAt ?? rhs.occurredAt
+        if lhsDate == rhsDate {
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+        return lhsDate < rhsDate
+    }
+
+    private static func analyticsConsentEventPrecedes(
+        _ lhs: AnalyticsConsentEvent,
+        _ rhs: AnalyticsConsentEvent
+    ) -> Bool {
+        if let lhsRevision = lhs.consentRevision,
+           let rhsRevision = rhs.consentRevision,
+           lhsRevision != rhsRevision {
+            return lhsRevision < rhsRevision
+        }
+        if lhs.consentRevision == nil, rhs.consentRevision != nil {
+            return true
+        }
+        if lhs.consentRevision != nil, rhs.consentRevision == nil {
+            return false
+        }
+        let lhsDate = lhs.recordedAt ?? lhs.occurredAt
+        let rhsDate = rhs.recordedAt ?? rhs.occurredAt
+        if lhsDate == rhsDate {
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+        return lhsDate < rhsDate
     }
 
     @discardableResult
@@ -1642,7 +1873,11 @@ final class ConsentManager {
             platform: "ios",
             appVersion: Self.appVersion,
             appBuild: Self.appBuild,
-            recordedAt: nil
+            recordedAt: nil,
+            causalParentId: Self.currentAnalyticsConsentStreamHead(
+                ownerUserId: ownerUserId,
+                in: candidate
+            )?.id
         )
         candidate.analyticsConsentEvents.append(event)
         return event
@@ -2294,7 +2529,9 @@ final class ConsentManager {
             platform: row.platform,
             appVersion: row.app_version,
             appBuild: row.app_build,
-            recordedAt: recordedAt
+            recordedAt: recordedAt,
+            causalParentId: row.causal_parent_id,
+            consentRevision: row.consent_revision
         )
     }
 
@@ -2319,8 +2556,63 @@ final class ConsentManager {
             platform: row.platform,
             appVersion: row.app_version,
             appBuild: row.app_build,
-            recordedAt: recordedAt
+            recordedAt: recordedAt,
+            causalParentId: row.causal_parent_id,
+            consentRevision: row.consent_revision
         )
+    }
+
+    /// A fetch-after-error is only a retry recovery path when the server row
+    /// matches the immutable action that was sent. Revocations intentionally
+    /// ignore the requested parent because the RPC may have rebased it.
+    private static func matchesAIConsentAppendRetry(
+        _ existing: AIConsentEvent,
+        requested: AIConsentEvent,
+        userId: UUID
+    ) -> Bool {
+        existing.id == requested.id
+            && existing.ownerUserId == userId
+            && existing.syncedUserId == userId
+            && existing.provider == requested.provider
+            && existing.disclosureVersion == requested.disclosureVersion
+            && existing.eventKind == requested.eventKind
+            && timestamp(existing.occurredAt) == timestamp(requested.occurredAt)
+            && existing.disclosureText == requested.disclosureText
+            && existing.actionText == requested.actionText
+            && existing.platform == requested.platform
+            && existing.appVersion == requested.appVersion
+            && existing.appBuild == requested.appBuild
+            && existing.recordedAt != nil
+            && existing.consentRevision != nil
+            && (
+                requested.eventKind == .revoked
+                    || existing.causalParentId == requested.causalParentId
+            )
+    }
+
+    private static func matchesAnalyticsConsentAppendRetry(
+        _ existing: AnalyticsConsentEvent,
+        requested: AnalyticsConsentEvent,
+        userId: UUID
+    ) -> Bool {
+        existing.id == requested.id
+            && existing.ownerUserId == userId
+            && existing.syncedUserId == userId
+            && existing.provider == requested.provider
+            && existing.disclosureVersion == requested.disclosureVersion
+            && existing.eventKind == requested.eventKind
+            && timestamp(existing.occurredAt) == timestamp(requested.occurredAt)
+            && existing.disclosureText == requested.disclosureText
+            && existing.actionText == requested.actionText
+            && existing.platform == requested.platform
+            && existing.appVersion == requested.appVersion
+            && existing.appBuild == requested.appBuild
+            && existing.recordedAt != nil
+            && existing.consentRevision != nil
+            && (
+                requested.eventKind == .revoked
+                    || existing.causalParentId == requested.causalParentId
+            )
     }
 
     private static func timestamp(_ date: Date) -> String {

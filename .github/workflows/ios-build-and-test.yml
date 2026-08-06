@@ -628,6 +628,7 @@ jobs:
           done
 
           bash scripts/validate-ios-privacy-manifest.sh "$privacy_manifest"
+          bash scripts/validate-ios-transport-security.sh "$app_info"
 
           project_version="$(
             awk '$1 == "MARKETING_VERSION:" { print $2; exit }' project.yml
@@ -739,6 +740,7 @@ jobs:
               ],
               dsym_uuid_match: true,
               privacy_manifest_valid: true,
+              transport_security: "ats-default",
               ui_test_seed_markers_absent: true
             }' > "$XCODE_EVIDENCE"
 
@@ -752,6 +754,7 @@ jobs:
             echo "- Archive size: \`$((archive_kib * 1024)) bytes\`"
             echo "- Main dSYM UUIDs: verified"
             echo "- Privacy manifest: bundled and validated"
+            echo "- Transport security: ATS defaults, HTTPS-only app origins"
             echo "- Debug-only UI-test seed markers: absent"
             echo "- Signing: disabled (compile/archive validation only)"
           } >> "$GITHUB_STEP_SUMMARY"

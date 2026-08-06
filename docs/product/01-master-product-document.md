@@ -795,6 +795,14 @@ identification. PostHog is a separate, optional, default-off account-wide
 choice with a Settings withdrawal control that must take effect immediately and
 must not change core functionality.
 
+Gemini and PostHog event streams use causal compare-and-append. Each action
+names the account/provider event it observed. The server accepts a grant only
+while that parent remains current; a revocation is accepted and rebased to the
+locked current head. It assigns the monotonic revision used for authorization,
+so a delayed offline grant cannot override a committed revocation and a delayed
+withdrawal cannot leave a newer grant enabled. Device and upload timestamps are
+audit evidence, not conflict-resolution clocks.
+
 The main app now has a source-controlled privacy manifest declaring the reviewed
 data categories, no tracking, and approved reasons for its current
 required-reason APIs. That engineering declaration is not the final App Store
@@ -803,6 +811,12 @@ SDK manifests from the signed archive, and the resulting report must be
 reconciled with runtime behavior, public policy, and App Store Connect answers.
 See the
 [iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
+
+The main app also retains App Transport Security defaults and accepts configured
+origins or remotely supplied media only as credential-free HTTPS. Source,
+archive, and exported-IPA checks reject broad or domain-scoped exceptions; see
+the
+[iOS App Transport Security Contract](../development-guides/17-ios-transport-security.md).
 
 The repository also cannot establish jurisdiction-specific consent
 sufficiency or production age-rating configuration. Those require review and
@@ -1058,8 +1072,8 @@ leakage.
 
 Production requires an explicit current account grant before SDK configuration,
 identity, capture, or network activity, and zero such activity after withdrawal
-or account change. The current iOS lifecycle does not yet prove those guarantees;
-see the
+or account change. Those lifecycle and causal-ordering controls are closed in
+source but still require hosted exact-SHA proof; see the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 Cost and usage truth lives in backend ledgers and SQL reporting rather than a
@@ -1116,11 +1130,14 @@ through internal TestFlight, external TestFlight, and App Review.
 This contract is an engineering provenance requirement, not a product-readiness
 shortcut. Device, purchase/restore, push, privacy, migration, and critical
 journey acceptance remain required. The archive must contain the validated
-main-app privacy manifest, and promotion beyond internal testing requires the
+main-app privacy manifest and retain ATS defaults with HTTPS-only origins.
+Promotion beyond internal testing requires the
 reviewed Xcode aggregate privacy report. See the
 [Xcode release architecture](../system-architecture/09-ios-release-publisher.md),
-the [operator runbook](../development-guides/14-ios-release-versioning.md), and
-the [privacy manifest contract](../development-guides/16-ios-privacy-manifest.md).
+the [operator runbook](../development-guides/14-ios-release-versioning.md),
+the [privacy manifest contract](../development-guides/16-ios-privacy-manifest.md),
+and the
+[transport security contract](../development-guides/17-ios-transport-security.md).
 
 # 17. Roadmap and release posture
 
@@ -1142,6 +1159,7 @@ migrations, vendor credentials, and release flags.
 | Full localization                    | Partial                   | Localized resource architecture, content coverage, taxonomy rules, and QA.           |
 | 18+ and third-party AI consent controls | Implemented gate / Production-blocked | Pass hosted exact-SHA lifecycle and replacement-build rollout gates, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |
 | iOS app privacy manifest             | Implemented in source / Evidence pending | Pass the hosted exact-SHA root-bundle check, generate the signed archive's aggregate privacy report, and reconcile App Store privacy/ATT answers with SDK manifests, policy, and counsel. |
+| iOS App Transport Security            | Implemented in source / Evidence pending | Pass the hosted exact-SHA archive check with ATS defaults and credential-free HTTPS origins, then repeat it against the signed Organizer archive. |
 | App Attest / DeviceCheck enforcement | Planned                   | Threat model, server verification, failure policy, and rollout.                      |
 | Targeted observation bounties        | Planned                   | Product model, abuse controls, incentives, backend, and UX.                          |
 | Insight-triggered 1 FPS camera idle  | Partial hook only         | Wire lifecycle calls and validate restoration across navigation and interruptions.   |

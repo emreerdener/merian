@@ -4,6 +4,15 @@ import XCTest
 
 @MainActor
 final class PostHogManagerTests: XCTestCase {
+    func testTransportGateRejectsInsecureOrCredentialedHosts() {
+        let gate = PostHogConsentNetworkGate.shared
+
+        XCTAssertNil(gate.register(host: "http://posthog.example.test"))
+        XCTAssertNil(
+            gate.register(host: "https://user:secret@posthog.example.test")
+        )
+        XCTAssertNotNil(gate.register(host: "https://posthog.example.test"))
+    }
 
     var postHogManager: PostHogManager!
 

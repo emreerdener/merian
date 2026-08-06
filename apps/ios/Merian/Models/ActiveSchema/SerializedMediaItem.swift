@@ -56,7 +56,7 @@ struct StoredMediaReference: Codable, Equatable, Sendable {
         case .documents:
             return URL.documentsDirectory.appendingPathComponent(path)
         case .remoteURL:
-            return URL(string: path)
+            return SecureTransportPolicy.httpsURL(from: path)
         case .absolutePath:
             if path.starts(with: "file://") {
                 return URL(string: path)

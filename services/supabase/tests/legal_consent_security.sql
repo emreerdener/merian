@@ -33,6 +33,18 @@ BEGIN
         RAISE EXCEPTION 'a legal-consent table is missing RLS';
     END IF;
 
+    IF pg_catalog.TO_REGCLASS(
+        'public.user_ai_consent_stream_head_idx'
+    ) IS NULL OR pg_catalog.TO_REGCLASS(
+        'public.user_analytics_consent_stream_head_idx'
+    ) IS NULL OR pg_catalog.TO_REGCLASS(
+        'public.user_ai_consent_causal_parent_idx'
+    ) IS NULL OR pg_catalog.TO_REGCLASS(
+        'public.user_analytics_consent_causal_parent_idx'
+    ) IS NULL THEN
+        RAISE EXCEPTION 'causal consent indexes are incomplete';
+    END IF;
+
     IF pg_catalog.HAS_TABLE_PRIVILEGE(
         'anon',
         'public.user_terms_acceptance_receipts',
@@ -90,7 +102,7 @@ BEGIN
         'public.user_terms_acceptance_receipts',
         'id',
         'INSERT'
-    ) OR NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
+    ) OR pg_catalog.HAS_COLUMN_PRIVILEGE(
         'authenticated',
         'public.user_ai_consent_events',
         'id',
@@ -100,7 +112,7 @@ BEGIN
         'public.user_adult_eligibility_receipts',
         'id',
         'INSERT'
-    ) OR NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
+    ) OR pg_catalog.HAS_COLUMN_PRIVILEGE(
         'authenticated',
         'public.user_analytics_consent_events',
         'id',
@@ -143,6 +155,46 @@ BEGIN
         'UPDATE, DELETE'
     ) THEN
         RAISE EXCEPTION 'legal-consent append-only ACLs are unsafe';
+    END IF;
+
+    IF NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.append_user_ai_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.append_user_analytics_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.append_user_ai_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.append_user_ai_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'public.append_user_analytics_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.append_user_analytics_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)',
+        'EXECUTE'
+    ) THEN
+        RAISE EXCEPTION 'causal consent RPC ACLs are unsafe';
+    END IF;
+
+    IF pg_catalog.HAS_SEQUENCE_PRIVILEGE(
+        'authenticated',
+        'public.user_ai_consent_revision_seq',
+        'USAGE, SELECT, UPDATE'
+    ) OR pg_catalog.HAS_SEQUENCE_PRIVILEGE(
+        'authenticated',
+        'public.user_analytics_consent_revision_seq',
+        'USAGE, SELECT, UPDATE'
+    ) THEN
+        RAISE EXCEPTION 'authenticated can choose a consent revision';
     END IF;
 
     IF EXISTS (
@@ -452,23 +504,9 @@ VALUES (
     '275'
 );
 
-INSERT INTO public.user_ai_consent_events (
-    id,
-    user_id,
-    provider,
-    disclosure_version,
-    event_kind,
-    occurred_at,
-    disclosure_text,
-    action_text,
-    platform,
-    app_version,
-    app_build
-)
-VALUES (
+SELECT *
+FROM public.append_user_ai_consent_event(
     '00000000-0000-4000-8000-00000000e112',
-    '00000000-0000-4000-8000-00000000e101',
-    'google_gemini',
     '2026-08-03.1',
     'granted',
     pg_catalog.NOW(),
@@ -476,26 +514,13 @@ VALUES (
     'I accept the terms and allow this data sharing.',
     'ios',
     '1.0.3',
-    '275'
+    '275',
+    NULL
 );
 
-INSERT INTO public.user_analytics_consent_events (
-    id,
-    user_id,
-    provider,
-    disclosure_version,
-    event_kind,
-    occurred_at,
-    disclosure_text,
-    action_text,
-    platform,
-    app_version,
-    app_build
-)
-VALUES (
+SELECT *
+FROM public.append_user_analytics_consent_event(
     '00000000-0000-4000-8000-00000000e115',
-    '00000000-0000-4000-8000-00000000e101',
-    'posthog',
     '2026-08-04',
     'granted',
     pg_catalog.NOW(),
@@ -503,7 +528,8 @@ VALUES (
     'Share usage and diagnostics to help improve Naturebook.',
     'ios',
     '1.0.3',
-    '275'
+    '275',
+    NULL
 );
 
 DO $test$
@@ -706,23 +732,9 @@ END;
 $test$;
 
 SET LOCAL ROLE authenticated;
-INSERT INTO public.user_ai_consent_events (
-    id,
-    user_id,
-    provider,
-    disclosure_version,
-    event_kind,
-    occurred_at,
-    disclosure_text,
-    action_text,
-    platform,
-    app_version,
-    app_build
-)
-VALUES (
+SELECT *
+FROM public.append_user_ai_consent_event(
     '00000000-0000-4000-8000-00000000e113',
-    '00000000-0000-4000-8000-00000000e101',
-    'google_gemini',
     '2026-08-04.1',
     'revoked',
     pg_catalog.NOW(),
@@ -730,7 +742,8 @@ VALUES (
     'I withdraw permission for future observations.',
     'ios',
     '1.0.3',
-    '275'
+    '275',
+    '00000000-0000-4000-8000-00000000e112'
 );
 RESET ROLE;
 
@@ -751,23 +764,9 @@ END;
 $test$;
 
 SET LOCAL ROLE authenticated;
-INSERT INTO public.user_ai_consent_events (
-    id,
-    user_id,
-    provider,
-    disclosure_version,
-    event_kind,
-    occurred_at,
-    disclosure_text,
-    action_text,
-    platform,
-    app_version,
-    app_build
-)
-VALUES (
+SELECT *
+FROM public.append_user_ai_consent_event(
     '00000000-0000-4000-8000-00000000e114',
-    '00000000-0000-4000-8000-00000000e101',
-    'google_gemini',
     '2026-08-04.1',
     'granted',
     pg_catalog.NOW(),
@@ -775,7 +774,8 @@ VALUES (
     'I accept the terms and allow this data sharing.',
     'ios',
     '1.0.3',
-    '275'
+    '275',
+    '00000000-0000-4000-8000-00000000e113'
 );
 RESET ROLE;
 
@@ -784,23 +784,9 @@ SELECT internal.require_current_ai_consent(
 );
 
 SET LOCAL ROLE authenticated;
-INSERT INTO public.user_analytics_consent_events (
-    id,
-    user_id,
-    provider,
-    disclosure_version,
-    event_kind,
-    occurred_at,
-    disclosure_text,
-    action_text,
-    platform,
-    app_version,
-    app_build
-)
-VALUES (
+SELECT *
+FROM public.append_user_analytics_consent_event(
     '00000000-0000-4000-8000-00000000e118',
-    '00000000-0000-4000-8000-00000000e101',
-    'posthog',
     '2026-08-04',
     'revoked',
     pg_catalog.NOW(),
@@ -808,7 +794,8 @@ VALUES (
     'I withdraw permission for PostHog to process future app usage and diagnostics.',
     'ios',
     '1.0.3',
-    '275'
+    '275',
+    '00000000-0000-4000-8000-00000000e115'
 );
 RESET ROLE;
 
@@ -822,7 +809,7 @@ BEGIN
     WHERE events.user_id = '00000000-0000-4000-8000-00000000e101'
       AND events.provider = 'posthog'
       AND events.disclosure_version = '2026-08-04'
-    ORDER BY events.recorded_at DESC, events.id DESC
+    ORDER BY events.consent_revision DESC
     LIMIT 1;
 
     IF latest_analytics_event <> 'revoked' THEN
@@ -831,9 +818,254 @@ BEGIN
 END;
 $test$;
 
+-- Prove both conflict directions. A stale explicit withdrawal must rebase and
+-- remain idempotent, while a stale grant from the superseded head must be
+-- rejected even when it uploads after the withdrawal.
+SET LOCAL ROLE authenticated;
+DO $test$
+DECLARE
+    append_accepted BOOLEAN;
+    accepted_parent_id UUID;
+    authoritative_event_id UUID;
+BEGIN
+    SELECT result.accepted
+    INTO STRICT append_accepted
+    FROM public.append_user_ai_consent_event(
+        '00000000-0000-4000-8000-00000000e128',
+        '2026-08-04.1',
+        'granted',
+        '2026-08-05T12:00:00Z'::TIMESTAMPTZ,
+        'Naturebook sends observation data to Google Gemini for AI-powered identification.',
+        'Another device confirms permission.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e114'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM TRUE THEN
+        RAISE EXCEPTION 'newer AI grant setup was not accepted';
+    END IF;
+
+    SELECT result.accepted, result.accepted_parent_id
+    INTO STRICT append_accepted, accepted_parent_id
+    FROM public.append_user_ai_consent_event(
+        '00000000-0000-4000-8000-00000000e131',
+        '2026-08-04.1',
+        'revoked',
+        '2026-08-05T11:00:00Z'::TIMESTAMPTZ,
+        'Naturebook sends observation data to Google Gemini for AI-powered identification.',
+        'Device A queued an offline withdrawal.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e114'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM TRUE
+       OR accepted_parent_id IS DISTINCT FROM
+            '00000000-0000-4000-8000-00000000e128'::UUID THEN
+        RAISE EXCEPTION 'stale offline AI revocation did not rebase safely';
+    END IF;
+
+    SELECT result.accepted, result.authoritative_event_id
+    INTO STRICT append_accepted, authoritative_event_id
+    FROM public.append_user_ai_consent_event(
+        '00000000-0000-4000-8000-00000000e130',
+        '2026-08-04.1',
+        'granted',
+        '2026-08-05T10:00:00Z'::TIMESTAMPTZ,
+        'Naturebook sends observation data to Google Gemini for AI-powered identification.',
+        'Device A queued an offline grant.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e128'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM FALSE
+       OR authoritative_event_id IS DISTINCT FROM
+            '00000000-0000-4000-8000-00000000e131'::UUID THEN
+        RAISE EXCEPTION 'stale offline AI grant superseded a cross-device revocation';
+    END IF;
+
+    SELECT result.accepted
+    INTO STRICT append_accepted
+    FROM public.append_user_analytics_consent_event(
+        '00000000-0000-4000-8000-00000000e134',
+        '2026-08-04',
+        'granted',
+        '2026-08-05T12:00:00Z'::TIMESTAMPTZ,
+        'Share usage and diagnostics to help improve Naturebook.',
+        'Another device enables analytics.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e118'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM TRUE THEN
+        RAISE EXCEPTION 'newer analytics grant setup was not accepted';
+    END IF;
+
+    SELECT result.accepted, result.accepted_parent_id
+    INTO STRICT append_accepted, accepted_parent_id
+    FROM public.append_user_analytics_consent_event(
+        '00000000-0000-4000-8000-00000000e133',
+        '2026-08-04',
+        'revoked',
+        '2026-08-05T11:00:00Z'::TIMESTAMPTZ,
+        'Share usage and diagnostics to help improve Naturebook.',
+        'Device A queued an offline analytics withdrawal.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e118'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM TRUE
+       OR accepted_parent_id IS DISTINCT FROM
+            '00000000-0000-4000-8000-00000000e134'::UUID THEN
+        RAISE EXCEPTION 'stale offline analytics revocation did not rebase safely';
+    END IF;
+
+    SELECT result.accepted, result.authoritative_event_id
+    INTO STRICT append_accepted, authoritative_event_id
+    FROM public.append_user_analytics_consent_event(
+        '00000000-0000-4000-8000-00000000e132',
+        '2026-08-04',
+        'granted',
+        '2026-08-05T10:00:00Z'::TIMESTAMPTZ,
+        'Share usage and diagnostics to help improve Naturebook.',
+        'Device A queued an offline analytics grant.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e134'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM FALSE
+       OR authoritative_event_id IS DISTINCT FROM
+            '00000000-0000-4000-8000-00000000e133'::UUID THEN
+        RAISE EXCEPTION 'stale offline analytics grant superseded a cross-device revocation';
+    END IF;
+
+    -- A lost response may retry with the originally observed stale parent.
+    -- The immutable revocation ID remains idempotent and returns the accepted
+    -- server predecessor rather than creating another row.
+    SELECT result.accepted, result.accepted_parent_id
+    INTO STRICT append_accepted, accepted_parent_id
+    FROM public.append_user_ai_consent_event(
+        '00000000-0000-4000-8000-00000000e131',
+        '2026-08-04.1',
+        'revoked',
+        '2026-08-05T11:00:00Z'::TIMESTAMPTZ,
+        'Naturebook sends observation data to Google Gemini for AI-powered identification.',
+        'Device A queued an offline withdrawal.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e114'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM TRUE
+       OR accepted_parent_id IS DISTINCT FROM
+            '00000000-0000-4000-8000-00000000e128'::UUID THEN
+        RAISE EXCEPTION 'rebased AI revocation retry was not idempotent';
+    END IF;
+
+    SELECT result.accepted, result.accepted_parent_id
+    INTO STRICT append_accepted, accepted_parent_id
+    FROM public.append_user_analytics_consent_event(
+        '00000000-0000-4000-8000-00000000e133',
+        '2026-08-04',
+        'revoked',
+        '2026-08-05T11:00:00Z'::TIMESTAMPTZ,
+        'Share usage and diagnostics to help improve Naturebook.',
+        'Device A queued an offline analytics withdrawal.',
+        'ios',
+        '1.0.3',
+        '275',
+        '00000000-0000-4000-8000-00000000e118'
+    ) AS result;
+
+    IF append_accepted IS DISTINCT FROM TRUE
+       OR accepted_parent_id IS DISTINCT FROM
+            '00000000-0000-4000-8000-00000000e134'::UUID THEN
+        RAISE EXCEPTION 'rebased analytics revocation retry was not idempotent';
+    END IF;
+END;
+$test$;
+RESET ROLE;
+
+DO $test$
+DECLARE
+    latest_ai_event TEXT;
+    latest_analytics_event TEXT;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.user_ai_consent_events
+        WHERE id = '00000000-0000-4000-8000-00000000e130'
+    ) OR EXISTS (
+        SELECT 1
+        FROM public.user_analytics_consent_events
+        WHERE id = '00000000-0000-4000-8000-00000000e132'
+    ) THEN
+        RAISE EXCEPTION 'a stale causal branch was persisted';
+    END IF;
+
+    IF (
+        SELECT events.causal_parent_id
+        FROM public.user_ai_consent_events AS events
+        WHERE events.id = '00000000-0000-4000-8000-00000000e131'
+    ) IS DISTINCT FROM '00000000-0000-4000-8000-00000000e128'::UUID
+       OR (
+        SELECT events.causal_parent_id
+        FROM public.user_analytics_consent_events AS events
+        WHERE events.id = '00000000-0000-4000-8000-00000000e133'
+    ) IS DISTINCT FROM '00000000-0000-4000-8000-00000000e134'::UUID THEN
+        RAISE EXCEPTION 'a stale revocation was not linked to its accepted head';
+    END IF;
+
+    SELECT events.event_kind
+    INTO STRICT latest_ai_event
+    FROM public.user_ai_consent_events AS events
+    WHERE events.user_id = '00000000-0000-4000-8000-00000000e101'
+      AND events.provider = 'google_gemini'
+    ORDER BY events.consent_revision DESC
+    LIMIT 1;
+
+    SELECT events.event_kind
+    INTO STRICT latest_analytics_event
+    FROM public.user_analytics_consent_events AS events
+    WHERE events.user_id = '00000000-0000-4000-8000-00000000e101'
+      AND events.provider = 'posthog'
+    ORDER BY events.consent_revision DESC
+    LIMIT 1;
+
+    IF latest_ai_event <> 'revoked'
+       OR latest_analytics_event <> 'revoked' THEN
+        RAISE EXCEPTION 'cross-device revocations are not authoritative';
+    END IF;
+
+    BEGIN
+        PERFORM internal.require_current_ai_consent(
+            '00000000-0000-4000-8000-00000000e101'
+        );
+        RAISE EXCEPTION 'stale offline AI grant reopened provider access';
+    EXCEPTION
+        WHEN SQLSTATE 'P0001' THEN
+            IF SQLERRM <> 'ai_consent_required' THEN
+                RAISE;
+            END IF;
+    END;
+END;
+$test$;
+
 SELECT extensions.ok(
     TRUE,
-    'Adult, Terms, Gemini, and analytics evidence is append-only, owner-scoped, versioned, merge-safe, and enforced at every provider quota boundary'
+    'Adult, Terms, Gemini, and analytics evidence is append-only, owner-scoped, causally ordered, merge-safe, and enforced at every provider quota boundary'
 );
 SELECT * FROM extensions.finish();
 ROLLBACK;

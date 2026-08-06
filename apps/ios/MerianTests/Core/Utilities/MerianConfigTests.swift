@@ -229,6 +229,29 @@ struct MerianEnvironmentTests {
         #expect(configuration.issues.contains(.invalidSupabaseURL("not a valid url")))
     }
 
+    @Test func cleartextOrCredentialedSupabaseURLFallsBack() {
+        for unsafeURL in [
+            "http://project.supabase.co",
+            "https://user:secret@project.supabase.co"
+        ] {
+            let configuration = MerianEnvironment.load(infoDictionary: [
+                "SUPABASE_URL": unsafeURL,
+                "SUPABASE_ANON_KEY": "anon-key",
+                "REVENUECAT_API_KEY": "revenuecat-key",
+                "POSTHOG_API_KEY": "posthog-key"
+            ])
+
+            #expect(
+                configuration.supabaseUrl
+                    == MerianEnvironment.fallbackSupabaseURL
+            )
+            #expect(!configuration.hasSupabaseConfiguration)
+            #expect(
+                configuration.issues.contains(.invalidSupabaseURL(unsafeURL))
+            )
+        }
+    }
+
     @Test func validConfigurationTrimsValuesAndReportsNoIssues() {
         let configuration = MerianEnvironment.load(infoDictionary: [
             "SUPABASE_URL": " https://project.supabase.co ",

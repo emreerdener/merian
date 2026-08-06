@@ -19,6 +19,11 @@ contract; it never grants Gemini or PostHog permission. Its source inventory and
 release evidence are documented in the
 [iOS App Privacy Manifest Contract](../../../../../docs/development-guides/16-ios-privacy-manifest.md).
 
+Transport security is an independent connection boundary. The app retains ATS
+defaults and uses `SecureTransportPolicy` to reject non-HTTPS or credentialed
+remote URLs before network/media frameworks see them. See the
+[iOS App Transport Security Contract](../../../../../docs/development-guides/17-ios-transport-security.md).
+
 ## Components
 
 - `DeviceIdentityManager` persists the stable IDFV-backed device identity used
@@ -51,7 +56,18 @@ release evidence are documented in the
   can be removed. Normal account restoration also activates and flushes the
   target account before remote refetch while analytics remains fail-closed.
   Synchronization preserves the order target activation → all target-owned
-  pending pushes → authoritative fetch → merge. The merge itself performs a
+  pending pushes → authoritative fetch → merge. AI and analytics pending events
+  name their observed provider-stream head. Their authenticated RPC serializes
+  the account against ghost merge and then the provider stream, assigns a
+  server-only `consentRevision`, rejects a delayed grant whose parent is stale,
+  and rebases a revocation to the locked current head. Rejected grants remain
+  locally marked as superseded and cannot authorize either provider; accepted
+  events retain the parent returned by the server. Fetch-after-error recovery
+  also compares every immutable payload field before accepting an existing ID,
+  while allowing the server-rebased parent of a revocation. The authoritative
+  fetch
+  includes the all-version stream head so subsequent local actions attach to
+  the actual head. The merge itself performs a
   final synchronous fence over task cancellation, the observed account, the
   Supabase SDK's current session, and the synchronization generation before it
   can mutate or persist the ledger or apply analytics.
@@ -184,6 +200,11 @@ the strict server cutover or a production submission.
   different session. Every awaited network boundary and the final synchronous
   merge must agree on the observed user, SDK session, and synchronization
   generation before evidence or analytics can change.
+- A provider consent action must carry the event head observed when it was
+  created. Only the causal RPC may append it, and only its returned server
+  revision may order accepted state. Fetch-first synchronization by itself is
+  not a concurrency control. Stale-grant rejection and deny-wins revocation
+  rebasing must remain atomic with the stream-head decision.
 - PostHog must never be configured, identified, captured, or allowed to issue a
   request before the latest active account event grants permission. Withdrawal
   and account change must opt out and close the SDK without starting another
