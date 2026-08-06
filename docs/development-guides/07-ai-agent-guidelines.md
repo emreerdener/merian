@@ -39,6 +39,10 @@ The `docs/` folder contains the master reference for the application:
   supported iOS archive, upload, recovery, TestFlight, and App Review procedure.
 - Refer to `docs/development-guides/15-naturebook-rebrand-rollout.md` for
   domain, AASA, email, Supabase, App Store, and release verification.
+- Refer to `docs/development-guides/16-ios-privacy-manifest.md` before adding or
+  changing an Apple required-reason API, privacy manifest, SDK, executable,
+  analytics property, data-collection purpose, identity-linking behavior, or
+  tracking behavior.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk →
   cache → display image flow.
 - Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before
@@ -58,6 +62,12 @@ The `docs/` folder contains the master reference for the application:
 - **ALWAYS** update `project.yml` when adding new packages, frameworks, scopes,
   or entitlements.
 - Run `xcodegen generate` before attempting to build.
+- The main app's `PrivacyInfo.xcprivacy` must remain an app-owned resource in
+  the `Merian` target exactly once. A third-party manifest cannot cover
+  first-party required-reason API use. Update the source manifest, exact
+  validator, fixtures, canonical privacy inventory, and generated project
+  together; run `make validate-ios-privacy-manifest` and
+  `make test-ios-ci-tooling`.
 - Do not hardcode a real Apple Developer Team ID in `project.yml` or shared
   tracked config. Signing must flow through `Signing.xcconfig` -> optional
   `Signing.local.xcconfig`, with the local file ignored by git.
@@ -97,9 +107,9 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     `BackgroundTaskWrapper`, `FieldNotesRepository`, `ImageDownsampler`
   - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
-- `Configuration/`: target-owned Info.plist and entitlement files. Repo-level
-  project files such as `project.yml`, `Config.xcconfig`, and signing config
-  remain at the repository root.
+- `Configuration/`: target-owned Info.plist, entitlement, and privacy-manifest
+  files. Repo-level project files such as `project.yml`, `Config.xcconfig`, and
+  signing config remain at the repository root.
 
 The public web app lives outside the iOS source tree in `apps/web/`. It uses
 Next.js, React, and Mantine for server-rendered public pages. Keep service-role
@@ -419,6 +429,12 @@ dependency audit, tests, type-check, and production build; preserve the required
   `docs/system-architecture/02-zero-oom-and-concurrency.md`,
   `docs/system-architecture/03-image-pipeline.md`, and the relevant
   feature/backend guide in the same change set.
+- Required-reason API, SDK, executable, collected-data, purpose, linking, or
+  tracking changes must update
+  `docs/development-guides/16-ios-privacy-manifest.md` and its exact validator.
+  If product data practices changed, also synchronize the public Privacy Policy,
+  App Store answers, and counsel-review record; a manifest change is not runtime
+  consent or legal approval.
 - **User-facing changes must consider release notes.** For features, fixes, UX
   changes, or deployment notes that users or testers should see, update root
   `CHANGELOG.md` and, when appropriate,

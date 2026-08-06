@@ -1,7 +1,11 @@
-# Gamification and Zero-PII Telemetry
+# Gamification and Privacy-Bounded Telemetry
 
-Naturebook gamifies exploration while respecting user privacy through analytics
-environments decoupled from Apple ecosystem identifiers.
+Naturebook gamifies exploration while keeping telemetry payloads behind a
+narrow, allowlisted privacy boundary. “Zero PII” in older telemetry notes means
+that event properties and logs must not contain direct personal or free-form
+content; it is not a claim that the product processes no user data. Consented
+PostHog sessions use a pseudonymous Supabase account identifier and are declared
+as linked analytics in the app privacy manifest.
 
 ## Gamification Architecture (`GamificationManager`)
 
@@ -136,6 +140,21 @@ account-wide permission boundary:
   lifecycle tracking linked only to the Supabase UUID. Edge capture does not
   send auth email or name.
 
+### Privacy Manifest Classification
+
+The main app manifest declares analytics-related coarse location, user ID, and
+product interaction for both their applicable product purposes and Analytics;
+other usage, performance, and diagnostic data are declared for Analytics. All
+are conservatively linked to the user or device, none is declared for tracking,
+and optional collection remains off until the current account grants it.
+
+The declaration describes potential collection and does not open the PostHog
+transport or replace consent. Any new event or property must be evaluated both
+against the allowlist below and the
+[iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
+If it changes an Apple data type, purpose, linking, tracking, recipient, or
+public-policy fact, update all affected artifacts before merge.
+
 ### Initialization
 
 `AppTelemetry.initialize()` prepares only the first-party facade during app
@@ -191,7 +210,8 @@ without account permission.
 | `ClientErrorCaptured`            | `trackError(_:)`                                           | `domain: <errorDomain>`                                                                     | Available for future client error domains                                                        |
 | `StartupStoreRecovery`           | `trackStartupStoreRecovery(outcome:reason:)`               | See startup recovery telemetry below                                                       | App startup enters local store recovery, legacy rescue, safe mode, or startup-blocked fallback    |
 
-Species dictionary telemetry must remain zero-PII. `entryPoint` may be
+Species dictionary telemetry must remain free of direct personal and free-form
+content. `entryPoint` may be
 `insight_similar_species`, `explore_detail_similar_species`, `search`,
 `deep_link`, `web`, or `unknown`; events must not attach species names, species
 IDs, scan IDs, Explore post IDs, user locations, field notes, comments, image

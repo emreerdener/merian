@@ -39,6 +39,17 @@ capture, or network activity before grant and after withdrawal/account change.
 See the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
+## Privacy manifest boundary
+
+The main app's `PrivacyInfo.xcprivacy` conservatively declares the potential
+linked analytics categories and declares no tracking. This disclosure does not
+configure PostHog, open its transport, or substitute for the account-wide
+grant. Any new event or property must remain inside the allowlist documented
+below and be reviewed against the
+[iOS App Privacy Manifest Contract](../../../../../docs/development-guides/16-ios-privacy-manifest.md).
+Changes to data type, purpose, identity linking, tracking, or recipient require
+synchronized manifest, validator, policy, App Store, and counsel review.
+
 ## Advisory local usage meter
 
 `UsageManager` keeps the capture and offline-queue UX responsive, but its

@@ -43,6 +43,11 @@ TestFlight, App Store, support, and QA.
   [`production-consent-readiness-2026-08-03.md`](docs/legal/production-consent-readiness-2026-08-03.md)
   are complete. Do not publish these bullets as App Store release notes before
   production approval.
+- The main iOS app now bundles its own validated privacy manifest, declaring no
+  tracking and the reviewed reasons for app-only user defaults, local file
+  metadata, and low-storage write admission. Source, archive, and exported-IPA
+  guardrails are in place; public promotion still requires the signed archive's
+  aggregate Xcode privacy report and reconciled App Store privacy answers.
 
 ### Three Pro Scans Included
 

@@ -295,6 +295,10 @@ assert_contains "dwarfdump --uuid"
 assert_contains 'main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"'
 assert_contains 'if [ ! -s "$app_uuids" ] || [ ! -s "$dsym_uuids" ]'
 assert_contains "dsym_uuid_match: true"
+assert_contains 'privacy_manifest="$app_path/PrivacyInfo.xcprivacy"'
+assert_contains 'bash scripts/validate-ios-privacy-manifest.sh "$privacy_manifest"'
+assert_contains "privacy_manifest_valid: true"
+assert_contains "Privacy manifest: bundled and validated"
 assert_contains 'LC_ALL=C /usr/bin/strings -a "$main_binary"'
 assert_contains '"-seedCurrentRequiredConsent"'
 assert_contains '"-seedAchievementDetailFlow"'

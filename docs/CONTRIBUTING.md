@@ -23,6 +23,13 @@ Before contributing, please review our core architectural tenets. Refactoring co
     [`system-architecture/08-public-brand-compatibility.md`](./system-architecture/08-public-brand-compatibility.md)
     before changing display names, links, domains, identifiers, exports,
     attribution, support/legal copy, or release metadata.
+6.  **App Privacy Declarations**: Before adding an Apple required-reason API,
+    SDK, executable, analytics property, or off-device data flow, audit the
+    affected bundle and update its privacy declaration, exact validator,
+    fixtures, and documentation together. A dependency manifest cannot declare
+    first-party app code. Read the
+    [`iOS App Privacy Manifest Contract`](./development-guides/16-ios-privacy-manifest.md)
+    before making the change.
 
 ## Setting Up the Development Environment
 
@@ -82,6 +89,10 @@ Before contributing, please review our core architectural tenets. Refactoring co
     [operator runbook](./development-guides/14-ios-release-versioning.md) for
     setup, upload, recovery, and promotion. Purchase QA remains defined in
     [`02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md#prelaunch-purchase-testing).
+    Before promotion beyond internal testing, generate the aggregate privacy
+    report from the signed Organizer archive and reconcile it with SDK
+    manifests, the public privacy policy, App Store Connect answers, and the
+    [manifest contract](./development-guides/16-ios-privacy-manifest.md).
 
 ## Testing Protocol
 
@@ -89,6 +100,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
   thread. Before opening a pull request, run the source-level CI contracts:
   ```bash
   make validate-ios-project
+  make validate-ios-privacy-manifest
   make validate-ios-versioning
   make validate-ios-migration-guardrails
   make test-ios-ci-tooling
@@ -205,6 +217,10 @@ Before contributing, please review our core architectural tenets. Refactoring co
     signing/upload, evidence, recovery, or promotion must also update the Xcode
     release architecture, operator runbook, testing strategy, and portable
     contract fixtures in the same pull request.
+    A change to required-reason API use, collected data, purpose, linking,
+    tracking, SDK composition, or executable ownership must update the privacy
+    manifest contract and all affected technical, public-policy, App Store, and
+    counsel-review artifacts in the same pull request.
 5.  Push to the branch locally.
 6.  Open a Pull Request describing the changes, explicitly mentioning if you changed any core network layer boundaries or AVFoundation settings.
 

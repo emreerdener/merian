@@ -25,6 +25,23 @@ This record is the canonical status source for the adult, Terms, Google Gemini,
 and PostHog consent release. Architecture documents describe the required end
 state; they do not override the release hold recorded here.
 
+## Adjacent iOS Privacy Manifest Status
+
+The missing main-application `PrivacyInfo.xcprivacy` finding is closed in
+source. The app-owned manifest declares no tracking, conservatively declares
+the reviewed linked data categories, and records `C617.1`, `E174.1`, and
+`CA92.1` for the current file-timestamp, disk-space, and app-only user-defaults
+uses. Source, project, archive, and exported-IPA validators are implemented.
+
+This is adjacent to, not a replacement for, the consent gate. A manifest
+describes potential collection and required-reason API use; it does not grant
+PostHog or Gemini permission, prove consent ordering, establish an ATT
+conclusion, or approve App Store privacy answers. Production evidence still
+requires the exact-SHA archive to report `privacy_manifest_valid: true`, then a
+reviewed Xcode aggregate privacy report from the signed archive and matching
+owner/counsel-approved App Store answers. See the
+[iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
+
 ## Required Product Contract
 
 The onboarding order remains Welcome → Camera → Location → Powered by AI. The
@@ -126,7 +143,7 @@ two workflow summaries for the same immutable candidate SHA.
 
 | Gate | Required result | Current result |
 | --- | --- | --- |
-| **iOS Build and Test** | Complete unit target, queued-audio UI smoke, and validation Release archive all green on one clean SHA. | Pending a new hosted run. |
+| **iOS Build and Test** | Complete unit target, queued-audio UI smoke, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true`. | Pending a new hosted run. |
 | **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green. | Pending a new hosted validation-only run. |
 | Production Supabase deployment | Separate operator action after release authorization; it must require the reusable candidate gate first. | Not part of candidate validation and not authorized by a validation-only run. |
 
@@ -174,7 +191,8 @@ Repository correctness does not close these operator-owned requirements:
   evidence in the restricted release record, rotate the key after confirmation,
   synchronize the new secret, smoke-test it, and revoke the superseded key.
 - Counsel must approve the final Terms, Privacy Policy, consent presentation,
-  App Store privacy answers, operator identity, and regional release scope.
+  Xcode aggregate privacy report, App Store privacy and ATT answers, operator
+  identity, and regional release scope.
 
 Production remains blocked until hosted exact-SHA validation and every external
 production control are closed with exact-version, exact-build evidence. Those

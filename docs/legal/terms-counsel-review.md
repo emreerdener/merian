@@ -4,7 +4,7 @@ Status: internal working memo
 
 Product retention decision recorded: July 31, 2026
 
-Draft and release controls reviewed against repository behavior: August 4, 2026
+Draft and release controls reviewed against repository behavior: August 5, 2026
 
 Public draft: [`apps/web/app/terms/page.tsx`](../../apps/web/app/terms/page.tsx)
 
@@ -147,8 +147,11 @@ the account-wide state is unresolved; only the verified final merge may reopen c
 Production still requires exact-candidate evidence of no PostHog setup, identification,
 capture, or network activity before grant and after withdrawal or account change.
 
-Before release, counsel must still review the displayed choice and updated Privacy Policy,
-and the App Store privacy answers must match the actual event properties and US host.
+Before release, counsel must still review the displayed choice and updated Privacy Policy.
+The signed archive's Xcode aggregate privacy report and App Store privacy answers must
+match the actual event properties, identifier linkage, US host, app manifest, and bundled
+SDK manifests. See the
+[iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
 
 The public draft does not make non-essential analytics irrevocable or a condition of the
 core app. A contract cannot remove statutory consent, objection, or withdrawal rights.
@@ -247,6 +250,10 @@ review the complete privacy package for:
 - the exact production Gemini data-treatment configuration;
 - PostHog event categories, identifier linkage, host region, consent or lawful basis,
   and a working withdrawal method;
+- the app-owned privacy manifest, every bundled SDK manifest, the signed archive's
+  aggregate Xcode privacy report, and matching App Store privacy and ATT answers;
+- the public no-cross-company-tracking and no-targeted-advertising statement
+  against every production SDK, endpoint, and data-sharing arrangement;
 - public-photo selection as species reference imagery;
 - automatic profile-visible Backyard Safari enrollment, immediate author-profile
   discoverability at zero progress, and the adequacy of Stop/Reset as the only
@@ -335,6 +342,8 @@ Before approval, provide counsel with:
   deletion copy;
 - App Store subscription product metadata and every paywall variant;
 - final App Store privacy labels and age-rating answers;
+- the signed Organizer archive's aggregate Xcode privacy report and the app-level
+  manifest validation evidence for the same source SHA;
 - a data-flow diagram and current scan/tombstone retention and clearing boundary;
 - Google and PostHog contracts, DPAs, regions, and subprocessor lists;
 - representative PostHog event payloads;

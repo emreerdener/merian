@@ -60,6 +60,7 @@ for script in \
   embed-ios-build-provenance.sh \
   validate-ios-archive.sh \
   validate-ios-exported-ipa.sh \
+  validate-ios-privacy-manifest.sh \
   hash-ios-archive.sh
 do
   bash -n "$repo_root/scripts/$script"

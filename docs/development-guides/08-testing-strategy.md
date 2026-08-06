@@ -266,6 +266,39 @@ then advance the reviewed major in
 `scripts/test-ios-build-and-test-workflow.sh`. Do not relax commit pinning or
 accept a floating action tag to make the upgrade pass.
 
+### Privacy Manifest Validation
+
+The app privacy declaration has three independent evidence layers:
+
+1. The portable project guardrail parses
+   `apps/ios/Merian/Configuration/PrivacyInfo.xcprivacy`, requires the exact
+   reviewed collected-data and required-reason declarations, and proves the
+   generated `Merian` target includes it exactly once in Resources.
+2. The current-SHA Release archive requires
+   `Merian.app/PrivacyInfo.xcprivacy` at the application-bundle root, validates
+   the bundled copy, and records `privacy_manifest_valid: true` in archive
+   evidence.
+3. The exported-IPA validator requires exactly one
+   `Payload/Merian.app/PrivacyInfo.xcprivacy`, validates the extracted plist,
+   and rejects a missing, misplaced, malformed, tracking-enabled, or drifted
+   declaration.
+
+Run the source and adversarial fixtures with:
+
+```bash
+make validate-ios-privacy-manifest
+make test-ios-ci-tooling
+```
+
+The fixtures cover malformed plists, unexpected keys, missing or duplicate
+categories, tracking drift, wrong linking or purpose values, wrong
+required-reason codes, missing archive resources, and invalid IPA placement.
+These checks establish source and bundle integrity. They do not aggregate SDK
+manifests or approve App Store privacy answers. Before release promotion, use
+the signed Organizer archive to generate and review Xcode's aggregate privacy
+report under the
+[iOS App Privacy Manifest Contract](./16-ios-privacy-manifest.md).
+
 1. **Full iOS unit tests** resolves only locked package versions, validates the
    generated-project source membership against `project.yml`, compiles the app
    plus both shared test bundles with `build-for-testing`, and executes the
@@ -451,11 +484,14 @@ accept a floating action tag to make the upgrade pass.
    configuration, verifies app/widget/Messages/watch embedding, checks the
    version and build against `project.yml`, requires the embedded source
    revision/fingerprint/state to match the exact clean workflow checkout, and
-   requires the main app dSYM UUID to match the compiled binary. It records
-   `ui_test_seed_markers_absent: true` only after the binary-string audit above
-   passes. Signing is disabled only because hosted CI has no distribution
-   identity; this is compile, link, archive, provenance, dSYM, and shipping-seed
-   exclusion validation—not a distributable App Store artifact.
+   requires the main app dSYM UUID to match the compiled binary. It also
+   requires and validates the app-owned privacy manifest at the root of the
+   application bundle. It records `privacy_manifest_valid: true` only after
+   that bundled-copy validation and `ui_test_seed_markers_absent: true` only
+   after the binary-string audit above pass. Signing is disabled only because
+   hosted CI has no distribution identity; this is compile, link, archive,
+   provenance, privacy-manifest, dSYM, and shipping-seed exclusion
+   validation—not a distributable App Store artifact.
 
 The final Production readiness job uses `if: always()` and requires both macOS
 jobs to succeed whenever scope says the build is relevant. For an unrelated
@@ -510,9 +546,10 @@ RevenueCat production configuration is present, and dirty or hidden Git source
 is rejected.
 
 Repository source tests cannot prove current Apple account access, signing
-profiles, upload delivery, processing, or physical-device behavior. Release
-managers collect Organizer, App Store Connect, beta, and device evidence during
-an authorized release. Follow the
+profiles, upload delivery, processing, aggregate SDK declarations, App Store
+privacy answers, or physical-device behavior. Release managers collect
+Organizer, Xcode privacy-report, App Store Connect, beta, and device evidence
+during an authorized release. Follow the
 [operator runbook](./14-ios-release-versioning.md) for setup, archive, upload,
 promotion, and emergency recovery.
 
@@ -532,7 +569,8 @@ That portable target tests the fail-closed scope detector, immutable action
 pins, exact-SHA checkout, generated-project source membership, full-target unit
 selectors, merge-queue trigger, unsigned validation-only Release archive,
 embedded source provenance, product/dSYM checks, automatic-signing Organizer
-preflight, version-baseline synchronization, rejection of hidden
+preflight, exact privacy-manifest declarations, project/archive/IPA manifest
+placement, version-baseline synchronization, rejection of hidden
 `assume-unchanged`/`skip-worktree` source state, generated release-phase
 cardinality and ordering, focused-result validation, and structured failure
 diagnostics. It also proves the retired GitHub signing/upload path remains
@@ -563,6 +601,8 @@ failure:
 | Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                        |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                     |
 | Queued-scan UI smoke or focused-result validation                     | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require exactly one protected case. |
+| Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
+| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted. |
 | Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.              |
 | Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                                           |
 

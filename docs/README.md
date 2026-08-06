@@ -34,12 +34,15 @@ as their permanent engineering identity.
   `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
   execute the complete unit-test target and deterministic queued-scan completion
   UI smoke, then independently inspect an unsigned Release archive from the
-  exact workflow SHA. Repository rules must require the stable
+  exact workflow SHA. The main app's source and archived bundle must also carry
+  the exact reviewed `PrivacyInfo.xcprivacy`; archive evidence records
+  `privacy_manifest_valid: true`. Repository rules must require the stable
   `iOS Build and Test / Production readiness` result; the focused Startup Safety
   lane is supplementary. See the
-  [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate)
+  [`testing strategy`](./development-guides/08-testing-strategy.md#compiled-ios-ci-gate),
+  [`iOS privacy manifest contract`](./development-guides/16-ios-privacy-manifest.md),
   and
-  [`release runbook`](./development-guides/14-ios-release-versioning.md#daily-development-and-ci).
+  [`release runbook`](./development-guides/14-ios-release-versioning.md#routine-testflight-upload).
 - **Supabase candidate assurance**: Relevant pull requests, manual candidate
   refs, and the production deployment workflow use **Supabase Candidate
   Validation** to verify the exact clean SHA with pinned Deno/Supabase tooling,
@@ -88,6 +91,13 @@ as their permanent engineering identity.
   Test** and **Supabase Candidate Validation** pass the same candidate SHA, plus
   App Store 18+, paid Gemini billing/DPA, and counsel evidence. See the
   [`canonical consent readiness record`](./legal/production-consent-readiness-2026-08-03.md).
+- **iOS privacy manifest (2026-08-05)**: The missing main-application manifest
+  finding is closed in source. The app declares no tracking, conservatively
+  declares its linked data categories, and records reviewed reasons for file
+  timestamps, disk space, and app-only user defaults. Production still requires
+  a green exact-SHA archive, a reviewed Xcode aggregate privacy report, and
+  reconciled App Store Connect answers; SDK manifests remain additive. See the
+  [`canonical manifest contract`](./development-guides/16-ios-privacy-manifest.md).
 - **Current backend release verdict**: DwC-A exports are default-off for the
   initial launch at both the iOS presentation boundary and the canonical
   PostgreSQL intake/processing/download boundary. Existing nonterminal work is
@@ -623,6 +633,10 @@ as their permanent engineering identity.
 - **[`/development-guides/15-naturebook-rebrand-rollout.md`](./development-guides/15-naturebook-rebrand-rollout.md)**
   — Ordered domain, AASA, email, Supabase, App Store, update-continuity, link,
   verification, rollback, and completion checklist for the public rebrand.
+- **[`/development-guides/16-ios-privacy-manifest.md`](./development-guides/16-ios-privacy-manifest.md)**
+  — Main-app privacy declarations, required-reason API and collected-data
+  inventories, contributor change rules, archive/IPA validation, and App Store
+  evidence requirements.
 
 ## About Naturebook
 

@@ -32,6 +32,17 @@ steps are tracked in the
 > See the
 > [canonical consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
 
+> **iOS privacy manifest status (2026-08-05):** The main app now owns a
+> validated `PrivacyInfo.xcprivacy` declaring no tracking, the reviewed linked
+> data categories, and approved reasons for app-only user defaults, app-container
+> file timestamps, and write-admission disk-space checks. This closes the
+> missing-manifest finding in source, not the production gate. The final
+> exact-SHA archive must report `privacy_manifest_valid: true`, and the signed
+> Organizer archive still needs an aggregate privacy report reconciled with SDK
+> manifests, the public policy, App Store Connect answers, and counsel review.
+> See the
+> [iOS privacy manifest contract](docs/development-guides/16-ios-privacy-manifest.md).
+
 > **Production release evidence gate (2026-07-28):** DwC-A exports are
 > authoritatively disabled for the initial launch by migration
 > `20260728133835_disable_dwca_exports_for_launch.sql`; Release iOS builds hide
@@ -766,6 +777,7 @@ From the repo root:
 
 ```bash
 make xcodegen
+make validate-ios-privacy-manifest
 make validate-ios-versioning
 make test-ios-ci-tooling
 make db-push
@@ -944,6 +956,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/backend-and-data/18-complimentary-pro-scans.md`             | Normative three-credit ledger, reservation, settlement, protocol, iOS, merge, security, and rollout contract     |
 | `docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md` | Joined collection, upload, funding, redirect, taxonomy, rollout, and evidence record |
 | `docs/legal/production-consent-readiness-2026-08-03.md`         | Canonical adult, Terms, Gemini, analytics, source status, exact-SHA evidence, and release-hold record                 |
+| `docs/development-guides/16-ios-privacy-manifest.md`            | App privacy declarations, required-reason inventory, maintenance rules, and archive/App Store evidence               |
 | `docs/development-guides/`                                        | Core managers reference, app lifecycle, testing strategy                                                        |
 | `docs/incidents/`                                                 | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
 | `docs/rfcs/active-capture-goal-context.md`                        | Long-term source-agnostic Capture goal architecture and extension contract                                      |
@@ -958,6 +971,7 @@ guidelines. Public copy lives in the
 [Terms of Service](apps/web/app/terms/page.tsx) and
 [Privacy Policy](apps/web/app/privacy/page.tsx). Release and counsel review are
 tracked separately in the
-[consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md)
-and [counsel memo](docs/legal/terms-counsel-review.md); neither document is legal
-advice or a substitute for owner/counsel approval.
+[consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md),
+the [iOS privacy manifest contract](docs/development-guides/16-ios-privacy-manifest.md),
+and the [counsel memo](docs/legal/terms-counsel-review.md); none is legal advice or a
+substitute for owner/counsel approval.

@@ -446,7 +446,8 @@ These remain initial-launch assurance gates even though DwC-A is disabled:
   isolated-graph, web, and admin gates;
 - the stable hosted `iOS Build and Test / Production readiness` result, proving
   the complete iOS unit-test target and unsigned Release archive from that same
-  SHA, with the export presentation default off;
+  SHA, with the export presentation default off and archive evidence reporting
+  the root app privacy manifest as valid;
 - production catalog checks for RLS, ACLs, empty definer `search_path`, gate
   trigger order, service-only grants, zero nonterminal jobs, zero live grants,
   absent continuation cron, and active archive-cleanup cron;

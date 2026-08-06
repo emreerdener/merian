@@ -49,6 +49,14 @@ if ! grep -q 'minimumXcodeGenVersion: 2.45.4' "$project_spec" \
   exit 1
 fi
 
+privacy_manifest="apps/ios/Merian/Configuration/PrivacyInfo.xcprivacy"
+privacy_manifest_validator="scripts/validate-ios-privacy-manifest.sh"
+if [[ ! -f "$privacy_manifest_validator" ]]; then
+  echo "Missing iOS privacy manifest validator: ${privacy_manifest_validator}." >&2
+  exit 1
+fi
+bash "$privacy_manifest_validator" "$privacy_manifest"
+
 if grep -q 'SystemCapabilities = "' "$project_file"; then
   echo "Generated SystemCapabilities metadata must not be serialized as a string." >&2
   exit 1
@@ -119,6 +127,51 @@ merian_build_phases="$(
     }
   ' <<<"$merian_target_block"
 )"
+
+merian_resources_phase_id="$(
+  awk '
+    /\/\* Resources \*\// {
+      print $1
+    }
+  ' <<<"$merian_build_phases"
+)"
+if [[ ! "$merian_resources_phase_id" =~ ^[A-F0-9]+$ ]]; then
+  echo "Generated Merian target must contain exactly one Resources build phase." >&2
+  exit 1
+fi
+
+merian_resources_phase_block="$(
+  awk -v phase_id="$merian_resources_phase_id" '
+    /\/\* Begin PBXResourcesBuildPhase section \*\// {
+      in_section = 1
+      next
+    }
+    /\/\* End PBXResourcesBuildPhase section \*\// {
+      in_section = 0
+    }
+    in_section && $1 == phase_id && /= \{$/ {
+      capture = 1
+    }
+    capture {
+      print
+    }
+    capture && /^[[:space:]]*};$/ {
+      exit
+    }
+  ' "$project_file"
+)"
+privacy_manifest_target_count="$(
+  grep -Fc 'PrivacyInfo.xcprivacy in Resources' \
+    <<<"$merian_resources_phase_block" || true
+)"
+privacy_manifest_global_count="$(
+  grep -Fc 'PrivacyInfo.xcprivacy in Resources' "$project_file" || true
+)"
+if [[ "$privacy_manifest_target_count" -ne 1 \
+  || "$privacy_manifest_global_count" -ne 2 ]]; then
+  echo "PrivacyInfo.xcprivacy must be bundled exactly once and only by the Merian target." >&2
+  exit 1
+fi
 
 shell_phase_id() {
   local phase_name="$1"

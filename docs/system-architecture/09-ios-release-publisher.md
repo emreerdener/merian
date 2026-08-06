@@ -1,6 +1,6 @@
 # Xcode Organizer iOS Release Architecture
 
-Last updated: July 31, 2026
+Last updated: August 5, 2026
 
 ## Decision
 
@@ -88,6 +88,28 @@ GitHub passes `CODE_SIGNING_ALLOWED=NO`, `CODE_SIGNING_REQUIRED=NO`, an empty
 identity, and an empty development team to its validation archive. The
 `MERIAN_IOS_VALIDATION_ARCHIVE=1` preflight branch verifies that CI cannot
 silently create a signed release.
+
+## Privacy Manifest Contract
+
+The main application owns
+`apps/ios/Merian/Configuration/PrivacyInfo.xcprivacy`. XcodeGen adds it exactly
+once to the Merian Resources phase, which places it at the root of the built
+application bundle. It declares app collection practices consistent with the
+published privacy policy, declares no tracking, and records `CA92.1` for
+app-only `UserDefaults` access plus `C617.1` for app-container and app-group file
+metadata access. It also records `E174.1` for the user-visible storage admission
+checks that prevent new offline media writes when free space is insufficient.
+Dependency manifests are additive and do not replace this application-owned
+declaration.
+
+`scripts/validate-ios-privacy-manifest.sh` is the executable policy contract.
+Fast project guardrails validate the source manifest and generated target
+membership. The exact-SHA Release archive validates the bundled copy, and the
+Organizer export verifier validates the root manifest inside the final IPA.
+Final App Store privacy answers and counsel approval remain separate release
+controls. The complete declaration inventory, change rules, verification
+commands, and release-evidence boundary are canonical in the
+[`iOS App Privacy Manifest Contract`](../development-guides/16-ios-privacy-manifest.md).
 
 ## Promotion Model
 

@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic queued-scan completion UI smoke, then produce a validation-only Release archive from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic queued-scan completion UI smoke, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -607,12 +607,14 @@ jobs:
           )"
           app_path="$XCODE_ARCHIVE/Products/$application_path"
           app_info="$app_path/Info.plist"
+          privacy_manifest="$app_path/PrivacyInfo.xcprivacy"
           main_binary="$app_path/Merian"
           main_dsym="$XCODE_ARCHIVE/dSYMs/Merian.app.dSYM"
           main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"
 
           for required_path in \
             "$app_info" \
+            "$privacy_manifest" \
             "$main_binary" \
             "$main_dsym" \
             "$main_dsym_binary" \
@@ -624,6 +626,8 @@ jobs:
               exit 1
             fi
           done
+
+          bash scripts/validate-ios-privacy-manifest.sh "$privacy_manifest"
 
           project_version="$(
             awk '$1 == "MARKETING_VERSION:" { print $2; exit }' project.yml
@@ -734,6 +738,7 @@ jobs:
                 "MerianWatch.app"
               ],
               dsym_uuid_match: true,
+              privacy_manifest_valid: true,
               ui_test_seed_markers_absent: true
             }' > "$XCODE_EVIDENCE"
 
@@ -746,6 +751,7 @@ jobs:
             echo "- Version/build: \`${archive_version} (${archive_build})\`"
             echo "- Archive size: \`$((archive_kib * 1024)) bytes\`"
             echo "- Main dSYM UUIDs: verified"
+            echo "- Privacy manifest: bundled and validated"
             echo "- Debug-only UI-test seed markers: absent"
             echo "- Signing: disabled (compile/archive validation only)"
           } >> "$GITHUB_STEP_SUMMARY"

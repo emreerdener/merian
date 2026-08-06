@@ -19,7 +19,7 @@ export default function PrivacyChoicesPage() {
       eyebrow="Naturebook privacy"
       title="Privacy Choices"
       description="Manage permissions, public sharing, and deletion requests."
-      lastUpdated="August 4, 2026"
+      lastUpdated="August 5, 2026"
     >
       <LegalSection title="In-App Controls">
         <LegalList>
@@ -65,6 +65,13 @@ export default function PrivacyChoicesPage() {
             attribution, private media, and other account-owned cloud data.
           </li>
         </LegalList>
+        <Text>
+          Under Naturebook&apos;s current design, optional analytics is not used
+          to track you across apps or websites owned by other companies or for
+          third-party targeted advertising. Naturebook therefore does not
+          request Apple&apos;s App Tracking Transparency permission for that
+          analytics choice.
+        </Text>
       </LegalSection>
 
       <LegalSection title="Data Export">

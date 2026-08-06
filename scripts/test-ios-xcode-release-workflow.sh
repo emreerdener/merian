@@ -33,6 +33,10 @@ require_literal 'MERIAN_IOS_VALIDATION_ARCHIVE=1' \
   .github/workflows/ios-build-and-test.yml
 require_literal 'CODE_SIGNING_ALLOWED=NO' \
   .github/workflows/ios-build-and-test.yml
+require_literal 'bash scripts/validate-ios-privacy-manifest.sh "$privacy_manifest"' \
+  .github/workflows/ios-build-and-test.yml
+require_literal 'privacyManifest=valid' scripts/validate-ios-archive.sh
+require_literal 'privacyManifest=valid' scripts/validate-ios-exported-ipa.sh
 require_literal 'CODE_SIGN_STYLE must remain Automatic for Organizer distribution' \
   scripts/check-ios-release-prep.sh
 require_literal 'keep Manage version and build number enabled' \

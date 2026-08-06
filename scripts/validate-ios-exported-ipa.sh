@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 plistbuddy_command="${MERIAN_PLISTBUDDY_COMMAND:-/usr/libexec/PlistBuddy}"
 unzip_command="${MERIAN_UNZIP_COMMAND:-/usr/bin/unzip}"
 shasum_command="${MERIAN_SHASUM_COMMAND:-/usr/bin/shasum}"
@@ -151,6 +152,24 @@ root_info_entry="$(awk 'NR == 1 { print }' "$root_info_entries")"
 main_info="$validation_tmp_dir/main-Info.plist"
 extract_plist "$root_info_entry" "$main_info"
 
+root_privacy_entries="$validation_tmp_dir/root-privacy-entries.txt"
+awk '$0 ~ "^Payload/[^/]+[.]app/PrivacyInfo[.]xcprivacy$" { print }' \
+  "$listing" > "$root_privacy_entries"
+root_privacy_count="$(awk 'END { print NR + 0 }' "$root_privacy_entries")"
+(( root_privacy_count == 1 )) \
+  || fail "IPA must contain exactly one root application PrivacyInfo.xcprivacy; found ${root_privacy_count}."
+
+expected_root_privacy_entry="Payload/${expected_app_bundle_name}/PrivacyInfo.xcprivacy"
+root_privacy_entry="$(awk 'NR == 1 { print }' "$root_privacy_entries")"
+[[ "$root_privacy_entry" == "$expected_root_privacy_entry" ]] \
+  || fail "root privacy manifest path ${root_privacy_entry} does not match expected ${expected_root_privacy_entry}."
+
+main_privacy_manifest="$validation_tmp_dir/PrivacyInfo.xcprivacy"
+extract_plist "$root_privacy_entry" "$main_privacy_manifest"
+if ! bash "$script_dir/validate-ios-privacy-manifest.sh" "$main_privacy_manifest"; then
+  fail "main app privacy manifest is invalid."
+fi
+
 main_package_type="$(read_plist_value "$main_info" "CFBundlePackageType")"
 main_bundle_id="$(read_plist_value "$main_info" "CFBundleIdentifier")"
 main_version="$(read_plist_value "$main_info" "CFBundleShortVersionString")"
@@ -218,5 +237,5 @@ final_ipa_sha256="$(hash_ipa)"
 [[ "$final_ipa_sha256" == "$initial_ipa_sha256" ]] \
   || fail "IPA contents changed while metadata was being validated."
 
-echo "Exported IPA metadata verified for ${main_bundle_id} ${main_version} (${main_build}); source=${main_source_revision} fingerprint=${main_source_fingerprint} state=clean; embeddedComponents=${component_count}."
+echo "Exported IPA metadata verified for ${main_bundle_id} ${main_version} (${main_build}); source=${main_source_revision} fingerprint=${main_source_fingerprint} state=clean; privacyManifest=valid; embeddedComponents=${component_count}."
 echo "ipa_sha256=${final_ipa_sha256}"

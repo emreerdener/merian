@@ -1,6 +1,6 @@
 # iOS Release Versioning and Xcode Organizer Runbook
 
-Last updated: August 4, 2026
+Last updated: August 5, 2026
 
 ## Active Consent Release Hold
 
@@ -13,8 +13,12 @@ on the same immutable SHA, as defined by the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 Only the current-version replacement build may enter the bounded TestFlight
 rollout. Public production also remains blocked on archived App Store 18+ and paid
-Gemini billing/DPA evidence. This hold adds prerequisites; it does not change
-the Organizer-only distribution authority below.
+Gemini billing/DPA evidence. The app-owned privacy manifest is implemented in
+source, but the signed archive's aggregate privacy report and reconciled App
+Store answers remain release evidence under the
+[iOS App Privacy Manifest Contract](./16-ios-privacy-manifest.md). This hold adds
+prerequisites; it does not change the Organizer-only distribution authority
+below.
 
 ## Policy
 
@@ -95,6 +99,7 @@ git switch main
 git pull --ff-only
 make xcodegen
 make validate-ios-project
+make validate-ios-privacy-manifest
 make validate-ios-versioning
 ```
 
@@ -118,10 +123,32 @@ The archive embeds:
 - `MERIAN_SOURCE_REVISION`
 - `MERIAN_SOURCE_FINGERPRINT`
 - `MERIAN_SOURCE_STATE`
+- the main app's validated `PrivacyInfo.xcprivacy`
 
 The source state must be `clean`.
 
-### 3. Distribute with Organizer
+### 3. Review the aggregate privacy report
+
+Before promoting a build beyond internal testing:
+
+1. Control-click the signed archive in Organizer and choose **Generate Privacy
+   Report**.
+2. Save the generated PDF in the restricted release evidence. Record its
+   filename or evidence identifier; do not add private release records to the
+   public repository.
+3. Confirm the report has no manifest errors and reconcile every app, embedded
+   executable, and SDK declaration with the
+   [canonical app inventory](./16-ios-privacy-manifest.md), runtime behavior,
+   public Privacy Policy, Privacy Choices page, and consent controls.
+4. Have the product owner and counsel approve the matching App Store Connect
+   privacy answers and ATT conclusion before public release nomination.
+
+An unexpected data category, tracking domain, required-reason entry, or invalid
+dependency manifest blocks promotion. Correct the code, declaration, policy, or
+dependency as appropriate and create a new archive. Do not edit the generated
+report to match an intended answer.
+
+### 4. Distribute with Organizer
 
 In the Organizer archive window:
 
@@ -139,7 +166,7 @@ In the Organizer archive window:
 Do not manually rewrite the build number shown by Organizer. The value that
 App Store Connect reports after processing is the authoritative uploaded build.
 
-### 4. Promote without rebuilding
+### 5. Promote without rebuilding
 
 After processing completes in App Store Connect:
 
@@ -175,6 +202,10 @@ The iOS project guardrails verify that:
 - all embedded products inherit the same marketing version and build baseline;
 - automatic signing is not combined with a forced distribution identity;
 - CI Release archives remain unsigned and validation-only;
+- the generated Merian target bundles the app-owned privacy manifest exactly
+  once, with the reviewed collection declarations and required API reasons;
+- the final archive contains that manifest at the application-bundle root and
+  passes `scripts/validate-ios-privacy-manifest.sh`;
 - the local archive preflight requires clean source and production client
   configuration;
 - no GitHub Actions workflow contains Apple signing credentials or an App Store
@@ -186,6 +217,14 @@ Run the complete local tooling contract with:
 ```bash
 make test-ios-ci-tooling
 ```
+
+If Organizer produces an IPA for retained release evidence, validate that exact
+file using `scripts/validate-ios-exported-ipa.sh` and the version, Xcode-managed
+build, source revision, and source fingerprint recorded for the archive. The
+validator requires exactly one root app manifest and revalidates its complete
+contents. See the
+[privacy manifest verification procedure](./16-ios-privacy-manifest.md#verification)
+for the command shape.
 
 ## Troubleshooting
 
@@ -237,7 +276,10 @@ For every external beta or App Review submission, record:
 - marketing version and App Store Connect build number;
 - source Git SHA;
 - CI **iOS Build and Test** run;
+- archive evidence showing `privacy_manifest_valid: true`;
 - Organizer archive creation date;
+- aggregate privacy-report evidence identifier and reconciliation decision;
+- App Store privacy-answer and ATT owner/counsel approval status;
 - upload/processing result;
 - assigned tester groups;
 - QA decision; and

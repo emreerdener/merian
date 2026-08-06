@@ -41,6 +41,28 @@ assert_fails_with() {
 baseline_fixture="$(fixture_project baseline)"
 run_check "$baseline_fixture"
 
+missing_privacy_manifest_fixture="$(fixture_project missing-privacy-manifest)"
+perl -0pi -e '
+  my $count = s{
+    \n[ \t]+[A-F0-9]+[ \t]+/\*[ \t]PrivacyInfo[.]xcprivacy[ \t]+in[ \t]+Resources[ \t]*\*/,
+  }{}x;
+  die "expected one privacy manifest resource reference\n" unless $count == 1;
+' "$missing_privacy_manifest_fixture"
+assert_fails_with \
+  "PrivacyInfo.xcprivacy must be bundled exactly once and only by the Merian target." \
+  "$missing_privacy_manifest_fixture"
+
+duplicate_privacy_manifest_fixture="$(fixture_project duplicate-privacy-manifest)"
+perl -0pi -e '
+  my $count = s{
+    (\n[ \t]+[A-F0-9]+[ \t]+/\*[ \t]PrivacyInfo[.]xcprivacy[ \t]+in[ \t]+Resources[ \t]*\*/,[ \t]*)
+  }{$1$1}x;
+  die "expected one privacy manifest resource reference\n" unless $count == 1;
+' "$duplicate_privacy_manifest_fixture"
+assert_fails_with \
+  "PrivacyInfo.xcprivacy must be bundled exactly once and only by the Merian target." \
+  "$duplicate_privacy_manifest_fixture"
+
 distribution_identity_fixture="$(fixture_project distribution-identity)"
 perl -0pi -e '
   my $count = s{

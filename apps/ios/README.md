@@ -20,7 +20,7 @@ The main app is organized as:
 Merian/
   App/              App entry point, launch screen, root lifecycle wiring
   Assets.xcassets/  App, brand, persona, and reusable visual assets
-  Configuration/    Entitlements, Info.plist, environment configuration
+  Configuration/    Entitlements, Info.plist, privacy manifest, environment configuration
   Core/             Cross-feature services, infrastructure, and UI primitives
   Features/         User-facing product areas
   Models/           SwiftData schemas and app-wide persisted models
@@ -91,3 +91,21 @@ Assets.xcassets/
 ```
 
 Avoid prefixes such as `pw_`, `desc_`, or `dictionary-` when artwork is reusable. Prefer stable descriptive names such as `bird-cardinal`, `camera-lens`, or `persona-naturalist`.
+
+## Privacy Manifest
+
+The main app owns `Merian/Configuration/PrivacyInfo.xcprivacy`. Keep it in the
+`Merian` Resources phase exactly once through `project.yml`; never attach it to
+another target merely to satisfy a warning. Before adding a required-reason API,
+SDK, executable, analytics property, or off-device data flow, follow the
+[iOS App Privacy Manifest Contract](../../docs/development-guides/16-ios-privacy-manifest.md).
+
+After changing the declaration or target membership, run from the repository
+root:
+
+```bash
+make xcodegen
+make validate-ios-project
+make validate-ios-privacy-manifest
+make test-ios-ci-tooling
+```

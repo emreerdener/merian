@@ -5,8 +5,9 @@ Repository-aligned edition - 22 July 2026
 > Turn everyday curiosity into field science.
 
 Document owner: Product and Engineering\
-Review basis: Merian monorepo as inspected on 22 July 2026 Public product name:
-Naturebook\
+Review basis: Merian monorepo as inspected on 22 July 2026\
+Privacy-manifest and release-evidence review: 5 August 2026\
+Public product name: Naturebook\
 Engineering identity: Merian\
 Document status: Replacement for the stale master product document
 
@@ -794,13 +795,22 @@ identification. PostHog is a separate, optional, default-off account-wide
 choice with a Settings withdrawal control that must take effect immediately and
 must not change core functionality.
 
-The repository does not establish final App Store privacy nutrition labels, ATT
-conclusions, jurisdiction-specific consent sufficiency, or production age-rating
-configuration. Those require review and owner evidence. All tracked client
-findings are closed in source, but public production remains release-blocked
-until exact-SHA lifecycle/rollout evidence and the external controls are
-complete. Internal test builds may continue. No App Attest or DeviceCheck
-enforcement was found in the reviewed paths.
+The main app now has a source-controlled privacy manifest declaring the reviewed
+data categories, no tracking, and approved reasons for its current
+required-reason APIs. That engineering declaration is not the final App Store
+privacy nutrition label or an ATT conclusion: Xcode must aggregate the app and
+SDK manifests from the signed archive, and the resulting report must be
+reconciled with runtime behavior, public policy, and App Store Connect answers.
+See the
+[iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
+
+The repository also cannot establish jurisdiction-specific consent
+sufficiency or production age-rating configuration. Those require review and
+owner evidence. All tracked client consent findings are closed in source, but
+public production remains release-blocked until exact-SHA lifecycle/rollout
+evidence and the external controls are complete. Internal test builds may
+continue. No App Attest or DeviceCheck enforcement was found in the reviewed
+paths.
 
 ## 10.5 Localization status - Partial
 
@@ -1105,9 +1115,12 @@ through internal TestFlight, external TestFlight, and App Review.
 
 This contract is an engineering provenance requirement, not a product-readiness
 shortcut. Device, purchase/restore, push, privacy, migration, and critical
-journey acceptance remain required. See the
-[Xcode release architecture](../system-architecture/09-ios-release-publisher.md)
-and [operator runbook](../development-guides/14-ios-release-versioning.md).
+journey acceptance remain required. The archive must contain the validated
+main-app privacy manifest, and promotion beyond internal testing requires the
+reviewed Xcode aggregate privacy report. See the
+[Xcode release architecture](../system-architecture/09-ios-release-publisher.md),
+the [operator runbook](../development-guides/14-ios-release-versioning.md), and
+the [privacy manifest contract](../development-guides/16-ios-privacy-manifest.md).
 
 # 17. Roadmap and release posture
 
@@ -1128,6 +1141,7 @@ migrations, vendor credentials, and release flags.
 | Apple Watch logging                  | Partial                   | Implement phone receiver, reconciliation UI, failure handling, and end-to-end tests. |
 | Full localization                    | Partial                   | Localized resource architecture, content coverage, taxonomy rules, and QA.           |
 | 18+ and third-party AI consent controls | Implemented gate / Production-blocked | Pass hosted exact-SHA lifecycle and replacement-build rollout gates, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |
+| iOS app privacy manifest             | Implemented in source / Evidence pending | Pass the hosted exact-SHA root-bundle check, generate the signed archive's aggregate privacy report, and reconcile App Store privacy/ATT answers with SDK manifests, policy, and counsel. |
 | App Attest / DeviceCheck enforcement | Planned                   | Threat model, server verification, failure policy, and rollout.                      |
 | Targeted observation bounties        | Planned                   | Product model, abuse controls, incentives, backend, and UX.                          |
 | Insight-triggered 1 FPS camera idle  | Partial hook only         | Wire lifecycle calls and validate restoration across navigation and interruptions.   |

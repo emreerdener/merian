@@ -387,6 +387,11 @@ single-responsibility functions under `/services/supabase/functions/`.
   `event_source = "ios_client"`.
 - PostHog identity uses the Supabase UUID; neither iOS nor Edge telemetry sends
   auth email or name. `ConsentManager` must centrally reject capture otherwise.
+- The app privacy manifest conservatively declares the potential linked
+  analytics categories while declaring no tracking. That declaration is not an
+  analytics grant and does not change the closed-by-default transport. Its
+  required-reason and collected-data inventory is canonical in the
+  [iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
 
 > This architecture is not yet verified as a production control. Withdrawal,
 > ghost merge, account replacement, synchronization, and compiled-test findings

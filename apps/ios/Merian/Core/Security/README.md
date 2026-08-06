@@ -14,6 +14,11 @@ candidate still requires hosted exact-SHA execution and the external owner
 confirmations in the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
+The app privacy manifest is a separate disclosure and required-reason API
+contract; it never grants Gemini or PostHog permission. Its source inventory and
+release evidence are documented in the
+[iOS App Privacy Manifest Contract](../../../../../docs/development-guides/16-ios-privacy-manifest.md).
+
 ## Components
 
 - `DeviceIdentityManager` persists the stable IDFV-backed device identity used

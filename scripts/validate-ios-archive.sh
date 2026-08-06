@@ -65,6 +65,11 @@ app_path="$archive_path/Products/$application_path"
 app_info="$app_path/Info.plist"
 verify_version "main app" "$app_info"
 
+privacy_manifest="$app_path/PrivacyInfo.xcprivacy"
+if ! bash "$script_dir/validate-ios-privacy-manifest.sh" "$privacy_manifest"; then
+  fail "main app privacy manifest is missing or invalid."
+fi
+
 bundle_id="$(read_plist_value "$app_info" CFBundleIdentifier)"
 source_revision="$(read_plist_value "$app_info" MERIAN_SOURCE_REVISION)"
 source_fingerprint="$(read_plist_value "$app_info" MERIAN_SOURCE_FINGERPRINT)"
@@ -86,5 +91,5 @@ verify_version "watch app" "$app_path/Watch/MerianWatch.app/Info.plist"
 archive_identity="$(bash "$script_dir/hash-ios-archive.sh" "$archive_path")"
 [[ "$archive_identity" =~ ^[0-9a-f]{64}$ ]] || fail "archive identity is malformed."
 
-echo "Release archive verified for ${bundle_id} ${expected_version} (${expected_build}); source=${source_revision} fingerprint=${source_fingerprint} state=clean; embeddedComponents=3."
+echo "Release archive verified for ${bundle_id} ${expected_version} (${expected_build}); source=${source_revision} fingerprint=${source_fingerprint} state=clean; privacyManifest=valid; embeddedComponents=3."
 echo "archive_identity=${archive_identity}"

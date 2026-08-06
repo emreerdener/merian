@@ -19,7 +19,7 @@ export default function PrivacyPolicyPage() {
       eyebrow="Naturebook legal"
       title="Privacy Policy"
       description="This policy explains what Naturebook collects, how it is used, and the controls available to you."
-      lastUpdated="August 4, 2026"
+      lastUpdated="August 5, 2026"
     >
       <LegalSection title="Overview">
         <Text>
@@ -205,6 +205,18 @@ export default function PrivacyPolicyPage() {
           PostHog receives the optional analytics and diagnostics categories
           described above only after an account-wide grant. Absence of a grant
           means PostHog analytics are off.
+        </Text>
+      </LegalSection>
+
+      <LegalSection title="Tracking and Advertising">
+        <Text>
+          Under Naturebook&apos;s current design, we do not use data to track you
+          across apps or websites owned by other companies, and we do not use
+          optional PostHog analytics for third-party targeted advertising. The
+          Analytics &amp; diagnostics choice controls product analytics for
+          Naturebook. Because current analytics behavior is not used for
+          tracking, Naturebook does not request Apple&apos;s App Tracking
+          Transparency permission for that choice.
         </Text>
       </LegalSection>
 

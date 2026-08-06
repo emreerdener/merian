@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-08-04.
+Last reviewed: 2026-08-05.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -30,6 +30,10 @@ Tracked build config:
 - `Signing.xcconfig` includes optional ignored `Signing.local.xcconfig`.
 - `Signing.local.example.xcconfig` is the template for a local Apple Developer
   Team ID.
+- `apps/ios/Merian/Configuration/PrivacyInfo.xcprivacy` is the main app's
+  privacy declaration. XcodeGen places it exactly once at the root of
+  `Merian.app`; `scripts/validate-ios-privacy-manifest.sh` owns the exact
+  collected-data and required-reason policy.
 
 Web runtime config:
 
@@ -836,12 +840,26 @@ Missing-image repair coverage spans
 `tests/{account_deletion_security,scan_image_repair_security}.sql`, and the iOS
 `LocalImageLoaderTests`/`MerianNetworkClientTests`.
 
+App privacy assurance spans source, generated project, archive, and export.
+`scripts/check-ios-project-resources.sh` validates the source manifest and
+requires exactly one Merian Resources membership. The current-SHA archive
+requires `Merian.app/PrivacyInfo.xcprivacy` and records
+`privacy_manifest_valid: true`; `scripts/validate-ios-exported-ipa.sh` repeats
+the root-path and exact-content checks for an Organizer export. The declaration
+inventory and change contract live in
+`docs/development-guides/16-ios-privacy-manifest.md`. Xcode's aggregate report,
+App Store answers, and counsel approval remain operator evidence rather than
+repository-generated facts.
+
 ## Documentation Maintenance Checklist
 
 When changing the codebase, update docs in the same change if any of these move:
 
 - `CurrentSchema`, schema model fields, or migration stages.
 - App target deployment versions, entitlements, packages, or XcodeGen targets.
+- Privacy manifests, required-reason API use, collected-data categories,
+  purposes, identity linking, tracking, SDK composition, or executable bundle
+  ownership.
 - Edge Function request/response bodies, auth policy, config entries, or storage
   lifecycle behavior.
 - Destructive queue claim authority, live-owner vetoes, account-isolation
