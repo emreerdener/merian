@@ -838,6 +838,12 @@ stream used only for browser-local Boost Audio processing, plus public
 policy/support pages at `/privacy`, `/terms`, `/guidelines`, `/privacy-choices`,
 `/support`, and `/legal`.
 
+The generic **Share Naturebook** action intentionally uses the served homepage
+before the App Store listing is live. There is no `/invite` route or referral
+program. Once the listing is publicly reachable, replace the explicit iOS TODO
+with the reviewed App Store Connect campaign link and configure the same
+campaign destination for the public-web download CTA.
+
 See `apps/web/README.md`,
 `docs/features-and-hardware/17-public-web-share-pages.md`, and
 `docs/development-guides/15-naturebook-rebrand-rollout.md` for the web env

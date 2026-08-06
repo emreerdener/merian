@@ -283,9 +283,9 @@ BEGIN
     -- Transaction-scoped and account-scoped: concurrent writers for this AI
     -- stream serialize for only the head comparison and immutable insert.
     PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-        pg_catalog.HASHTEXTENDED(
+        pg_catalog.HASHTEXTEXTENDED(
             'merian:user-ai-consent:' || caller_user_id::TEXT,
-            0
+            0::BIGINT
         )
     );
 
@@ -466,9 +466,9 @@ BEGIN
     END IF;
 
     PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-        pg_catalog.HASHTEXTENDED(
+        pg_catalog.HASHTEXTEXTENDED(
             'merian:user-analytics-consent:' || caller_user_id::TEXT,
-            0
+            0::BIGINT
         )
     );
 
@@ -640,6 +640,25 @@ GRANT EXECUTE ON FUNCTION public.append_user_analytics_consent_event(
     TEXT,
     UUID
 ) TO authenticated;
+
+INSERT INTO internal.privileged_routine_grants (
+    role_name,
+    routine_signature,
+    purpose
+)
+VALUES
+    (
+        'authenticated',
+        'public.append_user_ai_consent_event(uuid,text,text,timestamp with time zone,text,text,text,text,text,uuid)',
+        'Caller-authenticated causal append for the account Google Gemini consent stream.'
+    ),
+    (
+        'authenticated',
+        'public.append_user_analytics_consent_event(uuid,text,text,timestamp with time zone,text,text,text,text,text,uuid)',
+        'Caller-authenticated causal append for the account PostHog consent stream.'
+    )
+ON CONFLICT (role_name, routine_signature) DO UPDATE
+SET purpose = EXCLUDED.purpose;
 
 COMMENT ON TABLE public.user_ai_consent_events IS
     'Immutable grant/revocation trail for named third-party AI processing. consent_revision is server-issued; grants require the current head and revocations atomically rebase onto it.';

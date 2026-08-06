@@ -118,8 +118,8 @@ struct ProfileTabView: View {
                     Achievements(awards: visibleAwards)
                 }
 
-                // MARK: - Refer a Friend
-                ReferFriendCard()
+                // MARK: - Share Naturebook
+                ShareNaturebookCard()
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)

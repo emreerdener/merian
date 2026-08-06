@@ -51,9 +51,9 @@ struct Community: View {
             }
 
             Button {
-                ReferralShareContent.presentShareSheet()
+                AppShareContent.presentShareSheet()
             } label: {
-                Label("Invite a friend", systemImage: "person.badge.plus")
+                Label("Share Naturebook", systemImage: "square.and.arrow.up")
             }
 
             Button {

@@ -28,6 +28,11 @@ two dedicated fixed-anonymous RPCs; it rejects a public-client fallback,
 synthetic viewer ID, direct user-table enrichment, or native Explore RPC.
 Browser verification should cover Boost → Boosted → original transitions because
 Web Audio context activation cannot be proven by TypeScript alone.
+`lib/appShareContract.test.ts` also proves the prelaunch iOS app-share payload
+uses the served canonical homepage rather than an unimplemented `/invite`
+route, and that changes to either Swift destination source enter the web-quality
+workflow. After the App Store listing is live, update the contract and iOS TODO
+together to require the reviewed App Store Connect campaign link.
 
 The private admin app in `apps/admin/` has an independent production gate:
 

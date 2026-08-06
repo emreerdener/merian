@@ -868,10 +868,6 @@ struct CaptureWorkspaceView: View {
         guard feedbackSurveyForegroundCompletionIsReflectedInHistory else {
             return
         }
-        // swiftlint:disable:next todo
-        // TODO(referral): When referral tracking is ready, evaluate a one-time
-        // `hasSeenReferralPromptAfterSixthScan` gate here after the 6th completed
-        // biological scan, then present only after no insight or other sheet is active.
         let shouldPrompt = FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: messageShareCacheRecords.count,
             hasCompletedOnboarding: appSettings.hasCompletedOnboarding,

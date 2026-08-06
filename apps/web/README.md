@@ -13,6 +13,14 @@ The public share routes are:
 `/species/[speciesId]` remains a UUID-only compatibility route and permanently
 redirects to the current readable canonical path after resolving the species.
 
+Generic **Share Naturebook** actions are not referral links. Before the App
+Store listing is live, iOS shares the served `https://naturebook.earth`
+homepage. `lib/appShareContract.test.ts` locks that fallback across the Swift
+source, canonical web origin, root page, and web-quality workflow. Once the
+listing is publicly reachable, replace the explicit iOS TODO with the reviewed
+App Store Connect campaign link; do not invent an `/invite` route unless a real
+referral product is designed and deployed.
+
 The Explore route fetches the public post and detail projections from Supabase
 on the server, renders a rich read-only post page with default Mantine
 components, and emits Open Graph metadata so Messages/social shares can render a
@@ -92,7 +100,9 @@ Ingress configuration:
 Optional public variables:
 
 - `NEXT_PUBLIC_SITE_URL` — set to `https://naturebook.earth` in production.
-- `NEXT_PUBLIC_APP_STORE_URL`
+- `NEXT_PUBLIC_APP_STORE_URL` — leave unset before launch so the site retains
+  its waitlist CTA. Once the listing is public, set the reviewed App Store
+  Connect campaign link and update the matching iOS app-share TODO/contract.
 - `NEXT_PUBLIC_SUPPORT_EMAIL` — set to `support@naturebook.earth` in production.
 - `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe
   web playback events

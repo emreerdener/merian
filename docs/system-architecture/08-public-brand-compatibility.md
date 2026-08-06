@@ -85,14 +85,18 @@ release notes. Do not introduce a forced rename modal.
 
 ### Generation
 
-New content emits only:
+New content emits:
 
-- `https://naturebook.earth/...` for share, referral, email, metadata, legal,
+- `https://naturebook.earth/...` for content sharing, email, metadata, legal,
   and support links.
+- `https://naturebook.earth` for generic app sharing before the App Store
+  listing is live; afterward, the reviewed App Store Connect campaign link.
 - `naturebook://...` when a native-only scheme is necessary.
 
-HTTPS is preferred for user-to-user sharing because it provides a browser
-fallback and link-preview metadata.
+Naturebook HTTPS is preferred for user-to-user content sharing because it
+provides a browser fallback and link-preview metadata. Do not emit `/invite`
+unless the web application actually serves that route and the product owns a
+defined referral contract.
 
 ### Acceptance
 

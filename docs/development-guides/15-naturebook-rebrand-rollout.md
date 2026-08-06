@@ -347,7 +347,7 @@ only:
 - Explore sharing
 - Species Dictionary sharing
 - Messages extension cards
-- Referrals
+- Generic app sharing and its prelaunch website/App Store campaign destination
 - Support and public reporting email
 - Darwin Core export mail
 - Web canonical and Open Graph metadata

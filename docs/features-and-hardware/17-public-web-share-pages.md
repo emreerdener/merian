@@ -181,7 +181,10 @@ Optional public values:
 
 - `NEXT_PUBLIC_SITE_URL` — canonical site URL. Production should be
   `https://naturebook.earth`.
-- `NEXT_PUBLIC_APP_STORE_URL` — optional App Store CTA target.
+- `NEXT_PUBLIC_APP_STORE_URL` — leave unset before launch so the site retains
+  its waitlist CTA. Once the listing is publicly reachable, set the reviewed
+  App Store Connect campaign link and update the iOS app-share TODO and
+  cross-repository test in the same change.
 - `NEXT_PUBLIC_SUPPORT_EMAIL` — public support contact shown on legal/support
   pages.
 - `NEXT_PUBLIC_POSTHOG_API_KEY` — optional public ingestion key for privacy-safe

@@ -1976,8 +1976,9 @@ TestFlight, App Store, support, and QA.
 
 ### Profile & Guest Account Polish
 
-- Added an Invite a friend card on Profile and a matching Settings resource so
-  sharing Naturebook is ready for a future referral link.
+- Added a Share Naturebook card on Profile and a matching Settings resource.
+  Before the App Store listing is live, shares use the served Naturebook
+  homepage instead of an unimplemented `/invite` route.
 - Added cat and dog scan achievements that unlock when you document your first
   domestic cat or dog.
 - Added the cat and dog achievements to public Explore author profile sheets.

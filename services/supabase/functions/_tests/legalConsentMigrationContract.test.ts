@@ -172,6 +172,8 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
       "SECURITY DEFINER SET search_path = ''",
       "FOR KEY SHARE",
       "PG_ADVISORY_XACT_LOCK",
+      "HASHTEXTEXTENDED",
+      "0::BIGINT",
       "IF p_event_kind IS DISTINCT FROM 'revoked' AND p_causal_parent_id IS DISTINCT FROM current_event_id",
       "accepted_parent_id UUID",
       "accepted_parent_id := current_event_id",
@@ -179,6 +181,8 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
       "ORDER BY events.consent_revision DESC",
       "GRANT EXECUTE ON FUNCTION public.append_user_ai_consent_event",
       "GRANT EXECUTE ON FUNCTION public.append_user_analytics_consent_event",
+      "'authenticated', 'public.append_user_ai_consent_event(uuid,text,text,timestamp with time zone,text,text,text,text,text,uuid)'",
+      "'authenticated', 'public.append_user_analytics_consent_event(uuid,text,text,timestamp with time zone,text,text,text,text,text,uuid)'",
       "REVOKE ALL ON SEQUENCE public.user_ai_consent_revision_seq, public.user_analytics_consent_revision_seq FROM PUBLIC, anon, authenticated, service_role",
     ]
   ) {
@@ -214,6 +218,8 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
   );
   assertEquals(sql.match(/FOR KEY SHARE/g)?.length, 2);
   assertEquals(sql.match(/PG_ADVISORY_XACT_LOCK/g)?.length, 2);
+  assertEquals(sql.match(/HASHTEXTEXTENDED/g)?.length, 2);
+  assertEquals(sql.match(/0::BIGINT/g)?.length, 2);
   assert(
     sql.indexOf("FOR KEY SHARE") < sql.indexOf("PG_ADVISORY_XACT_LOCK"),
     "Consent RPCs must take the account row lock before their advisory lock.",

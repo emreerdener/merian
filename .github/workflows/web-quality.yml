@@ -7,7 +7,9 @@ on:
       - "apps/web/**"
       - "apps/ios/Merian/Configuration/Info.plist"
       - "apps/ios/Merian/Features/Onboarding/Steps/LocationPermission/LocationPermissionStepView.swift"
+      - "apps/ios/Merian/Features/Profile/Shared/AppShareContent.swift"
       - "apps/ios/Merian/Features/Profile/Settings/Views/DeleteAccountSheet.swift"
+      - "apps/ios/Shared/Branding/PublicBrand.swift"
       - "services/supabase/migrations/20260724192124_harden_json_endpoints_and_waitlist.sql"
       - "services/supabase/tests/waitlist_security.sql"
   push:
@@ -18,7 +20,9 @@ on:
       - "apps/web/**"
       - "apps/ios/Merian/Configuration/Info.plist"
       - "apps/ios/Merian/Features/Onboarding/Steps/LocationPermission/LocationPermissionStepView.swift"
+      - "apps/ios/Merian/Features/Profile/Shared/AppShareContent.swift"
       - "apps/ios/Merian/Features/Profile/Settings/Views/DeleteAccountSheet.swift"
+      - "apps/ios/Shared/Branding/PublicBrand.swift"
       - "services/supabase/migrations/20260724192124_harden_json_endpoints_and_waitlist.sql"
       - "services/supabase/tests/waitlist_security.sql"
   workflow_dispatch:

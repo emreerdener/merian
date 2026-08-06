@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ReferFriendCard: View {
+struct ShareNaturebookCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
@@ -10,14 +10,14 @@ struct ReferFriendCard: View {
                             .foregroundColor(.secondary)
                             .font(.system(size: 14, weight: .semibold))
 
-                        Text("SHARE MERIAN")
+                        Text("SHARE NATUREBOOK")
                             .font(.system(.caption, design: .monospaced))
                             .fontWeight(.bold)
                             .foregroundColor(.secondary)
                             .tracking(1)
                     }
 
-                    Text("Invite a friend")
+                    Text("Share Naturebook")
                         .font(.system(.title2, design: .serif))
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
@@ -31,19 +31,21 @@ struct ReferFriendCard: View {
                     .frame(width: 56, height: 56)
             }
 
-            Text("Share Naturebook with someone who would love identifying what they find outside.")
+            Text(
+                "Share Naturebook with someone who would love identifying what they find outside."
+            )
                 .font(.system(.subheadline))
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .lineSpacing(2)
 
             Button(action: {
-                ReferralShareContent.presentShareSheet()
+                AppShareContent.presentShareSheet()
             }) {
                 HStack {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 20, weight: .semibold))
-                    Text("Share invite")
+                    Text("Share Naturebook")
                         .fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity)

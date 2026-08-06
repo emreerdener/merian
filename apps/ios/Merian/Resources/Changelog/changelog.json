@@ -1011,12 +1011,12 @@
     {
       "id": "2026-07-04-invite-a-friend",
       "date": "2026-07-04",
-      "title": "Invite a friend",
+      "title": "Share Naturebook",
       "sections": [
         {
           "title": "Added",
           "items": [
-            "Profile and Settings now include an Invite a friend action so sharing Naturebook is ready for a future referral link."
+            "Profile and Settings now include a Share Naturebook action with a working website destination before the App Store listing goes live."
           ]
         }
       ]
