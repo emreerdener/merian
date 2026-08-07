@@ -554,6 +554,7 @@ struct StartupRecoveryNoticeView: View {
 }
 
 private struct ConsentRestorationView: View {
+    @Environment(ConsentManager.self) private var consentManager
     @State private var showsProgress = false
 
     var body: some View {
@@ -562,7 +563,33 @@ private struct ConsentRestorationView: View {
             // not introduce another transient surface during cold launch.
             Color.black.ignoresSafeArea()
 
-            if showsProgress {
+            if consentManager.canRetryRequiredConsentRestoration {
+                VStack(spacing: 16) {
+                    Image(systemName: "arrow.clockwise.circle")
+                        .font(.system(size: 28, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .accessibilityHidden(true)
+
+                    Text("Naturebook couldn’t verify your saved choices.")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+
+                    Text("Try again to finish restoring them.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.72))
+                        .multilineTextAlignment(.center)
+
+                    Button("Try Again") {
+                        consentManager.retryRequiredConsentRestoration()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.white)
+                    .foregroundStyle(.black)
+                }
+                .padding(24)
+                .frame(maxWidth: 420)
+            } else if showsProgress {
                 ProgressView()
                     .tint(.white.opacity(0.7))
                     .accessibilityLabel("Restoring your choices")
@@ -586,6 +613,8 @@ struct MerianApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var didRunInitialActivePhase = false
+    @State private var isShowingManualAppleRevocationNotice =
+        ManualAppleRevocationNoticeStore.isPending()
     
     // MARK: - App Dependencies
     let diContainer = AppDIContainer.shared
@@ -1327,6 +1356,8 @@ struct MerianApp: App {
             }
             .onAppear {
                 applyTheme(appSettings.themeMode)
+                isShowingManualAppleRevocationNotice =
+                    ManualAppleRevocationNoticeStore.isPending()
                 guard !TestExecutionCoordinator.isRunningTests,
                       !didRunInitialActivePhase else {
                     return
@@ -1336,6 +1367,31 @@ struct MerianApp: App {
             }
             .onChange(of: appSettings.themeMode) { _, newTheme in
                 applyTheme(newTheme)
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: AccountDeletionEvents.manualAppleRevocationNoticeRequired
+                )
+            ) { _ in
+                isShowingManualAppleRevocationNotice = true
+            }
+            .alert(
+                "Finish Sign in with Apple Cleanup",
+                isPresented: $isShowingManualAppleRevocationNotice
+            ) {
+                Button("Open Apple Instructions") {
+                    guard let url = URL(
+                        string: "https://support.apple.com/102571"
+                    ) else { return }
+                    UIApplication.shared.open(url)
+                }
+                Button("I Revoked Access") {
+                    ManualAppleRevocationNoticeStore.resolve()
+                }
+            } message: {
+                Text(
+                    "Your Naturebook deletion is already continuing. Because this Apple-linked account predates automatic token revocation, open Settings > [your name] > Sign in with Apple > Naturebook, then choose Delete or Stop Using. You can also follow Apple’s web instructions."
+                )
             }
             .onOpenURL { url in
                 switch MerianOpenURLRoute.classify(
@@ -1378,6 +1434,9 @@ struct MerianApp: App {
                 }
             case .active:
                 lifecycleManager.handleActivePhase()
+                if ManualAppleRevocationNoticeStore.isPending() {
+                    isShowingManualAppleRevocationNotice = true
+                }
             @unknown default:
                 break
             }

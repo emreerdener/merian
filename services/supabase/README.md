@@ -199,6 +199,9 @@ deletion intake. Migration `20260725052337_enforce_account_storage_erasure.sql`
 completes the private `pending → storage_pending → auth_pending → completed`
 state machine. Migration `20260726041109_fence_storage_erasure_claims.sql` makes
 that private state machine the sole authority for destructive storage claims.
+Migration `20260806203700_durable_apple_provider_revocation.sql` adds a durable
+provider substage inside `auth_pending`: a stored Sign in with Apple refresh
+token must be successfully revoked and destroyed before Supabase Auth removal.
 `/safe-delete` persists intent before destructive work, then a five-minute
 claim-fenced transaction writes the idempotent storage job, tombstones
 relational data, and verifies that the public profile and original scan
@@ -241,6 +244,22 @@ verification pass marks storage complete and transactionally wakes the account
 job. Listing and deletion have explicit deadlines and bounded response bodies;
 claims, progress, and failures are token-fenced and retryable.
 
+The authenticated `register-apple-revocation-token` route captures Apple's
+one-use authorization code immediately after iOS installs an Apple session. It
+verifies the presented and exchanged identity tokens, requires the same Apple
+subject, binds that subject to `auth.identities`, and atomically stores the
+refresh token in Supabase Vault with a token-free idempotency receipt. A failed
+Vault write triggers immediate compensating revocation, and iOS clears the new
+local session if registration cannot be confirmed.
+
+The supporting iOS auth lifecycle also treats Apple's credential-revoked
+notification as a revalidation signal, not authoritative revocation by itself.
+It queries `getCredentialState` with the provider-specific Apple identity,
+discards a callback if that identity is no longer active, preserves an
+authoritative `.authorized` session, and otherwise clears only the matching
+local session. This client transition never marks the durable server provider
+stage complete.
+
 The SQL claim itself inner-joins the corresponding private job at
 `storage_pending`, requires completed relational cleanup and incomplete storage,
 and vetoes any target that still has a live public profile or owned scan. A
@@ -249,7 +268,17 @@ inert. Worker code must not weaken or replace this database authorization
 boundary.
 
 Every retry repeats the idempotent relational cleanup before considering Auth
-deletion. It also clears compatibility media URLs, structured captured-media
+deletion. After verified storage, a job with a stored Apple credential reads it
+only under the active UUID claim, calls Apple's idempotent `/auth/revoke`, then
+transactionally destroys the Vault secret before Auth becomes reachable.
+Provider failure retains both the credential and Auth identity with bounded
+backoff. Apple-linked accounts that predate token capture are marked
+`manual_required`; deletion proceeds and the API tells iOS to persist Apple's
+manual removal instructions across sign-out and relaunch. That delivery claim
+applies only to supporting iOS binaries. Older binaries ignore the new field,
+so production promotion remains blocked until a minimum-supported-build control
+or independent server-delivered fallback covers them. Cleanup also clears
+compatibility media URLs, structured captured-media
 references, semantic location and its public label, device locale/time-zone
 context, free-form notes, and custom tags from retained tombstones. Exact
 coordinates, elevation, time, taxonomy, identification, environmental, quality,
@@ -262,7 +291,8 @@ profile before the terminal Auth step. New upload signing also fails closed with
 `reconcile-account-deletions` is a scheduled service-role worker that resumes
 due account and R2 work. It performs one bounded account pass, bounded storage
 pages, and—when storage verification completes—a final account pass that can
-remove Auth in the same invocation. Auth `404` / `user_not_found` is success,
+revoke Apple and remove Auth in the same invocation. Auth `404` /
+`user_not_found` is success,
 transient failures receive database-calculated backoff, and expired workers
 cannot finish a newer claim. Terminal jobs clear their direct user UUID. The
 worker accepts no target UUID from HTTP.
@@ -299,12 +329,18 @@ critical age/backlog breach is critical; retry errors or expired leases are
 warnings. The workflow fails on warning by default and retains JSON and Markdown
 evidence.
 
-Coverage lives in `_tests/safeDelete.test.ts`,
+Coverage lives in `_shared/appleSignIn_test.ts`,
+`register-apple-revocation-token/handler_test.ts`,
+`_tests/safeDelete.test.ts`,
 `_tests/accountDeletionCoverage.test.ts`,
 `_tests/accountDeletionMigrationContract.test.ts`, and
 `tests/account_deletion_security.sql`, with R2 worker coverage in
 `functions/safe-delete/storageWorker_test.ts` and monitor policy coverage in
 `scripts/monitor_account_deletion_health_test.ts`.
+
+The complete Apple authorization, provider-stage, legacy fallback, hosted
+secret, rotation, rollout, and smoke-test contract is
+[`docs/backend-and-data/20-sign-in-with-apple-account-deletion.md`](../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 ### Owned Scan Image Recovery Boundary
 

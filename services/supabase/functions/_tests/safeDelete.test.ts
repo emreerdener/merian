@@ -169,6 +169,7 @@ Deno.test("safe-delete handler records the job before its fast-path worker", asy
         return Promise.resolve({
           jobId: pendingClaim().jobId,
           status: "pending",
+          manualProviderRevocationRequired: false,
         });
       },
       process: () => {
@@ -186,7 +187,12 @@ Deno.test("safe-delete handler records the job before its fast-path worker", asy
 
   assertEquals(order, ["request", "process"]);
   assertEquals(response.status, 200);
-  assertEquals((await response.json()).status, "completed");
+  assertEquals(await response.json(), {
+    success: true,
+    status: "completed",
+    manual_provider_revocation_required: false,
+    message: "Account securely deleted and anonymized.",
+  });
 });
 
 Deno.test("safe-delete returns accepted after durable retry scheduling", async () => {
@@ -198,6 +204,7 @@ Deno.test("safe-delete returns accepted after durable retry scheduling", async (
         Promise.resolve({
           jobId: pendingClaim().jobId,
           status: "pending",
+          manualProviderRevocationRequired: false,
         }),
       process: () =>
         Promise.resolve({
@@ -227,6 +234,7 @@ Deno.test("safe-delete remains accepted if fast-path claiming fails", async () =
         Promise.resolve({
           jobId: pendingClaim().jobId,
           status: "pending",
+          manualProviderRevocationRequired: false,
         }),
       process: () => Promise.reject(new Error("database unavailable")),
     },
@@ -288,4 +296,116 @@ Deno.test("storage_pending cleanup never removes the Auth identity", async () =>
   assertEquals(result.waitingForStorage, 1);
   assertEquals(result.completed, 0);
   assertEquals(result.failures, []);
+});
+
+Deno.test("Apple provider revocation is durable and completes before Auth deletion", async () => {
+  const order: string[] = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => {
+        order.push("cleanup");
+        return Promise.resolve("provider_revocation_pending");
+      },
+      getProviderToken: () => {
+        order.push("load_vault_token");
+        return Promise.resolve({ refreshToken: "refresh-token" });
+      },
+      revokeProvider: (token) => {
+        order.push(`revoke:${token}`);
+        return Promise.resolve({ succeeded: true });
+      },
+      completeProvider: () => {
+        order.push("persist_provider_completion");
+        return Promise.resolve();
+      },
+      deleteAuth: () => {
+        order.push("delete_auth");
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: (_client, _claim, authDeleted) => {
+        order.push(authDeleted ? "complete" : "defer");
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(order, [
+    "cleanup",
+    "load_vault_token",
+    "revoke:refresh-token",
+    "persist_provider_completion",
+    "delete_auth",
+    "complete",
+  ]);
+  assertEquals(result.completed, 1);
+});
+
+Deno.test("Apple revocation failure defers without deleting Auth or destroying the Vault token", async () => {
+  let authCalled = false;
+  let providerCompleted = false;
+  const finishes: Array<[boolean, string | null]> = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => Promise.resolve("provider_revocation_pending"),
+      getProviderToken: () =>
+        Promise.resolve({ refreshToken: "refresh-token" }),
+      revokeProvider: () =>
+        Promise.resolve({
+          succeeded: false,
+          errorCode: "apple_revoke_invalid_client",
+        }),
+      completeProvider: () => {
+        providerCompleted = true;
+        return Promise.resolve();
+      },
+      deleteAuth: () => {
+        authCalled = true;
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: (_client, _claim, authDeleted, errorCode) => {
+        finishes.push([authDeleted, errorCode]);
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(authCalled, false);
+  assertEquals(providerCompleted, false);
+  assertEquals(finishes, [[false, "apple_revoke_invalid_client"]]);
+  assertEquals(result.failures[0]?.stage, "provider");
+});
+
+Deno.test("legacy Apple deletion returns a durable manual-revocation disposition", async () => {
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      request: () =>
+        Promise.resolve({
+          jobId: pendingClaim().jobId,
+          status: "pending",
+          manualProviderRevocationRequired: true,
+        }),
+      process: () =>
+        Promise.resolve({
+          claimed: 1,
+          completed: 0,
+          deferred: 0,
+          waitingForStorage: 1,
+          failures: [],
+        }),
+    },
+  );
+
+  assertEquals(response.status, 202);
+  assertEquals(
+    (await response.json()).manual_provider_revocation_required,
+    true,
+  );
 });

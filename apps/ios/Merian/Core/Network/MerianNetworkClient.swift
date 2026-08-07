@@ -181,6 +181,23 @@ private struct DeleteScanResponse: Decodable {
     let success: Bool
 }
 
+enum AccountDeletionStatus: String, Decodable, Equatable, Sendable {
+    case pending
+    case completed
+}
+
+struct AccountDeletionReceipt: Decodable, Equatable, Sendable {
+    let success: Bool
+    let status: AccountDeletionStatus
+    let manualProviderRevocationRequired: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case success
+        case status
+        case manualProviderRevocationRequired = "manual_provider_revocation_required"
+    }
+}
+
 private struct UploadURLRequestBody: Encodable {
     let files: [StagingUploadFile]
     let userId: String
@@ -2429,10 +2446,25 @@ final class MerianNetworkClient {
         MerianLog.network.debug("Scan deleted: \(scanId, privacy: .private)")
     }
 
-    func safeDeleteAccount() async throws {
+    func safeDeleteAccount() async throws -> AccountDeletionReceipt {
         let functionUrl = try endpointURL("safe-delete")
-        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST")
+        let (data, httpResponse) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST"
+        )
+        let receipt: AccountDeletionReceipt
+        do {
+            receipt = try JSONDecoder().decode(AccountDeletionReceipt.self, from: data)
+        } catch {
+            throw MerianError.invalidResponse
+        }
+        guard receipt.success,
+              (receipt.status == .pending && httpResponse.statusCode == 202)
+                || (receipt.status == .completed && httpResponse.statusCode == 200) else {
+            throw MerianError.invalidResponse
+        }
         MerianLog.network.debug("Account deletion accepted.")
+        return receipt
     }
 
     // MARK: - Darwin Core Export

@@ -21,11 +21,11 @@ diagnostic. It does not redirect traffic, isolate rows, or prevent a cleared
 session from creating an anonymous production user.
 
 Every resolved Supabase origin must be credential-free HTTPS.
-`MerianEnvironment`, `MerianSupabaseClientFactory`, and
-`MerianNetworkClient` enforce `SecureTransportPolicy` before constructing a
-client or Edge endpoint. Signed upload URLs and remote media references are
-validated at their corresponding request boundaries. The main application has
-no ATS exception; see the
+`MerianEnvironment`, `MerianSupabaseClientFactory`, and `MerianNetworkClient`
+enforce `SecureTransportPolicy` before constructing a client or Edge endpoint.
+Signed upload URLs and remote media references are validated at their
+corresponding request boundaries. The main application has no ATS exception; see
+the
 [iOS App Transport Security Contract](../../../../../docs/development-guides/17-ios-transport-security.md).
 
 ## `MerianNetworkClient`
@@ -101,14 +101,13 @@ no ATS exception; see the
 
 ## Entitlement protocol
 
-The authenticated request builders attach
-`X-Merian-Entitlement-Protocol: 3` and preserve `client_scan_id` as the
-idempotency and original-analysis key. This covers the four public
-identification routes: `/identify`, `/identify-describe`,
+The authenticated request builders attach `X-Merian-Entitlement-Protocol: 3` and
+preserve `client_scan_id` as the idempotency and original-analysis key. This
+covers the four public identification routes: `/identify`, `/identify-describe`,
 `/identify-multimodal`, and `/audio-spec`. After the coordinated server cutover,
-an older public client receives HTTP `426` with
-`code = client_update_required` before provider work; only authenticated
-internal replay bypasses the public protocol check.
+an older public client receives HTTP `426` with `code = client_update_required`
+before provider work; only authenticated internal replay bypasses the public
+protocol check.
 
 Identify success envelopes may omit `entitlement` for historical stored
 responses. When present, the generated DTO contains `user_id`, `plan_used`,
@@ -211,12 +210,12 @@ scan evidence, media, location, or field notes.
 the source DTOs into a generic `CaptureGoalContextSnapshot`. After a successful
 empty response it uses the existing authenticated `template_detail` slug lookup
 to validate the optional post-Reset Backyard Safari introduction.
-`ActiveCaptureGoalStore` owns the five-minute
-freshness policy, per-account cache, selected-goal persistence, and silent
-stale-data retention. Concurrent freshness checks share the provider request; an
-explicit invalidation received while that request is active queues at most one
-forced follow-up. Capture never imports these Field trip DTOs. Callers must
-never await this request before starting the camera or accepting a capture. See
+`ActiveCaptureGoalStore` owns the five-minute freshness policy, per-account
+cache, selected-goal persistence, and silent stale-data retention. Concurrent
+freshness checks share the provider request; an explicit invalidation received
+while that request is active queues at most one forced follow-up. Capture never
+imports these Field trip DTOs. Callers must never await this request before
+starting the camera or accepting a capture. See
 `docs/backend-and-data/05-api-contracts.md` and
 `docs/features-and-hardware/25-field-trips.md`. The source-agnostic ownership
 decision and future provider aggregation rules live in
@@ -407,9 +406,9 @@ applied.
 Session observation never treats assignment of `currentSessionUserId` as proof
 that account consent is current. Synchronization first activates the target
 ledger with analytics fail-closed, pushes every target-owned pending adult,
-Terms, Gemini, and analytics row, fetches the account's authoritative state,
-and only then merges. Returning to a previously used account therefore flushes
-an offline revocation before remote state can be applied.
+Terms, Gemini, and analytics row, fetches the account's authoritative state, and
+only then merges. Returning to a previously used account therefore flushes an
+offline revocation before remote state can be applied.
 
 The remote read retains current-disclosure rows as evidence but separately
 fetches each provider's all-version greatest `consentRevision`. The final merge
@@ -426,6 +425,12 @@ analytics. A stale request can finish at the transport layer, but it cannot
 install evidence, change the active ledger, or reopen PostHog for a replacement
 account.
 
+Non-cancellation synchronization failure is not remote authority. While a
+completed account still lacks current local required evidence, `ConsentManager`
+keeps the launch-matched neutral root active, exposes explicit retry, and runs
+5-, 10-, and 20-second outer retries. Only the final identity-fenced merge after
+verified ledger persistence may resolve to the workspace or Powered by AI.
+
 Analytics-consent Realtime owns its requested channel user and confirmed
 subscribed user independently of session observation. Failed subscriptions
 retain an account-owned bounded retry, while session adoption and foreground
@@ -439,6 +444,7 @@ does not replace the account. The provider-conflict fallback and ordinary OAuth
 sign-in can install a different UUID, so they use one replacement boundary:
 
 1. synchronously suppress analytics, invalidate stale consent synchronization,
+   normalize any canceled same-account restoration wait back to `.reconciling`,
    and stop the prior consent Realtime channel;
 2. ask Supabase Auth to install the target session; and
 3. reconcile the SDK's actual current session on both success and failure.
@@ -449,6 +455,25 @@ overwrite `currentUser` after a newer transition starts. A failed replacement
 restores the actual surviving session rather than assuming the preflight session
 still exists. Provider-bound ghost handoff suppression remains independently
 active until its durable queue has been fully reconciled.
+
+## Sign in with Apple revocation credential
+
+The Apple delegate requires both `identityToken` and `authorizationCode`.
+Immediately after Supabase installs the permanent Apple session,
+`SupabaseManager` sends both values and one registration UUID to the
+authenticated `register-apple-revocation-token` endpoint. The same UUID and
+payload receive one bounded response-loss retry. Server-side Apple verification
+and Vault persistence are mandatory: if registration cannot be confirmed, the
+manager clears the newly installed local session and requires a fresh Apple
+authorization instead of completing an account that cannot later be revoked.
+
+The manager also observes
+`ASAuthorizationAppleIDProvider.credentialRevokedNotification`. It revalidates
+the provider-specific Apple subject with `getCredentialState`, confirms that the
+same Apple identity is still active when the asynchronous callback returns, and
+then clears the local session for revoked, missing, transferred, unknown, or
+failed state resolution. An authoritative `.authorized` result preserves the
+session. This client transition does not fabricate a server revocation receipt.
 
 ## Sign-out transition
 
@@ -467,12 +492,24 @@ recovery. It creates the replacement guest identity only after sign-out and
 external identity cleanup finish. Account deletion intentionally calls
 `signOut()` alone so it does not recreate an identity during deletion. The
 `/safe-delete` call may return immediate `200` completion or `202` durable
-acceptance; the shared request layer treats either 2xx response as success.
-Backend intent and relational cleanup are persisted before the client signs out.
-The scheduled account-deletion reaper owns cursor-persisted R2 sweeps, delayed
-empty verification, and terminal Auth removal; a new request therefore normally
-receives `202`.
+acceptance. The shared request layer strictly decodes the matching status plus
+the required `manual_provider_revocation_required` boolean; missing or
+contradictory receipts are invalid responses. A legacy Apple disposition is
+persisted before sign-out so the app-root manual-removal notice survives local
+account and SQLite cleanup. Backend intent and relational cleanup are persisted
+before the client signs out. The scheduled account-deletion reaper owns
+cursor-persisted R2 sweeps, delayed empty verification, Apple provider
+revocation when a Vault credential exists, and terminal Auth removal; a new
+request therefore normally receives `202`.
+
+This strict receipt and durable notice exist only in supporting binaries. An
+older client can ignore `manual_provider_revocation_required`, so publishing the
+new build does not prove fallback delivery. Public promotion remains blocked
+until an enforceable minimum-supported-build control or an independent
+server-delivered manual fallback covers those installed clients.
 
 Account deletion retains ownerless exact scientific facts under the
 [`scientific-observation retention contract`](../../../../../docs/backend-and-data/17-scientific-observation-retention.md);
-`signOut()` must not imply that every submitted observation is erased.
+`signOut()` must not imply that every submitted observation is erased. The
+provider-specific lifecycle is canonical in the
+[`Sign in with Apple account-deletion contract`](../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).

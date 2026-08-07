@@ -28,9 +28,13 @@ steps are tracked in the
 > Edge PostHog delivery, and iOS permission gates now resolve the provider-wide
 > greatest revision across all disclosure versions first: any head revocation
 > denies, and only a head grant may enter disclosure/rollout checks.
-> Completed users also remain on a launch-matched neutral root until required
-> account evidence resolves, so approval controls are never a transient startup
-> state.
+> Completed users also remain on a launch-matched neutral root while required
+> account evidence is unknown, so approval controls are never a transient
+> startup state. Fetch, decoding, pending-row push, and ledger-write failures
+> keep that root active, expose **Try Again**, and receive bounded 5-, 10-, and
+> 20-second account-fenced retries. Once an authenticated account enters that
+> missing-local-evidence restoration state, only a successfully persisted
+> authoritative merge may select the scanner or Powered by AI.
 > Internal test builds may continue, but
 > do not nominate the candidate for public production or enable strict server
 > enforcement until **iOS Build and Test** and the validation-only **Supabase
@@ -59,6 +63,17 @@ steps are tracked in the
 > origins. Public promotion still requires exact-SHA archive evidence reporting
 > `transport_security: "ats-default"`. See the
 > [iOS transport security contract](docs/development-guides/17-ios-transport-security.md).
+
+> **Sign in with Apple deletion status (2026-08-06):** Apple authorization-code
+> capture, Vault-backed refresh-token storage, claim-fenced provider revocation,
+> subject-bound credential-state revalidation, and a durable manual fallback
+> for pre-rollout Apple accounts are implemented in source. Supabase Auth
+> deletion is now unreachable while a stored Apple credential remains.
+> Production promotion still requires hosted Apple key
+> provisioning, exact-SHA fresh-catalog replay, a real Apple exchange/revoke
+> smoke, and either an enforceable minimum-supported-build gate or an
+> independent server-delivered manual fallback for older iOS binaries. See the
+> [canonical Apple deletion contract](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 > **Production release evidence gate (2026-07-28):** DwC-A exports are
 > authoritatively disabled for the initial launch by migration
@@ -551,7 +566,9 @@ notes, and selected in-progress work. **Export** — staged Darwin Core Archive
 the initial production launch. **Account** — Sign in with Apple or Google,
 anonymous Ghost Sessions, and durable account deletion that detaches retained
 scientific observations from the account, queues media cleanup, and removes
-the backend Auth identity only after database and storage cleanup are verified.
+the backend Auth identity only after database, storage, and any stored Apple
+provider credential are verified complete. Pre-rollout Apple accounts receive
+a durable manual-revocation notice because no server token exists to revoke.
 An independent scheduled
 health check alerts when the reaper is unconfigured, work is overdue, leases
 expire, or the deletion backlog breaches its SLA. See the
@@ -628,6 +645,12 @@ expire, or the deletion backlog breaches its SLA. See the
   policy-reviewed ownership and durable provider-state repair and remains gated
   by the
   [Supabase deployment runbook](docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
+- Apple sign-in also sends the one-use authorization code to an authenticated
+  Edge endpoint immediately after Supabase session installation. The server
+  verifies both Apple identity tokens, binds their subject to the Auth identity,
+  and stores only the refresh token in Vault. Registration failure clears the
+  new local session so later account deletion is never represented as
+  automatically revocable without a durable credential.
 - RevenueCat webhook verifies a timestamped raw-body HMAC, reconciles
   authoritative subscriber state, and applies idempotent, monotonically ordered
   `free` ↔ `pro` transitions. Transfers reconcile source and destination in one
@@ -700,11 +723,14 @@ expire, or the deletion backlog breaches its SLA. See the
   archive in JavaScript.
 - Account deletion preserves login access through relational account detachment
   and cursor-persisted R2 erasure. It waits for a delayed empty verification
-  sweep before removing Auth, and a scheduled reaper resumes every phase after
-  a crash. The database refuses an R2 storage claim unless the matching private
+  sweep, then revokes any stored Apple refresh token before removing Auth; a
+  scheduled reaper resumes every phase after a crash. The database refuses an
+  R2 storage claim unless the matching private
   deletion job is `storage_pending` after relational cleanup, and vetoes the
   claim while a live profile or owned scan remains. An outbox row alone is never
-  deletion authority. A separate five-minute monitor reads only aggregate
+  deletion authority. Apple-linked legacy accounts without a captured token
+  complete deletion with an explicit manual-revocation disposition that iOS
+  persists across sign-out and relaunch. A separate five-minute monitor reads only aggregate
   service-only health and detects missing reaper credentials, a disabled cron,
   retry failures, expired leases, and age/backlog SLA breaches.
 

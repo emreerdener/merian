@@ -1,3 +1,4 @@
+import AuthenticationServices
 import Foundation
 @testable import Merian
 import Supabase
@@ -133,6 +134,74 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertFalse(
             SupabaseManager.requiresProviderBoundGhostMerge(
                 after: URLError(.notConnectedToInternet)
+            )
+        )
+    }
+
+    func testAppleCredentialRegistrationRetriesTheSameDurableRequest() async throws {
+        var attempts = 0
+        var waits = 0
+
+        try await SupabaseManager.performAppleCredentialRegistrationWithRetry(
+            invoke: {
+                attempts += 1
+                if attempts == 1 {
+                    throw URLError(.networkConnectionLost)
+                }
+            },
+            waitBeforeRetry: {
+                waits += 1
+            }
+        )
+
+        XCTAssertEqual(attempts, 2)
+        XCTAssertEqual(waits, 1)
+    }
+
+    func testAppleCredentialRegistrationStopsAfterBoundedRetry() async {
+        var attempts = 0
+
+        do {
+            try await SupabaseManager.performAppleCredentialRegistrationWithRetry(
+                invoke: {
+                    attempts += 1
+                    throw URLError(.cannotConnectToHost)
+                },
+                waitBeforeRetry: {}
+            )
+            XCTFail("Expected the bounded Apple credential registration to fail")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .cannotConnectToHost)
+        }
+
+        XCTAssertEqual(attempts, 2)
+    }
+
+    func testAppleCredentialRevocationStateFailsClosedWithoutClearingAuthorizedState() {
+        XCTAssertFalse(
+            SupabaseManager.shouldClearLocalSessionAfterAppleCredentialState(
+                .authorized
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldClearLocalSessionAfterAppleCredentialState(
+                .revoked
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldClearLocalSessionAfterAppleCredentialState(
+                .notFound
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldClearLocalSessionAfterAppleCredentialState(
+                .transferred
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldClearLocalSessionAfterAppleCredentialState(
+                .authorized,
+                lookupFailed: true
             )
         )
     }

@@ -14,6 +14,7 @@ export type SafeDeleteHandlerDependencies = {
     {
       jobId: string;
       status: "pending" | "storage_pending" | "auth_pending" | "completed";
+      manualProviderRevocationRequired: boolean;
     }
   >;
   process?: (
@@ -34,7 +35,7 @@ export async function handleSafeDelete(
   // cleanup nor Auth deletion is attempted.
   const deletion = await request(userId, supabaseAdmin);
   if (deletion.status === "completed") {
-    return completedResponse();
+    return completedResponse(deletion.manualProviderRevocationRequired);
   }
 
   let result: AccountDeletionWorkerResult;
@@ -49,11 +50,11 @@ export async function handleSafeDelete(
       stage: "claim",
       code: "worker_start_failed",
     });
-    return pendingResponse();
+    return pendingResponse(deletion.manualProviderRevocationRequired);
   }
 
   if (result.completed > 0) {
-    return completedResponse();
+    return completedResponse(deletion.manualProviderRevocationRequired);
   }
 
   for (const failure of result.failures) {
@@ -64,14 +65,15 @@ export async function handleSafeDelete(
     });
   }
 
-  return pendingResponse();
+  return pendingResponse(deletion.manualProviderRevocationRequired);
 }
 
-function pendingResponse(): Response {
+function pendingResponse(manualProviderRevocationRequired: boolean): Response {
   return jsonResponse(
     {
       success: true,
       status: "pending",
+      manual_provider_revocation_required: manualProviderRevocationRequired,
       message: "Account deletion was accepted and will continue automatically.",
     },
     202,
@@ -79,11 +81,14 @@ function pendingResponse(): Response {
   );
 }
 
-function completedResponse(): Response {
+function completedResponse(
+  manualProviderRevocationRequired: boolean,
+): Response {
   return jsonResponse(
     {
       success: true,
       status: "completed",
+      manual_provider_revocation_required: manualProviderRevocationRequired,
       message: "Account securely deleted and anonymized.",
     },
     200,

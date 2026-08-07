@@ -3,6 +3,15 @@ import { assert, assertStringIncludes } from "@std/assert";
 const handlerUrl = new URL("../safe-delete/handler.ts", import.meta.url);
 const workerUrl = new URL("../safe-delete/worker.ts", import.meta.url);
 const dbUrl = new URL("../safe-delete/db.ts", import.meta.url);
+const appleClientUrl = new URL("../_shared/appleSignIn.ts", import.meta.url);
+const appleRegistrationUrl = new URL(
+  "../register-apple-revocation-token/handler.ts",
+  import.meta.url,
+);
+const swiftAuthUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
+  import.meta.url,
+);
 const storageWorkerUrl = new URL(
   "../safe-delete/storageWorker.ts",
   import.meta.url,
@@ -29,12 +38,13 @@ const catalogTestUrl = new URL(
   import.meta.url,
 );
 
-Deno.test("account deletion source preserves durable cleanup-before-Auth ordering", async () => {
-  const [handler, worker, db, storageWorker] = await Promise.all([
+Deno.test("account deletion source preserves durable cleanup-provider-Auth ordering", async () => {
+  const [handler, worker, db, storageWorker, appleClient] = await Promise.all([
     Deno.readTextFile(handlerUrl),
     Deno.readTextFile(workerUrl),
     Deno.readTextFile(dbUrl),
     Deno.readTextFile(storageWorkerUrl),
+    Deno.readTextFile(appleClientUrl),
   ]);
 
   assert(
@@ -53,6 +63,17 @@ Deno.test("account deletion source preserves durable cleanup-before-Auth orderin
       worker.indexOf("await deleteAuth(claim.userId, supabaseAdmin)"),
     "Relational cleanup must complete before Auth deletion.",
   );
+  assertStringIncludes(
+    worker,
+    'if (cleanupPhase === "provider_revocation_pending")',
+  );
+  assert(
+    worker.indexOf("await revokeProvider(credential.refreshToken)") <
+        worker.indexOf("await completeProvider(supabaseAdmin, claim)") &&
+      worker.indexOf("await completeProvider(supabaseAdmin, claim)") <
+        worker.indexOf("await deleteAuth(claim.userId, supabaseAdmin)"),
+    "Apple must return success and the provider outcome must commit before Auth deletion.",
+  );
   assert(
     !worker.includes('if (claim.status === "pending")'),
     "Every retry must revalidate cleanup immediately before Auth deletion.",
@@ -61,6 +82,13 @@ Deno.test("account deletion source preserves durable cleanup-before-Auth orderin
   assertStringIncludes(db, "auth.admin.deleteUser(userId)");
   assertStringIncludes(db, 'error.code === "user_not_found"');
   assertStringIncludes(db, "status === 404");
+  assertStringIncludes(db, '"get_account_deletion_provider_token"');
+  assertStringIncludes(
+    db,
+    '"complete_account_deletion_provider_revocation"',
+  );
+  assertStringIncludes(appleClient, "`${APPLE_ISSUER}/auth/revoke`");
+  assertStringIncludes(appleClient, 'token_type_hint: "refresh_token"');
   for (
     const fragment of [
       "claimStorageDeletionJobs",
@@ -73,6 +101,89 @@ Deno.test("account deletion source preserves durable cleanup-before-Auth orderin
   ) {
     assertStringIncludes(storageWorker, fragment);
   }
+});
+
+Deno.test("Apple sign-in captures the one-use code through the authenticated durable endpoint", async () => {
+  const [registration, swiftAuth, config, workflow] = await Promise.all([
+    Deno.readTextFile(appleRegistrationUrl),
+    Deno.readTextFile(swiftAuthUrl),
+    Deno.readTextFile(configUrl),
+    Deno.readTextFile(workflowUrl),
+  ]);
+
+  for (
+    const fragment of [
+      "appleRevocationRegistrationExists",
+      "exchangeAppleAuthorizationCode",
+      "storeAppleRevocationCredential",
+      "revokeAppleRefreshToken",
+      '"apple_credential_compensation_failed"',
+    ]
+  ) {
+    assertStringIncludes(registration, fragment);
+  }
+  assert(
+    registration.indexOf("await registrationExists(") <
+        registration.indexOf(
+          "await exchange(authorizationCode, identityToken)",
+        ) &&
+      registration.indexOf("await exchange(authorizationCode, identityToken)") <
+        registration.indexOf("await store(supabaseAdmin"),
+    "A retry receipt must be checked before code exchange, and exchange must precede the atomic Vault store.",
+  );
+
+  for (
+    const fragment of [
+      "appleIDCredential.authorizationCode",
+      "ASAuthorizationAppleIDProvider.credentialRevokedNotification",
+      "getCredentialState(",
+      "self.currentUser?.identities?.contains(where:",
+      '$0.provider == "apple" && $0.id == appleUserId',
+      "shouldClearLocalSessionAfterAppleCredentialState",
+      '"register-apple-revocation-token"',
+      "performAppleCredentialRegistrationWithRetry",
+      "didInstallAppleSession",
+      "clearLocalSessionAfterAuthFailure",
+    ]
+  ) {
+    assertStringIncludes(swiftAuth, fragment);
+  }
+
+  const registrationConfigStart = config.indexOf(
+    "[functions.register-apple-revocation-token]",
+  );
+  const registrationConfigEnd = config.indexOf(
+    "\n[functions.",
+    registrationConfigStart + 1,
+  );
+  assertStringIncludes(
+    config.slice(registrationConfigStart, registrationConfigEnd),
+    "verify_jwt = true",
+  );
+  for (
+    const secret of [
+      "APPLE_SIGN_IN_TEAM_ID",
+      "APPLE_SIGN_IN_KEY_ID",
+      "APPLE_SIGN_IN_PRIVATE_KEY",
+    ]
+  ) {
+    assertStringIncludes(workflow, secret);
+  }
+  const secretGateStart = workflow.indexOf(
+    "- name: Validate deployment secrets",
+  );
+  const migrationPush = workflow.indexOf("- name: Push Database Migrations");
+  const secretGate = workflow.slice(secretGateStart, migrationPush);
+  for (
+    const secret of [
+      "APPLE_SIGN_IN_TEAM_ID",
+      "APPLE_SIGN_IN_KEY_ID",
+      "APPLE_SIGN_IN_PRIVATE_KEY",
+    ]
+  ) {
+    assertStringIncludes(secretGate, secret);
+  }
+  assertStringIncludes(secretGate, "BEGIN PRIVATE KEY");
 });
 
 Deno.test("account deletion reaper is service-only, bounded, and deployed", async () => {
@@ -130,8 +241,20 @@ Deno.test("account deletion catalog fixture follows the durable phase order", as
   const storageClaim = catalogTest.indexOf(
     "FROM public.claim_pending_storage_deletions(1)",
   );
+  const providerToken = catalogTest.indexOf(
+    "FROM public.get_account_deletion_provider_token(",
+    storageClaim,
+  );
+  const providerCompletion = catalogTest.indexOf(
+    "SELECT public.complete_account_deletion_provider_revocation(",
+    providerToken,
+  );
   const healthCheck = catalogTest.indexOf(
     "FROM public.get_account_deletion_health() AS health",
+  );
+  const authDeletion = catalogTest.indexOf(
+    "DELETE FROM auth.users\nWHERE id =",
+    providerCompletion,
   );
 
   assert(
@@ -139,8 +262,11 @@ Deno.test("account deletion catalog fixture follows the durable phase order", as
       relationalCleanup > prematureFinish &&
       verificationDeadlineOverride > relationalCleanup &&
       storageClaim > verificationDeadlineOverride &&
-      healthCheck > storageClaim,
-    "The executable fixture must reject premature completion, create the outbox through relational cleanup, shorten its deadline, claim storage work, then observe retry state through service-only health.",
+      providerToken > storageClaim &&
+      providerCompletion > providerToken &&
+      healthCheck > providerCompletion &&
+      authDeletion > healthCheck,
+    "The executable fixture must reject premature completion, finish durable storage, revoke and destroy the Apple credential, observe retry state, and only then delete Auth.",
   );
 });
 

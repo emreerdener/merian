@@ -62,6 +62,20 @@ fully complete; a new request normally returns `202` because the durable
 server-side reaper must sweep and later verify storage before deleting Auth.
 Both responses are safe points for local sign-out and device-data cleanup.
 
+Every successful response must also contain
+`manual_provider_revocation_required`. When true, `DeleteAccountSheet` records
+the durable app-level notice before sign-out. The root app then presents
+Apple's Settings/support instructions on launch and foreground until the user
+explicitly confirms removal. New Apple accounts normally use automatic
+server-side revocation; this fallback exists for accounts authorized before a
+refresh token could be captured. The confirmation sheet explains both paths.
+
+Older binaries do not implement the required receipt field or durable notice.
+App Store availability of the supporting build is not proof that those clients
+received the fallback. Public promotion requires either an enforceable
+minimum-supported-build control with a clear update path back to this in-app
+deletion flow, or an independent server-delivered manual fallback.
+
 The server owns all ordering and retry semantics. The app must not send a target
 user ID, attempt to delete the Auth identity directly, or retry individual
 cleanup phases. Account detachment and private-content clearing are verified
@@ -79,6 +93,9 @@ public display, not this restricted backend retention.
 
 The complete boundary and required update procedure are canonical in
 [`17-scientific-observation-retention.md`](../../../../../../docs/backend-and-data/17-scientific-observation-retention.md).
+The Apple-specific capture, deletion ordering, legacy fallback, and production
+gate are canonical in
+[`20-sign-in-with-apple-account-deletion.md`](../../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 ## Plan and prelaunch purchase testing
 

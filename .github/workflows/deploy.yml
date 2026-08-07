@@ -87,6 +87,9 @@ jobs:
           REVENUECAT_SECRET_API_KEY: ${{ secrets.REVENUECAT_SECRET_API_KEY }}
           REVENUECAT_WEBHOOK_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SECRET }}
           REVENUECAT_WEBHOOK_SIGNING_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SIGNING_SECRET }}
+          APPLE_SIGN_IN_TEAM_ID: ${{ secrets.APPLE_SIGN_IN_TEAM_ID }}
+          APPLE_SIGN_IN_KEY_ID: ${{ secrets.APPLE_SIGN_IN_KEY_ID }}
+          APPLE_SIGN_IN_PRIVATE_KEY: ${{ secrets.APPLE_SIGN_IN_PRIVATE_KEY }}
           R2_READ_ACCESS_KEY_ID: ${{ secrets.R2_READ_ACCESS_KEY_ID }}
           R2_READ_SECRET_ACCESS_KEY: ${{ secrets.R2_READ_SECRET_ACCESS_KEY }}
           R2_EVENT_WEBHOOK_SECRET: ${{ secrets.R2_EVENT_WEBHOOK_SECRET }}
@@ -97,6 +100,9 @@ jobs:
           : "${REVENUECAT_SECRET_API_KEY:?Missing REVENUECAT_SECRET_API_KEY GitHub secret}"
           : "${REVENUECAT_WEBHOOK_SECRET:?Missing REVENUECAT_WEBHOOK_SECRET GitHub secret}"
           : "${REVENUECAT_WEBHOOK_SIGNING_SECRET:?Missing REVENUECAT_WEBHOOK_SIGNING_SECRET GitHub secret}"
+          : "${APPLE_SIGN_IN_TEAM_ID:?Missing APPLE_SIGN_IN_TEAM_ID GitHub secret}"
+          : "${APPLE_SIGN_IN_KEY_ID:?Missing APPLE_SIGN_IN_KEY_ID GitHub secret}"
+          : "${APPLE_SIGN_IN_PRIVATE_KEY:?Missing APPLE_SIGN_IN_PRIVATE_KEY GitHub secret}"
           : "${R2_READ_ACCESS_KEY_ID:?Missing R2_READ_ACCESS_KEY_ID GitHub secret}"
           : "${R2_READ_SECRET_ACCESS_KEY:?Missing R2_READ_SECRET_ACCESS_KEY GitHub secret}"
           if [ -n "$AI_QUOTA_IP_HASH_SECRET" ] && [ "${#AI_QUOTA_IP_HASH_SECRET}" -lt 32 ]; then
@@ -129,6 +135,14 @@ jobs:
             echo "REVENUECAT_WEBHOOK_SIGNING_SECRET must contain at least 32 characters." >&2
             exit 1
           fi
+          case "$APPLE_SIGN_IN_PRIVATE_KEY" in
+            *"BEGIN PRIVATE KEY"*"END PRIVATE KEY"*)
+              ;;
+            *)
+              echo "APPLE_SIGN_IN_PRIVATE_KEY must be an Apple .p8 PKCS#8 private key." >&2
+              exit 1
+              ;;
+          esac
           case "$REVENUECAT_SECRET_API_KEY" in
             sk_*)
               ;;
@@ -205,7 +219,9 @@ jobs:
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/_shared/subscriptionPass.ts \
             supabase/functions/_shared/subscriptionPass_test.ts \
+            supabase/functions/_shared/appleSignIn_test.ts \
             supabase/functions/share-scan-to-explore/index.ts \
+            supabase/functions/register-apple-revocation-token/handler_test.ts \
             supabase/functions/_tests/accountDeletionCoverage.test.ts \
             supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
             supabase/functions/_tests/aiQuotaCoverage.test.ts \
@@ -237,6 +253,8 @@ jobs:
             supabase/functions/safe-delete/index.ts \
             supabase/functions/safe-delete/handler.ts \
             supabase/functions/safe-delete/worker.ts \
+            supabase/functions/register-apple-revocation-token/index.ts \
+            supabase/functions/register-apple-revocation-token/handler.ts \
             supabase/functions/reconcile-account-deletions/index.ts \
             supabase/functions/download-dwca/handler_test.ts \
             supabase/functions/download-dwca/db_test.ts \
@@ -352,7 +370,9 @@ jobs:
       - name: Test durable account deletion boundary
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests/account_deletion_security.sql,supabase/config.toml,../.github/workflows \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests/account_deletion_security.sql,supabase/config.toml,../apps/ios,../.github/workflows \
+            supabase/functions/_shared/appleSignIn_test.ts \
+            supabase/functions/register-apple-revocation-token/handler_test.ts \
             supabase/functions/_tests/safeDelete.test.ts \
             supabase/functions/_tests/accountDeletionCoverage.test.ts \
             supabase/functions/_tests/accountDeletionMigrationContract.test.ts
@@ -674,6 +694,23 @@ jobs:
             "REVENUECAT_SECRET_API_KEY=$REVENUECAT_SECRET_API_KEY" \
             "REVENUECAT_WEBHOOK_SECRET=$REVENUECAT_WEBHOOK_SECRET" \
             "REVENUECAT_WEBHOOK_SIGNING_SECRET=$REVENUECAT_WEBHOOK_SIGNING_SECRET" \
+            --project-ref "$PROJECT_ID"
+
+      - name: Synchronize Sign in with Apple revocation credentials
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          APPLE_SIGN_IN_TEAM_ID: ${{ secrets.APPLE_SIGN_IN_TEAM_ID }}
+          APPLE_SIGN_IN_KEY_ID: ${{ secrets.APPLE_SIGN_IN_KEY_ID }}
+          APPLE_SIGN_IN_PRIVATE_KEY: ${{ secrets.APPLE_SIGN_IN_PRIVATE_KEY }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          : "${APPLE_SIGN_IN_TEAM_ID:?APPLE_SIGN_IN_TEAM_ID is required}"
+          : "${APPLE_SIGN_IN_KEY_ID:?APPLE_SIGN_IN_KEY_ID is required}"
+          : "${APPLE_SIGN_IN_PRIVATE_KEY:?APPLE_SIGN_IN_PRIVATE_KEY is required}"
+          supabase secrets set \
+            "APPLE_SIGN_IN_TEAM_ID=$APPLE_SIGN_IN_TEAM_ID" \
+            "APPLE_SIGN_IN_KEY_ID=$APPLE_SIGN_IN_KEY_ID" \
+            "APPLE_SIGN_IN_PRIVATE_KEY=$APPLE_SIGN_IN_PRIVATE_KEY" \
             --project-ref "$PROJECT_ID"
 
       - name: Synchronize Darwin Core pseudonym key

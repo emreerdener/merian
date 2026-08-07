@@ -94,11 +94,15 @@ as their permanent engineering identity.
   onto the locked current head. Gemini, PostHog, and iOS permission resolve that
   all-version head before disclosure compatibility, so any head revocation stays
   deny-wins across app upgrades. Completed users remain on a launch-matched
-  neutral root until required account evidence resolves, rather than briefly
-  seeing approval controls during restoration. Internal test
-  builds may continue; public production remains blocked until **iOS Build and
-  Test** and **Supabase Candidate Validation** pass the same candidate SHA, plus
-  App Store 18+, paid Gemini billing/DPA, and counsel evidence. See the
+  neutral root while required account evidence is unknown, rather than briefly
+  seeing approval controls during restoration. Synchronization failures retain
+  that root with bounded automatic and explicit retry. Once an authenticated
+  account enters missing-local-evidence restoration, only a durable,
+  identity-fenced authoritative merge may select the scanner or Powered by AI.
+  Internal test builds may continue; public production remains blocked until
+  **iOS Build and Test** and **Supabase Candidate Validation** pass the same
+  candidate SHA, plus App Store 18+, paid Gemini billing/DPA, and counsel
+  evidence. See the
   [`canonical consent readiness record`](./legal/production-consent-readiness-2026-08-03.md).
 - **iOS privacy manifest (2026-08-05)**: The missing main-application manifest
   finding is closed in source. The app declares no tracking, conservatively
@@ -252,6 +256,17 @@ as their permanent engineering identity.
   [schema contract](./backend-and-data/04-database-schema.md),
   [API contract](./backend-and-data/05-api-contracts.md), and
   [counsel review memo](./legal/terms-counsel-review.md).
+- **Sign in with Apple deletion revocation**: Supporting iOS builds capture
+  Apple's authorization code at sign-in, while an authenticated Edge route
+  verifies the Apple subject and stores the refresh token in Vault. Durable
+  deletion revokes and destroys that token after storage verification and
+  before Auth. Pre-rollout Apple accounts receive a persistent manual-removal
+  notice. Apple credential-revocation notifications are revalidated against the
+  same active provider subject before local session teardown. Production
+  remains gated on secrets, exact-SHA database evidence, real Apple smokes, and
+  either an enforceable minimum-supported-build gate or an independent
+  server-delivered fallback for older iOS binaries. See the
+  [canonical contract](./backend-and-data/20-sign-in-with-apple-account-deletion.md).
 - **Explore media-loss contract**: An unavailable object never auto-deletes or
   auto-unpublishes a post. Two spaced direct R2-origin `404` checks confirm
   loss; bad items are omitted, all-missing posts are reversibly quarantined,
@@ -457,7 +472,7 @@ as their permanent engineering identity.
   promotion criteria for DwC-A version 2, revocable archive delivery, atomic
   scan finalization, and the public-web Explore boundary.
 - **[`/backend-and-data/15-edge-function-fleet-review-2026-07-28.md`](./backend-and-data/15-edge-function-fleet-review-2026-07-28.md)**
-  — Complete 90-function inventory, corrected cross-cutting findings, boundary
+  — Complete 91-function inventory, corrected cross-cutting findings, boundary
   classification, and required production evidence for the fleet-wide review.
 - **[`/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md)**
   — Normative joined contract for durable scan success, inline and staged media
@@ -479,6 +494,10 @@ as their permanent engineering identity.
   — Joined implementation and release record for collection ownership,
   exact-size staging uploads, serialized complimentary funding, redirect origin
   safety, taxonomy checkpointing, rollout dependencies, and production evidence.
+- **[`/backend-and-data/20-sign-in-with-apple-account-deletion.md`](./backend-and-data/20-sign-in-with-apple-account-deletion.md)**
+  — Normative authorization-code capture, Vault token storage, durable provider
+  revocation, legacy manual fallback, key rotation, rollout, and verification
+  contract for Sign in with Apple account deletion.
 
 ### Features & Hardware
 

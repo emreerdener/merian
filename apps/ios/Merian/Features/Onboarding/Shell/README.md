@@ -18,8 +18,11 @@ completed onboarding, current required consent, and
 `ConsentManager.isRestoringRequiredConsent`:
 
 - a first-time user enters this shell at `.welcome`;
-- a completed user stays on the launch-matched restoration surface until the
-  initial session and any authoritative consent merge resolve;
+- a completed user whose current local evidence is missing stays on the
+  launch-matched restoration surface until the initial session establishes no
+  active account or the authenticated account completes an authoritative
+  consent merge; synchronization failures retain that surface with bounded
+  automatic and explicit retry;
 - a completed user whose resolved account still lacks current evidence enters
   this shell directly at `.ready`; and
 - a completed user with current evidence bypasses this shell for the Capture

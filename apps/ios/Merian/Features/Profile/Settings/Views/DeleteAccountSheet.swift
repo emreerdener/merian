@@ -40,6 +40,10 @@ struct DeleteAccountSheet: View {
                                 icon: "creditcard",
                                 text: "Deleting your account does not cancel an Apple subscription. Cancel it separately to stop renewal."
                             )
+                            consequenceRow(
+                                icon: "apple.logo",
+                                text: "Naturebook revokes Sign in with Apple automatically when a server token is available. Legacy accounts receive Apple’s manual revocation steps after deletion is accepted."
+                            )
                         }
                     }
                     .padding(.vertical, 8)
@@ -114,7 +118,10 @@ struct DeleteAccountSheet: View {
         errorMessage = nil
         
         do {
-            try await MerianNetworkClient.shared.safeDeleteAccount()
+            let receipt = try await MerianNetworkClient.shared.safeDeleteAccount()
+            if receipt.manualProviderRevocationRequired {
+                ManualAppleRevocationNoticeStore.record()
+            }
             await supabase.signOut()
             ScanRepository.shared.purgeAllData(modelContext: modelContext)
             dismiss() // the parent view will catch the sign out and pop out to root

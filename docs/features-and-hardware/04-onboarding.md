@@ -124,14 +124,16 @@ shared managers; tests inject isolated settings and consent ledgers.
 |---|---|
 | Onboarding is incomplete | `OnboardingView`, beginning at `.welcome` |
 | Onboarding is complete and current required consent is present | `CaptureWorkspaceView` |
-| Onboarding is complete, current evidence is missing locally, and restoration is pending | Launch-screen-matched `ConsentRestorationView` |
+| Onboarding is complete, current evidence is missing locally, and restoration is pending or retryable | Launch-screen-matched `ConsentRestorationView` |
 | Onboarding is complete, restoration has resolved, and current evidence is still missing | `OnboardingView`, beginning at `.ready` |
 
 The restoration surface is deliberately neutral: it matches the black launch
 screen and delays its progress indicator for 350 milliseconds. A quick account
 restore therefore introduces no visible intermediate screen, while a slower
 restore still provides accessible feedback. It does not mount approval controls
-or initialize the Capture workspace.
+or initialize the Capture workspace. A recoverable synchronization failure
+replaces the progress indicator with neutral explanatory copy and a **Try
+Again** action during the automatic retry cycle and after its exhaustion.
 
 `ConsentManager.RequiredConsentRestorationState` distinguishes evidence that is
 not known yet from evidence that is known to be absent:
@@ -139,11 +141,40 @@ not known yet from evidence that is known to be absent:
 - `.awaitingInitialSession` covers startup before the initial auth result.
 - `.reconciling(userId:)` covers an authenticated account whose local ledger
   does not yet prove current adult, Terms, and Gemini consent.
-- `.resolved` means the initial result is authoritative enough to choose a real
-  root. A successful merge resolves the state; a non-cancellation sync failure
-  also resolves it fail-closed so the user is not trapped behind an indefinite
-  launch surface. Cancellation leaves the in-flight state pending for the next
-  account/session transition.
+- `.waitingToRetry(userId:attempt:)` records a failed reconciliation and its
+  next bounded automatic retry without changing the account's authority.
+- `.retryRequired(userId:)` records an exhausted automatic budget and exposes
+  explicit retry on the same neutral surface.
+- `.resolved` means the initial result is unauthenticated, current local
+  required evidence already bypasses restoration, or an identity-fenced,
+  durably persisted authoritative merge can choose a real root. Remote absence
+  is authoritative; network, decoding, pending-row push, and persistence
+  failures are not.
+
+```mermaid
+stateDiagram-v2
+    [*] --> awaitingInitialSession
+    awaitingInitialSession --> resolved: no active session
+    awaitingInitialSession --> resolved: current local evidence already exists
+    awaitingInitialSession --> reconciling: account lacks local evidence
+    reconciling --> resolved: authoritative merge persisted
+    reconciling --> waitingToRetry: failure and retry budget remains
+    reconciling --> retryRequired: failure after retry budget exhausted
+    waitingToRetry --> reconciling: timer, Try Again, or generation invalidation
+    waitingToRetry --> resolved: another authoritative merge persists
+    retryRequired --> reconciling: Try Again or generation invalidation
+    retryRequired --> resolved: another authoritative merge persists
+    resolved --> reconciling: replacement account lacks local evidence
+```
+
+Automatic retries wait 5, 10, and 20 seconds after the failed attempt. The
+Supabase client may already have retried transient reads internally, so this
+outer budget is intentionally bounded. Every timer, attempt, and manual retry
+is fenced by the observed account, synchronous SDK account, and synchronization
+generation. Invalidating synchronization cancels its timer and moves the same
+unresolved account back to `.reconciling`; the replacement account/session then
+owns the next decision and a fresh retry budget. Cancellation never establishes
+absence.
 
 A repeated auth notification for the same resolved account must not re-enter
 restoration. `isRestoringRequiredConsent` also becomes false immediately when

@@ -6,11 +6,39 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Sign in with Apple Account Deletion — Release-Gated
+
+- New Apple sign-ins now require the authorization code as well as the identity
+  token. Naturebook exchanges the code server-side, verifies the Apple subject,
+  and stores the refresh token encrypted in Supabase Vault for later deletion.
+- Account deletion now has a durable provider-revocation stage after verified
+  media erasure and before Supabase Auth removal. Apple outages or
+  configuration failures retain the login and encrypted credential for a
+  claim-fenced retry instead of silently skipping revocation.
+- Apple-linked accounts created before token capture remain deletable and
+  return an explicit legacy disposition. iOS records that disposition before
+  sign-out and keeps showing Apple's manual removal steps until the user marks
+  them complete.
+- Apple credential-revocation notifications now trigger a subject-bound
+  credential-state check. A still-authorized identity keeps its session;
+  revoked, missing, transferred, unknown, or failed state resolution clears
+  only the matching Apple-linked local session.
+- Source implementation is complete, but public promotion remains gated on
+  production Apple key provisioning, exact-SHA disposable database replay, a
+  real exchange/revoke smoke, and either an enforceable
+  minimum-supported-build gate or an independent server-delivered manual
+  fallback for older iOS binaries. See the
+  [canonical Apple deletion contract](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
+
 ### Consent and Privacy Controls — Release-Gated
 
 - Cold launch now keeps completed users on a launch-matched restoration surface
   while account consent is reconciled, instead of briefly flashing the approval
   screen before opening the scanner.
+- A failed consent restore no longer behaves like proof that consent is absent.
+  The neutral surface now offers **Try Again**, performs three bounded retries,
+  preserves its budget across duplicate auth notifications, and rejects stale
+  retry work after account or synchronization-generation changes.
 - The final onboarding screen now combines 18+ self-attestation, required Terms
   and permission to send observation data to Google Gemini for AI-powered
   identification, and a separate optional analytics choice. Existing beta users

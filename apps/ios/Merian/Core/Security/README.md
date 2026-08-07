@@ -94,7 +94,9 @@ the current adult, Terms, and Gemini records moments later.
 |---|---|
 | `.awaitingInitialSession` | No initial auth result has been observed yet. |
 | `.reconciling(userId:)` | The active account lacks current local evidence and its pending rows plus authoritative remote state are being reconciled. |
-| `.resolved` | The initial session has no further restoration work, or the account reconciliation attempt has completed. |
+| `.waitingToRetry(userId:attempt:)` | Reconciliation failed without establishing absence; an account- and generation-fenced automatic retry is pending. |
+| `.retryRequired(userId:)` | Three automatic retries were exhausted; the neutral surface offers an explicit retry. |
+| `.resolved` | The initial session is unauthenticated, current local required evidence already bypasses restoration, or an identity-fenced authoritative merge has durably established a previously unknown account state. |
 
 `isRestoringRequiredConsent` is true only while required consent is missing and
 the enum has not resolved. Current required evidence always wins and makes the
@@ -102,13 +104,21 @@ computed value false. `AppRootPresentationPolicy` in `MerianApp.swift` uses that
 signal to hold a completed user on a launch-matched neutral surface instead of
 mounting the approval screen during an in-flight restore.
 
-The state resolves after an identity-fenced authoritative merge, including a
-merge that proves the evidence absent. It also resolves after a
-non-cancellation sync failure so launch cannot become an indefinite spinner;
-all provider and hardware gates remain closed, and the user is routed to the
-required Ready screen. Cancellation preserves the pending state because an
-account or synchronization generation may be changing. A duplicate auth event
-for the same resolved session does not reopen restoration.
+Once missing local evidence has entered restoration, the state resolves only
+after an identity-fenced authoritative merge, including a merge that proves the
+evidence absent. Network, decoding, pending-row push, and persistence failures
+transition to 5-, 10-, and 20-second bounded retries and expose an immediate
+**Try Again** action without routing to Ready. Timers and manual retries retain
+both account and synchronization-generation fences. Cancellation preserves the
+pending state because an account or synchronization generation may be changing.
+A duplicate auth event neither consumes the retry budget nor reopens restoration
+for the same resolved session.
+
+`invalidateSynchronizationWork()` cancels scheduled and active work, resets the
+retry counter, and normalizes a retryable state for the same unresolved account
+back to `.reconciling`. This prevents `.waitingToRetry` from surviving after its
+timer has been cancelled and gives the replacement synchronization generation a
+fresh retry budget.
 
 See the
 [Onboarding Flow](../../../../../docs/features-and-hardware/04-onboarding.md#root-presentation-gate)

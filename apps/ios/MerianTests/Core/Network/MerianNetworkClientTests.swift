@@ -4575,10 +4575,36 @@ struct MerianNetworkClientTests {
         MockURLProtocol.mockEndpoints["/safe-delete"] = { request in
             #expect(request.url?.path.hasSuffix("/safe-delete") == true)
             #expect(request.httpMethod == "POST")
-            return (mockResponse, Data())
+            return (
+                mockResponse,
+                Data(
+                    #"{"success":true,"status":"pending","manual_provider_revocation_required":true}"#.utf8
+                )
+            )
         }
         
-        try await MerianNetworkClient.shared.safeDeleteAccount()
+        let receipt = try await MerianNetworkClient.shared.safeDeleteAccount()
+        #expect(receipt.status == .pending)
+        #expect(receipt.manualProviderRevocationRequired)
+    }
+
+    @Test func testSafeDeleteAccountRejectsMissingProviderRevocationDisposition() async throws {
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 202,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        MockURLProtocol.mockEndpoints["/safe-delete"] = { _ in
+            (
+                mockResponse,
+                Data(#"{"success":true,"status":"pending"}"#.utf8)
+            )
+        }
+
+        await #expect(throws: MerianError.invalidResponse) {
+            _ = try await MerianNetworkClient.shared.safeDeleteAccount()
+        }
     }
 
     @Test func testRequestDwcAExport() async throws {

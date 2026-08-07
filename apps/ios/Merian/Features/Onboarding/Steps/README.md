@@ -16,9 +16,11 @@ The `Steps` directory contains the individual, user-facing screens that make up 
   adult, Terms, Gemini, and optional analytics evidence locally, then
   synchronizes immutable rows to the active Supabase account. Existing beta
   users route directly here without repeating Camera or Location only after
-  launch reconciliation establishes that current required account evidence is
-  genuinely absent; while that result is pending, `MerianApp` keeps the
-  onboarding shell unmounted.
+  the initial session establishes no active account or an authenticated,
+  identity-fenced merge establishes that current required account evidence is
+  genuinely absent. Synchronization failures keep the launch-matched neutral
+  surface mounted with bounded automatic and explicit retry; they never mount
+  this step as a substitute for authoritative absence.
 - **Shared**: Common UI elements used across multiple steps (e.g., standard layout templates, primary action buttons).
 - **Models**: Defines the data structures or enums representing the different onboarding steps.
 

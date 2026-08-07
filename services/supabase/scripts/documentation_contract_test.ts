@@ -880,7 +880,7 @@ Deno.test("fleet review inventory exactly matches configured Edge Functions", as
   assert(inventoryBlock, "Fleet review entrypoint inventory is missing.");
   const documented = inventoryBlock[1].trim().split(/\s+/).sort();
 
-  assertEquals(configured.length, 90);
+  assertEquals(configured.length, 91);
   assertEquals(documented, configured);
   assertStringIncludes(
     compact(reviewSource),
@@ -4045,6 +4045,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/backend-and-data/17-scientific-observation-retention.md",
     "docs/backend-and-data/18-complimentary-pro-scans.md",
     "docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md",
+    "docs/backend-and-data/20-sign-in-with-apple-account-deletion.md",
     "docs/codebase-map.md",
     "docs/development-guides/02-app-lifecycle.md",
     "docs/development-guides/04-logging-and-debugging.md",
@@ -4106,6 +4107,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/insight-chat/README.md",
     "services/supabase/functions/merge-ghost-profile/README.md",
     "services/supabase/functions/reconcile-account-deletions/README.md",
+    "services/supabase/functions/register-apple-revocation-token/README.md",
     "services/supabase/functions/reconcile-explore-media-health/README.md",
     "services/supabase/functions/reconcile-dwca-archive-cleanup/README.md",
     "services/supabase/functions/reconcile-revenuecat-subscribers/README.md",
@@ -4225,5 +4227,185 @@ Deno.test("scientific retention documentation matches the account tombstone cont
   assertStringIncludes(
     changelog,
     "Every submitted scan now has an explicit scientific-retention contract.",
+  );
+});
+
+Deno.test("Sign in with Apple deletion documentation preserves the provider fence and fallback", async () => {
+  const [
+    canonical,
+    docsIndex,
+    backend,
+    schema,
+    api,
+    runbook,
+    network,
+    settings,
+    safeDelete,
+    registration,
+    reconciler,
+    counsel,
+    changelog,
+    workflow,
+    coreManagers,
+    errorHandling,
+    testingStrategy,
+    identityGuide,
+    appLifecycle,
+    featureUI,
+    architecture,
+    product,
+    loggingGuide,
+  ] = await Promise.all([
+    read("docs/backend-and-data/20-sign-in-with-apple-account-deletion.md"),
+    read("docs/README.md"),
+    read("services/supabase/README.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("apps/ios/Merian/Core/Network/README.md"),
+    read("apps/ios/Merian/Features/Profile/Settings/README.md"),
+    read("services/supabase/functions/safe-delete/README.md"),
+    read(
+      "services/supabase/functions/register-apple-revocation-token/README.md",
+    ),
+    read("services/supabase/functions/reconcile-account-deletions/README.md"),
+    read("docs/legal/terms-counsel-review.md"),
+    read("CHANGELOG.md"),
+    read(".github/workflows/deploy.yml"),
+    read("docs/development-guides/09-core-managers.md"),
+    read("docs/development-guides/06-error-handling.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/features-and-hardware/02-revenue-and-identity.md"),
+    read("docs/development-guides/02-app-lifecycle.md"),
+    read("docs/features-and-hardware/07-feature-modules-and-ui.md"),
+    read("docs/system-architecture/01-system-architecture.md"),
+    read("docs/product/01-master-product-document.md"),
+    read("docs/development-guides/04-logging-and-debugging.md"),
+  ]).then((sources) => sources.map(compact));
+
+  for (
+    const fragment of [
+      "provider_revocation_status",
+      "manual_provider_revocation_required",
+      "APPLE_SIGN_IN_PRIVATE_KEY",
+      "Older installed binaries cannot display a response field or notice they do not implement",
+      "enforceable minimum-supported-build gate or an independent server-delivered manual-revocation fallback",
+      "physical-device credential-revocation notification smoke",
+      "token mapping, registration receipts, and Vault secret",
+    ]
+  ) {
+    assertStringIncludes(canonical, fragment);
+  }
+  assertStringIncludes(
+    docsIndex,
+    "backend-and-data/20-sign-in-with-apple-account-deletion.md",
+  );
+  assertStringIncludes(
+    backend,
+    "a stored Sign in with Apple refresh token must be successfully revoked and destroyed before Supabase Auth removal",
+  );
+  assertStringIncludes(
+    schema,
+    "internal.apple_sign_in_revocation_credentials",
+  );
+  assertStringIncludes(
+    api,
+    "Deno `/register-apple-revocation-token` Edge Node",
+  );
+  assertStringIncludes(api, "manual_provider_revocation_required");
+  assertStringIncludes(
+    api,
+    "App Store availability of the supporting build does not satisfy this compatibility gate",
+  );
+  for (
+    const fragment of [
+      "APPLE_SIGN_IN_TEAM_ID",
+      "provider_revocation_pending",
+      "supporting iOS build and one legacy fixture",
+      "App Store availability of the new build is not evidence",
+      "physical device with a separate staging-only Apple account",
+    ]
+  ) {
+    assertStringIncludes(runbook, fragment);
+  }
+  assertStringIncludes(
+    network,
+    "requires both `identityToken` and `authorizationCode`",
+  );
+  assertStringIncludes(network, "getCredentialState");
+  assertStringIncludes(
+    settings,
+    "records the durable app-level notice before sign-out",
+  );
+  assertStringIncludes(settings, "Older binaries do not implement");
+  assertStringIncludes(
+    safeDelete,
+    "cleanup-before-provider-before-Auth ordering",
+  );
+  assertStringIncludes(
+    safeDelete,
+    "Publishing the supporting build alone is not rollout evidence",
+  );
+  assertStringIncludes(registration, "APPLE_SIGN_IN_PRIVATE_KEY");
+  assertStringIncludes(
+    reconciler,
+    "Provider failure retains the credential and Auth identity",
+  );
+  assertStringIncludes(
+    reconciler,
+    "`manual_required` proves only the server disposition",
+  );
+  assertStringIncludes(
+    counsel,
+    "Sign in with Apple revocation is now implemented in source",
+  );
+  assertStringIncludes(counsel, "Public launch therefore remains blocked");
+  assert(
+    !counsel.includes("No token revocation implementation was found"),
+    "The resolved counsel finding returned.",
+  );
+  assertStringIncludes(
+    changelog,
+    "Account deletion now has a durable provider-revocation stage",
+  );
+  assertStringIncludes(
+    changelog,
+    "credential-state check",
+  );
+  assertStringIncludes(coreManagers, "getCredentialState(forUserID:)");
+  assertStringIncludes(
+    errorHandling,
+    "credential-revoked notification is a prompt to revalidate, not proof",
+  );
+  assertStringIncludes(
+    testingStrategy,
+    "chosen older-binary control",
+  );
+  assertStringIncludes(identityGuide, "callback is discarded");
+  assertStringIncludes(
+    appLifecycle,
+    "This restoration path exists only in supporting binaries",
+  );
+  assertStringIncludes(
+    featureUI,
+    "publishing the new build alone is insufficient",
+  );
+  assertStringIncludes(
+    architecture,
+    "subject-bound revalidation signals",
+  );
+  assertStringIncludes(
+    product,
+    "App Store availability is not adoption evidence",
+  );
+  assertStringIncludes(loggingGuide, "not a server revocation receipt");
+  assertStringIncludes(
+    workflow,
+    "Missing APPLE_SIGN_IN_PRIVATE_KEY GitHub secret",
+  );
+  assert(
+    workflow.indexOf("Validate deployment secrets") <
+      workflow.indexOf("Push Database Migrations"),
+    "Apple secret validation must precede database mutation.",
   );
 });

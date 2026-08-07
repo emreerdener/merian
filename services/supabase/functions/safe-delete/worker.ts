@@ -1,11 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  type AppleRevocationResult,
+  revokeAppleRefreshToken,
+} from "../_shared/appleSignIn.ts";
+import {
   type AccountDeletionClaim,
   type AccountDeletionCleanupPhase,
   claimAccountDeletionJobs,
   completeAccountDeletionCleanup,
+  completeAccountDeletionProviderRevocation,
   deleteAuthProfile,
   finishAccountDeletionAttempt,
+  getAccountDeletionProviderToken,
+  type ProviderRevocationToken,
 } from "./db.ts";
 
 const DEFAULT_LIMIT = 25;
@@ -18,7 +25,7 @@ export type AccountDeletionWorkerResult = {
   waitingForStorage: number;
   failures: Array<{
     jobId: string;
-    stage: "cleanup" | "auth" | "completion";
+    stage: "cleanup" | "provider" | "auth" | "completion";
     code: string;
   }>;
 };
@@ -33,6 +40,15 @@ export type AccountDeletionWorkerDependencies = {
     supabaseAdmin: SupabaseClient,
     claim: AccountDeletionClaim,
   ) => Promise<AccountDeletionCleanupPhase>;
+  getProviderToken?: (
+    supabaseAdmin: SupabaseClient,
+    claim: AccountDeletionClaim,
+  ) => Promise<ProviderRevocationToken>;
+  revokeProvider?: (refreshToken: string) => Promise<AppleRevocationResult>;
+  completeProvider?: (
+    supabaseAdmin: SupabaseClient,
+    claim: AccountDeletionClaim,
+  ) => Promise<void>;
   deleteAuth?: (
     userId: string,
     supabaseAdmin: SupabaseClient,
@@ -61,6 +77,12 @@ export async function processAccountDeletionJobs(
   );
   const claimJobs = dependencies.claim ?? claimAccountDeletionJobs;
   const cleanup = dependencies.cleanup ?? completeAccountDeletionCleanup;
+  const getProviderToken = dependencies.getProviderToken ??
+    getAccountDeletionProviderToken;
+  const revokeProvider = dependencies.revokeProvider ??
+    revokeAppleRefreshToken;
+  const completeProvider = dependencies.completeProvider ??
+    completeAccountDeletionProviderRevocation;
   const deleteAuth = dependencies.deleteAuth ?? deleteAuthProfile;
   const finish = dependencies.finish ?? finishAccountDeletionAttempt;
   const claims = await claimJobs(
@@ -77,7 +99,7 @@ export async function processAccountDeletionJobs(
   };
 
   for (const claim of claims) {
-    let stage: "cleanup" | "auth" | "completion" = "cleanup";
+    let stage: "cleanup" | "provider" | "auth" | "completion" = "cleanup";
 
     try {
       // Re-run the idempotent cleanup even for auth_pending retries. This
@@ -89,6 +111,24 @@ export async function processAccountDeletionJobs(
       if (cleanupPhase === "storage_pending") {
         result.waitingForStorage += 1;
         continue;
+      }
+
+      if (cleanupPhase === "provider_revocation_pending") {
+        stage = "provider";
+        const credential = await getProviderToken(supabaseAdmin, claim);
+        const providerResult = await revokeProvider(credential.refreshToken);
+        if (!providerResult.succeeded) {
+          const errorCode = providerResult.errorCode ??
+            "apple_revoke_failed";
+          await finish(supabaseAdmin, claim, false, errorCode);
+          recordDeferred(result, claim, "provider", errorCode);
+          continue;
+        }
+
+        // Apple documents HTTP 200 as idempotent for both newly revoked and
+        // previously invalid tokens. Persist that outcome and destroy the
+        // Vault secret before the Auth call becomes reachable.
+        await completeProvider(supabaseAdmin, claim);
       }
 
       stage = "auth";
@@ -110,6 +150,8 @@ export async function processAccountDeletionJobs(
     } catch {
       const code = stage === "cleanup"
         ? "cleanup_failed"
+        : stage === "provider"
+        ? "provider_revocation_failed"
         : stage === "auth"
         ? "auth_delete_failed"
         : "completion_write_failed";
@@ -132,7 +174,7 @@ export async function processAccountDeletionJobs(
 function recordDeferred(
   result: AccountDeletionWorkerResult,
   claim: AccountDeletionClaim,
-  stage: "cleanup" | "auth" | "completion",
+  stage: "cleanup" | "provider" | "auth" | "completion",
   code: string,
 ): void {
   result.deferred += 1;

@@ -129,7 +129,7 @@ struct ReadyStepView: View {
                 accessibilityIdentifier: "Ready_AgeSwitch"
             )
 
-            linkedGeminiConsentRow 
+            linkedGeminiConsentRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

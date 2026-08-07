@@ -28,6 +28,10 @@ const scientificRetentionMigrationUrl = new URL(
   "../../migrations/20260731154139_retain_scientific_coordinates_after_account_deletion.sql",
   import.meta.url,
 );
+const appleRevocationMigrationUrl = new URL(
+  "../../migrations/20260806203700_durable_apple_provider_revocation.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -126,6 +130,86 @@ Deno.test("account deletion RPCs remain service-only", async () => {
   assert(
     !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
     "PostgreSQL conditional expressions are not schema-qualified functions and fail plpgsql_check.",
+  );
+});
+
+Deno.test("Apple provider revocation is Vault-backed and database-fenced before Auth", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(appleRevocationMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE internal.apple_sign_in_revocation_credentials",
+      "REFERENCES auth.users(id) ON DELETE RESTRICT",
+      "REFERENCES vault.secrets(id) ON DELETE RESTRICT",
+      "CREATE TABLE internal.apple_sign_in_credential_registrations",
+      "provider_revocation_status TEXT NOT NULL",
+      "manual_provider_revocation_required BOOLEAN NOT NULL",
+      "'pending', 'completed', 'manual_required', 'not_required'",
+      "CREATE OR REPLACE FUNCTION public.apple_revocation_registration_exists",
+      "CREATE OR REPLACE FUNCTION public.store_apple_revocation_credential",
+      "identity.provider = 'apple'",
+      "vault.create_secret",
+      "vault.update_secret",
+      "CREATE OR REPLACE FUNCTION public.get_account_deletion_provider_token",
+      "FROM internal.apple_sign_in_revocation_credentials AS credential INNER JOIN vault.decrypted_secrets AS secret",
+      "CREATE OR REPLACE FUNCTION public.complete_account_deletion_provider_revocation",
+      "DELETE FROM vault.secrets AS secret",
+      "RETURN 'provider_revocation_pending'",
+      "account_deletion_provider_revocation_required",
+      "manual_provider_revocation_required BOOLEAN",
+      "PERFORM internal.require_service_role()",
+      "INSERT INTO internal.privileged_routine_grants",
+      "'public.apple_revocation_registration_exists(uuid,uuid)'",
+      "'public.store_apple_revocation_credential(uuid,uuid,text,text)'",
+      "'public.get_account_deletion_provider_token(uuid,uuid)'",
+      "'public.complete_account_deletion_provider_revocation(uuid,uuid)'",
+      "apple_revocation_rpc_acl_invalid",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const providerCompletion = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.complete_account_deletion_provider_revocation",
+  );
+  const credentialDelete = sql.indexOf(
+    "DELETE FROM internal.apple_sign_in_revocation_credentials",
+    providerCompletion,
+  );
+  const vaultDelete = sql.indexOf(
+    "DELETE FROM vault.secrets",
+    providerCompletion,
+  );
+  const providerCommit = sql.indexOf(
+    "SET provider_revocation_status = 'completed'",
+    providerCompletion,
+  );
+  assert(
+    credentialDelete > providerCompletion &&
+      vaultDelete > credentialDelete &&
+      providerCommit > vaultDelete,
+    "The token mapping and Vault secret must be destroyed before the provider stage is committed.",
+  );
+
+  const finishStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.finish_account_deletion_attempt",
+  );
+  const finishEnd = sql.indexOf(
+    "REVOKE ALL ON FUNCTION public.apple_revocation_registration_exists",
+    finishStart,
+  );
+  const finish = sql.slice(finishStart, finishEnd);
+  assert(
+    finish.indexOf("account_deletion_provider_revocation_required") <
+      finish.indexOf("SET user_id = NULL"),
+    "The SQL fence must reject pending provider work before terminal Auth completion.",
+  );
+
+  assert(
+    !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
+    "PostgreSQL conditional expressions must not be schema-qualified.",
   );
 });
 

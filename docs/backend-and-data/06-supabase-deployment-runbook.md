@@ -1167,11 +1167,17 @@ Migrations `20260725030308_durable_account_deletion.sql`,
 the shared server-key transport migration
 `20260727013416_future_proof_server_key_boundaries.sql` and user-FK index
 migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
-`safe-delete`, `reconcile-account-deletions`, `generate-upload-urls`, and
-`replay-scan-ingestion`, form one release unit. No new secret is required: the
-reaper uses the existing Supabase service-role and R2 values, and the
-independent GitHub monitor resolves a server key with the existing
-`SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
+the Apple provider migration
+`20260806203700_durable_apple_provider_revocation.sql`,
+`register-apple-revocation-token`, `safe-delete`,
+`reconcile-account-deletions`, `generate-upload-urls`, and
+`replay-scan-ingestion`, form one release unit. The Apple stage requires
+`APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
+`APPLE_SIGN_IN_PRIVATE_KEY` in the GitHub `Production` environment. The deploy
+workflow validates them before database mutation and synchronizes them to Edge
+before function deployment. The reaper uses the existing Supabase service-role
+and R2 values, and the independent GitHub monitor resolves a server key with the
+existing `SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
 an active server key in the compatibility-named `SUPABASE_SERVICE_ROLE_KEY`
 Vault slot (or the documented app-setting fallback); missing values now produce
 a critical monitor result. Its current transport sends a modern `sb_secret_...`
@@ -1221,6 +1227,13 @@ migration sequence:
 - adds `storage_pending` and requires completed storage before `auth_pending`;
 - makes every storage claim require the matching cleaned-up `storage_pending`
   private job while vetoing live profiles and owned scans;
+- creates private Apple credential and token-free registration-receipt tables,
+  with Vault storage and a restrictive Auth foreign key;
+- records `pending`, `completed`, `manual_required`, or `not_required` provider
+  disposition on each deletion job;
+- requires claimed Apple revocation and Vault-secret destruction after storage
+  verification and before Auth deletion, while returning the manual fallback
+  for legacy Apple identities without a stored token;
 - installs service-only account and storage claim/advance/failure RPCs;
 - adds indexed, identity-free aggregate health for active/due age, retries,
   leases, storage backlog, cron state, and credential readiness; and
@@ -1327,7 +1340,9 @@ deno task test
 cd ../../..
 
 deno test --frozen --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests/account_deletion_security.sql,services/supabase/config.toml,.github/workflows \
+  --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests/account_deletion_security.sql,services/supabase/config.toml,apps/ios,.github/workflows \
+  services/supabase/functions/_shared/appleSignIn_test.ts \
+  services/supabase/functions/register-apple-revocation-token/handler_test.ts \
   services/supabase/functions/_tests/safeDelete.test.ts \
   services/supabase/functions/_tests/accountDeletionCoverage.test.ts \
   services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
@@ -1339,13 +1354,24 @@ make test-supabase-privileged-routines
 ```
 
 The production workflow applies migrations before Edge bundles. During that
-short interval the previous `safe-delete` bundle still has its historical
-Auth-first behavior; avoid deliberately exercising account deletion until both
-new functions are deployed. The `functions/deno.json` permission correction is a
-deployment control-path change and deliberately selects the complete function
-fleet, ensuring the current `safe-delete`, `reconcile-account-deletions`, and
-`replay-scan-ingestion` bundles are installed after run 1461 stopped before Edge
-deployment.
+short interval, the previous worker rejects the new
+`provider_revocation_pending` return value before Auth; the restrictive
+credential/Auth foreign key and terminal SQL fence remain independent
+backstops. Legacy manual notices require the new response bundle and iOS client,
+so avoid deliberately exercising account deletion until
+`register-apple-revocation-token`, `safe-delete`, and
+`reconcile-account-deletions` are deployed. The deployment-workflow change
+selects the complete function fleet, ensuring all shared Apple transport
+consumers install together. Do not distribute the supporting iOS build before
+this backend release and its Apple smoke pass.
+
+Publishing that build is not, by itself, the legacy-account rollout gate.
+Older binaries ignore `manual_provider_revocation_required` and cannot persist
+the manual-removal notice. Before public promotion, either enforce a minimum
+supported build that contains this contract and gives the user a clear update
+path back to in-app deletion, or deploy and verify an independent
+server-delivered manual-revocation fallback. This repository has neither
+control as of 2026-08-06; treat that absence as a release blocker.
 
 After deployment, confirm the relational invariants, cron, and aggregate state
 without printing user identifiers:
@@ -1359,6 +1385,27 @@ FROM pg_catalog.pg_constraint AS constraint_row
 WHERE constraint_row.contype = 'f'
   AND constraint_row.conrelid = 'public.users'::REGCLASS
   AND constraint_row.confrelid = 'auth.users'::REGCLASS;
+
+SELECT
+    constraint_row.conname,
+    constraint_row.convalidated,
+    constraint_row.confdeltype = 'r' AS blocks_credential_bypass
+FROM pg_catalog.pg_constraint AS constraint_row
+WHERE constraint_row.contype = 'f'
+  AND constraint_row.conrelid =
+      'internal.apple_sign_in_revocation_credentials'::REGCLASS
+ORDER BY constraint_row.conname;
+
+SELECT
+    (SELECT COUNT(*)
+     FROM internal.apple_sign_in_revocation_credentials) AS credential_rows,
+    (SELECT COUNT(*)
+     FROM internal.apple_sign_in_credential_registrations) AS registration_receipts,
+    (SELECT COUNT(*)
+     FROM internal.apple_sign_in_revocation_credentials AS credential
+     INNER JOIN vault.decrypted_secrets AS secret
+       ON secret.id = credential.refresh_token_secret_id
+     WHERE secret.decrypted_secret IS NULL) AS missing_decrypted_secrets;
 
 SELECT
     attribute.attnotnull = FALSE AS scan_owner_is_nullable,
@@ -1434,6 +1481,15 @@ GROUP BY status
 ORDER BY status;
 
 SELECT
+    provider_revocation_status,
+    manual_provider_revocation_required,
+    COUNT(*) AS jobs
+FROM internal.account_deletion_jobs
+WHERE status <> 'completed'
+GROUP BY provider_revocation_status, manual_provider_revocation_required
+ORDER BY provider_revocation_status, manual_provider_revocation_required;
+
+SELECT
     status,
     phase,
     COUNT(*) AS jobs,
@@ -1491,11 +1547,13 @@ WHERE deletion.status IN ('pending', 'processing')
   );
 ```
 
-Expected: at least one validated restrictive profile/Auth foreign key, a
-nullable scan owner plus validated ownerless check, zero invalid ownerless
-scans, zero legacy sentinel scans/profiles, zero synthetic all-zero Auth users,
-all five scientific-retention booleans true, all five claim-fence booleans true,
-an active cron, and `reaper_cron_active = true` plus
+Expected: at least one validated restrictive profile/Auth foreign key, both
+validated restrictive Apple-credential foreign keys, zero missing decrypted
+secrets, a nullable scan owner plus validated ownerless check, zero invalid
+ownerless scans, zero legacy sentinel scans/profiles, zero synthetic all-zero
+Auth users, all provider disposition rows satisfying their installed
+constraints, all five scientific-retention booleans true, all five claim-fence
+booleans true, an active cron, and `reaper_cron_active = true` plus
 `reaper_credentials_configured = true` in the health row. The other health
 fields reflect the current aggregate queue and must not contain identifiers. The
 credential boolean checks nonblank effective values only; it does not validate
@@ -1513,25 +1571,57 @@ gate. A nonzero result can identify historical outbox rows that the new routine
 correctly leaves inert. Review those rows under restricted operator access; do
 not sweep their prefixes or make them actionable merely to clear the count.
 
-Smoke-test with a staging-only account that owns at least one scan. Confirm:
+Smoke-test with two staging-only Apple accounts that each own at least one scan:
+one authorized by the supporting iOS build and one legacy fixture authorized
+before token capture was deployed. Confirm:
 
-1. `/safe-delete` returns `200 completed` or `202 pending`;
-2. the retained scan has `user_id IS NULL` and `is_tombstoned = true`;
-3. all compatibility media URLs and structured media references are empty, and
+1. fresh Apple sign-in creates exactly one private credential mapping and one
+   matching Vault secret without logging the code or token;
+2. `/safe-delete` for the fresh account returns `200 completed` or `202 pending`
+   with `manual_provider_revocation_required = false`;
+3. the retained scan has `user_id IS NULL` and `is_tombstoned = true`;
+4. all compatibility media URLs and structured media references are empty, and
    its semantic/public location labels, device context, notes, and custom tags
    are null/empty; exact location/elevation, time, taxonomy, identification,
    environmental, quality, and provenance fields equal their pre-deletion
    values;
-4. anonymous table access does not return the tombstoned scan;
-5. the original public profile is absent and one storage job exists with all
+5. anonymous table access does not return the tombstoned scan;
+6. the original public profile is absent and one storage job exists with all
    five canonical prefixes;
-6. before deletion, a deliberately stale/orphaned outbox row for a separate live
+7. before deletion, a deliberately stale/orphaned outbox row for a separate live
    fixture account cannot be returned by `claim_pending_storage_deletions`;
-7. recreating the original public profile while the job is active is rejected;
-8. a new upload-signing request is rejected while deletion is active;
-9. Auth remains present through `storage_pending`, and disappears only after an
-   empty delayed verification pass permits `auth_pending`; and
-10. the terminal job is `completed` with `user_id IS NULL`.
+8. recreating the original public profile while the job is active is rejected;
+9. a new upload-signing request is rejected while deletion is active;
+10. Auth and the Vault credential remain present through `storage_pending`;
+11. after the empty delayed verification pass, Apple revocation succeeds, the
+    credential mapping and Vault secret disappear, provider status becomes
+    `completed`, and only then does Auth disappear;
+12. the terminal fresh-account job is `completed` with `user_id IS NULL`;
+13. deleting the legacy fixture returns
+    `manual_provider_revocation_required = true` without blocking privacy
+    deletion;
+14. iOS records the notice before sign-out, shows it after relaunch/foreground,
+    opens Apple's instructions, and clears it only after explicit user
+    acknowledgement;
+15. an Apple revoke failure in the disposable/injected failure fixture retains
+    Auth and the Vault token for the next claimed retry; and
+16. on a physical device with a separate staging-only Apple account, removing
+    Naturebook from Sign in with Apple causes the app to query the active
+    provider-specific subject and clear that matching local session after Apple
+    reports a non-authorized credential state. Reauthorize afterward and prove
+    a new Vault credential registration succeeds. Do not log or retain the
+    Apple subject while collecting this evidence.
+
+Separately verify the selected older-binary rollout control: either an older
+binary is prevented from starting legacy Apple deletion until it follows a
+clear supported-update path, or the independent server fallback durably
+delivers Apple's manual-removal instructions even though that binary ignores
+the new response field. App Store availability of the new build is not evidence
+that every installed binary has adopted the contract.
+
+Do not use a real customer as the legacy fixture and do not manufacture one by
+deleting a production Vault secret. Establish it before the staging rollout or
+inside the disposable catalog.
 
 The independent workflow is the SLA/stuck-job alert and is intentionally offset
 from the reaper. Critical conditions are a disabled/missing cron, absent reaper
@@ -1549,7 +1639,8 @@ On alert:
 2. if cron/configuration is false, restore the exact named cron and the Vault
    URL/service credential, then manually rerun the health workflow;
 3. otherwise inspect bounded `safe-delete`, `reconcile-account-deletions`, R2,
-   and Auth logs for the failing dependency;
+   Apple, and Auth logs for the failing dependency without printing provider
+   credentials or response bodies;
 4. for an orphan critical, use restricted operator access to classify the exact
    outbox row, matching private job, request/audit provenance, live profile, and
    owned scans without copying identifiers outside that session;
@@ -1561,8 +1652,9 @@ On alert:
    and
 7. escalate if oldest active age reaches 36 hours or backlog reaches 100.
 
-Never recover a `pending` or `storage_pending` job by deleting Auth manually or
-by editing a cursor, lease, or next-attempt timestamp. Never blanket-delete
+Never recover a `pending`, `storage_pending`, or provider-pending job by
+deleting Auth manually, deleting/copying a Vault token, or editing a cursor,
+lease, provider status, or next-attempt timestamp. Never blanket-delete
 outbox rows, sweep their prefixes, make them due, or run ad-hoc SQL merely to
 clear an alert. A legacy Auth-first incident can be placed into the durable
 pipeline only after an operator verifies the recorded UUID and invokes
@@ -1571,6 +1663,10 @@ pipeline only after an operator verifies the recorded UUID and invokes
 Do not roll back by dropping the private table, unique outbox index, or cron;
 that would discard deletion intent. Fix forward while keeping the reaper
 available.
+
+The provider-specific design, rotation procedure, client rollout limitation,
+and complete exit gate are normative in
+[`20-sign-in-with-apple-account-deletion.md`](./20-sign-in-with-apple-account-deletion.md).
 
 #### Account-scoped image-loss containment and repair
 
@@ -4808,12 +4904,24 @@ grant may be checked against current disclosure compatibility.
    catalog and prove an overlapping grant/revocation pair ends revoked for each
    provider.
 5. Distribute the processed replacement TestFlight build. Existing testers without
-   current evidence must enter directly at **Powered by AI**, without repeating
-   camera or location onboarding. Test every switch combination in the retained
-   Analytics → Age → Terms order: age and Gemini/Terms are required; analytics
-   is optional and never blocks scanning. Exercise the inline Terms link,
-   VoiceOver labels and hints, every supported Dynamic Type size, and the
-   smallest supported iPhone in both orientations.
+   current evidence must remain on the launch-matched neutral root until an
+   authoritative merge completes, then enter directly at **Powered by AI**
+   without repeating camera or location onboarding. A completed account whose
+   local ledger is cleared but whose server evidence is current must open the
+   scanner without constructing Powered by AI. In the exact-SHA automated
+   fixtures, inject both the generic non-cancellation synchronization boundary
+   and the verified-ledger-write boundary. Each must retain the neutral root,
+   expose **Try Again**, and preserve the 5-, 10-, and 20-second outer retry
+   sequence instead of treating failure as absence. On TestFlight, interrupt
+   connectivity and confirm the same user-visible behavior.
+   Exhaustion must remain explicitly retryable. Repeated same-account auth must
+   not consume another attempt; account replacement must cancel stale timers,
+   and a new synchronization generation must not inherit an orphaned waiting
+   state. Test every switch combination in the retained Analytics → Age → Terms
+   order: age and Gemini/Terms are required; analytics is optional and never
+   blocks scanning. Exercise the inline Terms link, VoiceOver labels and hints,
+   every supported Dynamic Type size, and the smallest supported iPhone in both
+   orientations.
 6. Verify adult and Terms actions create immutable owner receipts, while Gemini
    and optional analytics actions create immutable causally linked rows with
    increasing server revisions and the accepted parent returned by the RPC.
@@ -4878,6 +4986,9 @@ secret set into either Vercel project.
 
 | GitHub secret                       | Runtime destination                                           |
 | ----------------------------------- | ------------------------------------------------------------- |
+| `APPLE_SIGN_IN_TEAM_ID`             | Required; synchronized by the workflow to Supabase Edge only  |
+| `APPLE_SIGN_IN_KEY_ID`              | Required; synchronized by the workflow to Supabase Edge only  |
+| `APPLE_SIGN_IN_PRIVATE_KEY`         | Required `.p8`; synchronized to Supabase Edge only             |
 | `DWCA_PSEUDONYM_HMAC_KEY_V1`        | Synchronized by the workflow to Supabase Edge only            |
 | `GEMINI_PAID_API_KEY`               | Required; synchronized by the workflow to Supabase Edge only  |
 | `REVENUECAT_SECRET_API_KEY`         | Synchronized by the workflow to Supabase Edge only            |
@@ -4901,6 +5012,14 @@ Release**.
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
+- `APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
+  `APPLE_SIGN_IN_PRIVATE_KEY` — required Apple Developer issuer/key metadata and
+  PKCS#8 `.p8` key for server-side authorization-code exchange and account
+  deletion revocation. The workflow rejects missing or malformed key material
+  before migration and synchronizes all three to Edge. Raw or escaped newlines
+  are accepted. Rotate them as one supervised operation and retire the previous
+  Apple key only after exchange and revoke smokes pass. Never store the `.p8`
+  in the repository or Vercel.
 - `AI_QUOTA_IP_HASH_SECRET` (optional override) — at least 32 high-entropy
   characters. When present in the GitHub `Production` environment, the deploy
   workflow validates and synchronizes it before deploying functions. When

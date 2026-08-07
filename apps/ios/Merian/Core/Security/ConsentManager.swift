@@ -108,6 +108,8 @@ final class ConsentManager {
     enum RequiredConsentRestorationState: Equatable {
         case awaitingInitialSession
         case reconciling(userId: UUID)
+        case waitingToRetry(userId: UUID, attempt: Int)
+        case retryRequired(userId: UUID)
         case resolved
     }
 
@@ -383,22 +385,6 @@ final class ConsentManager {
         let analyticsConsentEvent: AnalyticsConsentEvent?
         let aiConsentStreamHead: AIConsentEvent?
         let analyticsConsentStreamHead: AnalyticsConsentEvent?
-
-        init(
-            adultEligibilityReceipt: AdultEligibilityReceipt?,
-            termsReceipt: TermsAcceptanceReceipt?,
-            aiConsentEvent: AIConsentEvent?,
-            analyticsConsentEvent: AnalyticsConsentEvent?,
-            aiConsentStreamHead: AIConsentEvent?,
-            analyticsConsentStreamHead: AnalyticsConsentEvent?
-        ) {
-            self.adultEligibilityReceipt = adultEligibilityReceipt
-            self.termsReceipt = termsReceipt
-            self.aiConsentEvent = aiConsentEvent
-            self.analyticsConsentEvent = analyticsConsentEvent
-            self.aiConsentStreamHead = aiConsentStreamHead
-            self.analyticsConsentStreamHead = analyticsConsentStreamHead
-        }
     }
 
     static let shared = ConsentManager()
@@ -427,6 +413,15 @@ final class ConsentManager {
             return false
         }
         return true
+    }
+
+    var canRetryRequiredConsentRestoration: Bool {
+        switch requiredConsentRestorationState {
+        case .waitingToRetry, .retryRequired:
+            return true
+        case .awaitingInitialSession, .reconciling, .resolved:
+            return false
+        }
     }
 
     var pendingCloudRecordCount: Int {
@@ -486,6 +481,9 @@ final class ConsentManager {
     @ObservationIgnored private var activeSyncUserId: UUID?
     @ObservationIgnored private var activeSyncGeneration: UInt?
     @ObservationIgnored private var synchronizationGeneration: UInt = 0
+    @ObservationIgnored private var requiredConsentRestorationRetryTask:
+        Task<Void, Never>?
+    @ObservationIgnored private var requiredConsentRestorationRetryAttempt = 0
     @ObservationIgnored private var analyticsConsentChannel: RealtimeChannelV2?
     @ObservationIgnored private var analyticsConsentChannelUserId: UUID?
     @ObservationIgnored private var analyticsConsentSubscribedUserId: UUID?
@@ -499,6 +497,9 @@ final class ConsentManager {
     @ObservationIgnored private var analyticsAccountTransitionGeneration: UInt = 0
     @ObservationIgnored private(set) var analyticsCloudAuthorityState:
         AnalyticsCloudAuthorityState = .localOnly
+    @ObservationIgnored private let synchronizationOperation: (
+        @MainActor (UUID, UInt) async throws -> Void
+    )?
 
     convenience init() {
         self.init(ledgerStore: DurableConsentLedgerStore())
@@ -526,11 +527,15 @@ final class ConsentManager {
             AppTelemetry.setAnalyticsConsentEnabled(
                 PostHogManager.shared.isCaptureEnabled
             )
-        }
+        },
+        synchronizationOperation: (
+            @MainActor (UUID, UInt) async throws -> Void
+        )? = nil
     ) {
         self.ledgerStore = ledgerStore
         self.currentSDKUserIdProvider = currentSDKUserIdProvider
         self.analyticsPermissionApplier = analyticsPermissionApplier
+        self.synchronizationOperation = synchronizationOperation
 
         do {
             if let data = try ledgerStore.loadLedgerData() {
@@ -609,6 +614,7 @@ final class ConsentManager {
     deinit {
         scheduledSyncTask?.cancel()
         activeSyncTask?.cancel()
+        requiredConsentRestorationRetryTask?.cancel()
         analyticsConsentListenerTask?.cancel()
         analyticsConsentRetryTask?.cancel()
     }
@@ -819,19 +825,41 @@ final class ConsentManager {
         hasObservedSession = true
         currentSessionUserId = userId
         refreshDerivedState()
+        var preservesPendingRestorationRetry = false
         if let userId, !hasCurrentRequiredConsent {
             let alreadyResolvedThisSession = previousUserId == userId
                 && requiredConsentRestorationState == .resolved
-            if !alreadyResolvedThisSession {
+            preservesPendingRestorationRetry = previousUserId == userId
+                && isRequiredConsentRestorationRetryPending(for: userId)
+            if !alreadyResolvedThisSession
+                && !preservesPendingRestorationRetry {
                 requiredConsentRestorationState = .reconciling(userId: userId)
             }
         } else {
+            clearRequiredConsentRestorationRetry()
             requiredConsentRestorationState = .resolved
         }
         applyAnalyticsPermissionToSDK()
         ensureAnalyticsConsentUpdates(for: userId)
 
-        guard userId != nil else { return }
+        guard userId != nil,
+              !preservesPendingRestorationRetry else {
+            return
+        }
+        scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+    }
+
+    func retryRequiredConsentRestoration() {
+        guard let userId = currentSessionUserId,
+              currentSDKUserIdProvider() == userId,
+              !hasCurrentRequiredConsent,
+              canRetryRequiredConsentRestoration,
+              requiredConsentRestorationBelongs(to: userId) else {
+            return
+        }
+
+        clearRequiredConsentRestorationRetry()
+        requiredConsentRestorationState = .reconciling(userId: userId)
         scheduleSynchronization(createAnonymousSessionIfNeeded: false)
     }
 
@@ -961,26 +989,39 @@ final class ConsentManager {
         guard !TestExecutionCoordinator.isRunningTests else { return }
         try Task.checkCancellation()
         let adoptionGeneration = synchronizationGeneration
-        let userId = try await SupabaseManager.shared.client.auth.session.user.id
-        try Task.checkCancellation()
-        guard synchronizationGeneration == adoptionGeneration else {
-            throw ConsentHandoffError.activeAccountChanged
+        do {
+            let userId = try await SupabaseManager.shared.client.auth.session.user.id
+            try Task.checkCancellation()
+            guard synchronizationGeneration == adoptionGeneration else {
+                throw ConsentHandoffError.activeAccountChanged
+            }
+            guard SupabaseManager.shared.client.auth.currentSession?.user.id
+                    == userId else {
+                throw ConsentHandoffError.activeAccountChanged
+            }
+            if hasObservedSession,
+               let currentSessionUserId,
+               currentSessionUserId != userId {
+                throw ConsentHandoffError.activeAccountChanged
+            }
+            currentSessionUserId = userId
+            requireAuthoritativeAnalyticsRefresh(for: userId)
+            refreshDerivedState()
+            applyAnalyticsPermissionToSDK()
+            ensureAnalyticsConsentUpdates(for: userId)
+            try await synchronize(for: userId)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if let userId = currentSessionUserId {
+                handleRequiredConsentSynchronizationFailure(
+                    error,
+                    for: userId,
+                    generation: adoptionGeneration
+                )
+            }
+            throw error
         }
-        guard SupabaseManager.shared.client.auth.currentSession?.user.id
-                == userId else {
-            throw ConsentHandoffError.activeAccountChanged
-        }
-        if hasObservedSession,
-           let currentSessionUserId,
-           currentSessionUserId != userId {
-            throw ConsentHandoffError.activeAccountChanged
-        }
-        currentSessionUserId = userId
-        requireAuthoritativeAnalyticsRefresh(for: userId)
-        refreshDerivedState()
-        applyAnalyticsPermissionToSDK()
-        ensureAnalyticsConsentUpdates(for: userId)
-        try await synchronize(for: userId)
     }
 
     private func scheduleSynchronization(createAnonymousSessionIfNeeded: Bool) {
@@ -998,14 +1039,13 @@ final class ConsentManager {
             } catch is CancellationError {
                 return
             } catch {
-                if let userId = self.currentSessionUserId {
-                    self.resolveRequiredConsentRestorationIfNeeded(for: userId)
-                }
+                // synchronizeWithCurrentSession records a retryable restoration
+                // failure while the identity and generation still match.
             }
         }
     }
 
-    private func synchronize(for userId: UUID) async throws {
+    func synchronize(for userId: UUID) async throws {
         requireAuthoritativeAnalyticsRefresh(for: userId)
         applyAnalyticsPermissionToSDK()
         let generation = synchronizationGeneration
@@ -1022,10 +1062,14 @@ final class ConsentManager {
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            try await self.performSynchronization(
-                for: userId,
-                generation: generation
-            )
+            if let synchronizationOperation = self.synchronizationOperation {
+                try await synchronizationOperation(userId, generation)
+            } else {
+                try await self.performSynchronization(
+                    for: userId,
+                    generation: generation
+                )
+            }
         }
         activeSyncTask = task
         activeSyncUserId = userId
@@ -1054,7 +1098,11 @@ final class ConsentManager {
                 activeSyncUserId = nil
                 activeSyncGeneration = nil
             }
-            resolveRequiredConsentRestorationIfNeeded(for: userId)
+            handleRequiredConsentSynchronizationFailure(
+                error,
+                for: userId,
+                generation: generation
+            )
             throw error
         }
     }
@@ -1685,14 +1733,147 @@ final class ConsentManager {
         resolveRequiredConsentRestorationIfNeeded(for: userId)
     }
 
+    static let maximumAutomaticRestorationRetries = 3
+
+    static func requiredConsentRestorationRetryDelay(attempt: Int) -> Double {
+        let boundedExponent = min(max(attempt - 1, 0), 3)
+        return min(5 * pow(2, Double(boundedExponent)), 30)
+    }
+
     private func resolveRequiredConsentRestorationIfNeeded(for userId: UUID) {
-        guard case let .reconciling(expectedUserId) =
-                requiredConsentRestorationState,
-              expectedUserId == userId,
+        guard requiredConsentRestorationBelongs(to: userId),
               currentSessionUserId == userId else {
             return
         }
+        clearRequiredConsentRestorationRetry()
         requiredConsentRestorationState = .resolved
+    }
+
+    private func handleRequiredConsentSynchronizationFailure(
+        _ error: Error,
+        for userId: UUID,
+        generation: UInt
+    ) {
+        guard generation == synchronizationGeneration,
+              currentSessionUserId == userId,
+              currentSDKUserIdProvider() == userId,
+              !hasCurrentRequiredConsent,
+              case let .reconciling(expectedUserId) =
+                requiredConsentRestorationState,
+              expectedUserId == userId else {
+            return
+        }
+
+        MerianLog.auth.error(
+            "Required consent restoration failed and remains unresolved: \(error.localizedDescription, privacy: .private)"
+        )
+        requiredConsentRestorationRetryTask?.cancel()
+        requiredConsentRestorationRetryTask = nil
+
+        guard requiredConsentRestorationRetryAttempt
+                < Self.maximumAutomaticRestorationRetries else {
+            requiredConsentRestorationState = .retryRequired(userId: userId)
+            return
+        }
+
+        requiredConsentRestorationRetryAttempt += 1
+        let attempt = requiredConsentRestorationRetryAttempt
+        requiredConsentRestorationState = .waitingToRetry(
+            userId: userId,
+            attempt: attempt
+        )
+        scheduleRequiredConsentRestorationRetry(
+            for: userId,
+            generation: generation,
+            attempt: attempt
+        )
+    }
+
+    @discardableResult
+    func beginRequiredConsentRestorationRetry(
+        for userId: UUID,
+        generation: UInt,
+        attempt: Int
+    ) -> Bool {
+        guard generation == synchronizationGeneration,
+              currentSessionUserId == userId,
+              currentSDKUserIdProvider() == userId,
+              !hasCurrentRequiredConsent,
+              requiredConsentRestorationRetryAttempt == attempt,
+              requiredConsentRestorationState == .waitingToRetry(
+                userId: userId,
+                attempt: attempt
+              ) else {
+            return false
+        }
+
+        requiredConsentRestorationRetryTask = nil
+        requiredConsentRestorationState = .reconciling(userId: userId)
+        return true
+    }
+
+    private func scheduleRequiredConsentRestorationRetry(
+        for userId: UUID,
+        generation: UInt,
+        attempt: Int
+    ) {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+        let delay = Self.requiredConsentRestorationRetryDelay(attempt: attempt)
+        requiredConsentRestorationRetryTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            guard let self,
+                  self.beginRequiredConsentRestorationRetry(
+                    for: userId,
+                    generation: generation,
+                    attempt: attempt
+                  ) else {
+                return
+            }
+
+            do {
+                try await self.synchronizeWithCurrentSession()
+            } catch is CancellationError {
+                return
+            } catch {
+                // The synchronization owner records the next retry transition.
+            }
+        }
+    }
+
+    private func isRequiredConsentRestorationRetryPending(
+        for userId: UUID
+    ) -> Bool {
+        switch requiredConsentRestorationState {
+        case let .waitingToRetry(expectedUserId, _):
+            return expectedUserId == userId
+        case let .retryRequired(expectedUserId):
+            return expectedUserId == userId
+        case .awaitingInitialSession, .reconciling, .resolved:
+            return false
+        }
+    }
+
+    private func requiredConsentRestorationBelongs(to userId: UUID) -> Bool {
+        switch requiredConsentRestorationState {
+        case let .reconciling(expectedUserId):
+            return expectedUserId == userId
+        case let .waitingToRetry(expectedUserId, _):
+            return expectedUserId == userId
+        case let .retryRequired(expectedUserId):
+            return expectedUserId == userId
+        case .awaitingInitialSession, .resolved:
+            return false
+        }
+    }
+
+    private func clearRequiredConsentRestorationRetry() {
+        requiredConsentRestorationRetryTask?.cancel()
+        requiredConsentRestorationRetryTask = nil
+        requiredConsentRestorationRetryAttempt = 0
     }
 
     private func requireAuthoritativeAnalyticsRefresh(for userId: UUID) {
@@ -2017,6 +2198,12 @@ final class ConsentManager {
     }
 
     private func invalidateSynchronizationWork() {
+        let restorationUserId = currentSessionUserId.flatMap { userId in
+            isRequiredConsentRestorationRetryPending(for: userId)
+                && !hasCurrentRequiredConsent
+                ? userId
+                : nil
+        }
         synchronizationGeneration &+= 1
         scheduledSyncTask?.cancel()
         scheduledSyncTask = nil
@@ -2024,6 +2211,12 @@ final class ConsentManager {
         activeSyncTask = nil
         activeSyncUserId = nil
         activeSyncGeneration = nil
+        clearRequiredConsentRestorationRetry()
+        if let restorationUserId {
+            requiredConsentRestorationState = .reconciling(
+                userId: restorationUserId
+            )
+        }
     }
 
     private func validateSynchronization(

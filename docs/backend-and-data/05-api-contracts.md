@@ -6531,6 +6531,49 @@ idempotent cleanup success.
 
 ---
 
+## Deno `/register-apple-revocation-token` Edge Node
+
+Captures the server credential needed to revoke Sign in with Apple during a
+later account deletion. It requires an authenticated permanent Supabase session
+and accepts only `POST`.
+
+```json
+{
+  "registration_id": "11111111-1111-4111-8111-111111111111",
+  "authorization_code": "one-use Apple code",
+  "identity_token": "Apple JWT"
+}
+```
+
+The handler checks the token-free registration receipt before code exchange,
+verifies the presented Apple token, exchanges the code at Apple's `/auth/token`
+endpoint, verifies the returned token, and requires both subjects to match. The
+database then requires that subject on the authenticated user's Apple identity
+and atomically stores the refresh token in Vault. The client ID is fixed to
+`app.merian.Merian`; a fresh five-minute ES256 client secret is generated from
+the hosted Team ID, Key ID, and `.p8` private key.
+
+Success is `200`:
+
+```json
+{
+  "success": true,
+  "status": "registered"
+}
+```
+
+Repeating the same registration UUID returns the same success without consuming
+the code again. A successful exchange followed by failed persistence triggers
+an immediate compensating Apple revocation. Validation/expired-authorization
+failures are bounded `4xx`; dependency, configuration, or persistence failures
+are retryable `503`. Public responses and logs never contain an Apple code,
+identity token, refresh token, client secret, or provider response body.
+The hosted-secret, rotation, rollout, and production evidence requirements are
+normative in the
+[Sign in with Apple account-deletion contract](./20-sign-in-with-apple-account-deletion.md).
+
+---
+
 ## Deno `/safe-delete` Edge Node
 
 Deletes a user's account and account-owned content from PostgreSQL and
@@ -6550,7 +6593,8 @@ prevent IDOR vulnerabilities.
 1. Calls `supabaseAdmin.auth.getUser()` to extract the authenticated user's UUID
    from the `Authorization: Bearer` header.
 2. Calls service-only `request_account_deletion(user.id)`. This inserts or
-   returns the active private job before any destructive work.
+   returns the active private job before any destructive work and records the
+   Apple provider disposition plus legacy manual-fallback boolean.
 3. Attempts a target-bound lease through
    `claim_account_deletion_jobs(1, user.id)`. Another live claim produces a
    durable `202` response rather than duplicate work.
@@ -6573,12 +6617,22 @@ prevent IDOR vulnerabilities.
    `storage_pending` with completed cleanup and incomplete storage, and no live
    public profile or scan ownership remains. An outbox row by itself never
    authorizes R2 deletion.
-6. Only `auth_pending` may call `supabaseAdmin.auth.admin.deleteUser(user.id)`.
+6. If `auth_pending` has a stored Apple credential, cleanup returns
+   `provider_revocation_pending`. The worker reads the Vault refresh token only
+   under the active UUID claim, calls Apple's `/auth/revoke` with the refresh
+   token hint, and accepts only HTTP `200`. A transaction then deletes the
+   credential mapping, registration receipts, and Vault secret before marking
+   provider completion. Any failure preserves both credential and Auth for
+   retry. Apple identities without a stored token are explicitly
+   `manual_required` and do not claim automatic revocation.
+7. Only `auth_pending` with completed storage, resolved provider disposition,
+   and no remaining Apple credential may call
+   `supabaseAdmin.auth.admin.deleteUser(user.id)`.
    HTTP `404` and exact Auth code `user_not_found` are treated as idempotent
    success.
-7. `finish_account_deletion_attempt` records terminal completion or releases the
-   claim with bounded retry backoff. Completion clears the private job's direct
-   `user_id`.
+8. `finish_account_deletion_attempt` independently rechecks storage and provider
+   fences, records terminal completion, or releases the claim with bounded retry
+   backoff. Completion clears the private job's direct `user_id`.
 
 All state-machine RPCs are `service_role`-only, call
 `internal.require_service_role()`, and have empty `search_path` values. The
@@ -6592,17 +6646,31 @@ Auth call. `/generate-upload-urls` also returns
 
 ### Responses
 
-- `200 OK`, `{ "success": true, "status": "completed", ... }`: relational
-  cleanup, delayed empty R2 verification, and Auth deletion are confirmed; the
-  terminal account job no longer retains the user UUID.
-- `202 Accepted`, `{ "success": true, "status": "pending", ... }`: the request
-  is durably recorded. A five-minute scheduled reaper resumes it. This is a
-  successful deletion request, not a prompt to submit another target.
+- `200 OK`, `{ "success": true, "status": "completed",
+  "manual_provider_revocation_required": false, ... }`: relational cleanup,
+  delayed empty R2 verification, provider disposition, and Auth deletion are
+  confirmed; the terminal account job no longer retains the user UUID.
+- `202 Accepted`, `{ "success": true, "status": "pending",
+  "manual_provider_revocation_required": true, ... }`: the request is durably
+  recorded. A five-minute scheduled reaper resumes it. The boolean is always
+  present; `true` instructs the client to preserve Apple's legacy manual
+  removal notice before sign-out. This is a successful deletion request, not a
+  prompt to submit another target.
 - `405 Method Not Allowed`: any method except `POST`.
 - `500 Internal Server Error`: durable intake itself failed, so no destructive
   work began.
 
-After either success response, the iOS client performs local Supabase sign-out,
+`manual_provider_revocation_required` is a required wire field, but it is not a
+backwards-compatible delivery mechanism for clients that predate it. Those
+clients ignore the field and cannot persist or present the manual Apple-removal
+notice. Public promotion therefore requires either an enforceable
+minimum-supported-build gate with a clear update path back to in-app deletion,
+or an independent server-delivered manual-revocation fallback for older iOS
+binaries. App Store availability of the supporting build does not satisfy this
+compatibility gate.
+
+After either success response, the iOS client first persists any manual Apple
+disposition, then performs local Supabase sign-out,
 drops all local SQLite `ModelContext` state through
 `ScanRepository.purgeAllData()`, and resets to Guest.
 
@@ -6619,6 +6687,9 @@ returns only aggregate `account_claimed`, `account_completed`,
 `storage_completed`, and `storage_deferred` counts. Claim expiry, persisted
 prefix cursors, delayed verification, idempotent Auth-not-found handling, and
 database-calculated backoff make crashes and lost responses resumable.
+Provider failures are reported in the existing deferred aggregate and remain
+inside the `auth_pending` account phase; no provider credential enters this
+response.
 
 The scheduled caller reads its key from Vault and delegates header construction
 to `internal.server_api_request_headers(...)`. A modern opaque `sb_secret_...`

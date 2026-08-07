@@ -265,12 +265,17 @@ single-responsibility functions under `/services/supabase/functions/`.
     clears ownership/account-owned fields from retained observations while
     leaving exact coordinates and all other scientific facts unchanged, verifies
     relational data, then cursor-sweeps every canonical R2 prefix and performs a
-    delayed empty verification pass before removing Auth. The database claim
+    delayed empty verification pass. A stored Sign in with Apple refresh token
+    is then claim-read from Vault, revoked with Apple, and destroyed before
+    removing Auth. Legacy Apple accounts carry an explicit manual-fallback
+    disposition for supporting clients. Older binaries cannot consume that
+    response field, so their minimum-build or independent server-delivery
+    control remains a production gate. The database claim
     requires the matching cleaned-up `storage_pending` job and rejects live
     profiles or owned scans; the storage outbox is never sufficient authority.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
-    claim-token fencing, persisted storage cursors, backoff, and idempotent
-    Auth-not-found recovery. An offset GitHub schedule independently reads an
+    claim-token fencing, persisted storage cursors, provider-before-Auth
+    ordering, backoff, and idempotent Auth-not-found recovery. An offset GitHub schedule independently reads an
     aggregate service-only health RPC and alerts on missing cron/credentials,
     overdue work, retries, expired leases, orphaned storage rows, and SLA
     age/backlog breaches. Its Management-API-resolved server key is independent
@@ -278,6 +283,16 @@ single-responsibility functions under `/services/supabase/functions/`.
     also hide the alert. An orphan critical is a provenance incident, not
     deletion authority or permission to clear metadata; restricted review
     precedes any durable request or forward repair.
+  - `/register-apple-revocation-token`: Authenticated Apple authorization-code
+    exchange. It verifies presented and returned Apple identity tokens, binds
+    their subject to the active Supabase identity, and atomically stores the
+    refresh token in Vault for later deletion revocation. Token-free
+    registration receipts make response-loss retries idempotent.
+  - The iOS Apple-auth lifecycle treats credential-revoked notifications as
+    subject-bound revalidation signals. It preserves an authoritative
+    `.authorized` session, clears the same active Apple session for every other
+    or failed state, and ignores callbacks after identity replacement. This is
+    independent of the durable server provider stage.
   - `/repair-scan-image`: Owner-authenticated inspection and recovery for a
     verified-missing durable scan image. It promotes a surviving local copy and
     atomically updates scan, normalized-media, captured-media, and matching
@@ -411,11 +426,21 @@ single-responsibility functions under `/services/supabase/functions/`.
   (`AVCaptureSession.beginConfiguration`) stays off the critical render path.
 - **Root Presentation While Restoring Consent:** A completed user with missing
   local required evidence remains on a black surface matching the launch screen
-  while the initial auth result and authoritative consent merge are pending. A
-  350-millisecond delay prevents progress chrome from flashing during quick
-  restores. `MerianApp` mounts the Capture workspace if evidence returns, or
-  mounts onboarding at `.ready` if reconciliation resolves without it; neither
-  actionable root is constructed while the result is unknown.
+  while the initial auth result and, for an authenticated account, authoritative
+  consent merge are pending. A 350-millisecond delay prevents progress chrome
+  from flashing during quick restores. Fetch, decode, pending-row push, or
+  verified-ledger-write failure transitions from `.reconciling` to
+  `.waitingToRetry`, preserving the neutral root and exposing **Try Again**
+  while 5-, 10-, and 20-second retries remain. Exhaustion enters
+  `.retryRequired`; it never converts uncertainty into absence. `MerianApp`
+  mounts the Capture workspace if evidence returns. An authoritative no-session
+  result may mount onboarding at `.ready`; an authenticated account may do so
+  only after a successful authoritative merge proves evidence absent. Neither
+  actionable root is constructed while the result is unknown. Retry timers and
+  transitions are fenced by observed account, synchronous SDK account, and
+  synchronization generation. Invalidating a timer moves the same unresolved
+  account back to `.reconciling`, so no state claims a retry is pending after
+  its task has been cancelled.
 - **RAM Image Cache (`ImageCache`):** A thread-safe `@unchecked Sendable`
   `NSCache` stores downsampled scan thumbnails in RAM, avoiding massive disk I/O
   thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM

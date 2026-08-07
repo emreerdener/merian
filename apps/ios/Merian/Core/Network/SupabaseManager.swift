@@ -49,13 +49,27 @@ enum SupabaseAuthTransitionError: LocalizedError {
 @Observable final class SupabaseManager: NSObject, ASWebAuthenticationPresentationContextProviding {
     private enum AppleSignInBootstrapError: LocalizedError {
         case nonceGenerationFailed(OSStatus)
+        case invalidCredentialRegistrationReceipt
 
         var errorDescription: String? {
             switch self {
             case .nonceGenerationFailed(let status):
                 return "Failed to generate an Apple Sign-In nonce (\(status))."
+            case .invalidCredentialRegistrationReceipt:
+                return "The Apple credential registration response was invalid."
             }
         }
+    }
+
+    private struct AppleRevocationCredentialPayload: Encodable {
+        let registration_id: String
+        let authorization_code: String
+        let identity_token: String
+    }
+
+    private struct AppleRevocationCredentialResponse: Decodable {
+        let success: Bool
+        let status: String
     }
 
     private struct GhostProfileMergePreparePayload: Encodable {
@@ -156,6 +170,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
     /// soon as this transition begins, before the SDK invalidates the session.
     @ObservationIgnored private var signOutTask: Task<Void, Never>?
     @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var appleCredentialRevocationObserver: NSObjectProtocol?
     private var lastPublicAuthorIdentityRefreshUserId: String?
     @ObservationIgnored private(set) var isSigningOut = false
 
@@ -172,9 +187,72 @@ enum SupabaseAuthTransitionError: LocalizedError {
         super.init()
 
         self.authListenerTask = Task { await self.setupAuthStateListener() }
+        self.appleCredentialRevocationObserver = NotificationCenter.default.addObserver(
+            forName: ASAuthorizationAppleIDProvider.credentialRevokedNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.revalidateAppleCredentialAfterRevocationNotification()
+            }
+        }
     }
 
     // MARK: - Auth State
+
+    private func revalidateAppleCredentialAfterRevocationNotification() {
+        guard let appleUserId = currentUser?.identities?.first(where: {
+            $0.provider == "apple" && !$0.id.isEmpty
+        })?.id else { return }
+
+        ASAuthorizationAppleIDProvider().getCredentialState(
+            forUserID: appleUserId
+        ) { [weak self] state, error in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.currentUser?.identities?.contains(where: {
+                          $0.provider == "apple" && $0.id == appleUserId
+                      }) == true else { return }
+
+                guard Self.shouldClearLocalSessionAfterAppleCredentialState(
+                    state,
+                    lookupFailed: error != nil
+                ) else {
+                    MerianLog.auth.debug(
+                        "Apple credential remained authorized after a revocation notification; preserving the active session."
+                    )
+                    return
+                }
+
+                if error != nil {
+                    MerianLog.auth.notice(
+                        "Apple credential state lookup failed after a revocation notification; clearing the local session."
+                    )
+                } else {
+                    MerianLog.auth.notice(
+                        "Apple confirmed that the active credential is no longer authorized; clearing the local session."
+                    )
+                }
+                await self.clearLocalSessionAfterAuthFailure()
+            }
+        }
+    }
+
+    static func shouldClearLocalSessionAfterAppleCredentialState(
+        _ state: ASAuthorizationAppleIDProvider.CredentialState,
+        lookupFailed: Bool = false
+    ) -> Bool {
+        if lookupFailed { return true }
+
+        switch state {
+        case .authorized:
+            return false
+        case .revoked, .notFound, .transferred:
+            return true
+        @unknown default:
+            return true
+        }
+    }
 
     private func setupAuthStateListener() async {
         for await state in client.auth.authStateChanges {
@@ -695,6 +773,53 @@ enum SupabaseAuthTransitionError: LocalizedError {
         }
 
         return previousUserId
+    }
+
+    private func registerAppleRevocationCredential(
+        registrationId: UUID,
+        authorizationCode: String,
+        identityToken: String
+    ) async throws {
+        try await Self.performAppleCredentialRegistrationWithRetry {
+            let response: AppleRevocationCredentialResponse = try await self.client.functions.invoke(
+                "register-apple-revocation-token",
+                options: .init(
+                    body: AppleRevocationCredentialPayload(
+                        registration_id: registrationId.uuidString.lowercased(),
+                        authorization_code: authorizationCode,
+                        identity_token: identityToken
+                    )
+                )
+            )
+            guard response.success, response.status == "registered" else {
+                throw AppleSignInBootstrapError.invalidCredentialRegistrationReceipt
+            }
+        }
+    }
+
+    static func performAppleCredentialRegistrationWithRetry(
+        maximumAttempts: Int = 2,
+        invoke: () async throws -> Void,
+        waitBeforeRetry: () async throws -> Void = {
+            try await Task.sleep(for: .milliseconds(350))
+        }
+    ) async throws {
+        precondition(maximumAttempts > 0)
+        var lastError: Error?
+
+        for attempt in 1...maximumAttempts {
+            do {
+                try await invoke()
+                return
+            } catch {
+                lastError = error
+                guard attempt < maximumAttempts else { break }
+                try Task.checkCancellation()
+                try await waitBeforeRetry()
+            }
+        }
+
+        throw lastError ?? AppleSignInBootstrapError.invalidCredentialRegistrationReceipt
     }
 
     private func installOAuthSessionReplacingCurrentAccount(
@@ -1341,18 +1466,37 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
             MerianLog.auth.debug("Apple Sign-In: unable to fetch identity token.")
             return
         }
+        guard let appleAuthorizationCode = appleIDCredential.authorizationCode else {
+            MerianLog.auth.error("Apple Sign-In: unable to fetch the authorization code required for durable token revocation.")
+            return
+        }
         guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
             MerianLog.auth.debug("Apple Sign-In: failed to serialize token string.")
             return
         }
+        guard let authorizationCodeString = String(
+            data: appleAuthorizationCode,
+            encoding: .utf8
+        ), !authorizationCodeString.isEmpty else {
+            MerianLog.auth.error("Apple Sign-In: failed to serialize the authorization code required for durable token revocation.")
+            return
+        }
+        let credentialRegistrationId = UUID()
 
         Task {
+            var didInstallAppleSession = false
             do {
                 let previousUserId = try await self.finalizeOAuthLogin(
                     provider: .apple,
                     idToken: idTokenString,
                     accessToken: nil,
                     nonce: nonce
+                )
+                didInstallAppleSession = true
+                try await self.registerAppleRevocationCredential(
+                    registrationId: credentialRegistrationId,
+                    authorizationCode: authorizationCodeString,
+                    identityToken: idTokenString
                 )
                 let didPersistAppleMetadata = await updateAppleUserMetadataIfAvailable(
                     from: appleIDCredential.fullName
@@ -1371,6 +1515,9 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                 KeychainManager.shared.set(true, forKey: KeychainKeys.hasAuthenticatedOAuth)
                 MerianLog.auth.debug("Apple Sign-In complete.")
             } catch {
+                if didInstallAppleSession {
+                    await self.clearLocalSessionAfterAuthFailure()
+                }
                 MerianLog.auth.debug("Apple Sign-In failed: \(error.localizedDescription, privacy: .private)")
             }
         }

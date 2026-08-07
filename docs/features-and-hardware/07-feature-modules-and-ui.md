@@ -50,8 +50,11 @@ owns native permission delegates such as `LocationPermissionDelegate`.
   `CaptureWorkspaceView(appSettings:)`. A completed user with unresolved
   account evidence remains on a black, launch-matched restoration surface; a
   short restore shows no additional chrome, and a progress indicator appears
-  after 350 milliseconds. Only after reconciliation proves evidence absent does
-  the existing user enter `.ready`. Because both `OnboardingView` and
+  after 350 milliseconds. Failed synchronization keeps that surface active
+  with bounded automatic retry and an immediate **Try Again** action. An
+  authoritative no-session result may enter `.ready`; an authenticated account
+  may do so only after reconciliation proves evidence absent. Because both
+  `OnboardingView` and
   `CaptureWorkspaceView` remain uninitialized during restoration, approval
   controls, hardware, and provider work cannot flash into an indeterminate
   launch frame.
@@ -1306,9 +1309,15 @@ on gesture-driven layout abstractions.
   `DELETE` before calling the durable Deno `/safe-delete` endpoint. Both
   immediate `200` completion and `202` durable acceptance are successful:
   backend cleanup continues through its scheduled reaper, cursor-sweeps and
-  delayed-verifies every canonical R2 prefix, and removes Auth only after
-  verification, while the client signs out locally and purges the device SQLite
-  boundary through `ScanRepository.shared.purgeAllData()`.
+  delayed-verifies every canonical R2 prefix, revokes a stored Apple credential,
+  and removes Auth only after verification. A legacy Apple disposition is saved
+  before the client signs out and purges the device SQLite boundary through
+  `ScanRepository.shared.purgeAllData()`; the app-root instructions remain
+  visible across relaunch until the user confirms manual Apple removal. That
+  receipt-and-notice behavior exists only in supporting binaries. Public
+  promotion remains blocked until older clients are covered by an enforceable
+  minimum-supported-build control or an independent server-delivered fallback;
+  publishing the new build alone is insufficient.
 - **Individual Scan Deletion**: Every single and batch deletion confirmation
   explains that a published scan owns its Explore post and that proceeding
   permanently removes the post, likes, and comments. This explicit destructive

@@ -735,12 +735,19 @@ MerianTests/
   local ledger for a completed account, verify no Ready frame appears while
   remote evidence is restored, then verify the restored-evidence path opens the
   workspace and the truly-absent path opens Ready. Also cover first-launch
-  Welcome, a non-cancellation restore failure without an indefinite spinner,
-  cancellation during account replacement, and duplicate same-account auth
-  events after resolution. For both Gemini and analytics, cover both inverse
-  cross-device orders: a delayed offline grant after a synchronized revocation
-  is rejected, while a delayed offline revocation after a synchronized grant is
-  accepted and rebased to that grant.
+  Welcome and every non-cancellation restoration failure boundary. Network-like
+  and durable-ledger-write failures must keep root presentation at
+  `.restoringConsent`, advance through 5-, 10-, and 20-second retry attempts,
+  remain retryable after exhaustion, and route to Ready only after a later
+  successful empty authoritative merge. Cover immediate manual retry, duplicate
+  same-account auth without retry-budget consumption, stale retry rejection
+  after account switch, and synchronization invalidation returning a canceled
+  wait to `.reconciling` with a fresh budget. Cancellation during account
+  replacement must remain unresolved; duplicate same-account auth after
+  resolution must not reopen restoration. For both Gemini and analytics, cover
+  both inverse cross-device orders: a delayed offline grant after a synchronized
+  revocation is rejected, while a delayed offline revocation after a synchronized
+  grant is accepted and rebased to that grant.
   Repeat the revocation case across an app upgrade: create it under the prior
   disclosure and old observed parent, append a current-version grant, then
   upload the queued revocation. Database coverage must assert that both RPCs
@@ -1335,10 +1342,13 @@ actual import, and permission-denial UI require the physical-device checklist in
   the full inline Terms destination, final-screen required/optional switch
   combinations, returning-user direct routing, and completion persistence. It
   also proves missing evidence waits for the initial session, authenticated
-  missing evidence remains pending through authoritative merge, and a duplicate
-  same-account auth event cannot re-enter restoration after resolution. Every
-  throwing assertion must be declared correctly so this file cannot prevent the
-  entire unit target from compiling.
+  missing evidence remains pending through authoritative merge, fetch and
+  durable-write failures remain retryable, the 5-/10-/20-second budget is
+  bounded, duplicate auth preserves that budget, stale account retries are
+  rejected, and generation invalidation cannot orphan a canceled waiting state.
+  It also verifies a resolved same-account session cannot re-enter restoration.
+  Every throwing assertion must be declared correctly so this file cannot
+  prevent the entire unit target from compiling.
 
 ## Testing Identify Requests and Activity
 
@@ -2057,7 +2067,7 @@ file do not clear the deployment hold. The complete disposable-CI matrix is in
 the
 [Ghost Account Merge Security Rollout](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
-Durable account deletion has eleven complementary checks:
+Durable account deletion has twelve complementary checks:
 
 - `apps/web/lib/scientificRetentionContract.test.ts` keeps the public Terms,
   Privacy Policy, Privacy Choices page, iOS account-deletion confirmation,
@@ -2070,17 +2080,27 @@ Durable account deletion has eleven complementary checks:
   verifies the current migration is part of the deployment release unit, and
   rejects unresolved local links across the account-deletion documentation.
 
+- `_shared/appleSignIn_test.ts` and
+  `register-apple-revocation-token/handler_test.ts` prove form-encoded Apple
+  exchange/revocation, presented-versus-returned subject binding, safe terminal
+  versus retryable errors, idempotent HTTP `200`, response-body redaction,
+  registration lookup before code consumption, exchange before atomic Vault
+  storage, and compensating revocation after persistence failure.
+
 - `_tests/safeDelete.test.ts` executes the actual handler/worker modules with
   injected boundaries. It proves intake precedes processing, cleanup failure
   never calls Auth, `storage_pending` releases its claim without calling Auth,
-  `auth_pending` recovery repeats idempotent cleanup before Auth, Auth failure
-  is deferred after verified storage, and a lost completion response remains
-  retryable.
+  `auth_pending` recovery repeats idempotent cleanup before Auth, stored Apple
+  credentials are revoked and transactionally completed before Auth, provider
+  failure preserves Auth and the Vault credential, legacy Apple intake returns
+  a manual disposition, Auth failure is deferred after verified storage, and a
+  lost completion response remains retryable.
 - `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
   Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
-  `config.toml`, workflow wiring, the independent monitor's separation from the
-  database reaper, and the executable fixture's cleanup-before-storage phase
-  order present.
+  `config.toml`, workflow wiring, iOS authorization-code capture and deletion
+  receipt, hosted secret validation, the independent monitor's separation from
+  the database reaper, and the executable fixture's
+  cleanup-before-storage-before-provider-before-Auth phase order present.
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order, cleanup
   verification, required `storage_pending` phase, five-prefix keyset cursor,
@@ -2093,7 +2113,11 @@ Durable account deletion has eleven complementary checks:
   `storage_pending` private job and to veto live profiles and owned scans, plus
   indexed identity-free aggregate health with a service-only caller check. The
   health contract must select Vault before the NULL-only app-setting fallback,
-  so a blank Vault value remains unhealthy instead of being masked.
+  so a blank Vault value remains unhealthy instead of being masked. The Apple
+  migration contract additionally locks private credential/receipt tables,
+  Vault and Auth restrictive foreign keys, provider state coherence,
+  service-only allowlisting, secret destruction before provider completion, and
+  terminal provider fencing.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and all
@@ -2103,11 +2127,14 @@ Durable account deletion has eleven complementary checks:
   pre-existing scan-generation fence permits only that one detachment, stale
   post-detachment coordinate rewrites are rejected, a delayed individual-scan
   completion remains idempotent without deleting the retained observation, no
-  all-zero profile exists, active deletion blocks profile resurrection, retries
-  preserve `auth_pending`, the service role sees
-  that retry through aggregate health while public roles cannot execute the
-  health RPC, final completion erases the direct UUID, and duplicate completion
-  is idempotent. Before deletion begins, the same fixture inserts a stale
+  all-zero profile exists, active deletion blocks profile resurrection, a
+  stored Apple credential is claim-readable only in the provider phase and is
+  destroyed before provider completion, a legacy Apple fixture records the
+  manual disposition, Auth completion is rejected before provider completion,
+  retries preserve `auth_pending`, the service role sees that retry through
+  aggregate health while public roles cannot execute the health RPC, final
+  completion erases the direct UUID, and duplicate completion is idempotent.
+  Before deletion begins, the same fixture inserts a stale
   storage outbox row for its live owner and proves the claim RPC cannot return
   it.
 - `safe-delete/storageWorker_test.ts` proves one bounded page per claim, delete
@@ -2117,9 +2144,20 @@ Durable account deletion has eleven complementary checks:
   identity key is skipped only for the source profile row. This is the shared
   identity-lifecycle boundary needed by account deletion; its broader merge
   assertions remain part of the separate Ghost release gate.
-- `MerianNetworkClientTests.testSafeDeleteAccountEndpoint` returns
-  `202 Accepted` from the mock route and proves the shared authenticated request
-  boundary recognizes durable acceptance as a successful 2xx response.
+- `MerianNetworkClientTests` returns `202 Accepted` from the mock route, strictly
+  requires the manual-provider disposition, and rejects a missing field.
+  `SupabaseManagerTests` proves the registration retry is bounded while reusing
+  one durable request. It also locks the credential-state matrix: `.authorized`
+  preserves the session, revoked/not-found/transferred states clear it, and a
+  lookup failure fails closed. Static source coverage requires the
+  provider-specific subject lookup and stale-identity fence.
+  `AppDIContainerTests` proves the manual notice survives until explicit
+  resolution.
+- Release evidence must separately exercise the chosen older-binary control.
+  Either an old client follows a clear enforced-update path back to in-app
+  deletion, or an independent server fallback durably delivers Apple's manual
+  instructions despite that client ignoring the new response field. App Store
+  availability of the supporting build is not evidence for this gate.
 - `scripts/monitor_account_deletion_health_test.ts` proves strict aggregate
   parsing/invariants, threshold ordering, cron/configuration and orphan
   criticals, retry/expired-lease warnings, fail policy, and identity-free

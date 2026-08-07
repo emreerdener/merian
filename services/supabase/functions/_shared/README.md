@@ -293,14 +293,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   relationship. It also owns the rollout read and dual-mode protocol-2-to-3
   `426` response. Edge isolate memory is never an entitlement authority.
 - **`posthog.ts`**: Fail-closed, account-consent-gated PostHog HTTP capture
-  helpers. Every capture resolves the provider-wide greatest
-  `consent_revision` across all disclosure versions, denies any head revocation,
-  and permits only a head grant carrying the current PostHog disclosure. The
-  query must never pre-filter disclosure version before selecting the head. Its
-  2.5-second deadline prevents optional telemetry from consuming
-  request-critical Edge wall-clock time. This server helper passing focused
-  tests does not establish the separate iOS SDK lifecycle; the aggregate release
-  remains held by the
+  helpers. Every capture resolves the provider-wide greatest `consent_revision`
+  across all disclosure versions, denies any head revocation, and permits only a
+  head grant carrying the current PostHog disclosure. The query must never
+  pre-filter disclosure version before selecting the head. Its 2.5-second
+  deadline prevents optional telemetry from consuming request-critical Edge
+  wall-clock time. This server helper passing focused tests does not establish
+  the separate iOS SDK lifecycle; the aggregate release remains held by the
   [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 - **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`
   pass, including the 7-day duration. The webhook derives purchase time from

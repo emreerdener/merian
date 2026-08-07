@@ -81,7 +81,14 @@ stay on a launch-matched neutral surface while the initial session and
 authoritative consent evidence are reconciled. If the resolved account still
 lacks current required evidence, they return directly to Powered by AI without
 repeating Camera or Location; restored evidence opens the workspace without
-presenting approval controls.
+presenting approval controls. A network, decoding, pending-row push, or
+ledger-persistence failure is not evidence of absence: the neutral surface
+remains the active root, offers an immediate retry, and performs three bounded
+account-fenced retries before requiring an explicit retry. Duplicate
+same-account auth notifications do not consume the budget. Account or
+synchronization-generation invalidation cancels stale retry work and returns
+the same unresolved account to reconciliation; it never leaves a waiting state
+after its timer is gone.
 
 ## Evidence and Enforcement Contract
 
@@ -149,7 +156,7 @@ not exact-SHA runtime evidence and is not a production approval.
 | `CONSENT-001` | PostHog uses a closed-by-default, host-scoped transport gate. Withdrawal closes transport before preserving `reset → optOut → close`, and permission generations reject stale setup work. | Exact-SHA hosted regression execution. |
 | `CONSENT-002` | Ghost handoff durably rebinds all four immutable ledgers, synchronizes/refetches the permanent account, and only then removes the retry proof. Analytics remains suppressed until completion. | Exact-SHA hosted handoff execution. |
 | `CONSENT-004` | Synchronization generation-fences every awaited operation. The final merge independently rechecks cancellation, observed account, synchronous Supabase SDK session, and generation before any ledger mutation, persistence, or analytics change. | Exact-SHA account-switch regression execution. |
-| `CONSENT-005` | Restoring or changing an account enters an explicit remote-authority wait state before cached consent is refreshed or applied. Analytics stays closed while every target-owned pending adult, Terms, Gemini, and analytics row is pushed and authoritative state is refetched. Only a verified, identity-fenced ledger write may resolve the current account to granted; remote absence, revocation, fetch failure, or persistence failure remains off. | Exact-SHA cached grant, remote absence/revocation, offline revoke → switch away → return, and persistence-failure execution. |
+| `CONSENT-005` | Restoring or changing an account enters an explicit remote-authority wait state before cached consent is refreshed or applied. Analytics stays closed while every target-owned pending adult, Terms, Gemini, and analytics row is pushed and authoritative state is refetched. Only a verified, identity-fenced ledger write may resolve account restoration. Authoritative absence or revocation may route to Powered by AI; fetch, decoding, pending-row push, and persistence failures remain on the neutral restoration surface with bounded automatic and explicit retry. Duplicate auth cannot consume the budget, and account/generation invalidation cannot leave a canceled timer represented as pending. | Exact-SHA cached grant, remote absence/revocation, offline revoke → switch away → return, synchronization-failure retry, persistence failure, duplicate-auth, and invalidated-retry execution. |
 | `CONSENT-006` | Analytics-consent Realtime independently owns channel and subscribed-user identity, generation-fences stale listeners, and gives failed subscriptions an account-owned bounded retry. | Exact-SHA reconnect and cross-device execution. |
 | `CONSENT-007` | OAuth replacement suppresses analytics and closes consent Realtime before session installation; success and failure reconcile the SDK's actual session under a transition generation. | Exact-SHA account-replacement execution. |
 | `CONSENT-009` | The retained internal copy has distinct Gemini and analytics disclosure versions, and forward-only server compatibility preserves immutable historical receipts. | Exact-SHA migration/client contracts and replacement-build validation. |
@@ -221,7 +228,15 @@ result become canonical only after both hosted gates pass on the same SHA.
    latter must stay on the launch-matched restoration surface and open the
    workspace without a Powered by AI frame when the account restores current
    evidence; a genuinely absent account must proceed to Powered by AI only after
-   reconciliation resolves. Also verify both inverse sequences for each
+   reconciliation resolves. Interrupt connectivity on TestFlight and verify the
+   same surface exposes retry without mounting Powered by AI. Require the
+   unchanged candidate's hosted synchronization- and ledger-write-failure
+   fixtures to prove decoding, pending-row push, and persistence errors have the
+   same outcome; only a later successful authoritative merge may choose the
+   workspace or Powered by AI. Verify duplicate auth does not advance the
+   attempt and an account/generation transition cancels the old timer, rejects
+   its stale wake, and starts the replacement reconciliation with a fresh
+   budget. Also verify both inverse sequences for each
    provider: another device revokes before a delayed offline grant reconnects,
    and another device grants before a delayed offline revocation reconnects. The
    grant must be rejected in the first sequence; the revocation must be accepted

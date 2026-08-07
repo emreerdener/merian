@@ -944,6 +944,7 @@ triggering excessive SwiftUI view rebuilds.
 | -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                             |
 | `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | Legacy routing preference only. `MerianApp` combines it with current required consent and the manager's pending restoration signal to choose onboarding, a launch-matched restoration surface, or the workspace. Active provider/hardware lifecycle behavior still requires current adult, Terms, and Gemini consent.                            |
+| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple fallback before sign-out; `MerianApp` restores the manual-removal alert on launch/foreground until explicit resolution. This key must survive account-local database cleanup.                                                        |
 | `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                               |
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                        |
@@ -1287,6 +1288,19 @@ and `KeychainManager` migration logic. Do not inline
   existed in both flows. The existing-account fallback is entered only for
   Supabase Auth code `identity_already_exists`; network, timeout, configuration,
   and other linking errors preserve the active guest session.
+- **Apple revocation credential**: Apple completion also requires the one-use
+  authorization code. After Supabase installs the session,
+  `register-apple-revocation-token` receives the code, identity token, and one
+  stable registration UUID with a bounded response-loss retry. Server-side
+  Apple verification and Vault persistence are part of sign-in success; failure
+  clears the new local session. The manager treats Apple's credential-revoked
+  notification as a revalidation signal. It snapshots the active Apple
+  identity's provider-specific `UserIdentity.id`, calls
+  `getCredentialState(forUserID:)`, and applies the asynchronous result only if
+  that same Apple identity remains active. `.authorized` preserves the session;
+  `.revoked`, `.notFound`, `.transferred`, unknown states, and lookup failures
+  clear the matching local session. This client transition never fabricates
+  server provider completion.
 - **Durable Ghost merge completion**: Before switching sessions,
   `SupabaseManager` stores each source-issued, provider-bound proof in a
   versioned `WhenUnlockedThisDeviceOnly` Keychain queue. Completion is
@@ -1557,6 +1571,29 @@ and `KeychainManager` migration logic. Do not inline
 - Completed Field Naturalist cards and unlock toasts carry a typed
   `CaptureGoalDestination` and open the outing or Seasonal Challenge that earned
   the award. Its locked card continues to open the requirement sheet.
+
+### `ConsentManager` required-consent restoration
+
+- Root presentation distinguishes unknown account evidence from authoritative
+  absence with `.awaitingInitialSession`, `.reconciling`,
+  `.waitingToRetry`, `.retryRequired`, and `.resolved`.
+- Once an authenticated account enters restoration because local required
+  evidence is missing, only `merge(_:for:generation:)`, after identity
+  validation and a verified ledger write, may resolve it. A successful empty
+  merge is authoritative absence; network, decoding, pending-row push, and
+  persistence errors are not. An account that already has current local
+  required evidence bypasses this restoration state.
+- Failures receive three outer retries after 5, 10, and 20 seconds. The neutral
+  root exposes **Try Again** during the wait and after exhaustion; manual retry
+  resets the automatic budget.
+- Every failure transition and timer verifies the synchronization generation,
+  observed account, synchronous Supabase SDK account, and missing local required
+  evidence. An account switch cancels stale work. Same-account invalidation
+  returns a canceled retry to `.reconciling`, so the new generation starts from
+  a coherent state.
+- Duplicate same-account auth events preserve a pending retry and do not reopen
+  a resolved restoration. A successful authoritative merge from foreground or
+  Realtime synchronization may resolve while retry UI is visible.
 
 ### `PostHogManager`
 

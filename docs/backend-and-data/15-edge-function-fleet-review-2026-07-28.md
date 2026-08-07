@@ -198,6 +198,7 @@ refresh-merian-reference-images
 refresh-species-content
 refresh-species-model-content
 refresh-taxonomy-nodes
+register-apple-revocation-token
 register-push-device
 repair-scan-image
 replay-scan-ingestion
@@ -239,7 +240,7 @@ Repository checks cannot prove hosted regional routing or an authenticated
 customer journey. Before closing the incident:
 
 1. run the production Supabase workflow from the reviewed release SHA and
-   require all 90 graph-derived route probes plus the ten stricter auth probes;
+   require all 91 graph-derived route probes plus the ten stricter auth probes;
 2. require the stable hosted `iOS Build and Test / Production readiness` result
    for the same SHA, including the complete unit-test target, exact queued-scan
    completion UI smoke, and independent unsigned Release archive;

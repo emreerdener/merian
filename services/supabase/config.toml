@@ -406,6 +406,11 @@ verify_jwt = false
 [functions.safe-delete]
 verify_jwt = false
 
+[functions.register-apple-revocation-token]
+# The gateway and withEdgeHandler both bind the request to the newly installed
+# permanent Supabase session before the one-use Apple code is exchanged.
+verify_jwt = true
+
 [functions.reconcile-account-deletions]
 verify_jwt = false
 

@@ -130,6 +130,46 @@ enum UserDefaultsKeys {
     /// Test-suite compatibility key. Production withdrawal journals are stored
     /// independently from the ledger in Keychain.
     static let analyticsRevocationIntent = "analyticsRevocationIntent.v1"
+    /// Durable notice for legacy Apple-linked accounts whose server-side
+    /// deletion cannot programmatically revoke a token that was never stored.
+    static let pendingManualAppleRevocationNotice =
+        "pendingManualAppleRevocationNotice.v1"
+}
+
+enum AccountDeletionEvents {
+    static let manualAppleRevocationNoticeRequired = Notification.Name(
+        "MerianManualAppleRevocationNoticeRequired"
+    )
+}
+
+enum ManualAppleRevocationNoticeStore {
+    static func isPending(
+        userDefaults: UserDefaults = .standard
+    ) -> Bool {
+        userDefaults.bool(
+            forKey: UserDefaultsKeys.pendingManualAppleRevocationNotice
+        )
+    }
+
+    static func record(
+        userDefaults: UserDefaults = .standard,
+        notificationCenter: NotificationCenter = .default
+    ) {
+        userDefaults.set(
+            true,
+            forKey: UserDefaultsKeys.pendingManualAppleRevocationNotice
+        )
+        notificationCenter.post(
+            name: AccountDeletionEvents.manualAppleRevocationNoticeRequired,
+            object: nil
+        )
+    }
+
+    static func resolve(userDefaults: UserDefaults = .standard) {
+        userDefaults.removeObject(
+            forKey: UserDefaultsKeys.pendingManualAppleRevocationNotice
+        )
+    }
 }
 
 enum KeychainKeys {

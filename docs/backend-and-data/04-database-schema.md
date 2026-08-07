@@ -3877,8 +3877,11 @@ indexes; API roles retain no direct queue access.
 
 Migration `20260725030308_durable_account_deletion.sql` adds durable intake;
 migration `20260725052337_enforce_account_storage_erasure.sql` completes the
-private account-deletion state machine. It has RLS enabled and revokes direct
-table access from `PUBLIC`, `anon`, `authenticated`, and `service_role`.
+private account-deletion state machine. Migration
+`20260806203700_durable_apple_provider_revocation.sql` adds the provider
+revocation substage required for Sign in with Apple. The job table has RLS
+enabled and revokes direct table access from `PUBLIC`, `anon`, `authenticated`,
+and `service_role`.
 
 Important columns and invariants:
 
@@ -3887,6 +3890,10 @@ Important columns and invariants:
   to `NULL` for data minimization
 - `cleanup_completed_at`, `storage_completed_at`, `auth_deleted_at`, and
   `completed_at`, constrained to match the state
+- `provider_revocation_status`: `pending`, `completed`, `manual_required`, or
+  `not_required`; its resolved timestamp and
+  `manual_provider_revocation_required` boolean are constrained as one coherent
+  disposition
 - `claim_token`, `claimed_at`, and `claim_expires_at`, which are either all
   present or all absent
 - `attempt_count`, `next_attempt_at`, and a bounded `last_error_code`
@@ -3894,14 +3901,47 @@ Important columns and invariants:
 Partial indexes cover due active work and expired claims. The service-only state
 transitions are:
 
-- `request_account_deletion(uuid)` — idempotent durable intake
+- `request_account_deletion(uuid)` — idempotent durable intake returning the
+  job ID/status and legacy manual-provider disposition
 - `claim_account_deletion_jobs(integer,uuid)` — bounded `SKIP LOCKED` leasing;
   the optional UUID is only for the initiating authenticated route's fast path
 - `complete_account_deletion_cleanup(uuid,uuid)` — claim-fenced storage-job
   insert, idempotent tombstone, and relational verification; returns
-  `storage_pending` until delayed storage verification permits `auth_pending`
+  `storage_pending` until delayed storage verification permits `auth_pending`,
+  then returns `provider_revocation_pending` when a stored credential remains
+- `get_account_deletion_provider_token(uuid,uuid)` — reads the Vault token only
+  for the active, unexpired `auth_pending` claim
+- `complete_account_deletion_provider_revocation(uuid,uuid)` — deletes the
+  private mapping, idempotency receipts, and Vault secret before committing
+  provider success
 - `finish_account_deletion_attempt(uuid,uuid,boolean,text)` — terminal Auth
-  receipt or database-calculated retry; success verifies completed storage again
+  receipt or database-calculated retry; success verifies completed storage,
+  resolved provider state, and credential absence again
+
+### Apple revocation credential tables
+
+`internal.apple_sign_in_revocation_credentials` maps one Auth user to one
+`vault.secrets` UUID. Both foreign keys use `ON DELETE RESTRICT`; the Auth edge
+prevents an Admin deletion from bypassing provider revocation, while the Vault
+edge prevents orphaning the mapping. The table has RLS enabled and no direct
+API-role privileges, including `service_role`.
+
+`internal.apple_sign_in_credential_registrations` stores token-free,
+client-generated registration UUID receipts for response-loss idempotency. Its
+Auth foreign key cascades only when the user is legitimately deleted, and
+successful provider completion removes the user's receipts first. Receipts
+older than 24 hours are pruned on later successful registration.
+
+`apple_revocation_registration_exists(uuid,uuid)` checks a receipt before the
+one-use code is exchanged. `store_apple_revocation_credential(uuid,uuid,text,text)`
+locks the permanent Auth user, rejects active deletion, binds the Apple subject
+to `auth.identities`, and creates or updates the Vault secret atomically. Both
+routines, plus the two claimed deletion routines above, are empty-search-path,
+in-body-authorized, service-role-only entries in
+`internal.privileged_routine_grants`.
+See the
+[Sign in with Apple account-deletion contract](./20-sign-in-with-apple-account-deletion.md)
+for runtime ordering, secrets, legacy fallback, and rollout evidence.
 
 The separate service-only storage transitions are
 `claim_pending_storage_deletions(integer)`,

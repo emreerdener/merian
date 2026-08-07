@@ -185,20 +185,22 @@ platform, and app metadata remain unchanged.
 
 The durable Keychain handoff suppresses analytics before and throughout this
 sequence, including after process restart. The client cancels stale ledger sync
-work, pushes pending permanent-account actions, refetches authoritative state,
-then performs a final in-merge fence over task cancellation, observed account,
-the Supabase SDK's synchronous session, and synchronization generation before
-any evidence, persistence, or analytics change. It removes the handoff only
-afterward with a throwing, read-after-write-verified Keychain operation. Any
-persistence, synchronization, refetch, cancellation, identity drift, or removal
-failure retains the handoff for an idempotent retry. Only server-terminal
-`handoff_expired` and `handoff_invalid` responses discard a handoff without
-rebinding local evidence; those paths still refetch the permanent account before
-verified removal. Analytics can resume only after the durable queue is empty and
-permanent state is authoritative. Keychain read/decode uncertainty retains the
-original bytes and keeps analytics suppressed instead of treating the queue as
-absent. This closes `CONSENT-002` in source; hosted exact-SHA test execution
-remains required by the
+work and normalizes any canceled required-consent retry back to reconciliation
+under the new generation, pushes pending permanent-account actions, refetches
+authoritative state, then performs a final in-merge fence over task
+cancellation, observed account, the Supabase SDK's synchronous session, and
+synchronization generation before any evidence, persistence, or analytics
+change. It removes the handoff only afterward with a throwing,
+read-after-write-verified Keychain operation. Any persistence, synchronization,
+refetch, cancellation, identity drift, or removal failure retains the handoff
+for an idempotent retry. Only server-terminal `handoff_expired` and
+`handoff_invalid` responses discard a handoff without rebinding local evidence;
+those paths still refetch the permanent account before verified removal.
+Analytics can resume only after the durable queue is empty and permanent state
+is authoritative. Keychain read/decode uncertainty retains the original bytes
+and keeps analytics suppressed instead of treating the queue as absent. This
+closes `CONSENT-002` in source; hosted exact-SHA test execution remains required
+by the
 [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 The OAuth session switch itself uses a separate generation-fenced analytics

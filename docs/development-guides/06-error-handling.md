@@ -36,6 +36,34 @@ public enum MerianError: LocalizedError, Equatable {
 
 ---
 
+## Required-Consent Restoration Errors
+
+Required-consent restoration has a separate root-presentation contract from
+ordinary onboarding errors. Once an authenticated account with missing local
+evidence enters `.reconciling`, a fetch, decode, push, or verified-ledger-write
+error must not set restoration to `.resolved`, route to Powered by AI, or infer
+that consent is absent.
+
+- A non-cancellation failure remains on the neutral
+  `ConsentRestorationView`, enters `.waitingToRetry`, and schedules account- and
+  synchronization-generation-fenced retries after 5, 10, and 20 seconds.
+- **Try Again** may replace a pending timer with an immediate attempt. After the
+  automatic budget is exhausted, `.retryRequired` keeps the same action
+  available and resets the budget when the user invokes it.
+- Duplicate same-account auth notifications preserve pending retry state and do
+  not consume attempts. Account or generation changes cancel stale work; if the
+  same unresolved account loses a retry timer during invalidation, its state
+  returns to `.reconciling` under the new generation.
+- Cancellation remains pending for the next session/account decision. Only an
+  identity-fenced authoritative merge followed by verified persistence may
+  resolve a restoration that began because local evidence was missing.
+
+See the
+[state machine](../features-and-hardware/04-onboarding.md#root-presentation-gate)
+for the complete transition matrix and UI contract.
+
+---
+
 ## Inference Error Routing
 
 `InferenceEngine.analyze` handles errors in this priority order:
@@ -381,6 +409,22 @@ The complete error and recovery ordering contract is
 - Apple Sign-In bootstrap failures are no longer fatal. Missing presentation
   anchors, missing callback nonces, and `SecRandomCopyBytes` failures now log
   and return control to the UI instead of terminating the app.
+- Missing Apple authorization codes and failed server credential registration
+  also fail closed. The client performs one bounded same-request retry for a
+  lost response, then clears a newly installed local session and requires a
+  fresh Apple authorization. The server attempts compensating revocation if
+  code exchange succeeded but Vault persistence failed; neither side logs token
+  material.
+- Apple's credential-revoked notification is a prompt to revalidate, not proof
+  that the active credential was revoked. The app queries the exact active
+  provider-specific subject and ignores a stale callback after identity change.
+  `.authorized` preserves the session; revoked, missing, transferred, unknown,
+  or failed resolution clears the matching local session. None of these client
+  outcomes marks the durable deletion provider stage complete.
+- During account deletion, an Apple revoke failure is retryable server state,
+  not permission to continue. The database retains the Auth user and Vault
+  credential, releases the claim with backoff, and the existing deletion health
+  monitor surfaces the failure inside `auth_pending`.
 - `presentationAnchor(for:)` must always return a best-effort anchor. If no
   active key window exists yet, the flow cancels gracefully rather than crashing
   the scene.

@@ -33,18 +33,25 @@ onboarding flow or Capture workspace:
    `CaptureWorkspaceView`.
 3. Completed onboarding plus missing local evidence presents
    `ConsentRestorationView` while `ConsentManager` is awaiting the initial auth
-   result or reconciling the restored account.
-4. If reconciliation resolves without current evidence, the app presents
-   onboarding at `.ready`; if the authoritative merge restores the evidence,
-   it opens the workspace directly.
+   result, reconciling the restored account, or holding an automatic/explicit
+   retry.
+4. An authoritative initial result with no active session presents onboarding
+   at `.ready`. For an authenticated account, a successful merge presents
+   `.ready` when evidence is absent or opens the workspace when evidence is
+   restored.
 
 `ConsentRestorationView` matches the black launch screen and waits 350
 milliseconds before showing an accessible progress indicator. It prevents a
 completed user from seeing actionable approval controls for a fraction of a
 second while account evidence loads. A non-cancellation reconciliation failure
-resolves the launch state fail-closed, allowing the required-consent screen to
-remain available; cancellation caused by account/session replacement keeps the
-transition pending until the replacement is evaluated.
+retains this neutral root, shows an immediate retry action, and enters a bounded
+5-, 10-, then 20-second account-fenced retry schedule. Exhaustion keeps the
+explicit retry action visible; it does not treat the failure as authoritative
+absence. Cancellation caused by account/session replacement keeps the
+transition pending until the replacement is evaluated. If invalidation cancels
+a scheduled retry for the same unresolved account, the state returns to
+`.reconciling` under the new synchronization generation rather than leaving an
+orphaned `.waitingToRetry` state.
 
 This presentation policy does not weaken the phase contract below. Hardware,
 provider requests, ordinary sync, and queued work still require both completed
@@ -66,6 +73,20 @@ triggers (Main thread):**
 6. `AppSettings.refreshFromDefaults()` — reconciles settings written by background delegates while SwiftUI was suspended.
 
 Camera session startup is owned by `CaptureWorkspaceView` / `CaptureWorkspaceViewModel.handleScenePhaseChange`, not by `AppLifecycleManager`. `handleActivePhase()` should not directly start AVFoundation hardware.
+
+The app root separately restores
+`pendingManualAppleRevocationNotice.v1` on appearance and every active
+transition. That non-sensitive flag is written before a legacy Apple account
+signs out, so authentication teardown and local database purge cannot erase the
+customer instruction. Opening Apple's support page dismisses the current alert
+but leaves the flag pending; returning to the foreground presents it again.
+Only the explicit **I Revoked Access** action resolves it.
+
+This restoration path exists only in supporting binaries. Older clients can
+ignore the server's manual-revocation disposition, so public promotion requires
+the minimum-supported-build or independent server-delivery control defined by
+the
+[canonical Sign in with Apple deletion contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 **Deep links and intents:**
 `MerianApp.handleMerianDeepLink(_:)`, `PushNotificationManager.handleNotificationAction(...)`, and App Intents publish typed `AppEventPublisher` events. `CaptureWorkspaceViewModel` consumes scan, Explore-post, and Species Dictionary events to present the appropriate sheet and stack route. Species events contain only the validated canonical dictionary UUID. `CaptureWorkspaceView` consumes identify/recall intent events that need to modify the pager or reuse current insight state.

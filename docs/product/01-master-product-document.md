@@ -663,7 +663,13 @@ with the old onboarding flag remain on a launch-matched neutral surface while
 the initial session and authoritative account evidence are restored. If that
 resolved account still lacks current required evidence, they route directly to
 this screen without repeating Camera or Location. If restoration supplies the
-evidence, they open the scanner without seeing the approval controls.
+evidence, they open the scanner without seeing the approval controls. A fetch,
+decode, pending consent upload, or verified-ledger-write failure keeps the neutral
+surface active, offers **Try Again**, and performs bounded 5-, 10-, and
+20-second retries. It does not ask the user to consent again. For an
+authenticated restoration, only a successful authoritative merge may establish
+absence and present Powered by AI; an authoritative no-session result may begin
+the local consent flow directly.
 
 Photo-library and notification permissions are requested progressively at the
 point of need. Hardware initialization, provider work, and ordinary
@@ -763,13 +769,26 @@ and provenance facts remain unchanged as the mandatory scientific observation.
 The complete product and engineering boundary is normative in the
 [scientific-observation retention contract](../backend-and-data/17-scientific-observation-retention.md).
 A scheduled reaper cursor-sweeps durable uploads, staging data, avatars, and
-exports, then performs a delayed empty verification sweep. Auth is deleted only
-after both relational and storage verification succeed. Transient failures are
-resumed automatically. After immediate completion or durable acceptance, the
-client signs out locally and removes its local store. An independent scheduled
+exports, then performs a delayed empty verification sweep. For Apple sign-ins
+created under the current client contract, the server next revokes the
+Vault-held Apple refresh token and destroys it before Auth deletion. Apple
+accounts created before token capture remain deletable; supporting clients
+persist their durable manual-removal disposition before sign-out. Older binaries
+cannot consume that new response field. Public promotion is blocked until an
+enforceable minimum-supported-build control or independent server-delivered
+fallback covers them; App Store availability is not adoption evidence. Auth is
+deleted only after relational, storage, and applicable provider verification
+succeed. Transient failures are resumed automatically. After immediate
+completion or durable acceptance, the supporting client persists any manual
+Apple disposition, signs out locally, and removes its local store. An
+independent scheduled
 health check alerts when the reaper is disabled or misconfigured, deletion work
 is overdue, leases expire, storage work is orphaned, or queue age/backlog
 breaches the deletion SLA.
+
+The provider-specific implementation and production exit criteria are
+normative in the
+[Sign in with Apple account-deletion contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 Deleting an individual scan uses an owner-bound `/delete-scan` path that first
 persists a private, content-free generation tombstone, then removes owned media,
@@ -1107,7 +1126,9 @@ Each release should exercise at minimum:
 2. Completed-account cold launch with the local consent ledger absent: the
    neutral restoration surface must proceed directly to the scanner when the
    account restores current evidence, and to Ready only when evidence resolves
-   absent. The approval screen must not flash during either pending path.
+   absent. Network, decoding, pending consent upload, and persistence failures must
+   retain the neutral retry surface; the approval screen must not flash during
+   any pending path.
 3. Anonymous still scan, queued acceptance, identification, and Insight.
 4. Offline submission, relaunch, and later synchronization.
 5. Online complimentary verification, three durable Pro results, fourth-scan

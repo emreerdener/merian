@@ -30,6 +30,14 @@ BEGIN
         'service_role',
         'internal.reject_account_deletion_profile_recreation()',
         'EXECUTE'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.apple_sign_in_revocation_credentials',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.apple_sign_in_credential_registrations',
+        'SELECT'
     ) THEN
         RAISE EXCEPTION
             'API roles unexpectedly have direct account-deletion internals access';
@@ -73,6 +81,22 @@ BEGIN
         'public.finish_account_deletion_attempt(uuid,uuid,boolean,text)',
         'EXECUTE'
     ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.store_apple_revocation_credential(uuid,uuid,text,text)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.apple_revocation_registration_exists(uuid,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_account_deletion_provider_token(uuid,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.complete_account_deletion_provider_revocation(uuid,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
         'public.get_account_deletion_health()',
         'EXECUTE'
@@ -100,6 +124,22 @@ BEGIN
     ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'service_role',
         'public.finish_account_deletion_attempt(uuid,uuid,boolean,text)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.store_apple_revocation_credential(uuid,uuid,text,text)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.apple_revocation_registration_exists(uuid,uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_account_deletion_provider_token(uuid,uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.complete_account_deletion_provider_revocation(uuid,uuid)',
         'EXECUTE'
     ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'service_role',
@@ -210,6 +250,73 @@ VALUES (
     pg_catalog.NOW(),
     pg_catalog.NOW(),
     FALSE
+);
+
+INSERT INTO auth.identities (
+    provider_id,
+    user_id,
+    identity_data,
+    provider,
+    last_sign_in_at,
+    created_at,
+    updated_at
+)
+VALUES (
+    'account-deletion-apple-subject',
+    '00000000-0000-0000-0000-00000000d201'::UUID,
+    '{"sub":"account-deletion-apple-subject"}'::JSONB,
+    'apple',
+    pg_catalog.NOW(),
+    pg_catalog.NOW(),
+    pg_catalog.NOW()
+);
+
+INSERT INTO auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    email_confirmed_at,
+    last_sign_in_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at,
+    is_anonymous
+)
+VALUES (
+    '00000000-0000-0000-0000-000000000000'::UUID,
+    '00000000-0000-0000-0000-00000000d202'::UUID,
+    'authenticated',
+    'authenticated',
+    'legacy-apple-deletion-test@naturebook.invalid',
+    pg_catalog.NOW(),
+    pg_catalog.NOW(),
+    '{"provider":"apple","providers":["apple"]}'::JSONB,
+    '{}'::JSONB,
+    pg_catalog.NOW(),
+    pg_catalog.NOW(),
+    FALSE
+);
+
+INSERT INTO auth.identities (
+    provider_id,
+    user_id,
+    identity_data,
+    provider,
+    last_sign_in_at,
+    created_at,
+    updated_at
+)
+VALUES (
+    'legacy-account-deletion-apple-subject',
+    '00000000-0000-0000-0000-00000000d202'::UUID,
+    '{"sub":"legacy-account-deletion-apple-subject"}'::JSONB,
+    'apple',
+    pg_catalog.NOW(),
+    pg_catalog.NOW(),
+    pg_catalog.NOW()
 );
 
 INSERT INTO public.users (
@@ -334,7 +441,8 @@ RESET ROLE;
 
 CREATE TEMP TABLE account_deletion_test_job (
     job_id UUID NOT NULL,
-    job_status TEXT NOT NULL
+    job_status TEXT NOT NULL,
+    manual_provider_revocation_required BOOLEAN NOT NULL
 );
 GRANT SELECT, INSERT ON account_deletion_test_job TO service_role;
 
@@ -348,6 +456,30 @@ CREATE TEMP TABLE account_deletion_test_claim (
 GRANT SELECT, INSERT, DELETE ON account_deletion_test_claim TO service_role;
 
 SET LOCAL ROLE service_role;
+
+SELECT public.store_apple_revocation_credential(
+    '00000000-0000-0000-0000-00000000d201'::UUID,
+    '00000000-0000-0000-0000-00000000d221'::UUID,
+    'account-deletion-apple-subject',
+    'fixture-apple-refresh-token-123456789'
+);
+
+DO $$
+DECLARE
+    manual_required BOOLEAN;
+BEGIN
+    SELECT deletion.manual_provider_revocation_required
+    INTO STRICT manual_required
+    FROM public.request_account_deletion(
+        '00000000-0000-0000-0000-00000000d202'::UUID
+    ) AS deletion;
+
+    IF manual_required IS NOT TRUE THEN
+        RAISE EXCEPTION
+            'Legacy Apple deletion did not persist the manual fallback';
+    END IF;
+END;
+$$;
 
 INSERT INTO account_deletion_test_job
 SELECT *
@@ -381,6 +513,18 @@ BEGIN
         FROM public.scans AS scan
         WHERE scan.user_id =
             '00000000-0000-0000-0000-00000000d201'::UUID
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.apple_sign_in_revocation_credentials AS credential
+        WHERE credential.user_id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS legacy_job
+        WHERE legacy_job.user_id =
+            '00000000-0000-0000-0000-00000000d202'::UUID
+          AND legacy_job.provider_revocation_status = 'manual_required'
+          AND legacy_job.manual_provider_revocation_required
     ) THEN
         RAISE EXCEPTION
             'Durable intake or claim mutated Auth or user data';
@@ -719,6 +863,81 @@ $$;
 
 SET LOCAL ROLE service_role;
 
+DO $$
+BEGIN
+    BEGIN
+        PERFORM public.finish_account_deletion_attempt(
+            (SELECT job_id FROM account_deletion_test_claim),
+            (SELECT claim_token FROM account_deletion_test_claim),
+            TRUE,
+            NULL
+        );
+        RAISE EXCEPTION
+            'Auth completion succeeded before Apple provider revocation';
+    EXCEPTION
+        WHEN SQLSTATE '55000' THEN NULL;
+    END;
+END;
+$$;
+
+DO $$
+DECLARE
+    stored_refresh_token TEXT;
+BEGIN
+    SELECT provider_token.refresh_token
+    INTO STRICT stored_refresh_token
+    FROM public.get_account_deletion_provider_token(
+        (SELECT job_id FROM account_deletion_test_claim),
+        (SELECT claim_token FROM account_deletion_test_claim)
+    ) AS provider_token;
+
+    IF stored_refresh_token <> 'fixture-apple-refresh-token-123456789' THEN
+        RAISE EXCEPTION
+            'Claimed Apple provider token did not match the Vault secret';
+    END IF;
+END;
+$$;
+
+-- The executable database fixture represents Apple's idempotent HTTP 200 by
+-- committing the claimed provider transition. HTTP behavior is covered by the
+-- Edge worker tests.
+SELECT public.complete_account_deletion_provider_revocation(
+    (SELECT job_id FROM account_deletion_test_claim),
+    (SELECT claim_token FROM account_deletion_test_claim)
+);
+
+RESET ROLE;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM internal.apple_sign_in_revocation_credentials AS credential
+        WHERE credential.user_id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.apple_sign_in_credential_registrations AS registration
+        WHERE registration.user_id =
+            '00000000-0000-0000-0000-00000000d201'::UUID
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS deletion_job
+        WHERE deletion_job.id = (
+            SELECT job_id FROM account_deletion_test_job
+        )
+          AND deletion_job.provider_revocation_status = 'completed'
+          AND deletion_job.provider_revocation_resolved_at IS NOT NULL
+          AND deletion_job.manual_provider_revocation_required IS FALSE
+    ) THEN
+        RAISE EXCEPTION
+            'Apple provider completion retained credentials or failed to commit';
+    END IF;
+END;
+$$;
+
+SET LOCAL ROLE service_role;
+
 SELECT public.finish_account_deletion_attempt(
     (SELECT job_id FROM account_deletion_test_claim),
     (SELECT claim_token FROM account_deletion_test_claim),
@@ -834,6 +1053,8 @@ BEGIN
           AND deletion_job.user_id IS NULL
           AND deletion_job.auth_deleted_at IS NOT NULL
           AND deletion_job.completed_at IS NOT NULL
+          AND deletion_job.provider_revocation_status = 'completed'
+          AND deletion_job.provider_revocation_resolved_at IS NOT NULL
           AND deletion_job.claim_token IS NULL
           AND deletion_job.last_error_code IS NULL
     ) THEN
@@ -844,7 +1065,7 @@ END;
 $$;
 
 SELECT extensions.pass(
-    'account deletion persists intent, cleans before Auth, retries, and minimizes terminal identity'
+    'account deletion persists intent, revokes Apple before Auth, records legacy fallback, retries, and minimizes terminal identity'
 );
 SELECT * FROM extensions.finish();
 ROLLBACK;

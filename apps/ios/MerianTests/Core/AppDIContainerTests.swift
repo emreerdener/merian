@@ -155,6 +155,22 @@ struct AppDIContainerTests {
         ) == .onboarding)
     }
 
+    @Test func testManualAppleRevocationNoticePersistsUntilExplicitResolution() {
+        let suiteName = "merian.tests.apple-revocation-notice.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        ManualAppleRevocationNoticeStore.record(
+            userDefaults: defaults,
+            notificationCenter: NotificationCenter()
+        )
+        #expect(ManualAppleRevocationNoticeStore.isPending(userDefaults: defaults))
+
+        ManualAppleRevocationNoticeStore.resolve(userDefaults: defaults)
+        #expect(!ManualAppleRevocationNoticeStore.isPending(userDefaults: defaults))
+    }
+
     @Test func testCaptureGoalProgressDefaultsOnAndPersistsExplicitOff() {
         let suiteName = "merian.tests.capture-goal-progress.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

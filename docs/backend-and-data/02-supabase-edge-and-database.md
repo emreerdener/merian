@@ -2188,14 +2188,26 @@ adds durable deletion intake, and migration
 `20260725052337_enforce_account_storage_erasure.sql` completes the private
 `pending → storage_pending → auth_pending → completed` state machine. Migration
 `20260726041109_fence_storage_erasure_claims.sql` makes that private job the
-mandatory authority for every R2 claim. `/safe-delete` first persists an
+mandatory authority for every R2 claim. Migration
+`20260806203700_durable_apple_provider_revocation.sql` adds a provider substage
+inside `auth_pending`; a stored Apple refresh token must be revoked and removed
+from Vault before Auth deletion. `/safe-delete` first persists an
 idempotent `pending` receipt, then claims it with a five-minute UUID lease. The
 claim writes the storage job, invokes `apply_user_tombstone`, verifies that no
 public profile or scan still references the user, and commits `storage_pending`
 in one database transaction. The Auth Admin API remains forbidden until storage
 verification advances the account job to `auth_pending`. This ordering
-guarantees that any relational or R2 failure leaves the login identity available
-for retry instead of stranding personal data behind an inaccessible account.
+guarantees that any relational, R2, or provider failure leaves the login
+identity available for retry instead of stranding personal data behind an
+inaccessible account.
+
+The authenticated `register-apple-revocation-token` route captures Apple's
+one-use authorization code after Supabase sign-in, verifies both Apple identity
+tokens and their common subject, binds that subject to `auth.identities`, and
+stores the refresh token in Vault through one service-only transaction. A
+token-free registration receipt makes response-loss retry idempotent. If Vault
+persistence fails after exchange, the route attempts immediate compensating
+revocation and iOS clears the newly installed local session.
 
 The SQL storage claim inner-joins the corresponding private job at
 `storage_pending`, requires completed relational cleanup and incomplete storage,
@@ -2205,10 +2217,15 @@ workflow; queue status, age, due time, or a reset marker alone can never
 authorize an account-prefix sweep.
 
 Relational cleanup also clears every compatibility media URL, captured-media
-reference, exact coordinate/elevation, semantic-location value, device
+reference, semantic/public-location value, device
 locale/time-zone context, free-form note, and custom tag retained on ownerless
-scientific tombstones. Every claimed retry repeats cleanup and verification
-before progressing. A private deletion-state trigger rejects attempts to
+scientific tombstones while retaining exact coordinate/elevation and every
+other scientific fact. Every claimed retry repeats cleanup and verification
+before progressing. After storage verification, the worker calls Apple's
+idempotent `/auth/revoke` under the active database claim and destroys the Vault
+secret transactionally before Auth becomes reachable. Legacy Apple identities
+without captured credentials carry an explicit manual-fallback disposition in
+the deletion response. A private deletion-state trigger rejects attempts to
 recreate `public.users` while a job is active, including Auth metadata-triggered
 upserts. The upload signer checks the same durable state and rejects new
 staging/public uploads while deletion is active.
@@ -2219,24 +2236,32 @@ database routines are granted only to `service_role`, call
 direct job-table privileges to API roles.
 
 **Retry and crash handling**: The request tries its own job immediately and
-normally returns `202` while durable R2 work remains. A `200` means relational
-cleanup, delayed storage verification, and Auth removal are all complete. The
-scheduled `reconcile-account-deletions` route leases due account jobs and
-storage jobs every five minutes. Each storage claim processes at most one 50-key
-keyset page from one of the five canonical user prefixes. Progress and failures
-are persisted under a UUID claim token with bounded backoff.
+normally returns `202` while durable R2 work remains. Both success responses
+include `manual_provider_revocation_required`. A `200` means relational
+cleanup, delayed storage verification, provider disposition, and Auth removal
+are all complete. An older binary that does not decode this required field
+cannot deliver the manual fallback; publishing the supporting build is not
+proof that installed clients adopted it. Production remains blocked until a
+minimum-supported-build control or independent server-delivered fallback covers
+those clients. The scheduled `reconcile-account-deletions` route leases due
+account jobs and storage jobs every five minutes. Each storage claim processes
+at most one 50-key keyset page from one of the five canonical user prefixes.
+Progress and failures are persisted under a UUID claim token with bounded
+backoff.
 
 After the first sweep reaches the end of all prefixes, the job waits at least 25
 hours and starts a complete verification sweep. Only an empty delayed pass marks
 storage complete and wakes the account job transactionally. A final bounded
-account pass may then remove Auth in the same invocation. Cleanup or storage
-failure never reaches Auth deletion; Auth failure leaves the fully-erased job at
-`auth_pending` with bounded backoff. HTTP `404` and Auth code `user_not_found`
-are idempotent success, so a lost completion response is recoverable. Expired
+account pass may then revoke Apple and remove Auth in the same invocation.
+Cleanup, storage, or provider failure never reaches Auth deletion; Auth failure
+leaves the fully-erased job at `auth_pending` with bounded backoff. HTTP `404`
+and Auth code `user_not_found` are idempotent success, so a lost completion
+response is recoverable. Expired
 claim tokens cannot clear or finish a newer attempt.
 
-The terminal transition re-verifies cleanup and storage completion, records Auth
-deletion, clears the claim, and sets the private job's `user_id` to `NULL`. The
+The terminal transition re-verifies cleanup, storage, provider resolution, and
+credential absence; records Auth deletion; clears the claim; and sets the
+private job's `user_id` to `NULL`. The
 completed storage receipt remains available for the terminal gate and operations
 audit.
 
@@ -2259,8 +2284,12 @@ the reaper's Vault configuration. It therefore reports missing Vault values or a
 disabled cron as critical instead of failing with the worker. Default
 warning/critical thresholds are 10/30 minutes due age, 27/36 hours end to end,
 and 25/100 active jobs. Remediation is to repair the failing cron,
-cleanup/R2/Auth dependency, or credential configuration and let the claim-fenced
-job resume—never to delete Auth manually.
+cleanup/R2/Apple/Auth dependency, or credential configuration and let the
+claim-fenced job resume—never to delete Auth manually.
+
+The full Apple credential, secret, rotation, fallback, and rollout requirements
+are normative in the
+[Sign in with Apple account-deletion contract](./20-sign-in-with-apple-account-deletion.md).
 
 Configuration readiness mirrors the worker's exact Vault-first, NULL-only
 fallback: a present but blank Vault value is unhealthy and cannot be masked by

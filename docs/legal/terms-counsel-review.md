@@ -97,7 +97,13 @@ actions with separate policy versions, exact displayed copy, client UUID,
 device action time, platform, app version, and build. It synchronizes those
 records to immutable, owner-only Supabase tables with server-controlled
 timestamps and no client update/delete path. Existing installs with the old
-onboarding flag but no current evidence enter directly at this disclosure.
+onboarding flag but no current local evidence remain on a neutral restoration
+surface until the initial session establishes no active account or an
+identity-fenced authoritative merge persists. An authenticated account enters
+this disclosure only when that successful merge establishes absence. Fetch,
+decoding, pending consent upload, and verified-ledger-write failures retain the
+neutral surface with bounded automatic and explicit retry; they do not ask the
+user to consent again or constitute evidence that consent is absent.
 
 Gemini and optional PostHog actions also carry the provider event observed when
 the action was created. Direct client inserts are forbidden. The authenticated
@@ -128,6 +134,13 @@ write failure remains off. Local compiled/runtime evidence is recorded, but the 
 candidate SHA still needs the hosted unit, UI-smoke, Release-archive, and
 disposable-database gates in the
 [production consent readiness record](./production-consent-readiness-2026-08-03.md).
+
+Required-consent root routing is stricter than the analytics-only gate above.
+Remote absence may present Powered by AI only after a successful durable merge;
+synchronization failure remains unresolved on the neutral restoration surface.
+The surface offers immediate retry, performs bounded 5-, 10-, and 20-second
+attempts, and rejects stale retry work after an account or synchronization
+generation changes.
 
 Internal test builds may continue without the deferred operator approvals. Public release
 still requires the additive migration, exact-SHA replacement TestFlight build, old-build
@@ -229,8 +242,24 @@ deletion does not cancel Apple billing. Keep this language synchronized with the
 Privacy Policy, and backend migration contract. A direct subscription-management action
 would further improve the flow but is not implemented in this patch.
 
-Verify that Sign in with Apple tokens are revoked as part of account deletion. No token
-revocation implementation was found in the reviewed deletion paths.
+Sign in with Apple revocation is now implemented in source. The current iOS
+callback requires Apple's authorization code, an authenticated Edge route
+exchanges it and stores the refresh token in Vault, and the durable deletion
+worker requires Apple's successful revocation plus token destruction before
+Supabase Auth removal. Supporting iOS binaries persist Apple's manual-removal
+instructions for accounts that predate token capture. Older binaries ignore the
+new response field, and this repository currently has neither an enforced
+minimum-build gate nor an independent server-delivered fallback. Public launch
+therefore remains blocked until one of those controls is implemented and
+verified; distributing the new build is not sufficient evidence. The app also
+revalidates Apple's credential-revoked notification against the same active
+provider subject before clearing the local session. Counsel and launch review
+should verify the final customer wording, the treatment of the manual
+acknowledgement and update path, and retained exact-SHA deployment/staging
+evidence against
+[Apple TN3194](https://developer.apple.com/documentation/technotes/tn3194-handling-account-deletions-and-revoking-tokens-for-sign-in-with-apple).
+The engineering and rollout evidence contract is
+[`20-sign-in-with-apple-account-deletion.md`](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 ### P0 — Use Gemini's Paid Production Terms and DPA
 

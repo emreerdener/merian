@@ -19,11 +19,23 @@ atomically:
    and
 3. verifies that no scan or public profile still references the user.
 
-Only a job advanced to `auth_pending` can reach `auth.admin.deleteUser`. An Auth
-`404` or `user_not_found` is idempotent success. Every other failure is reduced
-to a bounded code, the lease is released with database-calculated backoff, and a
-later invocation resumes it. If an invocation dies, the five-minute lease
-expires and another worker can claim the job.
+Only a job advanced to `auth_pending` can continue. If it has a stored Apple
+credential, the worker first reads the Vault token under the active claim, calls
+Apple's `/auth/revoke`, and transactionally destroys the token before the
+provider substage completes. Provider failure retains the credential and Auth
+identity for database-calculated retry. A legacy Apple identity without a
+captured token carries a durable manual-fallback disposition. Only a resolved
+provider substage with no remaining credential can reach
+`auth.admin.deleteUser`. An Auth `404` or `user_not_found` is idempotent
+success. Every other failure is reduced to a bounded code, the lease is released
+with database-calculated backoff, and a later invocation resumes it. If an
+invocation dies, the five-minute lease expires and another worker can claim the
+job.
+
+`manual_required` proves only the server disposition. It does not prove that an
+older installed client, which may ignore the new response field, delivered the
+manual-removal instructions. The client-compatibility production gate remains
+separate and is defined by the canonical Apple deletion contract.
 
 The cleanup is deliberately repeated on Auth retries, and a database trigger
 rejects public-profile recreation while the job is active. Together these close
@@ -64,6 +76,12 @@ configuration becomes a critical alert instead of silently stopping deletion
 progress. The default end-to-end warning/critical thresholds are 27/36 hours to
 include the mandatory 25-hour verification delay.
 
-On alert, repair cron/Vault configuration or the failing R2/Auth dependency and
-let claim-fenced retries resume. Never mutate queue cursors or leases and never
-delete Auth to clear a pending job.
+On alert, repair cron/Vault configuration or the failing R2/Apple/Auth
+dependency and let claim-fenced retries resume. Never mutate queue cursors or
+leases and never delete Auth, copy an Apple token, or forge provider completion
+to clear a pending job. Provider failures remain part of the existing
+`auth_pending` and retry-error aggregates.
+
+See the
+[canonical Sign in with Apple deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md)
+for the provider state machine, secrets, legacy fallback, and rollout gate.

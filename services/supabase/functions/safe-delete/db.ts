@@ -8,11 +8,13 @@ export type AccountDeletionStatus =
 
 export type AccountDeletionCleanupPhase =
   | "storage_pending"
+  | "provider_revocation_pending"
   | "auth_pending";
 
 export type AccountDeletionRequest = {
   jobId: string;
   status: AccountDeletionStatus;
+  manualProviderRevocationRequired: boolean;
 };
 
 export type AccountDeletionClaim = {
@@ -27,9 +29,14 @@ export type AuthDeletionResult =
   | { succeeded: true }
   | { succeeded: false; errorCode: string };
 
+export type ProviderRevocationToken = {
+  refreshToken: string;
+};
+
 type AccountDeletionRequestRow = {
   job_id: string;
   job_status: AccountDeletionStatus;
+  manual_provider_revocation_required: boolean;
 };
 
 type AccountDeletionClaimRow = {
@@ -54,13 +61,18 @@ export async function requestAccountDeletion(
   }
 
   const row = ((data ?? []) as AccountDeletionRequestRow[])[0];
-  if (!row?.job_id || !isAccountDeletionStatus(row.job_status)) {
+  if (
+    !row?.job_id ||
+    !isAccountDeletionStatus(row.job_status) ||
+    typeof row.manual_provider_revocation_required !== "boolean"
+  ) {
     throw new Error("Account deletion intake returned an invalid receipt.");
   }
 
   return {
     jobId: row.job_id,
     status: row.job_status,
+    manualProviderRevocationRequired: row.manual_provider_revocation_required,
   };
 }
 
@@ -121,10 +133,70 @@ export async function completeAccountDeletionCleanup(
       `Could not complete account deletion cleanup: ${error.message}`,
     );
   }
-  if (data !== "storage_pending" && data !== "auth_pending") {
+  if (
+    data !== "storage_pending" &&
+    data !== "provider_revocation_pending" &&
+    data !== "auth_pending"
+  ) {
     throw new Error("Account deletion cleanup returned invalid state.");
   }
   return data;
+}
+
+export async function getAccountDeletionProviderToken(
+  supabaseAdmin: SupabaseClient,
+  claim: AccountDeletionClaim,
+): Promise<ProviderRevocationToken> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "get_account_deletion_provider_token",
+    {
+      p_job_id: claim.jobId,
+      p_claim_token: claim.claimToken,
+    },
+  );
+
+  if (error) {
+    throw new Error("Could not load the provider revocation credential.");
+  }
+
+  const row = ((data ?? []) as Array<{ refresh_token?: unknown }>)[0];
+  if (
+    typeof row?.refresh_token !== "string" ||
+    row.refresh_token.length < 16 ||
+    row.refresh_token.length > 8_192 ||
+    containsAsciiControlCharacter(row.refresh_token)
+  ) {
+    throw new Error("Provider revocation credential was invalid.");
+  }
+
+  return { refreshToken: row.refresh_token };
+}
+
+function containsAsciiControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1F || code === 0x7F) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function completeAccountDeletionProviderRevocation(
+  supabaseAdmin: SupabaseClient,
+  claim: AccountDeletionClaim,
+): Promise<void> {
+  const { error } = await supabaseAdmin.rpc(
+    "complete_account_deletion_provider_revocation",
+    {
+      p_job_id: claim.jobId,
+      p_claim_token: claim.claimToken,
+    },
+  );
+
+  if (error) {
+    throw new Error("Could not complete provider revocation.");
+  }
 }
 
 export async function finishAccountDeletionAttempt(
