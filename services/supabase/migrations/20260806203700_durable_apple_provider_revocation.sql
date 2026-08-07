@@ -5,6 +5,12 @@
 SET lock_timeout = '10s';
 SET statement_timeout = '2min';
 
+-- Supabase CLI owns the migration and migration-history transaction boundary.
+-- Keep the table locks and every statement that depends on them in one
+-- anonymous block so LOCK TABLE runs inside a transaction without introducing
+-- top-level transaction control.
+DO $apple_revocation_schema$
+BEGIN
 LOCK TABLE auth.users IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE auth.identities IN SHARE MODE;
 LOCK TABLE internal.account_deletion_jobs IN SHARE ROW EXCLUSIVE MODE;
@@ -181,6 +187,9 @@ ALTER TABLE internal.account_deletion_jobs
                 AND last_error_code IS NULL
             )
         );
+
+END;
+$apple_revocation_schema$;
 
 CREATE OR REPLACE FUNCTION public.apple_revocation_registration_exists(
     p_user_id UUID,

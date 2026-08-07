@@ -140,6 +140,11 @@ Deno.test("Apple provider revocation is Vault-backed and database-fenced before 
 
   for (
     const fragment of [
+      "SET lock_timeout = '10s'; SET statement_timeout = '2min';",
+      "DO $apple_revocation_schema$ BEGIN",
+      "LOCK TABLE auth.users IN SHARE ROW EXCLUSIVE MODE",
+      "LOCK TABLE auth.identities IN SHARE MODE",
+      "LOCK TABLE internal.account_deletion_jobs IN SHARE ROW EXCLUSIVE MODE",
       "CREATE TABLE internal.apple_sign_in_revocation_credentials",
       "REFERENCES auth.users(id) ON DELETE RESTRICT",
       "REFERENCES vault.secrets(id) ON DELETE RESTRICT",
@@ -166,10 +171,33 @@ Deno.test("Apple provider revocation is Vault-backed and database-fenced before 
       "'public.get_account_deletion_provider_token(uuid,uuid)'",
       "'public.complete_account_deletion_provider_revocation(uuid,uuid)'",
       "apple_revocation_rpc_acl_invalid",
+      "NOTIFY pgrst, 'reload schema'; RESET lock_timeout; RESET statement_timeout;",
     ]
   ) {
     assertStringIncludes(sql, fragment);
   }
+
+  const schemaBlockStart = sql.indexOf(
+    "DO $apple_revocation_schema$ BEGIN",
+  );
+  const schemaBlockEnd = sql.indexOf(
+    "END; $apple_revocation_schema$;",
+    schemaBlockStart,
+  );
+  const lockedBackfill = sql.indexOf(
+    "UPDATE internal.account_deletion_jobs AS deletion_job",
+    schemaBlockStart,
+  );
+  const firstRoutine = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.apple_revocation_registration_exists",
+  );
+  assert(
+    schemaBlockStart >= 0 &&
+      lockedBackfill > schemaBlockStart &&
+      schemaBlockEnd > lockedBackfill &&
+      firstRoutine > schemaBlockEnd,
+    "The locks and rollout backfill must share one statement transaction without wrapping the CLI-managed migration.",
+  );
 
   const providerCompletion = sql.indexOf(
     "CREATE OR REPLACE FUNCTION public.complete_account_deletion_provider_revocation",
