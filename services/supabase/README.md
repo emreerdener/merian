@@ -273,25 +273,14 @@ only under the active UUID claim, calls Apple's idempotent `/auth/revoke`, then
 transactionally destroys the Vault secret before Auth becomes reachable.
 Provider failure retains both the credential and Auth identity with bounded
 backoff. Apple-linked accounts that predate token capture are marked
-`manual_required`. Migration
-`20260807034322_deliver_legacy_apple_revocation_instructions.sql` adds a
-claim-fenced delivery stage: after verified storage, the worker creates a
-PII-free attempt, reads the confirmed Auth email without copying it into durable
-state, and sends Apple's manual-removal instructions through Resend with an
-attempt-scoped idempotency key and opaque tag. Send API acceptance binds the
-provider email ID but retains the private restrictive Auth-fence row. The
-signature-verified `resend-account-deletion-webhook` journals bounded provider
-events; only a matching `email.delivered` event transactionally releases the
-fence. That row is classified `preserve` in the Ghost-profile merge manifest:
-an active source-side deletion fence blocks a merge before mutation instead of
-being transferred to the permanent destination identity. Delayed and terminal
-events retain Auth for waiting or a new-attempt retry. Supporting iOS binaries
-persist the response disposition as defense-in-depth, while older binaries and
-lost responses are independently covered by the server path. Cleanup also
-clears compatibility media URLs,
-structured captured-media references, semantic location and its public label,
-device locale/time-zone context, free-form notes, and custom tags from retained
-tombstones. Exact
+`manual_required`; deletion proceeds and the API tells iOS to persist Apple's
+manual removal instructions across sign-out and relaunch. That delivery claim
+applies only to supporting iOS binaries. Older binaries ignore the new field,
+so production promotion remains blocked until a minimum-supported-build control
+or independent server-delivered fallback covers them. Cleanup also clears
+compatibility media URLs, structured captured-media
+references, semantic location and its public label, device locale/time-zone
+context, free-form notes, and custom tags from retained tombstones. Exact
 coordinates, elevation, time, taxonomy, identification, environmental, quality,
 and provenance fields are retained unchanged. An internal insert trigger
 rejects recreation of `public.users`
@@ -302,10 +291,7 @@ profile before the terminal Auth step. New upload signing also fails closed with
 `reconcile-account-deletions` is a scheduled service-role worker that resumes
 due account and R2 work. It performs one bounded account pass, bounded storage
 pages, and—when storage verification completes—a final account pass that can
-revoke Apple or dispatch legacy instructions. A dispatch-acceptance pass records
-the provider ID, stops, and releases its claim while Auth remains fenced; a
-later pass can remove Auth only after a separate signed, current-attempt delivery
-event. Auth `404` /
+revoke Apple and remove Auth in the same invocation. Auth `404` /
 `user_not_found` is success,
 transient failures receive database-calculated backoff, and expired workers
 cannot finish a newer claim. Terminal jobs clear their direct user UUID. The
@@ -322,14 +308,6 @@ masked by a legacy app setting. The readiness boolean proves only that the
 effective URL and key are nonblank. A post-deploy monitor smoke test validates
 the independent health-RPC path; recent successful reaper cron requests validate
 the separate URL and key-format-aware credential transport.
-
-Migration `20260807034322_deliver_legacy_apple_revocation_instructions.sql`
-extends that aggregate with pending, accepted, delayed, retry-required,
-delivered, and historically unverifiable manual-email counts. Delayed and
-retry-required states warn. Any unverifiable count is critical because a
-terminal job may no longer retain an Auth address; operators must preserve that
-evidence for release-owner and counsel review rather than relabeling it as
-delivered.
 
 Migration `20260727013416_future_proof_server_key_boundaries.sql` gives every
 installed database `pg_net` routine and persisted HTTP cron command the same

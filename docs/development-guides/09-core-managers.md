@@ -944,7 +944,7 @@ triggering excessive SwiftUI view rebuilds.
 | -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                             |
 | `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | Legacy routing preference only. `MerianApp` combines it with current required consent and the manager's pending restoration signal to choose onboarding, a launch-matched restoration surface, or the workspace. Active provider/hardware lifecycle behavior still requires current adult, Terms, and Gemini consent.                            |
-| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple notice before sign-out; `MerianApp` restores it on launch/foreground until explicit resolution. The server independently sends the same instructions and retains its restrictive Auth fence until a signed, current-attempt delivery event. This local key remains supporting-binary defense-in-depth and must survive account-local database cleanup. |
+| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple fallback before sign-out; `MerianApp` restores the manual-removal alert on launch/foreground until explicit resolution. This key must survive account-local database cleanup.                                                        |
 | `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                               |
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                        |
@@ -1300,12 +1300,7 @@ and `KeychainManager` migration logic. Do not inline
   that same Apple identity remains active. `.authorized` preserves the session;
   `.revoked`, `.notFound`, `.transferred`, unknown states, and lookup failures
   clear the matching local session. This client transition never fabricates
-  server provider completion. For legacy account deletion, the local notice is
-  a supporting-binary safeguard. The server treats Resend send acceptance as
-  dispatch evidence only and keeps Auth fenced until a signature-verified
-  `email.delivered` event matches the current attempt and provider email ID.
-  Production still requires deployment and real relay/old-binary evidence for
-  that source contract.
+  server provider completion.
 - **Durable Ghost merge completion**: Before switching sessions,
   `SupabaseManager` stores each source-issued, provider-bound proof in a
   versioned `WhenUnlockedThisDeviceOnly` Keychain queue. Completion is

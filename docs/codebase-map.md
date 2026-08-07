@@ -595,15 +595,10 @@ Data lifecycle, identity, and exports:
   canonical R2 prefixes receive a cursor-persisted sweep and delayed empty
   verification pass, a stored Apple credential is revoked and destroyed, and
   only then may Auth be deleted. Legacy Apple identities return a durable manual
-  fallback disposition; the server sends Apple's instructions to the confirmed
-  Auth email under a durable attempt. Send API acceptance retains the private
-  restrictive Auth-fence row; the signature-verified webhook releases it only
-  for a matching `email.delivered` event. Supporting clients persist the manual
-  notice as defense-in-depth, while hosted delivery confirmation is independent
-  of the initiating binary. Production evidence is specified in the canonical
-  Apple contract.
-  The SQL storage claim requires the matching cleaned-up
-  `storage_pending` private job and vetoes live profiles or owned scans. See the
+  fallback disposition that supporting clients persist; fallback delivery to
+  older binaries remains release-gated. The SQL storage claim
+  requires the matching cleaned-up `storage_pending` private job and vetoes live
+  profiles or owned scans. See the
   [canonical scientific-retention contract](./backend-and-data/17-scientific-observation-retention.md).
 - `register-apple-revocation-token` — authenticated one-use Apple code exchange,
   identity-subject binding, Vault refresh-token persistence, token-free

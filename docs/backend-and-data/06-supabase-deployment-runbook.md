@@ -1169,25 +1169,13 @@ the shared server-key transport migration
 migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
 the Apple provider migration
 `20260806203700_durable_apple_provider_revocation.sql`,
-the legacy delivery-confirmed migration
-`20260807034322_deliver_legacy_apple_revocation_instructions.sql`,
 `register-apple-revocation-token`, `safe-delete`,
-`reconcile-account-deletions`, `resend-account-deletion-webhook`,
-`generate-upload-urls`, and `replay-scan-ingestion` form the current source unit.
-The legacy path now retains its Auth fence after Resend accepts a send request
-and releases it only after the signed matching `email.delivered` event. This
-source unit is not production-proven until the evidence below passes. The Apple
-stage requires
+`reconcile-account-deletions`, `generate-upload-urls`, and
+`replay-scan-ingestion`, form one release unit. The Apple stage requires
 `APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
 `APPLE_SIGN_IN_PRIVATE_KEY` in the GitHub `Production` environment. The deploy
-workflow also requires `RESEND_API_KEY` and
-`ACCOUNT_DELETION_FROM_EMAIL` for dispatch and the endpoint-specific
-`RESEND_WEBHOOK_SIGNING_SECRET` for delivery events. It validates all six values
-before database mutation, including decoding the webhook secret's `whsec_`
-Base64 key material to the 16–128-byte verifier range, and synchronizes them to
-Edge before function deployment. Verify the exact Resend webhook URL and event subscription. The
-Resend API key should have
-sending-only, domain-scoped access. The reaper uses the existing Supabase service-role
+workflow validates them before database mutation and synchronizes them to Edge
+before function deployment. The reaper uses the existing Supabase service-role
 and R2 values, and the independent GitHub monitor resolves a server key with the
 existing `SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
 an active server key in the compatibility-named `SUPABASE_SERVICE_ROLE_KEY`
@@ -1246,15 +1234,6 @@ migration sequence:
 - requires claimed Apple revocation and Vault-secret destruction after storage
   verification and before Auth deletion, while returning the manual fallback
   for legacy Apple identities without a stored token;
-- creates a durable PII-free attempt before sending Apple's manual-removal
-  instructions, uses an attempt-scoped idempotency key and opaque tag, and
-  treats send acceptance as non-authoritative;
-- retains the restrictive Auth row after acceptance, classifies historical
-  rows, and releases the row only from a signature-verified `email.delivered`
-  event for the current pre-created attempt and provider email ID;
-- delayed, bounced, failed, suppressed, duplicate, out-of-order, stale-attempt,
-  unknown-ID, invalid-signature, and webhook-persistence paths must all fail
-  closed without recipient data in logs or durable event metadata;
 - installs service-only account and storage claim/advance/failure RPCs;
 - adds indexed, identity-free aggregate health for active/due age, retries,
   leases, storage backlog, cron state, and credential readiness; and
@@ -1364,11 +1343,6 @@ deno test --frozen --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/migrations,services/supabase/scripts,services/supabase/tests/account_deletion_security.sql,services/supabase/config.toml,apps/ios,.github/workflows \
   services/supabase/functions/_shared/appleSignIn_test.ts \
   services/supabase/functions/register-apple-revocation-token/handler_test.ts \
-  services/supabase/functions/safe-delete/manualRevocationEmail_test.ts \
-  services/supabase/functions/resend-account-deletion-webhook/db_test.ts \
-  services/supabase/functions/resend-account-deletion-webhook/handler_test.ts \
-  services/supabase/functions/resend-account-deletion-webhook/protocol_test.ts \
-  services/supabase/functions/resend-account-deletion-webhook/signature_test.ts \
   services/supabase/functions/_tests/safeDelete.test.ts \
   services/supabase/functions/_tests/accountDeletionCoverage.test.ts \
   services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
@@ -1379,44 +1353,25 @@ make validate-supabase-migrations
 make test-supabase-privileged-routines
 ```
 
-These tests cover the non-authoritative dispatch boundary, signed webhook, and
-forward-migration/pgTAP contracts. Required cases are raw-body Svix verification
-and timestamp rejection;
-duplicate and out-of-order events; current-attempt/provider-ID correlation;
-delivered, delayed, bounced, failed, and suppressed outcomes; webhook
-persistence failure; PII-free logging; historical-row classification; and proof
-that only `email.delivered` removes the restrictive Auth row.
-Function-config coverage must require `verify_jwt = false` for the Resend route
-and prove that signature verification, not a Supabase JWT, is its first
-authorization boundary.
-
 The production workflow applies migrations before Edge bundles. During that
-short interval, migration `20260807034322` makes the old worker fail closed: its
-recipient RPC rejects before dispatch and its completion RPC rejects send
-acceptance as delivery. The old worker cannot remove Auth. Deploy
-`resend-account-deletion-webhook`, the updated
-`safe-delete`, and `reconcile-account-deletions` bundles before enabling the
-Resend endpoint or resuming account deletion. Register the reviewed production
-URL and exact event allowlist only after its signing secret is present. Do not
-distribute the supporting iOS build before this backend release and its Apple
-smoke pass.
+short interval, the previous worker rejects the new
+`provider_revocation_pending` return value before Auth; the restrictive
+credential/Auth foreign key and terminal SQL fence remain independent
+backstops. Legacy manual notices require the new response bundle and iOS client,
+so avoid deliberately exercising account deletion until
+`register-apple-revocation-token`, `safe-delete`, and
+`reconcile-account-deletions` are deployed. The deployment-workflow change
+selects the complete function fleet, ensuring all shared Apple transport
+consumers install together. Do not distribute the supporting iOS build before
+this backend release and its Apple smoke pass.
 
-Before `db push`, verify hosted migration history does not contain an earlier
-draft of `20260807034322`. The checked-in file is the authoritative candidate
-because it has not shipped through this GitHub workflow. If any environment was
-changed manually, stop and write a new reconciliation migration for its actual
-catalog; do not mutate applied production history or use repair flags to conceal
-the difference.
-
-Independent, delivery-confirmed server email is the selected older-binary
-control and is implemented in source. Before public promotion,
-verify the sender and Resend return-path domains plus the exact From address are
-registered in Apple's private relay configuration. Then prove the signed
-delivery transition with a real Hide My Email address and a deletion initiated
-from the oldest supported pre-field binary. App Store availability, send API
-acceptance, and ordinary Resend domain verification are not substitutes for
-those smokes. If this control cannot be completed, ship a minimum-build/update
-gate or another counsel-approved guaranteed path instead.
+Publishing that build is not, by itself, the legacy-account rollout gate.
+Older binaries ignore `manual_provider_revocation_required` and cannot persist
+the manual-removal notice. Before public promotion, either enforce a minimum
+supported build that contains this contract and gives the user a clear update
+path back to in-app deletion, or deploy and verify an independent
+server-delivered manual-revocation fallback. This repository has neither
+control as of 2026-08-06; treat that absence as a release blocker.
 
 After deployment, confirm the relational invariants, cron, and aggregate state
 without printing user identifiers:
@@ -1442,23 +1397,10 @@ WHERE constraint_row.contype = 'f'
 ORDER BY constraint_row.conname;
 
 SELECT
-    constraint_row.conname,
-    constraint_row.convalidated,
-    constraint_row.confdeltype = 'r' AS blocks_manual_delivery_bypass
-FROM pg_catalog.pg_constraint AS constraint_row
-WHERE constraint_row.contype = 'f'
-  AND constraint_row.conrelid =
-      'internal.apple_manual_revocation_delivery_requirements'::REGCLASS
-ORDER BY constraint_row.conname;
-
-SELECT
     (SELECT COUNT(*)
      FROM internal.apple_sign_in_revocation_credentials) AS credential_rows,
     (SELECT COUNT(*)
      FROM internal.apple_sign_in_credential_registrations) AS registration_receipts,
-    (SELECT COUNT(*)
-     FROM internal.apple_manual_revocation_delivery_requirements)
-        AS manual_delivery_auth_fences,
     (SELECT COUNT(*)
      FROM internal.apple_sign_in_revocation_credentials AS credential
      INNER JOIN vault.decrypted_secrets AS secret
@@ -1541,33 +1483,11 @@ ORDER BY status;
 SELECT
     provider_revocation_status,
     manual_provider_revocation_required,
-    manual_revocation_delivery_status,
     COUNT(*) AS jobs
 FROM internal.account_deletion_jobs
-GROUP BY
-    provider_revocation_status,
-    manual_provider_revocation_required,
-    manual_revocation_delivery_status
-ORDER BY
-    provider_revocation_status,
-    manual_provider_revocation_required,
-    manual_revocation_delivery_status;
-
-SELECT
-    status,
-    last_event_type,
-    COUNT(*) AS attempts
-FROM internal.apple_manual_revocation_delivery_attempts
-GROUP BY status, last_event_type
-ORDER BY status, last_event_type;
-
-SELECT
-    event_type,
-    reduced_at IS NOT NULL AS reduced,
-    COUNT(*) AS events
-FROM internal.apple_manual_revocation_delivery_events
-GROUP BY event_type, reduced_at IS NOT NULL
-ORDER BY event_type, reduced;
+WHERE status <> 'completed'
+GROUP BY provider_revocation_status, manual_provider_revocation_required
+ORDER BY provider_revocation_status, manual_provider_revocation_required;
 
 SELECT
     status,
@@ -1632,17 +1552,12 @@ validated restrictive Apple-credential foreign keys, zero missing decrypted
 secrets, a nullable scan owner plus validated ownerless check, zero invalid
 ownerless scans, zero legacy sentinel scans/profiles, zero synthetic all-zero
 Auth users, all provider disposition rows satisfying their installed
-constraints, zero `manual_revocation_delivery_unverifiable_count`, and—after the
-delivery migration—no dispatch-accepted row without its restrictive Auth
-requirement, no delivered row without a deduplicated signed current-attempt
-event, and no failed/delayed row with Auth removed. All five
-scientific-retention booleans and all five claim-fence
+constraints, all five scientific-retention booleans true, all five claim-fence
 booleans true, an active cron, and `reaper_cron_active = true` plus
 `reaper_credentials_configured = true` in the health row. The other health
 fields reflect the current aggregate queue and must not contain identifiers. The
 credential boolean checks nonblank effective values only; it does not validate
-the URL or key. The current schema cannot prove the new delivery invariants, so
-passing only the query block above is not production evidence.
+the URL or key.
 
 Manually dispatch `Account Deletion Health Monitor` once after the migration.
 The run must complete successfully under the Production environment and retain
@@ -1685,44 +1600,24 @@ before token capture was deployed. Confirm:
 13. deleting the legacy fixture returns
     `manual_provider_revocation_required = true` without blocking privacy
     deletion;
-14. after delayed storage verification, the legacy job is
-    `manual_revocation_delivery_pending`, Resend accepts a deterministic
-    attempt-scoped request for the confirmed Auth address, the provider email ID
-    commits, and Auth plus the restrictive requirement remain present;
-15. duplicate and out-of-order signed webhook fixtures are idempotent; an event
-    arriving before send-response persistence is journaled and later reduced,
-    while an unknown or superseded provider email ID cannot release the current
-    job;
-16. `email.delivery_delayed`, `email.bounced`, `email.failed`, and
-    `email.suppressed` each leave Auth fenced and enter their documented
-    retry/review state;
-17. only a signed `email.delivered` event for the current attempt and provider
-    email ID transactionally marks delivery, removes the restrictive
-    requirement, wakes the job, and permits Auth to disappear;
-18. the received message links only to Apple's official account-management and
-    support pages, and source/log/event evidence contains no recipient or
-    provider response body;
-19. iOS records the notice before sign-out, shows it after relaunch/foreground,
+14. iOS records the notice before sign-out, shows it after relaunch/foreground,
     opens Apple's instructions, and clears it only after explicit user
     acknowledgement;
-20. an Apple revoke failure in the disposable/injected failure fixture retains
+15. an Apple revoke failure in the disposable/injected failure fixture retains
     Auth and the Vault token for the next claimed retry; and
-21. on a physical device with a separate staging-only Apple account, removing
+16. on a physical device with a separate staging-only Apple account, removing
     Naturebook from Sign in with Apple causes the app to query the active
     provider-specific subject and clear that matching local session after Apple
     reports a non-authorized credential state. Reauthorize afterward and prove
     a new Vault credential registration succeeds. Do not log or retain the
     Apple subject while collecting this evidence.
 
-Repeat the legacy deletion from the oldest supported pre-field binary and drop
-or ignore its HTTP response. The independent server fallback must still deliver
-the Apple instructions through a real Hide My Email address, retain Auth after
-send acceptance, and complete Auth only after the matching signed
-`email.delivered` event. Resend retains idempotency keys for 24 hours; the normal
-minute-scale claim retries must recover ambiguous send responses inside that
-window. Any dispatch or delivery that remains unresolved is an operator alert,
-not permission to edit delivery state. A new post-failure attempt requires a new
-durable attempt key so an old event cannot authorize it.
+Separately verify the selected older-binary rollout control: either an older
+binary is prevented from starting legacy Apple deletion until it follows a
+clear supported-update path, or the independent server fallback durably
+delivers Apple's manual-removal instructions even though that binary ignores
+the new response field. App Store availability of the new build is not evidence
+that every installed binary has adopted the contract.
 
 Do not use a real customer as the legacy fixture and do not manufacture one by
 deleting a production Vault secret. Establish it before the staging rollout or
@@ -1730,12 +1625,9 @@ inside the disposable catalog.
 
 The independent workflow is the SLA/stuck-job alert and is intentionally offset
 from the reaper. Critical conditions are a disabled/missing cron, absent reaper
-or webhook credentials, orphaned active storage work, any unverifiable manual
-delivery, terminal email failure without a successful replacement, oldest-due
-or end-to-end SLA breaches, and critical backlog. Delayed delivery, invalid
-signature, stale/unknown event, webhook persistence failure, retry error,
-expired lease, warning age, or warning backlog is at least a warning; the
-default policy fails that run. Continue
+credentials, orphaned active storage work, oldest-due or end-to-end SLA
+breaches, and critical backlog. Any retry error, expired lease, warning age, or
+warning backlog is a warning; the default policy fails that run. Continue
 structured-log alerts on `account_deletion_attempt_deferred`,
 `account_deletion_reconciliation_deferred`, and
 `account_storage_erasure_deferred` for immediate dependency failures.
@@ -1747,8 +1639,8 @@ On alert:
 2. if cron/configuration is false, restore the exact named cron and the Vault
    URL/service credential, then manually rerun the health workflow;
 3. otherwise inspect bounded `safe-delete`, `reconcile-account-deletions`, R2,
-   Apple, Resend, private-relay, and Auth logs for the failing dependency
-   without printing provider credentials or response bodies;
+   Apple, and Auth logs for the failing dependency without printing provider
+   credentials or response bodies;
 4. for an orphan critical, use restricted operator access to classify the exact
    outbox row, matching private job, request/audit provenance, live profile, and
    owned scans without copying identifiers outside that session;
@@ -1760,11 +1652,9 @@ On alert:
    and
 7. escalate if oldest active age reaches 36 hours or backlog reaches 100.
 
-Never recover a `pending`, `storage_pending`, provider-pending,
-manual-delivery-pending, accepted, delayed, or failed-delivery job by
+Never recover a `pending`, `storage_pending`, or provider-pending job by
 deleting Auth manually, deleting/copying a Vault token, or editing a cursor,
-lease, provider/delivery status, provider email/event ID, attempt identity, or
-next-attempt timestamp. Never blanket-delete
+lease, provider status, or next-attempt timestamp. Never blanket-delete
 outbox rows, sweep their prefixes, make them due, or run ad-hoc SQL merely to
 clear an alert. A legacy Auth-first incident can be placed into the durable
 pipeline only after an operator verifies the recorded UUID and invokes

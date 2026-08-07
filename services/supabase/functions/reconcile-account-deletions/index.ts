@@ -52,7 +52,6 @@ serveEdge(async (req: Request) => {
       completed: 0,
       deferred: 0,
       waitingForStorage: 0,
-      waitingForManualDelivery: 0,
       failures: [],
     };
   const failures = [...firstPass.failures, ...finalPass.failures];
@@ -79,8 +78,6 @@ serveEdge(async (req: Request) => {
       account_deferred: firstPass.deferred + finalPass.deferred,
       waiting_for_storage: firstPass.waitingForStorage +
         finalPass.waitingForStorage,
-      waiting_for_manual_delivery: firstPass.waitingForManualDelivery +
-        finalPass.waitingForManualDelivery,
       storage_claimed: storage.claimed,
       storage_completed: storage.completed,
       storage_deferred: storage.deferred,

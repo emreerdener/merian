@@ -15,12 +15,6 @@ const HEALTHY: AccountDeletionHealth = {
   pending_cleanup_count: 0,
   storage_pending_count: 0,
   auth_pending_count: 0,
-  manual_revocation_delivery_pending_count: 0,
-  manual_revocation_delivery_accepted_count: 0,
-  manual_revocation_delivery_delayed_count: 0,
-  manual_revocation_delivery_retry_required_count: 0,
-  manual_revocation_delivery_delivered_count: 0,
-  manual_revocation_delivery_unverifiable_count: 0,
   due_job_count: 0,
   failed_job_count: 0,
   active_lease_count: 0,
@@ -123,9 +117,6 @@ Deno.test("assertAccountDeletionHealth validates one consistent summary", () => 
     pending_cleanup_count: 1,
     storage_pending_count: 1,
     auth_pending_count: 1,
-    manual_revocation_delivery_pending_count: 1,
-    manual_revocation_delivery_accepted_count: 1,
-    manual_revocation_delivery_delayed_count: 1,
     due_job_count: 1,
     failed_job_count: 1,
     active_lease_count: 1,
@@ -188,31 +179,7 @@ Deno.test("accountDeletionStatus alerts on configuration and job health", () => 
   );
   assertEquals(
     accountDeletionStatus(
-      {
-        ...HEALTHY,
-        manual_revocation_delivery_unverifiable_count: 1,
-      },
-      args,
-    ),
-    "critical",
-  );
-  assertEquals(
-    accountDeletionStatus(
       { ...HEALTHY, failed_job_count: 1 },
-      args,
-    ),
-    "warning",
-  );
-  assertEquals(
-    accountDeletionStatus(
-      { ...HEALTHY, manual_revocation_delivery_delayed_count: 1 },
-      args,
-    ),
-    "warning",
-  );
-  assertEquals(
-    accountDeletionStatus(
-      { ...HEALTHY, manual_revocation_delivery_retry_required_count: 1 },
       args,
     ),
     "warning",
@@ -299,21 +266,9 @@ Deno.test("renderAccountDeletionMarkdown includes recovery guidance", () => {
   const unhealthy: AccountDeletionHealth = {
     ...HEALTHY,
     reaper_credentials_configured: false,
-    active_job_count: 2,
-    auth_pending_count: 2,
     failed_job_count: 2,
-    due_job_count: 1,
-    oldest_pending_at: "2026-07-27T00:00:00.000Z",
-    oldest_pending_age_seconds: 3_600,
-    oldest_due_at: "2026-07-27T00:59:00.000Z",
-    oldest_due_age_seconds: 60,
-    manual_revocation_delivery_pending_count: 2,
-    manual_revocation_delivery_accepted_count: 1,
-    manual_revocation_delivery_delayed_count: 1,
-    manual_revocation_delivery_retry_required_count: 1,
-    manual_revocation_delivery_delivered_count: 4,
+    storage_failed_job_count: 1,
   };
-  assertEquals(assertAccountDeletionHealth([unhealthy]), unhealthy);
   const summary = buildAccountDeletionSummary(
     unhealthy,
     parseAccountDeletionMonitorArgs([]),
@@ -325,26 +280,6 @@ Deno.test("renderAccountDeletionMarkdown includes recovery guidance", () => {
   assertEquals(summary.failure_policy.should_fail, true);
   assertStringIncludes(markdown, "# Account Deletion Health");
   assertStringIncludes(markdown, "- With retry errors: `2`");
-  assertStringIncludes(
-    markdown,
-    "- Pending legacy Apple instruction delivery: `2`",
-  );
-  assertStringIncludes(
-    markdown,
-    "- Accepted legacy Apple deliveries awaiting confirmation: `1`",
-  );
-  assertStringIncludes(
-    markdown,
-    "- Provider-delayed legacy Apple deliveries: `1`",
-  );
-  assertStringIncludes(
-    markdown,
-    "- Legacy Apple deliveries requiring a retry: `1`",
-  );
-  assertStringIncludes(
-    markdown,
-    "- Delivery-confirmed legacy Apple instructions: `4`",
-  );
   assertStringIncludes(markdown, "- Reaper credentials configured: `false`");
   assertStringIncludes(markdown, "do not edit private job");
 });

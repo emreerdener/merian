@@ -771,25 +771,18 @@ exports, then performs a delayed empty verification sweep. For Apple sign-ins
 created under the current client contract, the server next revokes the
 Vault-held Apple refresh token and destroys it before Auth deletion. Apple
 accounts created before token capture remain deletable; supporting clients
-persist their durable manual-removal disposition before sign-out. The server
-also sends the same Apple instructions to the confirmed Auth email. Current
-source retains its restrictive Auth fence after send API acceptance and releases
-it only for a signature-verified `email.delivered` event matching the current
-attempt and provider email ID. Delayed delivery waits; bounced, failed, and
-suppressed attempts require a new durable attempt. The server fallback therefore
-does not depend on App Store adoption or the deletion response reaching the
-client. Auth is otherwise deleted only after relational, storage, and applicable
-provider verification succeed. Transient failures are resumed automatically.
-After
-immediate completion or durable acceptance, the supporting client persists any
-manual Apple disposition, signs out locally, and removes its local store. An
-independent scheduled health check alerts when the reaper is disabled or
-misconfigured, deletion work is overdue, manual instruction delivery is pending
-or historically unverifiable, leases expire, storage work is orphaned, or queue
-age/backlog breaches the deletion SLA. The source change is implemented but not
-production-proven: launch still requires the migration/webhook release unit,
-real Apple private-relay delivery, zero unverifiable rows, and
-oldest-supported-binary lost-response evidence.
+persist their durable manual-removal disposition before sign-out. Older binaries
+cannot consume that new response field. Public promotion is blocked until an
+enforceable minimum-supported-build control or independent server-delivered
+fallback covers them; App Store availability is not adoption evidence. Auth is
+deleted only after relational, storage, and applicable provider verification
+succeed. Transient failures are resumed automatically. After immediate
+completion or durable acceptance, the supporting client persists any manual
+Apple disposition, signs out locally, and removes its local store. An
+independent scheduled
+health check alerts when the reaper is disabled or misconfigured, deletion work
+is overdue, leases expire, storage work is orphaned, or queue age/backlog
+breaches the deletion SLA.
 
 The provider-specific implementation and production exit criteria are
 normative in the

@@ -499,18 +499,14 @@ persisted before sign-out so the app-root manual-removal notice survives local
 account and SQLite cleanup. Backend intent and relational cleanup are persisted
 before the client signs out. The scheduled account-deletion reaper owns
 cursor-persisted R2 sweeps, delayed empty verification, Apple provider
-revocation when a Vault credential exists, legacy-instruction email dispatch
-when it does not, and terminal Auth removal; a new request therefore
-normally receives `202`.
+revocation when a Vault credential exists, and terminal Auth removal; a new
+request therefore normally receives `202`.
 
-This strict receipt and durable local notice exist only in supporting binaries
-and remain customer-visible defense-in-depth. The server independently reads the
-confirmed Auth email under the active deletion claim, creates a durable opaque
-attempt, and treats idempotent Resend send acceptance as non-authoritative. Auth
-remains fenced until the signature-verified webhook commits a matching
-`email.delivered` event. Public promotion still requires deployment of that
-migration/webhook unit plus real Apple private-relay, zero-unverifiable, and
-oldest-supported-binary lost-response evidence.
+This strict receipt and durable notice exist only in supporting binaries. An
+older client can ignore `manual_provider_revocation_required`, so publishing the
+new build does not prove fallback delivery. Public promotion remains blocked
+until an enforceable minimum-supported-build control or an independent
+server-delivered manual fallback covers those installed clients.
 
 Account deletion retains ownerless exact scientific facts under the
 [`scientific-observation retention contract`](../../../../../docs/backend-and-data/17-scientific-observation-retention.md);

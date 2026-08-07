@@ -242,33 +242,22 @@ deletion does not cancel Apple billing. Keep this language synchronized with the
 Privacy Policy, and backend migration contract. A direct subscription-management action
 would further improve the flow but is not implemented in this patch.
 
-Automatic Sign in with Apple revocation is implemented in source. The current
-iOS callback requires Apple's authorization code, an authenticated Edge route
+Sign in with Apple revocation is now implemented in source. The current iOS
+callback requires Apple's authorization code, an authenticated Edge route
 exchanges it and stores the refresh token in Vault, and the durable deletion
 worker requires Apple's successful revocation plus token destruction before
-Supabase Auth removal. For accounts that predate token capture, supporting iOS
-binaries persist Apple's manual-removal instructions and the server independently
-sends those instructions to the confirmed Auth email. The delivery-confirmed
-source keeps Auth fenced after Resend accepts the send and releases it only for
-a signature-verified `email.delivered` event matching the current attempt and
-provider email ID. Delayed delivery continues waiting; bounced, failed, and
-suppressed attempts require a new attempt. The app also
+Supabase Auth removal. Supporting iOS binaries persist Apple's manual-removal
+instructions for accounts that predate token capture. Older binaries ignore the
+new response field, and this repository currently has neither an enforced
+minimum-build gate nor an independent server-delivered fallback. Public launch
+therefore remains blocked until one of those controls is implemented and
+verified; distributing the new build is not sufficient evidence. The app also
 revalidates Apple's credential-revoked notification against the same active
 provider subject before clearing the local session. Counsel and launch review
-should verify the final customer wording, the treatment of the in-app manual
-acknowledgement, the delivery-confirmed email notice, any dispatch-only or
-historically unverifiable legacy completions, and retained exact-SHA
-deployment/staging evidence against
+should verify the final customer wording, the treatment of the manual
+acknowledgement and update path, and retained exact-SHA deployment/staging
+evidence against
 [Apple TN3194](https://developer.apple.com/documentation/technotes/tn3194-handling-account-deletions-and-revoking-tokens-for-sign-in-with-apple).
-The source control is **not yet production-proven**. Public launch remains
-blocked until the migration and webhook deploy as one reviewed release unit,
-existing dispatch-only rows are classified, and the exact candidate proves
-real Apple private-relay delivery, zero unverifiable rows, and deletion from the
-oldest supported pre-field binary with its response ignored or lost. Provider
-delivery means the receiving mail server accepted the message; it does not
-prove that the person read it or completed Apple's manual removal. Counsel must
-approve that distinction and the customer language used when delivery cannot be
-confirmed.
 The engineering and rollout evidence contract is
 [`20-sign-in-with-apple-account-deletion.md`](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 

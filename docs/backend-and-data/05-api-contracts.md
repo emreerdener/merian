@@ -6622,37 +6622,14 @@ prevent IDOR vulnerabilities.
    provider completion. Any failure preserves both credential and Auth for
    retry. Apple identities without a stored token are explicitly
    `manual_required` and do not claim automatic revocation.
-7. A `manual_required` job returns `manual_revocation_delivery_pending`. The
-   worker creates or resumes one PII-free attempt, reads the confirmed Auth
-   email only under the active UUID claim, and sends Apple's official
-   instructions through Resend with
-   `Idempotency-Key: account-deletion-manual-apple/{attempt_token}` and the
-   opaque attempt tag. Send acceptance binds the provider email ID, clears the
-   claim, and retains the restrictive delivery-requirement row. Synchronous
-   failure preserves the same attempt and Auth for bounded retry; the email is
-   never copied into durable state or emitted in logs. A matching signed
-   `email.delivered` event must arrive before Auth becomes reachable.
-8. Only `auth_pending` with completed storage, resolved provider and delivery
-   dispositions, a matching reduced delivered attempt/event, no remaining
-   Apple credential, and no delivery requirement may
-   call
+7. Only `auth_pending` with completed storage, resolved provider disposition,
+   and no remaining Apple credential may call
    `supabaseAdmin.auth.admin.deleteUser(user.id)`.
    HTTP `404` and exact Auth code `user_not_found` are treated as idempotent
    success.
-9. `finish_account_deletion_attempt` independently rechecks storage, provider,
-   and manual-delivery fences, records terminal completion, or releases the
-   claim with bounded retry backoff. Completion clears the private job's direct
-   `user_id`.
-
-Steps 7–9 keep the public `/safe-delete` request shape unchanged. Send
-acceptance persists the provider email ID as `accepted`/`delivery_pending` and
-retains the Auth fence. The raw-body Resend webhook verifies the Svix signature
-and idempotently reduces duplicate or out-of-order events. Only
-`email.delivered` for the current attempt may remove the fence and wake Auth
-deletion. `email.delivery_delayed` remains pending; `email.bounced`,
-`email.failed`, and `email.suppressed` retain Auth and require a new attempt.
-Unknown IDs, stale attempts, invalid signatures, and malformed bodies fail
-closed without logging recipient data.
+8. `finish_account_deletion_attempt` independently rechecks storage and provider
+   fences, records terminal completion, or releases the claim with bounded retry
+   backoff. Completion clears the private job's direct `user_id`.
 
 All state-machine RPCs are `service_role`-only, call
 `internal.require_service_role()`, and have empty `search_path` values. The
@@ -6669,8 +6646,7 @@ Auth call. `/generate-upload-urls` also returns
 - `200 OK`, `{ "success": true, "status": "completed",
   "manual_provider_revocation_required": false, ... }`: relational cleanup,
   delayed empty R2 verification, provider disposition, and Auth deletion are
-  confirmed; the terminal account job no longer retains the user UUID. A legacy
-  branch can reach this response only after matching signed delivery evidence.
+  confirmed; the terminal account job no longer retains the user UUID.
 - `202 Accepted`, `{ "success": true, "status": "pending",
   "manual_provider_revocation_required": true, ... }`: the request is durably
   recorded. A five-minute scheduled reaper resumes it. The boolean is always
@@ -6683,71 +6659,17 @@ Auth call. `/generate-upload-urls` also returns
 
 `manual_provider_revocation_required` is a required wire field, but it is not a
 backwards-compatible delivery mechanism for clients that predate it. Those
-clients may ignore the field and cannot persist or present the in-app notice.
-The server stage is independent of this field: send acceptance is not
-authoritative, while a matching signed delivery event releases Auth. The app
-notice is defense-in-depth. Public promotion still requires hosted webhook
-evidence, a real Apple private-relay delivery, zero unverifiable rows, and an
-oldest-supported-binary deletion smoke.
+clients ignore the field and cannot persist or present the manual Apple-removal
+notice. Public promotion therefore requires either an enforceable
+minimum-supported-build gate with a clear update path back to in-app deletion,
+or an independent server-delivered manual-revocation fallback for older iOS
+binaries. App Store availability of the supporting build does not satisfy this
+compatibility gate.
 
 After either success response, the iOS client first persists any manual Apple
 disposition, then performs local Supabase sign-out,
 drops all local SQLite `ModelContext` state through
 `ScanRepository.purgeAllData()`, and resets to Guest.
-
-### `/resend-account-deletion-webhook`
-
-This service-to-service `POST` route is implemented in source and required in
-the production deployment.
-It does not accept Supabase user authentication or a caller-supplied job ID.
-Its `services/supabase/config.toml` entry sets `verify_jwt = false`
-because Resend cannot present a Supabase JWT; the signature boundary below is
-therefore mandatory and must execute before JSON parsing.
-Before parsing JSON, it verifies `svix-id`, `svix-timestamp`, and
-`svix-signature` against the exact raw request body and the dedicated
-`RESEND_WEBHOOK_SIGNING_SECRET`. Rejected signatures, stale timestamps,
-oversized bodies, unsupported content types, and malformed envelopes perform no
-mutation.
-
-Before sending, the database creates a durable attempt with an opaque attempt
-identifier. The send payload includes only that opaque value as a bounded tag;
-it contains no user identifier or recipient. The handler extracts the bounded
-Resend event ID, event type, provider email ID, opaque attempt tag, and provider
-event timestamp needed for state reduction. Recipient, subject, other headers
-or tags, and raw payload are neither logged nor stored. A service-role-only
-database routine records the event ID idempotently and correlates the opaque tag
-plus provider email ID to the current delivery attempt.
-
-A signed event can arrive before the send API response binds the provider email
-ID. The event journal durably quarantines that bounded event against the
-pre-created attempt, then reduces it only after the same provider email ID is
-bound. Duplicate and out-of-order events return success after durable storage
-and deterministic reduction. An unknown attempt tag is safely ignored after
-signature verification; attempts are always created before dispatch, so it
-cannot become valid later. A
-known but superseded attempt may retain bounded event evidence under the
-reviewed retention policy, but never releases the current Auth fence.
-
-Supported state effects are:
-
-| Resend event | Durable effect |
-| --- | --- |
-| `email.delivered` | Mark the current attempt delivered and transactionally remove its restrictive Auth row; wake the account job. |
-| `email.delivery_delayed` | Keep delivery pending and Auth fenced; surface bounded health. |
-| `email.bounced` | Keep Auth fenced and enter bounded retry/operator review. |
-| `email.failed` | Keep Auth fenced and enter bounded retry/operator review. |
-| `email.suppressed` | Keep Auth fenced and enter bounded retry/operator review. |
-| Any other event | Acknowledge as unrelated without database mutation; never release Auth. |
-
-Return `200` only after a valid supported event has been durably stored and
-reduced as far as current correlation permits, an idempotent duplicate has been
-confirmed, or an unknown non-current attempt has been safely ignored. Return
-`400` for malformed signed input, `401` for signature/timestamp failure, `405`
-for non-POST methods, `409` for an identifier conflict, `413` for an oversized
-body, `415` for another media type, `503` for missing signature configuration or
-a retryable database failure, and `500` for another internal persistence
-failure. Retryable `503` responses include `Retry-After: 30`. Response bodies
-and logs contain no recipient or internal job identifier.
 
 ### Service-only reaper
 
@@ -6758,14 +6680,13 @@ service-role JWTs use matching `apikey` and Bearer headers. It never accepts a
 target UUID. Each invocation performs a bounded account pass, bounded storage
 pages, and, when storage verification completes, one final account pass. It
 returns only aggregate `account_claimed`, `account_completed`,
-`account_deferred`, `waiting_for_storage`, `waiting_for_manual_delivery`,
-`storage_claimed`, `storage_completed`, and `storage_deferred` counts. Claim
-expiry, persisted
+`account_deferred`, `waiting_for_storage`, `storage_claimed`,
+`storage_completed`, and `storage_deferred` counts. Claim expiry, persisted
 prefix cursors, delayed verification, idempotent Auth-not-found handling, and
 database-calculated backoff make crashes and lost responses resumable.
-Provider and manual-delivery failures are reported in the existing deferred
-aggregate and remain inside the `auth_pending` account phase; no provider
-credential or recipient enters this response.
+Provider failures are reported in the existing deferred aggregate and remain
+inside the `auth_pending` account phase; no provider credential enters this
+response.
 
 The scheduled caller reads its key from Vault and delegates header construction
 to `internal.server_api_request_headers(...)`. A modern opaque `sb_secret_...`
@@ -6790,8 +6711,6 @@ The response is a one-row array of aggregate values:
     "pending_cleanup_count": 0,
     "storage_pending_count": 1,
     "auth_pending_count": 1,
-    "manual_revocation_delivery_pending_count": 1,
-    "manual_revocation_delivery_unverifiable_count": 0,
     "due_job_count": 1,
     "failed_job_count": 1,
     "active_lease_count": 0,
@@ -6823,12 +6742,6 @@ null when their corresponding count is zero. The RPC never returns a user UUID,
 claim token, cursor, object prefix, or raw error, and it never advances state.
 The independent scheduled monitor consumes this contract with a 15-second
 deadline and 64 KiB response ceiling.
-
-`manual_revocation_delivery_pending_count` is a subset of active deletion jobs.
-`manual_revocation_delivery_unverifiable_count` is historical and may include
-terminal jobs whose Auth address was erased before the delivery migration. Any
-nonzero unverifiable count is critical evidence for release-owner and counsel
-review and must not be relabeled as delivered.
 
 `reaper_credentials_configured` selects each Vault value first and uses the
 legacy app setting only when no Vault row exists, then checks that both

@@ -36,12 +36,6 @@ export interface AccountDeletionHealth {
   pending_cleanup_count: number;
   storage_pending_count: number;
   auth_pending_count: number;
-  manual_revocation_delivery_pending_count: number;
-  manual_revocation_delivery_accepted_count: number;
-  manual_revocation_delivery_delayed_count: number;
-  manual_revocation_delivery_retry_required_count: number;
-  manual_revocation_delivery_delivered_count: number;
-  manual_revocation_delivery_unverifiable_count: number;
   due_job_count: number;
   failed_job_count: number;
   active_lease_count: number;
@@ -155,30 +149,6 @@ export function assertAccountDeletionHealth(
       row.auth_pending_count,
       "auth_pending_count",
     ),
-    manual_revocation_delivery_pending_count: count(
-      row.manual_revocation_delivery_pending_count,
-      "manual_revocation_delivery_pending_count",
-    ),
-    manual_revocation_delivery_accepted_count: count(
-      row.manual_revocation_delivery_accepted_count,
-      "manual_revocation_delivery_accepted_count",
-    ),
-    manual_revocation_delivery_delayed_count: count(
-      row.manual_revocation_delivery_delayed_count,
-      "manual_revocation_delivery_delayed_count",
-    ),
-    manual_revocation_delivery_retry_required_count: count(
-      row.manual_revocation_delivery_retry_required_count,
-      "manual_revocation_delivery_retry_required_count",
-    ),
-    manual_revocation_delivery_delivered_count: count(
-      row.manual_revocation_delivery_delivered_count,
-      "manual_revocation_delivery_delivered_count",
-    ),
-    manual_revocation_delivery_unverifiable_count: count(
-      row.manual_revocation_delivery_unverifiable_count,
-      "manual_revocation_delivery_unverifiable_count",
-    ),
     due_job_count: count(row.due_job_count, "due_job_count"),
     failed_job_count: count(row.failed_job_count, "failed_job_count"),
     active_lease_count: count(
@@ -258,17 +228,6 @@ export function assertAccountDeletionHealth(
           health.storage_pending_count +
           health.auth_pending_count !== health.active_job_count ||
     health.due_job_count > health.active_job_count ||
-    health.manual_revocation_delivery_pending_count >
-      health.active_job_count ||
-    health.manual_revocation_delivery_accepted_count >
-      health.manual_revocation_delivery_pending_count ||
-    health.manual_revocation_delivery_delayed_count >
-      health.manual_revocation_delivery_accepted_count ||
-    health.manual_revocation_delivery_retry_required_count >
-      health.manual_revocation_delivery_pending_count ||
-    health.manual_revocation_delivery_accepted_count +
-          health.manual_revocation_delivery_retry_required_count >
-      health.manual_revocation_delivery_pending_count ||
     health.failed_job_count > health.active_job_count ||
     health.active_lease_count + health.expired_lease_count >
       health.active_job_count ||
@@ -342,7 +301,6 @@ export function accountDeletionStatus(
   if (
     !health.reaper_cron_active ||
     !health.reaper_credentials_configured ||
-    health.manual_revocation_delivery_unverifiable_count > 0 ||
     health.orphaned_storage_job_count > 0 ||
     oldestDueAge >= args.criticalDueAfterMinutes * 60 ||
     oldestPendingAge >= args.criticalSlaHours * 60 * 60 ||
@@ -352,8 +310,6 @@ export function accountDeletionStatus(
   }
   if (
     health.failed_job_count > 0 ||
-    health.manual_revocation_delivery_delayed_count > 0 ||
-    health.manual_revocation_delivery_retry_required_count > 0 ||
     health.storage_failed_job_count > 0 ||
     health.expired_lease_count > 0 ||
     health.storage_expired_lease_count > 0 ||
@@ -423,12 +379,6 @@ export function renderAccountDeletionMarkdown(
     `- Pending cleanup: \`${health.pending_cleanup_count}\``,
     `- Pending storage: \`${health.storage_pending_count}\``,
     `- Pending Auth deletion: \`${health.auth_pending_count}\``,
-    `- Pending legacy Apple instruction delivery: \`${health.manual_revocation_delivery_pending_count}\``,
-    `- Accepted legacy Apple deliveries awaiting confirmation: \`${health.manual_revocation_delivery_accepted_count}\``,
-    `- Provider-delayed legacy Apple deliveries: \`${health.manual_revocation_delivery_delayed_count}\``,
-    `- Legacy Apple deliveries requiring a retry: \`${health.manual_revocation_delivery_retry_required_count}\``,
-    `- Delivery-confirmed legacy Apple instructions: \`${health.manual_revocation_delivery_delivered_count}\``,
-    `- Historically unverifiable legacy deliveries: \`${health.manual_revocation_delivery_unverifiable_count}\``,
     `- Due: \`${health.due_job_count}\``,
     `- With retry errors: \`${health.failed_job_count}\``,
     `- Active leases: \`${health.active_lease_count}\``,
@@ -463,7 +413,7 @@ export function renderAccountDeletionMarkdown(
     "",
     summary.status === "ok"
       ? "No action required."
-      : "Verify the database reaper cron, its Vault/app-settings URL and service credential, Resend delivery, the verified account-deletion sender, and Apple private-relay registration. Then inspect safe-delete, reconcile-account-deletions, and R2 erasure logs. Repair configuration or dependencies and let claim-fenced retries resume; do not edit private job, lease, delivery, or cursor rows. Any historically unverifiable delivery requires release-owner and counsel review before production promotion.",
+      : "Verify the database reaper cron and its Vault/app-settings URL and service credential, then inspect safe-delete, reconcile-account-deletions, and R2 erasure logs. Repair configuration or dependencies and let claim-fenced retries resume; do not edit private job, lease, or cursor rows.",
     "",
   ].join("\n");
 }

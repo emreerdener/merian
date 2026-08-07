@@ -69,16 +69,12 @@ Apple's Settings/support instructions on launch and foreground until the user
 explicitly confirms removal. New Apple accounts normally use automatic
 server-side revocation; this fallback exists for accounts authorized before a
 refresh token could be captured. The confirmation sheet explains both paths.
-The local notice is defense-in-depth. The server separately sends the same
-instructions to the confirmed Auth email, treats send API acceptance as
-non-authoritative, and keeps Auth fenced until a signature-verified
-`email.delivered` event matches the current attempt and provider email ID.
 
-Older binaries do not implement the required receipt field or durable notice,
-but the server delivery path does not depend on either. Public promotion still
-requires deployment of the delivery-confirmed migration and webhook, a real
-Apple private-relay delivery, zero unverifiable rows, and a deletion initiated
-from the oldest supported pre-field binary with the response ignored or lost.
+Older binaries do not implement the required receipt field or durable notice.
+App Store availability of the supporting build is not proof that those clients
+received the fallback. Public promotion requires either an enforceable
+minimum-supported-build control with a clear update path back to this in-app
+deletion flow, or an independent server-delivered manual fallback.
 
 The server owns all ordering and retry semantics. The app must not send a target
 user ID, attempt to delete the Auth identity directly, or retry individual

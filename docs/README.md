@@ -260,17 +260,12 @@ as their permanent engineering identity.
   Apple's authorization code at sign-in, while an authenticated Edge route
   verifies the Apple subject and stores the refresh token in Vault. Durable
   deletion revokes and destroys that token after storage verification and
-  before Auth. For pre-rollout Apple accounts, current source dispatches a
-  claim-fenced server email, treats send API acceptance as non-authoritative,
-  and releases Auth only for a signed, current-attempt `email.delivered` event.
-  The persistent in-app notice is defense-in-depth; the server path covers older
-  binaries and lost responses independently. Apple
-  credential-revocation notifications are revalidated against the same active
-  provider subject before local session teardown. Production remains gated on
-  secrets, deployment of the state migration and verified Resend webhook,
-  exact-SHA
-  database evidence, real Apple revoke and private-relay delivery smokes, zero
-  unverifiable rows, and the oldest-supported-binary deletion smoke. See the
+  before Auth. Pre-rollout Apple accounts receive a persistent manual-removal
+  notice. Apple credential-revocation notifications are revalidated against the
+  same active provider subject before local session teardown. Production
+  remains gated on secrets, exact-SHA database evidence, real Apple smokes, and
+  either an enforceable minimum-supported-build gate or an independent
+  server-delivered fallback for older iOS binaries. See the
   [canonical contract](./backend-and-data/20-sign-in-with-apple-account-deletion.md).
 - **Explore media-loss contract**: An unavailable object never auto-deletes or
   auto-unpublishes a post. Two spaced direct R2-origin `404` checks confirm
@@ -501,9 +496,8 @@ as their permanent engineering identity.
   safety, taxonomy checkpointing, rollout dependencies, and production evidence.
 - **[`/backend-and-data/20-sign-in-with-apple-account-deletion.md`](./backend-and-data/20-sign-in-with-apple-account-deletion.md)**
   — Normative authorization-code capture, Vault token storage, durable provider
-  revocation, the release-blocked legacy dispatch boundary, required
-  delivery-confirmed fallback, key rotation, rollout, and verification contract
-  for Sign in with Apple account deletion.
+  revocation, legacy manual fallback, key rotation, rollout, and verification
+  contract for Sign in with Apple account deletion.
 
 ### Features & Hardware
 

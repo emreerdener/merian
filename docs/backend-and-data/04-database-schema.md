@@ -3879,12 +3879,9 @@ Migration `20260725030308_durable_account_deletion.sql` adds durable intake;
 migration `20260725052337_enforce_account_storage_erasure.sql` completes the
 private account-deletion state machine. Migration
 `20260806203700_durable_apple_provider_revocation.sql` adds the provider
-revocation substage required for Sign in with Apple. Migration
-`20260807034322_deliver_legacy_apple_revocation_instructions.sql` adds the
-server delivery-confirmed substage, durable attempts, and signed-event journal
-for legacy Apple accounts. The job table
-has RLS enabled and revokes direct table access from `PUBLIC`, `anon`,
-`authenticated`, and `service_role`.
+revocation substage required for Sign in with Apple. The job table has RLS
+enabled and revokes direct table access from `PUBLIC`, `anon`, `authenticated`,
+and `service_role`.
 
 Important columns and invariants:
 
@@ -3897,13 +3894,6 @@ Important columns and invariants:
   `not_required`; its resolved timestamp and
   `manual_provider_revocation_required` boolean are constrained as one coherent
   disposition
-- `manual_revocation_delivery_status`: `pending`, `accepted`,
-  `delivery_delayed`, `retry_required`, `delivered`, `unverifiable`, or
-  `not_required`. Send acceptance supplies the provider email ID but leaves the
-  resolved timestamp null. Only `delivered` has both provider ID and resolved
-  timestamp. Active legacy rows backfill to `pending`; already-completed
-  pre-migration legacy rows are preserved as `unverifiable` because their Auth
-  email is no longer recoverable
 - `claim_token`, `claimed_at`, and `claim_expires_at`, which are either all
   present or all absent
 - `attempt_count`, `next_attempt_at`, and a bounded `last_error_code`
@@ -3919,20 +3909,6 @@ transitions are:
   insert, idempotent tombstone, and relational verification; returns
   `storage_pending` until delayed storage verification permits `auth_pending`,
   then returns `provider_revocation_pending` when a stored credential remains
-- `prepare_account_deletion_manual_revocation_delivery(uuid,uuid)` — creates or
-  resumes one pre-dispatch attempt and transiently reads the confirmed Auth
-  email for the active claim; the address is never copied into durable delivery
-  state
-- `record_account_deletion_manual_revocation_acceptance(uuid,uuid,uuid,text)` —
-  binds a bounded provider email ID to that attempt, records `accepted` or an
-  already-journaled outcome, and never treats acceptance alone as delivery
-- `record_account_deletion_manual_revocation_event(uuid,text,text,text,timestamptz)` —
-  journals the signed provider event idempotently and reduces only a current,
-  matching attempt/provider pair
-- `get_account_deletion_manual_revocation_recipient(uuid,uuid)` and
-  `complete_account_deletion_manual_revocation_delivery(uuid,uuid,text)` —
-  fail-closed compatibility fences for a migration-first rollout; neither can
-  dispatch or release Auth
 - `get_account_deletion_provider_token(uuid,uuid)` — reads the Vault token only
   for the active, unexpired `auth_pending` claim
 - `complete_account_deletion_provider_revocation(uuid,uuid)` — deletes the
@@ -3940,9 +3916,9 @@ transitions are:
   provider success
 - `finish_account_deletion_attempt(uuid,uuid,boolean,text)` — terminal Auth
   receipt or database-calculated retry; success verifies completed storage,
-  resolved provider and delivery state, and credential absence again
+  resolved provider state, and credential absence again
 
-### Apple revocation and delivery-fence tables
+### Apple revocation credential tables
 
 `internal.apple_sign_in_revocation_credentials` maps one Auth user to one
 `vault.secrets` UUID. Both foreign keys use `ON DELETE RESTRICT`; the Auth edge
@@ -3956,44 +3932,12 @@ Auth foreign key cascades only when the user is legitimately deleted, and
 successful provider completion removes the user's receipts first. Receipts
 older than 24 hours are pruned on later successful registration.
 
-`internal.apple_manual_revocation_delivery_requirements` stores only the Auth
-user UUID and deletion-job UUID for an active legacy delivery. Its Auth foreign
-key uses `ON DELETE RESTRICT`, so neither Auth Admin nor a direct database delete
-can remove the identity before matching confirmed delivery. Only a
-signature-verified `email.delivered` reducer for the current attempt and
-provider email ID deletes this row. The table has RLS enabled and no
-direct API-role privileges, including `service_role`. Its Auth foreign key is a
-`preserve` entry in `internal.ghost_profile_merge_reference_policies`; a source
-row therefore aborts Ghost-profile merge before mutation rather than moving an
-active deletion fence to the permanent destination identity.
-
-`internal.apple_manual_revocation_delivery_attempts` creates one active attempt
-per job before dispatch. It stores the attempt UUID, deterministic
-`account-deletion-manual-apple/{attempt_token}` idempotency key, attempt state,
-bounded provider email ID, last supported event type, and timestamps. The
-recipient is deliberately absent. Terminal bounced, failed, or suppressed
-attempts become `retry_required`; a later prepare call creates a distinct token.
-
-`internal.apple_manual_revocation_delivery_events` is the bounded PII-free
-webhook journal keyed by `svix-id`. It stores the attempt UUID, provider email
-ID, supported event type, provider/receipt timestamps, and reduction timestamp.
-An event can arrive before send-response persistence; it remains journaled until
-acceptance binds the same provider ID. Duplicate events are idempotent. An event
-ID reused with different fields is a conflict; unknown or superseded attempts
-cannot release the current Auth fence.
-
-All three delivery tables enable RLS and grant no direct API-role access,
-including `service_role`. Recipient, sender, subject, headers, and raw webhook
-body are prohibited. Existing active legacy jobs backfill to `pending` and gain
-the guard; historical jobs without recoverable delivery evidence are
-`unverifiable`, never delivered.
-
 `apple_revocation_registration_exists(uuid,uuid)` checks a receipt before the
 one-use code is exchanged. `store_apple_revocation_credential(uuid,uuid,text,text)`
 locks the permanent Auth user, rejects active deletion, binds the Apple subject
 to `auth.identities`, and creates or updates the Vault secret atomically. Both
-routines, plus the provider and manual-delivery routines above, are
-empty-search-path, in-body-authorized, service-role-only entries in
+routines, plus the two claimed deletion routines above, are empty-search-path,
+in-body-authorized, service-role-only entries in
 `internal.privileged_routine_grants`.
 See the
 [Sign in with Apple account-deletion contract](./20-sign-in-with-apple-account-deletion.md)
@@ -4025,14 +3969,6 @@ uses those boundaries to return one aggregate row containing:
   plus oldest active/due ages; and
 - booleans for the named five-minute reaper cron and the URL/service credential
   configuration it requires.
-
-The manual-delivery migration adds identity-free
-`manual_revocation_delivery_pending_count`, `..._accepted_count`,
-`..._delayed_count`, `..._retry_required_count`, `..._delivered_count`, and
-`..._unverifiable_count` fields without exposing recipients or provider IDs.
-Pending includes every unresolved active delivery; accepted includes delayed as
-a subset. A nonzero unverifiable count is a critical historical evidence gap,
-not a repairable queue state.
 
 The routine calls `internal.require_service_role()`, has an empty search path,
 is allowlisted only for `service_role`, and deliberately omits UUIDs and raw

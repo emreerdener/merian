@@ -1312,13 +1312,10 @@ on gesture-driven layout abstractions.
   before the client signs out and purges the device SQLite boundary through
   `ScanRepository.shared.purgeAllData()`; the app-root instructions remain
   visible across relaunch until the user confirms manual Apple removal. That
-  receipt-and-notice behavior is defense-in-depth. The worker independently
-  sends Apple's instructions to the confirmed Auth email, retains its
-  restrictive Auth fence after send API acceptance, and releases it only when
-  the signature-verified webhook commits a matching `email.delivered` event.
-  Public promotion remains blocked on hosted webhook evidence, zero
-  unverifiable rows, real Apple private-relay delivery, and the
-  oldest-supported-binary deletion smoke.
+  receipt-and-notice behavior exists only in supporting binaries. Public
+  promotion remains blocked until older clients are covered by an enforceable
+  minimum-supported-build control or an independent server-delivered fallback;
+  publishing the new build alone is insufficient.
 - **Individual Scan Deletion**: Every single and batch deletion confirmation
   explains that a published scan owns its Explore post and that proceeding
   permanently removes the post, likes, and comments. This explicit destructive
