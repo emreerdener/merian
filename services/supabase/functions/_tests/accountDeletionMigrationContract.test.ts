@@ -282,6 +282,7 @@ Deno.test("legacy Apple instructions require provider-confirmed delivery before 
       "CREATE INDEX apple_manual_delivery_attempts_job_idx",
       "CREATE INDEX apple_manual_delivery_events_attempt_idx",
       "CREATE OR REPLACE FUNCTION public.get_account_deletion_manual_revocation_recipient",
+      "recipient_email := NULL",
       "account_deletion_manual_delivery_upgrade_required",
       "CREATE OR REPLACE FUNCTION public.complete_account_deletion_manual_revocation_delivery",
       "account_deletion_manual_delivery_confirmation_required",
@@ -351,6 +352,23 @@ Deno.test("legacy Apple instructions require provider-confirmed delivery before 
       ghostMergeCoverage > ghostMergePolicy &&
       schemaEnd > ghostMergeCoverage,
     "The delivery rollout, Ghost-merge policy, coverage assertion, and constraints must share the locked schema statement.",
+  );
+
+  const compatibilityRecipient = sql.slice(
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION public.get_account_deletion_manual_revocation_recipient",
+    ),
+    sql.indexOf(
+      "COMMENT ON FUNCTION public.get_account_deletion_manual_revocation_recipient",
+    ),
+  );
+  assert(
+    compatibilityRecipient.indexOf("recipient_email := NULL") >= 0 &&
+      compatibilityRecipient.indexOf("recipient_email := NULL") <
+        compatibilityRecipient.indexOf(
+          "account_deletion_manual_delivery_upgrade_required",
+        ),
+    "The non-returning legacy recipient fence must initialize its OUT variable before raising so database lint remains warning-clean.",
   );
 
   const compatibilityCompletion = sql.indexOf(

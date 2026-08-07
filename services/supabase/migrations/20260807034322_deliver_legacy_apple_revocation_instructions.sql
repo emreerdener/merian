@@ -408,6 +408,11 @@ BEGIN
     -- Compatibility fence for the prior worker during migration-first rollout.
     -- It must fail before dispatch because the old request has no opaque
     -- attempt tag and therefore cannot be authorized by a later webhook.
+    -- RETURNS TABLE exposes recipient_email as an OUT variable. Assigning its
+    -- fail-closed value keeps plpgsql_check warning-clean without making this
+    -- compatibility routine capable of returning an address.
+    recipient_email := NULL;
+
     RAISE EXCEPTION 'account_deletion_manual_delivery_upgrade_required'
         USING ERRCODE = '55000';
 END;
