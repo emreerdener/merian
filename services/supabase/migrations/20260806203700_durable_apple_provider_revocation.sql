@@ -60,6 +60,59 @@ ALTER TABLE internal.apple_sign_in_credential_registrations
 REVOKE ALL ON TABLE internal.apple_sign_in_credential_registrations
     FROM PUBLIC, anon, authenticated, service_role;
 
+-- Credential capture requires a non-anonymous Auth user with the matching
+-- Apple identity. A Ghost source holding either row is invariant drift: never
+-- move provider custody or its authorization-code receipt to another account.
+INSERT INTO internal.ghost_profile_merge_reference_policies (
+    source_schema,
+    source_table,
+    source_column,
+    referenced_schema,
+    referenced_table,
+    referenced_column,
+    strategy,
+    execution_order,
+    handler_key,
+    purpose
+)
+VALUES
+    (
+        'internal',
+        'apple_sign_in_revocation_credentials',
+        'user_id',
+        'auth',
+        'users',
+        'id',
+        'preserve',
+        900,
+        NULL,
+        'Apple refresh-token custody belongs to the permanent provider identity and must never move from a Ghost source.'
+    ),
+    (
+        'internal',
+        'apple_sign_in_credential_registrations',
+        'user_id',
+        'auth',
+        'users',
+        'id',
+        'preserve',
+        900,
+        NULL,
+        'Apple authorization-code receipts belong to the permanent provider identity and must never move from a Ghost source.'
+    )
+ON CONFLICT (
+    source_schema,
+    source_table,
+    source_column,
+    referenced_schema,
+    referenced_table,
+    referenced_column
+) DO UPDATE
+SET strategy = EXCLUDED.strategy,
+    execution_order = EXCLUDED.execution_order,
+    handler_key = EXCLUDED.handler_key,
+    purpose = EXCLUDED.purpose;
+
 ALTER TABLE internal.account_deletion_jobs
     ADD COLUMN provider_revocation_status TEXT NOT NULL
         DEFAULT 'not_required',
@@ -187,6 +240,8 @@ ALTER TABLE internal.account_deletion_jobs
                 AND last_error_code IS NULL
             )
         );
+
+PERFORM internal.assert_ghost_profile_merge_reference_policy_coverage();
 
 END;
 $apple_revocation_schema$;
