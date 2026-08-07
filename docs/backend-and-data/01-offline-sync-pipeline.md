@@ -1232,7 +1232,7 @@ the latch without waiting for a URLSession delegate callback.
   retrieves the idempotent progress receipt through the Edge action, publishes
   progress refresh events, calculates newly eligible achievements without
   immediately presenting them, and atomically enqueues standard outing progress,
-  Events-visible Seasonal Challenge progress, achievements, then **New to
+  Seasonal Challenge progress, achievements, then **New to
   Naturebook**. A failed or no-match progress attempt releases the later
   milestones only after it finishes. Award calculation is per final scan rather
   than process-lifetime burst-debounced, because strict notification ordering

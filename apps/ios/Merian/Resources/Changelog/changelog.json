@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-07-field-trip-events",
+      "date": "2026-08-07",
+      "title": "Field trip Events for everyone",
+      "sections": [
+        {
+          "title": "New",
+          "items": [
+            "Events are now available to everyone, with curated, non-competitive Field trip goals, explicit Join, event progress, completion badges, and published entry pages.",
+            "Eligible event hashtags can appear as optional Explore sharing suggestions, but Naturebook never auto-posts or auto-tags a scan for an Event."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-02-three-complimentary-pro-scans",
       "date": "2026-08-02",
       "title": "Three Pro scans included",
@@ -153,20 +167,6 @@
           "items": [
             "Closing Field notes without making changes no longer shows a visibility message or refreshes the Explore post.",
             "Edited notes still save automatically, with clear feedback that distinguishes text updates from public or private visibility changes."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "2026-07-19-field-trip-events-preview",
-      "date": "2026-07-19",
-      "title": "Field trip Events preview",
-      "sections": [
-        {
-          "title": "Preview",
-          "items": [
-            "Events add curated, non-competitive Field trip goals with explicit Join, event progress, completion badges, and published entry pages.",
-            "Eligible event hashtags can appear as optional Explore sharing suggestions, but Naturebook never auto-posts or auto-tags a scan for an Event."
           ]
         }
       ]

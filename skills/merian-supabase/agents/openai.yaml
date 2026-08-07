@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian Supabase"
+  short_description: "Safe Supabase changes for the Merian backend"
+  default_prompt: "Use $merian-supabase to implement and verify a safe Merian backend change."

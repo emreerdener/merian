@@ -391,7 +391,7 @@ triggering excessive SwiftUI view rebuilds.
   first actual result frame. `ScanMilestoneCoordinator` runs in follow-up work,
   polls `/check-scan-status` before retrieving the server-applied Field trip
   progress receipt, then calculates awards and batches standard outings,
-  Events-visible Seasonal Challenges, achievements, and **New to Naturebook**.
+  Seasonal Challenges, achievements, and **New to Naturebook**.
   Tools requiring server persistence stay disabled until the existing ingestion
   ledger confirms the final scan ID. The progress call may carry the durable
   camera-only selected-goal hint, and its completion publishes a scan-specific
@@ -944,7 +944,7 @@ triggering excessive SwiftUI view rebuilds.
 | -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                             |
 | `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | Legacy routing preference only. `MerianApp` combines it with current required consent and the manager's pending restoration signal to choose onboarding, a launch-matched restoration surface, or the workspace. Active provider/hardware lifecycle behavior still requires current adult, Terms, and Gemini consent.                            |
-| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple fallback before sign-out; `MerianApp` restores the manual-removal alert on launch/foreground until explicit resolution. This key must survive account-local database cleanup.                                                        |
+| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple notice before sign-out; `MerianApp` restores it on launch/foreground until explicit resolution. The server independently sends the same instructions and retains its restrictive Auth fence until a signed, current-attempt delivery event. This local key remains supporting-binary defense-in-depth and must survive account-local database cleanup. |
 | `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                               |
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                        |
@@ -1300,7 +1300,12 @@ and `KeychainManager` migration logic. Do not inline
   that same Apple identity remains active. `.authorized` preserves the session;
   `.revoked`, `.notFound`, `.transferred`, unknown states, and lookup failures
   clear the matching local session. This client transition never fabricates
-  server provider completion.
+  server provider completion. For legacy account deletion, the local notice is
+  a supporting-binary safeguard. The server treats Resend send acceptance as
+  dispatch evidence only and keeps Auth fenced until a signature-verified
+  `email.delivered` event matches the current attempt and provider email ID.
+  Production still requires deployment and real relay/old-binary evidence for
+  that source contract.
 - **Durable Ghost merge completion**: Before switching sessions,
   `SupabaseManager` stores each source-issued, provider-bound proof in a
   versioned `WhenUnlockedThisDeviceOnly` Keychain queue. Completion is
@@ -1524,12 +1529,11 @@ and `KeychainManager` migration logic. Do not inline
   so historical qualifying scans are seeded silently instead of showing
   retroactive unlock banners.
 - **The Field Naturalist** is the server-authoritative exception to the local
-  scan calculator. `ScanMilestoneCoordinator` merges the typed earliest standard
-  outing for every user and a Seasonal Challenge payload only when
-  `FieldTripEventsAvailability` is enabled, saves only visible results in an
-  account-scoped `UserDefaults` cache, and passes it to `GamificationManager`
-  only when the current server mutation reports a new unlock. There is no
-  rollout cutoff because Field trips had no prior user engagement.
+  scan calculator. `ScanMilestoneCoordinator` merges the typed earliest
+  standard outing or Seasonal Challenge result, saves it in an account-scoped
+  `UserDefaults` cache, and passes it to `GamificationManager` only when the
+  current server mutation reports a new unlock. There is no rollout cutoff
+  because Field trips had no prior user engagement.
 - Full architecture documented in
   [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
 
@@ -1548,17 +1552,14 @@ and `KeychainManager` migration logic. Do not inline
   deduplicates by final scan ID, awaits the existing persistence/progress
   attempt, gathers achievements without presenting them immediately, evaluates
   `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
-  Field trips, visible Seasonal Challenges, achievements, then **New to
-  Naturebook**. When Events are disabled, the coordinator removes challenge
-  progress before caching, refresh publication, destination construction, or
-  toast presentation. Identification corrections reapply progress through the
+  Field trips, Seasonal Challenges, achievements, then **New to Naturebook**.
+  Identification corrections reapply progress through the
   same coordinator but do not replay the original scan-achievement/dictionary
   batch. When Field trips are disabled, the coordinator skips its progress
   resolver while ordinary scan achievements and dictionary milestones continue
   normally. `.fieldTrips` is currently enabled in the central `FeatureFlags`
   registry; availability injection remains as a test seam and future emergency
-  client-build control. The independent Events gate does not suppress standard
-  outing progress. Retryable failures keep the selected-goal SwiftData row as a
+  client-build control. Retryable failures keep the selected-goal SwiftData row as a
   durable outbox, release ordinary milestones through a separate once-per-scan
   guard, and use bounded in-process retries. `OfflineJobScheduler` replays
   leftover hints after relaunch; only success, terminal ingestion failure, or

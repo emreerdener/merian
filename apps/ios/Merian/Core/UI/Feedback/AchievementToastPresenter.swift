@@ -214,14 +214,12 @@ final class ScanMilestoneCoordinator {
     typealias ProgressResolver = (String, FieldTripPreferredGoal?) async -> ProgressResolution
     typealias AchievementResolver = (ModelContainer?) async -> [AwardPayload]
     typealias FieldTripsAvailabilityResolver = @MainActor () -> Bool
-    typealias FieldTripEventsAvailabilityResolver = @MainActor () -> Bool
 
     static let shared = ScanMilestoneCoordinator()
 
     private let progressResolver: ProgressResolver
     private let achievementResolver: AchievementResolver
     private let fieldTripsAvailabilityResolver: FieldTripsAvailabilityResolver
-    private let fieldTripEventsAvailabilityResolver: FieldTripEventsAvailabilityResolver
     private let presenter: MilestoneToastPresenter
     private var inFlightScanIds: Set<String> = []
     private var completedScanIds: Set<String> = []
@@ -250,16 +248,12 @@ final class ScanMilestoneCoordinator {
         fieldTripsAvailabilityResolver: @escaping FieldTripsAvailabilityResolver = {
             FeatureFlags.isEnabled(.fieldTrips)
         },
-        fieldTripEventsAvailabilityResolver: @escaping FieldTripEventsAvailabilityResolver = {
-            FieldTripEventsAvailability.isEnabled
-        },
         retryDelays: [Duration] = [.seconds(2), .seconds(5), .seconds(15)],
         presenter: MilestoneToastPresenter? = nil
     ) {
         self.progressResolver = progressResolver
         self.achievementResolver = achievementResolver
         self.fieldTripsAvailabilityResolver = fieldTripsAvailabilityResolver
-        self.fieldTripEventsAvailabilityResolver = fieldTripEventsAvailabilityResolver
         self.retryDelays = retryDelays
         self.presenter = presenter ?? .shared
     }
@@ -315,10 +309,7 @@ final class ScanMilestoneCoordinator {
         if resolvesFieldTrips {
             switch await progressResolver(scanId, resolvedPreferredGoal) {
             case .success(let resolvedProgress):
-                progress = Self.visibleProgress(
-                    resolvedProgress,
-                    eventsEnabled: fieldTripEventsAvailabilityResolver()
-                )
+                progress = resolvedProgress
                 finalizesFieldTripResolution = true
                 cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
                 publishProgressEvents(progress)
@@ -375,10 +366,7 @@ final class ScanMilestoneCoordinator {
         guard case .success(let resolvedProgress) = await progressResolver(scanId, nil) else {
             return
         }
-        let progress = Self.visibleProgress(
-            resolvedProgress,
-            eventsEnabled: fieldTripEventsAvailabilityResolver()
-        )
+        let progress = resolvedProgress
         cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
         AppEventPublisher.shared.send(.fieldTripScanContributionsInvalidated(scanId: scanId))
@@ -396,23 +384,6 @@ final class ScanMilestoneCoordinator {
 
         return result.fieldTripUpdates.compactMap(FieldTripMilestonePayload.standard)
             + result.challengeUpdates.compactMap(FieldTripMilestonePayload.challenge)
-    }
-
-    static func visibleProgress(
-        _ result: FieldTripProgressResult?,
-        eventsEnabled: Bool
-    ) -> FieldTripProgressResult? {
-        guard let result, !eventsEnabled else { return result }
-
-        let achievement = result.firstFieldTripAchievement?.visible(eventsEnabled: false)
-        return FieldTripProgressResult(
-            fieldTripUpdates: result.fieldTripUpdates,
-            challengeUpdates: [],
-            firstFieldTripAchievement: achievement,
-            firstFieldTripAchievementNewlyUnlocked: achievement == nil
-                ? false
-                : result.firstFieldTripAchievementNewlyUnlocked
-        )
     }
 
     static func isValidNewToMerianMilestone(_ data: SpeciesData) -> Bool {

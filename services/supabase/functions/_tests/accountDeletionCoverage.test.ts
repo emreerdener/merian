@@ -3,6 +3,26 @@ import { assert, assertStringIncludes } from "@std/assert";
 const handlerUrl = new URL("../safe-delete/handler.ts", import.meta.url);
 const workerUrl = new URL("../safe-delete/worker.ts", import.meta.url);
 const dbUrl = new URL("../safe-delete/db.ts", import.meta.url);
+const manualEmailUrl = new URL(
+  "../safe-delete/manualRevocationEmail.ts",
+  import.meta.url,
+);
+const resendWebhookHandlerUrl = new URL(
+  "../resend-account-deletion-webhook/handler.ts",
+  import.meta.url,
+);
+const resendWebhookProtocolUrl = new URL(
+  "../resend-account-deletion-webhook/protocol.ts",
+  import.meta.url,
+);
+const resendWebhookSignatureUrl = new URL(
+  "../resend-account-deletion-webhook/signature.ts",
+  import.meta.url,
+);
+const resendWebhookDbUrl = new URL(
+  "../resend-account-deletion-webhook/db.ts",
+  import.meta.url,
+);
 const appleClientUrl = new URL("../_shared/appleSignIn.ts", import.meta.url);
 const appleRegistrationUrl = new URL(
   "../register-apple-revocation-token/handler.ts",
@@ -39,12 +59,28 @@ const catalogTestUrl = new URL(
 );
 
 Deno.test("account deletion source preserves durable cleanup-provider-Auth ordering", async () => {
-  const [handler, worker, db, storageWorker, appleClient] = await Promise.all([
+  const [
+    handler,
+    worker,
+    db,
+    storageWorker,
+    appleClient,
+    manualEmail,
+    webhookHandler,
+    webhookProtocol,
+    webhookSignature,
+    webhookDb,
+  ] = await Promise.all([
     Deno.readTextFile(handlerUrl),
     Deno.readTextFile(workerUrl),
     Deno.readTextFile(dbUrl),
     Deno.readTextFile(storageWorkerUrl),
     Deno.readTextFile(appleClientUrl),
+    Deno.readTextFile(manualEmailUrl),
+    Deno.readTextFile(resendWebhookHandlerUrl),
+    Deno.readTextFile(resendWebhookProtocolUrl),
+    Deno.readTextFile(resendWebhookSignatureUrl),
+    Deno.readTextFile(resendWebhookDbUrl),
   ]);
 
   assert(
@@ -74,6 +110,17 @@ Deno.test("account deletion source preserves durable cleanup-provider-Auth order
         worker.indexOf("await deleteAuth(claim.userId, supabaseAdmin)"),
     "Apple must return success and the provider outcome must commit before Auth deletion.",
   );
+  assertStringIncludes(
+    worker,
+    'if (cleanupPhase === "manual_revocation_delivery_pending")',
+  );
+  assert(
+    worker.indexOf("await sendManualRevocationEmail(") <
+        worker.indexOf("await recordManualRevocationAcceptance(") &&
+      worker.indexOf('if (acceptance === "delivery_pending")') <
+        worker.indexOf("await deleteAuth(claim.userId, supabaseAdmin)"),
+    "Dispatch acceptance must stop unless the database has already reduced a matching delivery event.",
+  );
   assert(
     !worker.includes('if (claim.status === "pending")'),
     "Every retry must revalidate cleanup immediately before Auth deletion.",
@@ -87,8 +134,71 @@ Deno.test("account deletion source preserves durable cleanup-provider-Auth order
     db,
     '"complete_account_deletion_provider_revocation"',
   );
+  assertStringIncludes(
+    db,
+    '"prepare_account_deletion_manual_revocation_delivery"',
+  );
+  assertStringIncludes(
+    db,
+    '"record_account_deletion_manual_revocation_acceptance"',
+  );
   assertStringIncludes(appleClient, "`${APPLE_ISSUER}/auth/revoke`");
   assertStringIncludes(appleClient, 'token_type_hint: "refresh_token"');
+  for (
+    const fragment of [
+      "https://api.resend.com/emails",
+      "account-deletion-manual-apple/${attemptId}",
+      'Deno.env.get("RESEND_API_KEY")',
+      'Deno.env.get("ACCOUNT_DELETION_FROM_EMAIL")',
+      "https://account.apple.com/",
+      "https://support.apple.com/102571",
+      '{ name: "purpose", value: "apple_manual_revocation" }',
+      '{ name: "attempt_id", value: attemptId }',
+    ]
+  ) {
+    assertStringIncludes(manualEmail, fragment);
+  }
+  assert(
+    !manualEmail.includes("console.log") &&
+      !manualEmail.includes("logStructuredError"),
+    "The recipient and transactional provider response must never be logged.",
+  );
+  assert(
+    webhookHandler.indexOf("await verifyResendSignature(") <
+        webhookHandler.indexOf("parseResendAccountDeletionEvent(rawBody)") &&
+      webhookHandler.indexOf("parseResendAccountDeletionEvent(rawBody)") <
+        webhookHandler.indexOf("await recordEvent("),
+    "The Resend route must verify exact raw bytes before parsing or mutation.",
+  );
+  for (
+    const fragment of [
+      'request.headers.get("svix-id")',
+      'request.headers.get("svix-timestamp")',
+      'request.headers.get("svix-signature")',
+      "RESEND_SIGNATURE_TOLERANCE_SECONDS = 5 * 60",
+      '"email.delivered"',
+      '"email.delivery_delayed"',
+      '"email.bounced"',
+      '"email.failed"',
+      '"email.suppressed"',
+      'tags.purpose !== "apple_manual_revocation"',
+      '"record_account_deletion_manual_revocation_event"',
+    ]
+  ) {
+    assert(
+      webhookHandler.includes(fragment) ||
+        webhookProtocol.includes(fragment) ||
+        webhookSignature.includes(fragment) ||
+        webhookDb.includes(fragment),
+      `Missing Resend webhook control: ${fragment}`,
+    );
+  }
+  for (const prohibited of ["data.to", "data.subject", "rawBody:"]) {
+    assert(
+      !webhookDb.includes(prohibited),
+      `The database boundary must not persist ${prohibited}.`,
+    );
+  }
   for (
     const fragment of [
       "claimStorageDeletionJobs",
@@ -184,6 +294,31 @@ Deno.test("Apple sign-in captures the one-use code through the authenticated dur
     assertStringIncludes(secretGate, secret);
   }
   assertStringIncludes(secretGate, "BEGIN PRIVATE KEY");
+  for (
+    const secret of [
+      "RESEND_API_KEY",
+      "ACCOUNT_DELETION_FROM_EMAIL",
+      "RESEND_WEBHOOK_SIGNING_SECRET",
+    ]
+  ) {
+    assertStringIncludes(secretGate, secret);
+    assertStringIncludes(workflow, `\"${secret}=$${secret}\"`);
+  }
+  assertStringIncludes(
+    workflow,
+    "Synchronize account-deletion email delivery credentials",
+  );
+  const webhookConfigStart = config.indexOf(
+    "[functions.resend-account-deletion-webhook]",
+  );
+  const webhookConfigEnd = config.indexOf(
+    "\n[functions.",
+    webhookConfigStart + 1,
+  );
+  assertStringIncludes(
+    config.slice(webhookConfigStart, webhookConfigEnd),
+    "verify_jwt = false",
+  );
 });
 
 Deno.test("account deletion reaper is service-only, bounded, and deployed", async () => {
@@ -256,6 +391,28 @@ Deno.test("account deletion catalog fixture follows the durable phase order", as
     "DELETE FROM auth.users\nWHERE id =",
     providerCompletion,
   );
+  const manualPreparation = catalogTest.indexOf(
+    "FROM public.prepare_account_deletion_manual_revocation_delivery(",
+  );
+  const manualAuthFence = catalogTest.indexOf(
+    "'apple_manual_delivery_requirement_user_fk'",
+  );
+  const outOfOrderEvent = catalogTest.indexOf(
+    "outcome := public.record_account_deletion_manual_revocation_event(",
+    manualPreparation,
+  );
+  const manualAcceptance = catalogTest.indexOf(
+    "outcome := public.record_account_deletion_manual_revocation_acceptance(",
+    outOfOrderEvent,
+  );
+  const confirmedDelivery = catalogTest.indexOf(
+    "'evt_delivered_fixture_2'",
+    manualAcceptance,
+  );
+  const legacyAuthDeletion = catalogTest.indexOf(
+    "DELETE FROM auth.users\nWHERE id = '00000000-0000-0000-0000-00000000d202'::UUID;",
+    confirmedDelivery,
+  );
 
   assert(
     prematureFinish >= 0 &&
@@ -267,6 +424,15 @@ Deno.test("account deletion catalog fixture follows the durable phase order", as
       healthCheck > providerCompletion &&
       authDeletion > healthCheck,
     "The executable fixture must reject premature completion, finish durable storage, revoke and destroy the Apple credential, observe retry state, and only then delete Auth.",
+  );
+  assert(
+    manualAuthFence >= 0 &&
+      manualPreparation > manualAuthFence &&
+      outOfOrderEvent > manualPreparation &&
+      manualAcceptance > outOfOrderEvent &&
+      confirmedDelivery > manualAcceptance &&
+      legacyAuthDeletion > confirmedDelivery,
+    "The executable legacy fixture must reject Auth-first deletion, create an attempt, keep acceptance fenced, reduce a signed delivery event, and only then delete Auth.",
   );
 });
 
@@ -305,6 +471,12 @@ Deno.test("account deletion health alert is independent of the database reaper",
       "reaper_cron_active",
       "reaper_credentials_configured",
       "orphaned_storage_job_count",
+      "manual_revocation_delivery_pending_count",
+      "manual_revocation_delivery_accepted_count",
+      "manual_revocation_delivery_delayed_count",
+      "manual_revocation_delivery_retry_required_count",
+      "manual_revocation_delivery_delivered_count",
+      "manual_revocation_delivery_unverifiable_count",
       "oldest_pending_age_seconds",
       "oldest_storage_due_age_seconds",
     ]

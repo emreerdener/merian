@@ -152,8 +152,7 @@ struct InsightSheetViewModelTests {
                 return [standard, event]
             },
             fieldTripAuthenticationResolver: { true },
-            fieldTripAvailabilityResolver: { true },
-            fieldTripEventsAvailabilityResolver: { true }
+            fieldTripAvailabilityResolver: { true }
         )
 
         await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
@@ -175,8 +174,7 @@ struct InsightSheetViewModelTests {
                 await loaderGate.load()
             },
             fieldTripAuthenticationResolver: { true },
-            fieldTripAvailabilityResolver: { true },
-            fieldTripEventsAvailabilityResolver: { true }
+            fieldTripAvailabilityResolver: { true }
         )
 
         let loadTask = Task {
@@ -194,38 +192,13 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.fieldTripScanContributions == [standard])
     }
 
-    @Test func fieldTripContributionsHideEventRowsWhenEventsAreDisabled() async {
-        let standard = contribution(
-            kind: .standardOuting,
-            sourceId: "trip-1",
-            title: "Park Pollinators"
-        )
-        let event = contribution(
-            kind: .event,
-            sourceId: "participation-1",
-            title: "Summer Bird Count"
-        )
-        let viewModel = InsightSheetViewModel(
-            inferenceEngine: biologicalEngine(scanId: "saved-scan"),
-            fieldTripContributionLoader: { _ in [standard, event] },
-            fieldTripAuthenticationResolver: { true },
-            fieldTripAvailabilityResolver: { true },
-            fieldTripEventsAvailabilityResolver: { false }
-        )
-
-        await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
-
-        #expect(viewModel.fieldTripScanContributions == [standard])
-    }
-
     @Test func fieldTripContributionsHideSilentlyOnNetworkFailure() async {
         struct ExpectedFailure: Error {}
         let viewModel = InsightSheetViewModel(
             inferenceEngine: biologicalEngine(scanId: "saved-scan"),
             fieldTripContributionLoader: { _ in throw ExpectedFailure() },
             fieldTripAuthenticationResolver: { true },
-            fieldTripAvailabilityResolver: { true },
-            fieldTripEventsAvailabilityResolver: { true }
+            fieldTripAvailabilityResolver: { true }
         )
 
         await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")
@@ -249,8 +222,7 @@ struct InsightSheetViewModelTests {
                 return [standard]
             },
             fieldTripAuthenticationResolver: { isAuthenticated },
-            fieldTripAvailabilityResolver: { true },
-            fieldTripEventsAvailabilityResolver: { true }
+            fieldTripAvailabilityResolver: { true }
         )
 
         await viewModel.loadFieldTripScanContributions(scanId: "saved-scan")

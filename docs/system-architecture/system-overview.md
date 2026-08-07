@@ -131,7 +131,7 @@ A structured schema built on native SwiftData migrations:
   foreground/background completion boundary keyed by the final Postgres scan
   UUID. Server scan ingestion applies Field trip progress transactionally; the
   coordinator waits for persistence, retrieves the durable progress receipt,
-  then batches standard outings, Events-visible Seasonal Challenges, achievements, and
+  then batches standard outings, Seasonal Challenges, achievements, and
   **New to Naturebook** in that order. This prevents the live inference task and
   background URLSession completion from presenting duplicate notifications.
 - *Starter Field Trip Enrollment*: inserting any signed-in or ghost

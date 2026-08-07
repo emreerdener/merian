@@ -34,9 +34,6 @@ final class InsightSheetViewModel {
         },
         fieldTripAvailabilityResolver: @MainActor @escaping () -> Bool = {
             FeatureFlags.isEnabled(.fieldTrips)
-        },
-        fieldTripEventsAvailabilityResolver: @MainActor @escaping () -> Bool = {
-            FieldTripEventsAvailability.isEnabled
         }
     ) {
         self.queuedContext = queuedContext
@@ -45,7 +42,6 @@ final class InsightSheetViewModel {
         self.fieldTripContributionLoader = fieldTripContributionLoader
         self.fieldTripAuthenticationResolver = fieldTripAuthenticationResolver
         self.fieldTripAvailabilityResolver = fieldTripAvailabilityResolver
-        self.fieldTripEventsAvailabilityResolver = fieldTripEventsAvailabilityResolver
         self.cachedActiveMedia = queuedContext?.capturedMediaSnapshot.activeScanMedia
     }
 
@@ -85,7 +81,6 @@ final class InsightSheetViewModel {
     @ObservationIgnored private var fieldTripContributionLoader: (String) async throws -> [FieldTripScanContribution]
     @ObservationIgnored private var fieldTripAuthenticationResolver: @MainActor () -> Bool
     @ObservationIgnored private var fieldTripAvailabilityResolver: @MainActor () -> Bool
-    @ObservationIgnored private var fieldTripEventsAvailabilityResolver: @MainActor () -> Bool
 
     // MARK: - Interface State
     struct UIState: Equatable {
@@ -199,9 +194,7 @@ final class InsightSheetViewModel {
                     .caseInsensitiveCompare(scanId) == .orderedSame else {
                 return
             }
-            fieldTripScanContributions = contributions.filter {
-                $0.sourceKind == .standardOuting || fieldTripEventsAvailabilityResolver()
-            }
+            fieldTripScanContributions = contributions
         } catch {
             guard requestToken == fieldTripContributionRequestToken else { return }
             fieldTripScanContributions = []

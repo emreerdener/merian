@@ -64,15 +64,22 @@ steps are tracked in the
 > `transport_security: "ats-default"`. See the
 > [iOS transport security contract](docs/development-guides/17-ios-transport-security.md).
 
-> **Sign in with Apple deletion status (2026-08-06):** Apple authorization-code
+> **Sign in with Apple deletion status (2026-08-07):** Apple authorization-code
 > capture, Vault-backed refresh-token storage, claim-fenced provider revocation,
-> subject-bound credential-state revalidation, and a durable manual fallback
-> for pre-rollout Apple accounts are implemented in source. Supabase Auth
+> subject-bound credential-state revalidation, and a durable manual disposition
+> plus delivery-confirmed stage for pre-rollout Apple accounts are implemented
+> in source.
+> Supabase Auth
 > deletion is now unreachable while a stored Apple credential remains.
-> Production promotion still requires hosted Apple key
-> provisioning, exact-SHA fresh-catalog replay, a real Apple exchange/revoke
-> smoke, and either an enforceable minimum-supported-build gate or an
-> independent server-delivered manual fallback for older iOS binaries. See the
+> Legacy Apple jobs now send Apple's manual-removal instructions through a
+> claim-fenced Resend stage before Auth removal. Send API acceptance records
+> only `accepted`; a private restrictive foreign key remains until the
+> signature-verified webhook commits a matching `email.delivered` event.
+> Delayed and terminal delivery events retain Auth for waiting or retry, so the
+> control no longer depends on the initiating client in source. Promotion still
+> requires hosted webhook/secret configuration, historical-row classification,
+> exact-SHA replay, zero unverifiable rows, and real Hide My Email plus
+> oldest-supported-binary smokes. See the
 > [canonical Apple deletion contract](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 > **Production release evidence gate (2026-07-28):** DwC-A exports are
@@ -464,12 +471,10 @@ steps are tracked in the
   to Naturebook notification from the same scan. Publication storage stays
   separate from Explore posts; typed Field trip cards can appear in unfiltered
   Recent and Following, but not in Explore maps or the other post-only surfaces.
-  Events remain a client-gated preview for `erdener.emre@gmail.com` and
-  simulator builds; the preview includes curated seasonal challenges, completion
-  badges, published entries, and optional challenge hashtag suggestions. DEBUG
-  startup logs `TODO(field-trip-events-release)` while this state remains; the
-  public Events checklist is in
-  [`25-field-trips.md`](docs/features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
+  Events are public for every user and include curated seasonal challenges,
+  completion badges, published entries, and optional challenge hashtag
+  suggestions. Their UI is part of Field trips rather than a separate client
+  release flag.
 - Explore cards and public share text can show confident dog/cat pet labels
   without replacing the stored species common/scientific names used for
   dictionary links and statistics.
@@ -567,8 +572,11 @@ the initial production launch. **Account** — Sign in with Apple or Google,
 anonymous Ghost Sessions, and durable account deletion that detaches retained
 scientific observations from the account, queues media cleanup, and removes
 the backend Auth identity only after database, storage, and any stored Apple
-provider credential are verified complete. Pre-rollout Apple accounts receive
-a durable manual-revocation notice because no server token exists to revoke.
+provider credential are verified complete. For pre-rollout Apple accounts, the
+current worker dispatches a claim-fenced server email because no server token
+exists to revoke, and supporting clients retain a local notice. Production is
+blocked because send API acceptance currently releases Auth before a signed
+delivery event confirms that Apple's private relay accepted the message.
 An independent scheduled
 health check alerts when the reaper is unconfigured, work is overdue, leases
 expire, or the deletion backlog breaches its SLA. See the
@@ -729,10 +737,15 @@ expire, or the deletion backlog breaches its SLA. See the
   deletion job is `storage_pending` after relational cleanup, and vetoes the
   claim while a live profile or owned scan remains. An outbox row alone is never
   deletion authority. Apple-linked legacy accounts without a captured token
-  complete deletion with an explicit manual-revocation disposition that iOS
-  persists across sign-out and relaunch. A separate five-minute monitor reads only aggregate
-  service-only health and detects missing reaper credentials, a disabled cron,
-  retry failures, expired leases, and age/backlog SLA breaches.
+  receive an explicit manual-revocation disposition, a server delivery attempt,
+  and a durable iOS notice across sign-out and relaunch. Send acceptance leaves
+  Auth fenced; only a signature-verified `email.delivered` event for the current
+  attempt and provider email ID releases it. Delayed delivery waits, while
+  bounced, failed, and suppressed attempts require a new attempt. A separate
+  five-minute monitor reads only aggregate service-only health and detects
+  missing reaper credentials, a disabled cron, retry failures, pending or
+  historically unverifiable instruction delivery, expired leases, and
+  age/backlog SLA breaches.
 
 ---
 

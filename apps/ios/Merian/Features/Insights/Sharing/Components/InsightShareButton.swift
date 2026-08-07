@@ -486,8 +486,7 @@ struct InsightShareButton: View {
         expectedScanId: String?,
         expectedPresentationGeneration: UInt64
     ) async {
-        guard FieldTripEventsAvailability.isEnabled,
-              let scanId = expectedScanId?
+        guard let scanId = expectedScanId?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !scanId.isEmpty else {
             challengeEventHashtags = []

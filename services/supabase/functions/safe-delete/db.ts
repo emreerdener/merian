@@ -9,6 +9,8 @@ export type AccountDeletionStatus =
 export type AccountDeletionCleanupPhase =
   | "storage_pending"
   | "provider_revocation_pending"
+  | "manual_revocation_delivery_pending"
+  | "manual_revocation_delivery_waiting"
   | "auth_pending";
 
 export type AccountDeletionRequest = {
@@ -32,6 +34,17 @@ export type AuthDeletionResult =
 export type ProviderRevocationToken = {
   refreshToken: string;
 };
+
+export type ManualRevocationDeliveryAttempt = {
+  email: string;
+  attemptId: string;
+  idempotencyKey: string;
+};
+
+export type ManualRevocationAcceptance =
+  | "delivered"
+  | "delivery_pending"
+  | "retry_required";
 
 type AccountDeletionRequestRow = {
   job_id: string;
@@ -136,6 +149,8 @@ export async function completeAccountDeletionCleanup(
   if (
     data !== "storage_pending" &&
     data !== "provider_revocation_pending" &&
+    data !== "manual_revocation_delivery_pending" &&
+    data !== "manual_revocation_delivery_waiting" &&
     data !== "auth_pending"
   ) {
     throw new Error("Account deletion cleanup returned invalid state.");
@@ -199,6 +214,78 @@ export async function completeAccountDeletionProviderRevocation(
   }
 }
 
+export async function prepareAccountDeletionManualRevocationDelivery(
+  supabaseAdmin: SupabaseClient,
+  claim: AccountDeletionClaim,
+): Promise<ManualRevocationDeliveryAttempt> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "prepare_account_deletion_manual_revocation_delivery",
+    {
+      p_job_id: claim.jobId,
+      p_claim_token: claim.claimToken,
+    },
+  );
+
+  if (error) {
+    throw new Error("Could not prepare manual revocation delivery.");
+  }
+
+  const row = ((data ?? []) as Array<{
+    recipient_email?: unknown;
+    attempt_token?: unknown;
+    idempotency_key?: unknown;
+  }>)[0];
+  if (
+    typeof row?.recipient_email !== "string" ||
+    row.recipient_email.length < 3 ||
+    row.recipient_email.length > 320 ||
+    containsAsciiControlCharacter(row.recipient_email) ||
+    !/^[^\s@]+@[^\s@]+$/.test(row.recipient_email) ||
+    typeof row.attempt_token !== "string" ||
+    !isUuid(row.attempt_token) ||
+    typeof row.idempotency_key !== "string" ||
+    row.idempotency_key !==
+      `account-deletion-manual-apple/${row.attempt_token}`
+  ) {
+    throw new Error("Manual revocation delivery attempt was invalid.");
+  }
+
+  return {
+    email: row.recipient_email,
+    attemptId: row.attempt_token,
+    idempotencyKey: row.idempotency_key,
+  };
+}
+
+export async function recordAccountDeletionManualRevocationAcceptance(
+  supabaseAdmin: SupabaseClient,
+  claim: AccountDeletionClaim,
+  attemptId: string,
+  providerDeliveryId: string,
+): Promise<ManualRevocationAcceptance> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "record_account_deletion_manual_revocation_acceptance",
+    {
+      p_job_id: claim.jobId,
+      p_claim_token: claim.claimToken,
+      p_attempt_token: attemptId,
+      p_provider_delivery_id: providerDeliveryId,
+    },
+  );
+
+  if (error) {
+    throw new Error("Could not record manual revocation acceptance.");
+  }
+  if (
+    data !== "delivered" &&
+    data !== "delivery_pending" &&
+    data !== "retry_required"
+  ) {
+    throw new Error("Manual revocation acceptance returned invalid state.");
+  }
+  return data;
+}
+
 export async function finishAccountDeletionAttempt(
   supabaseAdmin: SupabaseClient,
   claim: AccountDeletionClaim,
@@ -245,6 +332,11 @@ function isAccountDeletionStatus(
 ): value is AccountDeletionStatus {
   return value === "pending" || value === "storage_pending" ||
     value === "auth_pending" || value === "completed";
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    .test(value);
 }
 
 function safeAuthErrorCode(

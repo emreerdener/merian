@@ -761,13 +761,9 @@ private extension InsightSheetView {
                 )
             ) {
                 if let selectedFieldTripChallengeEntryRoute {
-                    if FieldTripEventsAvailability.isEnabled {
-                        FieldTripChallengeEntryDetailView(
-                            entryId: selectedFieldTripChallengeEntryRoute.entryId
-                        )
-                    } else {
-                        fieldTripEventsUnavailableView
-                    }
+                    FieldTripChallengeEntryDetailView(
+                        entryId: selectedFieldTripChallengeEntryRoute.entryId
+                    )
                 }
             }
             .onAppear {
@@ -1021,28 +1017,16 @@ private extension InsightSheetView {
                 onOpenAuthorProfile: openFieldTripAuthorProfile
             )
         case .event(let challengeId):
-            if FieldTripEventsAvailability.isEnabled {
-                FieldTripChallengeDetailView(
-                    challengeId: challengeId,
-                    onOpenEntry: { entryId in
-                        selectedFieldTripChallengeEntryRoute = FieldTripChallengeEntryRoute(
-                            entryId: entryId
-                        )
-                    },
-                    onOpenAuthorProfile: openFieldTripChallengeAuthorProfile
-                )
-            } else {
-                fieldTripEventsUnavailableView
-            }
+            FieldTripChallengeDetailView(
+                challengeId: challengeId,
+                onOpenEntry: { entryId in
+                    selectedFieldTripChallengeEntryRoute = FieldTripChallengeEntryRoute(
+                        entryId: entryId
+                    )
+                },
+                onOpenAuthorProfile: openFieldTripChallengeAuthorProfile
+            )
         }
-    }
-
-    private var fieldTripEventsUnavailableView: some View {
-        ContentUnavailableView(
-            "Events aren’t available yet",
-            systemImage: "calendar.badge.clock",
-            description: Text("Field trip Events are still in preview.")
-        )
     }
 
     private func openFieldTripCompletedScan(_ scanId: String) {

@@ -51,17 +51,19 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     the refresh token in Vault. Registration is required for sign-in success;
     failure clears the new local session. Account deletion later revokes that
     credential before Auth, while accounts predating capture receive a durable
-    server disposition that supporting clients persist as the manual
-    Apple-removal fallback documented in the
+    server disposition. The durable deletion worker dispatches Apple's
+    manual-removal instructions to the confirmed Auth address, while supporting
+    clients persist the in-app fallback documented in the
     [canonical contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
     Apple's credential-revoked notification triggers a credential-state query
     for the active provider-specific subject. The callback is discarded if the
     signed-in Apple identity changed; `.authorized` preserves the session and
     every non-authorized, unknown, or failed resolution clears the matching
-    local session without claiming server revocation. The manual fallback is
-    implemented only by supporting binaries, so public promotion still requires
-    an enforceable minimum-supported-build control or an independent
-    server-delivered fallback for older clients.
+    local session without claiming server revocation. Server source retains Auth
+    after send API acceptance and releases it only from the signed matching
+    delivery event, removing the client-version dependency in source.
+    Production requires the hosted webhook, a real Apple private-relay delivery,
+    zero unverifiable rows, and an oldest-supported-binary deletion smoke.
     Because `ASAuthorizationController`
     holds a weak reference to its Apple Sign-In delegate, `SupabaseManager` must
     persist the controller in a strong `activeAppleAuth` class property until

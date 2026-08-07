@@ -145,13 +145,9 @@ struct FieldTripsView: View {
     @State private var isShowingFilterSheet = false
     @State private var cardLocationLabel: String?
 
-    private var eventsEnabled: Bool {
-        FieldTripEventsAvailability.isEnabled
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            switch eventsEnabled ? selectedSection : .fieldTrips {
+            switch selectedSection {
             case .fieldTrips:
                 fieldTripsContent
             case .seasonal:
@@ -162,11 +158,8 @@ struct FieldTripsView: View {
         .sheet(isPresented: $isShowingFilterSheet) {
             outingFilterSheet
         }
-        .task(id: eventsEnabled) {
-            if !eventsEnabled, selectedSection == .seasonal {
-                selectedSection = .fieldTrips
-            }
-            await viewModel.load(userRegion: userRegion, eventsEnabled: eventsEnabled)
+        .task {
+            await viewModel.load(userRegion: userRegion)
         }
         .task(id: environmentContextManager.locationAuthorizationStatus) {
             let locationName = await environmentContextManager.currentAuthorizedLocationName()
@@ -180,15 +173,15 @@ struct FieldTripsView: View {
             switch event {
             case .fieldTripProgressUpdated:
                 Task {
-                    await viewModel.refresh(userRegion: userRegion, eventsEnabled: eventsEnabled)
+                    await viewModel.refresh(userRegion: userRegion)
                 }
             case .captureGoalContextInvalidated(let source) where source == .fieldTrip:
                 Task {
-                    await viewModel.refresh(userRegion: userRegion, eventsEnabled: eventsEnabled)
+                    await viewModel.refresh(userRegion: userRegion)
                 }
-            case .fieldTripChallengeProgressUpdated where eventsEnabled:
+            case .fieldTripChallengeProgressUpdated:
                 Task {
-                    await viewModel.refresh(userRegion: userRegion, eventsEnabled: true)
+                    await viewModel.refresh(userRegion: userRegion)
                 }
             default:
                 break
@@ -1457,10 +1450,6 @@ enum FieldTripsSection: String, CaseIterable, Identifiable {
         case .seasonal:
             "Events"
         }
-    }
-
-    static func availableSections(eventsEnabled: Bool) -> [Self] {
-        eventsEnabled ? allCases : [.fieldTrips]
     }
 }
 

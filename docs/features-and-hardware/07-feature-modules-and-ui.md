@@ -427,8 +427,8 @@ The Scans tab is the user's primary offline biological journal.
 - **Explore Root Navigation**: `ExploreView` uses bottom navigation for
   exactly `Observations`, `Field trips`, and `Identify`. The Observations tab
   owns a root-only Feed/Map segmented header toggle with Feed first, Field trips
-  opens directly to Outings and adds its Outings/Events segmented view only when
-  Events are enabled, and Identify owns Requests/Index. Requests shows shared
+  opens directly to Outings and always includes its Outings/Events segmented
+  view, and Identify owns Requests/Index. Requests shows shared
   filters over a 12-card **Identify requests** preview, places the dismissible
   Ask the community banner directly under that heading, and separates it from
   10 grouped **Recent activity** rows with a larger section gap. Stack pages for
@@ -437,9 +437,8 @@ The Scans tab is the user's primary offline biological journal.
   the existing catalog overview. The taxonomy tree/galaxy work remains
   default-off and disconnected from MVP navigation.
 - **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent
-  checklist surface. Standard Outings are released for every user;
-  `FieldTripEventsAvailability` stages live/upcoming curated Events for the
-  tester account and simulator builds until its release flag is enabled. Base
+  checklist surface. Standard Outings and live/upcoming curated Events are
+  released for every user. Base
   cards route into guided template detail pages with Goals/Tips, a left-aligned
   Private/Published badge above the title, a larger active-level progress ring,
   cover image, duration, tags, levels, guidance, item tips, and
@@ -753,7 +752,7 @@ an Edge API response or opened offline via the Scans library.
   - `BiologicalView` owns the persistent `FieldTripProgressCard` after
     toxicity/identification review and before Field notes.
     `InsightSheetViewModel` loads its private server rows for saved biological
-    scans, filters gated Event rows, rejects stale scan-change responses, and
+    scans, includes standard and Event rows, rejects stale scan-change responses, and
     silently hides empty/error states. The adaptive card is visibly titled
     **Field trips**; undivided rows use an uppercase completion eyebrow,
     standalone goal name, enlarged objective art/check badge, and a prominent
@@ -850,11 +849,10 @@ an Edge API response or opened offline via the Scans library.
 - **Milestone Notifications**: The old local "New Discovery" pill was replaced
   by the shared bottom `MilestoneToastBanner`. `ScanMilestoneCoordinator` waits
   for the saved scan's Field trip progress attempt and atomically enqueues
-  standard outing progress, Events-visible Seasonal Challenge progress,
-  achievement unlocks, then `New to Naturebook`. It filters challenge-only
-  progress before caching, refresh publication, routing, or presentation when
-  Events are disabled. Foreground and background completion share the
-  coordinator and deduplicate by final scan ID. The dictionary milestone still
+  standard outing progress, Seasonal Challenge progress, achievement unlocks,
+  then `New to Naturebook`. It carries both progress families through the same
+  public milestone path. Foreground and background
+  completion share the coordinator and deduplicate by final scan ID. The dictionary milestone still
   requires the identify response compatibility field
   `is_new_to_merian_dictionary` for a valid biological contribution; local
   `isNewDiscovery` remains limited to stats, persona, and achievements. Progress
@@ -1314,10 +1312,13 @@ on gesture-driven layout abstractions.
   before the client signs out and purges the device SQLite boundary through
   `ScanRepository.shared.purgeAllData()`; the app-root instructions remain
   visible across relaunch until the user confirms manual Apple removal. That
-  receipt-and-notice behavior exists only in supporting binaries. Public
-  promotion remains blocked until older clients are covered by an enforceable
-  minimum-supported-build control or an independent server-delivered fallback;
-  publishing the new build alone is insufficient.
+  receipt-and-notice behavior is defense-in-depth. The worker independently
+  sends Apple's instructions to the confirmed Auth email, retains its
+  restrictive Auth fence after send API acceptance, and releases it only when
+  the signature-verified webhook commits a matching `email.delivered` event.
+  Public promotion remains blocked on hosted webhook evidence, zero
+  unverifiable rows, real Apple private-relay delivery, and the
+  oldest-supported-binary deletion smoke.
 - **Individual Scan Deletion**: Every single and batch deletion confirmation
   explains that a published scan owns its Explore post and that proceeding
   permanently removes the post, likes, and comments. This explicit destructive

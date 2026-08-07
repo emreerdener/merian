@@ -1,6 +1,7 @@
 import Foundation
 @testable import Merian
 import Testing
+import UIKit
 
 struct FieldTripAPIModelsTests {
     @Test func catalogDecodesActiveProgressAndChecklistItems() throws {
@@ -765,22 +766,8 @@ struct FieldTripAPIModelsTests {
         #expect(response.data.challengeBadges.count == 1)
         #expect(!response.data.isEmpty)
         #expect(response.data.challengeBadges[0].challengeTitle == "Summer Pollinator Watch")
-        #expect(!FieldTripProfilePresentation.hasContent(
-            response.data,
-            eventsEnabled: false
-        ))
-        #expect(FieldTripProfilePresentation.itemCount(
-            in: response.data,
-            eventsEnabled: false
-        ) == 0)
-        #expect(FieldTripProfilePresentation.hasContent(
-            response.data,
-            eventsEnabled: true
-        ))
-        #expect(FieldTripProfilePresentation.itemCount(
-            in: response.data,
-            eventsEnabled: true
-        ) == 1)
+        #expect(FieldTripProfilePresentation.hasContent(response.data))
+        #expect(FieldTripProfilePresentation.itemCount(in: response.data) == 1)
     }
 
     @Test func difficultyNormalizesKnownValuesAndPreservesUnknownValues() {
@@ -1808,8 +1795,7 @@ struct ActiveCaptureGoalStoreTests {
     @Test func fieldTripsUsesOutingsAndEventsFeatureLabels() {
         #expect(FieldTripsSection.fieldTrips.title == "Outings")
         #expect(FieldTripsSection.seasonal.title == "Events")
-        #expect(FieldTripsSection.availableSections(eventsEnabled: false) == [.fieldTrips])
-        #expect(FieldTripsSection.availableSections(eventsEnabled: true) == [.fieldTrips, .seasonal])
+        #expect(FieldTripsSection.allCases == [.fieldTrips, .seasonal])
     }
 
     @Test func fieldTripProviderFlattensServerOrderIntoGenericGoals() async throws {
@@ -2235,6 +2221,41 @@ struct ActiveCaptureGoalStoreTests {
                 for: "Unknown future target",
                 templateSlug: "backyard_safari"
             ) == nil
+        )
+    }
+
+    @Test func captureIntroductionArtworkAssetsAreBundled() {
+        let appBundle = Bundle(for: AppDelegate.self)
+        let imageNames = [
+            "fieldtrip-backyard-cardinal",
+            "fieldtrip-backyard-dog"
+        ]
+
+        for imageName in imageNames {
+            #expect(
+                UIImage(
+                    named: imageName,
+                    in: appBundle,
+                    compatibleWith: nil
+                ) != nil
+            )
+        }
+    }
+
+    @Test func captureIntroductionArtworkRotationAlwaysResolvesAVisibleItem() {
+        let bird = CaptureGoalArtwork.bundledImage(name: "fieldtrip-backyard-cardinal")
+        let dog = CaptureGoalArtwork.bundledImage(name: "fieldtrip-backyard-dog")
+        let artworks = [bird, dog]
+
+        #expect(CaptureGoalArtworkRotation.artwork(at: 0, in: artworks) == bird)
+        #expect(CaptureGoalArtworkRotation.artwork(at: 1, in: artworks) == dog)
+        #expect(CaptureGoalArtworkRotation.artwork(at: 2, in: artworks) == bird)
+        #expect(CaptureGoalArtworkRotation.artwork(at: -1, in: artworks) == dog)
+        #expect(CaptureGoalArtworkRotation.nextIndex(after: 0, count: 2) == 1)
+        #expect(CaptureGoalArtworkRotation.nextIndex(after: 1, count: 2) == 0)
+        #expect(
+            CaptureGoalArtworkRotation.artwork(at: 4, in: [])
+                == .systemSymbol(name: "binoculars.fill")
         )
     }
 

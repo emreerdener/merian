@@ -425,6 +425,16 @@ The complete error and recovery ordering contract is
   not permission to continue. The database retains the Auth user and Vault
   credential, releases the claim with backoff, and the existing deletion health
   monitor surfaces the failure inside `auth_pending`.
+- A legacy Apple manual-instruction send failure is also retryable server state.
+  Resend transport, decoding, missing confirmed-email, or database completion
+  failures retain Auth behind a restrictive foreign key and release the claim
+  with bounded backoff. A successful send response records only `accepted` and
+  waits without deleting Auth. `email.delivery_delayed` continues waiting;
+  `email.bounced`, `email.failed`, and `email.suppressed` enter
+  `retry_required` and require a new durable attempt. Only a
+  signature-verified `email.delivered` event for the current attempt and
+  provider email ID removes the fence. Neither an ignored client response nor
+  an operator edit may bypass the delivery boundary.
 - `presentationAnchor(for:)` must always return a best-effort anchor. If no
   active key window exists yet, the flow cancels gracefully rather than crashing
   the scene.

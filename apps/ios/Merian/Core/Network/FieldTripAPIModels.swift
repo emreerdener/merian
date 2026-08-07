@@ -223,10 +223,6 @@ struct FirstFieldTripAchievementProgress: Codable, Equatable, Sendable {
             destination: destination
         )
     }
-
-    func visible(eventsEnabled: Bool) -> Self? {
-        kind == .standardOuting || eventsEnabled ? self : nil
-    }
 }
 
 enum FirstFieldTripAchievementProgressStore {

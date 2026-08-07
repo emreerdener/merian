@@ -1344,14 +1344,12 @@ the activity-window timestamp prevents retroactive credit for older scans. The
 created row retains the existing profile-visible Field trip status, but no scan
 evidence, media, notes, or location is exposed by enrollment.
 
-These Seasonal Challenge contracts are already deployed while Events remain a
-client-staged iOS surface. Standard Outings are public; iOS requests and renders
-challenge catalogs, details, badges, entries, routes, and hashtag suggestions
-only when `FieldTripEventsAvailability` is enabled, and filters challenge rows
-from shared scan-progress responses otherwise. The flag is a presentation and
-release gate, not database authorization. Publishing Events later requires a new
-client build but no schema or function change unless the backend contract has
-changed independently.
+These Seasonal Challenge contracts are deployed and Events are public in iOS.
+The client requests and renders challenge catalogs, details, badges, entries,
+routes, progress, Insight contributions, and hashtag suggestions for every
+user. This client release did not change database authorization, schema, or
+Function contracts; the verified Edge and database boundaries remain
+authoritative.
 
 `get-explore-post` is an important routing helper for the iOS client: it returns
 a single privacy-safe feed-card projection so notification taps and deep links
@@ -2224,11 +2222,20 @@ other scientific fact. Every claimed retry repeats cleanup and verification
 before progressing. After storage verification, the worker calls Apple's
 idempotent `/auth/revoke` under the active database claim and destroys the Vault
 secret transactionally before Auth becomes reachable. Legacy Apple identities
-without captured credentials carry an explicit manual-fallback disposition in
-the deletion response. A private deletion-state trigger rejects attempts to
-recreate `public.users` while a job is active, including Auth metadata-triggered
-upserts. The upload signer checks the same durable state and rejects new
-staging/public uploads while deletion is active.
+without captured credentials carry an explicit manual-fallback disposition.
+The worker then reads the confirmed Auth email under that same claim, sends
+Apple's official manual-removal instructions through bounded Resend transport,
+and records send API acceptance against a pre-created opaque attempt while
+retaining a private restrictive Auth-fence row. Resend acceptance is the
+`email.sent` boundary, not the later signed `email.delivered` event. The
+signature-verified webhook keeps the fence through delayed, bounced, failed,
+and suppressed outcomes and releases it only for matching confirmed delivery.
+The response field and supporting iOS notice are defense-in-depth; the server
+control covers older binaries and lost responses. A private deletion-state
+trigger rejects attempts to recreate
+`public.users` while a job is active, including Auth metadata-triggered upserts.
+The upload signer checks the same durable state and rejects new staging/public
+uploads while deletion is active.
 
 The handler passes only the user ID returned by its verified session. The
 database routines are granted only to `service_role`, call
@@ -2239,11 +2246,12 @@ direct job-table privileges to API roles.
 normally returns `202` while durable R2 work remains. Both success responses
 include `manual_provider_revocation_required`. A `200` means relational
 cleanup, delayed storage verification, provider disposition, and Auth removal
-are all complete. An older binary that does not decode this required field
-cannot deliver the manual fallback; publishing the supporting build is not
-proof that installed clients adopted it. Production remains blocked until a
-minimum-supported-build control or independent server-delivered fallback covers
-those clients. The scheduled `reconcile-account-deletions` route leases due
+are all complete. An older binary may ignore this required field; the server
+email stage remains authoritative because only a signed matching delivery event
+can release Auth. Production still requires zero unverifiable rows, a hosted
+webhook smoke, a real Apple private-relay smoke, and an
+oldest-supported-binary deletion smoke. The scheduled
+`reconcile-account-deletions` route leases due
 account jobs and storage jobs every five minutes. Each storage claim processes
 at most one 50-key keyset page from one of the five canonical user prefixes.
 Progress and failures are persisted under a UUID claim token with bounded
@@ -2252,8 +2260,10 @@ backoff.
 After the first sweep reaches the end of all prefixes, the job waits at least 25
 hours and starts a complete verification sweep. Only an empty delayed pass marks
 storage complete and wakes the account job transactionally. A final bounded
-account pass may then revoke Apple and remove Auth in the same invocation.
-Cleanup, storage, or provider failure never reaches Auth deletion; Auth failure
+account pass may then revoke Apple or dispatch legacy instructions. Current
+source stops after send acceptance and waits for a later verified delivery
+event. Cleanup, storage, provider, or manual-delivery
+failure never reaches Auth deletion; Auth failure
 leaves the fully-erased job at `auth_pending` with bounded backoff. HTTP `404`
 and Auth code `user_not_found` are idempotent success, so a lost completion
 response is recoverable. Expired
@@ -2725,8 +2735,19 @@ optional controls are set in the Supabase Edge secret store via the CLI
   `revenuecat-webhook` to fetch authoritative CustomerInfo. It must begin with
   `sk_`, is distinct from the public iOS `REVENUECAT_API_KEY`, and must never
   ship in a client.
-- **`RESEND_API_KEY`**: The API Key from Resend for sending transactional emails
-  (like DwC-A exports).
+- **`RESEND_API_KEY`**: A sending-only, domain-scoped API key from Resend for
+  transactional emails such as DwC-A exports and legacy Apple deletion
+  instructions.
+- **`ACCOUNT_DELETION_FROM_EMAIL`**: Required verified sender identity for
+  legacy Apple deletion instructions, for example
+  `Naturebook Privacy <privacy@naturebook.earth>`. Its domain, exact address, and
+  Resend return-path domain must be registered as Apple private-relay email
+  sources before production.
+- **`RESEND_WEBHOOK_SIGNING_SECRET`**: Required endpoint-specific Svix signing
+  secret for `resend-account-deletion-webhook`. The deployment workflow
+  validates and synchronizes this value before deploying affected functions.
+  It must match the one reviewed Resend endpoint subscribed to the five
+  supported delivery/failure events.
 - **`RESEND_FROM_EMAIL`**: The verified sender identity
   `Naturebook Data Exports <exports@naturebook.earth>`. If absent, it falls back
   to Resend's testing domain `onboarding@resend.dev` which will FAIL unless

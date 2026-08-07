@@ -97,6 +97,26 @@ BEGIN
         'public.complete_account_deletion_provider_revocation(uuid,uuid)',
         'EXECUTE'
     ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.get_account_deletion_manual_revocation_recipient(uuid,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.complete_account_deletion_manual_revocation_delivery(uuid,uuid,text)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.prepare_account_deletion_manual_revocation_delivery(uuid,uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.record_account_deletion_manual_revocation_acceptance(uuid,uuid,uuid,text)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'public.record_account_deletion_manual_revocation_event(uuid,text,text,text,timestamptz)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'anon',
         'public.get_account_deletion_health()',
         'EXECUTE'
@@ -107,6 +127,31 @@ BEGIN
     ) THEN
         RAISE EXCEPTION
             'A public client role can execute an account-deletion worker RPC';
+    END IF;
+
+    IF pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'internal.apple_manual_revocation_delivery_requirements',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'internal.apple_manual_revocation_delivery_requirements',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.apple_manual_revocation_delivery_requirements',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.apple_manual_revocation_delivery_attempts',
+        'SELECT'
+    ) OR pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'internal.apple_manual_revocation_delivery_events',
+        'SELECT'
+    ) THEN
+        RAISE EXCEPTION
+            'A Data API role can read the manual-delivery Auth fence';
     END IF;
 
     IF NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -140,6 +185,26 @@ BEGIN
     ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'service_role',
         'public.complete_account_deletion_provider_revocation(uuid,uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.get_account_deletion_manual_revocation_recipient(uuid,uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.complete_account_deletion_manual_revocation_delivery(uuid,uuid,text)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.prepare_account_deletion_manual_revocation_delivery(uuid,uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.record_account_deletion_manual_revocation_acceptance(uuid,uuid,uuid,text)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'public.record_account_deletion_manual_revocation_event(uuid,text,text,text,timestamptz)',
         'EXECUTE'
     ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
         'service_role',
@@ -455,6 +520,31 @@ CREATE TEMP TABLE account_deletion_test_claim (
 );
 GRANT SELECT, INSERT, DELETE ON account_deletion_test_claim TO service_role;
 
+CREATE TEMP TABLE legacy_account_deletion_test_job (
+    job_id UUID NOT NULL,
+    job_status TEXT NOT NULL,
+    manual_provider_revocation_required BOOLEAN NOT NULL
+);
+GRANT SELECT, INSERT ON legacy_account_deletion_test_job TO service_role;
+
+CREATE TEMP TABLE legacy_account_deletion_test_claim (
+    job_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    job_status TEXT NOT NULL,
+    claim_token UUID NOT NULL,
+    claim_expires_at TIMESTAMPTZ NOT NULL
+);
+GRANT SELECT, INSERT, DELETE ON legacy_account_deletion_test_claim
+    TO service_role;
+
+CREATE TEMP TABLE legacy_manual_delivery_attempt (
+    attempt_number INTEGER PRIMARY KEY,
+    recipient_email TEXT NOT NULL,
+    attempt_token UUID NOT NULL,
+    idempotency_key TEXT NOT NULL
+);
+GRANT SELECT, INSERT ON legacy_manual_delivery_attempt TO service_role;
+
 SET LOCAL ROLE service_role;
 
 SELECT public.store_apple_revocation_credential(
@@ -464,17 +554,19 @@ SELECT public.store_apple_revocation_credential(
     'fixture-apple-refresh-token-123456789'
 );
 
-DO $$
-DECLARE
-    manual_required BOOLEAN;
-BEGIN
-    SELECT deletion.manual_provider_revocation_required
-    INTO STRICT manual_required
-    FROM public.request_account_deletion(
-        '00000000-0000-0000-0000-00000000d202'::UUID
-    ) AS deletion;
+INSERT INTO legacy_account_deletion_test_job
+SELECT *
+FROM public.request_account_deletion(
+    '00000000-0000-0000-0000-00000000d202'::UUID
+);
 
-    IF manual_required IS NOT TRUE THEN
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM legacy_account_deletion_test_job AS legacy_job
+        WHERE legacy_job.manual_provider_revocation_required
+    ) THEN
         RAISE EXCEPTION
             'Legacy Apple deletion did not persist the manual fallback';
     END IF;
@@ -525,9 +617,555 @@ BEGIN
             '00000000-0000-0000-0000-00000000d202'::UUID
           AND legacy_job.provider_revocation_status = 'manual_required'
           AND legacy_job.manual_provider_revocation_required
+          AND legacy_job.manual_revocation_delivery_status = 'pending'
+          AND legacy_job.manual_revocation_delivery_resolved_at IS NULL
     ) THEN
         RAISE EXCEPTION
             'Durable intake or claim mutated Auth or user data';
+    END IF;
+END;
+$$;
+
+-- Exercise the independent legacy-delivery stage without repeating the R2
+-- cursor fixture. This represents an already verified empty storage prefix set
+-- for the second user and retains Auth until Resend acceptance is committed.
+INSERT INTO public.pending_storage_deletions (
+    target_user_id,
+    status,
+    prefixes,
+    phase,
+    prefix_index,
+    next_attempt_at,
+    verification_not_before,
+    completed_at,
+    updated_at
+)
+VALUES (
+    '00000000-0000-0000-0000-00000000d202'::UUID,
+    'completed',
+    ARRAY[
+        'public_uploads/free/00000000-0000-0000-0000-00000000d202/',
+        'public_uploads/pro/00000000-0000-0000-0000-00000000d202/',
+        'staging/00000000-0000-0000-0000-00000000d202/',
+        'avatars/00000000-0000-0000-0000-00000000d202/',
+        'exports/00000000-0000-0000-0000-00000000d202/'
+    ]::TEXT[],
+    'verification',
+    5,
+    pg_catalog.NOW(),
+    pg_catalog.NOW(),
+    pg_catalog.NOW(),
+    pg_catalog.NOW()
+);
+
+SET LOCAL ROLE service_role;
+
+INSERT INTO legacy_account_deletion_test_claim
+SELECT *
+FROM public.claim_account_deletion_jobs(
+    1,
+    '00000000-0000-0000-0000-00000000d202'::UUID
+);
+
+DO $$
+DECLARE
+    resulting_phase TEXT;
+BEGIN
+    resulting_phase := public.complete_account_deletion_cleanup(
+        (SELECT job_id FROM legacy_account_deletion_test_claim),
+        (SELECT claim_token FROM legacy_account_deletion_test_claim)
+    );
+    IF resulting_phase <> 'manual_revocation_delivery_pending' THEN
+        RAISE EXCEPTION
+            'Legacy cleanup did not advance to instruction delivery';
+    END IF;
+END;
+$$;
+
+RESET ROLE;
+
+DO $$
+DECLARE
+    auth_delete_rejected BOOLEAN := FALSE;
+    rejected_constraint TEXT;
+BEGIN
+    BEGIN
+        DELETE FROM auth.users AS auth_user
+        WHERE auth_user.id =
+            '00000000-0000-0000-0000-00000000d202'::UUID;
+    EXCEPTION
+        WHEN SQLSTATE '23503' THEN
+            GET STACKED DIAGNOSTICS
+                rejected_constraint = CONSTRAINT_NAME;
+            auth_delete_rejected := rejected_constraint =
+                'apple_manual_delivery_requirement_user_fk';
+    END;
+
+    IF NOT auth_delete_rejected THEN
+        RAISE EXCEPTION
+            'Legacy delivery guard allowed Auth deletion before acceptance';
+    END IF;
+END;
+$$;
+
+SET LOCAL ROLE service_role;
+
+DO $$
+DECLARE
+    failure_message TEXT;
+BEGIN
+    BEGIN
+        PERFORM public.finish_account_deletion_attempt(
+            (SELECT job_id FROM legacy_account_deletion_test_claim),
+            (SELECT claim_token FROM legacy_account_deletion_test_claim),
+            TRUE,
+            NULL
+        );
+        RAISE EXCEPTION
+            'Legacy Auth completion succeeded before instruction delivery';
+    EXCEPTION
+        WHEN SQLSTATE '55000' THEN NULL;
+    END;
+
+    BEGIN
+        PERFORM 1
+        FROM public.get_account_deletion_manual_revocation_recipient(
+            (SELECT job_id FROM legacy_account_deletion_test_claim),
+            (SELECT claim_token FROM legacy_account_deletion_test_claim)
+        );
+        RAISE EXCEPTION 'Legacy recipient RPC did not fail closed';
+    EXCEPTION
+        WHEN SQLSTATE '55000' THEN
+            GET STACKED DIAGNOSTICS failure_message = MESSAGE_TEXT;
+            IF failure_message <>
+               'account_deletion_manual_delivery_upgrade_required' THEN
+                RAISE EXCEPTION
+                    'Legacy recipient RPC failed for an unexpected reason';
+            END IF;
+    END;
+
+    BEGIN
+        PERFORM public.complete_account_deletion_manual_revocation_delivery(
+            (SELECT job_id FROM legacy_account_deletion_test_claim),
+            (SELECT claim_token FROM legacy_account_deletion_test_claim),
+            'resend-account-deletion-legacy-worker'
+        );
+        RAISE EXCEPTION 'Legacy acceptance RPC did not fail closed';
+    EXCEPTION
+        WHEN SQLSTATE '55000' THEN
+            GET STACKED DIAGNOSTICS failure_message = MESSAGE_TEXT;
+            IF failure_message <>
+               'account_deletion_manual_delivery_confirmation_required' THEN
+                RAISE EXCEPTION
+                    'Legacy acceptance RPC failed for an unexpected reason';
+            END IF;
+    END;
+END;
+$$;
+
+INSERT INTO legacy_manual_delivery_attempt (
+    attempt_number,
+    recipient_email,
+    attempt_token,
+    idempotency_key
+)
+SELECT
+    1,
+    attempt.recipient_email,
+    attempt.attempt_token,
+    attempt.idempotency_key
+FROM public.prepare_account_deletion_manual_revocation_delivery(
+    (SELECT job_id FROM legacy_account_deletion_test_claim),
+    (SELECT claim_token FROM legacy_account_deletion_test_claim)
+) AS attempt;
+
+DO $$
+DECLARE
+    outcome TEXT;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM legacy_manual_delivery_attempt AS attempt
+        WHERE attempt.attempt_number = 1
+          AND attempt.recipient_email =
+              'legacy-apple-deletion-test@naturebook.invalid'
+          AND attempt.idempotency_key =
+              'account-deletion-manual-apple/' ||
+                attempt.attempt_token::TEXT
+    ) THEN
+        RAISE EXCEPTION
+            'Prepared manual-delivery attempt was invalid';
+    END IF;
+
+    outcome := public.record_account_deletion_manual_revocation_event(
+        (SELECT attempt_token
+         FROM legacy_manual_delivery_attempt
+         WHERE attempt_number = 1),
+        'evt_delivery_delayed_fixture_1',
+        'resend-account-deletion-fixture-1',
+        'email.delivery_delayed',
+        TIMESTAMPTZ '2026-08-07 12:00:00+00'
+    );
+    IF outcome <> 'delivery_pending' THEN
+        RAISE EXCEPTION
+            'Out-of-order delayed event was not journaled pending acceptance';
+    END IF;
+
+    outcome := public.record_account_deletion_manual_revocation_acceptance(
+        (SELECT job_id FROM legacy_account_deletion_test_claim),
+        (SELECT claim_token FROM legacy_account_deletion_test_claim),
+        (SELECT attempt_token
+         FROM legacy_manual_delivery_attempt
+         WHERE attempt_number = 1),
+        'resend-account-deletion-fixture-1'
+    );
+    IF outcome <> 'delivery_pending' THEN
+        RAISE EXCEPTION
+            'Send acceptance incorrectly resolved provider delivery';
+    END IF;
+END;
+$$;
+
+RESET ROLE;
+
+DO $$
+DECLARE
+    auth_delete_rejected BOOLEAN := FALSE;
+    rejected_constraint TEXT;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS deletion_job
+        WHERE deletion_job.id = (
+            SELECT job_id FROM legacy_account_deletion_test_job
+        )
+          AND deletion_job.manual_revocation_delivery_status =
+              'delivery_delayed'
+          AND deletion_job.manual_revocation_delivery_resolved_at IS NULL
+          AND deletion_job.manual_revocation_delivery_provider_id =
+              'resend-account-deletion-fixture-1'
+          AND deletion_job.claim_token IS NULL
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.apple_manual_revocation_delivery_requirements
+            AS requirement
+        WHERE requirement.user_id =
+            '00000000-0000-0000-0000-00000000d202'::UUID
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.apple_manual_revocation_delivery_events AS event
+        WHERE event.provider_event_id = 'evt_delivery_delayed_fixture_1'
+          AND event.reduced_at IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION
+            'Acceptance or delayed-event reduction released the Auth fence';
+    END IF;
+
+    BEGIN
+        DELETE FROM auth.users AS auth_user
+        WHERE auth_user.id =
+            '00000000-0000-0000-0000-00000000d202'::UUID;
+    EXCEPTION
+        WHEN SQLSTATE '23503' THEN
+            GET STACKED DIAGNOSTICS
+                rejected_constraint = CONSTRAINT_NAME;
+            auth_delete_rejected := rejected_constraint =
+                'apple_manual_delivery_requirement_user_fk';
+    END;
+    IF NOT auth_delete_rejected THEN
+        RAISE EXCEPTION
+            'Provider acceptance allowed Auth deletion before delivery';
+    END IF;
+END;
+$$;
+
+SET LOCAL ROLE service_role;
+
+DO $$
+DECLARE
+    outcome TEXT;
+BEGIN
+    outcome := public.record_account_deletion_manual_revocation_event(
+        (SELECT attempt_token
+         FROM legacy_manual_delivery_attempt
+         WHERE attempt_number = 1),
+        'evt_bounced_fixture_1',
+        'resend-account-deletion-fixture-1',
+        'email.bounced',
+        TIMESTAMPTZ '2026-08-07 12:01:00+00'
+    );
+    IF outcome <> 'retry_required' THEN
+        RAISE EXCEPTION 'Terminal event did not require a new attempt';
+    END IF;
+END;
+$$;
+
+DELETE FROM legacy_account_deletion_test_claim;
+
+INSERT INTO legacy_account_deletion_test_claim
+SELECT *
+FROM public.claim_account_deletion_jobs(
+    1,
+    '00000000-0000-0000-0000-00000000d202'::UUID
+);
+
+DO $$
+DECLARE
+    resulting_phase TEXT;
+BEGIN
+    resulting_phase := public.complete_account_deletion_cleanup(
+        (SELECT job_id FROM legacy_account_deletion_test_claim),
+        (SELECT claim_token FROM legacy_account_deletion_test_claim)
+    );
+    IF resulting_phase <> 'manual_revocation_delivery_pending' THEN
+        RAISE EXCEPTION 'Terminal delivery did not enter retry dispatch';
+    END IF;
+END;
+$$;
+
+INSERT INTO legacy_manual_delivery_attempt (
+    attempt_number,
+    recipient_email,
+    attempt_token,
+    idempotency_key
+)
+SELECT
+    2,
+    attempt.recipient_email,
+    attempt.attempt_token,
+    attempt.idempotency_key
+FROM public.prepare_account_deletion_manual_revocation_delivery(
+    (SELECT job_id FROM legacy_account_deletion_test_claim),
+    (SELECT claim_token FROM legacy_account_deletion_test_claim)
+) AS attempt;
+
+DO $$
+DECLARE
+    outcome TEXT;
+BEGIN
+    IF (
+        SELECT first_attempt.attempt_token = second_attempt.attempt_token
+        FROM legacy_manual_delivery_attempt AS first_attempt
+        CROSS JOIN legacy_manual_delivery_attempt AS second_attempt
+        WHERE first_attempt.attempt_number = 1
+          AND second_attempt.attempt_number = 2
+    ) THEN
+        RAISE EXCEPTION 'Retry reused a terminal delivery attempt';
+    END IF;
+
+    outcome := public.record_account_deletion_manual_revocation_acceptance(
+        (SELECT job_id FROM legacy_account_deletion_test_claim),
+        (SELECT claim_token FROM legacy_account_deletion_test_claim),
+        (SELECT attempt_token
+         FROM legacy_manual_delivery_attempt
+         WHERE attempt_number = 2),
+        'resend-account-deletion-fixture-2'
+    );
+    IF outcome <> 'delivery_pending' THEN
+        RAISE EXCEPTION 'Acceptance without delivery did not remain pending';
+    END IF;
+END;
+$$;
+
+RESET ROLE;
+
+DO $$
+DECLARE
+    auth_delete_rejected BOOLEAN := FALSE;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS deletion_job
+        WHERE deletion_job.id = (
+            SELECT job_id FROM legacy_account_deletion_test_job
+        )
+          AND deletion_job.manual_revocation_delivery_status = 'accepted'
+          AND deletion_job.manual_revocation_delivery_resolved_at IS NULL
+          AND deletion_job.manual_revocation_delivery_provider_id =
+              'resend-account-deletion-fixture-2'
+          AND deletion_job.claim_token IS NULL
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.apple_manual_revocation_delivery_requirements
+            AS requirement
+        WHERE requirement.user_id =
+            '00000000-0000-0000-0000-00000000d202'::UUID
+    ) THEN
+        RAISE EXCEPTION 'Unconfirmed retry did not retain delivery state';
+    END IF;
+
+    BEGIN
+        DELETE FROM auth.users AS auth_user
+        WHERE auth_user.id =
+            '00000000-0000-0000-0000-00000000d202'::UUID;
+    EXCEPTION
+        WHEN SQLSTATE '23503' THEN auth_delete_rejected := TRUE;
+    END;
+    IF NOT auth_delete_rejected THEN
+        RAISE EXCEPTION
+            'Second provider acceptance allowed Auth deletion';
+    END IF;
+END;
+$$;
+
+SET LOCAL ROLE service_role;
+
+DO $$
+DECLARE
+    outcome TEXT;
+    failure_message TEXT;
+BEGIN
+    outcome := public.record_account_deletion_manual_revocation_event(
+        (SELECT attempt_token
+         FROM legacy_manual_delivery_attempt
+         WHERE attempt_number = 2),
+        'evt_delivered_fixture_2',
+        'resend-account-deletion-fixture-2',
+        'email.delivered',
+        TIMESTAMPTZ '2026-08-07 12:02:00+00'
+    );
+    IF outcome <> 'delivered' THEN
+        RAISE EXCEPTION 'Matching delivered event did not resolve delivery';
+    END IF;
+
+    outcome := public.record_account_deletion_manual_revocation_event(
+        (SELECT attempt_token
+         FROM legacy_manual_delivery_attempt
+         WHERE attempt_number = 2),
+        'evt_delivered_fixture_2',
+        'resend-account-deletion-fixture-2',
+        'email.delivered',
+        TIMESTAMPTZ '2026-08-07 12:02:00+00'
+    );
+    IF outcome <> 'duplicate' THEN
+        RAISE EXCEPTION 'Webhook replay was not idempotent';
+    END IF;
+
+    BEGIN
+        PERFORM public.record_account_deletion_manual_revocation_event(
+            (SELECT attempt_token
+             FROM legacy_manual_delivery_attempt
+             WHERE attempt_number = 2),
+            'evt_delivered_fixture_2',
+            'resend-account-deletion-fixture-2',
+            'email.bounced',
+            TIMESTAMPTZ '2026-08-07 12:02:00+00'
+        );
+        RAISE EXCEPTION 'Conflicting event identifier was accepted';
+    EXCEPTION
+        WHEN SQLSTATE '23505' THEN
+            GET STACKED DIAGNOSTICS failure_message = MESSAGE_TEXT;
+            IF failure_message <> 'manual_revocation_event_id_conflict' THEN
+                RAISE EXCEPTION
+                    'Event identifier conflict returned the wrong failure';
+            END IF;
+    END;
+
+    -- Duplicate intake after delivery must not recreate the Auth fence.
+    PERFORM 1
+    FROM public.request_account_deletion(
+        '00000000-0000-0000-0000-00000000d202'::UUID
+    );
+END;
+$$;
+
+RESET ROLE;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS deletion_job
+        WHERE deletion_job.id = (
+            SELECT job_id FROM legacy_account_deletion_test_job
+        )
+          AND deletion_job.status = 'auth_pending'
+          AND deletion_job.manual_revocation_delivery_status = 'delivered'
+          AND deletion_job.manual_revocation_delivery_provider_id =
+              'resend-account-deletion-fixture-2'
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.apple_manual_revocation_delivery_requirements
+            AS requirement
+        WHERE requirement.user_id =
+            '00000000-0000-0000-0000-00000000d202'::UUID
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.apple_manual_revocation_delivery_events AS event
+        JOIN internal.apple_manual_revocation_delivery_attempts AS attempt
+          ON attempt.attempt_token = event.attempt_token
+        WHERE attempt.job_id = (
+            SELECT job_id FROM legacy_account_deletion_test_job
+        )
+          AND attempt.status = 'delivered'
+          AND event.event_type = 'email.delivered'
+          AND event.reduced_at IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION
+            'Delivered event did not transactionally release the Auth fence';
+    END IF;
+END;
+$$;
+
+SET LOCAL ROLE service_role;
+
+DELETE FROM legacy_account_deletion_test_claim;
+
+INSERT INTO legacy_account_deletion_test_claim
+SELECT *
+FROM public.claim_account_deletion_jobs(
+    1,
+    '00000000-0000-0000-0000-00000000d202'::UUID
+);
+
+DO $$
+DECLARE
+    resulting_phase TEXT;
+BEGIN
+    resulting_phase := public.complete_account_deletion_cleanup(
+        (SELECT job_id FROM legacy_account_deletion_test_claim),
+        (SELECT claim_token FROM legacy_account_deletion_test_claim)
+    );
+    IF resulting_phase <> 'auth_pending' THEN
+        RAISE EXCEPTION
+            'Confirmed manual delivery did not authorize Auth deletion';
+    END IF;
+END;
+$$;
+
+RESET ROLE;
+
+DELETE FROM auth.users
+WHERE id = '00000000-0000-0000-0000-00000000d202'::UUID;
+
+SET LOCAL ROLE service_role;
+
+SELECT public.finish_account_deletion_attempt(
+    (SELECT job_id FROM legacy_account_deletion_test_claim),
+    (SELECT claim_token FROM legacy_account_deletion_test_claim),
+    TRUE,
+    NULL
+);
+
+RESET ROLE;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS deletion_job
+        WHERE deletion_job.id = (
+            SELECT job_id FROM legacy_account_deletion_test_job
+        )
+          AND deletion_job.status = 'completed'
+          AND deletion_job.user_id IS NULL
+          AND deletion_job.provider_revocation_status = 'manual_required'
+          AND deletion_job.manual_revocation_delivery_status = 'delivered'
+          AND deletion_job.manual_revocation_delivery_provider_id =
+              'resend-account-deletion-fixture-2'
+    ) THEN
+        RAISE EXCEPTION
+            'Legacy deletion did not preserve confirmed delivery evidence';
     END IF;
 END;
 $$;
@@ -952,6 +1590,12 @@ BEGIN
         FROM public.get_account_deletion_health() AS health
         WHERE health.active_job_count >= 1
           AND health.auth_pending_count >= 1
+          AND health.manual_revocation_delivery_pending_count = 0
+          AND health.manual_revocation_delivery_accepted_count = 0
+          AND health.manual_revocation_delivery_delayed_count = 0
+          AND health.manual_revocation_delivery_retry_required_count = 0
+          AND health.manual_revocation_delivery_delivered_count >= 1
+          AND health.manual_revocation_delivery_unverifiable_count = 0
           AND health.failed_job_count >= 1
           AND health.oldest_pending_at IS NOT NULL
           AND health.oldest_pending_age_seconds IS NOT NULL
@@ -1065,7 +1709,7 @@ END;
 $$;
 
 SELECT extensions.pass(
-    'account deletion persists intent, revokes Apple before Auth, records legacy fallback, retries, and minimizes terminal identity'
+    'account deletion persists intent, revokes Apple or independently delivers legacy instructions before Auth, retries, and minimizes terminal identity'
 );
 SELECT * FROM extensions.finish();
 ROLLBACK;

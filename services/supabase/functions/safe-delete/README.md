@@ -8,14 +8,23 @@ The normative retained-versus-cleared field boundary and its change procedure
 live in the
 [scientific-observation retention contract](../../../../docs/backend-and-data/17-scientific-observation-retention.md).
 
+> **Production evidence pending:** source keeps the legacy Apple Auth fence
+> after Resend accepts the send request and releases it only through the signed
+> `email.delivered` reducer. Promotion still requires the hosted webhook,
+> private-relay, migration, oldest-binary, and zero-unverifiable gates in the
+> [canonical Apple deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md#rollout-and-production-exit-gate).
+
 ## Durable state machine
 
 Migration `20260725030308_durable_account_deletion.sql` replaces the former
 Auth-first sequence with a private `internal.account_deletion_jobs` state
 machine. Migration `20260725052337_enforce_account_storage_erasure.sql` makes
-verified R2 erasure a required durable phase: Migration
+verified R2 erasure a required durable phase. Migration
 `20260806203700_durable_apple_provider_revocation.sql` adds a claim-fenced
-provider substage after storage and before Auth.
+provider substage after storage and before Auth. Migration
+`20260807034322_deliver_legacy_apple_revocation_instructions.sql` adds the
+legacy-instruction attempt journal, delivery-event reducer, and restrictive Auth
+fence in that same interval.
 
 Migration `20260725035737_repair_tombstone_profile_seed.sql` is an explicit
 executable no-op compatibility bridge for production run 1461. Its superseded
@@ -67,14 +76,27 @@ dispatches another AI request for it.
    provider stage complete. Failure preserves both token and Auth for retry.
    Legacy Apple accounts without a captured token are marked `manual_required`;
    this is an explicit fallback disposition, not an automatic-revocation claim.
-7. Only an `auth_pending` claim with completed storage and resolved provider
-   disposition, and with no remaining Apple credential, may call
+7. A `manual_required` job returns `manual_revocation_delivery_pending`. Under
+   the active UUID claim, the worker creates or resumes a PII-free attempt,
+   transiently reads the confirmed Auth email, and sends Apple's official
+   instructions through Resend with
+   `account-deletion-manual-apple/{attempt_token}` plus the opaque attempt tag.
+   Send acceptance binds the provider email ID but leaves the private
+   delivery-requirement row in place and returns
+   `manual_revocation_delivery_waiting`. Network, provider, decoding,
+   configuration, or persistence failure retains the same attempt and Auth for
+   bounded idempotent retry. Delayed delivery waits; bounced, failed, and
+   suppressed events retain the fence and create a new-attempt retry state.
+8. Only an `auth_pending` claim with completed storage, resolved provider and
+   delivery dispositions, a matching reduced `email.delivered` event, no
+   delivery requirement, and no remaining Apple credential may call
    `supabaseAdmin.auth.admin.deleteUser`. HTTP `404` and exact Auth code
    `user_not_found` are idempotent success.
-8. `finish_account_deletion_attempt(...)` independently rechecks the completed
-   storage receipt and provider fence, then either records `completed` and
-   erases the terminal job's direct user UUID, or releases the lease with
-   bounded database-calculated backoff.
+9. `finish_account_deletion_attempt(...)` independently rechecks the completed
+   storage receipt, provider/delivery state, credential absence, and delivery
+   requirement absence, then either records `completed` and erases the terminal
+   job's direct user UUID, or releases the lease with bounded
+   database-calculated backoff.
 
 The initiating request tries the relational phase synchronously. A new request
 normally returns `202` because delayed storage verification is deliberately
@@ -84,12 +106,12 @@ boolean `manual_provider_revocation_required`. The iOS client persists a legacy
 Apple notice before it signs out locally and purges its local store. A failure
 before the intake receipt returns `500` and performs no destructive work.
 
-This response addition is not usable by older binaries that do not decode the
-boolean. They can accept the deletion response while silently omitting Apple's
-manual-removal notice. Public rollout is therefore blocked until either a
-minimum-supported-build control gives those clients a clear update path back to
-in-app deletion, or an independent server-delivered fallback durably supplies
-the instructions. Publishing the supporting build alone is not rollout evidence.
+Older binaries may ignore this response field. The server stage is independent
+of the client: a Resend 2xx remains non-authoritative, while a matching signed
+delivery event releases the fence. Production remains blocked until the hosted
+candidate proves that behavior, classifies historical rows, passes a real Apple
+Hide My Email relay smoke, and completes an oldest-supported-binary deletion.
+The supporting app's local notice is defense-in-depth.
 
 The scheduled `reconcile-account-deletions` function resumes due account jobs
 and storage pages every five minutes. It performs a bounded account pass,
@@ -118,6 +140,11 @@ The same denial applies to `internal.apple_sign_in_revocation_credentials` and
 `auth.users` with `ON DELETE RESTRICT`, so Auth Admin cannot bypass provider
 revocation. Apple registration, claimed token read, and provider completion are
 available only through four in-body-authorized, service-role-allowlisted RPCs.
+Legacy preparation, acceptance, and event reduction use three additional
+service-role-only, empty-search-path routines. Preparation alone returns the
+confirmed address transiently; no private table or aggregate health result
+stores or exposes it. The two older delivery RPCs remain fail-closed rollout
+fences.
 
 Do not accept a target UUID from either HTTP body. `/safe-delete` derives it
 only from the verified session; the service reaper claims targets only from the
@@ -139,6 +166,11 @@ not use the reaper's Vault values. Its defaults are:
 - critical when the cron is disabled, its URL/service credential is absent, or
   an active storage row has no valid private deletion owner; and
 - warning when a retry error or expired lease is present.
+
+Pending, accepted, delayed, and retry-required legacy delivery remains inside
+the active-job/SLA envelope. Delayed and retry-required counts warn. A nonzero
+`manual_revocation_delivery_unverifiable_count` is critical and requires
+release-owner and counsel review; it must never be edited into delivered state.
 
 The workflow fails on warning by default and uploads bounded JSON and Markdown
 summaries without user identifiers. Treat a failed scheduled run itself as an
@@ -166,7 +198,11 @@ Structured log alerts remain useful for immediate dependency failures:
 Provider dependency failures appear under `account_deletion_attempt_deferred`
 with stage `provider`. They remain in the existing `auth_pending` health
 envelope and contribute to the retry-error aggregate without exposing a token or
-user identifier.
+user identifier. Manual instruction failures use stage `manual_delivery` and the
+same identity-free retry envelope. Delivery-delayed and terminal provider events
+are visible through aggregate health without logging recipients. Repair Resend,
+the verified sender, or Apple private-relay registration and let the durable
+worker retry. Never convert send acceptance into delivery manually.
 
 Do not manually delete an Auth user to recover a pending job. Repair the
 underlying cleanup failure and invoke the service reaper. For a legacy
@@ -186,9 +222,15 @@ projections continue to apply geoprivacy and sensitive-taxon rules.
 
 - `index.ts` owns verified-session and POST-only routing.
 - `handler.ts` persists intake and maps immediate versus queued success.
-- `worker.ts` owns cleanup-before-provider-before-Auth ordering, retries, and
-  claim recovery.
+- `worker.ts` owns cleanup-before-provider-or-dispatch ordering, waits after
+  non-authoritative acceptance, and reaches Auth only after database-confirmed
+  delivery.
 - `db.ts` owns account/provider RPC wrappers and idempotent Auth Admin deletion.
+- `manualRevocationEmail.ts` owns the bounded Resend call, fixed Apple links,
+  attempt-scoped idempotency key and tag, and PII-free failure codes. Its 2xx
+  result proves dispatch acceptance only.
+- `../resend-account-deletion-webhook/` owns exact-byte Svix verification,
+  bounded tagged-event parsing, and the PII-free database reducer boundary.
 - `../register-apple-revocation-token/` owns authenticated authorization-code
   exchange and Vault registration; `../_shared/appleSignIn.ts` owns Apple JWT,
   token exchange, and revocation transport.
@@ -202,6 +244,7 @@ projections continue to apply geoprivacy and sensitive-taxon rules.
 Focused source, migration-contract, and pgTAP tests live in
 `functions/_shared/appleSignIn_test.ts`,
 `functions/register-apple-revocation-token/handler_test.ts`,
+`functions/safe-delete/manualRevocationEmail_test.ts`,
 `functions/_tests/safeDelete.test.ts`,
 `functions/_tests/accountDeletionCoverage.test.ts`,
 `functions/_tests/accountDeletionMigrationContract.test.ts`, and
@@ -209,6 +252,13 @@ Focused source, migration-contract, and pgTAP tests live in
 by `_shared/aws_test.ts` and `safe-delete/storageWorker_test.ts`; monitor
 parsing, thresholds, severity, and recovery guidance are covered by
 `scripts/monitor_account_deletion_health_test.ts`.
+
+Those tests protect the non-authoritative dispatch boundary, raw-body Svix
+signature verification, duplicate and out-of-order events, current-attempt
+correlation, terminal retry, migration classification, and the rule that only
+`email.delivered` removes the restrictive Auth row. They are source evidence;
+the production gate still requires real hosted delivery and private-relay
+evidence.
 
 See the
 [canonical Sign in with Apple deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md)

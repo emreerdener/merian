@@ -18,16 +18,21 @@ TestFlight, App Store, support, and QA.
 - Apple-linked accounts created before token capture remain deletable and
   return an explicit legacy disposition. iOS records that disposition before
   sign-out and keeps showing Apple's manual removal steps until the user marks
-  them complete.
+  them complete. Independently, the deletion worker sends the same official
+  Apple instructions to the confirmed Auth email. Resend send acceptance now
+  leaves the restrictive Auth-deletion fence in place; only a matching signed
+  `email.delivered` event releases it. Older clients and lost deletion responses
+  therefore no longer control the server fallback in source.
 - Apple credential-revocation notifications now trigger a subject-bound
   credential-state check. A still-authorized identity keeps its session;
   revoked, missing, transferred, unknown, or failed state resolution clears
   only the matching Apple-linked local session.
-- Source implementation is complete, but public promotion remains gated on
-  production Apple key provisioning, exact-SHA disposable database replay, a
-  real exchange/revoke smoke, and either an enforceable
-  minimum-supported-build gate or an independent server-delivered manual
-  fallback for older iOS binaries. See the
+- Automatic token revocation and the delivery-confirmed legacy fallback are
+  complete in source. Public promotion remains gated on production Apple/Resend
+  secret and webhook provisioning, exact-SHA disposable database replay,
+  duplicate/out-of-order and failure-event evidence, real exchange/revoke and
+  Apple private-relay delivery smokes, zero unverifiable rows, and deletion from
+  the oldest supported pre-field binary. See the
   [canonical Apple deletion contract](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 ### Consent and Privacy Controls — Release-Gated
@@ -1353,9 +1358,10 @@ TestFlight, App Store, support, and QA.
   refreshes the Explore detail page. Real text edits still autosave with a
   **Field notes updated** confirmation, while public/private messages appear
   only after an actual visibility change.
-- Released Field trips and standard Outings to every user. The Events segment
-  remains a client-gated preview for the tester account and simulator builds so
-  its seasonal challenge UI can continue iterating independently.
+- Released Field trips, standard Outings, and the Events segment to every user.
+  Events include curated seasonal challenges, completion badges, published
+  entries, and optional Explore hashtag suggestions without automatic posting
+  or tagging.
 - Redesigned Outing catalog cards with a compact progress ring, current-level
   Backyard Safari copy, the existing scrolling goal thumbnails, and pills for
   access, difficulty, level, public/private status, and an available

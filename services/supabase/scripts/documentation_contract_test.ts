@@ -880,7 +880,7 @@ Deno.test("fleet review inventory exactly matches configured Edge Functions", as
   assert(inventoryBlock, "Fleet review entrypoint inventory is missing.");
   const documented = inventoryBlock[1].trim().split(/\s+/).sort();
 
-  assertEquals(configured.length, 91);
+  assertEquals(configured.length, 92);
   assertEquals(documented, configured);
   assertStringIncludes(
     compact(reviewSource),
@@ -4230,7 +4230,7 @@ Deno.test("scientific retention documentation matches the account tombstone cont
   );
 });
 
-Deno.test("Sign in with Apple deletion documentation preserves the provider fence and fallback", async () => {
+Deno.test("Sign in with Apple deletion documentation exposes the delivery-confirmed source contract and production evidence gate", async () => {
   const [
     canonical,
     docsIndex,
@@ -4287,9 +4287,20 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
     const fragment of [
       "provider_revocation_status",
       "manual_provider_revocation_required",
+      "manual_revocation_delivery_status",
+      "internal.apple_manual_revocation_delivery_requirements",
       "APPLE_SIGN_IN_PRIVATE_KEY",
-      "Older installed binaries cannot display a response field or notice they do not implement",
-      "enforceable minimum-supported-build gate or an independent server-delivered manual-revocation fallback",
+      "ACCOUNT_DELETION_FROM_EMAIL",
+      "RESEND_WEBHOOK_SIGNING_SECRET",
+      "verify_jwt = false",
+      "account-deletion-manual-apple/{attempt_token}",
+      "A successful Resend send response now records only `accepted`; it cannot remove the restrictive Auth fence",
+      "at-least-once and out-of-order delivery",
+      "A valid event can arrive before the send response commits",
+      "`email.delivery_delayed` remains pending",
+      "resend-account-deletion-webhook",
+      "This closes the client-version dependency in source",
+      "real Hide My Email",
       "physical-device credential-revocation notification smoke",
       "token mapping, registration receipts, and Vault secret",
     ]
@@ -4301,6 +4312,10 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
     "backend-and-data/20-sign-in-with-apple-account-deletion.md",
   );
   assertStringIncludes(
+    docsIndex,
+    "the server path covers older binaries and lost responses independently",
+  );
+  assertStringIncludes(
     backend,
     "a stored Sign in with Apple refresh token must be successfully revoked and destroyed before Supabase Auth removal",
   );
@@ -4309,20 +4324,41 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
     "internal.apple_sign_in_revocation_credentials",
   );
   assertStringIncludes(
+    schema,
+    "internal.apple_manual_revocation_delivery_requirements",
+  );
+  assertStringIncludes(schema, "manual_revocation_delivery_status");
+  assertStringIncludes(schema, "`retry_required`, `delivered`, `unverifiable`");
+  assertStringIncludes(
+    schema,
+    "Only a signature-verified `email.delivered` reducer",
+  );
+  assertStringIncludes(
     api,
     "Deno `/register-apple-revocation-token` Edge Node",
   );
   assertStringIncludes(api, "manual_provider_revocation_required");
   assertStringIncludes(
     api,
-    "App Store availability of the supporting build does not satisfy this compatibility gate",
+    "account-deletion-manual-apple/{attempt_token}",
   );
+  assertStringIncludes(
+    api,
+    "This service-to-service `POST` route is implemented in source",
+  );
+  assertStringIncludes(api, "attempts are always created before dispatch");
+  assertStringIncludes(api, "signature boundary below is therefore mandatory");
+  assertStringIncludes(api, "`email.suppressed` | Keep Auth fenced");
   for (
     const fragment of [
       "APPLE_SIGN_IN_TEAM_ID",
-      "provider_revocation_pending",
-      "supporting iOS build and one legacy fixture",
-      "App Store availability of the new build is not evidence",
+      "ACCOUNT_DELETION_FROM_EMAIL",
+      "RESEND_WEBHOOK_SIGNING_SECRET",
+      "resend-account-deletion-webhook",
+      "manual_revocation_delivery_pending",
+      "two staging-only Apple accounts",
+      "real Hide My Email",
+      "oldest supported pre-field binary",
       "physical device with a separate staging-only Apple account",
     ]
   ) {
@@ -4334,17 +4370,24 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
   );
   assertStringIncludes(network, "getCredentialState");
   assertStringIncludes(
+    network,
+    "Auth remains fenced until the signature-verified webhook commits a matching `email.delivered` event",
+  );
+  assertStringIncludes(
     settings,
     "records the durable app-level notice before sign-out",
   );
-  assertStringIncludes(settings, "Older binaries do not implement");
   assertStringIncludes(
-    safeDelete,
-    "cleanup-before-provider-before-Auth ordering",
+    settings,
+    "treats send API acceptance as non-authoritative",
   );
   assertStringIncludes(
     safeDelete,
-    "Publishing the supporting build alone is not rollout evidence",
+    "`worker.ts` owns cleanup-before-provider-or-dispatch ordering",
+  );
+  assertStringIncludes(
+    safeDelete,
+    "manual_revocation_delivery_unverifiable_count",
   );
   assertStringIncludes(registration, "APPLE_SIGN_IN_PRIVATE_KEY");
   assertStringIncludes(
@@ -4353,13 +4396,16 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
   );
   assertStringIncludes(
     reconciler,
-    "`manual_required` proves only the server disposition",
+    "no `completed` delivery state exists",
   );
   assertStringIncludes(
     counsel,
-    "Sign in with Apple revocation is now implemented in source",
+    "The source control is **not yet production-proven**",
   );
-  assertStringIncludes(counsel, "Public launch therefore remains blocked");
+  assertStringIncludes(
+    counsel,
+    "releases it only for a signature-verified `email.delivered` event matching the current attempt",
+  );
   assert(
     !counsel.includes("No token revocation implementation was found"),
     "The resolved counsel finding returned.",
@@ -4367,6 +4413,10 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
   assertStringIncludes(
     changelog,
     "Account deletion now has a durable provider-revocation stage",
+  );
+  assertStringIncludes(
+    changelog,
+    "the delivery-confirmed legacy fallback are complete in source",
   );
   assertStringIncludes(
     changelog,
@@ -4379,16 +4429,20 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
   );
   assertStringIncludes(
     testingStrategy,
-    "chosen older-binary control",
+    "delivery-confirmed** boundary",
+  );
+  assertStringIncludes(
+    testingStrategy,
+    "out-of-order event journaling before provider-ID binding",
   );
   assertStringIncludes(identityGuide, "callback is discarded");
   assertStringIncludes(
     appLifecycle,
-    "This restoration path exists only in supporting binaries",
+    "This local restoration path exists only in supporting binaries",
   );
   assertStringIncludes(
     featureUI,
-    "publishing the new build alone is insufficient",
+    "receipt-and-notice behavior is defense-in-depth",
   );
   assertStringIncludes(
     architecture,
@@ -4396,16 +4450,74 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
   );
   assertStringIncludes(
     product,
-    "App Store availability is not adoption evidence",
+    "The server fallback therefore does not depend on App Store adoption or the deletion response reaching the client",
   );
   assertStringIncludes(loggingGuide, "not a server revocation receipt");
+  assertStringIncludes(loggingGuide, "with `manual_delivery` stage");
+  assertStringIncludes(
+    loggingGuide,
+    "Legacy Apple webhook health reports delayed, retry-required, unverifiable",
+  );
   assertStringIncludes(
     workflow,
     "Missing APPLE_SIGN_IN_PRIVATE_KEY GitHub secret",
+  );
+  assertStringIncludes(
+    workflow,
+    "Missing ACCOUNT_DELETION_FROM_EMAIL GitHub secret",
+  );
+  assertStringIncludes(
+    workflow,
+    "Missing RESEND_WEBHOOK_SIGNING_SECRET GitHub secret",
   );
   assert(
     workflow.indexOf("Validate deployment secrets") <
       workflow.indexOf("Push Database Migrations"),
     "Apple secret validation must precede database mutation.",
   );
+  assert(
+    workflow.indexOf(
+      "Synchronize account-deletion email delivery credentials",
+    ) < workflow.indexOf("Deploy affected Edge Functions"),
+    "Legacy Apple delivery secrets must be synchronized before Function deployment.",
+  );
+
+  const maintainedAppleDeletionDocs = [
+    canonical,
+    docsIndex,
+    backend,
+    schema,
+    api,
+    runbook,
+    network,
+    settings,
+    safeDelete,
+    reconciler,
+    counsel,
+    changelog,
+    coreManagers,
+    errorHandling,
+    testingStrategy,
+    identityGuide,
+    appLifecycle,
+    featureUI,
+    architecture,
+    product,
+    loggingGuide,
+  ].join("\n");
+  for (
+    const obsolete of [
+      "account-deletion-manual-apple/{job_id}",
+      "`completed` means the Resend send API accepted the request",
+      "Required `/resend-account-deletion-webhook` contract (not implemented)",
+      "current source incorrectly removes that protection on acceptance",
+      "Older clients and lost responses are not yet covered",
+      "current source records send API acceptance and deletes Auth",
+    ]
+  ) {
+    assert(
+      !maintainedAppleDeletionDocs.includes(obsolete),
+      `Obsolete Apple deletion documentation returned: ${obsolete}`,
+    );
+  }
 });

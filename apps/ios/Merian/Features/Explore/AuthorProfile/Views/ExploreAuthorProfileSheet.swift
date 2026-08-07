@@ -352,10 +352,7 @@ struct ExploreAuthorProfileContent: View {
 
                 if FeatureFlags.isEnabled(.fieldTrips),
                    let fieldTrips = profile.fieldTrips,
-                   FieldTripProfilePresentation.hasContent(
-                       fieldTrips,
-                       eventsEnabled: FieldTripEventsAvailability.isEnabled
-                   ) {
+                   FieldTripProfilePresentation.hasContent(fieldTrips) {
                     FieldTripProfilePreview(
                         summaries: fieldTrips,
                         onOpenTemplate: onOpenTemplate,

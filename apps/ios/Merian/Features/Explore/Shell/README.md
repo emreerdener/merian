@@ -11,13 +11,10 @@ detail/feed routes, notifications, and search interfaces while product-area
 subviews remain focused on their own domains.
 
 Field trips and standard Outings are released for every user through the
-`.fieldTrips` entry in the central `FeatureFlags` registry. Events remain staged
-behind `FieldTripEventsAvailability` for the allowlisted tester email and
-simulator builds. New Event entry points must use that shared rule for UI,
-loading, and routing rather than adding local debug checks. This is a
-client-build switch, not a remote flag; DEBUG startup logs
-`TODO(field-trip-events-release)` until the canonical checklist in
-`docs/features-and-hardware/25-field-trips.md` is completed.
+`.fieldTrips` entry in the central `FeatureFlags` registry. Events are also
+public for every user and have no independent feature flag, allowlist,
+simulator bypass, or debug override. Event entry points route directly through
+the same typed Explore navigation boundary as standard outings.
 
 ## Fresh-launch entry
 
@@ -64,7 +61,7 @@ Capture or the shared progress toast at this feature boundary. A standard
 `.fieldTrip(templateId:checklistItemId:)` destination selects Outings, opens the
 template, and focuses the credited goal. A
 `.fieldTripChallenge(challengeId:)` destination selects Events and pushes
-Seasonal Challenge detail only while Events are enabled. Do not expose `FieldTripTemplateRoute` or
+Seasonal Challenge detail. Do not expose `FieldTripTemplateRoute` or
 `FieldTripChallengeRoute` to Core feedback code.
 
 `fieldTripProgressUpdated` and `fieldTripChallengeProgressUpdated` continue to

@@ -268,35 +268,19 @@ struct AchievementDetailSheet: View {
                 )
             }
             .navigationDestination(for: FieldTripChallengeRoute.self) { route in
-                if FieldTripEventsAvailability.isEnabled {
-                    FieldTripChallengeDetailView(
-                        challengeId: route.challengeId,
-                        onOpenEntry: { entryId in
-                            navigationPath.append(FieldTripChallengeEntryRoute(entryId: entryId))
-                        },
-                        onOpenAuthorProfile: openFieldTripChallengeAuthorProfile
-                    )
-                } else {
-                    ContentUnavailableView(
-                        "Events aren’t available yet",
-                        systemImage: "calendar.badge.clock",
-                        description: Text("Field trip Events are still in preview.")
-                    )
-                }
+                FieldTripChallengeDetailView(
+                    challengeId: route.challengeId,
+                    onOpenEntry: { entryId in
+                        navigationPath.append(FieldTripChallengeEntryRoute(entryId: entryId))
+                    },
+                    onOpenAuthorProfile: openFieldTripChallengeAuthorProfile
+                )
             }
             .navigationDestination(for: FieldTripPublicationRoute.self) { route in
                 FieldTripPublicationDetailView(publicationId: route.publicationId)
             }
             .navigationDestination(for: FieldTripChallengeEntryRoute.self) { route in
-                if FieldTripEventsAvailability.isEnabled {
-                    FieldTripChallengeEntryDetailView(entryId: route.entryId)
-                } else {
-                    ContentUnavailableView(
-                        "Events aren’t available yet",
-                        systemImage: "calendar.badge.clock",
-                        description: Text("Field trip Events are still in preview.")
-                    )
-                }
+                FieldTripChallengeEntryDetailView(entryId: route.entryId)
             }
         }
         .accessibilityIdentifier("AchievementDetailSheet_\(award.type.rawValue)")
@@ -500,16 +484,14 @@ private struct AchievementFieldTripsPage: View {
         .navigationTitle("Field trips")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if FieldTripEventsAvailability.isEnabled {
-                ToolbarItem(placement: .principal) {
-                    Picker("Field trips view", selection: $selectedSection) {
-                        ForEach(FieldTripsSection.availableSections(eventsEnabled: true)) { section in
-                            Text(section.title).tag(section)
-                        }
+            ToolbarItem(placement: .principal) {
+                Picker("Field trips view", selection: $selectedSection) {
+                    ForEach(FieldTripsSection.allCases) { section in
+                        Text(section.title).tag(section)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 240)
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 240)
             }
         }
     }

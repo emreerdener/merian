@@ -179,6 +179,7 @@ Deno.test("safe-delete handler records the job before its fast-path worker", asy
           completed: 1,
           deferred: 0,
           waitingForStorage: 0,
+          waitingForManualDelivery: 0,
           failures: [],
         });
       },
@@ -212,6 +213,7 @@ Deno.test("safe-delete returns accepted after durable retry scheduling", async (
           completed: 0,
           deferred: 1,
           waitingForStorage: 0,
+          waitingForManualDelivery: 0,
           failures: [{
             jobId: pendingClaim().jobId,
             stage: "cleanup",
@@ -260,6 +262,7 @@ Deno.test("safe-delete does no destructive work if durable intake fails", async 
               completed: 0,
               deferred: 0,
               waitingForStorage: 0,
+              waitingForManualDelivery: 0,
               failures: [],
             });
           },
@@ -381,6 +384,250 @@ Deno.test("Apple revocation failure defers without deleting Auth or destroying t
   assertEquals(result.failures[0]?.stage, "provider");
 });
 
+Deno.test("legacy Apple dispatch acceptance waits for authoritative delivery", async () => {
+  const order: string[] = [];
+  let authCalled = false;
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => {
+        order.push("cleanup");
+        return Promise.resolve("manual_revocation_delivery_pending");
+      },
+      prepareManualRevocationDelivery: () => {
+        order.push("prepare_attempt");
+        return Promise.resolve({
+          email: "apple-relay@example.invalid",
+          attemptId: "00000000-0000-4000-8000-00000000d401",
+          idempotencyKey:
+            "account-deletion-manual-apple/00000000-0000-4000-8000-00000000d401",
+        });
+      },
+      sendManualRevocationEmail: (email, attemptId, idempotencyKey) => {
+        order.push(`send:${email}:${attemptId}:${idempotencyKey}`);
+        return Promise.resolve({
+          succeeded: true,
+          providerDeliveryId: "resend-message-1",
+        });
+      },
+      recordManualRevocationAcceptance: (
+        _client,
+        _claim,
+        attemptId,
+        providerId,
+      ) => {
+        order.push(`accept:${attemptId}:${providerId}`);
+        return Promise.resolve("delivery_pending");
+      },
+      deleteAuth: () => {
+        authCalled = true;
+        return Promise.resolve({ succeeded: true });
+      },
+    },
+  );
+
+  assertEquals(order, [
+    "cleanup",
+    "prepare_attempt",
+    "send:apple-relay@example.invalid:00000000-0000-4000-8000-00000000d401:account-deletion-manual-apple/00000000-0000-4000-8000-00000000d401",
+    "accept:00000000-0000-4000-8000-00000000d401:resend-message-1",
+  ]);
+  assertEquals(authCalled, false);
+  assertEquals(result.completed, 0);
+  assertEquals(result.deferred, 0);
+  assertEquals(result.waitingForManualDelivery, 1);
+});
+
+Deno.test("reclaimed jobs awaiting a delivery event do no external work", async () => {
+  let prepareCalled = false;
+  let authCalled = false;
+  let finishCalled = false;
+  const result = await processAccountDeletionJobs(supabaseAdmin, {}, {
+    claim: () => Promise.resolve([pendingClaim()]),
+    cleanup: () => Promise.resolve("manual_revocation_delivery_waiting"),
+    prepareManualRevocationDelivery: () => {
+      prepareCalled = true;
+      throw new Error("must not prepare");
+    },
+    deleteAuth: () => {
+      authCalled = true;
+      return Promise.resolve({ succeeded: true });
+    },
+    finish: () => {
+      finishCalled = true;
+      return Promise.resolve();
+    },
+  });
+
+  assertEquals(prepareCalled, false);
+  assertEquals(authCalled, false);
+  assertEquals(finishCalled, false);
+  assertEquals(result.waitingForManualDelivery, 1);
+  assertEquals(result.deferred, 0);
+});
+
+Deno.test("a matching delivery event journaled before acceptance can unlock Auth", async () => {
+  const order: string[] = [];
+  const result = await processAccountDeletionJobs(supabaseAdmin, {}, {
+    claim: () => Promise.resolve([pendingClaim()]),
+    cleanup: () => Promise.resolve("manual_revocation_delivery_pending"),
+    prepareManualRevocationDelivery: () =>
+      Promise.resolve({
+        email: "apple-relay@example.invalid",
+        attemptId: "00000000-0000-4000-8000-00000000d401",
+        idempotencyKey:
+          "account-deletion-manual-apple/00000000-0000-4000-8000-00000000d401",
+      }),
+    sendManualRevocationEmail: () =>
+      Promise.resolve({
+        succeeded: true,
+        providerDeliveryId: "resend-message-1",
+      }),
+    recordManualRevocationAcceptance: () => {
+      order.push("commit_matching_delivery");
+      return Promise.resolve("delivered");
+    },
+    deleteAuth: () => {
+      order.push("delete_auth");
+      return Promise.resolve({ succeeded: true });
+    },
+    finish: (_client, _claim, authDeleted) => {
+      order.push(authDeleted ? "complete" : "defer");
+      return Promise.resolve();
+    },
+  });
+
+  assertEquals(order, ["commit_matching_delivery", "delete_auth", "complete"]);
+  assertEquals(result.completed, 1);
+});
+
+Deno.test("a terminal delivery event schedules retry without deleting Auth", async () => {
+  let authCalled = false;
+  let finishCalled = false;
+  const result = await processAccountDeletionJobs(supabaseAdmin, {}, {
+    claim: () => Promise.resolve([pendingClaim()]),
+    cleanup: () => Promise.resolve("manual_revocation_delivery_pending"),
+    prepareManualRevocationDelivery: () =>
+      Promise.resolve({
+        email: "apple-relay@example.invalid",
+        attemptId: "00000000-0000-4000-8000-00000000d401",
+        idempotencyKey:
+          "account-deletion-manual-apple/00000000-0000-4000-8000-00000000d401",
+      }),
+    sendManualRevocationEmail: () =>
+      Promise.resolve({
+        succeeded: true,
+        providerDeliveryId: "resend-message-1",
+      }),
+    recordManualRevocationAcceptance: () => Promise.resolve("retry_required"),
+    deleteAuth: () => {
+      authCalled = true;
+      return Promise.resolve({ succeeded: true });
+    },
+    finish: () => {
+      finishCalled = true;
+      return Promise.resolve();
+    },
+  });
+
+  assertEquals(authCalled, false);
+  assertEquals(finishCalled, false);
+  assertEquals(result.deferred, 1);
+  assertEquals(result.failures, [{
+    jobId: pendingClaim().jobId,
+    stage: "manual_delivery",
+    code: "manual_revocation_delivery_retry_required",
+  }]);
+});
+
+Deno.test("legacy Apple delivery failure retains Auth and retries the same job", async () => {
+  let authCalled = false;
+  let deliveryCompleted = false;
+  const finishes: Array<[boolean, string | null]> = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => Promise.resolve("manual_revocation_delivery_pending"),
+      prepareManualRevocationDelivery: () =>
+        Promise.resolve({
+          email: "apple-relay@example.invalid",
+          attemptId: "00000000-0000-4000-8000-00000000d401",
+          idempotencyKey:
+            "account-deletion-manual-apple/00000000-0000-4000-8000-00000000d401",
+        }),
+      sendManualRevocationEmail: () =>
+        Promise.resolve({
+          succeeded: false,
+          errorCode: "manual_revocation_email_http_503",
+        }),
+      recordManualRevocationAcceptance: () => {
+        deliveryCompleted = true;
+        return Promise.resolve("delivery_pending");
+      },
+      deleteAuth: () => {
+        authCalled = true;
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: (_client, _claim, authDeleted, errorCode) => {
+        finishes.push([authDeleted, errorCode]);
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(authCalled, false);
+  assertEquals(deliveryCompleted, false);
+  assertEquals(finishes, [[false, "manual_revocation_email_http_503"]]);
+  assertEquals(result.failures[0]?.stage, "manual_delivery");
+});
+
+Deno.test("ambiguous manual delivery completion never reaches Auth deletion", async () => {
+  let authCalled = false;
+  const finishes: Array<[boolean, string | null]> = [];
+  const result = await processAccountDeletionJobs(
+    supabaseAdmin,
+    {},
+    {
+      claim: () => Promise.resolve([pendingClaim()]),
+      cleanup: () => Promise.resolve("manual_revocation_delivery_pending"),
+      prepareManualRevocationDelivery: () =>
+        Promise.resolve({
+          email: "apple-relay@example.invalid",
+          attemptId: "00000000-0000-4000-8000-00000000d401",
+          idempotencyKey:
+            "account-deletion-manual-apple/00000000-0000-4000-8000-00000000d401",
+        }),
+      sendManualRevocationEmail: () =>
+        Promise.resolve({
+          succeeded: true,
+          providerDeliveryId: "resend-message-1",
+        }),
+      recordManualRevocationAcceptance: () =>
+        Promise.reject(new Error("database response lost")),
+      deleteAuth: () => {
+        authCalled = true;
+        return Promise.resolve({ succeeded: true });
+      },
+      finish: (_client, _claim, authDeleted, errorCode) => {
+        finishes.push([authDeleted, errorCode]);
+        return Promise.resolve();
+      },
+    },
+  );
+
+  assertEquals(authCalled, false);
+  assertEquals(finishes, [[false, "manual_revocation_delivery_failed"]]);
+  assertEquals(result.failures[0], {
+    jobId: pendingClaim().jobId,
+    stage: "manual_delivery",
+    code: "manual_revocation_delivery_failed",
+  });
+});
+
 Deno.test("legacy Apple deletion returns a durable manual-revocation disposition", async () => {
   const response = await handleSafeDelete(
     pendingClaim().userId,
@@ -398,6 +645,7 @@ Deno.test("legacy Apple deletion returns a durable manual-revocation disposition
           completed: 0,
           deferred: 0,
           waitingForStorage: 1,
+          waitingForManualDelivery: 0,
           failures: [],
         }),
     },

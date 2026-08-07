@@ -78,6 +78,14 @@ Before contributing, please review our core architectural tenets. Refactoring co
     contract](./backend-and-data/13-server-credentials-and-database-release-safety.md)
     before changing keys, RLS, grants, defaults, migrations, user FKs, or
     destructive queues.
+    Codex contributors are routed by the root `AGENTS.md` through
+    `skills/merian-supabase/SKILL.md`; keep that project workflow and its
+    CI-discovered contract test synchronized when these backend rules change.
+    The reviewed general Supabase and Postgres skill sources live separately
+    under `skills/user/`. Run `bash skills/user/install.sh --check` to audit the
+    user installation or `--apply` to replace conflicts with tracked symlinks;
+    the installer moves prior `.agents/skills` and `.codex/skills` copies into
+    recoverable backups rather than deleting them.
 6.  **TestFlight Distribution**: After **iOS Build and Test** is green for the
     exact intended SHA, archive a clean `main` checkout with Xcode and upload
     through Organizer **TestFlight & App Store**. Keep automatic signing and

@@ -447,11 +447,9 @@ exception: if a confidence or review revision makes a contributing scan weak
 and unconfirmed, the server removes that contribution and can reopen a completed
 experience.
 
-Seasonal Challenges and Events are separate concepts. Their current access is
-preview-gated for designated testers and simulator conditions, and that gate is
-not a server authorization boundary. Product marketing must not represent
-preview access as general availability or use the client gate as a security
-control.
+Seasonal Challenges and Events are separate concepts. Events are generally
+available in the iOS client, while the server remains authoritative for
+challenge access, participation, ownership, timing, and publication.
 
 ## 6.3 Expedition Mode - Implemented, Pro-gated
 
@@ -592,8 +590,8 @@ fourth analysis.
 High database fair-use and rate ceilings bound automation and provider cost, so
 product copy must not promise technically unbounded model traffic.
 
-This list must be read with implementation status. Events are preview-gated.
-Apple Watch logging is partial because the phone receiver is incomplete. Paywall
+This list must be read with implementation status. Events are generally
+available. Apple Watch logging is partial because the phone receiver is incomplete. Paywall
 copy must not promise an end-to-end capability that the released client cannot
 fulfill.
 
@@ -773,18 +771,25 @@ exports, then performs a delayed empty verification sweep. For Apple sign-ins
 created under the current client contract, the server next revokes the
 Vault-held Apple refresh token and destroys it before Auth deletion. Apple
 accounts created before token capture remain deletable; supporting clients
-persist their durable manual-removal disposition before sign-out. Older binaries
-cannot consume that new response field. Public promotion is blocked until an
-enforceable minimum-supported-build control or independent server-delivered
-fallback covers them; App Store availability is not adoption evidence. Auth is
-deleted only after relational, storage, and applicable provider verification
-succeed. Transient failures are resumed automatically. After immediate
-completion or durable acceptance, the supporting client persists any manual
-Apple disposition, signs out locally, and removes its local store. An
-independent scheduled
-health check alerts when the reaper is disabled or misconfigured, deletion work
-is overdue, leases expire, storage work is orphaned, or queue age/backlog
-breaches the deletion SLA.
+persist their durable manual-removal disposition before sign-out. The server
+also sends the same Apple instructions to the confirmed Auth email. Current
+source retains its restrictive Auth fence after send API acceptance and releases
+it only for a signature-verified `email.delivered` event matching the current
+attempt and provider email ID. Delayed delivery waits; bounced, failed, and
+suppressed attempts require a new durable attempt. The server fallback therefore
+does not depend on App Store adoption or the deletion response reaching the
+client. Auth is otherwise deleted only after relational, storage, and applicable
+provider verification succeed. Transient failures are resumed automatically.
+After
+immediate completion or durable acceptance, the supporting client persists any
+manual Apple disposition, signs out locally, and removes its local store. An
+independent scheduled health check alerts when the reaper is disabled or
+misconfigured, deletion work is overdue, manual instruction delivery is pending
+or historically unverifiable, leases expire, storage work is orphaned, or queue
+age/backlog breaches the deletion SLA. The source change is implemented but not
+production-proven: launch still requires the migration/webhook release unit,
+real Apple private-relay delivery, zero unverifiable rows, and
+oldest-supported-binary lost-response evidence.
 
 The provider-specific implementation and production exit criteria are
 normative in the
@@ -1187,7 +1192,7 @@ migrations, vendor credentials, and release flags.
 
 | Area                                 | Current status            | Exit condition                                                                       |
 | ------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------ |
-| Events and Seasonal Challenges       | Release-gated preview     | Server-authorized rollout, product rules, operations, and full tests.                |
+| Events and Seasonal Challenges       | Generally available       | Continue server-authorized operations, product review, and regression coverage.      |
 | Apple Watch logging                  | Partial                   | Implement phone receiver, reconciliation UI, failure handling, and end-to-end tests. |
 | Full localization                    | Partial                   | Localized resource architecture, content coverage, taxonomy rules, and QA.           |
 | 18+ and third-party AI consent controls | Implemented gate / Production-blocked | Pass hosted exact-SHA lifecycle and replacement-build rollout gates, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |

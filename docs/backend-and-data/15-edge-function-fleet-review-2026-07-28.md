@@ -11,9 +11,17 @@ PostgreSQL independently rejects insertion and retires queue/grants;
 maximum-shape/provider evidence is deferred to the later feature-enable gate,
 not silently waived.
 
+**Apple deletion addendum (2026-08-07):**
+`resend-account-deletion-webhook` is an intentional public-to-provider route.
+It verifies the endpoint-specific Svix signature over the exact raw body before
+parsing and persists only bounded, PII-free delivery correlation. It treats
+send acceptance as non-authoritative and can release the legacy Apple Auth fence
+only for a matching `email.delivered` event. Hosted webhook and private-relay
+evidence remain release-blocking.
+
 ## Scope
 
-This review now inventories all 90 deployable Supabase Edge Function entrypoints, their
+This review now inventories all 92 deployable Supabase Edge Function entrypoints, their
 `config.toml` records, isolated deployment graphs, shared authentication/error/
 request-size/outbound/quota boundaries, database migration contracts, and static
 production callers across every application target, workflows, Edge workers,
@@ -70,18 +78,20 @@ the privileged-routine catalog audit and migration/security contract suites.
 
 ## Boundary Review
 
-- **63 user or hybrid routes:** `withEdgeHandler` authenticates the Supabase
+- **65 user or hybrid routes:** `withEdgeHandler` authenticates the Supabase
   user before route logic. `identify-multimodal` additionally permits the exact
   service-key replay boundary before entering the same owner-scoped handler.
 - **21 internal workers:** exact environment-backed server-key comparison runs
   before body parsing and privileged client construction. Current opaque keys
   use `apikey`; only validated legacy service-role JWTs also use Bearer.
-- **5 deliberate custom routes:** while enabled, `download-dwca` uses an opaque
+- **6 deliberate custom routes:** while enabled, `download-dwca` uses an opaque
   hashed capability with click-time privacy checks; during the initial launch it
   returns `410` from canonical release state before signing.
   `ingest-r2-media-events` verifies its dedicated secret before parsing;
   `revenuecat-webhook` verifies bearer and raw-body HMAC before
-  provider/database work; `species-dictionary` exposes only the public
+  provider/database work; `resend-account-deletion-webhook` verifies its Svix
+  raw-body signature before parsing and stores no recipient or payload;
+  `species-dictionary` exposes only the public
   projection except for its authenticated `my_scans` tree; and
   `species-observation-stats` applies distributed IP/user limits and
   dictionary-bound authorization.
@@ -120,7 +130,9 @@ reference a missing or unconfigured route.
 - discovery-based Supabase tooling: `103 passed`, `0 failed`, plus `16` DTO and
   `10` Identify wire-contract tests;
 - workflow security and documentation contracts: `11 passed` and `8 passed`;
-- all `89` function-local deployment graphs checked in isolation;
+- function-local deployment graphs are discovery-checked in isolation for every
+  configured entrypoint; the exact current result remains candidate-SHA CI
+  evidence;
 - Deno format across `662` files and lint across `507` files;
 - all `56` public-web source tests passed; the complete frozen
   install/audit/type-check/build gate remains exact-SHA CI evidence because
@@ -207,6 +219,7 @@ report-explore-post
 report-user
 request-community-identification
 request-export-dwca
+resend-account-deletion-webhook
 restore-community-identification
 revenuecat-webhook
 safe-delete

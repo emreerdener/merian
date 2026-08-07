@@ -32,22 +32,18 @@ Deploy the migrations, updated scan-ingestion functions, and then this function
 before the iOS client begins sending preferred-goal hints or requesting
 contribution rows.
 
-## Client Rollout State (2026-07-22)
+## Client Rollout State (2026-08-07)
 
-- The backend supports standard Outings and Seasonal Challenge Events and is
-  deployed before the full Events UI release.
-- Standard Field trips and Outings are public in iOS.
-- Events remain staged by the `.fieldTripEvents` default in the iOS
-  `FeatureFlags` registry; the tester account and simulator builds bypass that
-  client default. This function must not treat the flag as authentication or
-  authorization.
+- The backend supports standard Outings and Seasonal Challenge Events.
+- Standard Field trips, Outings, and Events are public in iOS.
+- Events have no independent iOS feature flag, tester allowlist, simulator
+  bypass, or debug override. This function remains the authenticated boundary
+  for Event reads and mutations.
 - The shared `apply_scan_progress` transaction can return standard and challenge
-  updates. Events-disabled clients discard challenge-only results before local
-  caching, refresh publication, routing, or UI presentation.
-- Flipping Events public is an iOS release operation and does not require a
-  function redeploy unless this function or its database contract also changes.
-  The canonical checklist lives in
-  `docs/features-and-hardware/25-field-trips.md`.
+  updates, and current clients consume both result families.
+- Publishing Events was an iOS-only release operation and did not require a
+  function redeploy or database change. Future backend contract changes still
+  follow the normal migration and Function deployment path.
 
 ## Privacy Contract
 

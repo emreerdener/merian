@@ -82,10 +82,14 @@ customer instruction. Opening Apple's support page dismisses the current alert
 but leaves the flag pending; returning to the foreground presents it again.
 Only the explicit **I Revoked Access** action resolves it.
 
-This restoration path exists only in supporting binaries. Older clients can
-ignore the server's manual-revocation disposition, so public promotion requires
-the minimum-supported-build or independent server-delivery control defined by
-the
+This local restoration path exists only in supporting binaries. The durable
+deletion worker also dispatches the same Apple instructions to the confirmed
+Auth email. Current source keeps Auth behind a restrictive database row after
+send API acceptance and releases that row only for a signature-verified,
+current-attempt `email.delivered` event. The server path therefore protects an
+older client or lost deletion response independently of this local key. The
+legacy path remains production-gated until the migration and webhook are
+deployed together and the relay and oldest-supported-binary evidence defined by the
 [canonical Sign in with Apple deletion contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 **Deep links and intents:**

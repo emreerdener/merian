@@ -505,19 +505,13 @@ private struct FeatureFlagDeveloperControls: View {
     }
 
     private func effectiveValue(for flag: FeatureFlag) -> Bool {
-        if flag == .fieldTripEvents {
-            return FieldTripEventsAvailability.isEnabled
-        }
-        return FeatureFlags.isEnabled(flag)
+        FeatureFlags.isEnabled(flag)
     }
 
     private func description(for flag: FeatureFlag) -> String {
         let stateDescription: String
         if let override = FeatureFlags.debugOverride(for: flag) {
             stateDescription = "Debug override: \(override ? "On" : "Off")."
-        } else if flag == .fieldTripEvents,
-                  effectiveValue(for: flag) != flag.defaultValue {
-            stateDescription = "Automatic preview: On. Release default: Off."
         } else {
             stateDescription = "Code default: \(flag.defaultValue ? "On" : "Off")."
         }
@@ -530,8 +524,6 @@ private struct FeatureFlagDeveloperControls: View {
             "tree.fill"
         case .fieldTrips:
             "map.fill"
-        case .fieldTripEvents:
-            "calendar.badge.clock"
         case .dwcaExports:
             "shippingbox.fill"
         case .unlimitedFreeScans:
@@ -545,8 +537,6 @@ private struct FeatureFlagDeveloperControls: View {
             .green
         case .fieldTrips:
             .indigo
-        case .fieldTripEvents:
-            .orange
         case .dwcaExports:
             .teal
         case .unlimitedFreeScans:

@@ -90,6 +90,9 @@ jobs:
           APPLE_SIGN_IN_TEAM_ID: ${{ secrets.APPLE_SIGN_IN_TEAM_ID }}
           APPLE_SIGN_IN_KEY_ID: ${{ secrets.APPLE_SIGN_IN_KEY_ID }}
           APPLE_SIGN_IN_PRIVATE_KEY: ${{ secrets.APPLE_SIGN_IN_PRIVATE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ACCOUNT_DELETION_FROM_EMAIL: ${{ secrets.ACCOUNT_DELETION_FROM_EMAIL }}
+          RESEND_WEBHOOK_SIGNING_SECRET: ${{ secrets.RESEND_WEBHOOK_SIGNING_SECRET }}
           R2_READ_ACCESS_KEY_ID: ${{ secrets.R2_READ_ACCESS_KEY_ID }}
           R2_READ_SECRET_ACCESS_KEY: ${{ secrets.R2_READ_SECRET_ACCESS_KEY }}
           R2_EVENT_WEBHOOK_SECRET: ${{ secrets.R2_EVENT_WEBHOOK_SECRET }}
@@ -103,6 +106,9 @@ jobs:
           : "${APPLE_SIGN_IN_TEAM_ID:?Missing APPLE_SIGN_IN_TEAM_ID GitHub secret}"
           : "${APPLE_SIGN_IN_KEY_ID:?Missing APPLE_SIGN_IN_KEY_ID GitHub secret}"
           : "${APPLE_SIGN_IN_PRIVATE_KEY:?Missing APPLE_SIGN_IN_PRIVATE_KEY GitHub secret}"
+          : "${RESEND_API_KEY:?Missing RESEND_API_KEY GitHub secret}"
+          : "${ACCOUNT_DELETION_FROM_EMAIL:?Missing ACCOUNT_DELETION_FROM_EMAIL GitHub secret}"
+          : "${RESEND_WEBHOOK_SIGNING_SECRET:?Missing RESEND_WEBHOOK_SIGNING_SECRET GitHub secret}"
           : "${R2_READ_ACCESS_KEY_ID:?Missing R2_READ_ACCESS_KEY_ID GitHub secret}"
           : "${R2_READ_SECRET_ACCESS_KEY:?Missing R2_READ_SECRET_ACCESS_KEY GitHub secret}"
           if [ -n "$AI_QUOTA_IP_HASH_SECRET" ] && [ "${#AI_QUOTA_IP_HASH_SECRET}" -lt 32 ]; then
@@ -143,6 +149,52 @@ jobs:
               exit 1
               ;;
           esac
+          if [ "${#RESEND_API_KEY}" -lt 8 ] \
+            || [ "${#RESEND_API_KEY}" -gt 1024 ] \
+            || [[ "$RESEND_API_KEY" == *$'\n'* ]] \
+            || [[ "$RESEND_API_KEY" == *$'\r'* ]]; then
+            echo "RESEND_API_KEY is malformed." >&2
+            exit 1
+          fi
+          if [ "${#ACCOUNT_DELETION_FROM_EMAIL}" -lt 3 ] \
+            || [ "${#ACCOUNT_DELETION_FROM_EMAIL}" -gt 320 ] \
+            || [[ "$ACCOUNT_DELETION_FROM_EMAIL" != *"@"* ]] \
+            || [[ "$ACCOUNT_DELETION_FROM_EMAIL" == *$'\n'* ]] \
+            || [[ "$ACCOUNT_DELETION_FROM_EMAIL" == *$'\r'* ]]; then
+            echo "ACCOUNT_DELETION_FROM_EMAIL must be a single verified sender identity." >&2
+            exit 1
+          fi
+          case "$RESEND_WEBHOOK_SIGNING_SECRET" in
+            whsec_*)
+              ;;
+            *)
+              echo "RESEND_WEBHOOK_SIGNING_SECRET must be an endpoint-specific whsec_ value." >&2
+              exit 1
+              ;;
+          esac
+          if [ "${#RESEND_WEBHOOK_SIGNING_SECRET}" -lt 24 ] \
+            || [ "${#RESEND_WEBHOOK_SIGNING_SECRET}" -gt 512 ] \
+            || [[ "$RESEND_WEBHOOK_SIGNING_SECRET" == *$'\n'* ]] \
+            || [[ "$RESEND_WEBHOOK_SIGNING_SECRET" == *$'\r'* ]]; then
+            echo "RESEND_WEBHOOK_SIGNING_SECRET is malformed." >&2
+            exit 1
+          fi
+          resend_webhook_key_material="${RESEND_WEBHOOK_SIGNING_SECRET#whsec_}"
+          if ! resend_webhook_key_bytes="$(
+              printf '%s' "$resend_webhook_key_material" \
+                | base64 --decode 2>/dev/null \
+                | wc -c \
+                | tr -d '[:space:]'
+            )"; then
+            echo "RESEND_WEBHOOK_SIGNING_SECRET has invalid key material." >&2
+            exit 1
+          fi
+          if ! [[ "$resend_webhook_key_bytes" =~ ^[0-9]+$ ]] \
+            || [ "$resend_webhook_key_bytes" -lt 16 ] \
+            || [ "$resend_webhook_key_bytes" -gt 128 ]; then
+            echo "RESEND_WEBHOOK_SIGNING_SECRET has invalid key material." >&2
+            exit 1
+          fi
           case "$REVENUECAT_SECRET_API_KEY" in
             sk_*)
               ;;
@@ -253,6 +305,11 @@ jobs:
             supabase/functions/safe-delete/index.ts \
             supabase/functions/safe-delete/handler.ts \
             supabase/functions/safe-delete/worker.ts \
+            supabase/functions/resend-account-deletion-webhook/index.ts \
+            supabase/functions/resend-account-deletion-webhook/db_test.ts \
+            supabase/functions/resend-account-deletion-webhook/handler_test.ts \
+            supabase/functions/resend-account-deletion-webhook/protocol_test.ts \
+            supabase/functions/resend-account-deletion-webhook/signature_test.ts \
             supabase/functions/register-apple-revocation-token/index.ts \
             supabase/functions/register-apple-revocation-token/handler.ts \
             supabase/functions/reconcile-account-deletions/index.ts \
@@ -374,6 +431,11 @@ jobs:
             supabase/functions/_shared/appleSignIn_test.ts \
             supabase/functions/register-apple-revocation-token/handler_test.ts \
             supabase/functions/_tests/safeDelete.test.ts \
+            supabase/functions/safe-delete/manualRevocationEmail_test.ts \
+            supabase/functions/resend-account-deletion-webhook/db_test.ts \
+            supabase/functions/resend-account-deletion-webhook/handler_test.ts \
+            supabase/functions/resend-account-deletion-webhook/protocol_test.ts \
+            supabase/functions/resend-account-deletion-webhook/signature_test.ts \
             supabase/functions/_tests/accountDeletionCoverage.test.ts \
             supabase/functions/_tests/accountDeletionMigrationContract.test.ts
 
@@ -711,6 +773,23 @@ jobs:
             "APPLE_SIGN_IN_TEAM_ID=$APPLE_SIGN_IN_TEAM_ID" \
             "APPLE_SIGN_IN_KEY_ID=$APPLE_SIGN_IN_KEY_ID" \
             "APPLE_SIGN_IN_PRIVATE_KEY=$APPLE_SIGN_IN_PRIVATE_KEY" \
+            --project-ref "$PROJECT_ID"
+
+      - name: Synchronize account-deletion email delivery credentials
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ACCOUNT_DELETION_FROM_EMAIL: ${{ secrets.ACCOUNT_DELETION_FROM_EMAIL }}
+          RESEND_WEBHOOK_SIGNING_SECRET: ${{ secrets.RESEND_WEBHOOK_SIGNING_SECRET }}
+          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
+        run: |
+          : "${RESEND_API_KEY:?RESEND_API_KEY is required}"
+          : "${ACCOUNT_DELETION_FROM_EMAIL:?ACCOUNT_DELETION_FROM_EMAIL is required}"
+          : "${RESEND_WEBHOOK_SIGNING_SECRET:?RESEND_WEBHOOK_SIGNING_SECRET is required}"
+          supabase secrets set \
+            "RESEND_API_KEY=$RESEND_API_KEY" \
+            "ACCOUNT_DELETION_FROM_EMAIL=$ACCOUNT_DELETION_FROM_EMAIL" \
+            "RESEND_WEBHOOK_SIGNING_SECRET=$RESEND_WEBHOOK_SIGNING_SECRET" \
             --project-ref "$PROJECT_ID"
 
       - name: Synchronize Darwin Core pseudonym key

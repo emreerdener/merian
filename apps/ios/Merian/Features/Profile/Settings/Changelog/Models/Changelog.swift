@@ -102,8 +102,6 @@ final class ChangelogStore {
             switch entry.id {
             case "2026-07-08-field-trips":
                 FeatureFlags.isEnabled(.fieldTrips)
-            case "2026-07-19-field-trip-events-preview":
-                FieldTripEventsAvailability.isEnabled
             default:
                 true
             }

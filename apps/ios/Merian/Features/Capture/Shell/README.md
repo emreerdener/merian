@@ -87,8 +87,12 @@ from the server. After a complete successful empty context, such as after Reset,
 the provider looks up the accessible unstarted `backyard_safari` template by
 slug. It then supplies the non-selectable
 **Start an outing** / **Backyard Safari · 2 goals** introduction with a `0/2`
-ring. Its leading artwork cross-fades between Bird and Dog every three
-seconds and stays static under Reduce Motion. A started, completed, locked,
+ring. Its leading artwork cross-fades between Bird and Dog every three seconds
+and stays static under Reduce Motion. The rotation keeps only its currently
+visible asset mounted between transitions, resets when refreshed artwork
+changes, and uses the neutral binoculars fallback if a named bundled asset
+cannot be resolved; the live camera's glass redraws therefore never depend on
+a transparent sibling remaining renderable. A started, completed, locked,
 missing, or empty template produces no introduction. The introduction has no
 swipe or adjustable action and opens outing detail without starting it.
 

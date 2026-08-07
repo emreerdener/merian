@@ -2067,7 +2067,13 @@ file do not clear the deployment hold. The complete disposable-CI matrix is in
 the
 [Ghost Account Merge Security Rollout](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
-Durable account deletion has twelve complementary checks:
+Durable account deletion has complementary checks. The current source suite is
+green at the legacy Resend **delivery-confirmed** boundary: acceptance waits,
+signed events are reduced against a pre-created attempt, and only a matching
+`email.delivered` transition can release Auth. That is still not production
+evidence. The exact candidate must pass the disposable Postgres catalog fixture
+and then prove the deployed webhook with a real Apple private-relay address and
+the oldest supported pre-field binary.
 
 - `apps/web/lib/scientificRetentionContract.test.ts` keeps the public Terms,
   Privacy Policy, Privacy Choices page, iOS account-deletion confirmation,
@@ -2093,14 +2099,27 @@ Durable account deletion has twelve complementary checks:
   `auth_pending` recovery repeats idempotent cleanup before Auth, stored Apple
   credentials are revoked and transactionally completed before Auth, provider
   failure preserves Auth and the Vault credential, legacy Apple intake returns
-  a manual disposition, Auth failure is deferred after verified storage, and a
-  lost completion response remains retryable.
+  a manual disposition, Resend send acceptance waits without calling Auth,
+  waiting jobs perform no external work, an already-journaled matching delivery
+  can unlock the next phase, terminal delivery outcomes schedule a new attempt,
+  synchronous provider/persistence failure preserves Auth, Auth failure is
+  deferred after verified storage, and a lost completion response remains
+  retryable. The live catalog fixture separately proves the restrictive legacy
+  row rejects a direct Auth-first delete both before and after send acceptance.
+- `safe-delete/manualRevocationEmail_test.ts` proves the fixed official Apple
+  links, job-scoped Resend idempotency key, bounded deadline/response parsing,
+  required secret/sender behavior, retryable provider ambiguity, and rejection
+  of header-control input and unsafe provider IDs without logging the recipient.
+  It intentionally proves dispatch acceptance only; webhook/database tests own
+  delivery authority.
 - `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
   Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
   `config.toml`, workflow wiring, iOS authorization-code capture and deletion
   receipt, hosted secret validation, the independent monitor's separation from
   the database reaper, and the executable fixture's
-  cleanup-before-storage-before-provider-before-Auth phase order present.
+  cleanup-before-storage-before-provider-or-dispatch-before-delivery-before-Auth
+  phase order present. It also pins deployment/config wiring for the public
+  signature-authenticated delivery webhook.
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order, cleanup
   verification, required `storage_pending` phase, five-prefix keyset cursor,
@@ -2117,7 +2136,11 @@ Durable account deletion has twelve complementary checks:
   migration contract additionally locks private credential/receipt tables,
   Vault and Auth restrictive foreign keys, provider state coherence,
   service-only allowlisting, secret destruction before provider completion, and
-  terminal provider fencing.
+  terminal provider fencing. The legacy-delivery contract additionally locks
+  coherent pending/accepted/delayed/retry/delivered state, private attempt and
+  event ACLs, backfill classification, the restrictive Auth fence,
+  current-attempt/provider-ID correlation, delivery-confirmed fence removal,
+  compatibility RPC fail-closed behavior, and identity-free health counts.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and all
@@ -2130,8 +2153,15 @@ Durable account deletion has twelve complementary checks:
   all-zero profile exists, active deletion blocks profile resurrection, a
   stored Apple credential is claim-readable only in the provider phase and is
   destroyed before provider completion, a legacy Apple fixture records the
-  manual disposition, Auth completion is rejected before provider completion,
-  retries preserve `auth_pending`, the service role sees that retry through
+  manual disposition, rejects direct Auth deletion through the exact legacy
+  delivery foreign key, claims the exact confirmed Auth recipient, rejects the
+  retired dispatch-only completion RPC, creates a prepared attempt, journals an
+  out-of-order delayed event, binds send acceptance while retaining Auth,
+  reduces a terminal event to `retry_required`, creates a new attempt, and
+  releases the fence only for a matching delivered event. It also proves
+  duplicate event idempotency, conflicting event-ID rejection, and final
+  delivery evidence retention. Automatic provider retries preserve `auth_pending`,
+  the service role sees that retry through
   aggregate health while public roles cannot execute the health RPC, final
   completion erases the direct UUID, and duplicate completion is idempotent.
   Before deletion begins, the same fixture inserts a stale
@@ -2153,18 +2183,28 @@ Durable account deletion has twelve complementary checks:
   provider-specific subject lookup and stale-identity fence.
   `AppDIContainerTests` proves the manual notice survives until explicit
   resolution.
-- Release evidence must separately exercise the chosen older-binary control.
-  Either an old client follows a clear enforced-update path back to in-app
-  deletion, or an independent server fallback durably delivers Apple's manual
-  instructions despite that client ignoring the new response field. App Store
-  availability of the supporting build is not evidence for this gate.
+- `resend-account-deletion-webhook/{signature,protocol,db,handler}_test.ts`
+  verifies published Svix vectors, exact raw-body signatures, timestamp bounds,
+  unsigned/invalid rejection before parsing or database work, bounded PII-free
+  correlation, unrelated-event acknowledgement, supported event outcomes, and
+  retryable persistence failure. The migration contract and live pgTAP fixture
+  add durable `svix-id` deduplication/conflict detection, out-of-order event
+  journaling before provider-ID binding, current-attempt correlation, and Auth
+  retention for delayed, bounced, failed, and suppressed outcomes. A real Hide
+  My Email fixture must still receive Apple's instructions when the oldest
+  supported pre-field client ignores or loses the response. Send acceptance,
+  App Store availability, or zero current-schema counters is not delivery
+  evidence.
 - `scripts/monitor_account_deletion_health_test.ts` proves strict aggregate
   parsing/invariants, threshold ordering, cron/configuration and orphan
   criticals, retry/expired-lease warnings, fail policy, and identity-free
   operator recovery guidance, including critical severity when configuration is
-  false. The migration contract statically locks the Vault-first, NULL-only
-  selection order. Workflow security checks separately keep its actions
-  immutable, permissions minimal, and secrets step-scoped.
+  false or historical manual delivery is unverifiable. It also parses and
+  reports accepted, delayed, and retry-required delivery work while the
+  migration contract statically locks the Vault-first, NULL-only selection
+  order. Webhook invalid-signature and persistence behavior is owned by the
+  handler suite. Workflow security checks separately keep its actions immutable,
+  permissions minimal, and secrets step-scoped.
 - `_tests/publicSchemaSecurityMigrationContract.test.ts` and
   `tests/public_schema_security.sql` lock every migration-created public table's
   effective RLS, deny-by-default global/schema ACLs, PostgreSQL 17 privilege
@@ -2579,7 +2619,7 @@ delayed strict ordering, multiple standard/challenge destinations, common-name
 fallback, progress failure, empty matches, completed-level rings, and
 foreground/background scan-ID deduplication. `InsightSheetViewModelTests` covers
 contribution loading, scan-change race rejection, silent error/empty states,
-queued/unauthenticated/ non-biological gates, Events filtering, invalidation
+queued/unauthenticated/non-biological gates, public Event rows, invalidation
 reload, and root/embedded routing in addition to the dictionary eligibility
 policy. `OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
 goal hint while successful scan finalization preserves it until explicit
@@ -2705,18 +2745,15 @@ the absent default local stack. Set `SUPABASE_DB_TEST_URL` for CI or release
 checks; an unreachable explicitly configured URL is a test failure, so a
 successful run proves the test actually connected.
 
-The split release gates have explicit regression coverage.
-`FieldTripsAvailabilityTests` locks standard Field trips on for every account
-and device, locks the `.fieldTripEvents` production default off until an
-intentional release edit, and verifies the staged tester/simulator bypass plus
-the future public path. `FieldTripAPIModelsTests`,
-`ActiveCaptureGoalStoreTests`, profile visibility tests, and
-`AchievementToastPresenterTests` verify that Events-disabled clients do not
-fetch or expose challenge-only UI, routes, badges, cached achievement evidence,
-or progress toasts. Before an Events release, manually test a physical
-allowlisted account, a physical non-allowlisted account, a ghost user, and a
-simulator build; also confirm DEBUG startup logs
-`TODO(field-trip-events-release)`.
+The public Field trips release has explicit regression coverage.
+`FieldTripsAvailabilityTests` locks the parent Field trips surface on for every
+account and verifies Events are absent from the feature-flag registry.
+`FieldTripAPIModelsTests`, `ActiveCaptureGoalStoreTests`, profile visibility
+tests, `AchievementToastPresenterTests`, and `InsightSheetViewModelTests` verify
+that Event sections, badges, progress, typed routes, and scan contributions are
+part of the normal client path. Manually test a physical signed-in account, a
+physical ghost account, and a simulator build; all must see the Events segment
+and be able to exercise the server-authorized flow.
 
 Progress-toast device QA must use the DEBUG Settings preview at compact and
 large widths with long species/trip names, VoiceOver, and Reduced Motion. A live

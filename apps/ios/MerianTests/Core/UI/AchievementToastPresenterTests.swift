@@ -626,43 +626,6 @@ struct AchievementToastPresenterTests {
         #expect(milestones[1].destination == .fieldTripChallenge(challengeId: "challenge-1"))
     }
 
-    @Test func disabledEventsKeepStandardProgressAndHideEventProgress() {
-        let progress = progressResult()
-        let visible = ScanMilestoneCoordinator.visibleProgress(
-            progress,
-            eventsEnabled: false
-        )
-
-        #expect(visible?.fieldTripUpdates == progress.fieldTripUpdates)
-        #expect(visible?.challengeUpdates.isEmpty == true)
-        #expect(ScanMilestoneCoordinator.milestones(from: visible).count == 1)
-        #expect(
-            ScanMilestoneCoordinator.milestones(from: visible).first?.destination
-                == .fieldTrip(templateId: "template-1", checklistItemId: "item-1")
-        )
-    }
-
-    @Test func disabledEventsHideEventBackedFirstFieldTripAchievement() {
-        let progress = FieldTripProgressResult(
-            fieldTripUpdates: [],
-            challengeUpdates: [],
-            firstFieldTripAchievement: FirstFieldTripAchievementProgress(
-                kind: .seasonalChallenge,
-                completedAt: "2026-07-18T14:00:00Z",
-                templateSlug: nil,
-                challengeId: "challenge-1"
-            ),
-            firstFieldTripAchievementNewlyUnlocked: true
-        )
-        let visible = ScanMilestoneCoordinator.visibleProgress(
-            progress,
-            eventsEnabled: false
-        )
-
-        #expect(visible?.firstFieldTripAchievement == nil)
-        #expect(visible?.firstFieldTripAchievementNewlyUnlocked == false)
-    }
-
     @Test func progressMappingIgnoresUpdatesWithoutNewlyCompletedItems() {
         let result = progressResult(standardIncludesNewItem: false)
 

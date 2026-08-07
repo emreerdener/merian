@@ -72,7 +72,7 @@ session, and clears/reloads correctly on sign-out or account switching. The read
 is attempted only for authenticated, saved biological Insights while Field trips
 are enabled. Queued scans, non-biological results, missing IDs, unauthenticated
 sessions, empty responses, and network failures render no placeholder or error.
-Event rows are filtered when `FieldTripEventsAvailability` is disabled.
+Event rows are presented alongside standard outing contributions.
 
 The card is rendered after toxicity and identification-review content and before
 Field notes and educational cards. Its visible header is **Field trips**. It
@@ -126,7 +126,7 @@ drives a user-facing Insight celebration. `SpeciesData.isNewToMerianDictionary`
 is the separate global dictionary contribution signal returned by the identify
 Edge payload. `ScanMilestoneCoordinator` evaluates that flag for the final saved
 scan after the Field trip progress attempt and appends **New to Naturebook**
-after any standard outing progress, Events-visible Seasonal Challenge progress,
+after any standard outing progress, Seasonal Challenge progress,
 and newly unlocked achievements. The Insight lifecycle retains VoiceOver/result
 haptic work but does not enqueue the dictionary milestone, preventing repeated
 sheet appearances from duplicating it. Error placeholders created by local
@@ -1474,7 +1474,7 @@ if data.isNewToMerianDictionary && data.isBiological
 
 The coordinator waits for the existing remote-persistence/progress attempt,
 collects newly unlocked achievements without presenting them immediately, and
-atomically enqueues standard Field trips, Events-visible Seasonal Challenges,
+atomically enqueues standard Field trips, Seasonal Challenges,
 achievements, then **New to Naturebook**. The final scan ID deduplicates
 foreground and background completion races. Progress failure or an empty match
 result does not suppress the achievement/dictionary milestones; it only delays

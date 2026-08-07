@@ -7,15 +7,14 @@ only a camera/performance setting.
 
 ## Current Scope
 
-- Standard Field trips and Outings are released for every user. Events remain a
-  client-gated preview for `erdener.emre@gmail.com` and simulator builds through
-  the `.fieldTripEvents` default in the central `FeatureFlags` registry;
-  enabling that release flag exposes Events to everyone. The client gate is not
-  a backend authorization boundary.
+- Standard Field trips, Outings, and Events are released for every user. Events
+  have no independent client feature flag, account allowlist, or simulator
+  bypass. The backend remains authoritative for authentication, challenge
+  access, participation, and mutations.
 - Field trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
-- The Field trips surface opens directly to `Outings` for standard outings. When
-  Events are enabled, the page header adds an `Outings`/`Events` segmented picker
-  and Events lists live and upcoming curated challenges.
+- The Field trips surface opens directly to `Outings` for standard outings. The
+  page header always includes an `Outings`/`Events` segmented picker, and Events
+  lists live and upcoming curated challenges.
 - Standard Field trip and Seasonal Challenge detail pages pin `Goals` and
   `Tips` in the sheet toolbar. `Goals` is selected by default and owns the
   trip overview, progress, actions, checklist, and Community content; `Tips`
@@ -103,51 +102,27 @@ only a camera/performance setting.
   APNs, widgets, leaderboards, prizes, rankings, contest windows, or
   sponsored-trip eligibility.
 
-## Rollout State and Events Release Checklist
+## Rollout State
 
-The release state is intentionally split in iOS:
+- `FeatureFlag.fieldTrips.defaultValue == true` makes the complete Field trips
+  surface public.
+- Events were published for every user on 2026-08-07. The former
+  `.fieldTripEvents` registry case, tester-email allowlist, simulator bypass,
+  debug override, rollout logger, and Events-disabled presentation paths were
+  removed.
+- Every Field trips client now fetches the Events catalog, exposes the
+  `Outings`/`Events` picker, accepts typed Event routes, includes challenge
+  badges and progress, loads Event Insight contributions, and requests eligible
+  hashtag suggestions.
+- This client release did not change the API shape or backend authorization.
+  The deployed Edge Function and database continue to enforce verified viewer,
+  entitlement, Join, ownership, timing, and publication rules.
 
-- `FeatureFlag.fieldTrips.defaultValue == true` makes Field trips and standard
-  Outings public.
-- `FeatureFlag.fieldTripEvents.defaultValue == false` keeps Events staged. The
-  allowlisted tester account and simulator builds bypass that default so UI/UX
-  work can continue against the deployed backend.
-- This is a client-build flag, not a remotely managed feature flag. Changing it
-  requires a new iOS build and release. It does not grant or revoke backend
-  authorization.
-- DEBUG Settings → Feature Flags can persist a device-local override for QA.
-  Release builds ignore those overrides and always resolve the code defaults.
-- DEBUG app startup writes
-  `TODO(field-trip-events-release): Outings are public; Events remain staged to the tester allowlist and simulator builds.`
-  to `MerianLog.general`. The source flag carries the same named TODO so a repo
-  search and the Xcode console both expose the pending state.
-
-When Events UI/UX is ready for public release:
-
-1. Complete physical-device QA for an allowlisted account, a non-allowlisted
-   account, and a signed-out/ghost user. Before the flip, only the allowlisted
-   account should see Events on device; simulator builds should always see it.
-2. Verify the production Field trips migrations and Edge Function are current,
-   then exercise catalog, detail, Join, progress, badge, entry publication,
-   comments/likes, and optional Explore hashtag suggestions. The backend is
-   already deployed, so do not redeploy it solely because the client flag
-   changes.
-3. Change the `.fieldTripEvents` code default in `FeatureFlag.defaultValue` to
-   `true`, remove the tester and simulator bypass paths, and update
-   `FieldTripsAvailabilityTests` so the public state is locked by tests.
-4. Promote the gated `2026-07-19-field-trip-events-preview` bundled changelog
-   entry into the public Events release entry. Update `README.md`, `CHANGELOG.md`,
-   the Explore RFC and shell README, the Explore/Field trips feature docs,
-   profile/gamification docs, testing guidance, logging guidance, and the
-   Supabase deployment/function docs.
-5. Remove `TODO(field-trip-events-release)` and change the startup notice to the
-   released-state message. Run the focused iOS suites, Deno Field trips tests,
-   SwiftLint, changelog JSON validation, and an unsigned device build before
-   distributing the client.
-
-If release QA finds an Events regression, set the client release flag back to
-`false` and issue a replacement build. Because the switch is compiled into the
-client, it is not an instantaneous server-side rollback mechanism.
+Before distributing an Events-capable iOS candidate, exercise catalog, detail,
+Join, progress, badge, entry publication, comments/likes, optional Explore
+hashtag suggestions, and typed navigation on physical signed-in and ghost
+accounts. A rollback requires a reviewed replacement client build; do not
+weaken or redeploy the backend solely to hide the Events UI.
 
 ## Product Terminology
 
@@ -199,8 +174,7 @@ difficulty.
 ## Product Flow
 
 1. A signed-in or ghost user opens Explore -> Field trips. The `Outings` segment
-   loads first; when Events are enabled, `Events` separately lists live and
-   upcoming challenges.
+   loads first, and `Events` separately lists live and upcoming challenges.
 2. `/field-trips` with `action: "catalog"` returns accessible and locked
    templates, their levels, checklist items, and any existing progress.
 3. Opening a catalog card loads `action: "template_detail"` and shows guide
@@ -1172,7 +1146,7 @@ scan that becomes eligible through confirmation, a confirmed weak scan
 downgraded back to unreviewed evidence, and idempotent reapplication.
 Confirm the response exposes credited counts for the changed level and that
 legacy responses still decode through the current-count fallback. For one scan,
-verify the visible order is standard outings, Events-visible Seasonal
+verify the visible order is standard outings, Seasonal
 Challenges, achievements, then **New to Naturebook**; a failed/no-match progress attempt
 must release the later milestones only after it finishes, and foreground plus
 background completion must enqueue once. Tap a standard toast to open its
@@ -1191,8 +1165,8 @@ Every standard row must open at the top of Goals with no focused item; every
 Event row must open challenge overview. Root modal, Scans-embedded,
 Explore-embedded, and modal-from-Explore paths must retain the originating
 Insight beneath the detail so native Back returns to it. Also exercise
-Events-off filtering, queued/unauthenticated/non-biological gates, no-match and
-network failure, long goal/experience names, compact and large widths, dark
+queued/unauthenticated/non-biological gates, no-match and network failure, long
+goal/experience names, compact and large widths, dark
 mode, accessibility Dynamic Type, VoiceOver, and Reduce Motion. The card must
 add no haptic or confetti. Verify V49→V50 migration and
 both foreground/background queue paths preserve the eligible camera-only hint,

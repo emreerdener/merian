@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "verifiedOn": "2026-08-06",
+  "sourceRepository": "https://github.com/supabase/agent-skills",
+  "installLocation": "$HOME/.agents/skills",
+  "skills": [
+    {
+      "name": "supabase",
+      "upstreamPath": "skills/supabase",
+      "upstreamRelease": "supabase-v0.1.6",
+      "localPatches": [
+        "classify the target before every mutation",
+        "confine direct SQL iteration to disposable local databases",
+        "preserve imperative and declarative schema workflows",
+        "correct UPDATE policy fallback semantics",
+        "authorize SECURITY DEFINER routines for their actual caller",
+        "defer CLI versions to repository pins and current help"
+      ]
+    },
+    {
+      "name": "supabase-postgres-best-practices",
+      "upstreamPath": "skills/supabase-postgres-best-practices",
+      "upstreamRelease": "supabase-postgres-best-practices-v1.6.0",
+      "localPatches": [
+        "add a complete progressive-disclosure rule index",
+        "correct UPDATE policy fallback semantics",
+        "separate user-bound and service-only privileged routines",
+        "make constraint migrations fail closed on unexpected catalog state",
+        "require bounded evidence before production query analysis"
+      ]
+    }
+  ]
+}

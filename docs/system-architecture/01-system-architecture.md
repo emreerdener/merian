@@ -268,9 +268,15 @@ single-responsibility functions under `/services/supabase/functions/`.
     delayed empty verification pass. A stored Sign in with Apple refresh token
     is then claim-read from Vault, revoked with Apple, and destroyed before
     removing Auth. Legacy Apple accounts carry an explicit manual-fallback
-    disposition for supporting clients. Older binaries cannot consume that
-    response field, so their minimum-build or independent server-delivery
-    control remains a production gate. The database claim
+    disposition; the worker sends Apple's instructions to the confirmed Auth
+    email and records Resend send acceptance against a durable opaque attempt
+    while retaining a restrictive Auth-fence row. A signature-verified webhook
+    keeps delayed and terminal outcomes fenced and releases Auth only for the
+    matching `email.delivered` event. The supporting client's local notice is
+    defense-in-depth; older binaries do not supply delivery authority. Hosted
+    webhook, real private-relay, zero-unverifiable, and oldest-supported-binary
+    smokes remain production gates.
+    The database claim
     requires the matching cleaned-up `storage_pending` job and rejects live
     profiles or owned scans; the storage outbox is never sufficient authority.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with

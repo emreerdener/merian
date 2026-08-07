@@ -3,6 +3,7 @@ import AVKit
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UIKit
 
 enum ActiveCaptureGoalSwipeDirection: Equatable {
     case next
@@ -14,6 +15,29 @@ enum ActiveCaptureGoalSwipeDirection: Equatable {
             return nil
         }
         return horizontal < 0 ? .next : .previous
+    }
+}
+
+enum CaptureGoalArtworkRotation {
+    static func artwork(
+        at index: Int,
+        in artworks: [CaptureGoalArtwork]
+    ) -> CaptureGoalArtwork {
+        guard !artworks.isEmpty else {
+            return .systemSymbol(name: "binoculars.fill")
+        }
+        return artworks[normalizedIndex(index, count: artworks.count)]
+    }
+
+    static func nextIndex(after index: Int, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        let currentIndex = normalizedIndex(index, count: count)
+        return currentIndex == count - 1 ? 0 : currentIndex + 1
+    }
+
+    private static func normalizedIndex(_ index: Int, count: Int) -> Int {
+        let remainder = index % count
+        return remainder >= 0 ? remainder : remainder + count
     }
 }
 
@@ -940,6 +964,12 @@ private struct CaptureGoalIndicator: View {
 }
 
 private struct CaptureGoalIntroductionIndicator: View {
+    private struct ArtworkRotationTaskID: Equatable {
+        let introductionID: String
+        let artworks: [CaptureGoalArtwork]
+        let reduceMotion: Bool
+    }
+
     let introduction: CaptureGoalIntroduction
     let onOpen: () -> Void
 
@@ -950,6 +980,27 @@ private struct CaptureGoalIntroductionIndicator: View {
         introduction.artworks.isEmpty
             ? [.systemSymbol(name: "binoculars.fill")]
             : introduction.artworks
+    }
+
+    private var displayedArtwork: CaptureGoalArtwork {
+        CaptureGoalArtworkRotation.artwork(at: artworkIndex, in: artworks)
+    }
+
+    private var displayedArtworkID: String {
+        switch displayedArtwork {
+        case .bundledImage(let imageName):
+            "bundled:\(imageName)"
+        case .systemSymbol(let symbolName):
+            "symbol:\(symbolName)"
+        }
+    }
+
+    private var artworkRotationTaskID: ArtworkRotationTaskID {
+        ArtworkRotationTaskID(
+            introductionID: introduction.id,
+            artworks: artworks,
+            reduceMotion: reduceMotion
+        )
     }
 
     var body: some View {
@@ -963,13 +1014,17 @@ private struct CaptureGoalIntroductionIndicator: View {
         } label: {
             HStack(spacing: 8) {
                 ZStack {
-                    ForEach(Array(artworks.enumerated()), id: \.offset) { index, artwork in
-                        CaptureGoalArtworkView(artwork: artwork)
-                            .opacity(index == artworkIndex ? 1 : 0)
-                    }
+                    // Keep one resting image in the live hierarchy instead of
+                    // depending on opacity-zero siblings during camera/glass redraws.
+                    CaptureGoalArtworkView(artwork: displayedArtwork)
+                        .id(displayedArtworkID)
+                        .transition(.opacity)
                 }
                 .frame(width: 40, height: 40)
-                .animation(.easeInOut(duration: 0.2), value: artworkIndex)
+                .animation(
+                    reduceMotion ? nil : .easeInOut(duration: 0.2),
+                    value: displayedArtworkID
+                )
 
                 VStack(alignment: .center, spacing: 2) {
                     Text(introduction.headline)
@@ -1014,16 +1069,20 @@ private struct CaptureGoalIntroductionIndicator: View {
                 source: introduction.sourceKind
             )
         }
-        .task(id: "\(introduction.id):\(reduceMotion)") {
+        .task(id: artworkRotationTaskID) {
             artworkIndex = 0
-            guard !reduceMotion, artworks.count > 1 else { return }
+            let artworkCount = artworks.count
+            guard !reduceMotion, artworkCount > 1 else { return }
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(3))
                 } catch {
                     return
                 }
-                artworkIndex = (artworkIndex + 1) % artworks.count
+                artworkIndex = CaptureGoalArtworkRotation.nextIndex(
+                    after: artworkIndex,
+                    count: artworkCount
+                )
             }
         }
     }
@@ -1150,19 +1209,28 @@ private struct CaptureGoalArtworkView: View {
     var body: some View {
         switch artwork {
         case .bundledImage(let imageName):
-            Image(imageName)
-                .resizable()
-                .scaledToFit()
-                .padding(2)
-                .frame(width: 36, height: 36)
-                .accessibilityHidden(true)
+            if let image = UIImage(named: imageName) {
+                Image(uiImage: image)
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(2)
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
+            } else {
+                systemSymbol(named: "binoculars.fill")
+            }
         case .systemSymbol(let symbolName):
-            Image(systemName: symbolName)
-                .font(.system(size: 19, weight: .semibold))
-                .frame(width: 36, height: 36)
-                .background(.primary.opacity(0.08), in: Circle())
-                .accessibilityHidden(true)
+            systemSymbol(named: symbolName)
         }
+    }
+
+    private func systemSymbol(named symbolName: String) -> some View {
+        Image(systemName: symbolName)
+            .font(.system(size: 19, weight: .semibold))
+            .frame(width: 36, height: 36)
+            .background(.primary.opacity(0.08), in: Circle())
+            .accessibilityHidden(true)
     }
 }
 

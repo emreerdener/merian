@@ -12,8 +12,16 @@ import {
   deleteAuthProfile,
   finishAccountDeletionAttempt,
   getAccountDeletionProviderToken,
+  type ManualRevocationAcceptance,
+  type ManualRevocationDeliveryAttempt,
+  prepareAccountDeletionManualRevocationDelivery,
   type ProviderRevocationToken,
+  recordAccountDeletionManualRevocationAcceptance,
 } from "./db.ts";
+import {
+  type ManualRevocationDeliveryResult,
+  sendManualAppleRevocationEmail,
+} from "./manualRevocationEmail.ts";
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -23,9 +31,15 @@ export type AccountDeletionWorkerResult = {
   completed: number;
   deferred: number;
   waitingForStorage: number;
+  waitingForManualDelivery: number;
   failures: Array<{
     jobId: string;
-    stage: "cleanup" | "provider" | "auth" | "completion";
+    stage:
+      | "cleanup"
+      | "provider"
+      | "manual_delivery"
+      | "auth"
+      | "completion";
     code: string;
   }>;
 };
@@ -49,6 +63,21 @@ export type AccountDeletionWorkerDependencies = {
     supabaseAdmin: SupabaseClient,
     claim: AccountDeletionClaim,
   ) => Promise<void>;
+  prepareManualRevocationDelivery?: (
+    supabaseAdmin: SupabaseClient,
+    claim: AccountDeletionClaim,
+  ) => Promise<ManualRevocationDeliveryAttempt>;
+  sendManualRevocationEmail?: (
+    recipientEmail: string,
+    attemptId: string,
+    idempotencyKey: string,
+  ) => Promise<ManualRevocationDeliveryResult>;
+  recordManualRevocationAcceptance?: (
+    supabaseAdmin: SupabaseClient,
+    claim: AccountDeletionClaim,
+    attemptId: string,
+    providerDeliveryId: string,
+  ) => Promise<ManualRevocationAcceptance>;
   deleteAuth?: (
     userId: string,
     supabaseAdmin: SupabaseClient,
@@ -83,6 +112,14 @@ export async function processAccountDeletionJobs(
     revokeAppleRefreshToken;
   const completeProvider = dependencies.completeProvider ??
     completeAccountDeletionProviderRevocation;
+  const prepareManualRevocationDelivery =
+    dependencies.prepareManualRevocationDelivery ??
+      prepareAccountDeletionManualRevocationDelivery;
+  const sendManualRevocationEmail = dependencies.sendManualRevocationEmail ??
+    sendManualAppleRevocationEmail;
+  const recordManualRevocationAcceptance =
+    dependencies.recordManualRevocationAcceptance ??
+      recordAccountDeletionManualRevocationAcceptance;
   const deleteAuth = dependencies.deleteAuth ?? deleteAuthProfile;
   const finish = dependencies.finish ?? finishAccountDeletionAttempt;
   const claims = await claimJobs(
@@ -95,11 +132,17 @@ export async function processAccountDeletionJobs(
     completed: 0,
     deferred: 0,
     waitingForStorage: 0,
+    waitingForManualDelivery: 0,
     failures: [],
   };
 
   for (const claim of claims) {
-    let stage: "cleanup" | "provider" | "auth" | "completion" = "cleanup";
+    let stage:
+      | "cleanup"
+      | "provider"
+      | "manual_delivery"
+      | "auth"
+      | "completion" = "cleanup";
 
     try {
       // Re-run the idempotent cleanup even for auth_pending retries. This
@@ -110,6 +153,11 @@ export async function processAccountDeletionJobs(
       const cleanupPhase = await cleanup(supabaseAdmin, claim);
       if (cleanupPhase === "storage_pending") {
         result.waitingForStorage += 1;
+        continue;
+      }
+
+      if (cleanupPhase === "manual_revocation_delivery_waiting") {
+        result.waitingForManualDelivery += 1;
         continue;
       }
 
@@ -129,6 +177,52 @@ export async function processAccountDeletionJobs(
         // previously invalid tokens. Persist that outcome and destroy the
         // Vault secret before the Auth call becomes reachable.
         await completeProvider(supabaseAdmin, claim);
+      }
+
+      if (cleanupPhase === "manual_revocation_delivery_pending") {
+        stage = "manual_delivery";
+        const attempt = await prepareManualRevocationDelivery(
+          supabaseAdmin,
+          claim,
+        );
+        const delivery = await sendManualRevocationEmail(
+          attempt.email,
+          attempt.attemptId,
+          attempt.idempotencyKey,
+        );
+        if (!delivery.succeeded) {
+          await finish(supabaseAdmin, claim, false, delivery.errorCode);
+          recordDeferred(
+            result,
+            claim,
+            "manual_delivery",
+            delivery.errorCode,
+          );
+          continue;
+        }
+
+        // Provider acceptance is dispatch evidence only. The database binds it
+        // to the pre-created attempt and keeps Auth fenced unless a matching,
+        // signature-verified delivery event was already journaled.
+        const acceptance = await recordManualRevocationAcceptance(
+          supabaseAdmin,
+          claim,
+          attempt.attemptId,
+          delivery.providerDeliveryId,
+        );
+        if (acceptance === "delivery_pending") {
+          result.waitingForManualDelivery += 1;
+          continue;
+        }
+        if (acceptance === "retry_required") {
+          recordDeferred(
+            result,
+            claim,
+            "manual_delivery",
+            "manual_revocation_delivery_retry_required",
+          );
+          continue;
+        }
       }
 
       stage = "auth";
@@ -152,6 +246,8 @@ export async function processAccountDeletionJobs(
         ? "cleanup_failed"
         : stage === "provider"
         ? "provider_revocation_failed"
+        : stage === "manual_delivery"
+        ? "manual_revocation_delivery_failed"
         : stage === "auth"
         ? "auth_delete_failed"
         : "completion_write_failed";
@@ -174,7 +270,12 @@ export async function processAccountDeletionJobs(
 function recordDeferred(
   result: AccountDeletionWorkerResult,
   claim: AccountDeletionClaim,
-  stage: "cleanup" | "provider" | "auth" | "completion",
+  stage:
+    | "cleanup"
+    | "provider"
+    | "manual_delivery"
+    | "auth"
+    | "completion",
   code: string,
 ): void {
   result.deferred += 1;

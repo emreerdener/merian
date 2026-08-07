@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supabase"
+  short_description: "Safe, current Supabase development workflows"
+  default_prompt: "Use $supabase to implement and verify this Supabase change safely."

@@ -7,7 +7,6 @@ import Foundation
 enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case speciesDictionaryTree
     case fieldTrips
-    case fieldTripEvents
     case dwcaExports
     case unlimitedFreeScans
 
@@ -18,8 +17,6 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
         case .speciesDictionaryTree:
             // swiftlint:disable:next todo
             // TODO(species-dictionary-tree-release): Enable after the Tree is ready to ship.
-            false
-        case .fieldTripEvents:
             false
         case .fieldTrips:
             true
@@ -39,8 +36,6 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             "Species Dictionary Tree"
         case .fieldTrips:
             "Field trips"
-        case .fieldTripEvents:
-            "Field trip Events"
         case .dwcaExports:
             "Darwin Core exports"
         case .unlimitedFreeScans:
@@ -54,8 +49,6 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             "Shows the unfinished Tree inside Explore’s Index."
         case .fieldTrips:
             "Shows Field trips and its supporting progress surfaces."
-        case .fieldTripEvents:
-            "Releases Events beyond the simulator and tester preview."
         case .dwcaExports:
             "Shows the staged scan-export controls. The server gate remains authoritative."
         case .unlimitedFreeScans:
@@ -119,64 +112,4 @@ enum FieldTripSharingAvailability {
     // TODO(field-trip-sharing-experience): Enable only after the complete standard
     // outing sharing experience is ready, then restore publication-state labels.
     static let isEnabled = false
-}
-
-@MainActor
-enum FieldTripEventsAvailability {
-    // swiftlint:disable:next todo
-    // TODO(field-trip-events-release): When Events UI/UX is ready, follow the release
-    // checklist in docs/features-and-hardware/25-field-trips.md, change the central
-    // default, promote the preview changelog copy, and remove preview bypasses.
-    static var isReleased: Bool {
-        FeatureFlag.fieldTripEvents.defaultValue
-    }
-
-    static let allowedEmail = "erdener.emre@gmail.com"
-
-    static var isEnabled: Bool {
-        isEnabled(
-            isReleased: isReleased,
-            email: SupabaseManager.shared.currentUser?.email,
-            isSimulator: isSimulatorBuild,
-            debugOverride: FeatureFlags.debugOverride(for: .fieldTripEvents)
-        )
-    }
-
-    static func isEnabled(
-        isReleased: Bool,
-        email: String?,
-        isSimulator: Bool,
-        debugOverride: Bool? = nil
-    ) -> Bool {
-        if let debugOverride {
-            return debugOverride
-        }
-
-        if isReleased || isSimulator { return true }
-        return email?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased() == allowedEmail
-    }
-
-    static func logRolloutState() {
-        #if DEBUG
-        if isReleased {
-            MerianLog.general.notice(
-                "Field Trips rollout: Outings and Events are public."
-            )
-        } else {
-            MerianLog.general.notice(
-                "TODO(field-trip-events-release): Outings are public; Events remain staged to the tester allowlist and simulator builds."
-            )
-        }
-        #endif
-    }
-
-    private static var isSimulatorBuild: Bool {
-        #if targetEnvironment(simulator)
-        true
-        #else
-        false
-        #endif
-    }
 }

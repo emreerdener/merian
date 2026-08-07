@@ -406,6 +406,11 @@ verify_jwt = false
 [functions.safe-delete]
 verify_jwt = false
 
+[functions.resend-account-deletion-webhook]
+# Resend cannot present a Supabase JWT. The handler verifies the endpoint's
+# Svix signature over the exact bounded raw body before parsing or mutation.
+verify_jwt = false
+
 [functions.register-apple-revocation-token]
 # The gateway and withEdgeHandler both bind the request to the newly installed
 # permanent Supabase session before the one-use Apple code is exchanged.

@@ -5,18 +5,13 @@ post-owned image, short-video, and standalone-audio media. Users can browse
 posts, like them, and leave comments while Merian preserves its privacy-first
 posture for both authenticated and ghost users.
 
-Field trips and standard Outings are released for every user. Existing iOS
-entry points continue to use the shared `FeatureFlags` registry so the release
-state remains centralized. Events remain behind
-`FieldTripEventsAvailability`: enabled only for `erdener.emre@gmail.com`
-(case/whitespace normalized) or simulator builds until its client release flag
-is enabled. The Events gate covers its segment, fetches, routes, profile badges,
-and bundled preview changelog entry. These client release gates are not
-authorization boundaries; the backend infrastructure remains deployed. DEBUG
-builds expose device-local overrides under Settings → Feature Flags, but
-production release and rollback still require an iOS build. The checklist and
-named DEBUG startup TODO are documented in
-[`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state-and-events-release-checklist).
+Field trips, standard Outings, and Events are released for every user. Events
+have no independent iOS feature flag, tester allowlist, simulator bypass, or
+debug override: their segment, fetches, routes, profile badges, progress,
+Insight contributions, hashtag suggestions, and changelog entry are public.
+The backend remains the authorization boundary for every challenge read and
+mutation. The current rollout state is documented in
+[`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state).
 
 ## Locked Product Decisions
 
@@ -105,8 +100,8 @@ The Explore feed and map shell are now live. The current shipped implementation 
   request links select Identify/Requests. The unfinished taxonomy tree/galaxy
   work and its default-off `.speciesDictionaryTree` flag remain in code but
   have no MVP root-navigation entry point. Field trips opens directly to
-  Outings while Events is disabled and owns the Outings/Events toggle when that
-  preview is available. Completed standard-outing goals resolve their private
+  Outings and always owns the Outings/Events toggle. Completed standard-outing
+  goals resolve their private
   completion scan ID to a device-local photo/video-poster thumbnail; tapping one
   pushes the existing Insight view in the same Explore navigation stack and
   returns to the outing on back.

@@ -25,9 +25,8 @@ chip as seen.
   root-only header toggle keeps Feed first and Map second.
 - **Field trips** shows curated regional checklist quests backed by the
   `/field-trips` Edge Function. The tab defaults to `Outings` for standard outings
-  for every user. The `Events` segment and its request are hidden behind
-  `FieldTripEventsAvailability`; the tester account and simulator builds can
-  preview live and upcoming Seasonal Challenges. Challenges require explicit Join,
+  for every user. The `Events` segment is also public and lists live and
+  upcoming Seasonal Challenges. Challenges require explicit Join,
   count only in-window scans after `joined_at`, award profile badges, and
   publish challenge entries through Field trips-specific pages. Active outing
   progress can appear on public profiles as checklist status only;
@@ -140,7 +139,7 @@ for the surface they are changing:
   activity, request detail, taxonomy search, disagreement handling, and
   community feedback entry points.
 - `apps/ios/Merian/Features/Explore/FieldTrips/` owns public Field trip Outings
-  plus the client-staged Events segment, Seasonal Challenges cards/detail, guided template
+  and Events, Seasonal Challenges cards/detail, guided template
   detail, progress cards, publication and challenge
   entry detail pages, profile modules, challenge badges, pin controls, and Field
   Trip comment presentation. `FieldTripsViewModel.swift` also contains the

@@ -672,8 +672,6 @@ struct MerianApp: App {
         // Keep app-hosted test sessions hermetic: no analytics startup, no disk-backed
         // production store, and no background sync noise racing the test containers.
         if !TestExecutionCoordinator.isRunningTests {
-            FieldTripEventsAvailability.logRolloutState()
-
             // Prepare the app analytics facade without starting PostHog. Startup
             // recovery telemetry is intentionally dropped unless a previously
             // granted account permission has already activated the sink.

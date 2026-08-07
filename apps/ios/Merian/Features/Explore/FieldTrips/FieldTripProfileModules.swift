@@ -215,27 +215,20 @@ struct EarnedFieldTripPatchCarouselSkeleton: View {
 
 enum FieldTripProfilePresentation {
     static func visibleChallengeBadges(
-        in summaries: FieldTripProfileSummaries,
-        eventsEnabled: Bool
+        in summaries: FieldTripProfileSummaries
     ) -> [FieldTripChallengeBadge] {
-        eventsEnabled ? summaries.challengeBadges : []
+        summaries.challengeBadges
     }
 
-    static func itemCount(
-        in summaries: FieldTripProfileSummaries,
-        eventsEnabled: Bool
-    ) -> Int {
+    static func itemCount(in summaries: FieldTripProfileSummaries) -> Int {
         summaries.active.count
             + summaries.pinned.count
             + summaries.published.count
-            + visibleChallengeBadges(in: summaries, eventsEnabled: eventsEnabled).count
+            + visibleChallengeBadges(in: summaries).count
     }
 
-    static func hasContent(
-        _ summaries: FieldTripProfileSummaries,
-        eventsEnabled: Bool
-    ) -> Bool {
-        itemCount(in: summaries, eventsEnabled: eventsEnabled) > 0
+    static func hasContent(_ summaries: FieldTripProfileSummaries) -> Bool {
+        itemCount(in: summaries) > 0
     }
 }
 
@@ -457,15 +450,8 @@ struct FieldTripProfilePreview: View {
     let onOpenPublication: (String) -> Void
     var onTogglePinned: ((FieldTripProfilePublishedSummary) -> Void)?
 
-    private var eventsEnabled: Bool {
-        FieldTripEventsAvailability.isEnabled
-    }
-
     private var visibleChallengeBadges: [FieldTripChallengeBadge] {
-        FieldTripProfilePresentation.visibleChallengeBadges(
-            in: summaries,
-            eventsEnabled: eventsEnabled
-        )
+        FieldTripProfilePresentation.visibleChallengeBadges(in: summaries)
     }
 
     var body: some View {
@@ -476,10 +462,7 @@ struct FieldTripProfilePreview: View {
 
                 Spacer()
 
-                let count = FieldTripProfilePresentation.itemCount(
-                    in: summaries,
-                    eventsEnabled: eventsEnabled
-                )
+                let count = FieldTripProfilePresentation.itemCount(in: summaries)
                 Text(count.formatted(.number.notation(.compactName)))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)

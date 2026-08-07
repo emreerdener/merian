@@ -9,10 +9,6 @@ struct FieldTripsAvailabilityTests {
         #expect(FeatureFlags.isEnabled(.fieldTrips))
     }
 
-    @Test func eventsRemainStagedUntilTheExplicitReleaseChange() {
-        #expect(!FieldTripEventsAvailability.isReleased)
-    }
-
     @Test func standardOutingSharingRemainsDeferredUntilTheExperienceIsReady() {
         #expect(!FieldTripSharingAvailability.isEnabled)
     }
@@ -21,13 +17,11 @@ struct FieldTripsAvailabilityTests {
         #expect(FeatureFlag.allCases == [
             .speciesDictionaryTree,
             .fieldTrips,
-            .fieldTripEvents,
             .dwcaExports,
             .unlimitedFreeScans
         ])
         #expect(!FeatureFlag.speciesDictionaryTree.defaultValue)
         #expect(FeatureFlag.fieldTrips.defaultValue)
-        #expect(!FeatureFlag.fieldTripEvents.defaultValue)
         #expect(!FeatureFlag.dwcaExports.defaultValue)
         #expect(!FeatureFlag.unlimitedFreeScans.defaultValue)
     }
@@ -76,65 +70,7 @@ struct FieldTripsAvailabilityTests {
     }
     #endif
 
-    @Test func simulatorAlwaysEnablesFieldTripEventsPreview() {
-        #expect(FieldTripEventsAvailability.isEnabled(
-            isReleased: false,
-            email: nil,
-            isSimulator: true
-        ))
-        #expect(FieldTripEventsAvailability.isEnabled(
-            isReleased: false,
-            email: "someone@example.com",
-            isSimulator: true
-        ))
-    }
-
-    @Test func eventsPreviewEmailIsCaseAndWhitespaceInsensitive() {
-        #expect(FieldTripEventsAvailability.isEnabled(
-            isReleased: false,
-            email: "  ERDENER.EMRE@GMAIL.COM ",
-            isSimulator: false
-        ))
-    }
-
-    @Test func otherUsersAndGuestsCannotSeeEventsPreviewOnDevice() {
-        #expect(!FieldTripEventsAvailability.isEnabled(
-            isReleased: false,
-            email: nil,
-            isSimulator: false
-        ))
-        #expect(!FieldTripEventsAvailability.isEnabled(
-            isReleased: false,
-            email: "someone@example.com",
-            isSimulator: false
-        ))
-    }
-
-    @Test func eventsReleaseFlagEnablesEveryUserAndDevice() {
-        #expect(FieldTripEventsAvailability.isEnabled(
-            isReleased: true,
-            email: nil,
-            isSimulator: false
-        ))
-        #expect(FieldTripEventsAvailability.isEnabled(
-            isReleased: true,
-            email: "someone@example.com",
-            isSimulator: false
-        ))
-    }
-
-    @Test func eventDebugOverrideWinsOverReleaseAndPreviewEligibility() {
-        #expect(!FieldTripEventsAvailability.isEnabled(
-            isReleased: true,
-            email: FieldTripEventsAvailability.allowedEmail,
-            isSimulator: true,
-            debugOverride: false
-        ))
-        #expect(FieldTripEventsAvailability.isEnabled(
-            isReleased: false,
-            email: nil,
-            isSimulator: false,
-            debugOverride: true
-        ))
+    @Test func eventsAreNotAFeatureFlag() {
+        #expect(!FeatureFlag.allCases.contains { $0.rawValue == "fieldTripEvents" })
     }
 }

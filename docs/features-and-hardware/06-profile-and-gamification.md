@@ -180,14 +180,11 @@ history projection. They can progress without joining anything, and they are
 recalculated after successful inference so long-running milestones stay current.
 
 **The Field Naturalist** (`first_field_trip`) is server-authoritative. Standard
-outing progress is public with Field trips; Seasonal Challenge evidence and its
-typed destination are merged only while `FieldTripEventsAvailability` is
-enabled. The award can therefore unlock from a standard outing for every user,
-while Events-disabled clients discard a seasonal-only result instead of caching
-or routing to hidden UI. The account-scoped offline cache stores only a result
-visible under the current gate. The local calculator emits the locked/default
-state so profiles remain complete without pretending scan history can resolve
-Field trip completion.
+outing and Seasonal Challenge evidence are both public with Field trips. The
+account-scoped offline cache stores the server-authoritative earliest result and
+its typed destination. The local calculator emits the locked/default state so
+profiles remain complete without pretending scan history can resolve Field trip
+completion.
 
 Automatic Backyard Safari Level 1 enrollment follows that existing public
 status contract. A new or backfilled account may show an active `0/N` starter
@@ -195,7 +192,7 @@ on its Explore author profile before earning Field Naturalist; enrollment does
 not publish the scans or evidence used for later progress.
 
 Field trip Challenge badges are seasonal, curated, server-authoritative, and
-shown only while Events are enabled.
+shown with the public Events experience.
 They require an explicit challenge join, count only scans made after `joined_at`
 and before the challenge ends, and are awarded through Supabase challenge
 participation tables. Challenge badges can appear near Field trip profile
@@ -300,7 +297,7 @@ Achievements introduced after users already have local scan history can define a
 
 ## Milestone Toasts
 
-`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by Field trip progress, achievement unlocks, and the `New to Naturebook` dictionary-contribution banner. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard outings in server order, visible Seasonal Challenges in server order, achievements in their existing order, then the dictionary milestone. It filters Seasonal Challenge progress before caching, refresh publication, or presentation whenever Events are disabled. Foreground and background completion paths share the coordinator and are deduplicated by final saved scan ID. Retryable Field trip failures do not finalize that deduplication key or discard the selected goal; they use bounded retries while an independent milestone-delivery key prevents ordinary achievements and dictionary feedback from replaying after recovery. The presenter controls visual presentation, haptics, the 3.5-second timeout, swipe/close dismissal, VoiceOver announcements, queue transitions, achievement detail routing, and typed Field trip/challenge routing. It does not mutate achievement progress, Field trip progress, analytics, scan data, dictionary state, or native iOS notification authorization.
+`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by Field trip progress, achievement unlocks, and the `New to Naturebook` dictionary-contribution banner. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard outings in server order, Seasonal Challenges in server order, achievements in their existing order, then the dictionary milestone. Foreground and background completion paths share the coordinator and are deduplicated by final saved scan ID. Retryable Field trip failures do not finalize that deduplication key or discard the selected goal; they use bounded retries while an independent milestone-delivery key prevents ordinary achievements and dictionary feedback from replaying after recovery. The presenter controls visual presentation, haptics, the 3.5-second timeout, swipe/close dismissal, VoiceOver announcements, queue transitions, achievement detail routing, and typed Field trip/challenge routing. It does not mutate achievement progress, Field trip progress, analytics, scan data, dictionary state, or native iOS notification authorization.
 
 `ProfileTabView` keys its statistics task by both the ordinary refresh token and
 the current authentication/account identity. On cold launch it can render local

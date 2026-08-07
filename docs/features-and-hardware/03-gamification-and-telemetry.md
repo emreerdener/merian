@@ -28,10 +28,8 @@ Tracks device-local discovery milestones and achievement notification state.
   asks `GamificationManager.evaluateAchievementsForNotifications` for newly
   eligible awards without presenting them early, evaluates
   `SpeciesData.isNewToMerianDictionary`, and batches standard outing progress,
-  visible Seasonal Challenge progress, achievements, then `New to Naturebook`.
-  `FieldTripEventsAvailability` removes challenge progress before caching,
-  routing, refresh publication, or presentation when Events are staged off. Both
-  foreground and background scan completion use this boundary and deduplicate
+  Seasonal Challenge progress, achievements, then `New to Naturebook`.
+  Foreground and background scan completion use this boundary and deduplicate
   by final scan ID. The old local `CelebrationBanner` confetti overlay has been
   removed. A scan may enqueue progress for several eligible experiences, with
   at most one credited goal in each. The persistent Insight contribution card
