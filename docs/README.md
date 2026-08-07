@@ -95,10 +95,14 @@ as their permanent engineering identity.
   all-version head before disclosure compatibility, so any head revocation stays
   deny-wins across app upgrades. Completed users remain on a launch-matched
   neutral root while required account evidence is unknown, rather than briefly
-  seeing approval controls during restoration. Synchronization failures retain
+  seeing approval controls during restoration. An expired cached Supabase
+  session remains a known, in-progress account restoration until Auth emits
+  `tokenRefreshed` or `signedOut`; expiry alone is not a no-session result.
+  Synchronization failures retain
   that root with bounded automatic and explicit retry. Once an authenticated
   account enters missing-local-evidence restoration, only a durable,
-  identity-fenced authoritative merge may select the scanner or Powered by AI.
+  identity-fenced authoritative merge may select the scanner or Ready consent
+  screen.
   Internal test builds may continue; public production remains blocked until
   **iOS Build and Test** and **Supabase Candidate Validation** pass the same
   candidate SHA, plus App Store 18+, paid Gemini billing/DPA, and counsel

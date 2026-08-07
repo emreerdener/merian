@@ -20,11 +20,13 @@ For internal test builds, the App Store, billing/DPA, and counsel approvals are
 explicitly deferred. That deferral permits continued engineering and internal
 beta validation; it does not authorize production submission or public release.
 
-The shorter disclosure, analytics label, and Analytics → Age → Terms ordering
-currently in the app are an explicit product-owner choice. They now carry fresh
-Gemini and analytics disclosure versions so immutable receipts do not mix
-different text under one version. Counsel approval of that retained copy remains
-an external production requirement.
+The disclosure and three choice statements remain the product-owner-selected,
+versioned copy. The screen now gives them explicit context with the **One last
+step** title, a required Age → Terms/Gemini group, and a separate optional
+Analytics group. Because the displayed disclosure and action statements did not
+change, existing Gemini and analytics disclosure versions and immutable
+receipts remain valid. Counsel approval of the retained copy and revised
+hierarchy remains an external production requirement.
 
 This record is the canonical status source for the adult, Terms, Google Gemini,
 and PostHog consent release. Architecture documents describe the required end
@@ -62,26 +64,32 @@ pass the same final-bundle check. See the
 
 ## Required Product Contract
 
-The onboarding order remains Welcome → Camera → Location → Powered by AI. The
-final screen must show this disclosure before its controls:
+The onboarding order remains Welcome → Camera → Location → Ready. The final
+screen is titled **One last step** and must show this disclosure before its
+controls:
 
 > Naturebook sends observation data to Google Gemini for AI-powered
 > identification.
 
-It presents three initially-off, left-aligned switches:
+It presents three initially-off, left-aligned switches grouped by consequence:
 
-1. **Optional:** “Share usage and diagnostics to help improve Naturebook.”
-2. **Required:** “I confirm I am 18 or older.”
-3. **Required:** “I accept the terms and allow this data sharing.” The word
+1. Under **Required to start scanning:** “I confirm I am 18 or older.”
+2. Under **Required to start scanning:** “I accept the terms and allow this data
+   sharing.” The word
    “terms” links to the full Terms of Service.
+3. Under **Optional — change anytime in Settings:** “Share usage and diagnostics
+   to help improve Naturebook.”
 
 Only the two required switches gate **Start scanning**. Withholding or withdrawing
 analytics permission must never block core functionality. Existing beta users
 stay on a launch-matched neutral surface while the initial session and
-authoritative consent evidence are reconciled. If the resolved account still
-lacks current required evidence, they return directly to Powered by AI without
-repeating Camera or Location; restored evidence opens the workspace without
-presenting approval controls. A network, decoding, pending-row push, or
+authoritative consent evidence are reconciled. An expired cached Supabase
+session remains a known account on that surface until `tokenRefreshed` or
+`signedOut`; access-token expiry alone must not select the Ready consent screen.
+If the resolved account still lacks current required evidence, they return
+directly to the Ready consent
+screen without repeating Camera or Location; restored evidence opens the
+workspace without presenting approval controls. A network, decoding, pending-row push, or
 ledger-persistence failure is not evidence of absence: the neutral surface
 remains the active root, offers an immediate retry, and performs three bounded
 account-fenced retries before requiring an explicit retry. Duplicate
@@ -156,7 +164,7 @@ not exact-SHA runtime evidence and is not a production approval.
 | `CONSENT-001` | PostHog uses a closed-by-default, host-scoped transport gate. Withdrawal closes transport before preserving `reset → optOut → close`, and permission generations reject stale setup work. | Exact-SHA hosted regression execution. |
 | `CONSENT-002` | Ghost handoff durably rebinds all four immutable ledgers, synchronizes/refetches the permanent account, and only then removes the retry proof. Analytics remains suppressed until completion. | Exact-SHA hosted handoff execution. |
 | `CONSENT-004` | Synchronization generation-fences every awaited operation. The final merge independently rechecks cancellation, observed account, synchronous Supabase SDK session, and generation before any ledger mutation, persistence, or analytics change. | Exact-SHA account-switch regression execution. |
-| `CONSENT-005` | Restoring or changing an account enters an explicit remote-authority wait state before cached consent is refreshed or applied. Analytics stays closed while every target-owned pending adult, Terms, Gemini, and analytics row is pushed and authoritative state is refetched. Only a verified, identity-fenced ledger write may resolve account restoration. Authoritative absence or revocation may route to Powered by AI; fetch, decoding, pending-row push, and persistence failures remain on the neutral restoration surface with bounded automatic and explicit retry. Duplicate auth cannot consume the budget, and account/generation invalidation cannot leave a canceled timer represented as pending. | Exact-SHA cached grant, remote absence/revocation, offline revoke → switch away → return, synchronization-failure retry, persistence failure, duplicate-auth, and invalidated-retry execution. |
+| `CONSENT-005` | Restoring or changing an account enters an explicit remote-authority wait state before cached consent is refreshed or applied. An expired cached Auth session retains its known user in restoration while authenticated request state stays closed; it is not collapsed into sign-out before the SDK's refresh result. Analytics stays closed while every target-owned pending adult, Terms, Gemini, and analytics row is pushed and authoritative state is refetched. Only a verified, identity-fenced ledger write may resolve account restoration. Authoritative absence or revocation may route to the Ready consent screen; fetch, decoding, pending-row push, and persistence failures remain on the neutral restoration surface with bounded automatic and explicit retry. Duplicate auth cannot consume the budget, and account/generation invalidation cannot leave a canceled timer represented as pending. | Exact-SHA expired-session refresh success and terminal sign-out, cached grant, remote absence/revocation, offline revoke → switch away → return, synchronization-failure retry, persistence failure, duplicate-auth, and invalidated-retry execution. |
 | `CONSENT-006` | Analytics-consent Realtime independently owns channel and subscribed-user identity, generation-fences stale listeners, and gives failed subscriptions an account-owned bounded retry. | Exact-SHA reconnect and cross-device execution. |
 | `CONSENT-007` | OAuth replacement suppresses analytics and closes consent Realtime before session installation; success and failure reconcile the SDK's actual session under a transition generation. | Exact-SHA account-replacement execution. |
 | `CONSENT-009` | The retained internal copy has distinct Gemini and analytics disclosure versions, and forward-only server compatibility preserves immutable historical receipts. | Exact-SHA migration/client contracts and replacement-build validation. |
@@ -226,14 +234,18 @@ result become canonical only after both hosted gates pass on the same SHA.
    reconciliation, Realtime propagation, ghost-profile merging, and cold launch
    with completed onboarding after clearing only the local consent ledger. The
    latter must stay on the launch-matched restoration surface and open the
-   workspace without a Powered by AI frame when the account restores current
-   evidence; a genuinely absent account must proceed to Powered by AI only after
-   reconciliation resolves. Interrupt connectivity on TestFlight and verify the
-   same surface exposes retry without mounting Powered by AI. Require the
+   workspace without a Ready consent frame when the account restores current
+   evidence; a genuinely absent account must proceed to Ready only after
+   reconciliation resolves. Repeat the cold launch with a deliberately expired
+   cached access token. The known account must remain on the neutral surface
+   through refresh, with no Ready frame before `tokenRefreshed`; also exercise a
+   terminal invalid refresh token and require `signedOut` before Ready becomes
+   eligible. Interrupt connectivity on TestFlight and verify the
+   same surface exposes retry without mounting Ready. Require the
    unchanged candidate's hosted synchronization- and ledger-write-failure
    fixtures to prove decoding, pending-row push, and persistence errors have the
    same outcome; only a later successful authoritative merge may choose the
-   workspace or Powered by AI. Verify duplicate auth does not advance the
+   workspace or Ready. Verify duplicate auth does not advance the
    attempt and an account/generation transition cancels the old timer, rejects
    its stale wake, and starts the replacement reconciliation with a fresh
    budget. Also verify both inverse sequences for each

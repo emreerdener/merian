@@ -70,10 +70,11 @@ Current onboarding has welcome, camera, location, and ready steps:
 - [`ReadyStepView.swift`](../../apps/ios/Merian/Features/Onboarding/Steps/Ready/ReadyStepView.swift)
 
 The product-owner-approved internal-testing disclosure is: “Naturebook sends observation
-data to Google Gemini for AI-powered identification.” It presents three initially-off
-switches in the retained Analytics → Age → Terms order: optional usage and diagnostics,
-required 18+ self-attestation, and required agreement to the inline-linked Terms plus
-permission for that data sharing. Only the final two enable **Start scanning**. The UI
+data to Google Gemini for AI-powered identification.” The **One last step** screen
+presents three initially-off switches grouped by consequence: **Required to start
+scanning** contains 18+ self-attestation and agreement to the inline-linked Terms plus
+permission for that data sharing; **Optional — change anytime in Settings** contains
+usage and diagnostics. Only the required pair enables **Start scanning**. The UI
 does not name PostHog; PostHog remains the documented analytics provider in the Terms and
 Privacy Policy. There is no separate Decline action because the app has no non-AI
 operating mode; withholding required permission keeps scanning unavailable and prevents
@@ -100,7 +101,9 @@ timestamps and no client update/delete path. Existing installs with the old
 onboarding flag but no current local evidence remain on a neutral restoration
 surface until the initial session establishes no active account or an
 identity-fenced authoritative merge persists. An authenticated account enters
-this disclosure only when that successful merge establishes absence. Fetch,
+this disclosure only when that successful merge establishes absence. A cached
+session with an expired access token remains a known account during refresh and
+cannot temporarily mount the disclosure. Fetch,
 decoding, pending consent upload, and verified-ledger-write failures retain the
 neutral surface with bounded automatic and explicit retry; they do not ask the
 user to consent again or constitute evidence that consent is absent.
@@ -136,8 +139,8 @@ disposable-database gates in the
 [production consent readiness record](./production-consent-readiness-2026-08-03.md).
 
 Required-consent root routing is stricter than the analytics-only gate above.
-Remote absence may present Powered by AI only after a successful durable merge;
-synchronization failure remains unresolved on the neutral restoration surface.
+Remote absence may present the Ready consent screen only after a successful
+durable merge; synchronization failure remains unresolved on the neutral restoration surface.
 The surface offers immediate retry, performs bounded 5-, 10-, and 20-second
 attempts, and rejects stale retry work after an account or synchronization
 generation changes.

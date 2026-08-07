@@ -1259,6 +1259,12 @@ and `KeychainManager` migration logic. Do not inline
   auth state listener task is stored rather than fire-and-forget, consistent
   with the task handle pattern used across the engine layer. This allows the
   task to be cancelled on deinit and prevents duplicate listener registration.
+- **Cold-start session adoption**: `AuthSessionAdoption` distinguishes no
+  session, a valid session, and an expired cached session awaiting SDK refresh.
+  The awaiting-refresh path leaves `isAuthenticated` false and `currentUser`
+  unset, but passes the cached user ID to `ConsentManager` so required-consent
+  restoration cannot briefly resolve to Ready. The subsequent
+  `tokenRefreshed` or `signedOut` event completes the decision.
 - **`lastLinkedUserId` dedup guard**: `private var lastLinkedUserId: String?` —
   prevents double RevenueCat login and double PostHog identify on cold start.
   The Supabase SDK emits two auth events per session restore (local cache read +
@@ -1573,6 +1579,9 @@ and `KeychainManager` migration logic. Do not inline
 - Root presentation distinguishes unknown account evidence from authoritative
   absence with `.awaitingInitialSession`, `.reconciling`,
   `.waitingToRetry`, `.retryRequired`, and `.resolved`.
+- A cached session whose access token is expired enters `.reconciling` under
+  its known user ID while Supabase refreshes it; token expiry alone never
+  resolves restoration as unauthenticated.
 - Once an authenticated account enters restoration because local required
   evidence is missing, only `merge(_:for:generation:)`, after identity
   validation and a verified ledger write, may resolve it. A successful empty

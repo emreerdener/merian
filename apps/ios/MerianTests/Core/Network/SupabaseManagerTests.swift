@@ -29,6 +29,32 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertNotNil(authState)
     }
 
+    func testAuthSessionAdoptionDistinguishesRefreshFromSignOut() {
+        let userId = UUID()
+
+        XCTAssertEqual(
+            SupabaseManager.authSessionAdoption(
+                userId: userId,
+                isExpired: true
+            ),
+            .awaitingRefresh(userId: userId)
+        )
+        XCTAssertEqual(
+            SupabaseManager.authSessionAdoption(
+                userId: userId,
+                isExpired: false
+            ),
+            .authenticated(userId: userId)
+        )
+        XCTAssertEqual(
+            SupabaseManager.authSessionAdoption(
+                userId: nil,
+                isExpired: false
+            ),
+            .signedOut
+        )
+    }
+
     func testGetValidAuthHeadersUsesDeterministicTestStub() async throws {
         let headers = try await supabaseManager.getValidAuthHeaders()
 

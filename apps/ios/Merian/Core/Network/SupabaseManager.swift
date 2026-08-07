@@ -47,6 +47,12 @@ enum SupabaseAuthTransitionError: LocalizedError {
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
 @MainActor
 @Observable final class SupabaseManager: NSObject, ASWebAuthenticationPresentationContextProviding {
+    enum AuthSessionAdoption: Equatable {
+        case signedOut
+        case awaitingRefresh(userId: UUID)
+        case authenticated(userId: UUID)
+    }
+
     private enum AppleSignInBootstrapError: LocalizedError {
         case nonceGenerationFailed(OSStatus)
         case invalidCredentialRegistrationReceipt
@@ -254,6 +260,17 @@ enum SupabaseAuthTransitionError: LocalizedError {
         }
     }
 
+    static func authSessionAdoption(
+        userId: UUID?,
+        isExpired: Bool
+    ) -> AuthSessionAdoption {
+        guard let userId else { return .signedOut }
+        if isExpired {
+            return .awaitingRefresh(userId: userId)
+        }
+        return .authenticated(userId: userId)
+    }
+
     private func setupAuthStateListener() async {
         for await state in client.auth.authStateChanges {
             do {
@@ -270,11 +287,17 @@ enum SupabaseAuthTransitionError: LocalizedError {
                     "Could not read the guest handoff queue; analytics remains suppressed: \(error.localizedDescription, privacy: .private)"
                 )
             }
-            if let session = state.session, !session.isExpired {
+            let sessionAdoption = Self.authSessionAdoption(
+                userId: state.session?.user.id,
+                isExpired: state.session?.isExpired ?? false
+            )
+            switch sessionAdoption {
+            case .authenticated:
                 guard !isSigningOut else {
                     MerianLog.auth.debug("Ignored authenticated SDK event while sign-out is in progress.")
                     continue
                 }
+                guard let session = state.session else { continue }
                 self.currentUser = session.user
                 self.isAuthenticated = true
                 ConsentManager.shared.observeSession(userId: session.user.id)
@@ -303,7 +326,24 @@ enum SupabaseAuthTransitionError: LocalizedError {
                         }
                     }
                 }
-            } else {
+            case .awaitingRefresh(let userId):
+                guard !isSigningOut else {
+                    MerianLog.auth.debug("Ignored refreshing SDK session while sign-out is in progress.")
+                    continue
+                }
+
+                // With emitLocalSessionAsInitialSession enabled, Supabase emits an
+                // expired cached session before refreshing it. The account identity
+                // is known even though authenticated requests must remain closed.
+                // Preserve that identity for consent restoration so the app root
+                // cannot briefly present approval UI before tokenRefreshed arrives.
+                self.currentUser = nil
+                self.isAuthenticated = false
+                ConsentManager.shared.observeSession(userId: userId)
+                MerianLog.auth.debug(
+                    "Cached auth session is awaiting refresh; consent restoration remains pending."
+                )
+            case .signedOut:
                 self.currentUser = nil
                 self.isAuthenticated = false
                 ConsentManager.shared.observeSession(userId: nil)

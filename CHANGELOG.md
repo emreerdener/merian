@@ -34,7 +34,10 @@ TestFlight, App Store, support, and QA.
 
 - Cold launch now keeps completed users on a launch-matched restoration surface
   while account consent is reconciled, instead of briefly flashing the approval
-  screen before opening the scanner.
+  screen before opening the scanner. This now includes an expired cached
+  Supabase session: its known account remains in restoration while the SDK
+  refreshes the access token, and only the later refresh or signed-out result
+  may advance the root.
 - A failed consent restore no longer behaves like proof that consent is absent.
   The neutral surface now offers **Try Again**, performs three bounded retries,
   preserves its budget across duplicate auth notifications, and rejects stale

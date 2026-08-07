@@ -57,6 +57,39 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertFalse(consentManager.isRestoringRequiredConsent)
     }
 
+    func testExpiredCachedSessionKeepsCompletedUserOffApprovalScreenWhileRefreshing() {
+        let ownerUserId = UUID()
+        let manager = ConsentManager(
+            ledgerStore: FaultInjectingConsentLedgerStore(),
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { _, _ in }
+        )
+
+        let adoption = SupabaseManager.authSessionAdoption(
+            userId: ownerUserId,
+            isExpired: true
+        )
+        guard case .awaitingRefresh(let observedUserId) = adoption else {
+            XCTFail("An expired cached session must remain a pending restoration.")
+            return
+        }
+        manager.observeSession(userId: observedUserId)
+
+        XCTAssertEqual(
+            manager.requiredConsentRestorationState,
+            .reconciling(userId: ownerUserId)
+        )
+        XCTAssertTrue(manager.isRestoringRequiredConsent)
+        XCTAssertEqual(
+            AppRootPresentationPolicy.presentation(
+                hasCompletedOnboarding: true,
+                hasCurrentRequiredConsent: manager.hasCurrentRequiredConsent,
+                isRestoringRequiredConsent: manager.isRestoringRequiredConsent
+            ),
+            .restoringConsent
+        )
+    }
+
     func testMissingAccountConsentWaitsUntilAuthoritativeMergeCompletes() throws {
         let ownerUserId = UUID()
         let store = FaultInjectingConsentLedgerStore()
@@ -738,6 +771,15 @@ final class OnboardingViewModelTests: XCTestCase {
         let adult = ReadyStepView.adultStatement
         let analytics = ReadyStepView.analyticsStatement
 
+        XCTAssertEqual(ReadyStepView.title, "One last step")
+        XCTAssertEqual(
+            ReadyStepView.requiredSectionTitle,
+            "Required to start scanning"
+        )
+        XCTAssertEqual(
+            ReadyStepView.optionalSectionTitle,
+            "Optional — change anytime in Settings"
+        )
         XCTAssertEqual(disclosure, ConsentPolicy.geminiDisclosureText)
         XCTAssertEqual(consent, ConsentPolicy.combinedAcceptanceText)
         XCTAssertEqual(adult, ConsentPolicy.adultConfirmationText)

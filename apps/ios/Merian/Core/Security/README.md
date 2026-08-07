@@ -93,7 +93,7 @@ the current adult, Terms, and Gemini records moments later.
 | State | Meaning |
 |---|---|
 | `.awaitingInitialSession` | No initial auth result has been observed yet. |
-| `.reconciling(userId:)` | The active account lacks current local evidence and its pending rows plus authoritative remote state are being reconciled. |
+| `.reconciling(userId:)` | A known account, including an expired cached session awaiting refresh, lacks current local evidence and its pending rows plus authoritative remote state are being reconciled. |
 | `.waitingToRetry(userId:attempt:)` | Reconciliation failed without establishing absence; an account- and generation-fenced automatic retry is pending. |
 | `.retryRequired(userId:)` | Three automatic retries were exhausted; the neutral surface offers an explicit retry. |
 | `.resolved` | The initial session is unauthenticated, current local required evidence already bypasses restoration, or an identity-fenced authoritative merge has durably established a previously unknown account state. |
@@ -103,6 +103,12 @@ the enum has not resolved. Current required evidence always wins and makes the
 computed value false. `AppRootPresentationPolicy` in `MerianApp.swift` uses that
 signal to hold a completed user on a launch-matched neutral surface instead of
 mounting the approval screen during an in-flight restore.
+
+Supabase token expiry does not mean the account is absent. On cold launch, an
+expired cached session contributes its user ID to this restoration state while
+`SupabaseManager.isAuthenticated` remains false. A later `tokenRefreshed` event
+adopts the valid session normally; a terminal Auth cleanup emits `signedOut`,
+which is the event that may establish no active account.
 
 Once missing local evidence has entered restoration, the state resolves only
 after an identity-fenced authoritative merge, including a merge that proves the

@@ -28,6 +28,29 @@ corresponding request boundaries. The main application has no ATS exception; see
 the
 [iOS App Transport Security Contract](../../../../../docs/development-guides/17-ios-transport-security.md).
 
+## Supabase Auth cold-start adoption
+
+`MerianSupabaseClientFactory` enables
+`emitLocalSessionAsInitialSession`. The pinned Supabase Swift SDK therefore
+emits the cached session immediately, including a session whose access token is
+expired, and refreshes an expired session in the background. `SupabaseManager`
+classifies the initial value before mutating observable auth state:
+
+- no session is `.signedOut` and may resolve required-consent restoration as
+  unauthenticated;
+- a non-expired session is `.authenticated` and may start entitlement,
+  identity, and synchronization work; and
+- an expired session with a user is `.awaitingRefresh`. Authenticated request
+  state remains closed and `currentUser` remains unset, but the known user ID is
+  passed to `ConsentManager` so a completed user stays on the launch-matched
+  restoration root.
+
+The SDK's later `tokenRefreshed` event adopts the valid session through the
+normal authenticated path. A terminal refresh-token cleanup emits `signedOut`
+and only then establishes that no active account remains. Never route an
+expired cached session through sign-out cleanup: doing so can briefly resolve
+restoration and mount the Ready approval screen before refresh completes.
+
 ## `MerianNetworkClient`
 
 - Builds authenticated requests to Supabase Edge Functions and retains the
@@ -429,7 +452,8 @@ Non-cancellation synchronization failure is not remote authority. While a
 completed account still lacks current local required evidence, `ConsentManager`
 keeps the launch-matched neutral root active, exposes explicit retry, and runs
 5-, 10-, and 20-second outer retries. Only the final identity-fenced merge after
-verified ledger persistence may resolve to the workspace or Powered by AI.
+verified ledger persistence may resolve to the workspace or Ready consent
+screen.
 
 Analytics-consent Realtime owns its requested channel user and confirmed
 subscribed user independently of session observation. Failed subscriptions

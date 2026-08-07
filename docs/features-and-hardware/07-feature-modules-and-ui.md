@@ -35,13 +35,14 @@ owns native permission delegates such as `LocationPermissionDelegate`.
     observing authorization changes. Provides a transparent "Skip for now"
     fallback button, satisfying App Store Review requirements without alienating
     free users.
-- **Final consent surface (`ReadyStepView`)**: States, “Naturebook sends
-  observation data to Google Gemini for AI-powered identification,” and presents
-  left-aligned, initially-off switches in the retained Analytics → Age → Terms
-  order. Usage/diagnostics is optional; 18+ self-attestation and the
-  inline-linked Terms/data-sharing permission are required. Only the latter two
-  enable **Start scanning**. PostHog is the documented analytics provider, but
-  its name and an “Optional” suffix are intentionally absent from the UI label.
+- **Final consent surface (`ReadyStepView`)**: Uses the title **One last step**,
+  states, “Naturebook sends observation data to Google Gemini for AI-powered
+  identification,” and presents left-aligned, initially-off switches in two
+  explicit groups. **Required to start scanning** contains 18+
+  self-attestation and the inline-linked Terms/data-sharing permission;
+  **Optional — change anytime in Settings** contains usage/diagnostics. Only the
+  required pair enables **Start scanning**. PostHog is the documented analytics
+  provider, but its name remains absent from the UI label.
 - **Root View Handoff (`MerianApp`)**: `AppRootPresentationPolicy` combines the
   injected onboarding flag, `ConsentManager.hasCurrentRequiredConsent`, and
   `ConsentManager.isRestoringRequiredConsent`. When the user completes Step 4
@@ -53,7 +54,9 @@ owns native permission delegates such as `LocationPermissionDelegate`.
   after 350 milliseconds. Failed synchronization keeps that surface active
   with bounded automatic retry and an immediate **Try Again** action. An
   authoritative no-session result may enter `.ready`; an authenticated account
-  may do so only after reconciliation proves evidence absent. Because both
+  may do so only after reconciliation proves evidence absent. An expired cached
+  session is classified as a known account awaiting refresh—not as no session—
+  so it cannot transiently select `.ready`. Because both
   `OnboardingView` and
   `CaptureWorkspaceView` remain uninitialized during restoration, approval
   controls, hardware, and provider work cannot flash into an indeterminate

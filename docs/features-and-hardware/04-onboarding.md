@@ -53,7 +53,7 @@ enum OnboardingStep: Int, CaseIterable {
 | `.welcome` | `WelcomeStepView` | Branding screen — no permission request |
 | `.camera` | `CameraPermissionStepView` | Requests `AVCaptureDevice` camera permission |
 | `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` when-in-use authorization via `LocationPermissionDelegate` |
-| `.ready` | `ReadyStepView` | Names Google Gemini as the recipient of observation data for AI-powered identification and presents three initially-off, left-aligned switches in internal-testing order: optional usage/diagnostics, required 18+ self-attestation, and required Terms/data-sharing permission with an inline Terms link. **Start scanning** requires the two required switches only. |
+| `.ready` | `ReadyStepView` | Presents **One last step**, names Google Gemini as the recipient of observation data for AI-powered identification, and groups three initially-off, left-aligned switches by consequence. **Required to start scanning** contains the 18+ self-attestation and Terms/data-sharing permission with an inline Terms link; **Optional — change anytime in Settings** contains usage/diagnostics. **Start scanning** requires the two required switches only. |
 
 The first three step views use `OnboardingStepWrapper` for consistent layout
 and action chrome. The ready step uses a dedicated layout so the disclosure,
@@ -135,12 +135,21 @@ or initialize the Capture workspace. A recoverable synchronization failure
 replaces the progress indicator with neutral explanatory copy and a **Try
 Again** action during the automatic retry cycle and after its exhaustion.
 
+`SupabaseManager` configures Auth to emit the locally cached session immediately.
+That initial session may carry a known user while its access token is expired.
+The listener classifies this as `.awaitingRefresh`, keeps authenticated request
+state closed, and passes the known user to `ConsentManager`; it must not collapse
+the event into a no-session result. The root therefore remains neutral until
+Supabase emits `tokenRefreshed` with a valid session or `signedOut` after a
+terminal refresh failure.
+
 `ConsentManager.RequiredConsentRestorationState` distinguishes evidence that is
 not known yet from evidence that is known to be absent:
 
 - `.awaitingInitialSession` covers startup before the initial auth result.
-- `.reconciling(userId:)` covers an authenticated account whose local ledger
-  does not yet prove current adult, Terms, and Gemini consent.
+- `.reconciling(userId:)` covers a known account—either valid or awaiting token
+  refresh—whose local ledger does not yet prove current adult, Terms, and
+  Gemini consent.
 - `.waitingToRetry(userId:attempt:)` records a failed reconciliation and its
   next bounded automatic retry without changing the account's authority.
 - `.retryRequired(userId:)` records an exhausted automatic budget and exposes
@@ -156,7 +165,7 @@ stateDiagram-v2
     [*] --> awaitingInitialSession
     awaitingInitialSession --> resolved: no active session
     awaitingInitialSession --> resolved: current local evidence already exists
-    awaitingInitialSession --> reconciling: account lacks local evidence
+    awaitingInitialSession --> reconciling: cached or valid account lacks local evidence
     reconciling --> resolved: authoritative merge persisted
     reconciling --> waitingToRetry: failure and retry budget remains
     reconciling --> retryRequired: failure after retry budget exhausted
@@ -183,8 +192,10 @@ case.
 
 An older install with completed onboarding but no current receipt therefore
 enters directly at `.ready` only after initial session restoration determines
-that the receipt is genuinely absent; it never flashes `.ready` while account
-evidence is still being fetched. A material adult policy, Terms, or Gemini
+that the receipt is genuinely absent. An expired cached session remains part of
+that restoration until refresh succeeds or Auth establishes sign-out, so the
+app never flashes `.ready` while account evidence is still being fetched. A
+material adult policy, Terms, or Gemini
 disclosure change increments its policy version and routes every account
 without that version back to the same step after reconciliation.
 

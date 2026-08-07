@@ -33,8 +33,8 @@ onboarding flow or Capture workspace:
    `CaptureWorkspaceView`.
 3. Completed onboarding plus missing local evidence presents
    `ConsentRestorationView` while `ConsentManager` is awaiting the initial auth
-   result, reconciling the restored account, or holding an automatic/explicit
-   retry.
+   result, waiting for an expired cached session to refresh, reconciling the
+   restored account, or holding an automatic/explicit retry.
 4. An authoritative initial result with no active session presents onboarding
    at `.ready`. For an authenticated account, a successful merge presents
    `.ready` when evidence is absent or opens the workspace when evidence is
@@ -43,7 +43,11 @@ onboarding flow or Capture workspace:
 `ConsentRestorationView` matches the black launch screen and waits 350
 milliseconds before showing an accessible progress indicator. It prevents a
 completed user from seeing actionable approval controls for a fraction of a
-second while account evidence loads. A non-cancellation reconciliation failure
+second while account evidence loads. Supabase's immediate local-session event
+may contain a known user with an expired access token; `SupabaseManager` keeps
+that user attached to consent restoration while leaving authenticated request
+state closed. Only the subsequent `tokenRefreshed` or `signedOut` event may
+advance the root. A non-cancellation reconciliation failure
 retains this neutral root, shows an immediate retry action, and enters a bounded
 5-, 10-, then 20-second account-fenced retry schedule. Exhaustion keeps the
 explicit retry action visible; it does not treat the failure as authoritative

@@ -1341,7 +1341,9 @@ actual import, and permission-denial UI require the physical-device checklist in
 - **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine,
   the full inline Terms destination, final-screen required/optional switch
   combinations, returning-user direct routing, and completion persistence. It
-  also proves missing evidence waits for the initial session, authenticated
+  also proves missing evidence waits for the initial session, an expired cached
+  session retains the known account on the neutral root while refresh is
+  pending, authenticated
   missing evidence remains pending through authoritative merge, fetch and
   durable-write failures remain retryable, the 5-/10-/20-second budget is
   bounded, duplicate auth preserves that budget, stale account retries are
@@ -1349,6 +1351,9 @@ actual import, and permission-denial UI require the physical-device checklist in
   It also verifies a resolved same-account session cannot re-enter restoration.
   Every throwing assertion must be declared correctly so this file cannot
   prevent the entire unit target from compiling.
+- **`SupabaseManagerTests.swift` auth-adoption coverage**: Locks the three cold-
+  start classifications: nil is signed out, a current session is authenticated,
+  and an expired cached session is awaiting refresh rather than signed out.
 
 ## Testing Identify Requests and Activity
 

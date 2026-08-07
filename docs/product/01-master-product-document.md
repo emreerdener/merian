@@ -644,21 +644,26 @@ Current onboarding contains four steps:
 1. Welcome.
 2. Camera.
 3. Location.
-4. Ready / **Powered by AI**.
+4. Ready / **One last step**.
 
 The internal-testing screen discloses: “Naturebook sends observation data to
 Google Gemini for AI-powered identification.” It presents three left-aligned,
-initially-off switches in this order:
+initially-off switches grouped by consequence:
 
-1. “Share usage and diagnostics to help improve Naturebook.”
-2. “I confirm I am 18 or older.”
-3. “I accept the terms and allow this data sharing.” The word **terms** links
+1. **Required to start scanning:** “I confirm I am 18 or older.”
+2. **Required to start scanning:** “I accept the terms and allow this data
+   sharing.” The word **terms** links
    inline to the Terms of Service.
+3. Under **Optional — change anytime in Settings:** “Share usage and diagnostics
+   to help improve Naturebook.”
 
 Only age confirmation and Terms/Gemini permission enable **Start scanning**.
 Analytics never blocks onboarding or core functionality. Existing beta users
 with the old onboarding flag remain on a launch-matched neutral surface while
-the initial session and authoritative account evidence are restored. If that
+the initial session and authoritative account evidence are restored. A known
+cached session with an expired access token remains on that surface until
+Supabase refreshes it or establishes sign-out; expiry is not treated as an
+unauthenticated result. If that
 resolved account still lacks current required evidence, they route directly to
 this screen without repeating Camera or Location. If restoration supplies the
 evidence, they open the scanner without seeing the approval controls. A fetch,
@@ -666,8 +671,8 @@ decode, pending consent upload, or verified-ledger-write failure keeps the neutr
 surface active, offers **Try Again**, and performs bounded 5-, 10-, and
 20-second retries. It does not ask the user to consent again. For an
 authenticated restoration, only a successful authoritative merge may establish
-absence and present Powered by AI; an authoritative no-session result may begin
-the local consent flow directly.
+absence and present the Ready consent screen; an authoritative no-session
+result may begin the local consent flow directly.
 
 Photo-library and notification permissions are requested progressively at the
 point of need. Hardware initialization, provider work, and ordinary

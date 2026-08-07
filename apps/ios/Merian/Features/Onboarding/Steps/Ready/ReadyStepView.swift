@@ -12,10 +12,13 @@ struct ReadyStepView: View {
     let onFinish: (_ analyticsEnabled: Bool) -> Void
 
     // MARK: - Disclosure Copy
+    static let title = "One last step"
     static let disclosure = ConsentPolicy.geminiDisclosureText
     static let adultStatement = ConsentPolicy.adultConfirmationText
     static let consentStatement = ConsentPolicy.combinedAcceptanceText
     static let analyticsStatement = ConsentPolicy.analyticsDisclosureText
+    static let requiredSectionTitle = "Required to start scanning"
+    static let optionalSectionTitle = "Optional — change anytime in Settings"
     static let termsURL = PublicBrand.websiteURL(path: "terms")
     static let requiredIndicator = " *"
 
@@ -53,7 +56,7 @@ struct ReadyStepView: View {
                     OnboardingIllustration(imageName: "bird-magnifier")
                         .padding(.top, OnboardingIllustration.topPadding)
 
-                    Text("Powered by AI")
+                    Text(Self.title)
                         .font(.system(size: 38, weight: .bold))
                         .foregroundStyle(Color.primary)
                         .multilineTextAlignment(.center)
@@ -113,25 +116,43 @@ struct ReadyStepView: View {
 
     // MARK: - Consent
     private var consentControls: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
+            consentSectionTitle(Self.requiredSectionTitle)
+
+            VStack(alignment: .leading, spacing: 18) {
+                consentRow(
+                    isOn: $hasConfirmedAdultEligibility,
+                    statement: Self.adultStatement,
+                    isRequired: true,
+                    accessibilityHint: "Required to start scanning",
+                    accessibilityIdentifier: "Ready_AgeSwitch"
+                )
+
+                linkedGeminiConsentRow
+            }
+            .padding(.top, 12)
+
+            Divider()
+                .padding(.vertical, 18)
+
+            consentSectionTitle(Self.optionalSectionTitle)
+
             consentRow(
                 isOn: $hasAllowedAnalytics,
                 statement: Self.analyticsStatement,
-                accessibilityHint: "Optional and does not affect app functionality",
+                accessibilityHint: "Optional, does not affect scanning, and can be changed later in Settings",
                 accessibilityIdentifier: "Ready_AnalyticsSwitch"
             )
-
-            consentRow(
-                isOn: $hasConfirmedAdultEligibility,
-                statement: Self.adultStatement,
-                isRequired: true,
-                accessibilityHint: "Required to start scanning",
-                accessibilityIdentifier: "Ready_AgeSwitch"
-            )
-
-            linkedGeminiConsentRow
+            .padding(.top, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func consentSectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.secondary)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func consentRow(
@@ -174,7 +195,9 @@ struct ReadyStepView: View {
             .tint(.accentColor)
             .fixedSize()
             .accessibilityLabel(Self.consentStatement)
-            .accessibilityHint("Required to start scanning")
+            .accessibilityHint(
+                "Required to start scanning and allows Google Gemini to identify observations"
+            )
             .accessibilityIdentifier("Ready_GeminiTermsSwitch")
 
             Text(Self.linkedConsentStatement)
@@ -226,7 +249,7 @@ struct ReadyStepView: View {
         .accessibilityHint(
             hasRequiredConsent
                 ? "Completes setup and opens the scanner"
-                : "Confirm you are 18 or older and allow Google Gemini data sharing to continue"
+                : "Turn on both required choices to start scanning"
         )
         .padding(.bottom, 32)
     }

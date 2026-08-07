@@ -7,20 +7,23 @@ The `Steps` directory contains the individual, user-facing screens that make up 
 - **Welcome**: The initial greeting screen introducing the user to Merian.
 - **CameraPermission**: The screen explaining the need for camera access to capture organisms.
 - **LocationPermission**: The screen explaining the need for location access to provide accurate ecological context.
-- **Ready**: The final disclosure names Google Gemini as the recipient of
-  observation data for AI-powered identification. Three left-aligned switches
-  appear in the product-owner-selected internal-testing order: optional
-  usage/diagnostics, required 18+ self-attestation, and required
-  Terms/data-sharing permission with an inline Terms link. Only the two required
+- **Ready**: The final **One last step** screen names Google Gemini as the
+  recipient of observation data for AI-powered identification. Three
+  left-aligned switches appear in two explicit groups: **Required to start
+  scanning** contains the 18+ self-attestation and Terms/data-sharing
+  permission with an inline Terms link. **Optional — change anytime in
+  Settings** contains the usage/diagnostics choice. Only the two required
   switches gate **Start scanning**. Completion first appends exact, versioned
   adult, Terms, Gemini, and optional analytics evidence locally, then
   synchronizes immutable rows to the active Supabase account. Existing beta
   users route directly here without repeating Camera or Location only after
   the initial session establishes no active account or an authenticated,
   identity-fenced merge establishes that current required account evidence is
-  genuinely absent. Synchronization failures keep the launch-matched neutral
-  surface mounted with bounded automatic and explicit retry; they never mount
-  this step as a substitute for authoritative absence.
+  genuinely absent. An expired cached session is still a known account awaiting
+  refresh, so it retains the launch-matched neutral surface until Auth emits a
+  refreshed session or a signed-out result. Synchronization failures keep the
+  launch-matched neutral surface mounted with bounded automatic and explicit
+  retry; they never mount this step as a substitute for authoritative absence.
 - **Shared**: Common UI elements used across multiple steps (e.g., standard layout templates, primary action buttons).
 - **Models**: Defines the data structures or enums representing the different onboarding steps.
 

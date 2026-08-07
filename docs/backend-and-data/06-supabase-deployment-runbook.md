@@ -4902,21 +4902,26 @@ grant may be checked against current disclosure compatibility.
    provider.
 5. Distribute the processed replacement TestFlight build. Existing testers without
    current evidence must remain on the launch-matched neutral root until an
-   authoritative merge completes, then enter directly at **Powered by AI**
-   without repeating camera or location onboarding. A completed account whose
-   local ledger is cleared but whose server evidence is current must open the
-   scanner without constructing Powered by AI. In the exact-SHA automated
-   fixtures, inject both the generic non-cancellation synchronization boundary
-   and the verified-ledger-write boundary. Each must retain the neutral root,
+   authoritative merge completes, then enter directly at the **One last step**
+   Ready consent screen without repeating camera or location onboarding. A
+   completed account whose local ledger is cleared but whose server evidence is current must open the
+   scanner without constructing the Ready consent screen. In the exact-SHA
+   automated fixtures, classify an expired cached Auth session as awaiting
+   refresh and retain its account on the neutral root. Verify refresh success
+   reaches the workspace without a Ready frame, and verify an invalid refresh
+   token must emit sign-out before Ready becomes eligible. Also inject both the
+   generic non-cancellation synchronization boundary and the
+   verified-ledger-write boundary. Each must retain the neutral root,
    expose **Try Again**, and preserve the 5-, 10-, and 20-second outer retry
    sequence instead of treating failure as absence. On TestFlight, interrupt
    connectivity and confirm the same user-visible behavior.
    Exhaustion must remain explicitly retryable. Repeated same-account auth must
    not consume another attempt; account replacement must cancel stale timers,
    and a new synchronization generation must not inherit an orphaned waiting
-   state. Test every switch combination in the retained Analytics → Age → Terms
-   order: age and Gemini/Terms are required; analytics is optional and never
-   blocks scanning. Exercise the inline Terms link, VoiceOver labels and hints,
+   state. Test every switch combination in the displayed required Age →
+   Gemini/Terms group followed by optional Analytics: age and Gemini/Terms are
+   required; analytics is optional and never blocks scanning. Exercise the
+   inline Terms link, VoiceOver labels and hints,
    every supported Dynamic Type size, and the smallest supported iPhone in both
    orientations.
 6. Verify adult and Terms actions create immutable owner receipts, while Gemini

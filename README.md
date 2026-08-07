@@ -16,9 +16,9 @@ Production domain, AASA, email, backend, App Store, verification, and rollback
 steps are tracked in the
 [Naturebook rebrand rollout runbook](docs/development-guides/15-naturebook-rebrand-rollout.md).
 
-> **Consent production release hold (2026-08-03):** The final Powered by AI
-> screen and versioned adult, Terms, Gemini, and optional PostHog evidence are
-> implemented. All tracked consent findings are closed in source, including
+> **Consent production release hold (2026-08-03):** The final **One last step**
+> Ready consent screen and versioned adult, Terms, Gemini, and optional PostHog
+> evidence are implemented. All tracked consent findings are closed in source, including
 > crash-safe ghost-ledger handoff, withdrawal-time PostHog transport blocking,
 > verified atomic local-ledger persistence, restart-safe multi-account
 > withdrawal journaling, target-account restoration, final in-merge
@@ -30,11 +30,14 @@ steps are tracked in the
 > denies, and only a head grant may enter disclosure/rollout checks.
 > Completed users also remain on a launch-matched neutral root while required
 > account evidence is unknown, so approval controls are never a transient
-> startup state. Fetch, decoding, pending-row push, and ledger-write failures
+> startup state. An expired cached Supabase session retains its account identity
+> for this gate until refresh succeeds or Auth emits a signed-out result; token
+> expiry alone is never treated as no session. Fetch, decoding, pending-row
+> push, and ledger-write failures
 > keep that root active, expose **Try Again**, and receive bounded 5-, 10-, and
 > 20-second account-fenced retries. Once an authenticated account enters that
 > missing-local-evidence restoration state, only a successfully persisted
-> authoritative merge may select the scanner or Powered by AI.
+> authoritative merge may select the scanner or Ready consent screen.
 > Internal test builds may continue, but
 > do not nominate the candidate for public production or enable strict server
 > enforcement until **iOS Build and Test** and the validation-only **Supabase

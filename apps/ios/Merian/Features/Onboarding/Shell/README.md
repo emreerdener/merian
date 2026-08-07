@@ -21,8 +21,9 @@ completed onboarding, current required consent, and
 - a completed user whose current local evidence is missing stays on the
   launch-matched restoration surface until the initial session establishes no
   active account or the authenticated account completes an authoritative
-  consent merge; synchronization failures retain that surface with bounded
-  automatic and explicit retry;
+  consent merge; an expired cached session retains its known account identity
+  there until Supabase refreshes it or emits sign-out; synchronization failures
+  retain that surface with bounded automatic and explicit retry;
 - a completed user whose resolved account still lacks current evidence enters
   this shell directly at `.ready`; and
 - a completed user with current evidence bypasses this shell for the Capture

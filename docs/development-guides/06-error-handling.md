@@ -41,8 +41,8 @@ public enum MerianError: LocalizedError, Equatable {
 Required-consent restoration has a separate root-presentation contract from
 ordinary onboarding errors. Once an authenticated account with missing local
 evidence enters `.reconciling`, a fetch, decode, push, or verified-ledger-write
-error must not set restoration to `.resolved`, route to Powered by AI, or infer
-that consent is absent.
+error must not set restoration to `.resolved`, route to the Ready consent
+screen, or infer that consent is absent.
 
 - A non-cancellation failure remains on the neutral
   `ConsentRestorationView`, enters `.waitingToRetry`, and schedules account- and
@@ -54,6 +54,10 @@ that consent is absent.
   not consume attempts. Account or generation changes cancel stale work; if the
   same unresolved account loses a retry timer during invalidation, its state
   returns to `.reconciling` under the new generation.
+- An expired cached Supabase session is a refresh transition, not an auth
+  failure. It keeps authenticated requests closed while its known account owns
+  the neutral restoration root; only `tokenRefreshed` or `signedOut` may
+  complete that auth decision.
 - Cancellation remains pending for the next session/account decision. Only an
   identity-fenced authoritative merge followed by verified persistence may
   resolve a restoration that began because local evidence was missing.

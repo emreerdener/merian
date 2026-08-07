@@ -3822,6 +3822,9 @@ Deno.test("production consent documentation preserves the release hold and exit 
   for (
     const fragment of [
       "**Blocked.**",
+      "One last step",
+      "Required to start scanning",
+      "Optional — change anytime in Settings",
       "Naturebook sends observation data to Google Gemini for AI-powered identification.",
       "I confirm I am 18 or older.",
       "I accept the terms and allow this data sharing.",
