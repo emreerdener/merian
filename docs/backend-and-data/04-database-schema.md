@@ -3962,7 +3962,10 @@ key uses `ON DELETE RESTRICT`, so neither Auth Admin nor a direct database delet
 can remove the identity before matching confirmed delivery. Only a
 signature-verified `email.delivered` reducer for the current attempt and
 provider email ID deletes this row. The table has RLS enabled and no
-direct API-role privileges, including `service_role`.
+direct API-role privileges, including `service_role`. Its Auth foreign key is a
+`preserve` entry in `internal.ghost_profile_merge_reference_policies`; a source
+row therefore aborts Ghost-profile merge before mutation rather than moving an
+active deletion fence to the permanent destination identity.
 
 `internal.apple_manual_revocation_delivery_attempts` creates one active attempt
 per job before dispatch. It stores the attempt UUID, deterministic

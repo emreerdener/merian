@@ -186,6 +186,47 @@ CREATE INDEX apple_manual_delivery_events_attempt_idx
         received_at
     );
 
+-- An active manual-delivery requirement belongs to the source Auth deletion
+-- lifecycle. Moving it to the permanent destination would transfer deletion
+-- authority across identities, so any Ghost source that owns one must fail
+-- before the merge mutates either profile.
+INSERT INTO internal.ghost_profile_merge_reference_policies (
+    source_schema,
+    source_table,
+    source_column,
+    referenced_schema,
+    referenced_table,
+    referenced_column,
+    strategy,
+    execution_order,
+    handler_key,
+    purpose
+)
+VALUES (
+    'internal',
+    'apple_manual_revocation_delivery_requirements',
+    'user_id',
+    'auth',
+    'users',
+    'id',
+    'preserve',
+    900,
+    NULL,
+    'An active manual Apple delivery fence belongs to the source Auth deletion lifecycle and must block Ghost merge rather than move to another identity.'
+)
+ON CONFLICT (
+    source_schema,
+    source_table,
+    source_column,
+    referenced_schema,
+    referenced_table,
+    referenced_column
+) DO UPDATE
+SET strategy = EXCLUDED.strategy,
+    execution_order = EXCLUDED.execution_order,
+    handler_key = EXCLUDED.handler_key,
+    purpose = EXCLUDED.purpose;
+
 -- Active legacy jobs still retain Auth and can be delivered safely. A legacy
 -- job that completed before this migration no longer has an address to which
 -- instructions can be sent, so preserve that historical gap explicitly and
@@ -305,6 +346,8 @@ CREATE INDEX account_deletion_jobs_manual_delivery_pending_idx
         'retry_required'
     )
       AND status IN ('pending', 'storage_pending', 'auth_pending');
+
+PERFORM internal.assert_ghost_profile_merge_reference_policy_coverage();
 
 END;
 $manual_revocation_delivery_schema$;

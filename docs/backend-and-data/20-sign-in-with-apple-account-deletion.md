@@ -247,7 +247,10 @@ after a terminal provider event needs a distinct, durable attempt key.
   active Auth user and deletion-job UUIDs. It has RLS enabled, no Data API
   privileges, and an `ON DELETE RESTRICT` Auth foreign key. Source removes it
   only on a signed `email.delivered` event for the current attempt and provider
-  email ID.
+  email ID. The Ghost-profile merge manifest classifies this foreign key as
+  `preserve`, so an active source-side deletion fence aborts a merge before any
+  profile mutation instead of transferring deletion authority to the permanent
+  destination identity.
 - `internal.apple_manual_revocation_delivery_attempts` and
   `internal.apple_manual_revocation_delivery_events` contain no recipient,
   sender, subject, headers, or raw payload. They have RLS enabled and no direct

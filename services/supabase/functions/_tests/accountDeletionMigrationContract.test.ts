@@ -267,6 +267,9 @@ Deno.test("legacy Apple instructions require provider-confirmed delivery before 
       "CREATE TABLE internal.apple_manual_revocation_delivery_events",
       "CONSTRAINT apple_manual_delivery_requirement_user_fk",
       "REFERENCES auth.users(id) ON DELETE RESTRICT",
+      "INSERT INTO internal.ghost_profile_merge_reference_policies",
+      "'internal', 'apple_manual_revocation_delivery_requirements', 'user_id', 'auth', 'users', 'id', 'preserve', 900, NULL",
+      "PERFORM internal.assert_ghost_profile_merge_reference_policy_coverage()",
       "ALTER TABLE internal.apple_manual_revocation_delivery_requirements ENABLE ROW LEVEL SECURITY",
       "ALTER TABLE internal.apple_manual_revocation_delivery_attempts ENABLE ROW LEVEL SECURITY",
       "ALTER TABLE internal.apple_manual_revocation_delivery_events ENABLE ROW LEVEL SECURITY",
@@ -332,12 +335,22 @@ Deno.test("legacy Apple instructions require provider-confirmed delivery before 
     "END; $manual_revocation_delivery_schema$;",
     constraints,
   );
+  const ghostMergePolicy = sql.indexOf(
+    "'internal', 'apple_manual_revocation_delivery_requirements', 'user_id', 'auth', 'users', 'id', 'preserve', 900, NULL",
+    schemaStart,
+  );
+  const ghostMergeCoverage = sql.indexOf(
+    "PERFORM internal.assert_ghost_profile_merge_reference_policy_coverage()",
+    ghostMergePolicy,
+  );
   assert(
     schemaStart >= 0 &&
       backfill > schemaStart &&
       constraints > backfill &&
-      schemaEnd > constraints,
-    "The delivery rollout backfill and constraints must share the locked schema statement.",
+      ghostMergePolicy > schemaStart &&
+      ghostMergeCoverage > ghostMergePolicy &&
+      schemaEnd > ghostMergeCoverage,
+    "The delivery rollout, Ghost-merge policy, coverage assertion, and constraints must share the locked schema statement.",
   );
 
   const compatibilityCompletion = sql.indexOf(

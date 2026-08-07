@@ -282,10 +282,12 @@ attempt-scoped idempotency key and opaque tag. Send API acceptance binds the
 provider email ID but retains the private restrictive Auth-fence row. The
 signature-verified `resend-account-deletion-webhook` journals bounded provider
 events; only a matching `email.delivered` event transactionally releases the
-fence. Delayed and terminal events retain Auth for waiting or a new-attempt
-retry. Supporting iOS binaries persist the response disposition as
-defense-in-depth, while older binaries and lost responses are independently
-covered by the server path. Cleanup also
+fence. That row is classified `preserve` in the Ghost-profile merge manifest:
+an active source-side deletion fence blocks a merge before mutation instead of
+being transferred to the permanent destination identity. Delayed and terminal
+events retain Auth for waiting or a new-attempt retry. Supporting iOS binaries
+persist the response disposition as defense-in-depth, while older binaries and
+lost responses are independently covered by the server path. Cleanup also
 clears compatibility media URLs,
 structured captured-media references, semantic location and its public label,
 device locale/time-zone context, free-form notes, and custom tags from retained

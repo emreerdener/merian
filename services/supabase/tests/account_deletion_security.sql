@@ -285,6 +285,26 @@ BEGIN
         RAISE EXCEPTION
             'Ownerless tombstone or Auth-profile catalog invariants are missing';
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.ghost_profile_merge_reference_policies AS policy
+        WHERE policy.source_schema = 'internal'
+          AND policy.source_table =
+              'apple_manual_revocation_delivery_requirements'
+          AND policy.source_column = 'user_id'
+          AND policy.referenced_schema = 'auth'
+          AND policy.referenced_table = 'users'
+          AND policy.referenced_column = 'id'
+          AND policy.strategy = 'preserve'
+          AND policy.execution_order = 900
+          AND policy.handler_key IS NULL
+    ) THEN
+        RAISE EXCEPTION
+            'The manual-delivery Auth fence is missing its preserve-only Ghost-merge policy';
+    END IF;
+
+    PERFORM internal.assert_ghost_profile_merge_reference_policy_coverage();
 END;
 $$;
 
