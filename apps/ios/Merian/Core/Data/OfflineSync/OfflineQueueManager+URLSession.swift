@@ -20,9 +20,13 @@ enum ScanStatusRecoveryAction: Equatable {
 enum BackgroundInferenceResponseDisposition: Equatable {
     case success
     case retry
+    case consentRequired
     case needsAttention
     case terminal
 }
+
+private let requiredConsentAttentionMessage =
+    "Complete the required age, Terms, and Google Gemini consent step, then retry this saved observation."
 
 // MARK: - URLSession Delegate
 
@@ -866,6 +870,25 @@ extension OfflineQueueManager {
                 scanId: scanId,
                 extracted: extracted
             )
+        } catch MerianError.aiConsentRequired {
+            do {
+                try ConsentManager.shared
+                    .requireCurrentConsentReapprovalAfterServerRejection()
+            } catch {
+                MerianLog.auth.error(
+                    "Queued inference consent reapproval could not be persisted; the in-memory gate remains closed: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+            MerianLog.data.debug(
+                "dispatchInferenceDownloadTask: consent reapproval required before dispatch scanId=\(scanId, privacy: .private)"
+            )
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: requiredConsentAttentionMessage,
+                errorCode: "ai_consent_required",
+                needsAttention: true
+            )
+            return
         } catch InferencePreparationFailure.timedOut {
             MerianLog.data.error(
                 "dispatchInferenceDownloadTask: preparation timed out scanId=\(scanId, privacy: .public)"
@@ -1073,6 +1096,7 @@ extension OfflineQueueManager {
     ///
     /// Mirrors the success/failure routing of the former `runInferencePipeline`:
     /// - exact handler-owned policy rejection → terminal tombstone
+    /// - consent rejection → preserve media and return to required disclosure
     /// - other handler-owned HTTP 4xx → preserve media for retry/cancel
     /// - Supabase platform route 404 / HTTP 5xx / missing data → durable retry
     /// - HTTP 200 → persist `LocalScanRecord`, delete `OfflineQueuedScan`, fire notifications
@@ -1134,6 +1158,26 @@ extension OfflineQueueManager {
                 generation: generation,
                 reason: "Retryable inference response",
                 minimumRetryDelay: functionRouteEvidence?.retryAfterSeconds
+            )
+            return
+        case .consentRequired:
+            do {
+                try ConsentManager.shared
+                    .requireCurrentConsentReapprovalAfterServerRejection()
+            } catch {
+                MerianLog.auth.error(
+                    "Background inference consent reapproval could not be persisted; the in-memory gate remains closed: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+            MerianLog.data.debug(
+                "Background inference requires consent reapproval for \(scanId, privacy: .private) — preserving queued media."
+            )
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: requiredConsentAttentionMessage,
+                errorCode: "ai_consent_required",
+                httpStatus: statusCode,
+                needsAttention: true
             )
             return
         case .needsAttention:
@@ -1411,6 +1455,11 @@ extension OfflineQueueManager {
         if statusCode >= 500
             || [401, 408, 409, 425, 429].contains(statusCode) {
             return .retry
+        }
+        if statusCode == 403,
+           MerianNetworkClient.stableEdgeErrorCode(responseData: responseData)
+            == "ai_consent_required" {
+            return .consentRequired
         }
         if statusCode == 400,
            MerianNetworkClient.stableEdgeErrorCode(responseData: responseData)

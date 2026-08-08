@@ -820,7 +820,10 @@ selection to the first page and restores muted video playback.
 shared `NativePageCarousel` — a `UIViewControllerRepresentable` wrapping
 `UIPageViewController`. Both surfaces also use `MediaCarouselPaginationDots`
 for the same single-page hiding, selection animation, material capsule, and
-accessibility count treatment.
+accessibility count treatment. Their top-edge heroes share
+`MediaHeroTopScrollEdgeEffectModifier`, which suppresses the iOS 26 scroll-edge
+treatment while imagery remains beneath transparent navigation chrome and
+restores it after the hero clears the toolbar.
 `TabView(.page)` was evaluated and rejected for two reasons: it lazily
 instantiates pages (so `AsyncLocalImageView.task` only fires when the user
 swipes to a page, causing image loads during the swipe transition), and its

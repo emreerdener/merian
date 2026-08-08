@@ -215,6 +215,11 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 - **`MediaCarouselPaginationDots`**: The shared bottom material capsule used by
   Insight and Field trips. It hides for a single page, clamps transient index
   changes safely, animates selection, and announces the current page count.
+- **`MediaHeroTopScrollEdgeEffectModifier`**: Shared iOS 26 toolbar-underlay
+  treatment for Insight and the Field-trip Goals hero. Each scroll view removes
+  its top content margin and underlaps a transparent navigation bar while media
+  is present; the modifier hides the native top scroll-edge effect over the
+  image and restores it after the hero clears the toolbar.
 - **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content (`AsyncLocalImageView` or `LiveCapturePageView`) inside a `ZoomScrollView`. Exposes `rootView: AnyView` as a computed property proxying into the inner `UIHostingController`, so `updateUIViewController`'s existing `controller.rootView = pages[i]` state-push pattern works without modification.
 - **`ZoomScrollView`**: A `UIScrollView` subclass (`minimumZoomScale: 1.0`, `maximumZoomScale: 4.0`) that overrides `gestureRecognizerShouldBegin(_:)` to suppress its `panGestureRecognizer` when `zoomScale ≤ minimumZoomScale + 0.01`. This is the **only safe interception point** — replacing `panGestureRecognizer.delegate` directly throws `NSInvalidArgumentException` at runtime because UIKit requires the scroll view to remain its own pan delegate. At 1× UIPageViewController's swipe wins; above 1× the inner scroll view handles panning.
 - **Snap-back**: `scrollViewDidEndZooming` (pinch release) and `scrollViewDidEndDragging` (drag release while zoomed) both call `snapBackToIdentity`: pending deceleration is cancelled first, then `UIView.animate(usingSpringWithDamping: 0.72)` restores `zoomScale → 1.0` and `contentOffset → .zero` simultaneously.

@@ -1,5 +1,17 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
+import {
+  type PublicSpeciesReferenceImageRow,
+  referenceImagesFromLegacyCache,
+  referenceImagesFromRows,
+  resolvePublicCommonName,
+} from "../_shared/publicSpeciesProjection.ts";
+import {
+  attachFieldTripReferenceSpecies,
+  type FieldTripReferenceSpeciesPayload,
+  fieldTripReferenceTargets,
+  oneReferenceImagePerSource,
+} from "./referenceMedia.ts";
 
 export interface FieldTripCommentRow {
   comment_id: string;
@@ -90,6 +102,17 @@ interface StoppedFieldTripProgressRow {
   levels: unknown[];
 }
 
+interface FieldTripReferenceSpeciesRow {
+  id: string;
+  scientific_name: string;
+  common_names: Record<string, unknown> | null;
+  wikipedia_url: string | null;
+  reference_image_url: string | null;
+}
+
+const MAX_FIELD_TRIP_REFERENCE_SPECIES = 60;
+const MAX_FIELD_TRIP_REFERENCE_IMAGE_ROWS = 500;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -112,6 +135,97 @@ function mergeStoppedFieldTripProgress(
     stopped_progress: stopped.stopped_progress,
     levels: stopped.levels,
   };
+}
+
+export async function hydrateFieldTripReferenceMedia(
+  template: unknown,
+  supabaseAdmin: SupabaseClient,
+): Promise<unknown> {
+  const targets = fieldTripReferenceTargets(
+    template,
+    MAX_FIELD_TRIP_REFERENCE_SPECIES,
+  );
+  const scientificNames = [
+    ...new Set(
+      targets.map((target) => target.scientificName),
+    ),
+  ];
+  if (scientificNames.length === 0) return template;
+
+  const { data: speciesData, error: speciesError } = await supabaseAdmin
+    .from("species_dictionary")
+    .select(
+      "id, scientific_name, common_names, wikipedia_url, reference_image_url",
+    )
+    .in("scientific_name", scientificNames)
+    .limit(MAX_FIELD_TRIP_REFERENCE_SPECIES);
+
+  if (speciesError) {
+    throw new Error(
+      `Failed to fetch Field trip reference species: ${speciesError.message}`,
+    );
+  }
+
+  const speciesRows = (speciesData ?? []) as FieldTripReferenceSpeciesRow[];
+  if (speciesRows.length === 0) return template;
+
+  const speciesIds = speciesRows.map((row) => row.id);
+  const { data: imageData, error: imageError } = await supabaseAdmin
+    .from("species_reference_images")
+    .select(
+      "id, species_id, url, source, license, attribution, width, height, sort_order, created_at",
+    )
+    .in("species_id", speciesIds)
+    .order("species_id", { ascending: true })
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(MAX_FIELD_TRIP_REFERENCE_IMAGE_ROWS);
+
+  if (imageError) {
+    throw new Error(
+      `Failed to fetch Field trip reference images: ${imageError.message}`,
+    );
+  }
+
+  const imagesBySpeciesId = new Map<string, PublicSpeciesReferenceImageRow[]>();
+  for (const row of (imageData ?? []) as PublicSpeciesReferenceImageRow[]) {
+    if (typeof row.species_id !== "string") continue;
+    const rows = imagesBySpeciesId.get(row.species_id) ?? [];
+    rows.push(row);
+    imagesBySpeciesId.set(row.species_id, rows);
+  }
+
+  const speciesByScientificName = new Map<
+    string,
+    FieldTripReferenceSpeciesPayload
+  >();
+  for (const row of speciesRows) {
+    const normalizedImages = referenceImagesFromRows(
+      imagesBySpeciesId.get(row.id),
+      row.wikipedia_url,
+    );
+    const candidateImages = [
+      ...normalizedImages,
+      ...referenceImagesFromLegacyCache(
+        row.reference_image_url,
+        row.wikipedia_url,
+      ),
+    ];
+    const referenceImages = oneReferenceImagePerSource(candidateImages);
+    if (referenceImages.length === 0) continue;
+
+    speciesByScientificName.set(row.scientific_name, {
+      scientific_name: row.scientific_name,
+      common_name: resolvePublicCommonName(
+        row.common_names,
+        row.scientific_name,
+      ),
+      reference_images: referenceImages,
+    });
+  }
+
+  return attachFieldTripReferenceSpecies(template, speciesByScientificName);
 }
 
 async function fetchStoppedFieldTripProgress(
@@ -218,7 +332,11 @@ export async function fetchFieldTripTemplateDetail(
     );
   }
 
-  return data == null ? null : mergeStoppedFieldTripProgress(data, stoppedRows);
+  if (data == null) return null;
+  return await hydrateFieldTripReferenceMedia(
+    mergeStoppedFieldTripProgress(data, stoppedRows),
+    supabaseAdmin,
+  );
 }
 
 export async function startFieldTrip(
@@ -239,7 +357,7 @@ export async function startFieldTrip(
     throw new Error("Failed to start Field trip: missing template detail.");
   }
 
-  return data;
+  return await hydrateFieldTripReferenceMedia(data, supabaseAdmin);
 }
 
 export async function stopFieldTrip(

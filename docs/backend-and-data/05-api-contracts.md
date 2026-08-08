@@ -322,7 +322,54 @@ Template detail request:
 `slug` may be sent instead of `template_id`. The response is one catalog-shaped
 template object with guide fields, levels, item tips, access state, viewer
 progress, and the same optional private `completed_scan_id` for completed
-standard-outing items.
+standard-outing items. Each currently curated goal can also include a
+`reference_species` object used only by the standard outing Goals hero:
+
+```json
+{
+  "reference_species": {
+    "scientific_name": "Passer domesticus",
+    "common_name": "House Sparrow",
+    "reference_images": [
+      {
+        "url": "https://...",
+        "source": "merian",
+        "license": null,
+        "attribution": null,
+        "width": 1200,
+        "height": 800
+      },
+      {
+        "url": "https://...",
+        "source": "wikipedia",
+        "license": "CC BY-SA 4.0",
+        "attribution": "Photographer",
+        "width": 1200,
+        "height": 800
+      },
+      {
+        "url": "https://...",
+        "source": "gbif",
+        "license": "CC BY 4.0",
+        "attribution": "Dataset contributor",
+        "width": 1200,
+        "height": 800
+      }
+    ]
+  }
+}
+```
+
+The Edge layer maps broad goals to a reviewed illustrative species without
+changing the database matching rule, batches the corresponding
+`species_dictionary` and `species_reference_images` reads, and returns at most
+one sanitized image per source in `merian` (displayed as Naturebook),
+Wikipedia, then GBIF order. The iOS client treats that order as a load-failure
+waterfall. A completed goal's private local scan visual replaces its reference
+inside the same stable goal slot; the API still never constructs or returns a
+private evidence URL. `reference_species` is absent from catalog, capture
+context, Events, public profiles, publication/challenge snapshots, and Explore
+payloads. Start, stop, reset, and resume responses use this same detail shape.
 
 For template detail only, a published outing's progress includes:
 

@@ -1594,6 +1594,22 @@ final class MerianNetworkClient {
                 await EntitlementManager.shared.refreshCurrentSession()
             }
 
+            if httpResponse.statusCode == 403,
+               Self.stableEdgeErrorCode(responseData: data)
+                == "ai_consent_required" {
+                await MainActor.run {
+                    do {
+                        try ConsentManager.shared
+                            .requireCurrentConsentReapprovalAfterServerRejection()
+                    } catch {
+                        MerianLog.auth.error(
+                            "Server-required consent reapproval could not be persisted; the in-memory gate remains closed: \(error.localizedDescription, privacy: .private)"
+                        )
+                    }
+                }
+                throw MerianError.aiConsentRequired
+            }
+
             if httpResponse.statusCode == 401 && !isRetry {
                 if Self.isMissingAuthSessionError(responseData: data, fallbackMessage: errString) {
                     if await SupabaseManager.shared.refreshActiveSessionForRetry() {

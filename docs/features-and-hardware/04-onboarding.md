@@ -284,11 +284,26 @@ Before any identification provider request is constructed or dispatched,
 `MerianNetworkClient` calls `ensureCloudConsentForInference()`. That method
 requires the current local adult, Terms, and Gemini versions, creates or
 resolves the Supabase session, and verifies that all required evidence reached
-the active account. The database repeats the check inside both service-only
+the active account. Its cloud-ready proof comes from the just-fetched adult and
+Terms rows plus the all-version Gemini provider stream head; persisted local
+`syncedUserId` markers alone are never treated as proof that the rows still
+exist remotely. The database repeats the check inside both service-only
 `reserve_ai_quota` overloads immediately
 before provider admission, so an outdated or modified client cannot bypass it.
 Missing or revoked evidence fails with `403 ai_consent_required` and no Gemini
 dispatch.
+
+That stable rejection is a disclosure transition, not a transient inference
+failure. The client durably fences the active account back to `.ready`, leaves
+the queued media intact in a needs-attention state, and does not schedule the
+same request again automatically. The required switches are reset in the UI.
+After the user explicitly approves them and selects **Start scanning**, the
+client records a fresh adult, Terms, and Gemini evidence bundle under the same
+account. The new Gemini grant is causally anchored to the provider stream head
+fetched after the rejection, so it can repair missing evidence without
+overwriting an unseen cross-device revocation. Another authoritative fetch is
+required before the saved observation can be retried. The process-local gate
+remains closed even if the durable fence write fails.
 
 The first row in Settings → Resources is the optional Analytics & diagnostics
 control. Settings intentionally provides no Gemini processing opt-out:

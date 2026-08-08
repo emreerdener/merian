@@ -3,12 +3,82 @@ import { assertEquals } from "@std/assert";
 import {
   applyFieldTripScanProgress,
   fetchFirstFieldTripAchievementProgress,
+  hydrateFieldTripReferenceMedia,
   resetFieldTrip,
   stopFieldTrip,
 } from "./db.ts";
 
 const userId = "00000000-0000-0000-0000-000000000001";
 const scanId = "00000000-0000-0000-0000-000000000002";
+
+Deno.test("template reference hydration returns one candidate per provider in fallback order", async () => {
+  const tableCalls: string[] = [];
+  const supabase = {
+    from: (table: string) => {
+      tableCalls.push(table);
+      const data = table === "species_dictionary"
+        ? [{
+          id: "species-bird",
+          scientific_name: "Passer domesticus",
+          common_names: { en: "House Sparrow" },
+          wikipedia_url: "https://en.wikipedia.org/wiki/House_sparrow",
+          reference_image_url:
+            "https://upload.wikimedia.org/bird.jpg,https://api.gbif.org/media/bird.jpg",
+        }]
+        : [
+          {
+            id: "naturebook",
+            species_id: "species-bird",
+            url: "https://media.merian.app/bird.jpg",
+            source: "merian",
+            sort_order: 0,
+          },
+        ];
+      const query = {
+        select: () => query,
+        in: () => query,
+        order: () => query,
+        limit: () => Promise.resolve({ data, error: null }),
+      };
+      return query;
+    },
+  } as unknown as SupabaseClient;
+
+  const hydrated = await hydrateFieldTripReferenceMedia({
+    slug: "backyard_safari",
+    levels: [{
+      items: [{ item_id: "bird", prompt: "Bird", is_completed: false }],
+    }],
+  }, supabase) as {
+    levels: Array<{
+      items: Array<{
+        reference_species: {
+          common_name: string;
+          reference_images: Array<{ source: string; url: string }>;
+        };
+      }>;
+    }>;
+  };
+
+  assertEquals(tableCalls, ["species_dictionary", "species_reference_images"]);
+  assertEquals(
+    hydrated.levels[0].items[0].reference_species.common_name,
+    "House Sparrow",
+  );
+  assertEquals(
+    hydrated.levels[0].items[0].reference_species.reference_images.map((
+      image,
+    ) => [
+      image.source,
+      image.url,
+    ]),
+    [
+      ["merian", "https://media.merian.app/bird.jpg"],
+      ["wikipedia", "https://upload.wikimedia.org/bird.jpg"],
+      ["gbif", "https://api.gbif.org/media/bird.jpg"],
+    ],
+  );
+});
 
 Deno.test("achievement progress scopes the service RPC to the verified user", async () => {
   let capturedName = "";

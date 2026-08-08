@@ -119,6 +119,7 @@ final class ConsentManager {
         case aiConsentEvents
         case adultEligibilityReceipts
         case analyticsConsentEvents
+        case requiredConsentReapprovalUserIds
     }
 
     struct AdultEligibilityReceipt: Codable, Equatable {
@@ -216,13 +217,15 @@ final class ConsentManager {
         var aiConsentEvents: [AIConsentEvent]
         var adultEligibilityReceipts: [AdultEligibilityReceipt]
         var analyticsConsentEvents: [AnalyticsConsentEvent]
+        var requiredConsentReapprovalUserIds: Set<UUID>
 
         static let empty = LocalLedger(
             activeUserId: nil,
             termsReceipts: [],
             aiConsentEvents: [],
             adultEligibilityReceipts: [],
-            analyticsConsentEvents: []
+            analyticsConsentEvents: [],
+            requiredConsentReapprovalUserIds: []
         )
 
         init(
@@ -230,13 +233,16 @@ final class ConsentManager {
             termsReceipts: [TermsAcceptanceReceipt],
             aiConsentEvents: [AIConsentEvent],
             adultEligibilityReceipts: [AdultEligibilityReceipt],
-            analyticsConsentEvents: [AnalyticsConsentEvent]
+            analyticsConsentEvents: [AnalyticsConsentEvent],
+            requiredConsentReapprovalUserIds: Set<UUID> = []
         ) {
             self.activeUserId = activeUserId
             self.termsReceipts = termsReceipts
             self.aiConsentEvents = aiConsentEvents
             self.adultEligibilityReceipts = adultEligibilityReceipts
             self.analyticsConsentEvents = analyticsConsentEvents
+            self.requiredConsentReapprovalUserIds =
+                requiredConsentReapprovalUserIds
         }
 
         init(from decoder: Decoder) throws {
@@ -257,6 +263,10 @@ final class ConsentManager {
             analyticsConsentEvents = try container.decodeIfPresent(
                 [AnalyticsConsentEvent].self,
                 forKey: .analyticsConsentEvents
+            ) ?? []
+            requiredConsentReapprovalUserIds = try container.decodeIfPresent(
+                Set<UUID>.self,
+                forKey: .requiredConsentReapprovalUserIds
             ) ?? []
         }
     }
@@ -481,6 +491,11 @@ final class ConsentManager {
     @ObservationIgnored private var activeSyncUserId: UUID?
     @ObservationIgnored private var activeSyncGeneration: UInt?
     @ObservationIgnored private var synchronizationGeneration: UInt = 0
+    @ObservationIgnored private var cloudReadyRequiredConsentUserId: UUID?
+    @ObservationIgnored private var requiredConsentReapprovalBasisUserId: UUID?
+    @ObservationIgnored private var requiredConsentReapprovalAIStreamHeadId: UUID?
+    @ObservationIgnored private var inMemoryRequiredConsentReapprovalUserIds:
+        Set<UUID> = []
     @ObservationIgnored private var requiredConsentRestorationRetryTask:
         Task<Void, Never>?
     @ObservationIgnored private var requiredConsentRestorationRetryAttempt = 0
@@ -634,7 +649,28 @@ final class ConsentManager {
             candidate.activeUserId = ownerUserId
         }
 
-        if currentAdultEligibilityReceipt(ownerUserId: ownerUserId) == nil {
+        let requiresReapproval = requiresRequiredConsentReapproval(
+            for: ownerUserId
+        )
+        let reapprovalAIStreamHeadId: UUID?
+        if requiresReapproval {
+            // A fresh approval must be based on the provider head fetched
+            // after the server rejection. Replaying a cached grant could
+            // repair a missing row but could never supersede a legitimate
+            // newer revocation from another device.
+            guard let ownerUserId,
+                  requiredConsentReapprovalBasisUserId == ownerUserId else {
+                throw MerianError.aiConsentRequired
+            }
+            reapprovalAIStreamHeadId =
+                requiredConsentReapprovalAIStreamHeadId
+            candidate.requiredConsentReapprovalUserIds.remove(ownerUserId)
+        } else {
+            reapprovalAIStreamHeadId = nil
+        }
+
+        if requiresReapproval
+            || currentAdultEligibilityReceipt(ownerUserId: ownerUserId) == nil {
             candidate.adultEligibilityReceipts.append(AdultEligibilityReceipt(
                 id: UUID(),
                 ownerUserId: ownerUserId,
@@ -650,7 +686,8 @@ final class ConsentManager {
             ))
         }
 
-        if currentTermsReceipt(ownerUserId: ownerUserId) == nil {
+        if requiresReapproval
+            || currentTermsReceipt(ownerUserId: ownerUserId) == nil {
             candidate.termsReceipts.append(TermsAcceptanceReceipt(
                 id: UUID(),
                 ownerUserId: ownerUserId,
@@ -665,7 +702,9 @@ final class ConsentManager {
             ))
         }
 
-        if currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind != .granted {
+        if requiresReapproval
+            || currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind
+                != .granted {
             candidate.aiConsentEvents.append(AIConsentEvent(
                 id: UUID(),
                 ownerUserId: ownerUserId,
@@ -680,10 +719,12 @@ final class ConsentManager {
                 appVersion: Self.appVersion,
                 appBuild: Self.appBuild,
                 recordedAt: nil,
-                causalParentId: Self.currentAIConsentStreamHead(
-                    ownerUserId: ownerUserId,
-                    in: candidate
-                )?.id
+                causalParentId: requiresReapproval
+                    ? reapprovalAIStreamHeadId
+                    : Self.currentAIConsentStreamHead(
+                        ownerUserId: ownerUserId,
+                        in: candidate
+                    )?.id
             ))
         }
 
@@ -719,8 +760,56 @@ final class ConsentManager {
             candidate,
             analyticsEvent: persistenceEvent
         )
+        if requiresReapproval, let ownerUserId {
+            inMemoryRequiredConsentReapprovalUserIds.remove(ownerUserId)
+            cloudReadyRequiredConsentUserId = nil
+            requiredConsentReapprovalBasisUserId = nil
+            requiredConsentReapprovalAIStreamHeadId = nil
+            refreshDerivedState()
+        }
         applyAnalyticsPermissionToSDK()
         scheduleSynchronization(createAnonymousSessionIfNeeded: true)
+    }
+
+    /// Fences a server-rejected account out of AI inference and returns a
+    /// completed user to the required disclosure step. The marker is durable
+    /// so relaunching cannot reopen the same futile retry loop.
+    @discardableResult
+    func requireCurrentConsentReapprovalAfterServerRejection() throws -> Bool {
+        guard let userId = currentSessionUserId,
+              currentSDKUserIdProvider() == userId else {
+            return false
+        }
+
+        if requiresRequiredConsentReapproval(for: userId) {
+            if requiredConsentReapprovalBasisUserId != userId,
+               !requiredConsentRestorationBelongs(to: userId) {
+                requiredConsentRestorationState = .reconciling(userId: userId)
+                refreshDerivedState()
+                scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+            }
+            return true
+        }
+
+        inMemoryRequiredConsentReapprovalUserIds.insert(userId)
+        cloudReadyRequiredConsentUserId = nil
+        invalidateSynchronizationWork()
+        requiredConsentRestorationState = .reconciling(userId: userId)
+        refreshDerivedState()
+
+        var candidate = ledger
+        candidate.requiredConsentReapprovalUserIds.insert(userId)
+        do {
+            try persistLedger(candidate)
+        } catch {
+            // Keep the process-local gate closed even when durable storage is
+            // temporarily unavailable.
+            refreshDerivedState()
+            scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+            throw error
+        }
+        scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+        return true
     }
 
     func setPostHogAnalyticsEnabled(_ enabled: Bool) throws {
@@ -981,6 +1070,13 @@ final class ConsentManager {
 
         try await synchronize(for: userId)
         guard hasCloudReadyCurrentConsent(for: userId) else {
+            do {
+                try requireCurrentConsentReapprovalAfterServerRejection()
+            } catch {
+                MerianLog.auth.error(
+                    "Required consent reapproval could not be persisted; the in-memory gate remains closed: \(error.localizedDescription, privacy: .private)"
+                )
+            }
             throw MerianError.aiConsentRequired
         }
     }
@@ -1672,6 +1768,11 @@ final class ConsentManager {
         generation: UInt
     ) throws {
         try validateSynchronization(for: userId, generation: generation)
+        let hasAuthoritativeRequiredConsent =
+            Self.isAuthoritativeRequiredConsent(remoteState, for: userId)
+        // A prior successful merge must not remain usable if this verified
+        // read is empty or fails to persist locally.
+        cloudReadyRequiredConsentUserId = nil
         var candidate = ledger
 
         if let receipt = remoteState.adultEligibilityReceipt {
@@ -1722,6 +1823,12 @@ final class ConsentManager {
 
         candidate.activeUserId = userId
         try persistLedger(candidate)
+        requiredConsentReapprovalBasisUserId = userId
+        requiredConsentReapprovalAIStreamHeadId =
+            remoteState.aiConsentStreamHead?.id
+        if hasAuthoritativeRequiredConsent {
+            cloudReadyRequiredConsentUserId = userId
+        }
         analyticsCloudAuthorityState = .resolvedRemote(
             userId: userId,
             granted: Self.isAuthoritativeAnalyticsGrant(
@@ -1897,8 +2004,33 @@ final class ConsentManager {
             && event.eventKind == .granted
     }
 
+    static func isAuthoritativeRequiredConsent(
+        _ remoteState: RemoteState,
+        for userId: UUID
+    ) -> Bool {
+        guard let adultReceipt = remoteState.adultEligibilityReceipt,
+              adultReceipt.ownerUserId == userId,
+              adultReceipt.syncedUserId == userId,
+              adultReceipt.policyVersion
+                == ConsentPolicy.adultEligibilityVersion,
+              let termsReceipt = remoteState.termsReceipt,
+              termsReceipt.ownerUserId == userId,
+              termsReceipt.syncedUserId == userId,
+              termsReceipt.termsVersion == ConsentPolicy.termsVersion,
+              let streamHead = remoteState.aiConsentStreamHead else {
+            return false
+        }
+        return streamHead.ownerUserId == userId
+            && streamHead.syncedUserId == userId
+            && streamHead.provider == ConsentPolicy.geminiProvider
+            && streamHead.disclosureVersion
+                == ConsentPolicy.geminiDisclosureVersion
+            && streamHead.eventKind == .granted
+    }
+
     private func hasCloudReadyCurrentConsent(for userId: UUID) -> Bool {
-        guard ledger.activeUserId == userId,
+        guard cloudReadyRequiredConsentUserId == userId,
+              ledger.activeUserId == userId,
               currentAdultEligibilityReceipt(ownerUserId: userId)?.syncedUserId == userId,
               currentTermsReceipt(ownerUserId: userId)?.syncedUserId == userId,
               let event = currentAIConsentEvent(ownerUserId: userId) else {
@@ -2164,6 +2296,10 @@ final class ConsentManager {
                 )
         }
 
+        if rebound.requiredConsentReapprovalUserIds.remove(ghostUserId) != nil {
+            rebound.requiredConsentReapprovalUserIds.insert(permanentUserId)
+        }
+
         return rebound
     }
 
@@ -2205,6 +2341,9 @@ final class ConsentManager {
                 : nil
         }
         synchronizationGeneration &+= 1
+        cloudReadyRequiredConsentUserId = nil
+        requiredConsentReapprovalBasisUserId = nil
+        requiredConsentReapprovalAIStreamHeadId = nil
         scheduledSyncTask?.cancel()
         scheduledSyncTask = nil
         activeSyncTask?.cancel()
@@ -2450,6 +2589,14 @@ final class ConsentManager {
         pendingAnalyticsRevocationEvent(for: ownerUserId) != nil
     }
 
+    private func requiresRequiredConsentReapproval(
+        for ownerUserId: UUID?
+    ) -> Bool {
+        guard let ownerUserId else { return false }
+        return ledger.requiredConsentReapprovalUserIds.contains(ownerUserId)
+            || inMemoryRequiredConsentReapprovalUserIds.contains(ownerUserId)
+    }
+
     private func refreshDerivedState() {
         let ownerUserId: UUID?
         if let currentSessionUserId {
@@ -2466,11 +2613,15 @@ final class ConsentManager {
             // or immediately closes every gate for a different account.
             ownerUserId = ledger.activeUserId
         }
-        hasConfirmedCurrentAdultEligibility =
-            currentAdultEligibilityReceipt(ownerUserId: ownerUserId) != nil
-        hasAcceptedCurrentTerms = currentTermsReceipt(ownerUserId: ownerUserId) != nil
-        hasGrantedCurrentGeminiProcessing =
-            currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
+        let requiresReapproval = requiresRequiredConsentReapproval(
+            for: ownerUserId
+        )
+        hasConfirmedCurrentAdultEligibility = !requiresReapproval
+            && currentAdultEligibilityReceipt(ownerUserId: ownerUserId) != nil
+        hasAcceptedCurrentTerms = !requiresReapproval
+            && currentTermsReceipt(ownerUserId: ownerUserId) != nil
+        hasGrantedCurrentGeminiProcessing = !requiresReapproval
+            && currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
         let hasStoredAnalyticsGrant =
             currentAnalyticsConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
         hasGrantedCurrentPostHogAnalytics = !isLedgerStorageUncertain

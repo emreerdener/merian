@@ -103,8 +103,11 @@ client response aliases instead come from the executable descriptor in
   publication detail, likes, and comments from one Field trips-native surface
   without extending Explore feed functions. Catalog/detail can project the
   verified viewer's private `completed_scan_id` through service-role-only RPCs;
-  `db.ts` must not copy that field into capture context, public profile,
-  publication/challenge, or Explore projections.
+  `db.ts` also batch-hydrates template detail with a bounded, public
+  species-reference projection for the curated Goals hero. That projection
+  selects one normalized Naturebook, Wikipedia, and GBIF candidate per reviewed
+  illustrative species and must not copy `completed_scan_id` into capture
+  context, public profile, publication/challenge, or Explore projections.
 - The identify and enrich-scan `db.ts` files include `alternative_common_names`
   in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new
   column added to `species_dictionary` that is served to the client must be

@@ -2,53 +2,92 @@ import Foundation
 import SwiftUI
 
 enum FieldTripFeaturedMediaSource: Equatable {
-    case image(path: String)
-    case video(path: String, posterPath: String)
+    case userImage(path: String)
+    case userVideo(path: String, posterPath: String)
+    case reference(SpeciesDictionaryReferenceImage)
 
     var posterPath: String {
         switch self {
-        case .image(let path):
+        case .userImage(let path):
             path
-        case .video(_, let posterPath):
+        case .userVideo(_, let posterPath):
             posterPath
+        case .reference(let image):
+            image.url
         }
     }
 
     var isVideo: Bool {
-        if case .video = self { return true }
+        if case .userVideo = self { return true }
         return false
+    }
+
+    var isReference: Bool {
+        if case .reference = self { return true }
+        return false
+    }
+
+    var imageOrigin: CarouselImageOrigin {
+        isReference ? .reference : .user
+    }
+
+    var inlineAttributionLabel: String? {
+        guard case .reference(let image) = self else { return nil }
+        return image.source.label
+    }
+
+    var fullscreenAttributionLabel: String? {
+        guard case .reference(let image) = self else { return nil }
+        return image.fullscreenAttributionLabel
+    }
+
+    var localPath: String? {
+        isReference ? nil : posterPath
+    }
+
+    var fallbackImageURL: String? {
+        isReference ? posterPath : nil
     }
 
     var gallerySource: InsightImageGalleryItem.Source {
         switch self {
-        case .image(let path):
+        case .userImage(let path):
             .imagePath(path)
-        case .video(let path, _):
+        case .userVideo(let path, _):
             .videoPath(path)
+        case .reference(let image):
+            .referenceURL(image.url)
         }
     }
 }
 
 struct FieldTripFeaturedMediaItem: Identifiable, Equatable {
     let id: String
-    let scanId: String
+    let scanId: String?
     let levelId: String
     let levelNumber: Int
     let levelTitle: String
     let checklistOrder: Int
     let goalTitle: String
     let completedCommonName: String?
+    let referenceSpecies: FieldTripReferenceSpecies?
     let source: FieldTripFeaturedMediaSource
-    let imageQualityScore: Int?
-    let capturedAt: Date
 
     var accessibilityLabel: String {
         var parts = [levelTitle, goalTitle]
-        if let completedCommonName = completedCommonName?.fieldTripFeaturedNonBlank,
-           completedCommonName.caseInsensitiveCompare(goalTitle) != .orderedSame {
-            parts.append(completedCommonName)
+        if source.isReference {
+            if let commonName = referenceSpecies?.commonName.fieldTripFeaturedNonBlank,
+               commonName.caseInsensitiveCompare(goalTitle) != .orderedSame {
+                parts.append("Example: \(commonName)")
+            }
+            parts.append("Reference photo from \(source.inlineAttributionLabel ?? "reference source")")
+        } else {
+            if let completedCommonName = completedCommonName?.fieldTripFeaturedNonBlank,
+               completedCommonName.caseInsensitiveCompare(goalTitle) != .orderedSame {
+                parts.append(completedCommonName)
+            }
+            parts.append(source.isVideo ? "Your video" : "Your photo")
         }
-        parts.append(source.isVideo ? "Video" : "Photo")
         return parts.joined(separator: ", ")
     }
 
@@ -56,7 +95,7 @@ struct FieldTripFeaturedMediaItem: Identifiable, Equatable {
         InsightImageGalleryItem(
             id: id,
             source: source.gallerySource,
-            referenceAttributionLabel: nil,
+            referenceAttributionLabel: source.fullscreenAttributionLabel,
             accessibilityLabel: accessibilityLabel
         )
     }
@@ -65,25 +104,40 @@ struct FieldTripFeaturedMediaItem: Identifiable, Equatable {
 enum FieldTripFeaturedMediaBuilder {
     static func candidates(
         for template: FieldTripTemplate,
-        localScansById: [String: LocalScanRecord]
+        localScansById: [String: LocalScanRecord],
+        excluding unavailableSourceIdentifiers: Set<String> = []
     ) -> [FieldTripFeaturedMediaItem] {
         var seenScanIds: Set<String> = []
         var candidates: [FieldTripFeaturedMediaItem] = []
 
         for level in template.levels.sorted(by: levelSort) {
             for (checklistOrder, item) in level.items.enumerated() {
-                guard item.isCompleted,
-                      let scanId = item.completedScanId?.fieldTripFeaturedNonBlank,
-                      !seenScanIds.contains(scanId),
-                      let scan = localScansById[scanId],
-                      !scan.isLocallyArchived,
-                      let source = featuredSource(for: scan) else {
-                    continue
+                var scanId: String?
+                var source: FieldTripFeaturedMediaSource?
+
+                if item.isCompleted,
+                   let completedScanId = item.completedScanId?.fieldTripFeaturedNonBlank,
+                   !seenScanIds.contains(completedScanId),
+                   let scan = localScansById[completedScanId],
+                   !scan.isLocallyArchived,
+                   let userSource = featuredUserSource(for: scan) {
+                    seenScanIds.insert(completedScanId)
+                    scanId = completedScanId
+                    if !unavailableSourceIdentifiers.contains(userSource.posterPath) {
+                        source = userSource
+                    }
                 }
 
-                seenScanIds.insert(scanId)
+                if source == nil {
+                    source = featuredReferenceSource(
+                        for: item,
+                        excluding: unavailableSourceIdentifiers
+                    )
+                }
+
+                guard let source else { continue }
                 candidates.append(FieldTripFeaturedMediaItem(
-                    id: stableId(scanId: scanId),
+                    id: stableId(itemId: item.id),
                     scanId: scanId,
                     levelId: level.id,
                     levelNumber: level.levelNumber,
@@ -91,9 +145,8 @@ enum FieldTripFeaturedMediaBuilder {
                     checklistOrder: checklistOrder,
                     goalTitle: item.prompt,
                     completedCommonName: item.completedCommonName,
-                    source: source,
-                    imageQualityScore: scan.imageQualityScore,
-                    capturedAt: scan.captureDate ?? scan.timestamp
+                    referenceSpecies: item.referenceSpecies,
+                    source: source
                 ))
             }
         }
@@ -101,7 +154,9 @@ enum FieldTripFeaturedMediaBuilder {
         return candidates
     }
 
-    private static func featuredSource(for scan: LocalScanRecord) -> FieldTripFeaturedMediaSource? {
+    private static func featuredUserSource(
+        for scan: LocalScanRecord
+    ) -> FieldTripFeaturedMediaSource? {
         for item in scan.capturedMediaSnapshot.items {
             switch item {
             case .image(let reference):
@@ -109,7 +164,7 @@ enum FieldTripFeaturedMediaBuilder {
                       !isSpeciesReferenceImage(path, for: scan) else {
                     continue
                 }
-                return .image(path: path)
+                return .userImage(path: path)
             case .video(let reference):
                 guard let videoPath = (
                     reference.resolvedLocalPath ?? reference.serializedPath
@@ -118,7 +173,7 @@ enum FieldTripFeaturedMediaBuilder {
                     !isSpeciesReferenceImage(posterPath, for: scan) else {
                     continue
                 }
-                return .video(path: videoPath, posterPath: posterPath)
+                return .userVideo(path: videoPath, posterPath: posterPath)
             case .audio, .description:
                 continue
             }
@@ -128,7 +183,30 @@ enum FieldTripFeaturedMediaBuilder {
               !isSpeciesReferenceImage(coverImagePath, for: scan) else {
             return nil
         }
-        return .image(path: coverImagePath)
+        return .userImage(path: coverImagePath)
+    }
+
+    private static func featuredReferenceSource(
+        for item: FieldTripChecklistItem,
+        excluding unavailableSourceIdentifiers: Set<String>
+    ) -> FieldTripFeaturedMediaSource? {
+        guard let referenceSpecies = item.referenceSpecies else { return nil }
+        let sourceOrder: [SpeciesDictionaryReferenceImage.Source] = [
+            .merian,
+            .wikipedia,
+            .gbif
+        ]
+
+        for source in sourceOrder {
+            if let image = referenceSpecies.referenceImages.first(where: {
+                $0.source == source
+                    && ExternalReferenceImagePolicy.isAllowed($0.url)
+                    && !unavailableSourceIdentifiers.contains($0.url)
+            }) {
+                return .reference(image)
+            }
+        }
+        return nil
     }
 
     private static func isSpeciesReferenceImage(
@@ -148,8 +226,8 @@ enum FieldTripFeaturedMediaBuilder {
         return lhs.id < rhs.id
     }
 
-    private static func stableId(scanId: String) -> String {
-        "field-trip-featured:\(scanId)"
+    private static func stableId(itemId: String) -> String {
+        "field-trip-featured-goal:\(itemId)"
     }
 }
 
@@ -158,14 +236,12 @@ enum FieldTripFeaturedMediaSelection {
 
     static func items(
         from candidates: [FieldTripFeaturedMediaItem],
-        excluding failedItemIds: Set<String> = [],
         maximumCount: Int = maximumItemCount
     ) -> [FieldTripFeaturedMediaItem] {
         let limit = max(0, maximumCount)
         guard limit > 0 else { return [] }
 
-        let availableCandidates = candidates.filter { !failedItemIds.contains($0.id) }
-        let grouped = Dictionary(grouping: availableCandidates, by: \.levelNumber)
+        let grouped = Dictionary(grouping: candidates, by: \.levelNumber)
         let levelNumbers = grouped.keys.sorted()
         let levelBuckets = levelNumbers.map { levelNumber in
             (grouped[levelNumber] ?? []).sorted(by: candidateSort)
@@ -194,14 +270,6 @@ enum FieldTripFeaturedMediaSelection {
         _ lhs: FieldTripFeaturedMediaItem,
         _ rhs: FieldTripFeaturedMediaItem
     ) -> Bool {
-        let lhsQuality = lhs.imageQualityScore ?? Int.min
-        let rhsQuality = rhs.imageQualityScore ?? Int.min
-        if lhsQuality != rhsQuality {
-            return lhsQuality > rhsQuality
-        }
-        if lhs.capturedAt != rhs.capturedAt {
-            return lhs.capturedAt > rhs.capturedAt
-        }
         if lhs.checklistOrder != rhs.checklistOrder {
             return lhs.checklistOrder < rhs.checklistOrder
         }
@@ -237,6 +305,15 @@ enum FieldTripFeaturedMediaPresentation {
     }
 }
 
+enum FieldTripFeaturedMediaLayout {
+    static func underlapsNavigationBar(
+        isGoalsSelected: Bool,
+        featuredItemCount: Int
+    ) -> Bool {
+        isGoalsSelected && featuredItemCount > 0
+    }
+}
+
 struct FieldTripFeaturedMediaCarousel: View {
     let items: [FieldTripFeaturedMediaItem]
     let onMediaLoadFailed: (String) -> Void
@@ -252,7 +329,8 @@ struct FieldTripFeaturedMediaCarousel: View {
                 mediaKind: .visual,
                 view: AnyView(page(for: item)),
                 imageIdentifier: item.source.posterPath,
-                imageOrigin: .user,
+                imageOrigin: item.source.imageOrigin,
+                referenceAttributionLabel: item.source.fullscreenAttributionLabel,
                 galleryItem: item.galleryItem
             )
         }
@@ -294,12 +372,12 @@ struct FieldTripFeaturedMediaCarousel: View {
     private func page(for item: FieldTripFeaturedMediaItem) -> some View {
         ZStack {
             AsyncLocalImageView(
-                path: item.source.posterPath,
-                fallbackImageUrl: nil,
+                path: item.source.localPath,
+                fallbackImageUrl: item.source.fallbackImageURL,
                 contentMode: .fill,
                 unavailableContext: .originalPhoto,
                 onImageLoadFailed: {
-                    onMediaLoadFailed(item.id)
+                    onMediaLoadFailed(item.source.posterPath)
                 }
             )
 
@@ -312,13 +390,32 @@ struct FieldTripFeaturedMediaCarousel: View {
                     .background(.ultraThinMaterial, in: Circle())
                     .accessibilityHidden(true)
             }
+
+            if let attributionLabel = item.source.inlineAttributionLabel {
+                Text(attributionLabel)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(.black.opacity(0.28))
+                    }
+                    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(.trailing, 14)
+                    .padding(.bottom, 40)
+                    .allowsHitTesting(false)
+            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(item.accessibilityLabel)
         .accessibilityHint("Opens the full-screen media viewer")
-        .accessibilityIdentifier("FieldTripFeaturedMediaPage_\(item.scanId)")
+        .accessibilityIdentifier("FieldTripFeaturedMediaPage_\(item.id)")
         .accessibilityAction {
             onOpenViewer(item.id)
         }

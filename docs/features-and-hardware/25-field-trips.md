@@ -61,14 +61,15 @@ only a camera/performance setting.
   completing scan's device-local photo or video-poster thumbnail in both the
   catalog card and outing detail. They keep the standard neutral tile border;
   blue/accent borders are reserved for an incomplete focused goal.
-- When at least one completed goal resolves to usable private visual evidence,
-  the standard outing's **Goals** page places a square, edge-to-edge featured
-  media carousel above its status and title. The carousel selects at most six
-  photos or video posters from that outing across all levels, balances slots by
-  level, and ranks each level by image quality then capture recency. Tapping a
-  page opens the same full-screen zoomable photo/playable-video viewer used by
-  other native media galleries. **Tips**, Events, and public publication pages
-  do not show this owner-evidence carousel.
+- The standard outing's **Goals** page places a square, edge-to-edge featured
+  media carousel above its status and title whenever at least one curated goal
+  reference or completed user visual is loadable. Up to six stable goal slots
+  are selected in level-balanced checklist order. Each slot begins with one
+  illustrative species image, trying Naturebook, Wikipedia, then GBIF; the
+  exact goal's device-local photo or video poster replaces that reference after
+  completion. Tapping opens the shared full-screen zoomable
+  photo/playable-video viewer. **Tips**, Events, and public publication pages
+  do not show this carousel.
 - The active level header uses the shared circular `GoalProgressRing` at its
   trailing edge, showing completed/total outing progress consistently with
   the Scan target capsule.
@@ -237,10 +238,12 @@ difficulty.
 11. Catalog and detail reloads associate each completed checklist item with the
     exact saved scan that completed it. iOS replaces that item's artwork with
     the scan thumbnail; completion order never determines which slot changes.
-    Standard Goals detail also derives its private featured-media candidates
-    from those exact item-to-scan links, selects up to six in level-balanced
-    rounds, and removes failed media while refilling from lower-ranked eligible
-    candidates.
+    Standard Goals detail keeps one stable featured slot per selected goal.
+    Before completion it uses that goal's curated illustrative species; after
+    completion the exact item-to-scan link replaces the reference with the
+    user's local visual. Selection takes up to six in level-balanced checklist
+    rounds. A failed user source falls back to Naturebook, Wikipedia, then GBIF;
+    a goal with no remaining source is removed and a reserve goal refills it.
 12. Tapping a completed goal whose scan still exists on the device pushes the
    existing Insight view inside Explore. The back arrow and swipe-back gesture
    return to the same outing sheet.
@@ -512,6 +515,41 @@ rule: moss can complete it, while an otherwise unmatched lichen cannot. That is
 a false-negative limitation, not a broad-completion path; widening it requires
 an explicit reviewed alternative and positive/negative database cases.
 
+### Featured Reference Species Catalog
+
+These species are visual examples only. They never narrow or otherwise alter
+the matching criteria above. `field-trips/referenceMedia.ts` is the executable
+source of truth and must change with this table.
+
+| Outing | Goal | Illustrative species |
+| --- | --- | --- |
+| Backyard Safari | Bird | House Sparrow (`Passer domesticus`) |
+| Backyard Safari | Dog | Domestic Dog (`Canis lupus familiaris`) |
+| Backyard Safari | Butterfly | Monarch (`Danaus plexippus`) |
+| Backyard Safari | Cat | Domestic Cat (`Felis catus`) |
+| Backyard Safari | Spider | Cross Orbweaver (`Araneus diadematus`) |
+| Backyard Safari | Flowering plant | Common Daisy (`Bellis perennis`) |
+| Backyard Safari | Fungus | Turkey Tail (`Trametes versicolor`) |
+| Backyard Safari | Insect | Seven-spotted Lady Beetle (`Coccinella septempunctata`) |
+| Backyard Safari | Urban wild animal | Eastern Gray Squirrel (`Sciurus carolinensis`) |
+| Backyard Safari | Moss or lichen | Silvergreen Bryum Moss (`Bryum argenteum`) |
+| Park Pollinators | Flowering plant | Common Dandelion (`Taraxacum officinale`) |
+| Park Pollinators | Butterfly or moth | Monarch (`Danaus plexippus`) |
+| Park Pollinators | Bee or wasp | Western Honey Bee (`Apis mellifera`) |
+| Park Pollinators | Fly | Common Drone Fly (`Eristalis tenax`) |
+| Park Pollinators | Beetle | Seven-spotted Lady Beetle (`Coccinella septempunctata`) |
+| Park Pollinators | Spider | Cross Orbweaver (`Araneus diadematus`) |
+| Park Pollinators | Seed or fruiting plant | Wild Strawberry (`Fragaria vesca`) |
+| Park Pollinators | Bird | House Sparrow (`Passer domesticus`) |
+| Park Pollinators | Wild plant | Common Yarrow (`Achillea millefolium`) |
+| Park Pollinators | Meadow plant | Red Clover (`Trifolium pratense`) |
+
+Template detail batches these scientific names through the normalized public
+species layer and returns at most one image for each provider in Naturebook,
+Wikipedia, then GBIF order. A missing species row or source candidate is simply
+omitted; release content QA must keep at least one usable candidate available
+for every active curated goal so the default hero remains populated.
+
 ## Challenge Progress Rules
 
 - Challenge participation is explicit and private by default.
@@ -564,8 +602,13 @@ the curated artwork remains and the app must not construct a remote or public
 evidence URL. `completed_scan_id` must not appear in public profile summaries,
 publication snapshots, challenge badges or entries, Explore feed/map payloads,
 or the capture-context response. The private Goals carousel uses this same
-local-record boundary: it never promotes curated artwork or a species reference
-image, and it disappears when no user photo or video poster can be loaded.
+local-record boundary for user evidence, but it may also render the goal's
+reusable public species-reference projection. Reference rows contain only an
+illustrative scientific/common name, sanitized URL, source, rights metadata,
+optional public attribution, and image dimensions. They never contain the
+completing scan ID, scan media URL, user notes, or location provenance. When a
+goal completes, only a matching device-local `LocalScanRecord` can replace its
+reference; the app never constructs a remote evidence URL.
 
 The detail-only publication status is also private viewer metadata.
 `active_progress.publication_id` and `published_at` identify the owner's active,
@@ -920,23 +963,43 @@ outer catalog card and inner goal grid both use item-specific completion state,
 so a completed third slot replaces only the third slot rather than the first
 `completed_count` slots.
 
-`FieldTripFeaturedMediaBuilder` snapshots one canonical visual source for each
-completed goal with a locally available, non-archived scan record. It accepts a
-photo, a video with a poster, or a legacy captured cover, but never falls back
-to `referenceImageUrl`. `FieldTripFeaturedMediaSelection` groups candidates by
-level, sorts each group by `imageQualityScore`, capture date, checklist order,
-and stable ID, then takes one item per level per round up to six. Failed page
-IDs are excluded and reserve candidates refill the selection; reconnecting
-clears transient failures so remote user media can retry. The selected page is
-preserved by stable ID. Rendering reuses Insight's `NativePageCarousel`,
+`FieldTripChecklistItem.referenceSpecies` is also optional so an older Edge
+deployment remains decodable. Template detail supplies a reviewed illustrative
+species and up to one sanitized image per Naturebook, Wikipedia, and GBIF
+source; catalog cards do not carry this media payload.
+
+`FieldTripFeaturedMediaBuilder` creates one candidate per goal rather than per
+scan. Its stable ID is derived from the checklist item, so the selected page
+survives reference-to-user replacement. The preferred source is one canonical
+photo, video poster, or legacy captured cover from the exact completed scan; a
+missing, archived, nonvisual, posterless, unloadable, duplicated, or
+reference-only local record falls through to the goal's ordered reference
+candidates. `FieldTripFeaturedMediaSelection` groups candidates by level,
+sorts each group by checklist order and stable ID, then takes one item per level
+per round up to six. Failed source identifiers advance within the same goal
+before a source-exhausted goal is removed and a reserve candidate refills the
+selection; reconnecting clears transient failures. Rendering reuses Insight's `NativePageCarousel`,
 `CarouselPageItem`, `ZoomPageViewController`, and shared pagination treatment,
 and the hero takes the full scroll-container width without horizontal content
-insets. All selected posters begin resolving immediately, horizontal paging
+insets. On Goals, it also extends to the sheet's top edge beneath transparent
+navigation chrome; the toolbar floats over the image just as it does in
+Insight. Tips and no-media states retain the normal navigation-bar inset and
+background. All selected posters begin resolving immediately, horizontal paging
 cooperates with sheet dismissal, controller identity survives progress-driven
 updates, and photo pages inherit the same pinch-and-snap-back behavior. The
 inline carousel remains poster-only for video; tapping any page opens a
 full-screen presentation containing exactly the currently featured order with
-video muted initially.
+video muted initially. Reference pages use the shared reference gallery source,
+display their provider badge, and retain license/attribution text in the
+full-screen viewer. VoiceOver distinguishes an illustrative reference and its
+provider from the user's own photo or video.
+
+While standard Goals detail is loading, its skeleton preserves the same visual
+hierarchy: a square edge-to-edge media placeholder under transparent toolbar
+chrome, pagination treatment, then inset title, description, and level cards.
+The placeholder participates in the same top scroll-edge transition and is
+hidden from assistive technologies. Tips and Event loading states retain their
+normal inset presentation without the featured-media hero.
 
 `GoalProgressRing` is a Core UI primitive shared by the Scan target capsule and
 the active standard-outing level header and scan-progress milestone banner. The
@@ -1122,7 +1185,7 @@ Backend:
 ```sh
 deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
-deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
+deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/referenceMedia_test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts
@@ -1212,18 +1275,24 @@ and video completions, confirm the captured thumbnail has the standard neutral
 border with no blue completion outline, and tap both surfaces to open the same
 embedded Insight view. Back must return to the current outing. A missing local
 record must leave the placeholder usable and must not show a blank Insight.
-On Goals, confirm one eligible visual produces a dot-free square hero and
-several levels produce no more than six level-balanced pages. Verify higher
-quality scans win within a level, video pages show a poster/play badge and open
-muted playable video, photos open the swipe/zoom viewer, a failed page refills
-from the same level's reserve, and all failed/missing/archived/nonvisual evidence
-collapses the hero without affecting the title layout. Switching to Tips must
-remove the hero. Exercise compact and large iPhones, light/dark appearance,
-Dynamic Type, VoiceOver, Reduce Motion, offline-to-online retry, progress
-refresh, and Reset/removal while preserving a still-valid selected page.
-At the database boundary, confirm catalog/detail return the completion row's
-exact `scan_id`, only `service_role` can execute their RPCs, and no public or
-capture-context payload contains `completed_scan_id`.
+On Goals, confirm an unstarted outing begins with reference pages and one
+loadable goal produces a dot-free square hero. Several levels must produce no
+more than six pages in level-balanced checklist order. Verify each reference
+tries Naturebook, Wikipedia, then GBIF; source badges and full-screen rights
+attribution remain legible; completing that exact goal replaces the same stable
+page with the user's visual; video pages show a poster/play badge and open muted
+playable video; and photos open the swipe/zoom viewer. Failed user media must
+fall back to the goal reference, a source-exhausted goal must refill from a
+reserve, and exhausting every user/reference source must collapse the hero
+without affecting the title layout. Switching to Tips must remove the hero.
+Exercise compact and large iPhones, light/dark appearance, Dynamic Type,
+VoiceOver, Reduce Motion, offline-to-online retry, progress refresh, and
+Reset/removal while preserving a still-valid selected goal page. At the
+database boundary, confirm catalog/detail return the completion row's exact
+`scan_id`, only `service_role` can execute their RPCs, and no public or
+capture-context payload contains `completed_scan_id`. Confirm `reference_species`
+appears only on authenticated template/lifecycle detail and contains no private
+scan, owner, note, or location provenance.
 
 For publication-state QA, verify an unstarted, active, completed-but-unpublished,
 and deleted-publication outing all show **Private**. Publishing must change the

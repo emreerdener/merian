@@ -918,6 +918,199 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertFalse(consentManager.hasGrantedCurrentPostHogAnalytics)
     }
 
+    func testServerConsentRejectionDurablyReturnsUserToReadyAndRecordsFreshEvidence() throws {
+        let ownerUserId = UUID()
+        let recordedAt = Date(timeIntervalSince1970: 1_786_100_000)
+        let adultReceipt = makeAdultReceipt(
+            ownerUserId: ownerUserId,
+            recordedAt: recordedAt
+        )
+        let termsReceipt = makeTermsReceipt(
+            ownerUserId: ownerUserId,
+            recordedAt: recordedAt
+        )
+        let aiGrant = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            recordedAt: recordedAt,
+            consentRevision: 12
+        )
+        let store = FaultInjectingConsentLedgerStore()
+        store.ledgerData = try JSONEncoder().encode(
+            ConsentManager.LocalLedger(
+                activeUserId: ownerUserId,
+                termsReceipts: [termsReceipt],
+                aiConsentEvents: [aiGrant],
+                adultEligibilityReceipts: [adultReceipt],
+                analyticsConsentEvents: []
+            )
+        )
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { _, _ in }
+        )
+        manager.observeSession(userId: ownerUserId)
+        XCTAssertTrue(manager.hasCurrentRequiredConsent)
+
+        XCTAssertTrue(
+            try manager.requireCurrentConsentReapprovalAfterServerRejection()
+        )
+
+        XCTAssertFalse(manager.hasConfirmedCurrentAdultEligibility)
+        XCTAssertFalse(manager.hasAcceptedCurrentTerms)
+        XCTAssertFalse(manager.hasGrantedCurrentGeminiProcessing)
+        XCTAssertFalse(manager.hasCurrentRequiredConsent)
+        XCTAssertEqual(
+            manager.requiredConsentRestorationState,
+            .reconciling(userId: ownerUserId)
+        )
+        let fencedLedger = try JSONDecoder().decode(
+            ConsentManager.LocalLedger.self,
+            from: try XCTUnwrap(store.ledgerData)
+        )
+        XCTAssertTrue(
+            fencedLedger.requiredConsentReapprovalUserIds.contains(ownerUserId)
+        )
+
+        let restarted = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId },
+            analyticsPermissionApplier: { _, _ in }
+        )
+        restarted.observeSession(userId: ownerUserId)
+        try restarted.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: adultReceipt,
+                termsReceipt: termsReceipt,
+                aiConsentEvent: aiGrant,
+                analyticsConsentEvent: nil,
+                aiConsentStreamHead: aiGrant,
+                analyticsConsentStreamHead: nil
+            ),
+            for: ownerUserId,
+            generation: 1
+        )
+        XCTAssertFalse(restarted.hasCurrentRequiredConsent)
+        XCTAssertEqual(restarted.requiredConsentRestorationState, .resolved)
+        XCTAssertEqual(
+            AppRootPresentationPolicy.presentation(
+                hasCompletedOnboarding: true,
+                hasCurrentRequiredConsent: restarted.hasCurrentRequiredConsent,
+                isRestoringRequiredConsent: restarted.isRestoringRequiredConsent
+            ),
+            .onboarding
+        )
+        appSettings.hasCompletedOnboarding = true
+        XCTAssertEqual(
+            OnboardingViewModel(
+                appSettings: appSettings,
+                consentManager: restarted
+            ).currentStep,
+            .ready
+        )
+
+        try restarted.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+            analyticsEnabled: false
+        )
+
+        XCTAssertTrue(restarted.hasCurrentRequiredConsent)
+        XCTAssertEqual(restarted.pendingCloudRecordCount, 3)
+        let reapprovedLedger = try JSONDecoder().decode(
+            ConsentManager.LocalLedger.self,
+            from: try XCTUnwrap(store.ledgerData)
+        )
+        XCTAssertFalse(
+            reapprovedLedger.requiredConsentReapprovalUserIds.contains(ownerUserId)
+        )
+        XCTAssertEqual(reapprovedLedger.adultEligibilityReceipts.count, 2)
+        let newAdultReceipt = try XCTUnwrap(
+            reapprovedLedger.adultEligibilityReceipts.first {
+                $0.id != adultReceipt.id
+            }
+        )
+        XCTAssertNil(newAdultReceipt.syncedUserId)
+        XCTAssertNil(newAdultReceipt.recordedAt)
+        XCTAssertEqual(reapprovedLedger.termsReceipts.count, 2)
+        let newTermsReceipt = try XCTUnwrap(
+            reapprovedLedger.termsReceipts.first { $0.id != termsReceipt.id }
+        )
+        XCTAssertNil(newTermsReceipt.syncedUserId)
+        XCTAssertNil(newTermsReceipt.recordedAt)
+        XCTAssertEqual(reapprovedLedger.aiConsentEvents.count, 2)
+        let newAIGrant = try XCTUnwrap(
+            reapprovedLedger.aiConsentEvents.first { $0.id != aiGrant.id }
+        )
+        XCTAssertNil(newAIGrant.syncedUserId)
+        XCTAssertNil(newAIGrant.recordedAt)
+        XCTAssertNil(newAIGrant.consentRevision)
+        XCTAssertEqual(newAIGrant.causalParentId, aiGrant.id)
+    }
+
+    func testRequiredConsentCloudProofUsesFetchedProviderStreamHead() {
+        let ownerUserId = UUID()
+        let recordedAt = Date(timeIntervalSince1970: 1_786_100_000)
+        let adultReceipt = makeAdultReceipt(
+            ownerUserId: ownerUserId,
+            recordedAt: recordedAt
+        )
+        let termsReceipt = makeTermsReceipt(
+            ownerUserId: ownerUserId,
+            recordedAt: recordedAt
+        )
+        let aiGrant = makeAIConsentEvent(
+            ownerUserId: ownerUserId,
+            recordedAt: recordedAt,
+            consentRevision: 5
+        )
+        let completeState = ConsentManager.RemoteState(
+            adultEligibilityReceipt: adultReceipt,
+            termsReceipt: termsReceipt,
+            aiConsentEvent: aiGrant,
+            analyticsConsentEvent: nil,
+            aiConsentStreamHead: aiGrant,
+            analyticsConsentStreamHead: nil
+        )
+
+        XCTAssertTrue(
+            ConsentManager.isAuthoritativeRequiredConsent(
+                completeState,
+                for: ownerUserId
+            )
+        )
+        XCTAssertFalse(
+            ConsentManager.isAuthoritativeRequiredConsent(
+                ConsentManager.RemoteState(
+                    adultEligibilityReceipt: adultReceipt,
+                    termsReceipt: termsReceipt,
+                    aiConsentEvent: aiGrant,
+                    analyticsConsentEvent: nil,
+                    aiConsentStreamHead: nil,
+                    analyticsConsentStreamHead: nil
+                ),
+                for: ownerUserId
+            )
+        )
+    }
+
+    func testExistingLedgerWithoutReapprovalFenceDecodesAsUnfenced() throws {
+        let currentData = try JSONEncoder().encode(
+            ConsentManager.LocalLedger.empty
+        )
+        var legacyObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: currentData)
+                as? [String: Any]
+        )
+        legacyObject.removeValue(forKey: "requiredConsentReapprovalUserIds")
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
+
+        let decoded = try JSONDecoder().decode(
+            ConsentManager.LocalLedger.self,
+            from: legacyData
+        )
+
+        XCTAssertTrue(decoded.requiredConsentReapprovalUserIds.isEmpty)
+    }
+
     func testOverlappingAccountTransitionsOnlyNewestResolutionReopensAnalytics() throws {
         let originalUserId = UUID()
         let replacementUserId = UUID()
@@ -1332,6 +1525,69 @@ final class OnboardingViewModelTests: XCTestCase {
             appVersion: "1.0.3",
             appBuild: "275",
             recordedAt: recordedAt
+        )
+    }
+
+    private func makeAdultReceipt(
+        ownerUserId: UUID,
+        recordedAt: Date
+    ) -> ConsentManager.AdultEligibilityReceipt {
+        ConsentManager.AdultEligibilityReceipt(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            policyVersion: ConsentPolicy.adultEligibilityVersion,
+            confirmedAt: recordedAt.addingTimeInterval(-1),
+            confirmationMethod: .selfAttestation,
+            confirmationText: ConsentPolicy.adultConfirmationText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt
+        )
+    }
+
+    private func makeTermsReceipt(
+        ownerUserId: UUID,
+        recordedAt: Date
+    ) -> ConsentManager.TermsAcceptanceReceipt {
+        ConsentManager.TermsAcceptanceReceipt(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            termsVersion: ConsentPolicy.termsVersion,
+            acceptedAt: recordedAt.addingTimeInterval(-1),
+            acceptanceText: ConsentPolicy.combinedAcceptanceText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt
+        )
+    }
+
+    private func makeAIConsentEvent(
+        ownerUserId: UUID,
+        recordedAt: Date,
+        consentRevision: Int64
+    ) -> ConsentManager.AIConsentEvent {
+        ConsentManager.AIConsentEvent(
+            id: UUID(),
+            ownerUserId: ownerUserId,
+            syncedUserId: ownerUserId,
+            provider: ConsentPolicy.geminiProvider,
+            disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
+            eventKind: .granted,
+            occurredAt: recordedAt.addingTimeInterval(-1),
+            disclosureText: ConsentPolicy.geminiDisclosureText,
+            actionText: ConsentPolicy.combinedAcceptanceText,
+            platform: "ios",
+            appVersion: "1.0.3",
+            appBuild: "275",
+            recordedAt: recordedAt,
+            causalParentId: nil,
+            consentRevision: consentRevision,
+            supersededByEventId: nil,
+            supersededByRevision: nil
         )
     }
 }

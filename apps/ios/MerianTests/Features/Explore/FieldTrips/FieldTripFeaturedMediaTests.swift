@@ -3,11 +3,82 @@ import Foundation
 import Testing
 
 struct FieldTripFeaturedMediaTests {
-    @Test func builderUsesOnlyCompletedUserVisualsAndDefensivelyDeduplicatesScans() throws {
-        let photo = makeScan(
+    @Test func builderUsesReferenceUntilCompletedUserVisualReplacesTheSameGoalSlot() throws {
+        let scan = makeScan(
             id: "photo",
-            media: [.image(.remoteURL("https://media.merian.app/photo.webp"))]
+            media: [.image(.remoteURL("https://media.merian.app/user-photo.webp"))]
         )
+        let template = makeTemplate(levels: [
+            makeLevel(number: 1, items: [
+                makeChecklistItem(id: "bird", scanId: nil, isCompleted: false),
+                makeChecklistItem(id: "cat", scanId: scan.id)
+            ])
+        ])
+
+        let candidates = FieldTripFeaturedMediaBuilder.candidates(
+            for: template,
+            localScansById: [scan.id: scan]
+        )
+
+        #expect(candidates.map(\.id) == [
+            "field-trip-featured-goal:bird",
+            "field-trip-featured-goal:cat"
+        ])
+        #expect(candidates[0].scanId == nil)
+        #expect(candidates[0].source == .reference(referenceImage(source: .merian)))
+        #expect(candidates[1].scanId == scan.id)
+        #expect(candidates[1].source == .userImage(
+            path: "https://media.merian.app/user-photo.webp"
+        ))
+    }
+
+    @Test func builderFallsBackFromUnavailableUserMediaThroughNaturebookWikipediaAndGBIF() throws {
+        let userPath = "https://media.merian.app/user-photo.webp"
+        let scan = makeScan(
+            id: "photo",
+            media: [.image(.remoteURL(userPath))]
+        )
+        let template = makeTemplate(levels: [
+            makeLevel(number: 1, items: [makeChecklistItem(id: "bird", scanId: scan.id)])
+        ])
+
+        let naturebookFallback = try #require(FieldTripFeaturedMediaBuilder.candidates(
+            for: template,
+            localScansById: [scan.id: scan],
+            excluding: [userPath]
+        ).first)
+        let wikipediaFallback = try #require(FieldTripFeaturedMediaBuilder.candidates(
+            for: template,
+            localScansById: [scan.id: scan],
+            excluding: [userPath, referenceURL(source: .merian)]
+        ).first)
+        let gbifFallback = try #require(FieldTripFeaturedMediaBuilder.candidates(
+            for: template,
+            localScansById: [scan.id: scan],
+            excluding: [
+                userPath,
+                referenceURL(source: .merian),
+                referenceURL(source: .wikipedia)
+            ]
+        ).first)
+        let exhausted = FieldTripFeaturedMediaBuilder.candidates(
+            for: template,
+            localScansById: [scan.id: scan],
+            excluding: [
+                userPath,
+                referenceURL(source: .merian),
+                referenceURL(source: .wikipedia),
+                referenceURL(source: .gbif)
+            ]
+        )
+
+        #expect(naturebookFallback.source == .reference(referenceImage(source: .merian)))
+        #expect(wikipediaFallback.source == .reference(referenceImage(source: .wikipedia)))
+        #expect(gbifFallback.source == .reference(referenceImage(source: .gbif)))
+        #expect(exhausted.isEmpty)
+    }
+
+    @Test func builderMapsVideoAndLegacyCoverThenUsesReferencesForUnusableCompletedScans() {
         let video = makeScan(
             id: "video",
             media: [
@@ -17,168 +88,130 @@ struct FieldTripFeaturedMediaTests {
                 ))
             ]
         )
+        let legacy = makeScan(id: "legacy", media: [], coverImagePath: "legacy.webp")
         let audio = makeScan(
             id: "audio",
             media: [.audio(.remoteURL("https://media.merian.app/audio.wav"))]
         )
-        let videoWithoutPoster = makeScan(
-            id: "video-without-poster",
-            media: [
-                .video(StoredVideoMediaReference(
-                    .remoteURL("https://media.merian.app/no-poster.mp4")
-                ))
-            ]
-        )
-        let legacyCover = makeScan(
-            id: "legacy-cover",
-            media: [],
-            coverImagePath: "legacy-cover.webp"
-        )
-        let referenceOnly = makeScan(
-            id: "reference-only",
-            media: [],
-            coverImagePath: "https://example.com/reference.jpg",
-            referenceImageUrl: "https://example.com/reference.jpg"
+        let posterlessVideo = makeScan(
+            id: "posterless",
+            media: [.video(StoredVideoMediaReference(.remoteURL("https://media.merian.app/video.mp4")))]
         )
         let archived = makeScan(
             id: "archived",
             media: [.image(.documents("archived.webp"))],
             isLocallyArchived: true
         )
-        let incomplete = makeScan(
-            id: "incomplete",
-            media: [.image(.documents("incomplete.webp"))]
+        let referenceURL = referenceURL(source: .merian)
+        let referenceOnly = makeScan(
+            id: "reference-only",
+            media: [],
+            coverImagePath: referenceURL,
+            referenceImageUrl: referenceURL
         )
-
         let template = makeTemplate(levels: [
             makeLevel(number: 1, items: [
-                makeChecklistItem(id: "photo-goal", scanId: photo.id),
-                makeChecklistItem(id: "video-goal", scanId: video.id),
-                makeChecklistItem(id: "duplicate-photo-goal", scanId: photo.id),
-                makeChecklistItem(id: "audio-goal", scanId: audio.id),
-                makeChecklistItem(id: "posterless-video-goal", scanId: videoWithoutPoster.id),
-                makeChecklistItem(id: "legacy-goal", scanId: legacyCover.id),
-                makeChecklistItem(id: "reference-goal", scanId: referenceOnly.id),
-                makeChecklistItem(id: "archived-goal", scanId: archived.id),
-                makeChecklistItem(id: "no-scan-id-goal", scanId: nil),
-                makeChecklistItem(id: "missing-goal", scanId: "missing"),
-                makeChecklistItem(id: "incomplete-goal", scanId: incomplete.id, isCompleted: false)
+                makeChecklistItem(id: "video", scanId: video.id),
+                makeChecklistItem(id: "legacy", scanId: legacy.id),
+                makeChecklistItem(id: "audio", scanId: audio.id),
+                makeChecklistItem(id: "posterless", scanId: posterlessVideo.id),
+                makeChecklistItem(id: "archived", scanId: archived.id),
+                makeChecklistItem(id: "missing", scanId: "missing"),
+                makeChecklistItem(id: "reference-only", scanId: referenceOnly.id)
             ])
         ])
-        let scans = [
-            photo,
-            video,
-            audio,
-            videoWithoutPoster,
-            legacyCover,
-            referenceOnly,
-            archived,
-            incomplete
-        ]
+        let scans = [video, legacy, audio, posterlessVideo, archived, referenceOnly]
 
         let candidates = FieldTripFeaturedMediaBuilder.candidates(
             for: template,
             localScansById: Dictionary(uniqueKeysWithValues: scans.map { ($0.id, $0) })
         )
 
-        #expect(candidates.map(\.scanId) == ["photo", "video", "legacy-cover"])
-        #expect(candidates[0].source == .image(path: "https://media.merian.app/photo.webp"))
-        #expect(candidates[1].source == .video(
+        #expect(candidates[0].source == .userVideo(
             path: "https://media.merian.app/video.mp4",
             posterPath: "https://media.merian.app/video-poster.webp"
         ))
-        #expect(candidates[2].source == .image(path: "legacy-cover.webp"))
+        #expect(candidates[1].source == .userImage(path: "legacy.webp"))
+        #expect(candidates.dropFirst(2).allSatisfy { $0.source.isReference })
     }
 
-    @Test func selectionBalancesLevelsWhileRankingQualityBeforeRecency() {
+    @Test func repeatedScanUsesUserMediaOnceAndRetainsReferenceForTheOtherGoal() {
+        let scan = makeScan(
+            id: "shared",
+            media: [.image(.remoteURL("https://media.merian.app/shared.webp"))]
+        )
+        let template = makeTemplate(levels: [
+            makeLevel(number: 1, items: [
+                makeChecklistItem(id: "first", scanId: scan.id),
+                makeChecklistItem(id: "second", scanId: scan.id)
+            ])
+        ])
+
+        let candidates = FieldTripFeaturedMediaBuilder.candidates(
+            for: template,
+            localScansById: [scan.id: scan]
+        )
+
+        #expect(candidates[0].source == .userImage(path: "https://media.merian.app/shared.webp"))
+        #expect(candidates[1].source.isReference)
+    }
+
+    @Test func selectionBalancesLevelsInStableChecklistOrderAndCapsAtSix() {
         let candidates = [
-            makeFeaturedItem(id: "l1-70", level: 1, quality: 70, timestamp: 90),
-            makeFeaturedItem(id: "l1-90", level: 1, quality: 90, timestamp: 10),
-            makeFeaturedItem(id: "l1-80", level: 1, quality: 80, timestamp: 80),
-            makeFeaturedItem(id: "l2-75", level: 2, quality: 75, timestamp: 70),
-            makeFeaturedItem(id: "l2-95", level: 2, quality: 95, timestamp: 20),
-            makeFeaturedItem(id: "l2-85", level: 2, quality: 85, timestamp: 60),
-            makeFeaturedItem(id: "l3-68", level: 3, quality: 68, timestamp: 50),
-            makeFeaturedItem(id: "l3-88", level: 3, quality: 88, timestamp: 30),
-            makeFeaturedItem(id: "l3-78", level: 3, quality: 78, timestamp: 40)
+            makeFeaturedItem(id: "l1-1", level: 1, order: 0),
+            makeFeaturedItem(id: "l1-2", level: 1, order: 1),
+            makeFeaturedItem(id: "l1-3", level: 1, order: 2),
+            makeFeaturedItem(id: "l2-1", level: 2, order: 0),
+            makeFeaturedItem(id: "l2-2", level: 2, order: 1),
+            makeFeaturedItem(id: "l2-3", level: 2, order: 2),
+            makeFeaturedItem(id: "l3-1", level: 3, order: 0),
+            makeFeaturedItem(id: "l3-2", level: 3, order: 1)
         ]
 
         let selected = FieldTripFeaturedMediaSelection.items(from: candidates)
 
         #expect(selected.map(\.id) == [
-            "l1-90", "l2-95", "l3-88",
-            "l1-80", "l2-85", "l3-78"
+            "l1-1", "l2-1", "l3-1",
+            "l1-2", "l2-2", "l3-2"
         ])
     }
 
-    @Test func selectionUsesNewestFallbackAndStableChecklistOrderForQualityTies() {
+    @Test func missingGoalSourceLetsTheNextBalancedReserveRefillTheCarousel() {
         let candidates = [
-            makeFeaturedItem(id: "unscored-old", level: 1, quality: nil, timestamp: 10, order: 0),
-            makeFeaturedItem(id: "unscored-new", level: 1, quality: nil, timestamp: 30, order: 1),
-            makeFeaturedItem(id: "scored-zero", level: 1, quality: 0, timestamp: 5, order: 2),
-            makeFeaturedItem(id: "tie-second", level: 2, quality: 80, timestamp: 20, order: 2),
-            makeFeaturedItem(id: "tie-first", level: 2, quality: 80, timestamp: 20, order: 1)
+            makeFeaturedItem(id: "l1-primary", level: 1, order: 0),
+            makeFeaturedItem(id: "l1-reserve", level: 1, order: 1),
+            makeFeaturedItem(id: "l2-primary", level: 2, order: 0)
         ]
 
         let selected = FieldTripFeaturedMediaSelection.items(
-            from: candidates,
-            maximumCount: 5
-        )
-
-        #expect(selected.map(\.id) == [
-            "scored-zero", "tie-first",
-            "unscored-new", "tie-second",
-            "unscored-old"
-        ])
-    }
-
-    @Test func selectionUsesStableIDForOtherwiseIdenticalCandidates() {
-        let candidates = [
-            makeFeaturedItem(id: "stable-z", level: 1, quality: 80, timestamp: 20),
-            makeFeaturedItem(id: "stable-a", level: 1, quality: 80, timestamp: 20)
-        ]
-
-        let selected = FieldTripFeaturedMediaSelection.items(from: candidates)
-
-        #expect(selected.map(\.id) == ["stable-a", "stable-z"])
-    }
-
-    @Test func failedFeaturedMediaRefillsFromTheSameLevelAndCanCollapseCompletely() {
-        let levelOnePrimary = makeFeaturedItem(id: "l1-primary", level: 1, quality: 90, timestamp: 30)
-        let levelOneReserve = makeFeaturedItem(id: "l1-reserve", level: 1, quality: 80, timestamp: 20)
-        let levelTwoPrimary = makeFeaturedItem(id: "l2-primary", level: 2, quality: 90, timestamp: 30)
-        let candidates = [levelOnePrimary, levelOneReserve, levelTwoPrimary]
-
-        let refilled = FieldTripFeaturedMediaSelection.items(
-            from: candidates,
-            excluding: [levelOnePrimary.id],
+            from: candidates.filter { $0.id != "l1-primary" },
             maximumCount: 2
         )
-        let collapsed = FieldTripFeaturedMediaSelection.items(
-            from: candidates,
-            excluding: Set(candidates.map(\.id))
-        )
 
-        #expect(refilled.map(\.id) == [levelOneReserve.id, levelTwoPrimary.id])
-        #expect(collapsed.isEmpty)
+        #expect(selected.map(\.id) == ["l1-reserve", "l2-primary"])
+        #expect(FieldTripFeaturedMediaSelection.items(from: []).isEmpty)
     }
 
-    @Test func presentationPreservesSelectionAndBuildsPhotoVideoGalleryInFeaturedOrder() throws {
+    @Test func presentationPreservesGoalIdentityAndBuildsMixedReferencePhotoVideoGallery() throws {
+        let reference = makeFeaturedItem(
+            id: "reference",
+            level: 1,
+            order: 0,
+            source: .reference(referenceImage(source: .wikipedia))
+        )
         let photo = makeFeaturedItem(
             id: "photo",
-            level: 1,
-            quality: 80,
-            timestamp: 10,
-            source: .image(path: "photo.webp")
+            level: 2,
+            order: 0,
+            source: .userImage(path: "photo.webp")
         )
         let video = makeFeaturedItem(
             id: "video",
-            level: 2,
-            quality: 90,
-            timestamp: 20,
-            source: .video(path: "video.mp4", posterPath: "poster.webp")
+            level: 3,
+            order: 0,
+            source: .userVideo(path: "video.mp4", posterPath: "poster.webp")
         )
-        let items = [photo, video]
+        let items = [reference, photo, video]
 
         let presentation = try #require(
             FieldTripFeaturedMediaPresentation.galleryPresentation(
@@ -187,47 +220,86 @@ struct FieldTripFeaturedMediaTests {
             )
         )
 
-        #expect(presentation.items.map(\.id) == [photo.id, video.id])
+        #expect(presentation.items.map(\.id) == items.map(\.id))
         #expect(presentation.items.map(\.source) == [
+            .referenceURL(referenceURL(source: .wikipedia)),
             .imagePath("photo.webp"),
             .videoPath("video.mp4")
         ])
-        #expect(presentation.items.map(\.accessibilityLabel) == [
-            photo.accessibilityLabel,
-            video.accessibilityLabel
-        ])
-        #expect(presentation.initialSelectedIndex == 1)
+        #expect(presentation.items[0].referenceAttributionLabel?.contains("Wikipedia") == true)
+        #expect(presentation.items.map(\.accessibilityLabel) == items.map(\.accessibilityLabel))
+        #expect(presentation.initialSelectedIndex == 2)
         #expect(presentation.initialVideoMuted)
-        #expect(FieldTripFeaturedMediaPresentation.galleryPresentation(
-            for: [],
-            selectedItemId: nil
-        ) == nil)
     }
 
-    @Test func selectedIndexPreservesStableIDAcrossReorderAndClampsAfterRemoval() {
-        let photo = makeFeaturedItem(id: "photo", level: 1, quality: 80, timestamp: 10)
-        let video = makeFeaturedItem(id: "video", level: 2, quality: 90, timestamp: 20)
+    @Test func selectedIndexPreservesStableGoalIDAcrossSourceReplacementAndRemoval() {
+        let reference = makeFeaturedItem(
+            id: "same-goal",
+            level: 1,
+            order: 0,
+            source: .reference(referenceImage(source: .merian))
+        )
+        let replacement = makeFeaturedItem(
+            id: "same-goal",
+            level: 1,
+            order: 0,
+            source: .userImage(path: "user.webp")
+        )
+        let other = makeFeaturedItem(id: "other", level: 2, order: 0)
 
         #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
-            preserving: video.id,
-            previousSelectedIndex: 1,
-            in: [video, photo]
-        ) == 0)
+            preserving: reference.id,
+            previousSelectedIndex: 0,
+            in: [other, replacement]
+        ) == 1)
         #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
             preserving: "removed",
             previousSelectedIndex: 1,
-            in: [photo]
+            in: [other]
         ) == 0)
         #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
             preserving: nil,
             previousSelectedIndex: 1,
-            in: [photo, video]
+            in: [other, replacement]
         ) == 1)
-        #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
-            preserving: video.id,
-            previousSelectedIndex: 1,
-            in: []
-        ) == 0)
+    }
+
+    @Test func heroUnderlapsNavigationBarOnlyForGoalsWithFeaturedMedia() {
+        #expect(FieldTripFeaturedMediaLayout.underlapsNavigationBar(
+            isGoalsSelected: true,
+            featuredItemCount: 1
+        ))
+        #expect(!FieldTripFeaturedMediaLayout.underlapsNavigationBar(
+            isGoalsSelected: true,
+            featuredItemCount: 0
+        ))
+        #expect(!FieldTripFeaturedMediaLayout.underlapsNavigationBar(
+            isGoalsSelected: false,
+            featuredItemCount: 4
+        ))
+    }
+
+    @Test func loadingSkeletonUsesTheFeaturedHeroOnlyForStandardGoals() {
+        #expect(FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
+            isLoading: true,
+            hasTemplate: false,
+            isGoalsSelected: true
+        ))
+        #expect(!FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
+            isLoading: true,
+            hasTemplate: false,
+            isGoalsSelected: false
+        ))
+        #expect(!FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
+            isLoading: true,
+            hasTemplate: true,
+            isGoalsSelected: true
+        ))
+        #expect(!FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
+            isLoading: false,
+            hasTemplate: false,
+            isGoalsSelected: true
+        ))
     }
 
     private func makeTemplate(levels: [FieldTripLevel]) -> FieldTripTemplate {
@@ -256,10 +328,7 @@ struct FieldTripFeaturedMediaTests {
         )
     }
 
-    private func makeLevel(
-        number: Int,
-        items: [FieldTripChecklistItem]
-    ) -> FieldTripLevel {
+    private func makeLevel(number: Int, items: [FieldTripChecklistItem]) -> FieldTripLevel {
         FieldTripLevel(
             levelId: "level-\(number)",
             levelNumber: number,
@@ -272,7 +341,8 @@ struct FieldTripFeaturedMediaTests {
     private func makeChecklistItem(
         id: String,
         scanId: String?,
-        isCompleted: Bool = true
+        isCompleted: Bool = true,
+        referenceSpecies: FieldTripReferenceSpecies? = nil
     ) -> FieldTripChecklistItem {
         FieldTripChecklistItem(
             itemId: id,
@@ -280,12 +350,53 @@ struct FieldTripFeaturedMediaTests {
             matchType: "taxonomy",
             guideTip: nil,
             guide: nil,
+            referenceSpecies: referenceSpecies ?? makeReferenceSpecies(),
             isCompleted: isCompleted,
             completedAt: isCompleted ? "2026-08-07T12:00:00Z" : nil,
-            completedCommonName: isCompleted ? "Species \(id)" : nil,
+            completedCommonName: isCompleted ? "Observed \(id)" : nil,
             completedScientificName: isCompleted ? "Species scientificus" : nil,
             completedScanId: scanId
         )
+    }
+
+    private func makeReferenceSpecies() -> FieldTripReferenceSpecies {
+        FieldTripReferenceSpecies(
+            scientificName: "Passer domesticus",
+            commonName: "House Sparrow",
+            referenceImages: [
+                referenceImage(source: .gbif),
+                referenceImage(source: .wikipedia),
+                referenceImage(source: .merian)
+            ]
+        )
+    }
+
+    private func referenceImage(
+        source: SpeciesDictionaryReferenceImage.Source
+    ) -> SpeciesDictionaryReferenceImage {
+        SpeciesDictionaryReferenceImage(
+            url: referenceURL(source: source),
+            source: source,
+            license: source == .wikipedia ? "CC BY-SA 4.0" : nil,
+            attribution: source == .wikipedia ? "Example Photographer" : nil,
+            width: 1200,
+            height: 800
+        )
+    }
+
+    private func referenceURL(
+        source: SpeciesDictionaryReferenceImage.Source
+    ) -> String {
+        switch source {
+        case .merian:
+            "https://media.merian.app/reference.webp"
+        case .wikipedia:
+            "https://upload.wikimedia.org/reference.jpg"
+        case .gbif:
+            "https://api.gbif.org/reference.jpg"
+        case .unknown(let value):
+            "https://example.com/\(value).jpg"
+        }
     }
 
     private func makeScan(
@@ -293,45 +404,40 @@ struct FieldTripFeaturedMediaTests {
         media: [SerializedMediaItem],
         coverImagePath: String? = nil,
         referenceImageUrl: String? = nil,
-        isLocallyArchived: Bool = false,
-        quality: Int? = 80,
-        timestamp: TimeInterval = 100
+        isLocallyArchived: Bool = false
     ) -> LocalScanRecord {
         LocalScanRecord(
             id: id,
             speciesId: "species-\(id)",
             scientificName: "Species scientificus",
             commonName: "Species \(id)",
-            timestamp: Date(timeIntervalSince1970: timestamp),
-            captureDate: Date(timeIntervalSince1970: timestamp),
+            timestamp: Date(timeIntervalSince1970: 100),
+            captureDate: Date(timeIntervalSince1970: 100),
             capturedMediaJSON: MediaJSONParser.jsonString(from: media),
             coverImagePath: coverImagePath,
             referenceImageUrl: referenceImageUrl,
             isLocallyArchived: isLocallyArchived,
-            imageQualityScore: quality
+            imageQualityScore: 80
         )
     }
 
     private func makeFeaturedItem(
         id: String,
         level: Int,
-        quality: Int?,
-        timestamp: TimeInterval,
-        order: Int = 0,
-        source: FieldTripFeaturedMediaSource = .image(path: "image.webp")
+        order: Int,
+        source: FieldTripFeaturedMediaSource = .userImage(path: "image.webp")
     ) -> FieldTripFeaturedMediaItem {
         FieldTripFeaturedMediaItem(
             id: id,
-            scanId: "scan-\(id)",
+            scanId: source.isReference ? nil : "scan-\(id)",
             levelId: "level-\(level)",
             levelNumber: level,
             levelTitle: "Level \(level)",
             checklistOrder: order,
             goalTitle: "Goal \(id)",
-            completedCommonName: "Species \(id)",
-            source: source,
-            imageQualityScore: quality,
-            capturedAt: Date(timeIntervalSince1970: timestamp)
+            completedCommonName: source.isReference ? nil : "Species \(id)",
+            referenceSpecies: makeReferenceSpecies(),
+            source: source
         )
     }
 }

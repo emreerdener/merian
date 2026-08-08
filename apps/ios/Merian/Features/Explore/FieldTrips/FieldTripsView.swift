@@ -529,6 +529,20 @@ private enum FieldTripLifecycleConfirmation: String, Identifiable {
     var id: String { rawValue }
 }
 
+private enum FieldTripDetailLayout {
+    static let scrollCoordinateSpace = "FieldTripDetailScrollSpace"
+}
+
+enum FieldTripDetailLoadingPresentation {
+    static func showsFeaturedMediaHero(
+        isLoading: Bool,
+        hasTemplate: Bool,
+        isGoalsSelected: Bool
+    ) -> Bool {
+        isLoading && !hasTemplate && isGoalsSelected
+    }
+}
+
 struct FieldTripTemplateDetailView: View {
     let reference: FieldTripTemplateReference
     let focusedChecklistItemId: String?
@@ -556,8 +570,9 @@ struct FieldTripTemplateDetailView: View {
     @State private var highlightedObjectiveItemId: String?
     @State private var didApplyInitialFocus = false
     @State private var lifecycleConfirmation: FieldTripLifecycleConfirmation?
-    @State private var failedFeaturedMediaItemIds: Set<String> = []
+    @State private var unavailableFeaturedMediaSourceIdentifiers: Set<String> = []
     @State private var featuredMediaGalleryPresentation: InsightImageGalleryPresentation?
+    @State private var isFeaturedHeroTopScrollEdgeEffectHidden = true
 
     init(
         reference: FieldTripTemplateReference,
@@ -590,11 +605,20 @@ struct FieldTripTemplateDetailView: View {
     }
 
     var body: some View {
+        let underlapsNavigationBar = featuredHeroUnderlapsNavigationBar
+
         ScrollViewReader { scrollProxy in
             ScrollView(showsIndicators: false) {
                 if isLoading && template == nil {
-                    FieldTripTemplateDetailSkeleton(showsCoverImage: false)
-                        .padding(16)
+                    FieldTripTemplateDetailSkeleton(
+                        showsCoverImage: false,
+                        showsFeaturedMediaHero: showsFeaturedMediaLoadingSkeleton,
+                        onFeaturedHeroMaxYChange: { maxY in
+                            updateFeaturedHeroScrollEdgeEffect(maxY: maxY)
+                        }
+                    )
+                    .padding(.horizontal, showsFeaturedMediaLoadingSkeleton ? 0 : 16)
+                    .padding(.vertical, showsFeaturedMediaLoadingSkeleton ? 0 : 16)
                 } else if let errorMessage, template == nil {
                     FieldTripUnavailableCard(
                         title: "Field trip unavailable",
@@ -608,6 +632,15 @@ struct FieldTripTemplateDetailView: View {
                         .padding(.bottom, 32)
                 }
             }
+            .coordinateSpace(name: FieldTripDetailLayout.scrollCoordinateSpace)
+            .modifier(MediaHeroTopScrollEdgeEffectModifier(
+                isHidden: underlapsNavigationBar && isFeaturedHeroTopScrollEdgeEffectHidden
+            ))
+            .ignoresSafeArea(
+                .container,
+                edges: underlapsNavigationBar ? .top : []
+            )
+            .contentMargins(.top, 0, for: .scrollContent)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(
                 template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
@@ -615,6 +648,10 @@ struct FieldTripTemplateDetailView: View {
             )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
+            .toolbarBackground(
+                underlapsNavigationBar ? Visibility.hidden : Visibility.automatic,
+                for: .navigationBar
+            )
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let template,
                    let primaryAction = FieldTripDetailLifecyclePresentation.primaryAction(
@@ -624,7 +661,6 @@ struct FieldTripTemplateDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
                         .padding(.bottom, 8)
-                        .background(.bar)
                 }
             }
             .task {
@@ -640,7 +676,12 @@ struct FieldTripTemplateDetailView: View {
             }
             .onChange(of: offlineQueueManager.isOnline) { _, isOnline in
                 if isOnline {
-                    failedFeaturedMediaItemIds.removeAll()
+                    unavailableFeaturedMediaSourceIdentifiers.removeAll()
+                }
+            }
+            .onChange(of: underlapsNavigationBar) { _, isUnderlapping in
+                if isUnderlapping {
+                    isFeaturedHeroTopScrollEdgeEffectHidden = true
                 }
             }
             .sheet(item: $publishingTemplate) { template in
@@ -679,8 +720,8 @@ struct FieldTripTemplateDetailView: View {
                 if !featuredMediaItems.isEmpty {
                     FieldTripFeaturedMediaCarousel(
                         items: featuredMediaItems,
-                        onMediaLoadFailed: { itemId in
-                            failedFeaturedMediaItemIds.insert(itemId)
+                        onMediaLoadFailed: { sourceIdentifier in
+                            unavailableFeaturedMediaSourceIdentifiers.insert(sourceIdentifier)
                         },
                         onOpenViewer: { selectedItemId in
                             featuredMediaGalleryPresentation =
@@ -691,6 +732,20 @@ struct FieldTripTemplateDetailView: View {
                         }
                     )
                     .containerRelativeFrame(.horizontal)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear
+                                .onChange(
+                                    of: proxy.frame(
+                                        in: .named(FieldTripDetailLayout.scrollCoordinateSpace)
+                                    ).maxY,
+                                    initial: true
+                                ) { _, newMaxY in
+                                    updateFeaturedHeroScrollEdgeEffect(maxY: newMaxY)
+                                }
+                        }
+                    }
+                    .ignoresSafeArea(.all, edges: .top)
                 }
 
                 VStack(alignment: .leading, spacing: 24) {
@@ -770,16 +825,46 @@ struct FieldTripTemplateDetailView: View {
         }
     }
 
+    private var featuredHeroUnderlapsNavigationBar: Bool {
+        if showsFeaturedMediaLoadingSkeleton {
+            return true
+        }
+
+        return FieldTripFeaturedMediaLayout.underlapsNavigationBar(
+            isGoalsSelected: selectedDetailSection == .objectives,
+            featuredItemCount: template.map { featuredMediaItems(for: $0).count } ?? 0
+        )
+    }
+
+    private var showsFeaturedMediaLoadingSkeleton: Bool {
+        FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
+            isLoading: isLoading,
+            hasTemplate: template != nil,
+            isGoalsSelected: selectedDetailSection == .objectives
+        )
+    }
+
     private func featuredMediaItems(
         for template: FieldTripTemplate
     ) -> [FieldTripFeaturedMediaItem] {
         FieldTripFeaturedMediaSelection.items(
             from: FieldTripFeaturedMediaBuilder.candidates(
                 for: template,
-                localScansById: localScansById
-            ),
-            excluding: failedFeaturedMediaItemIds
+                localScansById: localScansById,
+                excluding: unavailableFeaturedMediaSourceIdentifiers
+            )
         )
+    }
+
+    private func updateFeaturedHeroScrollEdgeEffect(maxY: CGFloat) {
+        let shouldHide = MediaHeroTopScrollEdgeEffectPolicy.isHidden(
+            heroMaxY: maxY,
+            currentlyHidden: isFeaturedHeroTopScrollEdgeEffectHidden
+        )
+        guard shouldHide != isFeaturedHeroTopScrollEdgeEffectHidden else { return }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isFeaturedHeroTopScrollEdgeEffectHidden = shouldHide
+        }
     }
 
     private func consumePendingGuideScroll(with scrollProxy: ScrollViewProxy) {
@@ -2512,14 +2597,14 @@ private struct FieldTripGuideSections: View {
     @ViewBuilder
     private func objectiveGuideLevel(_ level: FieldTripLevel) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
                 Text(level.title)
-                    .font(.headline.weight(.bold))
+                    .font(.title3.weight(.bold))
+
+                Spacer(minLength: 12)
 
                 if presentationState(for: level) == .completed {
-                    Text("Completed")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    FieldTripGuideLevelCompletedBadge()
                 }
             }
 
@@ -2570,6 +2655,24 @@ private struct FieldTripGuideSections: View {
     }
 }
 
+private struct FieldTripGuideLevelCompletedBadge: View {
+    var body: some View {
+        Label("Completed", systemImage: "checkmark")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.black.opacity(0.82))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color(uiColor: .systemGreen))
+            )
+            .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Completed level")
+    }
+}
+
 private struct FieldTripObjectiveGuideCard: View {
     let item: FieldTripChecklistItem
     let imageName: String
@@ -2581,16 +2684,13 @@ private struct FieldTripObjectiveGuideCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onToggle) {
                 HStack(spacing: 12) {
-                    Image(imageName)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(5)
-                        .frame(width: 58, height: 58)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-                        )
-                        .accessibilityHidden(true)
+                    FieldTripGuideArtworkContainer {
+                        Image(imageName)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(5)
+                    }
+                    .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.prompt)
@@ -2738,11 +2838,13 @@ private struct FieldTripGuideRow: View {
     let bodyText: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
+        HStack(alignment: .top, spacing: 12) {
+            FieldTripGuideArtworkContainer {
+                Image(systemName: systemImage)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -2761,6 +2863,35 @@ private struct FieldTripGuideRow: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+    }
+}
+
+private enum FieldTripGuideArtworkContainerLayout {
+    static let size: CGFloat = 58
+    static let cornerRadius: CGFloat = 10
+}
+
+private struct FieldTripGuideArtworkContainer<Artwork: View>: View {
+    let artwork: Artwork
+
+    init(@ViewBuilder artwork: () -> Artwork) {
+        self.artwork = artwork()
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(
+                cornerRadius: FieldTripGuideArtworkContainerLayout.cornerRadius,
+                style: .continuous
+            )
+                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+
+            artwork
+        }
+        .frame(
+            width: FieldTripGuideArtworkContainerLayout.size,
+            height: FieldTripGuideArtworkContainerLayout.size
         )
     }
 }
@@ -4051,24 +4182,84 @@ private struct FieldTripRecentSkeletonCard: View {
 
 private struct FieldTripTemplateDetailSkeleton: View {
     let showsCoverImage: Bool
+    var showsFeaturedMediaHero = false
+    var onFeaturedHeroMaxYChange: ((CGFloat) -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            if showsCoverImage {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.12))
-                    .aspectRatio(16 / 9, contentMode: .fit)
+        VStack(alignment: .leading, spacing: 0) {
+            if showsFeaturedMediaHero {
+                FieldTripFeaturedMediaSkeleton()
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear
+                                .onChange(
+                                    of: proxy.frame(
+                                        in: .named(FieldTripDetailLayout.scrollCoordinateSpace)
+                                    ).maxY,
+                                    initial: true
+                                ) { _, newMaxY in
+                                    onFeaturedHeroMaxYChange?(newMaxY)
+                                }
+                        }
+                    }
             }
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.secondary.opacity(0.16))
-                .frame(width: 220, height: 24)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.secondary.opacity(0.12))
-                .frame(height: 16)
-            FieldTripExpandedLevelSkeleton()
-            FieldTripCompactLevelSkeleton()
+
+            VStack(alignment: .leading, spacing: 24) {
+                if showsCoverImage {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.12))
+                        .aspectRatio(16 / 9, contentMode: .fit)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.16))
+                        .frame(width: 220, height: 30)
+
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(height: 16)
+
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(maxWidth: 250)
+                        .frame(height: 16)
+                }
+
+                FieldTripExpandedLevelSkeleton()
+                FieldTripCompactLevelSkeleton()
+            }
+            .padding(.horizontal, showsFeaturedMediaHero ? 16 : 0)
+            .padding(.top, showsFeaturedMediaHero ? 24 : 0)
         }
         .redacted(reason: .placeholder)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct FieldTripFeaturedMediaSkeleton: View {
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            GlowPulsingSkeletonView(cornerRadius: 0)
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.white.opacity(0.9))
+                Circle()
+                    .fill(Color.white.opacity(0.4))
+                Circle()
+                    .fill(Color.white.opacity(0.4))
+            }
+            .frame(width: 34, height: 6)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.black.opacity(0.2))
+            .background(.ultraThinMaterial, in: Capsule())
+            .padding(.bottom, 14)
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .clipped()
     }
 }
 

@@ -206,6 +206,7 @@ struct FieldTripAPIModelsTests {
             matchType: "taxonomy",
             guideTip: "Look near sunny flowers.",
             guide: nil,
+            referenceSpecies: nil,
             isCompleted: false,
             completedAt: nil,
             completedCommonName: nil,
@@ -215,6 +216,51 @@ struct FieldTripAPIModelsTests {
 
         #expect(item.hasGuide)
         #expect(item.guidePreview == "Look near sunny flowers.")
+    }
+
+    @Test func checklistItemDecodesOrderedReferenceSpeciesCandidates() throws {
+        let json = Data("""
+        {
+          "item_id": "item-bird",
+          "prompt": "Bird",
+          "match_type": "taxonomy",
+          "guide_tip": null,
+          "guide": null,
+          "reference_species": {
+            "scientific_name": "Passer domesticus",
+            "common_name": "House Sparrow",
+            "reference_images": [
+              {
+                "url": "https://media.merian.app/sparrow.webp",
+                "source": "merian",
+                "license": null,
+                "attribution": null,
+                "width": 1200,
+                "height": 800
+              },
+              {
+                "url": "https://upload.wikimedia.org/sparrow.jpg",
+                "source": "wikipedia",
+                "license": "CC BY-SA 4.0",
+                "attribution": "Example Photographer",
+                "width": 1000,
+                "height": 750
+              }
+            ]
+          },
+          "is_completed": false,
+          "completed_at": null,
+          "completed_common_name": null,
+          "completed_scientific_name": null,
+          "completed_scan_id": null
+        }
+        """.utf8)
+
+        let item = try decoder.decode(FieldTripChecklistItem.self, from: json)
+
+        #expect(item.referenceSpecies?.scientificName == "Passer domesticus")
+        #expect(item.referenceSpecies?.commonName == "House Sparrow")
+        #expect(item.referenceSpecies?.referenceImages.map(\.source) == [.merian, .wikipedia])
     }
 
     @Test func communityPublicationsDecodeAuthorRankingAndCursorFields() throws {
@@ -1281,6 +1327,7 @@ struct FieldTripAPIModelsTests {
                     matchType: "taxonomy",
                     guideTip: nil,
                     guide: nil,
+                    referenceSpecies: nil,
                     isCompleted: false,
                     completedAt: nil,
                     completedCommonName: nil,
@@ -1521,6 +1568,7 @@ struct ActiveFieldTripProfilePresentationTests {
                             matchType: "taxonomy",
                             guideTip: nil,
                             guide: nil,
+                            referenceSpecies: nil,
                             isCompleted: completedScanId != nil,
                             completedAt: completedScanId == nil ? nil : "2026-07-18T19:30:00Z",
                             completedCommonName: completedScanId == nil ? nil : "Northern Cardinal",
@@ -2409,6 +2457,7 @@ struct ActiveCaptureGoalStoreTests {
                             matchType: "taxonomy",
                             guideTip: nil,
                             guide: nil,
+                            referenceSpecies: nil,
                             isCompleted: false,
                             completedAt: nil,
                             completedCommonName: nil,

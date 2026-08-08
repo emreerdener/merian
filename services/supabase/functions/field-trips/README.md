@@ -78,6 +78,12 @@ contribution rows.
 - `completed_scan_id` is private viewer evidence metadata exposed only by
   catalog/detail. It is never copied into capture context, public profile
   summaries, publication/challenge snapshots, Explore surfaces, or media URLs.
+- `reference_species` is template-detail-only public species metadata for the
+  private Goals presentation. It contains a reviewed illustrative species and at
+  most one sanitized normalized image per Naturebook (`source: "merian"`),
+  Wikipedia, and GBIF source. It contains no scan, owner, field-note, or
+  location provenance and is absent from catalog, capture context, Events,
+  profile, publication/challenge, and Explore payloads.
 - First Field trip achievement evidence is available only through a
   `service_role` RPC. Public Explore author awards expose its binary count and
   earliest completion date, never a template slug, challenge ID, or scan ID.
@@ -255,6 +261,12 @@ access state, viewer progress, and the same private `completed_scan_id` on
 completed checklist items. Its `active_progress` also includes the owner's
 optional active `publication_id` and `published_at`; clients render Published
 only when that ID is non-null. `slug` may be supplied instead of `template_id`.
+The Edge database layer batch-resolves each active curated goal's reviewed
+illustrative species against `species_dictionary` and
+`species_reference_images`, emitting at most one candidate per provider in
+Naturebook, Wikipedia, then GBIF order. This visual example does not change the
+checklist matcher; a broad Bird goal remains broad when House Sparrow is its
+reference. Start and lifecycle responses use the same hydrated detail shape.
 
 ```json
 { "action": "start", "template_id": "uuid" }
@@ -603,8 +615,8 @@ trip, activity-period, or completion rows already created by enrollment.
 ```sh
 deno fmt --check services/supabase/functions/field-trips services/supabase/functions/_tests/fieldTripActions.test.ts services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts services/supabase/functions/_tests/fieldTripProgressDb.test.ts services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts services/supabase/functions/_tests/fieldTripAtomicProgressDb.test.ts services/supabase/functions/_tests/fieldTripSecurityDb.test.ts services/supabase/functions/_tests/fieldTripPublicationDb.test.ts
 deno check --config services/supabase/functions/field-trips/deno.json services/supabase/functions/field-trips/index.ts
-deno test services/supabase/functions/_tests/fieldTripActions.test.ts
-deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/db_test.ts
+deno test --config services/supabase/functions/field-trips/deno.json services/supabase/functions/_tests/fieldTripActions.test.ts
+deno test --config services/supabase/functions/field-trips/deno.json --allow-read services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts services/supabase/functions/field-trips/referenceMedia_test.ts services/supabase/functions/field-trips/db_test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripCaptureContextDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripProgressDb.test.ts
 deno test --allow-env --allow-net --allow-read services/supabase/functions/_tests/fieldTripLifecycleDb.test.ts

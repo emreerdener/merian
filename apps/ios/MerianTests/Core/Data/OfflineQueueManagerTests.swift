@@ -727,6 +727,22 @@ struct OfflineQueueManagerTests {
                 responseData: Data(#"{"code":"not_found"}"#.utf8)
             ) == .needsAttention
         )
+        #expect(
+            OfflineQueueManager.backgroundInferenceResponseDisposition(
+                statusCode: 403,
+                functionRouteEvidence: try evidence(statusCode: 403),
+                responseData: Data(
+                    #"{"code":"ai_consent_required"}"#.utf8
+                )
+            ) == .consentRequired
+        )
+        #expect(
+            OfflineQueueManager.backgroundInferenceResponseDisposition(
+                statusCode: 403,
+                functionRouteEvidence: try evidence(statusCode: 403),
+                responseData: Data(#"{"code":"forbidden"}"#.utf8)
+            ) == .needsAttention
+        )
         let validSuccessPayload = Data(
             """
             {

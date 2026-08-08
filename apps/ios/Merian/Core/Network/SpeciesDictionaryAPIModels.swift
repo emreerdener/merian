@@ -372,8 +372,8 @@ struct SpeciesDictionaryTaxonomy: Decodable, Equatable, Hashable {
     }
 }
 
-struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
-    enum Source: Decodable, Equatable {
+struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable, Sendable {
+    enum Source: Decodable, Equatable, Sendable {
         case wikipedia
         case gbif
         case merian

@@ -219,6 +219,7 @@
 		65D244B13ABA612046523A3F /* SmartCollectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792E3FD61C402272E52AFE88 /* SmartCollectionTests.swift */; };
 		65F44315AAA962D931C75B91 /* ModelStoreRecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5388E968BCCAB06F94141AEB /* ModelStoreRecoveryCoordinator.swift */; };
 		66C5276C439BE9CE9B0149E9 /* HeatmapCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9779FBE4B87B51D6C8BE378B /* HeatmapCellView.swift */; };
+		671FCD2B7C4C835AACE1CE52 /* MediaHeroTopScrollEdgeEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D46D8EE23CC456DB449219 /* MediaHeroTopScrollEdgeEffect.swift */; };
 		674E123F4937322176D304B6 /* AppTelemetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3A9B3A3E454734AA832AD3 /* AppTelemetryTests.swift */; };
 		688BD926B9F296F709458245 /* HardwareOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */; };
 		68DDE1A418D6420A9F79CDE5 /* ExploreLoadingInsightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D31231359BDF562D3C5CFA0 /* ExploreLoadingInsightCard.swift */; };
@@ -833,6 +834,7 @@
 		754C89E932A7A93556F12E63 /* FileIOActorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActorTests.swift; sourceTree = "<group>"; };
 		76A6A12BD796F1C1DFADB98F /* SchemaV24.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV24.swift; sourceTree = "<group>"; };
 		77194A95BB753427575DDCA4 /* HapticManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManagerTests.swift; sourceTree = "<group>"; };
+		77D46D8EE23CC456DB449219 /* MediaHeroTopScrollEdgeEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaHeroTopScrollEdgeEffect.swift; sourceTree = "<group>"; };
 		7811F86CBCA6CDB0188A8929 /* ScansManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansManagerTests.swift; sourceTree = "<group>"; };
 		78EED5521FA385013DD32DD1 /* NotificationRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRowView.swift; sourceTree = "<group>"; };
 		79008A9E4DE09E314A948E66 /* InsightMediaExportManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightMediaExportManagerTests.swift; sourceTree = "<group>"; };
@@ -2264,6 +2266,7 @@
 				2342617B9724807515D7C897 /* ImagesCarousel.swift */,
 				3B58AC4ADF0850D999C71A53 /* InsightFullscreenImageCarousel.swift */,
 				2A95EE1FF7045668B1F1EA0C /* MediaCarouselPaginationDots.swift */,
+				77D46D8EE23CC456DB449219 /* MediaHeroTopScrollEdgeEffect.swift */,
 				D5F1D128DB406441CAF60378 /* NativePageCarousel.swift */,
 				7B4383AF53352621AB9247AF /* NativePageCarousel+Coordinator.swift */,
 				9F89ECC260AB3B624AD9BC1B /* ZoomableHostingController.swift */,
@@ -4319,6 +4322,7 @@
 				CA672046EEC1120C9EF87041 /* MainTabBar.swift in Sources */,
 				11EE2183530CF061E6797190 /* ManagePlanView.swift in Sources */,
 				BAC5F166A0ADE5163611D5CA /* MediaCarouselPaginationDots.swift in Sources */,
+				671FCD2B7C4C835AACE1CE52 /* MediaHeroTopScrollEdgeEffect.swift in Sources */,
 				1D8449AD338E41E34FC89154 /* MediaModeToggle.swift in Sources */,
 				C53B90FC4E2456A9C152F89E /* MediaPreparationActor.swift in Sources */,
 				D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */,

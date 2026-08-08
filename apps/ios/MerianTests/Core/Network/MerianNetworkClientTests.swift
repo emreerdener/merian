@@ -390,6 +390,41 @@ struct MerianNetworkClientTests {
         #expect(!probe.wasMarked)
     }
 
+    @Test func testIdentifyMultiModalMapsServerConsentRejectionToDisclosureError() async {
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 403,
+                httpVersion: nil,
+                headerFields: ["X-Merian-Handler": "1"]
+            )!
+            return (
+                response,
+                Data(#"{"code":"ai_consent_required"}"#.utf8)
+            )
+        }
+
+        await #expect(throws: MerianError.aiConsentRequired) {
+            try await MerianNetworkClient.shared.identifyMultiModal(
+                base64ImageDatas: ["AA=="],
+                telemetry: CaptureTelemetry(
+                    subjectDistanceInMeters: nil,
+                    gpsLatitude: nil,
+                    gpsLongitude: nil,
+                    gpsElevation: nil,
+                    locationName: nil,
+                    weatherCondition: nil,
+                    weatherTemperatureF: nil,
+                    timeOfDay: nil,
+                    timestamp: nil,
+                    zoomFactor: nil,
+                    estimatedSizeCm: nil
+                ),
+                clientScanId: "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6"
+            )
+        }
+    }
+
     @Test func testDeferredContextUpdateUsesOwnerScanEndpoint() async throws {
         MockURLProtocol.mockEndpoints["/update-scan-context"] = { request in
             let body = try #require(MockURLProtocol.bodyData(for: request))

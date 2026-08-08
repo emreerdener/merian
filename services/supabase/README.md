@@ -1885,6 +1885,13 @@ profile-visible status-only contract but exposes no scan evidence. The contract
 suite verifies caller identity, role grants,
 ordering/filtering clauses, private completion links/status, credited progress
 in both RPCs, and the absence of evidence from public/capture projections.
+The `field-trips` Edge layer additionally decorates template-detail and
+lifecycle detail responses with a bounded public species-reference projection.
+Its reviewed goal catalog maps broad objectives to illustrative scientific
+names without changing SQL matching, batches `species_dictionary` and
+`species_reference_images`, and emits at most one Naturebook, Wikipedia, and
+GBIF candidate per goal. Catalog, capture, Event, profile, publication, and
+Explore responses remain unchanged.
 `fieldTripCaptureContextDb.test.ts` additionally executes the
 filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises
 standard/challenge credited counts, level advancement, exact tier boundaries,

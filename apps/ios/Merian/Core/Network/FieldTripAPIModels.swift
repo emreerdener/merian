@@ -490,6 +490,7 @@ struct FieldTripChecklistItem: Decodable, Identifiable, Equatable, Sendable {
     let matchType: String
     let guideTip: String?
     let guide: FieldTripChecklistItemGuide?
+    let referenceSpecies: FieldTripReferenceSpecies?
     let isCompleted: Bool
     let completedAt: String?
     let completedCommonName: String?
@@ -505,6 +506,12 @@ struct FieldTripChecklistItem: Decodable, Identifiable, Equatable, Sendable {
     var guidePreview: String? {
         guide?.preview ?? guideTip?.fieldTripNonBlank
     }
+}
+
+struct FieldTripReferenceSpecies: Decodable, Equatable, Sendable {
+    let scientificName: String
+    let commonName: String
+    let referenceImages: [SpeciesDictionaryReferenceImage]
 }
 
 struct FieldTripChecklistItemGuide: Decodable, Equatable, Sendable {

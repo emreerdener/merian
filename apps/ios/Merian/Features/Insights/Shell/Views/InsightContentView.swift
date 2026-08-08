@@ -119,7 +119,7 @@ struct InsightContentView: View {
             .frame(width: imageSize) // CLAMP: Physically guarantees the content bounds can never expand left/right even if child views attempt to breach safe area X bounds.
         }
         .coordinateSpace(name: "InsightScrollSpace")
-        .modifier(InsightTopScrollEdgeEffectModifier(
+        .modifier(MediaHeroTopScrollEdgeEffectModifier(
             isHidden: viewModel.state.isTopScrollEdgeEffectHidden
         ))
         // Forces native underlap of the translucent NavigationBar completely!
@@ -338,19 +338,6 @@ struct InsightContentView: View {
         }
         .fullScreenCover(item: fullscreenGalleryPresentedBinding) { presentation in
             InsightFullscreenImageCarousel(presentation: presentation)
-        }
-    }
-}
-
-private struct InsightTopScrollEdgeEffectModifier: ViewModifier {
-    let isHidden: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.scrollEdgeEffectHidden(isHidden, for: .top)
-        } else {
-            content
         }
     }
 }

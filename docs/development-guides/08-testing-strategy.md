@@ -2574,27 +2574,36 @@ missing and unknown actions are rejected. It does not parse Swift source, so
 review the client call sites and update both arrays whenever an action is added,
 renamed, or retired. `FieldTripCaptureContextModelsTests` covers capture-context
 decoding, while `FieldTripAPIModelsTests` covers the optional completing scan ID
-used by catalog/detail thumbnails, published status, optional removed-item
-metadata, and standard/Event contribution decoding plus typed destinations. A
+used by catalog/detail thumbnails, optional ordered reference-species media,
+published status, optional removed-item metadata, and standard/Event
+contribution decoding plus typed destinations. A
 separate legacy-payload test ensures absent publication fields decode as Private
 during rollout. The progress-response tests cover both the legacy shape and an
 extended level- advancement shape where current counts are `0/N` but credited
 counts are the completed full level. `AchievementToastPresenterTests` covers
 delayed strict ordering, multiple standard/challenge destinations, common-name
 fallback, progress failure, empty matches, completed-level rings, and
-foreground/background scan-ID deduplication. `InsightSheetViewModelTests` covers
+foreground/background scan-ID deduplication. The Field Trips Deno
+`referenceMedia_test.ts` suite locks all 20 current goal-to-illustrative-species
+mappings, target extraction, one-per-source Naturebook/Wikipedia/GBIF ordering,
+and item-scoped payload attachment; `db_test.ts` also executes the bounded
+species/reference hydration projection. `InsightSheetViewModelTests` covers
 contribution loading, scan-change race rejection, silent error/empty states,
 queued/unauthenticated/non-biological gates, public Event rows, invalidation
 reload, and root/embedded routing in addition to the dictionary eligibility
-policy. `FieldTripFeaturedMediaTests` covers the owner-only Goals hero
-projection: completed photo/video-poster and legacy-cover resolution,
-exclusion of missing, archived, incomplete, nonvisual, posterless-video, and
-reference-only records, duplicate scan defense, quality/recency/tie ordering,
-level-balanced selection and its six-item cap, failed-page reserve refill,
-stable-ID index reconciliation across reorder/removal, and photo/video
-full-screen presentation order. The focused Insight suite remains paired with
-this suite when the shared native pager or pagination treatment changes, so
-reuse cannot regress Insight's mixed-media handoff behavior.
+policy. `FieldTripFeaturedMediaTests` covers the Goals hero progression:
+default illustrative references; exact completed photo, video-poster, and
+legacy-cover replacement; fallback for missing, archived, incomplete,
+nonvisual, posterless-video, reference-only, and repeated-scan records; strict
+Naturebook → Wikipedia → GBIF failure advancement; stable goal identity across
+reference-to-user replacement; level-balanced checklist ordering and its
+six-item cap; source-exhaustion reserve refill; and mixed reference/photo/video
+full-screen order with muted video. It also locks provider/user VoiceOver copy
+and top-edge underlap to Goals with at least one featured item, preventing Tips
+or empty-media detail from moving beneath transparent navigation chrome. The
+focused Insight suite remains paired with this suite when the shared native
+pager, pagination, attribution, or top scroll-edge treatment changes, so reuse
+cannot regress Insight's mixed-media handoff behavior.
 `OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
 goal hint while successful scan finalization preserves it until explicit
 progress acknowledgement. `MerianNetworkClientTests` locks the nested snake-case
