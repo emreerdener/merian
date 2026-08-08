@@ -512,8 +512,13 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
   ) ?? "";
   const deployWorkflow = sources.get("deploy.yml") ?? "";
   assertStringIncludes(ghostMergeMonitor, "persist-credentials: false");
-  assertStringIncludes(ghostMergeMonitor, '--allow-net="$database_endpoint"');
   for (const source of [ghostMergeMonitor, deployWorkflow]) {
+    assertStringIncludes(source, "deno_postgres_net_scope.sh");
+    assertStringIncludes(source, 'database_network_scope="$(');
+    assertStringIncludes(
+      source,
+      '--allow-net="$database_network_scope"',
+    );
     assertStringIncludes(
       source,
       '--allow-env="MERIAN_DATABASE_URL,PG*"',

@@ -8,7 +8,7 @@ Use the repository's canonical
 [iOS publishing runbook](../../../../docs/development-guides/14-ios-release-versioning.md).
 This file is an agent entry point, not a second deployment procedure.
 
-> **Consent release hold:** `CONSENT-001` through `CONSENT-011` are closed in
+> **Consent release hold:** `CONSENT-001` through `CONSENT-012` are closed in
 > source. The replacement TestFlight build may be archived, uploaded, and
 > processed after the clean hosted exact-SHA iOS gate passes, but must not be
 > distributed before its causal consent RPC migration is deployed. That does not establish public

@@ -3833,7 +3833,7 @@ Deno.test("production consent documentation preserves the release hold and exit 
       "Gemini disclosure version is `2026-08-04.1`",
       "Apple App Review Guideline 5.1.2(i)",
       "Cloud project with active billing",
-      "`CONSENT-001` through `CONSENT-011` are closed in source",
+      "`CONSENT-001` through `CONSENT-012` are closed in source",
       "causal compare-and-append",
       'transport_security: "ats-default"',
       "Superseded Fixed Test Defects",
@@ -3845,7 +3845,7 @@ Deno.test("production consent documentation preserves the release hold and exit 
   ) {
     assertStringIncludes(canonicalCompact, fragment);
   }
-  for (let index = 1; index <= 11; index += 1) {
+  for (let index = 1; index <= 12; index += 1) {
     assertStringIncludes(
       canonical,
       `CONSENT-${String(index).padStart(3, "0")}`,
@@ -3893,11 +3893,12 @@ Deno.test("production consent documentation preserves the release hold and exit 
   for (const source of [testflightEntry, edgeDeploymentEntry]) {
     assertStringIncludes(
       compact(source),
-      "`CONSENT-001` through `CONSENT-011` are closed in source",
+      "`CONSENT-001` through `CONSENT-012` are closed in source",
     );
     assert(
-      !source.includes("CONSENT-001` through `CONSENT-010"),
-      "Agent release entry points must not restore the superseded ten-finding consent status.",
+      !source.includes("CONSENT-001` through `CONSENT-010") &&
+        !source.includes("CONSENT-001` through `CONSENT-011"),
+      "Agent release entry points must not restore a superseded consent status.",
     );
   }
 

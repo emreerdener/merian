@@ -3659,7 +3659,14 @@ one short-lived, read-only owner connection through the configured session
 pooler or full database URL. The production deployment runs the same monitor
 after its smoke suite. Both paths call
 `services/supabase/scripts/monitor_ghost_profile_merges.ts` and emit aggregate
-counts only. Forward migration
+counts only. Before starting Deno, both paths call
+`services/supabase/scripts/deno_postgres_net_scope.sh` to build a scoped
+`--allow-net` value from the configured hostname, port, and current A/AAAA
+answers. Deno 2.9's Node TCP compatibility path rechecks the resolved address
+used by `postgres`, so allowing the hostname alone can fail with `NotCapable`
+before either summary artifact exists. Keep the generated hostname-plus-address
+scope; do not widen it to bare `--allow-net` or pin a pooler IP that can rotate.
+Forward migration
 `20260802025258_index_ghost_merge_health_audits.sql` adds predicate-matched
 recent-receipt and completed-destination indexes so these rolling audits do not
 scan all historical handoffs:

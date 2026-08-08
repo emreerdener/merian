@@ -1560,7 +1560,13 @@ aggregate recent prepared receipts, overdue Auth cleanup, and destination
 RevenueCat queue anomalies
 without exporting receipt, user, proof, or provider identifiers. Migration
 `20260802025258_index_ghost_merge_health_audits.sql` keeps both rolling audit
-windows index-backed as handoff history grows. The function README and
+windows index-backed as handoff history grows. Both CI paths use
+`scripts/deno_postgres_net_scope.sh` to allow only the configured database
+hostname and its current resolved addresses at the configured port. This is
+required because Deno 2.9's Node TCP compatibility path rechecks the resolved
+address used by `postgres`; a hostname-only `--allow-net` scope fails before
+the aggregate report is written. Do not replace the generated scope with a bare
+`--allow-net` grant or a static pooler IP. The function README and
 `docs/backend-and-data/06-supabase-deployment-runbook.md` contain the canonical
 proof matrix.
 
