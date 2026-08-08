@@ -120,6 +120,16 @@ struct InsightFullscreenImageCarousel: View {
 
     @ViewBuilder
     private func galleryContent(for item: InsightImageGalleryItem) -> some View {
+        if let accessibilityLabel = item.accessibilityLabel {
+            galleryMedia(for: item)
+                .accessibilityLabel(accessibilityLabel)
+        } else {
+            galleryMedia(for: item)
+        }
+    }
+
+    @ViewBuilder
+    private func galleryMedia(for item: InsightImageGalleryItem) -> some View {
         switch item.source {
         case .liveImage(let data):
             FullscreenLiveImageView(data: data)

@@ -536,6 +536,7 @@ struct FieldTripTemplateDetailView: View {
     let onOpenPublication: (String) -> Void
     let onOpenAuthorProfile: (FieldTripRecentPublication) -> Void
 
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Query private var localScans: [LocalScanRecord]
     @State private var template: FieldTripTemplate?
     @State private var communityPreview: [FieldTripRecentPublication] = []
@@ -555,6 +556,8 @@ struct FieldTripTemplateDetailView: View {
     @State private var highlightedObjectiveItemId: String?
     @State private var didApplyInitialFocus = false
     @State private var lifecycleConfirmation: FieldTripLifecycleConfirmation?
+    @State private var failedFeaturedMediaItemIds: Set<String> = []
+    @State private var featuredMediaGalleryPresentation: InsightImageGalleryPresentation?
 
     init(
         reference: FieldTripTemplateReference,
@@ -602,8 +605,6 @@ struct FieldTripTemplateDetailView: View {
                     .padding(16)
                 } else if let template {
                     detailContent(template, scrollProxy: scrollProxy)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
                         .padding(.bottom, 32)
                 }
             }
@@ -637,12 +638,20 @@ struct FieldTripTemplateDetailView: View {
                 }
                 Task { await load(force: true) }
             }
+            .onChange(of: offlineQueueManager.isOnline) { _, isOnline in
+                if isOnline {
+                    failedFeaturedMediaItemIds.removeAll()
+                }
+            }
             .sheet(item: $publishingTemplate) { template in
                 FieldTripPublishSheet(template: template) { publication in
                     publishingTemplate = nil
                     onOpenPublication(publication.publicationId)
                     Task { await load(force: true) }
                 }
+            }
+            .fullScreenCover(item: $featuredMediaGalleryPresentation) { presentation in
+                InsightFullscreenImageCarousel(presentation: presentation)
             }
             .alert(item: $lifecycleConfirmation) { confirmation in
                 lifecycleAlert(for: confirmation)
@@ -664,47 +673,69 @@ struct FieldTripTemplateDetailView: View {
     ) -> some View {
         switch selectedDetailSection {
         case .objectives:
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if FieldTripSharingAvailability.isEnabled,
-                       let progress = template.viewerProgress {
-                        FieldTripPublicationStatusBadge(isPublished: progress.isPublished)
-                    }
+            let featuredMediaItems = featuredMediaItems(for: template)
 
-                    Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 0) {
+                if !featuredMediaItems.isEmpty {
+                    FieldTripFeaturedMediaCarousel(
+                        items: featuredMediaItems,
+                        onMediaLoadFailed: { itemId in
+                            failedFeaturedMediaItemIds.insert(itemId)
+                        },
+                        onOpenViewer: { selectedItemId in
+                            featuredMediaGalleryPresentation =
+                                FieldTripFeaturedMediaPresentation.galleryPresentation(
+                                    for: featuredMediaItems,
+                                    selectedItemId: selectedItemId
+                                )
+                        }
+                    )
+                }
 
-                    if let description = template.description {
-                        Text(description)
-                            .font(.body)
+                VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if FieldTripSharingAvailability.isEnabled,
+                           let progress = template.viewerProgress {
+                            FieldTripPublicationStatusBadge(isPublished: progress.isPublished)
+                        }
+
+                        Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
+                            .font(.largeTitle.weight(.bold))
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
+
+                        if let description = template.description {
+                            Text(description)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                }
 
-                FieldTripLevelsSection(
-                    template: template,
-                    currentLevelNumber: template.viewerProgress?.currentLevelNumber ?? 1,
-                    isTripComplete: template.viewerProgress?.isComplete ?? false,
-                    progress: template.viewerProgress.map(FieldTripLevelProgressPresentation.init),
-                    progressPlacement: .headerRing,
-                    highlightedItemId: highlightedObjectiveItemId,
-                    localScansById: localScansById,
-                    onOpenCompletedScan: onOpenCompletedScan,
-                    onOpenGuide: openGuide
-                )
-                .onAppear {
-                    consumePendingObjectiveScroll(with: scrollProxy)
-                }
+                    FieldTripLevelsSection(
+                        template: template,
+                        currentLevelNumber: template.viewerProgress?.currentLevelNumber ?? 1,
+                        isTripComplete: template.viewerProgress?.isComplete ?? false,
+                        progress: template.viewerProgress.map(FieldTripLevelProgressPresentation.init),
+                        progressPlacement: .headerRing,
+                        highlightedItemId: highlightedObjectiveItemId,
+                        localScansById: localScansById,
+                        onOpenCompletedScan: onOpenCompletedScan,
+                        onOpenGuide: openGuide
+                    )
+                    .onAppear {
+                        consumePendingObjectiveScroll(with: scrollProxy)
+                    }
 
-                FieldTripCommunityPreviewSection(
-                    publications: communityPreview,
-                    isLoading: isLoadingCommunityPreview,
-                    onOpenPublication: onOpenPublication,
-                    onOpenAuthorProfile: onOpenAuthorProfile
-                )
+                    FieldTripCommunityPreviewSection(
+                        publications: communityPreview,
+                        isLoading: isLoadingCommunityPreview,
+                        onOpenPublication: onOpenPublication,
+                        onOpenAuthorProfile: onOpenAuthorProfile
+                    )
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, featuredMediaItems.isEmpty ? 16 : 24)
             }
         case .tips:
             FieldTripGuideSections(
@@ -717,6 +748,8 @@ struct FieldTripTemplateDetailView: View {
             .onAppear {
                 consumePendingGuideScroll(with: scrollProxy)
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
         }
     }
 
@@ -734,6 +767,18 @@ struct FieldTripTemplateDetailView: View {
         localScans.reduce(into: [:]) { scans, scan in
             scans[scan.id] = scan
         }
+    }
+
+    private func featuredMediaItems(
+        for template: FieldTripTemplate
+    ) -> [FieldTripFeaturedMediaItem] {
+        FieldTripFeaturedMediaSelection.items(
+            from: FieldTripFeaturedMediaBuilder.candidates(
+                for: template,
+                localScansById: localScansById
+            ),
+            excluding: failedFeaturedMediaItemIds
+        )
     }
 
     private func consumePendingGuideScroll(with scrollProxy: ScrollViewProxy) {

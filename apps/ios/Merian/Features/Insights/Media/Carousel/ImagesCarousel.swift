@@ -193,6 +193,19 @@ struct InsightImageGalleryItem: Identifiable, Equatable {
     let id: String
     let source: Source
     let referenceAttributionLabel: String?
+    let accessibilityLabel: String?
+
+    init(
+        id: String,
+        source: Source,
+        referenceAttributionLabel: String?,
+        accessibilityLabel: String? = nil
+    ) {
+        self.id = id
+        self.source = source
+        self.referenceAttributionLabel = referenceAttributionLabel
+        self.accessibilityLabel = accessibilityLabel
+    }
 }
 
 struct CarouselVideoFallback: Equatable {

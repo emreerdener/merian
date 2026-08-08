@@ -2586,7 +2586,13 @@ foreground/background scan-ID deduplication. `InsightSheetViewModelTests` covers
 contribution loading, scan-change race rejection, silent error/empty states,
 queued/unauthenticated/non-biological gates, public Event rows, invalidation
 reload, and root/embedded routing in addition to the dictionary eligibility
-policy. `OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
+policy. `FieldTripFeaturedMediaTests` covers the owner-only Goals hero
+projection: completed photo/video-poster and legacy-cover resolution,
+exclusion of missing, archived, incomplete, nonvisual, posterless-video, and
+reference-only records, duplicate scan defense, quality/recency/tie ordering,
+level-balanced selection and its six-item cap, failed-page reserve refill,
+stable selection, and photo/video full-screen presentation order.
+`OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
 goal hint while successful scan finalization preserves it until explicit
 progress acknowledgement. `MerianNetworkClientTests` locks the nested snake-case
 `preferred_goal` ingestion payload; ingestion intent/compatibility/replay Deno

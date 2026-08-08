@@ -61,6 +61,14 @@ only a camera/performance setting.
   completing scan's device-local photo or video-poster thumbnail in both the
   catalog card and outing detail. They keep the standard neutral tile border;
   blue/accent borders are reserved for an incomplete focused goal.
+- When at least one completed goal resolves to usable private visual evidence,
+  the standard outing's **Goals** page places a square, edge-to-edge featured
+  media carousel above its status and title. The carousel selects at most six
+  photos or video posters from that outing across all levels, balances slots by
+  level, and ranks each level by image quality then capture recency. Tapping a
+  page opens the same full-screen zoomable photo/playable-video viewer used by
+  other native media galleries. **Tips**, Events, and public publication pages
+  do not show this owner-evidence carousel.
 - The active level header uses the shared circular `GoalProgressRing` at its
   trailing edge, showing completed/total outing progress consistently with
   the Scan target capsule.
@@ -229,6 +237,10 @@ difficulty.
 11. Catalog and detail reloads associate each completed checklist item with the
     exact saved scan that completed it. iOS replaces that item's artwork with
     the scan thumbnail; completion order never determines which slot changes.
+    Standard Goals detail also derives its private featured-media candidates
+    from those exact item-to-scan links, selects up to six in level-balanced
+    rounds, and removes failed media while refilling from lower-ranked eligible
+    candidates.
 12. Tapping a completed goal whose scan still exists on the device pushes the
    existing Insight view inside Explore. The back arrow and swipe-back gesture
    return to the same outing sheet.
@@ -551,7 +563,9 @@ only to find the caller's device-local `LocalScanRecord` and render the same
 the curated artwork remains and the app must not construct a remote or public
 evidence URL. `completed_scan_id` must not appear in public profile summaries,
 publication snapshots, challenge badges or entries, Explore feed/map payloads,
-or the capture-context response.
+or the capture-context response. The private Goals carousel uses this same
+local-record boundary: it never promotes curated artwork or a species reference
+image, and it disappears when no user photo or video poster can be loaded.
 
 The detail-only publication status is also private viewer metadata.
 `active_progress.publication_id` and `published_at` identify the owner's active,
@@ -906,6 +920,17 @@ outer catalog card and inner goal grid both use item-specific completion state,
 so a completed third slot replaces only the third slot rather than the first
 `completed_count` slots.
 
+`FieldTripFeaturedMediaBuilder` snapshots one canonical visual source for each
+completed goal with a locally available, non-archived scan record. It accepts a
+photo, a video with a poster, or a legacy captured cover, but never falls back
+to `referenceImageUrl`. `FieldTripFeaturedMediaSelection` groups candidates by
+level, sorts each group by `imageQualityScore`, capture date, checklist order,
+and stable ID, then takes one item per level per round up to six. Failed page
+IDs are excluded and reserve candidates refill the selection; reconnecting
+clears transient failures so remote user media can retry. The selected page is
+preserved by stable ID, and the full-screen presentation contains exactly the
+currently featured order with video muted initially.
+
 `GoalProgressRing` is a Core UI primitive shared by the Scan target capsule and
 the active standard-outing level header and scan-progress milestone banner. The
 level header passes the outing's current counts; a progress toast prefers the
@@ -1112,6 +1137,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/StagedCaptureTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/AchievementToastPresenterTests \
+  -only-testing:merianTests/FieldTripFeaturedMediaTests \
   -only-testing:merianTests/InsightSheetViewModelTests \
   -only-testing:merianTests/MigrationPlanTests \
   -only-testing:merianTests/AppTelemetryTests test
@@ -1179,6 +1205,15 @@ and video completions, confirm the captured thumbnail has the standard neutral
 border with no blue completion outline, and tap both surfaces to open the same
 embedded Insight view. Back must return to the current outing. A missing local
 record must leave the placeholder usable and must not show a blank Insight.
+On Goals, confirm one eligible visual produces a dot-free square hero and
+several levels produce no more than six level-balanced pages. Verify higher
+quality scans win within a level, video pages show a poster/play badge and open
+muted playable video, photos open the swipe/zoom viewer, a failed page refills
+from the same level's reserve, and all failed/missing/archived/nonvisual evidence
+collapses the hero without affecting the title layout. Switching to Tips must
+remove the hero. Exercise compact and large iPhones, light/dark appearance,
+Dynamic Type, VoiceOver, Reduce Motion, offline-to-online retry, progress
+refresh, and Reset/removal while preserving a still-valid selected page.
 At the database boundary, confirm catalog/detail return the completion row's
 exact `scan_id`, only `service_role` can execute their RPCs, and no public or
 capture-context payload contains `completed_scan_id`.
