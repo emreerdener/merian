@@ -67,6 +67,17 @@ restoration and mount the Ready approval screen before refresh completes.
   `prewarmInferenceEndpoint()` sends `OPTIONS` to `/identify-multimodal`; an
   auth SDK request is not considered a prewarm because it uses another
   connection pool.
+- Calls `ConsentManager.ensureCloudConsentForInference()` before constructing
+  any provider request. That preflight resolves the active account, awaits
+  pending consent synchronization, and requires a freshly fetched adult row,
+  Terms row, and granted all-version Gemini stream head for the same account.
+  Local onboarding completion or persisted `syncedUserId` values cannot open
+  this request boundary.
+- Maps only handler-owned HTTP `403` with stable code
+  `ai_consent_required` to `MerianError.aiConsentRequired`. That is a
+  disclosure transition—not quota exhaustion or generic authorization—and
+  foreground callers must preserve the queued scan while the account returns
+  to Ready. `402 pro_required` and the `429` quota/rate codes remain separate.
 - Adds `X-Merian-Constrained-Network` for aggregate diagnostics without exposing
   the active interface or user identity.
 - Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response

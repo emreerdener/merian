@@ -25,7 +25,12 @@ completed onboarding, current required consent, and
   there until Supabase refreshes it or emits sign-out; synchronization failures
   retain that surface with bounded automatic and explicit retry;
 - a completed user whose resolved account still lacks current evidence enters
-  this shell directly at `.ready`; and
+  this shell directly at `.ready`;
+- a completed user whose first or later provider attempt receives exact
+  `403 ai_consent_required` is durably fenced by account, completes an
+  authoritative restoration pass, and then re-enters this shell at `.ready`.
+  Relaunch cannot bypass that transition, and another account cannot inherit
+  it; and
 - a completed user with current evidence bypasses this shell for the Capture
   workspace.
 

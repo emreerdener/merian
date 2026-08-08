@@ -130,6 +130,16 @@ description-only staged work, which has no successful upload transition to
 reset the counter. A known cloud-complete result is the exception: manual retry
 preserves its owner-result marker and cannot re-enable provider dispatch.
 
+Consent-policy rejection is outside that retry-budget state machine. Foreground
+request preparation and background response classification treat only exact
+handler-owned `403 ai_consent_required` as `.consentRequired`. The queue records
+the original row as needs-attention while retaining every media file, invokes
+the account-scoped consent fence, and returns without a retry deadline or
+automatic redispatch. A generic `403` remains ordinary needs-attention. Manual
+retry becomes meaningful only after Ready records fresh head-anchored evidence
+and `ConsentManager` completes another authoritative cloud proof under the same
+account; the stable scan UUID is retained throughout.
+
 After foreground or background result persistence, inference-driven queue
 deletion writes the scan job's `.complete` status, clears transient errors,
 inserts the completed event, and removes the exact guarded queue row in one

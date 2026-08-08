@@ -1576,6 +1576,25 @@ and `KeychainManager` migration logic. Do not inline
 
 ### `ConsentManager` required-consent restoration
 
+- `ensureCloudConsentForInference()` is the new-account and returning-account
+  provider gate. It resolves the current Supabase account, pushes pending
+  adult/Terms/Gemini evidence, performs a fresh remote fetch, and opens its
+  process-local cloud-ready marker only when that fetched state contains the
+  same account's current adult and Terms rows plus a current granted
+  all-version Gemini stream head. Persisted `syncedUserId` fields are never
+  sufficient by themselves.
+- `requireCurrentConsentReapprovalAfterServerRejection()` converts an exact
+  server `403 ai_consent_required` into durable account state. It closes the
+  process-local gate before persistence, stores the affected user ID, resets the
+  three required derived booleans, invalidates synchronization work, and routes
+  a completed user through restoration to Ready. The marker is per-account,
+  survives relaunch, decodes absent from a legacy ledger as empty, and rebinds
+  during a confirmed ghost-account merge.
+- Reapproval cannot replay cached evidence. It creates new adult, Terms, and
+  Gemini rows, and the Gemini grant uses the authoritative provider head fetched
+  after rejection as its causal parent. A fresh authoritative merge must then
+  succeed before inference. The queue retains the original scan/media and does
+  not automatically redispatch the policy-rejected request.
 - Root presentation distinguishes unknown account evidence from authoritative
   absence with `.awaitingInitialSession`, `.reconciling`,
   `.waitingToRetry`, `.retryRequired`, and `.resolved`.

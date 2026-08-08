@@ -313,6 +313,10 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-08-first-scan-consent-policy-retry-loop.md`](./incidents/2026-08-first-scan-consent-policy-retry-loop.md)**
+  — Sanitized first-user evidence, consent-versus-quota classification, stale
+  cloud-proof root cause, durable account-scoped disclosure recovery, and
+  exact-SHA closure gates for the scanning plus **Retry now** loop.
 - **[`/incidents/2026-08-ghost-merge-species-ledger-underflow.md`](./incidents/2026-08-ghost-merge-species-ledger-underflow.md)**
   — Sanitized 12-hour log evidence, semantic root cause, schema-aware ownership
   correction, four post-review release blockers, exact-version validation

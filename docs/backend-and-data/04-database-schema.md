@@ -255,8 +255,15 @@ complete grants remain bounded by `enforcement_mode`. Unknown future versions
 fail closed. Device time and `recorded_at` remain evidence, not authorization
 clocks. Both
 service-only `reserve_ai_quota` overloads call the helper before provider
-admission. A policy copy or material-purpose change must update the Swift policy
-and this database gate together and require a new user action.
+admission and before entitlement or provider-counter reservation. Consequently,
+`ai_consent_required` creates no quota reservation, included-Pro hold, or daily
+Flash consumption and is not evidence that a new account has no scans left.
+Clients must upload and freshly read the active account's evidence before its
+first Identify request; locally persisted synchronization markers are not a
+database proof. A policy copy or material-purpose change must update the Swift
+policy and this database gate together and require a new user action. See the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md)
+for the client failure mode and release closure gates.
 
 ### `users`
 

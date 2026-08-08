@@ -904,6 +904,7 @@ for exact request and response shapes.
 | producer `200`                                  | Exact owned scan is durable; fresh unmarked multimodal delivery is also fully finalized, while a marked reconstructed replay may retain retryable canonical repair | Render and persist the exact result                                                       |
 | `400 observation_rejected`                      | Terminal media/policy rejection                                                                                                                                    | Remove only the rejected queue generation under its exact fence                           |
 | `401`                                           | User JWT missing, expired, or not yet recoverable                                                                                                                  | Refresh/restore Auth; retain local media                                                  |
+| `403 ai_consent_required`                       | Active account lacks authoritative adult/Terms/Gemini-head proof; this occurs before entitlement/quota reservation                                               | Preserve row and media, stop automatic inference, durably route that account to Ready, and retry the same UUID only after fresh head-anchored evidence and cloud proof |
 | `409 account_deletion_in_progress`              | Destructive lifecycle owns identity                                                                                                                                | Stop submission; do not recreate profile                                                  |
 | `408/409/425/429` transient handler state       | Generation or capacity is temporarily unavailable                                                                                                                  | Retain and back off using bounded `Retry-After`                                           |
 | `503 scan_persistence_failed`                   | Operational durability, strict finalization, or unknown-commit failure                                                                                             | Retain local row; poll same UUID; fresh-upload only when exact status says scanless retry |
@@ -915,6 +916,12 @@ for exact request and response shapes.
 Malformed or structurally invalid provider JSON returns retryable HTTP `503`
 from every scan producer. The server ledger remains retryable, so a `4xx` would
 incorrectly strand the offline job in needs-attention.
+
+The consent row above is intentionally not grouped with transient `4xx` or
+quota exhaustion. The `reserve_ai_quota` function name is an implementation
+boundary, not a customer classification; this rejection creates no provider
+reservation or scan-credit consumption. See the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 
 ## Security Invariants
 

@@ -277,6 +277,11 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   errors to stable HTTP codes, and exposes a fenced provider lease. A route
   commits immediately before a provider attempt; provider failures remain
   charged but become retryable, and only a proven pre-provider no-op may refund.
+  `403 ai_consent_required` is emitted by the consent prerequisite before a
+  lease, entitlement hold, or provider counter exists. It is a disclosure
+  transition—not quota exhaustion—and clients must not retry it automatically.
+  `402 pro_required` and `429 ai_quota_daily_exceeded` retain the separate
+  entitlement and daily-limit contracts.
 - **`complimentaryScans.ts`**: Fail-closed classifier for Flash fallback. It
   accepts only nonnegative safe evidence counts and returns eligible only for
   exactly one user-supplied image, audio clip, or description and zero video.

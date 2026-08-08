@@ -1,10 +1,10 @@
 # iOS Release Versioning and Xcode Organizer Runbook
 
-Last updated: August 5, 2026
+Last updated: August 7, 2026
 
 ## Active Consent Release Hold
 
-`CONSENT-001` through `CONSENT-011` are closed in source. Internal development
+`CONSENT-001` through `CONSENT-012` are closed in source. Internal development
 and the causal-consent replacement may be archived/uploaded for processing
 under the ordinary gates below, but that build must not be distributed before
 the RPC/ACL migration is deployed in the approved maintenance window and every
@@ -14,7 +14,11 @@ evidence and validation-only **Supabase Candidate Validation** result are green
 on the same immutable SHA, as defined by the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 Only the current-version replacement build may enter the bounded TestFlight
-rollout. Public production also remains blocked on archived App Store 18+ and paid
+rollout. That build must retain the clean-install first-scan and forced
+`ai_consent_required` recovery evidence in the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md);
+source compilation alone is not release proof. Public production also remains
+blocked on archived App Store 18+ and paid
 Gemini billing/DPA evidence. The app-owned privacy manifest is implemented in
 source, but the signed archive's aggregate privacy report and reconciled App
 Store answers remain release evidence under the

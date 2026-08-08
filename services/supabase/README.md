@@ -1201,7 +1201,14 @@ bundle. Edge PostHog authorization uses
 the same provider-head rule and additionally requires that exact head grant to
 carry the current analytics disclosure. Missing or revoked evidence raises
 `ai_consent_required`, which `_shared/aiQuota.ts` exposes as HTTP 403 before
-provider dispatch. Never infer or backfill acceptance.
+provider dispatch. The helper runs before entitlement selection and reservation,
+so this response creates no included-Pro hold, consumes no daily Flash or
+provider counter, and must never be described as a no-scans-left result. A
+first-time iOS account must upload and freshly refetch its evidence before the
+first Identify request; a local onboarding flag or `syncedUserId` is not cloud
+authority. Never infer or backfill acceptance. The sanitized failure sequence
+and release closure gates are recorded in the
+[first-scan consent-policy incident](../../docs/incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 
 Keep Swift policy versions, causal RPC payload/result shapes, the SQL gate,
 migration contracts, quota fixtures, and `legal_consent_security.sql`

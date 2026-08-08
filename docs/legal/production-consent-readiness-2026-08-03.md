@@ -12,7 +12,10 @@ offline grants whose causal parent is no longer authoritative and rebase
 revocations onto the locked current head. Every permission consumer now resolves
 that all-version head before evaluating a grant's disclosure bundle, so a
 withdrawal under an older disclosure cannot be hidden by a current-version
-grant. Hosted exact-SHA execution and the
+grant. The first-scan `ai_consent_required` retry loop is also remediated in
+source: iOS now requires a freshly fetched account proof before inference,
+durably routes an exact server rejection back to Ready, preserves queued media,
+and stops automatic redispatch. Hosted exact-SHA execution and the
 external operator controls below must still close before this candidate is
 nominated for production.
 
@@ -98,6 +101,16 @@ synchronization-generation invalidation cancels stale retry work and returns
 the same unresolved account to reconciliation; it never leaves a waiting state
 after its timer is gone.
 
+A newly onboarded account must upload and refetch its current adult, Terms, and
+Gemini evidence before its first Identify request. If the common provider
+boundary returns exact `403 ai_consent_required`, the client must preserve the
+observation/media, stop automatic inference retry, durably fence only that
+account, and require fresh evidence whose Gemini grant extends the provider
+head fetched after rejection. This code is not entitlement or quota exhaustion
+and consumes no included-Pro or daily-Flash allowance. The evidence and closure
+test are retained in the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
+
 ## Evidence and Enforcement Contract
 
 - Adult eligibility uses self-attestation on every supported iOS version. Do
@@ -114,8 +127,10 @@ after its timer is gone.
   exact event in an independent Keychain journal before the main ledger write;
   pending journal entries remain fail-closed and replayable across restart.
 - Local required evidence closes the UI gate, but Gemini remains unauthorized
-  until current adult, Terms, and Gemini evidence exists on the active Supabase
-  account and the service-only quota boundary accepts it.
+  until freshly fetched current adult, Terms, and all-version Gemini-head
+  evidence exists on the active Supabase account and the service-only provider
+  boundary accepts it. Persisted local synchronization markers alone are not
+  proof.
 - Public consent tables require explicit privileges and owner-only RLS. This is
   deliberate rather than relying on changing Data API defaults; see the
   [Supabase Data API exposure change](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically).
@@ -156,7 +171,7 @@ engineering release controls; it is not a legal opinion.
 
 ## Source Status
 
-`CONSENT-001` through `CONSENT-011` are closed in source. “Closed in source” is
+`CONSENT-001` through `CONSENT-012` are closed in source. “Closed in source” is
 not exact-SHA runtime evidence and is not a production approval.
 
 | ID | Implemented control | Remaining evidence |
@@ -170,6 +185,7 @@ not exact-SHA runtime evidence and is not a production approval.
 | `CONSENT-009` | The retained internal copy has distinct Gemini and analytics disclosure versions, and forward-only server compatibility preserves immutable historical receipts. | Exact-SHA migration/client contracts and replacement-build validation. |
 | `CONSENT-010` | Consent mutations use a throwing, fault-injectable storage boundary and transactional candidate ledger. Onboarding completes only after a verified atomic file write. Analytics withdrawal closes capture first, journals exact revocation events independently in Keychain, remains off across failed writes/restart, preserves multiple accounts, and clears the journal only after ledger durability. | Exact-SHA fault-injection, restart-replay, onboarding, account-switch, full-unit, and Release archive execution. |
 | `CONSENT-011` | AI and analytics writes lock the account row against ghost merge, then use account/provider causal RPCs under transaction-scoped advisory locks. The database atomically rejects stale grants, rebases revocations to the current head, issues the only authoritative monotonic `consent_revision`, and denies authenticated direct inserts and sequence access. iOS retains rejected grants as superseded evidence, persists the server-returned accepted parent, fetches the all-version stream head, and orders accepted events by revision. Gemini authorization, Edge analytics, and iOS permission first evaluate that provider-wide head: every head revocation denies regardless of disclosure version and before rollout configuration is read, while only the exact head grant may enter current or legacy bundle checks. Database, Edge, and iOS fixtures include a prior-disclosure revocation uploaded after a current-version grant; the database fixture submits the old observed causal parent and verifies that the RPC rebases both providers onto the newer grant before authorization denies. The disposable-database `legalConsentConcurrencyDb.test.ts` fixture also releases overlapping grant/revocation callers and requires a revoked final head for both providers. | Exact-SHA inverse-order and cross-disclosure iOS execution plus pinned-CLI fresh-catalog replay of both cross-device directions, the overlapping concurrency fixture, revocation retry idempotency, and RPC ACL/locking contracts. |
+| `CONSENT-012` | First and later inference now require a freshly fetched adult/Terms/current granted Gemini-head proof for the active account. Exact handler-owned `403 ai_consent_required` closes an in-memory and durable per-account fence, preserves the queued observation/media in needs-attention, stops automatic inference retry, survives relaunch, and routes a completed user through authoritative restoration to Ready. Reapproval writes fresh evidence whose Gemini grant extends the post-rejection provider head; legacy-ledger decode and account switching remain isolated. | Exact-SHA clean-install first scan, forced missing-row rejection with zero provider/entitlement consumption, relaunch/media retention, fresh reapproval, same-scan retry success, and distinct `402`/`429` UI execution. |
 
 ### Superseded Fixed Test Defects
 
@@ -253,7 +269,16 @@ result become canonical only after both hosted gates pass on the same SHA.
    and another device grants before a delayed offline revocation reconnects. The
    grant must be rejected in the first sequence; the revocation must be accepted
    and rebased in the second, and every consumer must deny when that revocation
-   carries a prior disclosure version.
+   carries a prior disclosure version. On a clean install, also complete Ready
+   under a newly created anonymous account, retain proof that all three required
+   rows upload and refetch for that same account, and complete its first
+   ordinary scan with exactly one Identify/provider dispatch. Then force a
+   missing required row: require one `403 ai_consent_required`, zero automatic
+   redispatch and entitlement/Flash consumption, media retention across
+   relaunch, Ready routing, a fresh grant extending the post-rejection head, and
+   successful manual retry under the original scan ID. Exercise actual
+   `402 pro_required` and `429 ai_quota_daily_exceeded` separately and verify
+   neither enters consent recovery.
 7. Only then run the owner-only forward strict-cutover script and verify legacy,
    partial, revoked, and current-complete accounts against the deployed server.
 

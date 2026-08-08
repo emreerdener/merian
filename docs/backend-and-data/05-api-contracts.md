@@ -64,6 +64,27 @@ disclosure `2026-08-04.1` pass. This failure occurs at the common database quota
 boundary before provider dispatch; clients must return the user to the
 disclosure screen rather than retrying the same request in a loop.
 
+The `reserve_ai_quota` name does not classify its failures. Its consent helper
+runs before entitlement selection and provider-counter reservation, so this
+`403` does not mean the account has no scans left and must not consume an
+included Pro scan or daily Flash allowance. Provider-admission failures remain
+distinct:
+
+| HTTP | Code                            | Meaning and required client behavior |
+| ---: | ------------------------------- | ------------------------------------ |
+|  403 | `ai_consent_required`           | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent. |
+|  402 | `pro_required`                  | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path. |
+|  429 | `ai_quota_daily_exceeded`       | The applicable daily provider allowance is exhausted. Honor `Retry-After`; do not route to consent. |
+|  429 | `ai_user_rate_limit_exceeded`   | Temporary per-user request-rate protection. Use bounded retry. |
+|  429 | `ai_ip_rate_limit_exceeded`     | Temporary per-network request-rate protection. Use bounded retry. |
+
+Before constructing a first Identify request for a newly onboarded account, an
+iOS client must push pending adult, Terms, and Gemini evidence and verify a
+fresh read of those same account rows plus the provider-wide Gemini head. Local
+onboarding completion and persisted `syncedUserId` values are not API
+authorization. The failure and release proof are documented in the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
+
 ## Causal Consent Append RPC Contract
 
 The iOS client appends mutable provider permission only through these
@@ -1948,9 +1969,11 @@ body request ID takes precedence over the header. The iOS network layer
 preserves the same key across transient transport, auth-refresh,
 missing-session, and `5xx` retries.
 
-Before provider dispatch, `reserve_ai_quota` atomically verifies entitlement,
-selects the operation's database policy/model, and consumes daily/user/IP
-counters. Reusing a key for a `reserved` or `committed` attempt does not consume
+Before provider dispatch, `reserve_ai_quota` first verifies current account
+consent, then atomically verifies entitlement, selects the operation's database
+policy/model, and consumes daily/user/IP counters. A consent rejection creates
+no provider reservation or entitlement consumption. Reusing a key for a
+`reserved` or `committed` attempt does not consume
 or dispatch again: the API returns `409 ai_request_in_progress` or
 `409 ai_request_already_completed`. A previously explicit `refunded` key may be
 reserved again. `reserved` attempts carry a ten-minute lease; abandoned leases

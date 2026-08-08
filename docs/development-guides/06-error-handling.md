@@ -68,6 +68,38 @@ for the complete transition matrix and UI contract.
 
 ---
 
+## Inference Consent-Policy Errors
+
+`MerianError.aiConsentRequired` is a policy transition, not an ordinary
+network, entitlement, or retry-budget failure. It can arise either because the
+authoritative pre-dispatch cloud proof is absent or because a handler-owned
+response is exactly HTTP `403` with code `ai_consent_required`.
+
+- `MerianNetworkClient` performs the cloud proof before building an Identify
+  body. A first-time account must push pending adult, Terms, and Gemini evidence
+  and fetch those account rows plus the all-version Gemini head before its first
+  request.
+- Foreground and background paths durably fence only the active account,
+  invalidate its cloud-ready marker, and return a completed user to the Ready
+  disclosure after restoration resolves.
+- `OfflineQueueManager` keeps the observation and every media file, records
+  needs-attention with `ai_consent_required`, and returns without scheduling
+  automatic inference backoff. **Retry now** cannot be offered as though the
+  unchanged request could repair policy state.
+- Reapproval creates fresh evidence. The Gemini grant extends the provider head
+  fetched after rejection, and another authoritative fetch is required before
+  manual retry of the original scan ID.
+- A different `403` remains ordinary authorization/needs-attention.
+  `402 pro_required` uses the upgrade path, while
+  `429 ai_quota_daily_exceeded` and
+  rate-limit codes use their bounded delay paths. The substring `quota` in the
+  database RPC name is never a UI classifier.
+
+The complete evidence and release closure test are in the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
+
+---
+
 ## Inference Error Routing
 
 `InferenceEngine.analyze` handles errors in this priority order:
@@ -186,6 +218,7 @@ write.
 | Inference decoding failure (`MerianError.decodingFailed`)                                                                       | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result                                                                                                                                                                                                                                          |
 | Network timeout (Pro user)                                                                                                      | InsightSheet opens with a "Network timeout" placeholder, explains automatic retry/reconnect behavior, and suppresses non-biological collection/retention copy                                                                                                                                                             |
 | Network timeout (Free user)                                                                                                     | Paywall sheet presented via `TriggerPaywall` notification                                                                                                                                                                                                                                                                 |
+| Exact handler-owned `403 ai_consent_required` or missing authoritative pre-dispatch consent proof                               | Preserve the saved observation and media, stop automatic inference retry, durably route only the active account to Ready, collect fresh head-anchored approval, then retry the same scan ID after another authoritative fetch. This is not quota exhaustion and must not show the paywall or daily-limit UI.                 |
 | R2 upload failure (missing source file)                                                                                         | Queued scan remains visible with needs-attention copy plus retry/cancel actions                                                                                                                                                                                                                                           |
 | R2 upload transient failure                                                                                                     | Queued scan remains saved locally with persisted next retry time                                                                                                                                                                                                                                                          |
 | Automatic scan retry budget is exhausted                                                                                        | Pause in needs-attention. An explicit user retry resets the automatic count under the same scan UUID before the atomic claim path, including for description-only staged work; it never allocates a replacement observation UUID.                                                                                         |

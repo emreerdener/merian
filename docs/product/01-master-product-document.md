@@ -674,6 +674,23 @@ authenticated restoration, only a successful authoritative merge may establish
 absence and present the Ready consent screen; an authoritative no-session
 result may begin the local consent flow directly.
 
+For a first-time user, **Start scanning** records consent locally but does not
+make that local flag a provider credential. Before the first Identify request,
+Naturebook binds the evidence to the active anonymous Supabase account, uploads
+the current adult, Terms, and Gemini actions, and verifies those same account
+rows plus the all-version Gemini stream head in a fresh fetch. A failed or empty
+proof keeps provider work closed. The observation remains durable, but the UI
+must not leave it in an active-looking scanning loop with **Retry now**.
+
+An exact `403 ai_consent_required` from the provider-admission boundary is a
+required-disclosure transition, not quota exhaustion. Naturebook preserves the
+queued media, stops automatic inference retries, durably returns that account
+to Ready, and requires fresh head-anchored evidence before manual retry. A new
+account's included Pro scans and eligible daily Flash path are evaluated only
+after consent succeeds; their `402`/`429` outcomes retain separate upgrade and
+daily-limit experiences. See the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
+
 Photo-library and notification permissions are requested progressively at the
 point of need. Hardware initialization, provider work, and ordinary
 synchronization are gated until onboarding and current required consent are
@@ -1125,14 +1142,20 @@ percentage.
 
 Each release should exercise at minimum:
 
-1. New install through the four-step onboarding flow.
+1. New install through the four-step onboarding flow, followed by authoritative
+   upload/refetch of the new anonymous account's adult, Terms, and Gemini
+   evidence before its first Identify request.
 2. Completed-account cold launch with the local consent ledger absent: the
    neutral restoration surface must proceed directly to the scanner when the
    account restores current evidence, and to Ready only when evidence resolves
    absent. Network, decoding, pending consent upload, and persistence failures must
    retain the neutral retry surface; the approval screen must not flash during
    any pending path.
-3. Anonymous still scan, queued acceptance, identification, and Insight.
+3. Anonymous still scan, queued acceptance, exactly one first provider
+   dispatch, identification, and Insight. A forced missing-cloud-consent case
+   must instead preserve the same scan/media, issue no automatic redispatch or
+   entitlement consumption, route to Ready across relaunch, and succeed under
+   the same scan ID after fresh head-anchored approval.
 4. Offline submission, relaunch, and later synchronization.
 5. Online complimentary verification, three durable Pro results, fourth-scan
    Flash fallback, third-result persistence, stale-response rejection, and

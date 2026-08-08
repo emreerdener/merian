@@ -47,6 +47,23 @@ migration exists. The authoritative rollout procedure is
 - The paid **7 Day Pass**, annual subscription, product identifiers, and
   purchase copy are unchanged. A paid pass is not a complimentary credit.
 
+### Consent is not scan capacity
+
+Current adult, Terms, and Google Gemini evidence is a prerequisite to every
+provider-backed plan, including a new account's first included Pro or daily
+Flash scan. `internal.require_current_ai_consent(...)` runs inside
+`reserve_ai_quota(...)` before entitlement selection, credit holds, or provider
+counters. Its `403 ai_consent_required` result therefore means only that the
+active account cannot prove the required disclosure bundle; it is not a
+zero-balance state and consumes no included Pro or Flash allowance.
+
+Product, support, telemetry, and client routing must use stable error codes
+rather than interpreting the RPC name. Actual capability exhaustion uses
+`402 pro_required`; daily provider exhaustion uses
+`429 ai_quota_daily_exceeded`. A newly onboarded account must upload and refetch
+its account-owned consent evidence before its first Identify request. See the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
+
 The plan values have distinct meanings:
 
 | Plan                | Current use                                                                                                |
@@ -99,13 +116,15 @@ accepts the original analysis UUID, server-derived Flash-fallback eligibility,
 client protocol, and an authenticated-internal-replay flag. It performs the
 following transactionally:
 
-1. Lock `public.users` for the authenticated owner.
-2. Read the rollout fence and resolve active paid state.
-3. Reuse the exact classification and ledger linkage of an active idempotent
+1. Authenticate the service-only caller and require the active account's
+   current adult, Terms, and all-version Gemini-head grant.
+2. Lock `public.users` for the authenticated owner.
+3. Read the rollout fence and resolve active paid state.
+4. Reuse the exact classification and ledger linkage of an active idempotent
    reservation, if one exists.
-4. Otherwise resolve paid Pro, legacy behavior, an existing analysis hold, a
+5. Otherwise resolve paid Pro, legacy behavior, an existing analysis hold, a
    newly acquired complimentary hold, or eligible Flash fallback—in that order.
-5. Select the database-owned policy/model and reserve the independent
+6. Select the database-owned policy/model and reserve the independent
    UTC-day/user/IP provider counters.
 
 The global database lock order begins with the user row, followed by quota,

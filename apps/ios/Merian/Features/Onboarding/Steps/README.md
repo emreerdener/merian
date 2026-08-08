@@ -15,7 +15,10 @@ The `Steps` directory contains the individual, user-facing screens that make up 
   Settings** contains the usage/diagnostics choice. Only the two required
   switches gate **Start scanning**. Completion first appends exact, versioned
   adult, Terms, Gemini, and optional analytics evidence locally, then
-  synchronizes immutable rows to the active Supabase account. Existing beta
+  synchronizes immutable rows to the active Supabase account. Before the first
+  Identify request, the app must fetch back the same account's current adult and
+  Terms rows plus its granted all-version Gemini stream head; the local
+  completion flag is not provider authorization. Existing beta
   users route directly here without repeating Camera or Location only after
   the initial session establishes no active account or an authenticated,
   identity-fenced merge establishes that current required account evidence is
@@ -45,6 +48,13 @@ builds may continue; same-SHA hosted iOS/Supabase validation, counsel approval,
 and operator evidence still block public production. The
 canonical status and exit evidence are recorded in
 [Production Consent Readiness](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
+
+An exact provider-admission `403 ai_consent_required` is not a no-scans-left
+state. It durably returns only the affected completed account to this Ready
+step, preserves the queued observation and media, and stops automatic inference
+retry. Reapproval creates fresh evidence whose Gemini grant extends the
+provider head fetched after rejection; another authoritative fetch is required
+before the original scan ID may retry.
 
 ## Purpose
 This area houses the actual UI that the user interacts with during their first launch. Each step is designed to be a standalone view that communicates its specific purpose clearly, relying on the `Shell` to handle the transition between them.

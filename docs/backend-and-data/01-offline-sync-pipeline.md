@@ -932,8 +932,12 @@ evidence. That outcome preserves the local queue row and enters the normal
 durable retry path. Handler-owned `401`, `408`, `425`, and `429` responses do
 the same; the four exact Identify replay conflicts remain retryable as a
 rolling-deployment safety net. `Retry-After` can raise the bounded persisted
-delay. Other handler-owned `4xx` responses retain the media in a user-actionable
-failed row. Only an exact stable `observation_rejected` response is a
+delay. Exact handler-owned `403 ai_consent_required` is classified before the
+generic `4xx` branch: it retains the row/media in user-actionable
+needs-attention, invokes the durable account-scoped consent fence, and returns
+without an automatic inference retry. Other handler-owned `4xx` responses
+retain the media in a user-actionable failed row. Only an exact stable
+`observation_rejected` response is a
 non-actionable terminal policy outcome.
 
 **Server idempotency**: The iOS client passes its local `scanId` as
@@ -1045,8 +1049,10 @@ the latch without waiting for a URLSession delegate callback.
     the `identify` Edge function for transient Gemini errors (including non-STOP
     finish reasons) falls into this category — the scan is retained for retry
     rather than tombstoned while retry budget remains.
-  - **HTTP 401 / 403 and other permanent 4xx**: mark `queueNeedsAttention`. The
-    user media is not silently deleted after a fixed retry count.
+  - **HTTP 401 / 403 and other permanent upload 4xx**: mark
+    `queueNeedsAttention`. The user media is not silently deleted after a fixed
+    retry count. Inference response handling separately recognizes exact
+    `403 ai_consent_required` as the no-auto-retry disclosure transition.
   - **HTTP 200**: Evaluates the image against `session.allTasks` to ensure it is
     the _final_ chunk completing, then calls `dispatchInferenceDownloadTask()`.
 
@@ -1173,8 +1179,11 @@ the latch without waiting for a URLSession delegate callback.
   the maximum five-minute wait, so clock skew or an expired lease cannot stall
   recovery. HTTP `401`, `408`, `409`, `425`, and `429` are retryable; a safe
   integer `Retry-After` raises the persisted delay up to the queue maximum.
-  Other handler-owned `4xx` responses preserve local media in
-  `queueNeedsAttention`, while exact `observation_rejected` is terminal.
+  Exact `403 ai_consent_required` preserves local media in
+  `queueNeedsAttention`, durably closes the active account's consent gate, and
+  schedules no automatic inference retry. Other handler-owned `4xx` responses
+  preserve local media in `queueNeedsAttention`, while exact
+  `observation_rejected` is terminal.
   Server-ledger terminal failure marks the queue row as needing attention.
   Unresolved `not_found` responses or status-probe failures fall back to the
   same persisted retry budget

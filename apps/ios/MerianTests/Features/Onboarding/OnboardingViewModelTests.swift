@@ -1046,6 +1046,99 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(newAIGrant.causalParentId, aiGrant.id)
     }
 
+    func testServerConsentReapprovalFenceDoesNotCrossAccounts() throws {
+        let rejectedUserId = UUID()
+        let unaffectedUserId = UUID()
+        let recordedAt = Date(timeIntervalSince1970: 1_786_100_000)
+        let rejectedAdultReceipt = makeAdultReceipt(
+            ownerUserId: rejectedUserId,
+            recordedAt: recordedAt
+        )
+        let rejectedTermsReceipt = makeTermsReceipt(
+            ownerUserId: rejectedUserId,
+            recordedAt: recordedAt
+        )
+        let rejectedAIGrant = makeAIConsentEvent(
+            ownerUserId: rejectedUserId,
+            recordedAt: recordedAt,
+            consentRevision: 12
+        )
+        let unaffectedAdultReceipt = makeAdultReceipt(
+            ownerUserId: unaffectedUserId,
+            recordedAt: recordedAt
+        )
+        let unaffectedTermsReceipt = makeTermsReceipt(
+            ownerUserId: unaffectedUserId,
+            recordedAt: recordedAt
+        )
+        let unaffectedAIGrant = makeAIConsentEvent(
+            ownerUserId: unaffectedUserId,
+            recordedAt: recordedAt,
+            consentRevision: 13
+        )
+        let store = FaultInjectingConsentLedgerStore()
+        store.ledgerData = try JSONEncoder().encode(
+            ConsentManager.LocalLedger(
+                activeUserId: rejectedUserId,
+                termsReceipts: [
+                    rejectedTermsReceipt,
+                    unaffectedTermsReceipt
+                ],
+                aiConsentEvents: [rejectedAIGrant, unaffectedAIGrant],
+                adultEligibilityReceipts: [
+                    rejectedAdultReceipt,
+                    unaffectedAdultReceipt
+                ],
+                analyticsConsentEvents: []
+            )
+        )
+        let rejectedManager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { rejectedUserId },
+            analyticsPermissionApplier: { _, _ in }
+        )
+        rejectedManager.observeSession(userId: rejectedUserId)
+
+        XCTAssertTrue(
+            try rejectedManager
+                .requireCurrentConsentReapprovalAfterServerRejection()
+        )
+        XCTAssertFalse(rejectedManager.hasCurrentRequiredConsent)
+
+        let unaffectedManager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { unaffectedUserId },
+            analyticsPermissionApplier: { _, _ in }
+        )
+        unaffectedManager.observeSession(userId: unaffectedUserId)
+        try unaffectedManager.merge(
+            ConsentManager.RemoteState(
+                adultEligibilityReceipt: unaffectedAdultReceipt,
+                termsReceipt: unaffectedTermsReceipt,
+                aiConsentEvent: unaffectedAIGrant,
+                analyticsConsentEvent: nil,
+                aiConsentStreamHead: unaffectedAIGrant,
+                analyticsConsentStreamHead: nil
+            ),
+            for: unaffectedUserId,
+            generation: 1
+        )
+
+        XCTAssertTrue(unaffectedManager.hasCurrentRequiredConsent)
+        XCTAssertEqual(
+            unaffectedManager.requiredConsentRestorationState,
+            .resolved
+        )
+        let persistedLedger = try JSONDecoder().decode(
+            ConsentManager.LocalLedger.self,
+            from: try XCTUnwrap(store.ledgerData)
+        )
+        XCTAssertEqual(
+            persistedLedger.requiredConsentReapprovalUserIds,
+            [rejectedUserId]
+        )
+    }
+
     func testRequiredConsentCloudProofUsesFetchedProviderStreamHead() {
         let ownerUserId = UUID()
         let recordedAt = Date(timeIntervalSince1970: 1_786_100_000)
@@ -1075,6 +1168,12 @@ final class OnboardingViewModelTests: XCTestCase {
             ConsentManager.isAuthoritativeRequiredConsent(
                 completeState,
                 for: ownerUserId
+            )
+        )
+        XCTAssertFalse(
+            ConsentManager.isAuthoritativeRequiredConsent(
+                completeState,
+                for: UUID()
             )
         )
         XCTAssertFalse(

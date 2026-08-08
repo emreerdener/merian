@@ -768,6 +768,18 @@ MerianTests/
   mapping, and head-before-rollout source contract; and
   `SupabaseManagerTests` proves both iOS gates remain closed after merge and
   restart when an older-disclosure revocation owns the greater revision.
+  Release closure additionally requires one exact-SHA new-install transaction:
+  complete Ready under a new anonymous account, observe all three required rows
+  upload and refetch for that same account, then complete the first ordinary
+  scan with exactly one Identify/provider dispatch. A forced missing-row variant
+  must return `403 ai_consent_required`, preserve scan/media across relaunch,
+  consume no included-Pro or daily-Flash allowance, schedule no automatic
+  inference retry, and succeed under the original scan ID only after fresh
+  head-anchored approval. Run a real `402 pro_required` and
+  `429 ai_quota_daily_exceeded` case separately to prove neither enters consent
+  recovery. Source type-checking or an injected network-unit test cannot replace
+  this account/Edge/database/device evidence. See the
+  [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
   math updates against user local scores so UI progression trackers do not skew
   unexpectedly.
@@ -1000,8 +1012,11 @@ MerianTests/
   otherwise valid empty thread from the wrong subject. Send cases additionally
   reject an incomplete or mismatched `client_message_id` pair, padded/empty or
   over-4,000-character message text, and a JSON body over 1 MiB; manual retry
-  retains the failed send UUID. Backend source/helper tests lock bounded
-  same-UUID quota replay coalescing. Action-response cases reject
+  retains the failed send UUID. The foreground identify boundary also proves an
+  exact handler-owned `403 ai_consent_required` becomes
+  `MerianError.aiConsentRequired`, so the app can enter disclosure recovery
+  instead of exposing a generic HTTP retry. Backend source/helper tests lock
+  bounded same-UUID quota replay coalescing. Action-response cases reject
   false/mismatched answer and feature feedback, empty or internal-ID-leaking
   note summaries, and malformed, duplicate, unsafe, oversized, or
   unknown-category prompt suggestions. Safety fixtures distinguish direct action
@@ -1087,6 +1102,11 @@ MerianTests/
   - **Durable retry backoff math**: Asserts `OfflineQueueRetryPolicy` floors
     short retries, clamps long retries to `maximumRetryDelay`, and stops
     scheduling automatic work once `maximumAutomaticRetryAttempts` is exhausted.
+  - **Consent-policy response classification**: Asserts an exact
+    `403 ai_consent_required` becomes `.consentRequired`, while another `403`
+    remains `.needsAttention`. This keeps the policy transition out of automatic
+    inference backoff while the queued media remains available for explicit
+    recovery.
   - **Description-only manual retry
     (`testManualRetryResetsBudgetForDescriptionOnlyScan`)**: Starting from a
     needs-attention staged observation and scan job at the automatic limit,
@@ -1349,6 +1369,11 @@ actual import, and permission-denial UI require the physical-device checklist in
   bounded, duplicate auth preserves that budget, stale account retries are
   rejected, and generation invalidation cannot orphan a canceled waiting state.
   It also verifies a resolved same-account session cannot re-enter restoration.
+  Server-rejection cases additionally lock authoritative cloud-head proof,
+  durable relaunch routing to `.ready`, fresh head-anchored evidence, legacy
+  ledger decoding, and per-account fence isolation across restart and account
+  switch. These are deterministic boundary regressions; they do not claim the
+  exact-SHA new-account release transaction described above has run.
   Every throwing assertion must be declared correctly so this file cannot
   prevent the entire unit target from compiling.
 - **`SupabaseManagerTests.swift` auth-adoption coverage**: Locks the three cold-

@@ -61,6 +61,15 @@ This presentation policy does not weaken the phase contract below. Hardware,
 provider requests, ordinary sync, and queued work still require both completed
 onboarding and current required consent.
 
+The phase gate is local and intentionally not the final provider authority.
+Before the first or any later Identify request is built,
+`ConsentManager.ensureCloudConsentForInference()` pushes pending account
+evidence and requires a fresh remote adult/Terms/Gemini-head proof. Exact
+`403 ai_consent_required` durably closes only the affected account, preserves
+queued media, stops automatic inference retry, and returns the root through
+restoration to Ready. It is not a quota-exhaustion transition and does not run
+the paywall or daily-limit lifecycle path.
+
 ---
 
 ### `handleActivePhase()`

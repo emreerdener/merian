@@ -1126,16 +1126,23 @@ insight sheet display.
   current multimodal observation: the route cannot return success until the
   owner row exists. Analytics, group tags, and candidate enrichment remain
   optional `EdgeRuntime.waitUntil` work.
-- **Atomic critical-path entitlement reservation**: One service-role RPC locks
-  the user before quota or ledger rows, resolves `pro_paid`,
-  `pro_complimentary`, or `free`, acquires an idempotent hold keyed by
-  `(user_id, client_scan_id)`, selects the operation's allowlisted model, and
-  conditionally consumes UTC-day/user/IP provider counters. Retries, internal
+- **Atomic critical-path consent and entitlement reservation**: Before iOS
+  constructs a provider request, it pushes pending account consent and requires
+  a fresh adult/Terms/all-version-Gemini-head proof. The service-role RPC repeats
+  that consent decision before creating any reservation. Only then does it lock
+  the user before quota or ledger rows, resolve `pro_paid`,
+  `pro_complimentary`, or `free`, acquire an idempotent hold keyed by
+  `(user_id, client_scan_id)`, select the operation's allowlisted model, and
+  conditionally consume UTC-day/user/IP provider counters. Retries, internal
   replay, enrichment, chat, and subcalls retain the original analysis linkage
   without acquiring another credit. Each provider attempt has a ten-minute
   lease and UUID fencing token. Active timed passes are paid Pro; stale expired
   profiles resolve free. Missing/malformed user rows and database errors fail
-  closed.
+  closed. `403 ai_consent_required` therefore consumes no entitlement or
+  provider quota and is routed to durable disclosure recovery, while `402` and
+  `429` retain entitlement and quota semantics. The first-user failure and
+  exact-SHA closure test are recorded in the
+  [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 - **No isolate-local entitlement authority**: RevenueCat tier changes advance a
   durable version in the same row update. Every provider reservation reads that
   database state, so another Edge isolate cannot retain stale Pro access.

@@ -4867,8 +4867,8 @@ and denies a missing or revoked head before reading rollout configuration. Edge
 PostHog and iOS apply the same provider-head-first rule; only the exact head
 grant may be checked against current disclosure compatibility.
 
-> **Repository production hold (August 4, 2026):** `CONSENT-001` through
-> `CONSENT-011` are closed in source in the
+> **Repository production hold (August 7, 2026):** `CONSENT-001` through
+> `CONSENT-012` are closed in source in the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 > Internal test builds may continue. Do not nominate a public-production
 > candidate or run strict cutover until the exact candidate SHA passes the
@@ -4923,7 +4923,15 @@ grant may be checked against current disclosure compatibility.
    required; analytics is optional and never blocks scanning. Exercise the
    inline Terms link, VoiceOver labels and hints,
    every supported Dynamic Type size, and the smallest supported iPhone in both
-   orientations.
+   orientations. On a clean install, create a new anonymous account, complete
+   Ready, and retain evidence that its adult, Terms, and Gemini rows upload and
+   refetch before the first Identify request. Its first ordinary scan must issue
+   exactly one provider call and save a usable result. Then force one required
+   row missing and require exact `403 ai_consent_required`, zero automatic
+   redispatch and included-Pro/daily-Flash consumption, media retention across
+   relaunch, Ready routing, fresh head-anchored approval, and successful retry
+   under the original scan ID. See the
+   [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 6. Verify adult and Terms actions create immutable owner receipts, while Gemini
    and optional analytics actions create immutable causally linked rows with
    increasing server revisions and the accepted parent returned by the RPC.
@@ -4940,6 +4948,10 @@ grant may be checked against current disclosure compatibility.
    Gemini provider call occurs without
    all current required evidence; and no iOS or Edge PostHog request occurs
    unless the provider-wide head itself is a current-disclosure grant. Verify
+   the consent rejection creates no quota reservation or entitlement hold and
+   is never displayed as no scans left. Exercise real `402 pro_required` and
+   `429 ai_quota_daily_exceeded` responses separately and verify they retain
+   upgrade and daily-limit handling instead of entering consent recovery. Verify
    Settings withdrawal is immediate,
    account-wide, and leaves core functionality unchanged.
 7. As database owner, run

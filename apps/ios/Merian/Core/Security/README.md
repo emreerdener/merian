@@ -79,6 +79,14 @@ remote URLs before network/media frameworks see them. See the
   installation and reconciles the SDK's actual session before a
   current-disclosure grant at the all-version head may reopen capture. The
   database quota boundary remains the authoritative provider-dispatch gate.
+  When that boundary returns exact `403 ai_consent_required`, the manager
+  immediately closes its process-local cloud-ready gate and durably fences only
+  the active account. A completed user routes through authoritative restoration
+  to Ready across relaunch. Reapproval writes new adult, Terms, and Gemini
+  evidence; the Gemini action extends the provider head fetched after rejection,
+  and another authoritative merge is required before inference. A legacy ledger
+  without the fence decodes as unfenced, and account switching cannot inherit
+  another user's marker.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor
   connectivity into continuous foreground retries.

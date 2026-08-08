@@ -72,6 +72,24 @@ are durably released; ambiguous delivery stays reserved, and manual retry of
 released work must make a fresh funding claim. See
 [Three Complimentary Pro Scans](../../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
+## First-scan consent boundary
+
+A new account's first ordinary scan is not supposed to enter a no-scans-left
+state. Consent is checked before the separate paid Pro → included Pro → daily
+Flash admission order. Before Capture can construct the first Identify request,
+the client uploads pending adult, Terms, and Gemini evidence for the active
+anonymous account and verifies those rows plus the all-version Gemini head in a
+fresh fetch.
+
+If that proof is absent—or the handler returns exact
+`403 ai_consent_required`—the observation remains durable with all media, but
+automatic inference stops. The affected account returns to Ready for fresh
+head-anchored approval; the original scan ID may be retried only after another
+authoritative fetch. Capture must not show the paywall, daily-limit copy, or an
+unchanged **Retry now** loop for this code. The full incident and release test
+are documented in the
+[first-scan consent-policy incident](../../../../../../docs/incidents/2026-08-first-scan-consent-policy-retry-loop.md).
+
 ## Field Trip Goal Preference
 
 `CaptureGoalPreferencePolicy` may snapshot the visibly selected standard goal

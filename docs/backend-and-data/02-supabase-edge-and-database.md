@@ -155,9 +155,11 @@ Several utilities are shared across all Edge Functions via
   read assistant rows in `insight_chat_messages`.
 - **`aiQuota.ts`**: The paid-provider boundary. It validates UUID idempotency
   keys, derives a daily-rotating HMAC of the proxy-observed address, and calls
-  the service-only `reserve_ai_quota` RPC. That atomic transaction resolves the
-  durable plan, selects the allowlisted model, and consumes daily/user/IP
-  counters before Edge provider dispatch. A provider attempt is committed;
+  the service-only `reserve_ai_quota` RPC. The RPC first requires current adult,
+  Terms, and all-version Gemini-head consent for the active account. Only then
+  does its atomic transaction resolve the durable plan, select the allowlisted
+  model, and consume daily/user/IP counters before Edge provider dispatch. A
+  provider attempt is committed;
   provider failure remains charged but becomes retryable, abandoned pre-provider
   leases expire, and only a verified pre-provider no-op is refunded.
   `_shared/groupTagQuota.ts` applies this boundary to optional group-tag
@@ -237,7 +239,13 @@ cutover. After old
 builds are expired, `services/supabase/scripts/cutover_strict_ai_consent.sql`
 makes current evidence mandatory. Missing, partial, stale, or revoked evidence
 raises `ai_consent_required`; `_shared/aiQuota.ts` maps it to a caller-safe HTTP
-403.
+403. That code is a disclosure-policy transition, not quota exhaustion: it is
+raised before entitlement selection, creates no provider reservation or
+included-Pro hold, and consumes no daily Flash allowance. A first-time client's
+local onboarding flag or persisted sync marker is never server authorization;
+the same account rows must be uploaded and fetched authoritatively before its
+first provider request. See the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 In one transaction the reservation then:
 
 1. Locks the authenticated user's row first, reads durable paid state and the

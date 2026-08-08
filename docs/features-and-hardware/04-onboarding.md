@@ -9,9 +9,10 @@ and the three-part required completion gate.
 
 > [!WARNING]
 > **Release status:** the internal-testing screen and evidence model are
-> implemented. `CONSENT-001` through `CONSENT-011` are closed in source,
+> implemented. `CONSENT-001` through `CONSENT-012` are closed in source,
 > including the local-ledger handoff, PostHog withdrawal, account restoration,
-> final synchronization merge fence, Realtime, and OAuth lifecycle findings.
+> final synchronization merge fence, Realtime, OAuth lifecycle, and first-scan
+> consent-policy recovery findings.
 > Same-SHA hosted iOS and validation-only Supabase evidence, counsel approval,
 > and operator evidence still block production. Treat the
 > guarantees below as required invariants until every item in the
@@ -280,6 +281,24 @@ account, the matching synchronous Supabase SDK session, and the same
 synchronization generation. An old-account fetch that returns late therefore
 cannot change the active ledger or reopen analytics.
 
+### Brand-new first scan and policy recovery
+
+A first-time user does not receive an implicit consent exception. Selecting
+**Start scanning** durably records the local action and opens the workspace only
+while the required local gate is complete. Before that user's first provider
+request, the client must bind any unowned evidence to the active anonymous
+Supabase account, push the pending rows, fetch them back, and verify the
+all-version Gemini provider head. The first scan waits for this synchronization;
+an onboarding-complete preference or locally cached synchronization marker is
+not sufficient.
+
+This prerequisite is independent of scan entitlement. Although the database
+function is named `reserve_ai_quota`, `403 ai_consent_required` is not a
+no-scans-left outcome and does not mean an included Pro scan or daily Flash
+allowance was exhausted. Entitlement outcomes use their own `402`/`429` stable
+codes and existing upgrade or daily-limit experiences. Support and UI routing
+must classify the stable code rather than the RPC name.
+
 Before any identification provider request is constructed or dispatched,
 `MerianNetworkClient` calls `ensureCloudConsentForInference()`. That method
 requires the current local adult, Terms, and Gemini versions, creates or
@@ -325,6 +344,10 @@ Before OAuth installs a session that can replace the current account, the app
 synchronously suppresses analytics and stops consent Realtime. It reconciles
 the SDK's actual session on success or failure, and only the newest overlapping
 transition may reopen analytics for a currently granted account.
+
+The sanitized evidence, root cause, release status, and exact-SHA first-user
+closure test are retained in the
+[first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 
 ---
 

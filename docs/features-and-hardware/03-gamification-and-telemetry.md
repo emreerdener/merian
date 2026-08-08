@@ -127,7 +127,9 @@ account-wide permission boundary:
 > OAuth account-replacement findings tracked as `CONSENT-004` through
 > `CONSENT-007`, plus the verified local-ledger and withdrawal-journal boundary
 > tracked as `CONSENT-010` and the causal cross-device ordering boundary tracked
-> as `CONSENT-011`. All findings through `CONSENT-011` are closed in source.
+> as `CONSENT-011`. The adjacent first-scan Gemini consent-policy recovery is
+> tracked as `CONSENT-012`. All findings through `CONSENT-012` are closed in
+> source.
 > Internal test builds may continue. Public production remains blocked by
 > same-SHA hosted iOS/Supabase validation and the external controls in the
 > [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
